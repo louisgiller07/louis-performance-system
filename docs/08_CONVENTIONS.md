@@ -11,35 +11,37 @@ Ne jamais épingler une version obsolète. Utiliser `@latest` à l'installation,
 
 ## Structure du repo
 
+```
 louis-performance-system/
 ├── CLAUDE.md
 ├── README.md
 ├── docs/
-│ ├── 00_PROJECT_STATUS.md
-│ ├── 01_PRODUCT_REQUIREMENTS.md
-│ ├── 02_ATHLETE_PROFILE.md
-│ ├── 03_COACHING_MODEL.md
-│ ├── 04_DAILY_DECISION_ENGINE.md
-│ ├── 05_DATA_MODEL.md
-│ ├── 06_ARCHITECTURE.md
-│ ├── 07_GLOSSARY.md
-│ ├── 08_CONVENTIONS.md
-│ ├── 10_TEST_PLAN.md
-│ ├── 11_DECISION_LOG.md
-│ └── 12_BACKLOG.md
+│   ├── 00_PROJECT_STATUS.md
+│   ├── 01_PRODUCT_REQUIREMENTS.md
+│   ├── 02_ATHLETE_PROFILE.md
+│   ├── 03_COACHING_MODEL.md
+│   ├── 04_DAILY_DECISION_ENGINE.md
+│   ├── 05_DATA_MODEL.md
+│   ├── 06_ARCHITECTURE.md
+│   ├── 07_GLOSSARY.md
+│   ├── 08_CONVENTIONS.md
+│   ├── 10_TEST_PLAN.md
+│   ├── 11_DECISION_LOG.md
+│   └── 12_BACKLOG.md
 └── head-coach-engine/
-├── src/
-│ ├── types/
-│ ├── engine/
-│ ├── rules/
-│ ├── domains/
-│ └── cli/
-├── tests/
-├── fixtures/
-├── package.json
-├── tsconfig.json
-└── tsconfig.build.json
-
+    ├── src/
+    │   ├── types/
+    │   ├── engine/
+    │   ├── rules/
+    │   ├── domains/
+    │   ├── mapping/
+    │   └── cli/
+    ├── tests/
+    ├── fixtures/
+    ├── package.json
+    ├── tsconfig.json
+    └── tsconfig.build.json
+```
 
 ## TypeScript
 
@@ -92,6 +94,7 @@ Deux fichiers :
 - `engine/` — orchestration, calcul d'état, assembleur `DailyPlan`
 - `rules/` — couches A (safety), B (modes, race protocol)
 - `domains/` — couches C par domaine (training, recovery, mental, nutrition, etc.)
+- `mapping/` — mapping `TrainingIntervention` ↔ `DbSessionType`
 - `cli/` — commandes de démonstration locale
 - `tests/` — tests unitaires et d'intégration
 - `fixtures/` — données de test réalistes (Louis)
@@ -100,7 +103,7 @@ Deux fichiers :
 
 Chaque règle, chaque calcul de dimension, chaque décision de domaine est **une fonction pure** : entrée + état → sortie sans effet de bord.
 
-La `CausalTrace` est mutable et passée en argument — c'est la seule exception documentée.
+La trace des signaux consommés est mutable et passée en argument — c'est la seule exception documentée (l'implémentation exacte reste au choix de Claude Code).
 
 ## Tests
 
@@ -162,14 +165,14 @@ Ne pas mélanger `refactor` + `feat` dans le même commit. Splitter.
 - Éviter les commentaires évidents
 - Documenter le **pourquoi**, pas le **quoi**
 - Marquer explicitement `PROVISIONAL` les seuils numériques non calibrés :
-```typescript
+  ```typescript
   // PROVISIONAL — baseline initiale, à individualiser avec les données Louis
   const SLEEP_TARGET_HOURS = 8;
-```
+  ```
 - Marquer explicitement les hypothèses de coaching en couche C :
-```typescript
+  ```typescript
   // Coaching Heuristic C4.1 — cible sommeil PROVISIONAL
-```
+  ```
 
 ### JSDoc
 

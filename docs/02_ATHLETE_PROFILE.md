@@ -78,19 +78,6 @@ La disponibilité hebdomadaire précise est stockée par semaine dans Supabase t
 - **TPI (examen d'apprentissage) juin 2027** : 2 semaines à disponibilité fortement réduite. Date exacte À VÉRIFIER.
 - **10 semaines de cours à partir de février 2027** : dates exactes À VÉRIFIER.
 
-### Disponibilité hebdomadaire
-
-- **Lundi à jeudi** : soirée disponible à partir de ~17h30, jusqu'à ~22h30
-- **Vendredi PM** :
-  - Semaine en entreprise : libre
-  - Semaine en cours (~10 sur ~52 semaines) : travaillé jusqu'à 17h
-- **Samedi et dimanche** : disponibilité complète
-
-### Contraintes 2027 identifiées
-
-- **TPI (examen d'apprentissage) juin 2027** : 2 semaines à disponibilité fortement réduite. Date exacte `UNKNOWN`.
-- **10 semaines de cours à partir de février 2027**, dates exactes `UNKNOWN`.
-
 ---
 
 ## 3. Historique médical et santé
@@ -123,11 +110,14 @@ La disponibilité hebdomadaire précise est stockée par semaine dans Supabase t
 Deux fractures du membre supérieur en 2 ans (pouce + scaphoïde). Bien qu'aucune séquelle ne soit déclarée, le moteur applique une vigilance renforcée sur les zones poignet/main/pouce/avant-bras.
 
 Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Voir `03_COACHING_MODEL.md` et `04_DAILY_DECISION_ENGINE.md`.
+
 ---
 
 ## 4. Historique physique et niveau actuel
 
 ### 4.1 Musculation (Faits)
+
+**Source** : Onboarding bloc 3
 
 | Champ | Valeur |
 |---|---|
@@ -139,7 +129,9 @@ Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Vo
 
 **Split réel récent (4 dernières semaines)** : Lun muscu haut / Mar muscu jambes / Mer pumptrack / Jeu **repos** (au lieu de cardio) / Ven DH léger / Sam DH intense / Dim DH fun + 1-2 runs full
 
-### 4.2 Baseline force au 11.08.2026 (Faits — stockés dans `athlete_baselines`)
+### 4.2 Baseline force au 11.08.2026 (Faits)
+
+**Source** : Onboarding bloc 3 + Supabase `athlete_baselines`
 
 | Mesure | Valeur | Contexte |
 |---|---|---|
@@ -152,6 +144,8 @@ Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Vo
 
 ### 4.3 Baseline cardio
 
+**Source** : Onboarding bloc 7
+
 | Champ | Valeur | Statut |
 |---|---|---|
 | FTP (puissance seuil vélo) | Inconnu | UNKNOWN — test prévu inter-saison |
@@ -160,6 +154,8 @@ Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Vo
 | Volume cardio récent | 0-1 séance/semaine | Fait |
 
 ### 4.4 Réactivité à l'entraînement (Déclarations Louis)
+
+**Source** : Onboarding bloc 3
 
 | Métrique | Valeur déclarée |
 |---|---|
@@ -173,6 +169,8 @@ Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Vo
 ---
 
 ## 5. Matériel d'entraînement (Faits)
+
+**Source** : Onboarding bloc 4
 
 ### Home gym (0 min de trajet, accès libre 24/7)
 
@@ -200,6 +198,8 @@ Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Vo
 ---
 
 ## 6. Sommeil, récupération, nutrition (Faits)
+
+**Source** : Onboarding bloc 6
 
 ### 6.1 Sommeil
 
@@ -238,9 +238,7 @@ Cette vigilance est une **hypothèse de coaching**, pas une règle médicale. Vo
 
 **Douleur avant-bras / main sur volume DH cumulé** — spécifiquement course iXS 3 jours (trackwalk vendredi + entraînement/quali samedi + entraînement/finale dimanche).
 
-### 6.5 Test actif — coupure liquides 21h
-
-Louis teste depuis le 11.08.2026 : coupure des liquides à 21h + arrêt Red Bull, pour observer effet sur les réveils nocturnes. Résultat à évaluer après plusieurs semaines de données.
+---
 
 ## 6bis. Experiments actifs
 
@@ -260,6 +258,8 @@ Cette expérimentation influence le moteur tant que son statut est `active`. Apr
 ---
 
 ## 7. Profil technique DH
+
+**Source** : Onboarding bloc 8
 
 ### 7.1 Forces techniques (Déclarations Louis)
 
@@ -285,11 +285,13 @@ Correspond au profil du pilote bikepark rapide sur pistes travaillées.
 
 **Wiriehorn (Coupe Suisse)** : run où tout s'alignait mentalement. Dérailleur cassé → chrono impacté par la mécanique, pas par la performance mentale ou technique.
 
-Utilisation dans le moteur : cue de départ "Comme à Wiriehorn" pour les courses A/A+.
+Utilisation dans le moteur : cue de départ "Comme à Wiriehorn" pour les courses A/A+ (hypothèse actuelle, révisable — voir `03_COACHING_MODEL.md` C2.1).
 
 ---
 
 ## 8. Mental et comportement en course (Déclarations Louis)
+
+**Source** : Onboarding bloc 8
 
 | Moment | État |
 |---|---|
@@ -315,6 +317,8 @@ Utilisation dans le moteur : cue de départ "Comme à Wiriehorn" pour les course
 
 ## 9. Spots d'entraînement accessibles (Faits)
 
+**Source** : Onboarding bloc 9
+
 ### Bikeparks
 
 | Spot | Trajet | Coût marginal | Notes |
@@ -339,6 +343,8 @@ Utilisation dans le moteur : cue de départ "Comme à Wiriehorn" pour les course
 
 ## 10. Matériel vélo (Faits)
 
+**Source** : Onboarding bloc 4
+
 ### Vélo DH principal
 
 | Élément | Détail |
@@ -360,11 +366,15 @@ Utilisation dans le moteur : cue de départ "Comme à Wiriehorn" pour les course
 
 Louis gère 100% de son setup vélo en autonomie. **Le Head Coach ne fait aucune recommandation setup, ne stocke aucune donnée de setup, ne pose aucune question de suivi setup.** Ce périmètre est explicitement exclu du système.
 
+Les événements mécaniques (crevaison, dérailleur cassé, frein défaillant) peuvent être loggés comme contexte de session/course afin d'éviter d'attribuer un mauvais chrono au physique ou au mental à tort.
+
 ---
 
 ## 11. Calendrier compétitif
 
-### 11.1 Courses restantes 2026 (Faits — stockés dans `race_calendar`)
+### 11.1 Courses restantes 2026 (Faits)
+
+**Source** : Supabase `race_calendar`
 
 | Course | Série | Dates | Priorité | Format |
 |---|---|---|---|---|
@@ -376,6 +386,8 @@ Louis gère 100% de son setup vélo en autonomie. **Le Head Coach ne fait aucune
 Maribor iXS EDC (25-27 sept 2026) : **retirée** (conflit St-Luc).
 
 ### 11.2 Objectifs saison 2027 (Déclarations Louis)
+
+**Source** : Onboarding bloc 10
 
 | Objectif | Cible déclarée réaliste | Cible stretch |
 |---|---|---|
@@ -413,6 +425,7 @@ Ordre de priorité **provisoire**, à confirmer selon retours saison 2026 et év
 
 Champs à compléter ou confirmer progressivement :
 
+- Adresse précise (code postal 1609 déclaré, rue à confirmer)
 - Type de deadlift habituel (classique vs roumain)
 - FTP (test cyclisme)
 - FC max réelle
@@ -421,6 +434,7 @@ Champs à compléter ou confirmer progressivement :
 - Calendrier Hot Trail Series 2027 confirmé
 - Calendrier iXS EDC 2027 confirmé
 - Effet coupure liquides 21h sur réveils nocturnes (en test)
+- Review date exacte de l'experiment `sleep-liquids-cutoff-2026-08`
 - Baseline farmer's walk
 - Baseline mobilité (hanches, thoracique)
 

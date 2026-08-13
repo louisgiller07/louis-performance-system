@@ -12,13 +12,17 @@ Sortie principale : un `DailyPlan` structuré par domaine, avec `reasoning`, `co
 ---
 
 ## Pipeline de décision
-RawContext (checkin + calendrier + historique + mode)
-MultidimensionalAthleteState (7 dimensions calculées)
-Safety (couche A — hard)
-Mode + Race/Event Context (couche B — soft constraints)
-Domain Decisions (couche C par domaine)
-Head Coach Arbitration (résolution conflits, cohérence)
-DailyPlan JSON
+
+```
+1. RawContext (checkin + calendrier + historique + mode + planned_session)
+2. MultidimensionalAthleteState (6 dimensions + ContextState séparé)
+3. Safety (couche A — hard)
+4. Mode + Race/Event Context (couche B — soft constraints)
+5. Domain Decisions (couche C par domaine)
+6. Head Coach Arbitration (KEEP/MODIFY/REPLACE/REST + cohérence)
+7. DailyPlan JSON
+```
+
 Chaque étape est **testable indépendamment**. Chaque étape produit une trace (`TriggeredRule`) pour audit.
 
 ---
@@ -37,8 +41,8 @@ Le `RawContext` contient au minimum :
 - `upcoming_races` (liste, incluant fenêtre post-event utile)
 - `recent_sessions` (7 derniers jours de sessions complétées)
 - `active_experiments` (liste des ActiveExperiment en cours, cf. `03_COACHING_MODEL.md`)
-- `active_health_flags` : liste structurée `HealthFlag[]`, pas un simple nombre. Chaque flag contient au minimum `type` (concussion_suspect, injury_suspect, illness, pain_persistent) et `status` (active, monitoring, resolved). Nécessaire pour évaluer la règle "retour post-commotion sans validation médicale".
-- `n_total_checkins`, `n_total_completed_sessions` (pour la confidence)
+- `active_health_flags` : liste structurée `HealthFlag[]`, **pas un simple nombre**. Chaque flag contient au minimum `type` (concussion_suspect, injury_suspect, illness, pain_persistent) et `status` (active, monitoring, resolved). Nécessaire pour évaluer la règle "retour post-commotion sans validation médicale".
+- `n_total_checkins`, `n_total_completed_sessions` (indicateurs contextuels, non utilisés comme seuils de confidence en M1)
 
 ### Champs douleur enrichis dans `DailyCheckin` (V0.2 M1 local)
 
@@ -52,7 +56,6 @@ Ces champs sont utilisés dans le `RawContext` et les fixtures pour M1 (local, h
 Ils **ne sont pas encore présents** dans la table Supabase `daily_checkins`. Voir `05_DATA_MODEL.md` §Évolutions anticipées et `12_BACKLOG.md` pour la migration additive requise **avant** la connexion Supabase réelle en M2.
 
 **Ne pas modifier la DB maintenant.** M1 est purement local.
-
 
 ### AthleteDimensions (calculées à partir du checkin + historique)
 
@@ -70,17 +73,19 @@ Six dimensions séparées, chacune avec `level`, `score`, `raw_signals`, `reason
 Le contexte n'est **pas** une DimensionState avec un score `GREEN/AMBER/RED`.
 
 `ContextState` regroupe :
-ContextState {
-current_block // référence au training_block courant
-training_mode // TrainingMode actif
-planned_session // TrainingIntervention | null
-planned_intent // string | undefined
-availability // WeeklyAvailability pour la semaine
-event_context // EventContext | undefined (voir §3)
-active_experiments // ActiveExperiment[]
-life_constraints // travel, cours, imprévus
-}
 
+```
+ContextState {
+  current_block           // référence au training_block courant
+  training_mode           // TrainingMode actif
+  planned_session         // TrainingIntervention | null
+  planned_intent          // string | undefined
+  availability            // WeeklyAvailability pour la semaine
+  event_context           // EventContext | undefined (voir §3)
+  active_experiments      // ActiveExperiment[]
+  life_constraints        // travel, cours, imprévus
+}
+```
 
 `AthleteDimensions` + `ContextState` = **MultidimensionalAthleteState** (entrée des couches suivantes).
 
@@ -88,6 +93,7 @@ life_constraints // travel, cours, imprévus
 
 Score agrégé 0-1 calculé pour l'interface **uniquement**. **Ne doit pas** être utilisé comme cerveau de décision.
 
+---
 
 ## 2. Couche A — SAFETY RULES
 
@@ -95,11 +101,11 @@ Non-contournables. Écrasent toutes les autres couches. Produisent un `DailyPlan
 
 | ID | Trigger | Action | Confidence |
 |---|---|---|---|
-| A1 | `suspected_concussion = true` | REST + health_flag + orientation médicale | 1.0 |
-| A2 | `pain = true` ET `pain_intensity ≥ 6` ET `pain_new = true` | REST + health_flag + orientation médicale | 1.0 |
-| A3 | `fever_or_illness = true` | REST + health_flag | 1.0 |
-| A4 | `pain = true` ET critère objectif de gravité (traumatique, perte de fonction, aggravation nette) | REST + health_flag + orientation | 1.0 |
-| A5 | Retour post-commotion sans health_flag résolu | Zéro DH tant que non validé | 1.0 |
+| A1 | `suspected_concussion = true` | REST + health_flag + orientation médicale | HIGH |
+| A2 | `pain = true` ET `pain_intensity ≥ 6` ET `pain_new = true` | REST + health_flag + orientation médicale | HIGH |
+| A3 | `fever_or_illness = true` | REST + health_flag | HIGH |
+| A4 | `pain = true` ET critère objectif de gravité (traumatique, perte de fonction, aggravation nette) | REST + health_flag + orientation | HIGH |
+| A5 | Retour post-commotion sans health_flag résolu | Zéro DH tant que non validé | HIGH |
 
 **Ce qui n'est PAS SAFETY** (déplacé en couche C) :
 - Sommeil <4h + stress ≥8 → C4.6
@@ -160,25 +166,30 @@ Chaque mode définit des soft constraints par défaut.
 ### Event Context
 
 Modélisation d'un événement compétitif :
+
+```
 UpcomingRace {
-event_name
-event_start
-event_end
-priority: A_PLUS | A | B | C
-race_format: HOT_TRAIL_2DAY | IXS_3DAY | ...
-race_phase?: RacePhase // enrichi si horaires officiels connus
+  event_name
+  event_start
+  event_end
+  priority: A_PLUS | A | B | C
+  race_format: HOT_TRAIL_2DAY | IXS_3DAY | ...
+  race_phase?: RacePhase  // enrichi si horaires officiels connus
 }
+```
+
 Le moteur produit un `EventContext` pour tout événement pertinent :
 
+```
 EventContext {
-race
-days_to_event // jours jusqu'à event_start (négatif si passé)
-days_from_event // jours depuis event_start (positif si en cours ou passé)
-event_day // 0, 1, 2... si en cours, null sinon
-in_progress // event_start ≤ today ≤ event_end
-phase: RacePhase // PRE_EVENT | RACE_DAY_GENERIC | POST_EVENT | ...
+  race
+  days_to_event         // jours jusqu'à event_start (négatif si passé)
+  days_from_event       // jours depuis event_start (positif si en cours ou passé)
+  event_day             // 0, 1, 2... si en cours, null sinon
+  in_progress           // event_start ≤ today ≤ event_end
+  phase: RacePhase      // PRE_EVENT | RACE_DAY_GENERIC | POST_EVENT | ...
 }
-
+```
 
 ### Fenêtre de pertinence
 
@@ -190,18 +201,19 @@ Le moteur cherche un événement pertinent selon plusieurs fenêtres, **pas uniq
 
 Un événement récemment terminé reste dans le contexte pour appliquer récupération et debrief.
 
-### Protocole T-X
+### Protocole T-X — pré-event uniquement
 
-Le protocole T-X est un **default framework**, pas un rail rigide.
+**T-X sert uniquement avant `event_start`.** Une fois l'événement commencé, le moteur utilise `event_day` et `race_phase`.
 
-Il produit une `RaceProtocolRecommendation` :
+Le protocole T-X est un **default framework**, pas un rail rigide. Il produit une `RaceProtocolRecommendation` :
 
+```
 RaceProtocolRecommendation {
-recommended_session
-reasoning
-soft_constraints
+  recommended_session
+  reasoning
+  soft_constraints
 }
-
+```
 
 **`recommended_session` n'est jamais forcée.** Le Head Coach peut la surcharger si :
 - les dimensions du jour le justifient
@@ -210,10 +222,6 @@ soft_constraints
 - le contexte spécifique de la course le justifie
 
 Chaque override est loggé avec `override_reason`.
-
-### Protocole T-X — pré-event uniquement
-
-**T-X sert uniquement avant `event_start`.** Une fois l'événement commencé, le moteur utilise `event_day` et `race_phase`.
 
 #### Format `HOT_TRAIL_2DAY`
 
@@ -378,47 +386,49 @@ Seule la couche SAFETY est réellement hard.
 ### Priorisation des domaines
 
 Cible normale : 2 à 4 domaines actifs par jour.
+
 ---
 
 ## 6. Sortie : `DailyPlan`
 
+```
 DailyPlan {
-date
-active_mode
-event_context?
+  date
+  active_mode
+  event_context?
 
-training: {
-active
-session_type: TrainingIntervention // représentation riche interne
-duration_min
-time_slot?
-content_ref?
-objective?
+  training: {
+    active
+    session_type: TrainingIntervention  // représentation riche interne
+    duration_min
+    time_slot?
+    content_ref?
+    objective?
+  }
+
+  dh_or_technical: { active, focus?, spot_hint? }
+  mental: { active, focus?, action_hint? }
+  recovery: { active, actions: string[] }
+  nutrition: { active, focus?, hydration_target_l?, notes? }
+  sleep: { active, target_hours?, bedtime_hint?, notes? }
+  protection: { do_not_do: string[] }
+  monitoring: { observe: string[] }
+
+  reasoning: string
+  confidence: 'LOW' | 'MEDIUM' | 'HIGH'
+
+  triggered_rules: TriggeredRule[]
+  health_flag_to_create?: HealthFlagToCreate
+
+  planned_session_before: TrainingIntervention | null
+  final_session: TrainingIntervention
+
+  overrode_race_protocol: boolean
+  override_reason?: string
+
+  engine_version: string
 }
-
-dh_or_technical: { active, focus?, spot_hint? }
-mental: { active, focus?, action_hint? }
-recovery: { active, actions: string[] }
-nutrition: { active, focus?, hydration_target_l?, notes? }
-sleep: { active, target_hours?, bedtime_hint?, notes? }
-protection: { do_not_do: string[] }
-monitoring: { observe: string[] }
-
-reasoning: string
-confidence: number
-
-triggered_rules: TriggeredRule[]
-health_flag_to_create?: HealthFlagToCreate
-
-planned_session_before: TrainingIntervention | null
-final_session: TrainingIntervention
-
-overrode_race_protocol: boolean
-override_reason?: string
-
-engine_version: string
-}
-
+```
 
 ### Confidence
 
@@ -436,10 +446,6 @@ La calibration plus fine (fonction du volume de données, de la présence de pat
 
 **Tout score numérique de confidence en V0.2 est proscrit.** La confidence est un enum qualitatif.
 
-### Mapping vers DB
-
-Le `training.session_type` en `TrainingIntervention` (riche) est mappé vers `DbSessionType` (coarse) au moment de la persistance en Supabase. Voir `05_DATA_MODEL.md`.
-
 ### Événements mécaniques comme contexte
 
 Le coaching setup vélo reste hors périmètre. Cependant, les événements mécaniques qui affectent une performance doivent pouvoir être loggés comme contexte pour éviter d'attribuer un mauvais chrono au physique ou au mental à tort.
@@ -449,6 +455,10 @@ Exemples : crevaison, dérailleur cassé, problème de frein, incident matériel
 Ces événements sont stockés dans `completed_sessions.main_content` ou `race_calendar.notes` selon le contexte (session normale ou course), et sont pris en compte par le domaine 7 (Analyse) lors du debrief.
 
 **Le moteur ne fait aucune recommandation de setup ou de mécanique.** Il enregistre seulement le contexte pour interprétation correcte des résultats.
+
+### Mapping vers DB
+
+Le `training.session_type` en `TrainingIntervention` (riche) est mappé vers `DbSessionType` (coarse) au moment de la persistance en Supabase. Voir `05_DATA_MODEL.md`.
 
 ---
 
@@ -470,6 +480,7 @@ Ces événements sont stockés dans `completed_sessions.main_content` ou `race_c
 14. Experiments actifs distincts des heuristiques permanentes.
 15. Événements mécaniques loggés comme contexte, sans recommandation setup.
 16. Head Coach ne remplace pas médecin/physio — oriente vers eux.
+
 ---
 
 ## 8. Roadmap V0.2 → futur
@@ -484,6 +495,7 @@ Ces événements sont stockés dans `completed_sessions.main_content` ou `race_c
 - Enrichissement des domaines 1, 2, 5 (technique DH, mental, nutrition)
 - Debrief course post-mortem structuré
 - Planificateur hebdomadaire
+- Runtime ActiveExperiment (T9)
 
 ### v1.0
 - Couche D activée avec premiers patterns confirmés

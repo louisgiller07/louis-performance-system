@@ -11,14 +11,17 @@ Interdiction absolue : `expect(result).toContain(['A', 'B'])` sur des sorties al
 ## Structure
 
 Les tests suivent la structure du pipeline :
-Dimensions calculées (unit tests)
-Safety (unit + integration)
-Race/Event context (unit + integration)
-Modes opérationnels
-Domain decisions (par domaine)
-Head Coach arbitration (KEEP/MODIFY/REPLACE/REST)
-DailyPlan structure (integration)
-Mapping TrainingIntervention ↔ DbSessionType
+
+```
+1. Dimensions calculées (unit tests)
+2. Safety (unit + integration)
+3. Race/Event context (unit + integration)
+4. Modes opérationnels
+5. Domain decisions (par domaine)
+6. Head Coach arbitration (KEEP/MODIFY/REPLACE/REST)
+7. DailyPlan structure (integration)
+8. Mapping TrainingIntervention ↔ DbSessionType
+```
 
 ---
 
@@ -237,7 +240,6 @@ Voir T3.1.
 - Sortie identique aux deux appels
 - Sortie conforme à la table canonique
 
-
 ### T9. Contexte enrichi — HORS M1
 
 **Statut** : ces tests sont **P1**, pas M1. Ils s'implémenteront avec le concept `ActiveExperiment` runtime après validation de M1.
@@ -252,7 +254,6 @@ Le concept `ActiveExperiment` reste documenté dans `03_COACHING_MODEL.md` et `0
 
 À implémenter avec la couche runtime des experiments.
 
-
 ### T10. Confidence qualitative
 
 #### T10.1 — Confidence HIGH sur SAFETY
@@ -266,6 +267,9 @@ Voir T3.1.
 **Attendu** :
 - `confidence = LOW`
 - `triggered_rules` reflète les contradictions
+
+Le test T10.3 par défaut (cas normal → `MEDIUM`) reste implicite dans la couverture normale.
+
 ---
 
 ## Critères d'acceptation M1
@@ -286,3 +290,4 @@ Voir T3.1.
 - Intégrations externes (V1.0+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire (V0.3+)
+- ActiveExperiment runtime (T9, P1)

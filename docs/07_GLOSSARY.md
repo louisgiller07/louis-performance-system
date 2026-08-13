@@ -14,16 +14,19 @@ Sortie principale du moteur pour un jour donné. Objet structuré par domaine (`
 Ensemble des connaissances sur Louis : identité, contexte pro, historique physique, mental, calendrier, patterns. Document canonique : `02_ATHLETE_PROFILE.md`.
 
 **Dimension**
-Axe d'évaluation de l'état de Louis. Sept dimensions canoniques : `systemic`, `legs`, `arms_grip`, `mental`, `health`, `recent_load`, `context`.
+Axe d'évaluation de l'état de Louis. Six dimensions canoniques : `systemic`, `legs`, `arms_grip`, `mental`, `health`, `recent_load`. Le `context` n'est pas une dimension mais un `ContextState` structuré séparé.
 
-**AthleteState**
-État calculé pour un jour donné, contenant les dimensions et le contexte dérivé (mode, event, fatigue 7j, etc.).
+**AthleteState (MultidimensionalAthleteState)**
+État calculé pour un jour donné = `AthleteDimensions` (6 dimensions) + `ContextState`.
 
 **global_readiness_ui**
 Score agrégé 0-1 destiné à l'interface utilisateur uniquement. **Ne doit pas** être utilisé comme cerveau de décision.
 
 **Dimension Level**
 `GREEN` / `AMBER` / `RED`. Utilisé par dimension, pas globalement.
+
+**ContextState**
+Contexte structuré (bloc, mode, planned session, availability, event context, life constraints). **Pas** une DimensionState — pas de score GREEN/AMBER/RED.
 
 ## Contexte course
 
@@ -78,7 +81,6 @@ L'implémentation TypeScript exacte (interface, record, class) est laissée à C
 
 Le mapping `TrainingIntervention → DbSessionType` est **une fonction pure déterministe** : pour un couple `(kind, load_profile)` donné, la sortie est unique. Voir `05_DATA_MODEL.md`.
 
-
 ## Règles et couches
 
 **Couche A — Safety Rules**
@@ -104,14 +106,19 @@ N'existe qu'en couche A (SAFETY). Non-contournable.
 
 ## Traçabilité
 
-**CausalTrace**
-Structure qui enregistre les signaux utilisés par les règles pendant la décision. Empêche le double-counting : un signal marqué comme utilisé ne peut plus déclencher une seconde adaptation.
+**Trace des signaux consommés**
+Structure (implémentation libre) qui enregistre les signaux utilisés par les règles pendant la décision. Empêche le double-counting : un signal marqué comme utilisé ne peut plus déclencher une seconde adaptation.
 
 **TriggeredRule**
 Trace d'une règle activée : `layer`, `step`, `detail`, éventuellement `signals_used`.
 
 **override_reason**
 Chaîne loggée quand le Head Coach déroge à une soft constraint ou à une `recommended_session` du protocole T-X. Toute dérogation doit avoir une raison explicite.
+
+## Health
+
+**HealthFlag**
+Structure représentant un état de santé actif. Contient au minimum `type` (`concussion_suspect`, `injury_suspect`, `illness`, `pain_persistent`) et `status` (`active`, `monitoring`, `resolved`). Le `active_health_flags` dans le RawContext est une liste `HealthFlag[]`, pas un simple count.
 
 ## Faits / Hypothèses / Patterns
 
@@ -124,10 +131,18 @@ Interprétation initiale, révisable. Ex : "grip endurance sous-développé", "s
 **Learned Pattern**
 Corrélation confirmée avec preuves longitudinales suffisantes (quantité + durée + absence de contre-exemples). Aucun learned pattern n'est activé sans validation. Couche D vide en V0.2.
 
+**ActiveExperiment**
+Expérimentation temporaire à fenêtre de review. Contient `id`, `hypothesis`, `start_date`, `intervention`, `metrics`, `review_date`, `status`. Influence le moteur uniquement tant que `status = active`. Concept documenté en M1, implémentation runtime en P1.
+
 ## Nutrition et récupération
 
 **Baseline PROVISIONAL**
 Cible numérique initiale non individualisée (ex : 8h sommeil, 2 L eau/jour). À personnaliser avec les données de Louis avant d'être traitée comme vérité.
+
+## Confidence
+
+**Confidence**
+Enum qualitatif en V0.2 : `LOW` / `MEDIUM` / `HIGH`. Tout score numérique de confidence est proscrit en V0.2.
 
 ## Fixtures et tests
 

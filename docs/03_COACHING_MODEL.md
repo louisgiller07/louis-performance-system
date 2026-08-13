@@ -137,14 +137,15 @@ Chaque adaptation vient d'une **cause identifiée** dans une dimension précise.
 
 ### 2. Décisions multidimensionnelles
 
-7 dimensions séparées :
+6 dimensions séparées :
 - `systemic` (sommeil + énergie globale)
 - `legs` (fatigue jambes)
 - `arms_grip` (fatigue avant-bras / grip)
 - `mental` (stress travail + motivation)
 - `health` (douleur, maladie)
 - `recent_load` (charge 7 jours)
-- `context` (mode + course + jour semaine)
+
+Plus un `ContextState` séparé (bloc, mode, planned session, availability, event context, life constraints).
 
 Fatigue jambes ≠ fatigue grip ≠ mauvais sommeil ≠ stress mental ≠ douleur.
 
@@ -214,7 +215,13 @@ Le moteur ne génère **pas** une séance depuis zéro par défaut. Il part du `
 
 Même si le weekly planner complet arrive en V0.3+, l'architecture V0.2 doit respecter cette logique.
 
-### 8. Le Head Coach oriente vers les professionnels de santé quand nécessaire
+### 8. Seuils numériques PROVISIONAL
+
+Tant qu'un seuil n'est pas calibré sur les données de Louis, il est marqué `PROVISIONAL` et documenté.
+
+Aucun seuil n'est traité comme vérité universelle sans justification.
+
+### 9. Le Head Coach oriente vers les professionnels de santé quand nécessaire
 
 Le Head Coach n'est pas un médecin, ni un physiothérapeute, ni un préparateur mental professionnel. Il oriente Louis vers ces professionnels quand la situation le nécessite (SAFETY déclenchée, douleur persistante, blessure suspectée, symptômes anormaux).
 
@@ -254,21 +261,24 @@ Quasi-toujours passif en V0.2. Ne surface que dans deux cas :
 Ne jamais surcharger le `DailyPlan` d'insights non essentiels.
 
 ---
+
 ## Experiments actifs
 
 Le moteur distingue les **règles pérennes** des **expérimentations temporaires**.
 
 Un `ActiveExperiment` est modélisé conceptuellement :
-ActiveExperiment {
-id
-hypothesis // ce qu'on cherche à valider
-start_date
-intervention // action à maintenir
-metrics // quoi observer
-review_date // quand évaluer
-status: active | expired | validated | rejected
-}
 
+```
+ActiveExperiment {
+  id
+  hypothesis          // ce qu'on cherche à valider
+  start_date
+  intervention        // action à maintenir
+  metrics             // quoi observer
+  review_date         // quand évaluer
+  status: active | expired | validated | rejected
+}
+```
 
 Une expérimentation influence le moteur **uniquement tant que `status = active` et `today ≤ review_date`**.
 
@@ -284,6 +294,9 @@ Une expérimentation expirée ne doit plus influencer le coach — sa transforma
 - **review_date** : à définir (typiquement 3-4 semaines)
 - **status** : active
 
+**Note scope M1** : le concept est documenté maintenant. Son implémentation runtime + les tests T9.1/T9.2 sont P1, pas M1.
+
+---
 
 ## Coaching Heuristics initiales (couche C)
 

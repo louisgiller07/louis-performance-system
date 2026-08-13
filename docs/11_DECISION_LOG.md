@@ -3,14 +3,16 @@
 Historique des **décisions structurantes** du projet. Une décision = une entrée. Uniquement les décisions qui expliquent pourquoi l'architecture actuelle est comme elle est.
 
 Format d'entrée :
-YYYY-MM-DD — [Titre court de la décision]
 
-Contexte : ce qui a motivé la décision.
-Décision : ce qui a été tranché.
-Alternatives considérées : (si pertinent)
-Impact : quels documents / composants affectés.
-Statut : active | superseded (par entrée du [date])
+```
+## YYYY-MM-DD — [Titre court de la décision]
 
+**Contexte** : ce qui a motivé la décision.
+**Décision** : ce qui a été tranché.
+**Alternatives considérées** : (si pertinent)
+**Impact** : quels documents / composants affectés.
+**Statut** : active | superseded (par entrée du [date])
+```
 
 ---
 
@@ -131,16 +133,16 @@ Elle ne doit ni être ignorée, ni annuler automatiquement l'entraînement.
 
 ## 2026-08-11 — Séparation DbSessionType (persistance) vs TrainingIntervention (interne)
 
-**Contexte** : la DB Supabase V0.2 est déjà déployée avec un enum `session_type` coarse. Le Head Coach a besoin d'une représentation plus riche (STRENGTH_LOWER, STRENGTH_UPPER, GRIP_WORK, DH_LIGHT, etc.) sans devoir remigrer la DB.
+**Contexte** : la DB Supabase V0.2 est déjà déployée avec un enum `session_type` coarse. Le Head Coach a besoin d'une représentation plus riche (STRENGTH_LOWER, STRENGTH_UPPER, GRIP_WORK, DH_LIGHT, etc.) sans devoir remigrer la DB. De plus, un simple enum riche ne suffit pas car `STRENGTH_UPPER` peut mapper vers `STRENGTH_A` ou `STRENGTH_B` selon l'intensité.
 
 **Décision** :
 - La DB conserve son enum `session_type` coarse
-- Le Head Coach interne utilise `TrainingIntervention` riche
-- Un mapping explicite existe entre les deux
-- La persistance en `decisions.final_session` utilise le DbSessionType
+- Le Head Coach interne utilise `TrainingIntervention` riche combinant au minimum `kind` + `load_profile` (`HEAVY` / `MODERATE` / `LIGHT`)
+- Un mapping **déterministe** existe entre les deux (fonction pure, sortie unique pour tout `(kind, load_profile)` valide)
+- La persistance en `decisions.final_session` utilise le `DbSessionType`
 - La richesse est stockée dans `daily_plan JSONB` (à ajouter)
 
-**Impact** : `05_DATA_MODEL.md`, `06_ARCHITECTURE.md`, `07_GLOSSARY.md`.
+**Impact** : `05_DATA_MODEL.md`, `06_ARCHITECTURE.md`, `07_GLOSSARY.md`, `10_TEST_PLAN.md`.
 
 **Statut** : active
 
@@ -162,7 +164,12 @@ Elle ne doit ni être ignorée, ni annuler automatiquement l'entraînement.
 
 **Contexte** : les seuils numériques `base=0.8`, `<21 checkins`, `<15 sessions` de la V0.1 étaient arbitraires et non calibrés.
 
-**Décision** : confidence qualitative en V0.2 (`LOW` / `MEDIUM` / `HIGH`), reflétant quantité de données, données manquantes, contradictions, heuristiques PROVISIONAL, présence de patterns validés. Tout score numérique reste PROVISIONAL.
+**Décision** : confidence qualitative en V0.2 (`LOW` / `MEDIUM` / `HIGH`).
+- **HIGH** : SAFETY claire et non ambiguë
+- **LOW** : données nécessaires manquantes ou contexte contradictoire important
+- **MEDIUM** : décision normale reposant principalement sur heuristiques PROVISIONAL (cas par défaut)
+
+Tout score numérique de confidence est proscrit en V0.2. Calibration plus fine viendra avec les données longitudinales en V0.3+.
 
 **Impact** : `04_DAILY_DECISION_ENGINE.md`, `10_TEST_PLAN.md`.
 
@@ -174,9 +181,9 @@ Elle ne doit ni être ignorée, ni annuler automatiquement l'entraînement.
 
 **Contexte** : le test "coupure liquides 21h + zéro Red Bull" avait été codé comme une règle permanente, alors qu'il s'agit d'une expérimentation avec fenêtre de review.
 
-**Décision** : introduction d'un concept `ActiveExperiment` avec `hypothesis`, `start_date`, `intervention`, `metrics`, `review_date`, `status`. Un experiment influence le coach uniquement tant que `status = active`.
+**Décision** : introduction d'un concept `ActiveExperiment` avec `hypothesis`, `start_date`, `intervention`, `metrics`, `review_date`, `status`. Un experiment influence le coach uniquement tant que `status = active`. Concept documenté maintenant, implémentation runtime + tests T9 sont P1 (pas M1).
 
-**Impact** : `03_COACHING_MODEL.md`, `02_ATHLETE_PROFILE.md`, `05_DATA_MODEL.md` (évolution V0.3), `10_TEST_PLAN.md`.
+**Impact** : `03_COACHING_MODEL.md`, `02_ATHLETE_PROFILE.md`, `05_DATA_MODEL.md` (évolution V0.3), `10_TEST_PLAN.md`, `12_BACKLOG.md`.
 
 **Statut** : active
 
@@ -230,6 +237,30 @@ Aucun learned pattern n'est activé sans preuves suffisantes. Pas de seuil unive
 **Décision** : les événements mécaniques sont loggés dans `completed_sessions.main_content` ou `race_calendar.notes` comme contexte, sans que le moteur ne fasse de recommandation setup.
 
 **Impact** : `04_DAILY_DECISION_ENGINE.md`, `05_DATA_MODEL.md`.
+
+**Statut** : active
+
+---
+
+## 2026-08-11 — active_health_flags structuré (pas simple count)
+
+**Contexte** : la règle "retour post-commotion sans validation médicale" nécessite de connaître le type et le statut du flag actif, pas seulement leur nombre.
+
+**Décision** : `active_health_flags` dans le RawContext est une liste structurée `HealthFlag[]` avec au minimum `type` et `status`. En M1, les fixtures fournissent cette structure directement. En M2, l'adapter Supabase construit cette liste à partir de `health_flags`.
+
+**Impact** : `04_DAILY_DECISION_ENGINE.md`, `05_DATA_MODEL.md`, `07_GLOSSARY.md`.
+
+**Statut** : active
+
+---
+
+## 2026-08-11 — Champs douleur enrichis en RawContext, migration DB reportée à M2
+
+**Contexte** : SAFETY utilise `pain_traumatic`, `pain_function_loss`, `pain_getting_worse`, mais ces champs n'existent pas dans la table `daily_checkins` de Supabase V0.2.
+
+**Décision** : pour M1 (local), ces champs vivent dans le `RawContext` et les fixtures. Avant M2 (connexion Supabase runtime), une migration additive sera appliquée. Deux options (colonnes dédiées ou JSONB) à trancher en début de M2. Ne pas modifier la DB maintenant.
+
+**Impact** : `04_DAILY_DECISION_ENGINE.md`, `05_DATA_MODEL.md`, `12_BACKLOG.md`.
 
 **Statut** : active
 

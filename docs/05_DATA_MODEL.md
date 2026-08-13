@@ -7,7 +7,7 @@ Le schéma Supabase V0.2 est **déjà déployé et validé**. Ce document décri
 - Les 12 tables existantes et leur rôle
 - Les enums (persistance vs interne)
 - La séparation `DbSessionType` (DB coarse) vs `TrainingIntervention` (interne riche)
-- Le mapping entre les deux
+- Le mapping déterministe entre les deux
 - Les évolutions futures anticipées (additives, non-destructives)
 
 **Aucune modification du schéma existant ne doit être faite sans discussion.** Toute évolution doit être additive et documentée dans `11_DECISION_LOG.md`.
@@ -16,19 +16,20 @@ Le schéma Supabase V0.2 est **déjà déployé et validé**. Ce document décri
 
 ## Vue d'ensemble
 
+```
 athletes (1)
-├── goals (N)
-├── training_blocks (N)
-├── athlete_baselines (N — historique versionné)
-├── weekly_availability (N — 1 par semaine)
-├── daily_checkins (N — 1 par jour)
-├── athlete_state (N — 1 par jour, dérivé)
-├── planned_sessions (N)
-├── completed_sessions (N)
-├── decisions (N)
-├── race_calendar (N)
-└── health_flags (N)
-
+   ├── goals (N)
+   ├── training_blocks (N)
+   ├── athlete_baselines (N — historique versionné)
+   ├── weekly_availability (N — 1 par semaine)
+   ├── daily_checkins (N — 1 par jour)
+   ├── athlete_state (N — 1 par jour, dérivé)
+   ├── planned_sessions (N)
+   ├── completed_sessions (N)
+   ├── decisions (N)
+   ├── race_calendar (N)
+   └── health_flags (N)
+```
 
 12 tables. Toutes justifiées par une requête du Head Coach.
 
@@ -133,7 +134,7 @@ Blessures, douleurs persistantes, suspicions de commotion, maladies. Table priv�
 
 - La **DB** persiste avec `session_type` (enum coarse existant, 10 valeurs)
 - Le **Head Coach interne** manipule une représentation plus riche `TrainingIntervention`
-- Un **mapping explicite** existe entre les deux
+- Un **mapping déterministe explicite** existe entre les deux
 
 **La richesse interne ne force pas la migration de la DB.**
 
@@ -195,23 +196,6 @@ Table de mapping canonique :
 | `RACE_ACTIVITY` | (tout) | `RACE_PREP` |
 
 **Aucune ambiguïté.** Toute évolution de cette table doit être tracée dans `11_DECISION_LOG.md`.
-
-### Mapping vers DbSessionType
-
-| TrainingIntervention | DbSessionType |
-|---|---|
-| `STRENGTH_LOWER`, `STRENGTH_UPPER` (haut du corps lourd), `POWER` (lourd), `GRIP_WORK` (lourd) | `STRENGTH_A` |
-| `STRENGTH_FULL_LIGHT`, `STRENGTH_UPPER` (léger), `POWER` (léger) | `STRENGTH_B` |
-| `AEROBIC_BASE` | `AEROBIC_BASE` |
-| `AEROBIC_INTERVALS` | `AEROBIC_INTERVALS` |
-| `DH_TECHNICAL`, `PUMPTRACK` | `DH_TECHNICAL` |
-| `DH_PERFORMANCE` | `DH_PERFORMANCE` |
-| `DH_LIGHT`, `MOBILITY`, `RECOVERY_ACTIVE` | `RECOVERY` |
-| `REST` | `REST` |
-| `BIKE_MAINTENANCE` | `BIKE_MAINTENANCE` |
-| `RACE_ACTIVITY` | `RACE_PREP` |
-
-**Note** : le mapping `STRENGTH_UPPER` → `STRENGTH_A` ou `STRENGTH_B` dépend du volume et de l'intensité. Le mapping doit être une fonction contextuelle documentée en code, pas une table statique 1-1.
 
 ### Persistance
 
@@ -290,3 +274,4 @@ Voir `01_PRODUCT_REQUIREMENTS.md` §Hors périmètre.
 - `session_type` enum de la DB reste stable
 - Ajouter des valeurs aux enums PostgreSQL possible mais tracé dans `11_DECISION_LOG.md`
 - Le mapping `TrainingIntervention → DbSessionType` est une fonction de code documentée, pas une donnée en base
+- Mapping déterministe : pour tout `(kind, load_profile)` valide → sortie unique

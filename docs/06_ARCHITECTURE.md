@@ -9,13 +9,16 @@ Cette librairie sera ensuite exposée via une Edge Function Supabase, puis conso
 ---
 
 ## Pipeline canonique
-RawContext (entrée)
-MultidimensionalAthleteState (dimensions + contexte)
-Safety (couche A — hard)
-Mode + Race/Event Context (couche B — soft constraints)
-Domain Decisions (couche C par domaine)
-Head Coach Arbitration (KEEP/MODIFY/REPLACE/REST + cohérence)
-DailyPlan JSON (sortie)
+
+```
+1. RawContext            (entrée)
+2. MultidimensionalAthleteState  (dimensions + contexte)
+3. Safety                (couche A — hard)
+4. Mode + Race/Event Context     (couche B — soft constraints)
+5. Domain Decisions      (couche C par domaine)
+6. Head Coach Arbitration        (KEEP/MODIFY/REPLACE/REST + cohérence)
+7. DailyPlan JSON        (sortie)
+```
 
 Chaque étape est **une fonction pure testable indépendamment**.
 
@@ -25,20 +28,21 @@ Chaque étape est **une fonction pure testable indépendamment**.
 
 ### Structure du package `head-coach-engine/`
 
+```
 head-coach-engine/
 ├── src/
-│ ├── types/ # types purs, pas de logique métier
-│ ├── engine/ # computeState, buildDailyPlan, causalTrace, eventContext
-│ ├── rules/ # couches A (safety) et B (modes, race protocol)
-│ ├── domains/ # couches C par domaine (training, recovery, mental, ...)
-│ ├── mapping/ # TrainingIntervention ↔ DbSessionType
-│ └── cli/ # commandes de démonstration locale
-├── tests/ # tests unitaires + intégration
-├── fixtures/ # données de test réalistes (Louis)
+│   ├── types/           # types purs, pas de logique métier
+│   ├── engine/          # computeState, buildDailyPlan, causalTrace, eventContext
+│   ├── rules/           # couches A (safety) et B (modes, race protocol)
+│   ├── domains/         # couches C par domaine (training, recovery, mental, ...)
+│   ├── mapping/         # TrainingIntervention ↔ DbSessionType
+│   └── cli/             # commandes de démonstration locale
+├── tests/               # tests unitaires + intégration
+├── fixtures/            # données de test réalistes (Louis)
 ├── package.json
 ├── tsconfig.json
 └── tsconfig.build.json
-
+```
 
 ### Séparation stricte
 
@@ -119,23 +123,34 @@ Aucun appel HTTP, aucun accès DB, aucun LLM, aucun fichier système au runtime 
 
 Quand la vertical slice sera validée, un adapter fera la traduction :
 
+```
 Supabase read
-├── daily_checkins → DailyCheckin
-├── training_blocks (is_current) → active_mode + block context
-├── planned_sessions → planned_session (DbSessionType)
-├── race_calendar (upcoming + recent post-event) → UpcomingRace[]
-├── completed_sessions (7 derniers jours) → CompletedSession[]
-├── weekly_availability → availability
-├── athlete_baselines (is_current) → baseline
-└── active_experiments (à créer V0.3) → ActiveExperiment[]
+  ├── daily_checkins → DailyCheckin
+  ├── training_blocks (is_current) → active_mode + block context
+  ├── planned_sessions → planned_session (DbSessionType)
+  ├── race_calendar (upcoming + recent post-event) → UpcomingRace[]
+  ├── completed_sessions (7 derniers jours) → CompletedSession[]
+  ├── weekly_availability → availability
+  ├── athlete_baselines (is_current) → baseline
+  ├── health_flags (active + monitoring) → active_health_flags: HealthFlag[]
+  └── active_experiments (à créer V0.3) → ActiveExperiment[]
 
 → EngineContext → buildDailyPlan → DailyPlan
 
 Supabase write
-└── decisions (final_session mapped to DbSessionType + daily_plan JSONB)
-
+  └── decisions (final_session mapped to DbSessionType + daily_plan JSONB)
+```
 
 Le mapping `TrainingIntervention → DbSessionType` (voir `05_DATA_MODEL.md`) est appliqué à l'écriture uniquement.
+
+### Mapping TrainingIntervention ↔ DbSessionType
+
+Le mapping vit dans `src/mapping/`. Il implémente la fonction pure déterministe définie dans `05_DATA_MODEL.md`.
+
+Contraintes canoniques :
+- Fonction pure, sortie unique pour tout `(kind, load_profile)` valide
+- Aucune décision de coaching dans cette couche — mapping seulement
+- Testée par un test unitaire par ligne du tableau canonique
 
 ---
 
@@ -162,15 +177,6 @@ Le mapping `TrainingIntervention → DbSessionType` (voir `05_DATA_MODEL.md`) es
 ### CLI de démonstration
 
 `npm run run:example <scenario>` doit afficher un `DailyPlan` JSON pour chaque scénario de fixture. Utile pour la review humaine.
-### Mapping TrainingIntervention ↔ DbSessionType
-
-Le mapping vit dans `src/mapping/`. Il implémente la fonction pure déterministe définie dans `05_DATA_MODEL.md`.
-
-Contraintes canoniques :
-- Fonction pure, sortie unique pour tout `(kind, load_profile)` valide
-- Aucune décision de coaching dans cette couche — mapping seulement
-- Testée par un test unitaire par ligne du tableau canonique
-
 
 ---
 
@@ -180,6 +186,7 @@ Contraintes canoniques :
 - Fonctions pures par défaut
 - Traçabilité des signaux consommés (implémentation libre, tests obligatoires)
 - Séparation `TrainingIntervention` interne ↔ `DbSessionType` persistance
+- Mapping déterministe : pour tout `(kind, load_profile)` valide → sortie unique
 - Aucun couplage avec Supabase, LLM ou UI au niveau du moteur core
 - TypeScript strict
 - Tests déterministes

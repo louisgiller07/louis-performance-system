@@ -88,11 +88,11 @@ Cinq couches d'évaluation, dans l'ordre :
 
 2. **Décisions multidimensionnelles.** Le moteur regarde `systemic`, `legs`, `arms_grip`, `mental`, `health`, `recent_load`, `context` séparément. Fatigue jambes ≠ fatigue grip ≠ mauvais sommeil ≠ stress mental ≠ douleur. Le `global_readiness` existe uniquement comme indicateur UI, pas comme cerveau de décision.
 
-3. **Pas de double-counting.** Un même signal (ex. `sleep_deficit`) ne peut déclencher plusieurs adaptations en cascade. Une `CausalTrace` empêche la réutilisation d'un signal déjà consommé.
+3. **Pas de double-counting.** Un même signal (ex. `sleep_deficit`) ne peut déclencher plusieurs adaptations en cascade. Une trace des signaux consommés empêche la réutilisation d'un signal déjà utilisé.
 
 4. **T-X = default framework, pas rail rigide.** Le protocole T-X produit une `recommended_session` avec `soft_constraints`. Le Head Coach peut la surcharger si les dimensions du jour, les horaires officiels, le voyage ou le contexte réel le justifient. Chaque override est loggé avec `override_reason`.
 
-5. **Soft constraints réellement soft.** Une contrainte marquée `strong` est une **forte préférence de coaching**, pas une interdiction automatique. Seule SAFETY est réellement hard. Le Head Coach peut déroger à une soft constraint si justifié — l'override est loggé.
+5. **Soft constraints réellement soft (règle canonique unique).** SAFETY (couche A) = hard/non-contournable. Toutes les autres couches (B, C, D) produisent des recommandations, contraintes ou connaissances arbitrables. Le poids `strong` = préférence forte nécessitant justification forte, jamais "obligatoire". Toute dérogation significative est loggée avec `override_reason`.
 
 6. **Support courses multi-jours.** Une course a `event_start` et `event_end`. Le moteur connaît le contexte pré-event (T-X), en cours (`in_progress`, `event_day`, `race_phase`), et post-event (fenêtre T+1/T+2 utile). Le moteur ne se limite pas à `event_end >= today` pour retrouver un événement récent — il regarde aussi une fenêtre post-event utile pour appliquer récupération et débrief.
 
@@ -141,7 +141,7 @@ Ces éléments viennent après validation de la vertical slice locale.
 
 ### V0.2 vertical slice
 
-- 100% des tests du `10_TEST_PLAN.md` passent
+- 100% des tests du `10_TEST_PLAN.md` (T1–T8 + T10) passent
 - Tests déterministes (aucun `expect().toContain([...])`)
 - Build TypeScript strict sans erreur
 - CLI produit un `DailyPlan` cohérent pour chaque scénario fixture
