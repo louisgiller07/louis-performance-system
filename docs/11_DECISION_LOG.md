@@ -283,3 +283,73 @@ Aucun learned pattern n'est activé sans preuves suffisantes. Pas de seuil unive
 **Impact** : `CLAUDE.md`, tout le workflow projet.
 
 **Statut** : active
+
+---
+
+## 2026-08-13 — M1 implémenté : interprétations retenues (non bloquantes)
+
+**Contexte** : implémentation de la vertical slice locale (`head-coach-engine/`) selon `04_DAILY_DECISION_ENGINE.md` et `10_TEST_PLAN.md`. Aucune contradiction bloquante trouvée entre documents, mais plusieurs zones sous-spécifiées ont nécessité une interprétation explicite, documentée ici pour traçabilité (à valider par Louis / l'architecte).
+
+**Décisions retenues** :
+- **`recent_load.level` reste `GREEN`/`AMBER`/`RED`** (vocabulaire canonique de `07_GLOSSARY.md`), malgré la prose `HIGH`/`VERY_HIGH` de `04_DAILY_DECISION_ENGINE.md` §4 (qui reprend la terminologie du champ DB `athlete_state.fatigue_zone`). Mapping documenté dans `src/engine/recentLoad.ts` : `GREEN ≈ LOW/NORMAL`, `AMBER ≈ HIGH`, `RED ≈ VERY_HIGH`.
+- **Champ `decision: 'KEEP'|'MODIFY'|'REPLACE'|'REST'` ajouté explicitement à `DailyPlan`.** Le pseudo-schéma de `04_DAILY_DECISION_ENGINE.md` §6 ne le liste pas (il le décrit comme implicite via `planned_session_before`/`final_session`), mais `10_TEST_PLAN.md` T7.1-T7.4 teste ces 4 libellés directement — le champ explicite rend l'arbitrage testable sans ambiguïté.
+- **Seuils numériques par dimension** (ex. `sleep_hours < 6 → RED`) centralisés et documentés `PROVISIONAL` dans `src/engine/provisionalThresholds.ts` — aucun n'est calibré sur les données longitudinales de Louis, conformément au principe #10 de `01_PRODUCT_REQUIREMENTS.md`.
+- **Classification MODIFY vs REPLACE** : `AEROBIC_INTERVALS → AEROBIC_BASE` (dimension `mental` RED) est traité comme MODIFY (même discipline, intensité/structure réduite), conformément à `10_TEST_PLAN.md` T1.3, malgré le changement de `kind`.
+- **Détection de contradiction (confidence LOW, T10.2)** : implémentée comme vérification explicite "contrainte de mode `strong` vs `planned_session` sans cause dimensionnelle corroborante" (ex. `no_grip_heavy` strong + `planned_session=GRIP_WORK`), portée volontairement minimale (scope M1), extensible en V0.3+.
+
+**Impact** : `head-coach-engine/src/`, `10_TEST_PLAN.md` (aucune modification du document lui-même, tests écrits conformes).
+
+**Statut** : superseded partiellement par l'entrée du 2026-08-13 (round 1) ci-dessous (revue Louis) — les points "détection de contradiction" et "seuils systemic" ont été corrigés.
+
+---
+
+## 2026-08-13 — Corrections post-revue Louis sur M1 (round 1)
+
+**Contexte** : revue de l'implémentation M1 par Louis. Quatre comportements jugés incorrects par rapport à l'intention canonique.
+
+**Décisions** :
+1. **Soft constraint `strong` reste réellement soft.** La détection de "contradiction" `no_grip_heavy`/`no_dh_intense` (strong) vs `planned_session` a été supprimée de `buildDailyPlan.ts` : un conflit entre le plan et une soft constraint, même `strong`, est un arbitrage normal (le plan est maintenu si rien ne le justifie autrement) et ne dégrade plus `confidence` à `LOW`. Idem dans `fallbackInference.ts` : `no_development` (strong) ne force plus silencieusement `RECOVERY_ACTIVE`. Seule SAFETY reste hard.
+2. **`recent_load` RED + `systemic` GREEN devient l'unique détecteur de contradiction M1** (confidence LOW) : c'est une vraie incohérence de données (deux dimensions se contredisent sur l'état de récupération réel), pas un désaccord plan/préférence. `10_TEST_PLAN.md` T10.2 réinterprété en ce sens (l'exemple alternatif du document — conflit `no_grip_heavy`/`GRIP_WORK` — est désormais couvert par un test démontrant explicitement l'absence de dégradation de confidence).
+3. **Le protocole T-X participe à l'arbitrage même si `planned_session` existe.** `buildDailyPlan.ts` utilise désormais `raceProtocol.recommended_session` comme baseline dès qu'un événement pertinent existe, avant `planned_session` — un plan générique qui n'a pas anticipé la course ne prime plus automatiquement sur T-X. `planned_session_before` continue de refléter le plan réel pour la traçabilité. Tout override réel du RaceProtocol (session finale ≠ recommandation T-X) porte désormais garantie un `override_reason` non vide.
+4. **Signaux `systemic` causaux séparés.** `computeSystemic()` ne fusionne plus toute anomalie sous `sleep_deficit` : signaux distincts `sleep_deficit` (durée), `sleep_quality_low`, `energy_low`, `sleep_fragmented` (nouveau seuil PROVISIONAL `amberMinWakeUps` sur `sleep_wake_ups`). Chaque signal est consommé indépendamment par C3.3.
+5. **SAFETY A5 toujours tracée.** `triggered_rules` contient désormais systématiquement la règle A5 et `protection.do_not_do` signale toujours l'interdiction DH dès qu'un flag `concussion_suspect` non résolu est actif — que la séance finale soit du DH (remplacée) ou non (maintenue).
+
+**Impact** : `head-coach-engine/src/engine/buildDailyPlan.ts`, `src/domains/fallbackInference.ts`, `src/engine/computeDimensions.ts`, `src/engine/provisionalThresholds.ts`, `src/domains/training.ts`, tests associés.
+
+**Statut** : superseded partiellement par l'entrée du 2026-08-13 (round 2) ci-dessous — le point 2 (détecteur de contradiction `systemic`/`recent_load`) et le comportement no-op des soft constraints `strong` (conséquence non voulue du point 1) ont été corrigés.
+
+---
+
+## 2026-08-13 — Corrections post-revue Louis sur M1 (round 2)
+
+**Contexte** : deuxième revue de Louis sur les corrections du 2026-08-13. Deux points encore incorrects.
+
+**Décisions** :
+
+1. **`systemic GREEN` + `recent_load RED` n'est PAS une contradiction.** Un athlète peut être frais aujourd'hui malgré une charge 7 jours très élevée — les deux états coexistent normalement. `CONTRADICTION_SYSTEMIC_VS_RECENT_LOAD` est supprimé. **La seule source de `confidence = LOW` en M1 devient une incohérence STRUCTURELLE des données** (donnée impossible, pas un désaccord entre dimensions valides) : deux courses `upcoming_races` marquées "en cours" (`in_progress`) le même jour — impossible pour un seul athlète. Nouvelle fonction `hasOverlappingInProgressRaces()` dans `engine/eventContext.ts`, nouveau `T10.2` avec un calendrier synthétique volontairement invalide. Aucune relation d'exclusivité artificielle n'est créée entre dimensions.
+
+2. **Les soft constraints `strong` ne doivent pas devenir des no-op.** La correction du 2026-08-13 (point 1) avait supprimé toute conséquence des contraintes `strong` du mode, les rendant invisibles dans l'arbitrage — ce qui n'est pas non plus correct : `strong` = forte préférence de coaching, **toujours overridable, mais qui doit réellement participer à la décision**. Nouveau mécanisme dans `rules/modes.ts` (`describeStrongConstraintViolation`) + `buildDailyPlan.ts` :
+   - Si la séance finale enfreint une contrainte `strong` et qu'**aucune justification** n'est déclarée (`RawContext.planned_intent` absent) → la contrainte s'applique réellement (la séance est adaptée), tracé `SOFT_CONSTRAINT_STRONG_APPLIED`.
+   - Si une justification est déclarée (`planned_intent` renseigné) → le plan initial est conservé malgré la contrainte, tracé `SOFT_CONSTRAINT_STRONG_OVERRIDDEN`.
+   - Dans les deux cas, l'issue est explicitement tracée dans `triggered_rules` (raison, contrainte, mode, changement de séance le cas échéant).
+   - SAFETY reste la seule couche réellement hard/non-overridable ; l'arbitrage des soft constraints `strong` se fait avant SAFETY A5 (ZERO_DH), qui garde le dernier mot.
+   - `planned_intent` (champ déjà existant dans `RawContext`, "notes du planificateur sur pourquoi cette séance était prévue") est réutilisé comme mécanisme de justification plutôt que d'inventer un nouveau champ.
+
+**Impact** : `head-coach-engine/src/engine/eventContext.ts`, `src/engine/buildDailyPlan.ts`, `src/rules/modes.ts`, tests associés (`tests/t10_confidence.test.ts`, `tests/modesConstraints.test.ts`).
+
+**Statut** : superseded partiellement par l'entrée du 2026-08-13 (round 3) ci-dessous — `SOFT_CONSTRAINT_STRONG_OVERRIDDEN` ne loggait pas encore `override_reason`.
+
+---
+
+## 2026-08-13 — Corrections post-revue Louis sur M1 (round 3)
+
+**Contexte** : troisième revue de Louis sur les corrections du round 2. Un point métier + une erreur de date dans la documentation.
+
+**Décisions** :
+
+1. **Une dérogation réelle à une soft constraint `strong` doit être loggée avec `override_reason`, pas seulement tracée dans `triggered_rules`.** Le canon (`docs/07_GLOSSARY.md` §override_reason) exige explicitement une chaîne loggée pour toute dérogation à une soft constraint. Le détail de la règle `SOFT_CONSTRAINT_STRONG_OVERRIDDEN` est reformulé au format `Override <constraint.type> (strong): <planned_intent>` et cette valeur alimente désormais `DailyPlan.override_reason` — y compris quand aucun override du RaceProtocol n'a lieu par ailleurs. Quand les deux se produisent ensemble (RaceProtocol ET soft constraint), le même champ `override_reason` combine les raisons pertinentes, sans duplication (la logique existante du RaceProtocol n'est pas modifiée : elle inclut déjà naturellement `SOFT_CONSTRAINT_STRONG_OVERRIDDEN`/`APPLIED`, qui sont de layer `ARBITRATION`).
+2. **Correction de date** : toutes les références à "2026-08-14" dans le code et les commentaires (introduites par erreur lors du round 2) sont corrigées en "2026-08-13" — nous sommes le 2026-08-13. Les entrées de ce journal datées du même jour sont désormais explicitement numérotées (round 1 / round 2 / round 3) pour rester distinguables.
+
+**Impact** : `head-coach-engine/src/engine/buildDailyPlan.ts`, `src/rules/modes.ts` (commentaire), `src/engine/eventContext.ts` (commentaire), `tests/t10_confidence.test.ts` (commentaire + nouveau test), ce document.
+
+**Statut** : active.

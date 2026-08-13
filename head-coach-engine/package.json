@@ -1,0 +1,22 @@
+{
+  "name": "head-coach-engine",
+  "version": "0.2.0",
+  "description": "Louis Performance System — Head Coach Engine (V0.2 vertical slice locale)",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "run:example": "tsx src/cli/runExample.ts"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

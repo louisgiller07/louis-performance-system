@@ -1,8 +1,8 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 12 août 2026
+**Dernière mise à jour :** 13 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** Bootstrap repository + export des documents canoniques
+**Phase actuelle :** M1 — Vertical Slice locale du Head Coach Engine (implémentée, en attente de revue Louis)
 
 ## Où on en est réellement
 
@@ -25,10 +25,16 @@
 
 - **Export des documents canoniques dans `/docs`** — cette Passe 1 est le début. Les Passes 2 et 3 suivront.
 
+### IMPLÉMENTÉ LOCALEMENT — en attente de revue Louis et de commit
+
+- **Vertical Slice locale du Head Coach Engine** dans `head-coach-engine/` : pipeline complet `RawContext → DailyPlan` (dimensions, SAFETY A1-A5, mode + race/event context + protocole T-X, domaines Training + Recovery, arbitrage KEEP/MODIFY/REPLACE/REST, mapping `TrainingIntervention ↔ DbSessionType`), fixtures Louis, CLI de démonstration.
+- **Tests** : 74/74 verts (`npm test`), couvrant T1-T8 + T10 de `docs/10_TEST_PLAN.md` + tests unitaires complémentaires (signaux systemic causaux, garanties A5/override_reason, arbitrage des soft constraints strong). T9 (ActiveExperiment runtime) non implémenté, conforme au scope P1.
+- **Build** : `npm run build` (TypeScript strict) sans erreur.
+- **Rien n'est encore commité/poussé sur GitHub** — en attente de validation de Louis avant commit, conformément à `CLAUDE.md` §Communication avec Louis.
+
 ### NOT STARTED
 
-- **Vertical Slice locale du Head Coach Engine** dans `head-coach-engine/` — sera la première mission de Claude Code après le push complet de `/docs`.
-- **Aucun code n'a été poussé dans le repo à ce jour.**
+- Connexion Supabase read-only (M2).
 
 ## Prochaines étapes (ordre)
 
@@ -45,15 +51,18 @@
 
 **M1 — Vertical Slice locale complète et testée**
 
-Statut : **NOT STARTED**
+Statut : **IMPLÉMENTÉ LOCALEMENT — en attente de revue Louis avant commit/push et décision Go/No-Go M2**
 
 Critères de sortie M1 :
-- Pipeline `RawContext → DailyPlan` implémenté selon `docs/04_DAILY_DECISION_ENGINE.md`.
-- Tous les tests T1–T8 + T10 de `docs/10_TEST_PLAN.md` passent au vert.
-- T9 (ActiveExperiment runtime) est P1, pas M1.
-- Tests déterministes (aucune sortie alternative acceptée).
-- CLI locale de démonstration fonctionnelle.
-- Build TypeScript sans erreur.
+- [x] Pipeline `RawContext → DailyPlan` implémenté selon `docs/04_DAILY_DECISION_ENGINE.md`.
+- [x] Tous les tests T1–T8 + T10 de `docs/10_TEST_PLAN.md` passent au vert (51/51).
+- [x] T9 (ActiveExperiment runtime) est P1, pas M1 — non implémenté, concept documenté.
+- [x] Tests déterministes (aucune sortie alternative acceptée).
+- [x] CLI locale de démonstration fonctionnelle (`npm run run:example <scenario>`).
+- [x] Build TypeScript sans erreur (`npm run build`).
+- [ ] Revue Louis.
+- [ ] Commit / push.
+- [ ] Décision Go/No-Go M2.
 
 Sortie de M1 déclenche :
 - Mise à jour de ce fichier

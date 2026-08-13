@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : Bootstrap repository + export des documents canoniques
-**Prochain milestone** : M1 — Vertical Slice locale du Head Coach Engine
+**Phase** : M1 implémenté localement, en attente de revue Louis
+**Prochain milestone** : M1 — Vertical Slice locale du Head Coach Engine (revue + commit)
 
 ---
 
@@ -16,34 +16,34 @@
 
 ### Head Coach Engine vertical slice
 
-- [ ] Initialiser `head-coach-engine/` avec Node LTS 24 + TypeScript strict + Vitest
-- [ ] `tsconfig.json` (base) + `tsconfig.build.json` (build src uniquement)
-- [ ] Structure de dossiers : `src/{types,engine,rules,domains,mapping,cli}`, `tests/`, `fixtures/`
-- [ ] Types de base : `EngineContext`, `AthleteDimensions`, `ContextState`, `DailyPlan`, `TrainingIntervention` (avec `kind` + `load_profile`), `DbSessionType`
-- [ ] Calcul des 6 dimensions individuelles
-- [ ] Calcul du `global_readiness_ui` (UI seulement)
-- [ ] Traçabilité des signaux consommés (implémentation libre)
-- [ ] Couche A — SAFETY rules (5 règles canoniques A1-A5)
-- [ ] Couche B — Modes opérationnels + Event context (pre/in-progress/post)
-- [ ] Couche B — Race protocol T-X (HOT_TRAIL_2DAY + IXS_3DAY)
-- [ ] Couche C — Domaine Training (KEEP/MODIFY/REPLACE)
-- [ ] Couche C — Domaine Recovery
-- [ ] Head Coach arbitration (KEEP/MODIFY/REPLACE/REST + cohérence)
-- [ ] Mapping `TrainingIntervention` ↔ `DbSessionType` (fonction pure déterministe)
-- [ ] Assembleur `buildDailyPlan()`
-- [ ] Fixtures Louis réalistes (à partir de `02_ATHLETE_PROFILE.md`)
-- [ ] Tests unitaires par règle et par dimension
-- [ ] Tests d'intégration canoniques (T1-T8 + T10 de `10_TEST_PLAN.md`)
-- [ ] CLI `npm run run:example <scenario>`
-- [ ] `npm run build` sans erreur
+- [x] Initialiser `head-coach-engine/` avec Node LTS 24 + TypeScript strict + Vitest
+- [x] `tsconfig.json` (base) + `tsconfig.build.json` (build src uniquement)
+- [x] Structure de dossiers : `src/{types,engine,rules,domains,mapping,cli}`, `tests/`, `fixtures/`
+- [x] Types de base : `RawContext`, `AthleteDimensions`, `ContextState`, `DailyPlan`, `TrainingIntervention` (discriminated union `kind` + `load_profile`), `DbSessionType`
+- [x] Calcul des 6 dimensions individuelles
+- [x] Calcul du `global_readiness_ui` (UI seulement)
+- [x] Traçabilité des signaux consommés (`SignalTrace`, classe mutable passée en argument)
+- [x] Couche A — SAFETY rules (5 règles canoniques A1-A5)
+- [x] Couche B — Modes opérationnels + Event context (pre/in-progress/post)
+- [x] Couche B — Race protocol T-X (HOT_TRAIL_2DAY + IXS_3DAY)
+- [x] Couche C — Domaine Training (KEEP/MODIFY/REPLACE) + douleur non-SAFETY (monitoring/protection/adaptation)
+- [x] Couche C — Domaine Recovery
+- [x] Head Coach arbitration (KEEP/MODIFY/REPLACE/REST + cohérence + détection de contradiction)
+- [x] Mapping `TrainingIntervention` ↔ `DbSessionType` (fonction pure déterministe)
+- [x] Assembleur `buildDailyPlan()`
+- [x] Fixtures Louis réalistes (à partir de `02_ATHLETE_PROFILE.md`)
+- [x] Tests unitaires par règle et par dimension
+- [x] Tests d'intégration canoniques (T1-T8 + T10 de `10_TEST_PLAN.md`)
+- [x] CLI `npm run run:example <scenario>`
+- [x] `npm run build` sans erreur
 
 ### Validation M1
 
-- [ ] Tous les tests T1-T8 + T10 passent (déterministes)
-- [ ] Build strict sans erreur
-- [ ] CLI produit un `DailyPlan` cohérent pour chaque scénario
+- [x] Tous les tests T1-T8 + T10 passent (déterministes) — 51/51
+- [x] Build strict sans erreur
+- [x] CLI produit un `DailyPlan` cohérent pour chaque scénario
 - [ ] Review Louis
-- [ ] Update `00_PROJECT_STATUS.md` avec M1 DONE
+- [ ] Update `00_PROJECT_STATUS.md` avec M1 DONE (après review + commit)
 - [ ] Décision Go/No-Go pour M2
 
 ---
