@@ -91,12 +91,15 @@ L'objectif est d'éviter que l'implémentation modifie silencieusement la spec p
 
 ## Ne fais pas
 
-- **Ne connecte pas Supabase runtime** avant que la vertical slice locale soit validée par tests.
 - **Ne construis pas d'UI** avant que le moteur core soit stable.
 - **N'intègre pas Garmin/Strava/LLM/webhooks** avant validation explicite.
 - **Ne casse pas le schéma Supabase V0.2 existant.** Toute évolution du schéma doit être additive et documentée dans `docs/05_DATA_MODEL.md` et `docs/11_DECISION_LOG.md`.
 - **Ne remplace pas l'enum `session_type` de la DB par un enum plus riche.** La DB conserve son `session_type` coarse. Le Head Coach peut utiliser une représentation interne plus riche (`TrainingIntervention`), avec mapping explicite. Voir `docs/05_DATA_MODEL.md`.
 - **N'invente pas de nouveaux termes.** Utilise le vocabulaire de `docs/07_GLOSSARY.md`.
+- **Ne modifie pas le moteur M1 en M2.** Les dossiers `src/{types,engine,rules,domains,mapping}` sont frozen (verdict M1 APPROVED, 2026-08-13). M2 ajoute uniquement `src/supabase/`. Toute évolution du moteur nécessite une nouvelle décision architecte tracée dans `docs/11_DECISION_LOG.md`.
+- **N'invente pas de données historiques.** Les colonnes ajoutées en M2 aux tables existantes (`decisions.daily_plan`, `decisions.active_mode`, `planned_sessions.intervention`, `planned_sessions.planned_intent`, `daily_checkins.pain_traumatic`/`pain_function_loss`/`pain_getting_worse`) restent `NULL` sur les rows antérieures à M2. Les nouvelles rows M2 les remplissent toujours via le DAL. Un check-in courant M2 incomplet (un des trois critères douleur manquant) est **rejeté** par l'adapter, jamais silencieusement complété.
+- **Ne crée pas de contrainte unique `(athlete_id, decision_date)` sur `decisions`.** M2 est append-only : plusieurs décisions par jour sont autorisées si le contexte change en cours de journée. La décision courante est la plus récente.
+- **N'invente pas de `kind` ou `load_profile`** en inversant un `DbSessionType` ambigu vers `TrainingIntervention`. L'inversion n'est appliquée que pour les mappings mathématiquement non ambigus (`REST`, `BIKE_MAINTENANCE`, `RACE_PREP`). Pour tout autre `DbSessionType` legacy sans `intervention JSONB`, l'adapter retourne `planned_session = null` et émet un warning.
 
 ## Contrainte canonique : traçabilité des signaux (double-counting)
 
@@ -121,11 +124,11 @@ Voir `docs/08_CONVENTIONS.md` pour :
 
 ## Architecture actuelle en un paragraphe
 
-Une **librairie pure TypeScript** dans `head-coach-engine/` produit un `DailyPlan` à partir d'un `EngineContext`. Le pipeline est :
+Une **librairie pure TypeScript** dans `head-coach-engine/src/{types,engine,rules,domains,mapping}` produit un `DailyPlan` à partir d'un `RawContext`. Le pipeline est :
 
 `RawContext → MultidimensionalAthleteState → Safety → Mode+RaceContext → DomainDecisions → HeadCoachArbitration → DailyPlan`
 
-Aucune connexion Supabase, aucun LLM, aucune UI en V0.2 vertical slice.
+En M2, un adapter Supabase (`src/supabase/`) construit `RawContext` depuis les tables réelles et persiste le `DailyPlan` dans `decisions` (avec écriture atomique via RPC PostgreSQL du `health_flag_to_create` dans `health_flags` puis de la décision). Le moteur M1 est **frozen** et strictement inchangé. Toujours pas de LLM, pas d'UI, pas d'intégrations externes.
 
 ## Workflow de session type
 

@@ -353,3 +353,156 @@ Aucun learned pattern n'est activé sans preuves suffisantes. Pas de seuil unive
 **Impact** : `head-coach-engine/src/engine/buildDailyPlan.ts`, `src/rules/modes.ts` (commentaire), `src/engine/eventContext.ts` (commentaire), `tests/t10_confidence.test.ts` (commentaire + nouveau test), ce document.
 
 **Statut** : active.
+
+---
+
+## 2026-08-13 — M1 APPROVED, frozen
+
+**Contexte** : revue architecte du vertical slice M1 après 3 rounds de corrections. Tous les points canoniques (SAFETY A1-A5, dimensions séparées, prévention du double-counting, KEEP/MODIFY/REPLACE/REST, soft constraints strong overridables via `planned_intent`, RaceProtocol/T-X, multi-day races, mapping déterministe `TrainingIntervention → DbSessionType`, confidence qualitative) sont conformes. 75/75 tests verts, type-check et build clean.
+
+**Décision** : M1 APPROVED. Les dossiers `head-coach-engine/src/{types,engine,rules,domains,mapping}` sont **frozen** sauf bug métier réel découvert ultérieurement. M2 n'y touche pas.
+
+**Impact** : `CLAUDE.md`, `docs/00_PROJECT_STATUS.md`, contrainte structurante pour toute la conception M2.
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : Option A retenue pour les champs douleur enrichis (colonnes `NULL` sur legacy)
+
+**Contexte** : les champs `pain_traumatic`, `pain_function_loss`, `pain_getting_worse` utilisés par SAFETY A4 vivaient localement dans `RawContext.checkin` en M1. Deux options envisagées pour la persistance Supabase : (A) trois colonnes booléennes dédiées dans `daily_checkins`, (B) un JSONB `pain_metadata`.
+
+**Décision** : **Option A retenue**. Migration `M2_001` : trois colonnes `boolean NULL` **sans default** dans `daily_checkins`. Une row pré-M2 n'a jamais collecté ces critères : `NULL = inconnu`, pas `false`. Toute nouvelle row M2 (créée via le DAL) doit fournir explicitement `true` ou `false` pour chacun des trois champs. L'adapter Supabase (`buildRawContextFromSupabase`) **rejette** un checkin courant M2 dont un des trois critères est `NULL`, plutôt que de convertir silencieusement en `false`. Le moteur M1 reste inchangé et reçoit toujours des booleans valides (ou aucun contexte du tout).
+
+**Justifications** : homogénéité canonique (les autres champs `pain`, `pain_intensity`, `pain_new` sont déjà scalaires), zéro indirection entre M1 et M2 (copie de champs à champs), JSONB non justifié pour 3 booléens fixés par la spec.
+
+**Alternatives considérées** :
+- Option B (JSONB `pain_metadata`) — rejetée pour hétérogénéité de style et sur-ingénierie.
+- `boolean NOT NULL DEFAULT false` — rejeté car fabrique une donnée historique (assume que les rows legacy avaient `false` pour ces trois critères, alors qu'ils n'ont simplement jamais été collectés).
+
+**Impact** : `docs/05_DATA_MODEL.md`, `CLAUDE.md`, migration `M2_001_daily_checkins_pain_criteria.sql`, comportement obligatoire de l'adapter M2.
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : `decisions.daily_plan JSONB` + `decisions.active_mode` NULL sur legacy
+
+**Contexte** : le `DailyPlan` produit par M1 est plus riche que le schéma `decisions` V0.2 (sections multi-domaines, `TrainingIntervention` riche, `event_context`, `decision` KEEP/MODIFY/REPLACE/REST, `overrode_race_protocol`, `health_flag_to_create`). Il faut le persister sans casser les rows historiques.
+
+**Décision** : migration `M2_002` ajoute deux colonnes à `decisions` :
+- `daily_plan JSONB NULL` (source de vérité)
+- `active_mode training_mode NULL` (projection SQL)
+
+**Pas de valeur par défaut fabriquée pour les rows historiques.** Les rows antérieures à M2 restent `NULL` — on ne sait pas ce que valaient ces champs au moment où la décision a été prise, il n'y a rien à inventer. Les nouvelles rows M2 les remplissent toujours via le DAL. Les colonnes historiques (`final_session`, `planned_session_before`, `reason`, `confidence`, `do_not_do`, `override_reason`, `engine_version`) deviennent des **projections dénormalisées** du JSONB.
+
+**Alternatives considérées** : `DEFAULT '{}'::jsonb` et `DEFAULT 'IN_SEASON'` — rejetés car fabriquent des données historiques inexistantes.
+
+**Impact** : `docs/05_DATA_MODEL.md`, `CLAUDE.md`, migration `M2_002_decisions_daily_plan.sql`.
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : `planned_sessions.intervention JSONB` + `planned_intent TEXT` + inversion partielle documentée
+
+**Contexte** : le mapping `TrainingIntervention → DbSessionType` est **surjectif** (plusieurs `(kind, load_profile)` mappent vers le même `DbSessionType`). Impossible de reconstruire proprement la richesse à la lecture sans information supplémentaire. Par ailleurs, `RawContext.planned_intent` existe et participe désormais à l'arbitrage des soft constraints strong (voir round 2 du 2026-08-13 ci-dessus) — il doit donc être persisté et lu.
+
+**Décision** : migration `M2_003` ajoute à `planned_sessions` :
+- `intervention JSONB NULL` — conserve la `TrainingIntervention` riche à la lecture
+- `planned_intent TEXT NULL` — notes du planificateur, mappé explicitement vers `RawContext.planned_intent` par l'adapter
+
+Nullable assumé : lignes historiques → `intervention = NULL`. Comportement de l'adapter :
+- **Inversion partielle appliquée uniquement pour les mappings mathématiquement non ambigus** :
+  - `REST` → `{ kind: "REST" }`
+  - `BIKE_MAINTENANCE` → `{ kind: "BIKE_MAINTENANCE" }`
+  - `RACE_PREP` → `{ kind: "RACE_ACTIVITY" }`
+- **Tout autre `DbSessionType`** (`STRENGTH_A`, `STRENGTH_B`, `AEROBIC_BASE`, `AEROBIC_INTERVALS`, `DH_TECHNICAL`, `DH_PERFORMANCE`, `RECOVERY`) → `planned_session = null` + warning adapter. Le moteur active alors le fallback M1 T6.1 (inférence).
+
+**Aucune reconstruction inventée du `kind` ou du `load_profile`.**
+
+`planned_intent` **n'est jamais inféré** automatiquement depuis `primary_objective` ou tout autre champ existant. L'adapter mappe uniquement la valeur explicite de la colonne.
+
+Pour `completed_sessions` : audit préalable au début de M2 pour vérifier si `main_content` contient déjà de façon canonique la `TrainingIntervention`. Si oui, réutiliser tel quel. Si non, migration additionnelle `M2_004` sur le même modèle. Décision à tracer en son temps.
+
+**Alternatives considérées** :
+- Mapping inverse "meilleur effort" pour tous les `DbSessionType` — rejeté (introduit de la fiction).
+- Inférence de `planned_intent` depuis `primary_objective` — rejetée (fabrication d'une justification qui n'a pas été explicitement formulée).
+- Ne rien changer, tout inférer via `main_content` — rejeté pour `planned_sessions` (n'a pas d'équivalent), à valider pour `completed_sessions`.
+
+**Impact** : `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md` (§Fallback d'intervention en lecture), `CLAUDE.md`, migration `M2_003_planned_sessions_intervention.sql`, éventuellement `M2_004`.
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : `decisions` append-only, pas d'upsert
+
+**Contexte** : question ouverte en début M2 — une décision par jour (upsert sur `(athlete_id, decision_date)`) ou historique complet des exécutions ?
+
+**Décision** : **append-only**. Aucune contrainte d'unicité sur `(athlete_id, decision_date)`, aucun `ON CONFLICT`, aucun upsert destructif. Plusieurs décisions par jour sont autorisées si le contexte change en cours de journée (nouveau checkin, événement en cours, override manuel plus tard). La décision courante est la plus récente (`ORDER BY created_at DESC LIMIT 1`).
+
+Champs `supersedes_decision_id`, `revision`, `is_current` pourront être ajoutés plus tard si l'audit fin devient nécessaire (P2+).
+
+**Alternatives considérées** : upsert avec contrainte unique — rejeté car écrase l'historique intra-journée et complique le raisonnement causal futur.
+
+**Impact** : `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md`, `docs/10_TEST_PLAN.md`, `CLAUDE.md`.
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : persistance atomique via RPC PostgreSQL + idempotence health_flags garantie par contrainte DB
+
+**Contexte** : SAFETY A1/A2/A3/A4 produit un `health_flag_to_create` dans le `DailyPlan`. SAFETY A5 (`04_DAILY_DECISION_ENGINE.md §2`) requiert un flag `concussion_suspect` non résolu **pré-existant** en base pour se déclencher. Sans persistance atomique du flag et de la décision, le cycle A1 (jour N) → A5 (jour N+1) risque d'être cassé en cas d'échec partiel.
+
+De plus, l'idempotence garantie uniquement par un pattern SELECT-then-INSERT applicatif est fragile en cas d'appels concurrents ou multiples.
+
+**Décision** :
+
+1. **Contrainte / index unique partiel PostgreSQL** sur `health_flags` empêchant deux flags ouverts `(athlete_id, type)` simultanément (`status IN ('active','monitoring')`), tout en autorisant un nouveau flag après résolution. Idempotence garantie côté DB, pas seulement par le code applicatif. DDL réel à auditer en début de M2 avant application de la migration correspondante.
+2. **Fonction PostgreSQL / RPC `persist_daily_run`** qui, dans **une seule transaction** :
+   - upsert éventuel du `health_flag_to_create` (via `INSERT ... ON CONFLICT DO NOTHING` s'appuyant sur la contrainte ci-dessus)
+   - insert append-only de la row `decisions`
+   - rollback complet si l'une des deux échoue
+
+**Aucune logique de coaching côté SQL.** La RPC est un pur enregistreur transactionnel. Toute décision reste dans le moteur TypeScript.
+
+3. **Séparation stricte calcul / persistance** côté TypeScript :
+   - `computeDailyFor(client, athleteId, today)` → construit `RawContext`, appelle M1, retourne `{rawContext, dailyPlan}`. **Zéro écriture.**
+   - `runDailyFor(client, athleteId, today)` → appelle `computeDailyFor`, invoque la RPC `persist_daily_run`, retourne les identifiants.
+
+Le "dry-run" est `computeDailyFor` — pas de flag `--dry-run` sur `runDailyFor`.
+
+Tests obligatoires : cycle A1 (jour N) → A5 (jour N+1) prouvé en intégration (M2.C.1 + M2.C.2), idempotence sous appels concurrents/multiples prouvée par la contrainte DB (M2.C.4).
+
+**Impact** : `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md`, `docs/10_TEST_PLAN.md`, migrations M2 pour la contrainte + la RPC, `src/supabase/computeDailyFor.ts` et `src/supabase/runDailyFor.ts`.
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : décisions infra (Supabase CLI local + clé serveur env-only)
+
+**Contexte** : deux décisions d'infrastructure à trancher avant que Claude Code démarre M2.
+
+**Décisions** :
+
+1. **Tests d'intégration** : Supabase CLI local (Postgres + auth + storage bundlés). Migrations versionnées (`supabase/migrations/M2_*.sql`) appliquées automatiquement au démarrage. Seed reproductible contenant Louis + scénarios canoniques M1 transposés en rows SQL. Chaque suite de tests part d'un état DB déterministe (reset + seed).
+2. **Authentification M2** : clé serveur uniquement. Préférer la **Secret Key Supabase actuelle**, supporter le **legacy `SUPABASE_SERVICE_ROLE_KEY`** si le projet actuel l'utilise encore. Secret lu depuis l'environnement (`SUPABASE_URL` + clé serveur), **jamais commité**. Pas de JWT athlète en M2 (CLI serveur, pas de contexte utilisateur — le JWT sera introduit à M3 avec l'Edge Function).
+
+**Impact** : `docs/06_ARCHITECTURE.md`, `docs/10_TEST_PLAN.md`, `docs/12_BACKLOG.md`, `.env.example` (à créer), `.gitignore` (à vérifier).
+
+**Statut** : active
+
+---
+
+## 2026-08-13 — M2 : audit DDL réel obligatoire avant toute migration
+
+**Contexte** : la spec canonique `05_DATA_MODEL.md` décrit les tables au niveau conceptuel (champs principaux, enums, contraintes de sécurité). Le DDL réel déployé peut contenir des détails (noms exacts de colonnes, contraintes existantes, valeurs par défaut, types précis, triggers) non exhaustivement documentés. Écrire des migrations M2 sans auditer le DDL réel risque de produire des migrations incohérentes avec l'existant (ex : dupliquer une contrainte, se tromper sur le nom exact d'une colonne `location_code` de `health_flags`, méconnaître un trigger).
+
+**Décision** : **la première tâche M2** est un audit du DDL réel des tables et enums touchés par M2 (`daily_checkins`, `decisions`, `planned_sessions`, `completed_sessions`, `health_flags`, enums `training_mode`, `health_flag_type`, `health_flag_status`, `session_type`). L'audit est tracé (résumé bref + décisions dérivées) avant l'écriture des migrations. En particulier, la clé exacte d'idempotence des `health_flags` (`type` seul ou `type + location_code`) est déterminée à ce moment.
+
+**Impact** : `docs/00_PROJECT_STATUS.md` (critère de sortie M2), `docs/12_BACKLOG.md` (tâche P0 en premier).
+
+**Statut** : active

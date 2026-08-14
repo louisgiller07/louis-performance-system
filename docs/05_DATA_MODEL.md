@@ -71,7 +71,9 @@ Champs : monday_evening, tuesday_evening, ..., friday_afternoon, saturday_full, 
 
 Entrée quotidienne de Louis. Un enregistrement par jour.
 
-Champs principaux : sleep_hours, sleep_quality, sleep_wake_ups, energy, work_stress, leg_fatigue, grip_fatigue, motivation, pain, pain_intensity, pain_new, pain_location_code (enum), suspected_concussion, fever_or_illness, free_comment.
+Champs principaux : sleep_hours, sleep_quality, sleep_wake_ups, energy, work_stress, leg_fatigue, grip_fatigue, motivation, pain, pain_intensity, pain_new, pain_location_code (enum), pain_traumatic, pain_function_loss, pain_getting_worse, suspected_concussion, fever_or_illness, free_comment.
+
+Les trois champs `pain_traumatic`, `pain_function_loss`, `pain_getting_worse` ont été ajoutés en M2 (migration `M2_001`). Ils alimentent SAFETY A4. **Type : `boolean NULL` sans valeur par défaut.** Les rows antérieures à M2 n'ont jamais collecté ces critères : `NULL = inconnu`, pas `false`. Toute nouvelle row M2 (créée via le DAL) doit fournir explicitement `true` ou `false` pour chaque critère. L'adapter Supabase (`buildRawContextFromSupabase`) **rejette** un checkin courant dont un des trois critères est `NULL`, plutôt que de convertir silencieusement en `false` — le moteur M1 reçoit toujours des booleans valides ou aucun contexte du tout. Voir `11_DECISION_LOG.md` (2026-08-13 — Option A, correction NULL).
 
 ### `athlete_state`
 
@@ -87,19 +89,37 @@ Séance prévue pour un jour donné. Une par jour maximum en V0.2.
 
 Colonne `session_type` de type `DbSessionType` (enum coarse).
 
+Colonnes ajoutées en M2 (migration `M2_003`) :
+- `intervention JSONB NULL` — `TrainingIntervention` riche (`kind` + `load_profile` + éventuels `focus`/`cue`/`duration_min`). Nécessaire car le mapping `TrainingIntervention → DbSessionType` est surjectif et non inversible sans information supplémentaire. Nullable : les rows antérieures à M2 ont `intervention = NULL`. Comportement de l'adapter dans ce cas : inversion appliquée uniquement pour les mappings mathématiquement non ambigus (`REST` → `{kind: "REST"}`, `BIKE_MAINTENANCE` → `{kind: "BIKE_MAINTENANCE"}`, `RACE_PREP` → `{kind: "RACE_ACTIVITY"}`). Pour tout autre `DbSessionType` (`STRENGTH_A`, `STRENGTH_B`, `AEROBIC_BASE`, `AEROBIC_INTERVALS`, `DH_TECHNICAL`, `DH_PERFORMANCE`, `RECOVERY`), l'adapter retourne `planned_session = null` et émet un warning — le moteur active alors le fallback M1 T6.1 (inférence). **Aucune reconstruction inventée du `kind` ou du `load_profile`.**
+- `planned_intent TEXT NULL` — notes du planificateur sur pourquoi cette séance était prévue. Participe à l'arbitrage des soft constraints strong côté moteur (voir `04_DAILY_DECISION_ENGINE.md` §Head Coach Arbitration et `11_DECISION_LOG.md` round 2 du 2026-08-13). **Jamais inféré automatiquement** depuis `primary_objective` ou tout autre champ existant : l'adapter mappe uniquement la valeur explicite de cette colonne vers `RawContext.planned_intent`.
+
 ### `completed_sessions`
 
 Séance réellement effectuée. Un enregistrement par jour.
 
 Colonne `session_type` de type `DbSessionType`. `main_content` en JSONB pour la richesse (peut inclure `TrainingIntervention` précise, événements mécaniques, etc.).
 
+**Décision M2 conditionnelle** : au début de M2, Claude Code audite si `main_content` contient déjà de façon canonique la `TrainingIntervention` riche.
+- Si **oui** : réutiliser tel quel, pas de migration additionnelle.
+- Si **non** : migration additive `M2_004` ajoutant `completed_sessions.intervention JSONB NULL` (même logique que `planned_sessions.intervention`, mêmes règles d'inversion partielle pour les rows legacy). Décision à tracer dans `11_DECISION_LOG.md` au moment de l'audit.
+
+**Fallback legacy** : une session complétée sans richesse `TrainingIntervention` récupérable (ni via `intervention`, ni via `main_content` canonique, et non couverte par l'inversion non ambiguë) ne contribue **pas** à `recent_load` avec la granularité `load_profile` — le moteur ne compte que les sessions qui ont l'information. Aucune reconstruction inventée.
+
 ### `decisions`
 
-Chaque exécution du Daily Decision Engine crée une ligne. Traçabilité complète.
+Chaque exécution du Daily Decision Engine crée une **nouvelle** row. Traçabilité complète, **append-only**.
 
-Champs : planned_session_before, final_session (DbSessionType), triggered_rules (JSONB), reason, confidence, stop_conditions, do_not_do, engine_version, overridden_by_user, override_reason.
+Champs historiques V0.2 : `planned_session_before` (DbSessionType), `final_session` (DbSessionType), `triggered_rules` (JSONB), `reason`, `confidence`, `stop_conditions`, `do_not_do`, `engine_version`, `overridden_by_user`, `override_reason`.
 
-**Évolution prévue V0.2** : ajout d'un champ `daily_plan JSONB` pour stocker le `DailyPlan` complet (avec la richesse multi-domaines et la représentation `TrainingIntervention`).
+Champs ajoutés en M2 (migration `M2_002`) :
+- `daily_plan JSONB NULL` — **source de vérité** du `DailyPlan` produit par le moteur. Contient toute la richesse multi-domaines : `TrainingIntervention` riche, sections mental/recovery/nutrition/sleep, `event_context`, `decision` (`KEEP`/`MODIFY`/`REPLACE`/`REST`), `overrode_race_protocol`, `health_flag_to_create`. Toujours renseigné pour les nouvelles rows M2, `NULL` pour les rows antérieures (information inconnue, aucune reconstruction fabriquée).
+- `active_mode training_mode NULL` — projection SQL du `TrainingMode` actif au moment de la décision, pour requêtes/index natifs. Toujours renseigné pour les nouvelles rows M2, `NULL` pour les rows antérieures.
+
+Les colonnes historiques (`final_session`, `planned_session_before`, `reason`, `confidence`, `do_not_do`, `override_reason`, `engine_version`) sont, en M2, des **projections dénormalisées** du `daily_plan` JSONB, remplies par le DAL pour ergonomie SQL. `stop_conditions` reste `NULL` en M2 (non produit par le moteur). `overridden_by_user` reste `NULL` en M2 (pas d'UI).
+
+**Aucune contrainte d'unicité sur `(athlete_id, decision_date)`. Aucun upsert.** Plusieurs décisions par jour sont autorisées si le contexte change en cours de journée (nouveau checkin, événement en cours, correction manuelle plus tard). La décision courante est la plus récente (`ORDER BY created_at DESC LIMIT 1`). Si un audit fin devient nécessaire plus tard, des champs `supersedes_decision_id`, `revision` ou `is_current` pourront être ajoutés (P2+).
+
+**Atomicité écriture (M2)** : la persistance d'une nouvelle row `decisions` et l'éventuel `upsertActiveHealthFlag` associé sont effectués dans une **unique transaction PostgreSQL** via la fonction RPC `persist_daily_run` — pour garantir qu'A5 (jour N+1) puisse toujours lire le flag créé par A1/A2/A3/A4 (jour N). Voir `06_ARCHITECTURE.md`.
 
 ### `race_calendar`
 
@@ -226,26 +246,18 @@ Ainsi la DB reste stable, mais toute la richesse est préservée dans le JSONB.
 - Timed sections en course
 - Nutrition tracking détaillé
 
-### Requis avant connexion Supabase runtime (M2)
+### Décisions M2 (à appliquer)
 
-**Migration additive à effectuer avant M2 — pas maintenant.**
+Les migrations M2 sont additives et non-destructives. Décisions tranchées, tracées dans `11_DECISION_LOG.md` (entrées 2026-08-13) :
 
-Deux options possibles pour supporter les champs douleur enrichis utilisés par SAFETY :
+- **`M2_001`** : Option A retenue pour les champs douleur enrichis — trois colonnes `boolean NULL` (sans default) dans `daily_checkins`. `NULL = inconnu` sur legacy. L'adapter rejette un checkin courant M2 incomplet.
+- **`M2_002`** : `decisions.daily_plan JSONB NULL` (source de vérité) + `decisions.active_mode training_mode NULL` (projection SQL). Aucune valeur par défaut fabriquée pour les rows historiques.
+- **`M2_003`** : `planned_sessions.intervention JSONB NULL` + `planned_sessions.planned_intent TEXT NULL`.
+- **`M2_004`** (conditionnel) : `completed_sessions.intervention JSONB NULL` si l'audit initial de `main_content` le justifie.
+- **Contrainte / index unique partiel `health_flags`** : empêche deux flags ouverts `(athlete_id, type)` simultanément (`status IN ('active','monitoring')`), tout en autorisant un nouveau flag après résolution. Idempotence garantie côté PostgreSQL, pas seulement via SELECT-then-INSERT applicatif.
+- **Fonction RPC `persist_daily_run`** : upsert éventuel du health flag + insert append-only de la décision, dans une seule transaction. Aucune logique de coaching côté SQL.
 
-**Option A — Ajouter les colonnes à `daily_checkins`** :
-- `pain_traumatic boolean`
-- `pain_function_loss boolean`
-- `pain_getting_worse boolean`
-
-**Option B — Persister ces champs dans une source équivalente** :
-- Par exemple `daily_checkins.pain_metadata JSONB`
-- Ou une table dédiée liée à `daily_checkins`
-
-Le choix entre A et B sera tranché au moment de la préparation de M2. Décision à tracer dans `11_DECISION_LOG.md`.
-
-Contrainte canonique : la représentation choisie doit permettre au moteur d'accéder à ces champs sans ambiguïté, avec la même sémantique qu'en M1 local.
-
-De même, le concept `active_health_flags` doit être exposé comme liste structurée `HealthFlag[]` au niveau du moteur. En M1, les fixtures fournissent cette structure directement. En M2, l'adapter Supabase construit cette liste à partir de la table `health_flags`.
+L'`active_health_flags` du `RawContext` reste une liste structurée `HealthFlag[]` au niveau du moteur. En M2, l'adapter Supabase la construit à partir de la table `health_flags` (filtrée sur `status != 'resolved'`).
 
 ---
 
@@ -275,3 +287,7 @@ Voir `01_PRODUCT_REQUIREMENTS.md` §Hors périmètre.
 - Ajouter des valeurs aux enums PostgreSQL possible mais tracé dans `11_DECISION_LOG.md`
 - Le mapping `TrainingIntervention → DbSessionType` est une fonction de code documentée, pas une donnée en base
 - Mapping déterministe : pour tout `(kind, load_profile)` valide → sortie unique
+- **Aucune donnée historique fabriquée.** Les colonnes ajoutées après le déploiement initial d'une table restent `NULL` sur les rows antérieures quand l'information réelle n'est pas connue. Les valeurs par défaut ne sont utilisées **que** quand elles reflètent une réalité factuelle (jamais pour combler un vide historique arbitraire).
+- **Inversion `DbSessionType → TrainingIntervention` limitée aux mappings mathématiquement non ambigus** (`REST`, `BIKE_MAINTENANCE`, `RACE_PREP`). Tous les autres `DbSessionType` (ambigus) → `planned_session = null` + warning adapter. Ne jamais inventer `kind` ou `load_profile`.
+- **`decisions` est append-only.** Aucune contrainte d'unicité sur `(athlete_id, decision_date)`, aucun upsert destructif. La décision courante est la plus récente.
+- **`health_flag_to_create` produit par M1 est persisté** dans `health_flags` par la fonction RPC transactionnelle `persist_daily_run`, **avant** l'insertion de la row `decisions`, dans la même transaction. Idempotence garantie par une contrainte / index unique partiel PostgreSQL sur les flags ouverts `(athlete_id, type)`.

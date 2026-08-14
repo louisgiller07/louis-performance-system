@@ -2,88 +2,151 @@
 
 ## Statut actuel
 
-**Phase** : M1 implémenté localement, en attente de revue Louis
-**Prochain milestone** : M1 — Vertical Slice locale du Head Coach Engine (revue + commit)
+**Phase** : M2 — Connexion Supabase read/write locale (conception validée 2026-08-13, implémentation à venir)
+**Prochain milestone** : M2 — livrable Claude Code
 
 ---
 
-## P0 — Requis pour Vertical Slice locale
-
-### Bootstrap repository
+## M1 — DONE (frozen 2026-08-13)
 
 - [x] Repository GitHub créé (`louisgiller07/louis-performance-system`)
-- [ ] Push CLAUDE.md et 12 docs canoniques (les 13 fichiers listés)
-
-### Head Coach Engine vertical slice
-
-- [x] Initialiser `head-coach-engine/` avec Node LTS 24 + TypeScript strict + Vitest
-- [x] `tsconfig.json` (base) + `tsconfig.build.json` (build src uniquement)
-- [x] Structure de dossiers : `src/{types,engine,rules,domains,mapping,cli}`, `tests/`, `fixtures/`
-- [x] Types de base : `RawContext`, `AthleteDimensions`, `ContextState`, `DailyPlan`, `TrainingIntervention` (discriminated union `kind` + `load_profile`), `DbSessionType`
-- [x] Calcul des 6 dimensions individuelles
-- [x] Calcul du `global_readiness_ui` (UI seulement)
-- [x] Traçabilité des signaux consommés (`SignalTrace`, classe mutable passée en argument)
-- [x] Couche A — SAFETY rules (5 règles canoniques A1-A5)
+- [x] Docs canoniques poussés
+- [x] `head-coach-engine/` initialisé (Node LTS 24, TypeScript strict, Vitest)
+- [x] Structure de dossiers `src/{types,engine,rules,domains,mapping,cli}`, `tests/`, `fixtures/`
+- [x] Types : `RawContext`, `AthleteDimensions`, `ContextState`, `DailyPlan`, `TrainingIntervention` (discriminated union `kind` + `load_profile`), `DbSessionType`
+- [x] 6 dimensions individuelles
+- [x] `global_readiness_ui` (UI seulement)
+- [x] Traçabilité des signaux consommés (`SignalTrace`)
+- [x] Couche A — SAFETY A1-A5 (A5 toujours tracée)
 - [x] Couche B — Modes opérationnels + Event context (pre/in-progress/post)
-- [x] Couche B — Race protocol T-X (HOT_TRAIL_2DAY + IXS_3DAY)
-- [x] Couche C — Domaine Training (KEEP/MODIFY/REPLACE) + douleur non-SAFETY (monitoring/protection/adaptation)
+- [x] Couche B — Race protocol T-X (HOT_TRAIL_2DAY + IXS_3DAY), overridable via `planned_intent`
+- [x] Couche C — Domaine Training (KEEP/MODIFY/REPLACE) + douleur non-SAFETY
 - [x] Couche C — Domaine Recovery
-- [x] Head Coach arbitration (KEEP/MODIFY/REPLACE/REST + cohérence + détection de contradiction)
-- [x] Mapping `TrainingIntervention` ↔ `DbSessionType` (fonction pure déterministe)
+- [x] Head Coach arbitration + soft constraints strong overridables + `override_reason` garanti
+- [x] Mapping `TrainingIntervention → DbSessionType` (fonction pure déterministe)
 - [x] Assembleur `buildDailyPlan()`
-- [x] Fixtures Louis réalistes (à partir de `02_ATHLETE_PROFILE.md`)
-- [x] Tests unitaires par règle et par dimension
-- [x] Tests d'intégration canoniques (T1-T8 + T10 de `10_TEST_PLAN.md`)
+- [x] Fixtures Louis réalistes
+- [x] Tests M1 : 75/75 verts, tous déterministes
 - [x] CLI `npm run run:example <scenario>`
 - [x] `npm run build` sans erreur
+- [x] Review Louis, verdict architecte : APPROVED
+- [x] Commit + push
 
-### Validation M1
-
-- [x] Tous les tests T1-T8 + T10 passent (déterministes) — 51/51
-- [x] Build strict sans erreur
-- [x] CLI produit un `DailyPlan` cohérent pour chaque scénario
-- [ ] Review Louis
-- [ ] Update `00_PROJECT_STATUS.md` avec M1 DONE (après review + commit)
-- [ ] Décision Go/No-Go pour M2
+**Résultat** : `head-coach-engine/src/{types,engine,rules,domains,mapping}` est **frozen** sauf bug métier réel découvert ultérieurement.
 
 ---
 
-## P1 — Après M1
+## P0 — Requis pour M2 (Connexion Supabase read/write locale)
 
-### Domaine training enrichi
-- Domaine Mental (couche C basique)
-- Domaine Nutrition (couche C basique)
-- Domaine Contexte pro (couche C basique)
-- Domaine Analyse (couche C basique, quasi-passif)
+### 0. Audit préalable (obligatoire, en premier)
 
-### Experiments (T9)
+- [ ] Auditer le DDL réel des tables et enums touchés par M2 : `daily_checkins`, `decisions`, `planned_sessions`, `completed_sessions`, `health_flags`, enums `training_mode`, `health_flag_type`, `health_flag_status`, `session_type`.
+- [ ] Déterminer la clé exacte d'idempotence des `health_flags` (`type` seul ou `type + location_code`) selon le DDL réel.
+- [ ] Vérifier si `completed_sessions.main_content` contient déjà de façon canonique la `TrainingIntervention` riche. Décider en conséquence de la nécessité de `M2_004`.
+- [ ] Tracer l'audit + décisions dérivées dans `11_DECISION_LOG.md`.
+
+### 1. Infra tests d'intégration
+
+- [ ] Supabase CLI local installé et opérationnel
+- [ ] Structure `supabase/migrations/M2_*.sql` versionnée
+- [ ] Seed reproductible (`supabase/seed.sql` ou script TypeScript) — Louis + scénarios canoniques M1 transposés en rows SQL
+- [ ] Reset + seed déterministe avant chaque suite de tests
+- [ ] `.env.example` avec `SUPABASE_URL` + placeholder clé serveur ; `.gitignore` vérifié pour ne jamais commiter la vraie clé
+
+### 2. Migrations DB additives (non-destructives)
+
+- [ ] `M2_001_daily_checkins_pain_criteria.sql` : `pain_traumatic`, `pain_function_loss`, `pain_getting_worse` en `boolean NULL` **sans default** (NULL = inconnu sur legacy)
+- [ ] `M2_002_decisions_daily_plan.sql` : `daily_plan JSONB NULL` + `active_mode training_mode NULL` (aucune valeur par défaut sur legacy)
+- [ ] `M2_003_planned_sessions_intervention.sql` : `intervention JSONB NULL` + `planned_intent TEXT NULL`
+- [ ] `M2_004_completed_sessions_intervention.sql` (conditionnel) : ajouter `intervention JSONB NULL` uniquement si l'audit de `main_content` le justifie
+- [ ] `M2_005_health_flags_unique_open.sql` : contrainte / index unique partiel sur `health_flags` empêchant deux flags ouverts `(athlete_id, type[, location_code selon DDL])` avec `status IN ('active','monitoring')` simultanés
+- [ ] `M2_006_persist_daily_run_rpc.sql` : fonction PostgreSQL `persist_daily_run` (upsert health flag éventuel + insert append-only decision, dans une seule transaction, aucune logique de coaching côté SQL)
+
+### 3. DAL — repositories `src/supabase/repositories/`
+
+- [ ] `client.ts` : construction du client Supabase depuis env (Secret Key préférée, fallback service_role legacy), injecté par argument
+- [ ] `athletesRepo` : `getAthleteById`
+- [ ] `dailyCheckinsRepo` : `getCheckinFor` — l'adapter downstream rejette explicitement un checkin courant avec un des 3 critères douleur à `NULL`
+- [ ] `trainingBlocksRepo` : `getCurrentBlock`
+- [ ] `plannedSessionsRepo` : `getPlannedSessionFor`
+- [ ] `raceCalendarRepo` : `getRacesInWindow`
+- [ ] `completedSessionsRepo` : `getRecentSessions`
+- [ ] `weeklyAvailabilityRepo` : `getAvailabilityForWeek`
+- [ ] `healthFlagsRepo` : `getActiveHealthFlags` (filtré `status != 'resolved'`)
+- [ ] `decisionsRepo` : `insertDecision` (append-only) et wrapper d'appel à la RPC `persist_daily_run`
+
+**Volontairement non créés en M2** :
+- ❌ `athleteBaselinesRepo` (le moteur M1 ne consomme aucune baseline)
+- ❌ `activeExperimentsRepo` (pas de runtime M2, table inexistante — `RawContext.active_experiments = []` explicite)
+
+### 4. Adapter — construction du `RawContext`
+
+- [ ] `src/supabase/mapping/` : mappings SQL row → types domaine (`DailyCheckin`, `HealthFlag`, `UpcomingRace`, `CompletedSessionSummary`, `TrainingIntervention`, `RawContext.planned_intent`)
+- [ ] `src/supabase/mapping/invertDbSessionType.ts` : inversion partielle non ambiguë (`REST`, `BIKE_MAINTENANCE`, `RACE_PREP`), autres cas → `null` + warning
+- [ ] `src/supabase/buildRawContext.ts` : lecture parallèle des repos + mapping + validation stricte du checkin courant. Aucune règle métier. `active_experiments = []` explicite.
+
+### 5. Orchestration — calcul vs persistance
+
+- [ ] `src/supabase/computeDailyFor.ts` : construit `RawContext` + appelle `buildDailyPlan`. **Zéro écriture.**
+- [ ] `src/supabase/runDailyFor.ts` : appelle `computeDailyFor`, invoque la RPC `persist_daily_run` (upsert health flag + insert decision atomiques).
+
+### 6. Mapping écriture
+
+- [ ] `src/supabase/mapping/dailyPlanToDecisionRow.ts` : mapping déterministe `DailyPlan → decisions` row (colonnes dénormalisées + JSONB source de vérité + `active_mode`).
+
+### 7. CLI M2
+
+- [ ] `npm run compute:daily -- --date=YYYY-MM-DD` : appelle `computeDailyFor`, affiche le `DailyPlan` JSON, aucune écriture.
+- [ ] `npm run run:daily -- --date=YYYY-MM-DD` : appelle `runDailyFor`, affiche le `DailyPlan` + IDs des rows insérées.
+
+### 8. Tests M2
+
+- [ ] M2.A (unitaires purs) — voir `10_TEST_PLAN.md` §M2.A (7 sous-tests dont A.6 inversion partielle et A.2 rejet checkin incomplet)
+- [ ] M2.B (intégration Supabase CLI local) — 5 sous-tests dont B.5 rejet checkin incomplet
+- [ ] M2.C (cycle A1→A5) — 4 sous-tests dont C.4 idempotence garantie par contrainte DB
+- [ ] M2.D (équivalence fixture ↔ Supabase) — tous les scénarios CLI M1 reproduits en SQL
+- [ ] 75/75 tests M1 toujours verts (moteur strictement non modifié)
+
+### 9. Validation M2
+
+- [ ] Audit DDL réalisé et tracé
+- [ ] Toutes les migrations appliquées sur la DB de dev Louis
+- [ ] Tests M2 A/B/C/D verts
+- [ ] Cycle A1→A5 explicitement prouvé
+- [ ] Idempotence health flag garantie côté PostgreSQL (M2.C.4)
+- [ ] Équivalence fixture ↔ Supabase prouvée
+- [ ] Rejet checkin incomplet démontré (M2.B.5)
+- [ ] Aucune modification de `src/{types,engine,rules,domains,mapping}`
+- [ ] Aucun secret Supabase commité dans le repo
+- [ ] Review Louis
+- [ ] Update `00_PROJECT_STATUS.md` avec M2 DONE
+- [ ] Décision Go/No-Go M3
+
+---
+
+## P1 — Après M2
+
+### Runtime `ActiveExperiment` (T9)
 - Concept `ActiveExperiment` runtime
 - Support de l'experiment `sleep-liquids-cutoff-2026-08`
 - Tests T9.1 et T9.2 passent
+- Table `active_experiments` en base
 
-### Requis avant connexion Supabase runtime (à trancher en début de M2)
-- [ ] Décider et documenter dans `11_DECISION_LOG.md` : Option A (colonnes dédiées) ou Option B (JSONB / table dédiée) pour persister `pain_traumatic`, `pain_function_loss`, `pain_getting_worse`
-- [ ] Appliquer la migration additive correspondante
-- [ ] Adapter Supabase construit `active_health_flags: HealthFlag[]` à partir de `health_flags`, pas un simple count
-- [ ] Vérifier que la sémantique M1 (fixtures) et M2 (Supabase) est identique pour ces champs
+### Enrichissement des domaines (couche C)
+- Domaine Mental (basique)
+- Domaine Nutrition (basique)
+- Domaine Contexte pro (basique)
+- Domaine Analyse (quasi-passif)
 
-### Connexion Supabase read-only (M2)
-- Adapter Supabase → EngineContext
-- Lecture des tables : `athletes`, `daily_checkins`, `training_blocks`, `planned_sessions`, `race_calendar`, `completed_sessions`, `weekly_availability`, `athlete_baselines`, `health_flags`
-- Client Supabase en variable d'env
-- Tests d'intégration avec DB réelle (dry-run, pas d'écriture)
-
-### Écriture des decisions (M3)
-- Migration additive : ajouter `decisions.daily_plan JSONB` et `decisions.active_mode`
-- Adapter DailyPlan → row `decisions`
-- Mapping `TrainingIntervention` → `DbSessionType` appliqué à l'écriture
-- Traçabilité complète : `triggered_rules`, `override_reason`
-
-### API et UI (M4+)
-- Edge Function Supabase exposant le moteur
+### M3 — API HTTP
+- Edge Function Supabase exposant `runDailyFor` en HTTP
 - Endpoint check-in (POST daily_checkin + trigger recompute)
-- Endpoint récupération DailyPlan du jour
-- Première UI Today screen
+- Endpoint récupération de la décision courante du jour
+- Authentification JWT athlète (RLS active)
+
+### `athlete_state` recalculé (si UI en a besoin)
+- Trigger ou fonction serveur recalculant `athlete_state` après chaque checkin
+- Non requis par le moteur (qui utilise les dimensions à la volée)
 
 ---
 
@@ -93,11 +156,11 @@
 - Debrief course post-mortem structuré
 - Intégration Zwift (FTP + puissance)
 - Intégration Garmin (FC + sommeil détaillé)
-- Interface app mobile complète
-- Table `active_experiments` en base
+- Interface app mobile complète (M4+)
 - Table `learned_patterns` en base (couche D)
 - Premiers patterns confirmés après données longitudinales
 - Domaine 7 Analyse enrichi (patterns émergents)
+- Éventuel `supersedes_decision_id` / `revision` / `is_current` sur `decisions`
 
 ---
 

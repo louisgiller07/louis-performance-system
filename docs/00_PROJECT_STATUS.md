@@ -2,72 +2,59 @@
 
 **Dernière mise à jour :** 13 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** M1 — Vertical Slice locale du Head Coach Engine (implémentée, en attente de revue Louis)
+**Phase actuelle :** M2 — Connexion Supabase read/write locale (conception validée, implémentation à venir)
 
 ## Où on en est réellement
 
 ### DONE
 
-- **Onboarding athlète complet** (11 blocs), source de vérité pour `02_ATHLETE_PROFILE.md`
-- **DB Supabase V0.2 déployée et validée** : 12 tables, enums, RLS, triggers, seed data Louis
-- **Spec Head Coach Engine V0.2 consolidée** (dans les échanges Claude Project) avec tous les principes canoniques :
-  - Multidimensional athlete state
-  - Décisions basées sur les causes
-  - Prévention du double-counting
-  - T-X en tant que default framework
-  - Support courses multi-jours
-  - SAFETY reformulée
-  - Soft constraints réellement arbitrables
-  - Douleur non-SAFETY produit monitoring/protection/adaptation
-  - Séparation DB `session_type` vs `TrainingIntervention` interne
+- **Onboarding athlète complet** (11 blocs), source de vérité pour `02_ATHLETE_PROFILE.md`.
+- **DB Supabase V0.2 déployée et validée** : 12 tables, enums, RLS, triggers, seed data Louis.
+- **Spec Head Coach Engine V0.2 consolidée** avec tous les principes canoniques (multidimensional state, décisions causales, non-double-counting, T-X default framework, support multi-jours, SAFETY limitée, soft constraints arbitrables, douleur non-SAFETY actionnable, séparation DB/interne).
+- **M1 — Vertical Slice locale du Head Coach Engine** (`head-coach-engine/src/{types,engine,rules,domains,mapping}`) : pipeline complet `RawContext → DailyPlan`, 75/75 tests verts, build TypeScript strict clean, CLI de démonstration fonctionnelle. **Verdict architecte : APPROVED (2026-08-13). Frozen** sauf bug métier réel découvert ultérieurement.
 
 ### IN PROGRESS
 
-- **Export des documents canoniques dans `/docs`** — cette Passe 1 est le début. Les Passes 2 et 3 suivront.
-
-### IMPLÉMENTÉ LOCALEMENT — en attente de revue Louis et de commit
-
-- **Vertical Slice locale du Head Coach Engine** dans `head-coach-engine/` : pipeline complet `RawContext → DailyPlan` (dimensions, SAFETY A1-A5, mode + race/event context + protocole T-X, domaines Training + Recovery, arbitrage KEEP/MODIFY/REPLACE/REST, mapping `TrainingIntervention ↔ DbSessionType`), fixtures Louis, CLI de démonstration.
-- **Tests** : 74/74 verts (`npm test`), couvrant T1-T8 + T10 de `docs/10_TEST_PLAN.md` + tests unitaires complémentaires (signaux systemic causaux, garanties A5/override_reason, arbitrage des soft constraints strong). T9 (ActiveExperiment runtime) non implémenté, conforme au scope P1.
-- **Build** : `npm run build` (TypeScript strict) sans erreur.
-- **Rien n'est encore commité/poussé sur GitHub** — en attente de validation de Louis avant commit, conformément à `CLAUDE.md` §Communication avec Louis.
+- **M2 — Connexion Supabase read/write locale** : conception validée (2026-08-13). Implémentation à confier à Claude Code.
 
 ### NOT STARTED
 
-- Connexion Supabase read-only (M2).
+- M3 (Edge Function / API HTTP exposant le moteur).
+- Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, UI, LLM couche E, intégrations externes).
 
 ## Prochaines étapes (ordre)
 
-1. **Terminer l'export des documents canoniques** (Passes 2 et 3) et pousser sur GitHub.
-2. **Lancer Claude Code** dans le repo pour la vertical slice locale du Head Coach Engine.
-3. **Valider la vertical slice** par les tests de `docs/10_TEST_PLAN.md`.
-4. **Connexion Supabase read-only** (lecture du contexte réel Louis).
-5. **Écriture des `decisions`** dans Supabase.
-6. **Edge Function ou API légère** exposant le moteur.
-7. **Première interface de check-in** (Today screen).
-8. **LLM comme couche E, UI mobile, intégrations wearables** — plus tard, après validation des étapes précédentes.
+1. **Implémenter M2** (Claude Code) : audit DDL → migrations additives → DAL → adapter → `computeDailyFor` / `runDailyFor` → tests A/B/C/D.
+2. **Revue M2** par Louis, décision Go/No-Go M3.
+3. **M3 — Edge Function** Supabase exposant `runDailyFor` en HTTP.
+4. **Première interface de check-in** (Today screen) — M4+.
+5. **Enrichissement des domaines de coaching**, runtime `ActiveExperiment`, LLM couche E, intégrations externes — après M4, ordre à trancher au moment venu.
 
 ## Prochain milestone
 
-**M1 — Vertical Slice locale complète et testée**
+**M2 — Connexion Supabase read/write locale**
 
-Statut : **IMPLÉMENTÉ LOCALEMENT — en attente de revue Louis avant commit/push et décision Go/No-Go M2**
+Statut : **conception validée (2026-08-13), implémentation NOT STARTED**
 
-Critères de sortie M1 :
-- [x] Pipeline `RawContext → DailyPlan` implémenté selon `docs/04_DAILY_DECISION_ENGINE.md`.
-- [x] Tous les tests T1–T8 + T10 de `docs/10_TEST_PLAN.md` passent au vert (51/51).
-- [x] T9 (ActiveExperiment runtime) est P1, pas M1 — non implémenté, concept documenté.
-- [x] Tests déterministes (aucune sortie alternative acceptée).
-- [x] CLI locale de démonstration fonctionnelle (`npm run run:example <scenario>`).
-- [x] Build TypeScript sans erreur (`npm run build`).
+Critères de sortie M2 :
+- [ ] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé.
+- [ ] Migrations DB `M2_001`, `M2_002`, `M2_003` appliquées (et `M2_004` si l'audit `completed_sessions.main_content` le justifie).
+- [ ] Contrainte / index unique partiel PostgreSQL sur `health_flags` empêchant deux flags ouverts `(athlete_id, type)` simultanés, tout en autorisant un nouveau flag après résolution.
+- [ ] Fonction PostgreSQL / RPC transactionnelle `persist_daily_run` (upsert health flag + insert decision append-only atomiques). Aucune logique de coaching côté SQL.
+- [ ] DAL minimal (repositories + adapter) implémenté dans `src/supabase/`.
+- [ ] Séparation calcul (`computeDailyFor`) / persistance (`runDailyFor`).
+- [ ] `buildRawContextFromSupabase` **rejette** un checkin courant M2 dont un des trois critères douleur (`pain_traumatic`, `pain_function_loss`, `pain_getting_worse`) est `NULL` — jamais de conversion silencieuse en `false`.
+- [ ] Inversion `DbSessionType → TrainingIntervention` limitée aux mappings mathématiquement non ambigus (`REST`, `BIKE_MAINTENANCE`, `RACE_PREP`). Autres cas legacy → `planned_session = null` + warning.
+- [ ] `decisions` append-only (aucune contrainte d'unicité, aucun upsert destructif).
+- [ ] 75/75 tests M1 toujours verts (moteur strictement non modifié).
+- [ ] Tests M2 A/B/C/D verts (voir `docs/10_TEST_PLAN.md` §M2).
+- [ ] Cycle A1/A2/A3/A4 → A5 (jour N → jour N+1) explicitement prouvé par test d'intégration.
+- [ ] Équivalence fixture ↔ Supabase prouvée pour tous les scénarios M1 canoniques.
+- [ ] Infra tests : Supabase CLI local + migrations versionnées + seed reproductible fonctionnels.
+- [ ] Aucune modification de `src/{types,engine,rules,domains,mapping}`.
 - [ ] Revue Louis.
 - [ ] Commit / push.
-- [ ] Décision Go/No-Go M2.
-
-Sortie de M1 déclenche :
-- Mise à jour de ce fichier
-- Revue Louis
-- Décision Go / No-Go pour M2 (connexion Supabase read-only)
+- [ ] Décision Go/No-Go M3.
 
 ## Règle
 
