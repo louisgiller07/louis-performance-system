@@ -102,8 +102,8 @@ Aucun appel HTTP, aucun accès DB, aucun LLM, aucun fichier système au runtime 
 - Ajout d'un dossier `src/supabase/` (repositories + mapping + adapter + orchestration) qui :
   - lit les tables Supabase et construit un `RawContext` conforme au format M1
   - persiste le `DailyPlan` (source de vérité JSONB + projections dénormalisées) dans `decisions`
-  - persiste de manière idempotente et atomique tout `health_flag_to_create` dans `health_flags`, dans la **même transaction PostgreSQL** que l'insertion `decisions`, via la fonction RPC `persist_daily_run`
-- Migrations DB additives (`M2_001` à `M2_003`, `M2_004` conditionnel) — voir `docs/05_DATA_MODEL.md`
+  - persiste de manière idempotente et atomique tout `health_flag_to_create` dans `health_flags`, dans le même appel de la fonction PostgreSQL `persist_daily_run` (transaction unique implicite) que l'insertion `decisions`
+- Migrations DB additives : baseline V0.2 + `M2_001` à `M2_006` (dont `M2_004` REQUIRED) — voir `docs/05_DATA_MODEL.md`
 - Le moteur M1 (`src/{types,engine,rules,domains,mapping}`) est **frozen** et strictement inchangé
 - Encore aucune UI, aucun LLM, aucune intégration externe
 
@@ -149,7 +149,7 @@ Supabase read
   ├── race_calendar (fenêtre pré + in-progress + post-event) → UpcomingRace[]
   ├── completed_sessions (7 derniers jours) → CompletedSessionSummary[]
   ├── weekly_availability → availability
-  ├── health_flags (status IN 'active','monitoring') → active_health_flags: HealthFlag[]
+  ├── health_flags (status IN 'active','monitoring', colonne réelle flag_type mappée vers HealthFlag.type) → active_health_flags: HealthFlag[]
   └── active_experiments = [] (pas de runtime M2)
 
 → RawContext → buildDailyPlan → DailyPlan
@@ -191,30 +191,50 @@ Symétriquement pour `completed_sessions` : sans `intervention` récupérable (n
 
 ### Persistance idempotente + atomique (RPC `persist_daily_run`)
 
-Fonction PostgreSQL / RPC créée par migration M2. Signature indicative (nom des champs à ajuster selon DDL réel de `health_flags` audité en début de M2) :
+Fonction PostgreSQL créée par migration `M2_006`, invoquée via RPC Supabase. Signature (colonne discriminante réelle `flag_type` confirmée par audit DDL 2026-08-14) :
 
 ```
 persist_daily_run(
   p_athlete_id     uuid,
-  p_health_flag    jsonb,          -- null si pas de health_flag_to_create
+  p_health_flag    jsonb,          -- null si pas de health_flag_to_create ;
+                                   -- doit contenir au minimum { flag_type, status }
   p_decision_row   jsonb           -- row decisions à insérer (append)
 ) RETURNS jsonb                    -- { health_flag_id?, decision_id }
 ```
 
-Comportement, dans une seule transaction :
+Comportement du corps de la fonction (deux écritures dans le même appel) :
 
-1. Si `p_health_flag` non null : `INSERT INTO health_flags ... ON CONFLICT (…) DO NOTHING` en s'appuyant sur la **contrainte / index unique partiel** couvrant `(athlete_id, type)` filtré sur `status IN ('active','monitoring')`. L'idempotence est garantie côté PostgreSQL, pas seulement par un SELECT-then-INSERT applicatif.
-2. `INSERT INTO decisions (...)` avec la row fournie (append-only, aucune contrainte d'unicité `(athlete_id, decision_date)`).
-3. `COMMIT`. Si (1) ou (2) échoue → rollback complet, rien n'est persisté.
+1. Si `p_health_flag` non null : `INSERT INTO health_flags ... ON CONFLICT DO NOTHING` en s'appuyant sur l'**index unique partiel** de `M2_005` couvrant `(athlete_id, flag_type)` filtré sur `status IN ('active','monitoring')`. L'idempotence est garantie côté PostgreSQL, pas seulement par un SELECT-then-INSERT applicatif.
+2. `INSERT INTO decisions (...)` avec la row fournie (append-only, aucune contrainte d'unicité `(athlete_id, decision_date)`). La row contient les colonnes M2 (`daily_plan`, `active_mode`, `confidence_level`) et les projections dénormalisées. La colonne legacy `confidence numeric(3,2)` n'est pas remplie (reste `NULL`). `overridden_by_user` prend son default DB (`false`).
+3. La fonction retourne `{ health_flag_id?, decision_id }` si les deux écritures ont réussi.
+
+**Contrat transactionnel** : les deux écritures sont réalisées dans le même appel de fonction PostgreSQL, qui s'exécute intrinsèquement dans une transaction unique. Aucun `COMMIT` ni `ROLLBACK` explicite n'est utilisé dans le corps (invalide dans une `FUNCTION` — seules les `PROCEDURE` PostgreSQL peuvent gérer explicitement leurs transactions). Toute erreur non capturée fait échouer l'appel et **annule les écritures de cet appel**.
+
+**Sécurité (contrat M2)** :
+- `SECURITY INVOKER` (pas `SECURITY DEFINER`) — la fonction s'exécute avec les droits du rôle appelant.
+- Aucune exposition à `PUBLIC`, `anon` ou `authenticated`.
+- `EXECUTE` accordé uniquement au rôle serveur utilisé par M2 (`service_role` ou équivalent serveur validé lors de l'implémentation).
+- **Jamais appelable directement depuis une future UI cliente sans nouvelle décision architecte tracée dans `11_DECISION_LOG.md`.**
 
 **Aucune logique de coaching côté SQL.** La RPC est un pur enregistreur transactionnel. Toute décision reste dans le moteur TypeScript.
 
-### Stratégie tests d'intégration M2
+### Baseline read-only et stratégie tests d'intégration M2
 
-- **Supabase CLI local** pour héberger l'instance de test (Postgres + auth + storage bundlés).
-- **Migrations versionnées** (`supabase/migrations/M2_*.sql`) appliquées automatiquement au démarrage de l'instance de test.
-- **Seed reproductible** (`supabase/seed.sql` ou script TypeScript) contenant Louis + scénarios canoniques M1 transposés en rows SQL.
-- Chaque test intégration part d'un état DB déterministe (reset + seed avant chaque suite).
+**Baseline V0.2 (capture initiale)** :
+- Fichier `supabase/migrations/20260814095000_baseline_v0_2.sql` (timestamp réel de capture, 2026-08-14 09:50:00 UTC, antérieur à toute migration M2 dans l'ordre lexicographique), produit par `supabase db dump --linked --schema public` depuis la DB Louis distante.
+- **Strictement read-only** : versionné dans le repo pour référence factuelle et reconstruction locale, mais **jamais réédité manuellement** et **jamais poussé** via `db push`. Représente l'état existant de la DB au moment où M2 commence.
+- Choix de `db dump --linked` plutôt que `db pull` : `db pull` peut générer une migration depuis le schéma distant et peut également proposer une synchronisation de l'historique de migrations distant. Nous choisissons `db dump --linked` pour garder la capture initiale strictement read-only vis-à-vis du schéma **et** de l'historique remote — aucune écriture, aucune synchronisation, aucun effet de bord côté DB Louis.
+- Toutes les migrations M2 (`M2_001` à `M2_006`) portent des timestamps strictement postérieurs à celui de la baseline dans leur nom de fichier.
+
+**Application locale** :
+- `supabase start` lance une instance Postgres locale.
+- La baseline puis les migrations M2 sont appliquées dans l'ordre par la CLI.
+- Seed reproductible (`supabase/seed.sql` ou script TypeScript) contenant Louis + scénarios canoniques M1 transposés en rows SQL.
+- Chaque suite de tests part d'un état DB déterministe (reset + seed).
+
+**Déploiement remote (une seule fois, hors développement)** :
+- Avant le premier `supabase db push` M2 vers la DB Louis, la baseline V0.2 doit être marquée comme **déjà appliquée** dans l'historique de migrations distant (via `supabase migration repair` ou méthode équivalente), afin qu'elle ne soit jamais rejouée sur le schéma existant.
+- **Aucun `db push`, aucun `migration repair`, aucune modification remote** pendant tout le développement local.
 
 ### Mapping TrainingIntervention ↔ DbSessionType
 
@@ -272,7 +292,11 @@ Contraintes canoniques :
 - Aucune règle métier (repositories, `buildRawContext`, RPC PostgreSQL inclus)
 - Aucune donnée historique fabriquée : legacy → `NULL` ou fallback documenté, jamais reconstruit
 - Inversion `DbSessionType → TrainingIntervention` limitée aux mappings mathématiquement non ambigus
-- Écriture atomique : health flag + décision dans une seule transaction PostgreSQL (RPC `persist_daily_run`)
+- Écriture atomique : health flag + décision dans le même appel de la fonction PostgreSQL `persist_daily_run` (transaction unique implicite)
 - `decisions` append-only, aucune contrainte unique sur `(athlete_id, decision_date)`
-- Idempotence health flag garantie côté PostgreSQL (contrainte / index unique partiel), pas seulement applicatif
+- Idempotence health flag garantie côté PostgreSQL (index unique partiel sur `(athlete_id, flag_type)`), pas seulement applicatif
 - Clé serveur uniquement, lue depuis env, jamais commitée
+- Baseline V0.2 strictement read-only : jamais rééditée, jamais poussée, jamais rejouée. Marquée comme appliquée dans l'historique remote une seule fois, hors développement, uniquement après revue Louis.
+- Confidence : nouvelle colonne `decisions.confidence_level` (enum `LOW|MEDIUM|HIGH`) écrite par le DAL pour toute décision M2. Colonne legacy `decisions.confidence` (numeric) jamais écrite par M2.
+- `overridden_by_user` conserve son default DB (`false`) — jamais renseigné par M2.
+- RPC `persist_daily_run` : `SECURITY INVOKER`, `EXECUTE` réservé au rôle serveur M2, jamais exposée à `PUBLIC`/`anon`/`authenticated`.

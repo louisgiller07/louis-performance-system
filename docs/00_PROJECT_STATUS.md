@@ -37,23 +37,25 @@
 Statut : **conception validée (2026-08-13), implémentation NOT STARTED**
 
 Critères de sortie M2 :
-- [ ] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé.
-- [ ] Migrations DB `M2_001`, `M2_002`, `M2_003` appliquées (et `M2_004` si l'audit `completed_sessions.main_content` le justifie).
-- [ ] Contrainte / index unique partiel PostgreSQL sur `health_flags` empêchant deux flags ouverts `(athlete_id, type)` simultanés, tout en autorisant un nouveau flag après résolution.
-- [ ] Fonction PostgreSQL / RPC transactionnelle `persist_daily_run` (upsert health flag + insert decision append-only atomiques). Aucune logique de coaching côté SQL.
+- [x] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé (2026-08-14).
+- [ ] Baseline V0.2 capturée via `supabase db dump --linked --schema public` en `supabase/migrations/20260814095000_baseline_v0_2.sql` (timestamp réel de capture), fichier read-only strict.
+- [ ] Migrations DB `M2_001`, `M2_002` (incluant enum `confidence_level`), `M2_003`, `M2_004` (REQUIRED), `M2_005`, `M2_006` appliquées sur l'instance Supabase locale, dans l'ordre canonique après la baseline. Tous timestamps de nom strictement postérieurs à celui de la baseline.
+- [ ] Index unique partiel PostgreSQL sur `health_flags` empêchant deux flags ouverts `(athlete_id, flag_type)` simultanés (colonne réelle `flag_type` confirmée par audit), tout en autorisant un nouveau flag après résolution.
+- [ ] Fonction PostgreSQL `persist_daily_run` (via RPC) : deux écritures dans un seul appel (transaction unique implicite), `SECURITY INVOKER`, `EXECUTE` réservé au rôle serveur M2, jamais exposée à `PUBLIC`/`anon`/`authenticated`. Aucune logique de coaching côté SQL.
 - [ ] DAL minimal (repositories + adapter) implémenté dans `src/supabase/`.
 - [ ] Séparation calcul (`computeDailyFor`) / persistance (`runDailyFor`).
 - [ ] `buildRawContextFromSupabase` **rejette** un checkin courant M2 dont un des trois critères douleur (`pain_traumatic`, `pain_function_loss`, `pain_getting_worse`) est `NULL` — jamais de conversion silencieuse en `false`.
 - [ ] Inversion `DbSessionType → TrainingIntervention` limitée aux mappings mathématiquement non ambigus (`REST`, `BIKE_MAINTENANCE`, `RACE_PREP`). Autres cas legacy → `planned_session = null` + warning.
-- [ ] `decisions` append-only (aucune contrainte d'unicité, aucun upsert destructif).
+- [ ] `decisions` append-only (aucune contrainte d'unicité, aucun upsert destructif). `confidence_level` obligatoire via DAL pour toute nouvelle décision M2 ; `confidence` numeric legacy reste `NULL`. `overridden_by_user` conserve son default DB `false`.
 - [ ] 75/75 tests M1 toujours verts (moteur strictement non modifié).
 - [ ] Tests M2 A/B/C/D verts (voir `docs/10_TEST_PLAN.md` §M2).
 - [ ] Cycle A1/A2/A3/A4 → A5 (jour N → jour N+1) explicitement prouvé par test d'intégration.
 - [ ] Équivalence fixture ↔ Supabase prouvée pour tous les scénarios M1 canoniques.
-- [ ] Infra tests : Supabase CLI local + migrations versionnées + seed reproductible fonctionnels.
+- [ ] Aucun `db push`, aucun `migration repair`, aucune modification remote pendant tout le développement local.
 - [ ] Aucune modification de `src/{types,engine,rules,domains,mapping}`.
-- [ ] Revue Louis.
-- [ ] Commit / push.
+- [ ] Revue Louis (local + tests, avant tout push remote).
+- [ ] **Uniquement après review** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement), puis premier `supabase db push` M2 vers la DB Louis.
+- [ ] Commit / push des sources M2 dans le repo (aucun secret).
 - [ ] Décision Go/No-Go M3.
 
 ## Règle

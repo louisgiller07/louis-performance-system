@@ -38,29 +38,38 @@
 
 ## P0 — Requis pour M2 (Connexion Supabase read/write locale)
 
-### 0. Audit préalable (obligatoire, en premier)
+### 0. Audit préalable (RÉALISÉ 2026-08-14 via MCP Supabase)
 
-- [ ] Auditer le DDL réel des tables et enums touchés par M2 : `daily_checkins`, `decisions`, `planned_sessions`, `completed_sessions`, `health_flags`, enums `training_mode`, `health_flag_type`, `health_flag_status`, `session_type`.
-- [ ] Déterminer la clé exacte d'idempotence des `health_flags` (`type` seul ou `type + location_code`) selon le DDL réel.
-- [ ] Vérifier si `completed_sessions.main_content` contient déjà de façon canonique la `TrainingIntervention` riche. Décider en conséquence de la nécessité de `M2_004`.
-- [ ] Tracer l'audit + décisions dérivées dans `11_DECISION_LOG.md`.
+- [x] Auditer le DDL réel des tables et enums touchés par M2.
+- [x] Clé d'idempotence `health_flags` : **`(athlete_id, flag_type)`** — colonne réelle `flag_type`, pas `type` ; pas de `location_code`.
+- [x] `completed_sessions.main_content` : JSONB libre sans convention canonique. **`M2_004` REQUIRED**.
+- [x] `decisions.confidence` réel : `numeric(3,2)` — incompatible avec enum qualitatif M1. Résolution : enum PostgreSQL `confidence_level` + nouvelle colonne, intégré dans `M2_002`.
+- [x] `decisions.overridden_by_user` réel : `NOT NULL DEFAULT false` — reste `false` en M2, pas `NULL`.
+- [x] DB distante sans historique de migrations Supabase → baseline via `db dump --linked --schema public`, read-only stricte.
+- [x] Audit + décisions tracés dans `11_DECISION_LOG.md` (entrées 2026-08-14).
 
-### 1. Infra tests d'intégration
+### 1. Infra tests d'intégration + baseline
 
 - [ ] Supabase CLI local installé et opérationnel
-- [ ] Structure `supabase/migrations/M2_*.sql` versionnée
+- [ ] Baseline V0.2 capturée : `supabase db dump --linked --schema public > supabase/migrations/20260814095000_baseline_v0_2.sql` (timestamp réel de capture, fichier read-only strict, jamais réédité, jamais poussé). Choix de `db dump --linked` plutôt que `db pull` pour garder la capture strictement read-only vis-à-vis du schéma et de l'historique remote.
+- [ ] Structure `supabase/migrations/M2_*.sql` versionnée (tous timestamps strictement postérieurs à celui de la baseline)
 - [ ] Seed reproductible (`supabase/seed.sql` ou script TypeScript) — Louis + scénarios canoniques M1 transposés en rows SQL
 - [ ] Reset + seed déterministe avant chaque suite de tests
 - [ ] `.env.example` avec `SUPABASE_URL` + placeholder clé serveur ; `.gitignore` vérifié pour ne jamais commiter la vraie clé
+- [ ] Aucun `db push`, aucun `migration repair`, aucune modification remote pendant tout le développement local
 
-### 2. Migrations DB additives (non-destructives)
+### 2. Migrations DB additives (non-destructives) — ordre canonique
+
+Application locale dans cet ordre après la baseline V0.2 (`20260814095000_baseline_v0_2.sql`) :
 
 - [ ] `M2_001_daily_checkins_pain_criteria.sql` : `pain_traumatic`, `pain_function_loss`, `pain_getting_worse` en `boolean NULL` **sans default** (NULL = inconnu sur legacy)
-- [ ] `M2_002_decisions_daily_plan.sql` : `daily_plan JSONB NULL` + `active_mode training_mode NULL` (aucune valeur par défaut sur legacy)
+- [ ] `M2_002_decisions_daily_plan.sql` : `daily_plan JSONB NULL` + `active_mode training_mode NULL` + création enum PostgreSQL `confidence_level ('LOW','MEDIUM','HIGH')` + `confidence_level confidence_level NULL`. Colonne legacy `confidence numeric(3,2)` **conservée intacte**, non touchée. Aucune valeur par défaut fabriquée sur legacy.
 - [ ] `M2_003_planned_sessions_intervention.sql` : `intervention JSONB NULL` + `planned_intent TEXT NULL`
-- [ ] `M2_004_completed_sessions_intervention.sql` (conditionnel) : ajouter `intervention JSONB NULL` uniquement si l'audit de `main_content` le justifie
-- [ ] `M2_005_health_flags_unique_open.sql` : contrainte / index unique partiel sur `health_flags` empêchant deux flags ouverts `(athlete_id, type[, location_code selon DDL])` avec `status IN ('active','monitoring')` simultanés
-- [ ] `M2_006_persist_daily_run_rpc.sql` : fonction PostgreSQL `persist_daily_run` (upsert health flag éventuel + insert append-only decision, dans une seule transaction, aucune logique de coaching côté SQL)
+- [ ] `M2_004_completed_sessions_intervention.sql` (**REQUIRED** — audit 2026-08-14) : `intervention JSONB NULL`. `main_content` reste disponible pour d'autres usages libres, mais la `TrainingIntervention` riche vit dans `intervention` uniquement.
+- [ ] `M2_005_health_flags_unique_open.sql` : index unique partiel sur `health_flags` couvrant **`(athlete_id, flag_type)`** filtré sur `status IN ('active','monitoring')`. Autorise un nouveau flag après résolution.
+- [ ] `M2_006_persist_daily_run_rpc.sql` : fonction PostgreSQL `persist_daily_run` — deux écritures dans un seul appel (transaction unique implicite, pas de `COMMIT`/`ROLLBACK` explicite dans le corps). Contrat de sécurité : `SECURITY INVOKER`, aucune exposition à `PUBLIC`/`anon`/`authenticated`, `EXECUTE` accordé uniquement au rôle serveur utilisé par M2 (`service_role` ou équivalent). Jamais appelable directement depuis une future UI cliente sans nouvelle décision architecte. Aucune logique de coaching côté SQL. `overridden_by_user` prend son default DB (`false`).
+
+Tous les fichiers de migration M2 portent des timestamps de nom strictement postérieurs à celui de la baseline.
 
 ### 3. DAL — repositories `src/supabase/repositories/`
 
@@ -92,7 +101,7 @@
 
 ### 6. Mapping écriture
 
-- [ ] `src/supabase/mapping/dailyPlanToDecisionRow.ts` : mapping déterministe `DailyPlan → decisions` row (colonnes dénormalisées + JSONB source de vérité + `active_mode`).
+- [ ] `src/supabase/mapping/dailyPlanToDecisionRow.ts` : mapping déterministe `DailyPlan → decisions` row. Renseigne : colonnes dénormalisées (`final_session`, `planned_session_before`, `reason`, `do_not_do`, `override_reason`, `engine_version`) + JSONB source de vérité (`daily_plan`) + `active_mode` + `confidence_level` (enum obligatoire). Ne touche pas à `confidence` numeric legacy (reste `NULL`), ne touche pas à `overridden_by_user` (default DB `false`). `stop_conditions` reste `NULL`.
 
 ### 7. CLI M2
 
@@ -109,16 +118,22 @@
 
 ### 9. Validation M2
 
-- [ ] Audit DDL réalisé et tracé
-- [ ] Toutes les migrations appliquées sur la DB de dev Louis
+- [x] Audit DDL réalisé et tracé (2026-08-14)
+- [ ] Baseline V0.2 capturée et versionnée (`supabase/migrations/20260814095000_baseline_v0_2.sql`), fichier read-only strict
+- [ ] Toutes les migrations M2 appliquées avec succès sur l'instance Supabase locale (ordre : baseline → `M2_001` → `M2_002` → `M2_003` → `M2_004` → `M2_005` → `M2_006`)
 - [ ] Tests M2 A/B/C/D verts
-- [ ] Cycle A1→A5 explicitement prouvé
+- [ ] Cycle A1→A5 explicitement prouvé (avec la clé réelle `(athlete_id, flag_type)`)
 - [ ] Idempotence health flag garantie côté PostgreSQL (M2.C.4)
 - [ ] Équivalence fixture ↔ Supabase prouvée
 - [ ] Rejet checkin incomplet démontré (M2.B.5)
+- [ ] `confidence_level` correctement écrit pour toute décision M2 ; `confidence` legacy reste `NULL`
+- [ ] `overridden_by_user` conserve son default DB (`false`) pour toutes les rows M2
+- [ ] RPC `persist_daily_run` : `SECURITY INVOKER` vérifié, `EXECUTE` limité au rôle serveur M2, aucune exposition à `PUBLIC`/`anon`/`authenticated`
 - [ ] Aucune modification de `src/{types,engine,rules,domains,mapping}`
 - [ ] Aucun secret Supabase commité dans le repo
-- [ ] Review Louis
+- [ ] Review Louis (local + tests, avant tout push remote)
+- [ ] **Uniquement après review Louis** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement)
+- [ ] Premier `supabase db push` M2 vers la DB Louis
 - [ ] Update `00_PROJECT_STATUS.md` avec M2 DONE
 - [ ] Décision Go/No-Go M3
 

@@ -461,10 +461,10 @@ De plus, l'idempotence garantie uniquement par un pattern SELECT-then-INSERT app
 **Décision** :
 
 1. **Contrainte / index unique partiel PostgreSQL** sur `health_flags` empêchant deux flags ouverts `(athlete_id, type)` simultanément (`status IN ('active','monitoring')`), tout en autorisant un nouveau flag après résolution. Idempotence garantie côté DB, pas seulement par le code applicatif. DDL réel à auditer en début de M2 avant application de la migration correspondante.
-2. **Fonction PostgreSQL / RPC `persist_daily_run`** qui, dans **une seule transaction** :
+2. **Fonction PostgreSQL / RPC `persist_daily_run`** qui exécute, **dans le même appel** (transaction unique implicite d'une `FUNCTION` PostgreSQL) :
    - upsert éventuel du `health_flag_to_create` (via `INSERT ... ON CONFLICT DO NOTHING` s'appuyant sur la contrainte ci-dessus)
    - insert append-only de la row `decisions`
-   - rollback complet si l'une des deux échoue
+   - toute erreur non capturée fait échouer l'appel et annule les écritures de cet appel (contrat de sécurité RPC précisé dans l'entrée 2026-08-14 correspondante)
 
 **Aucune logique de coaching côté SQL.** La RPC est un pur enregistreur transactionnel. Toute décision reste dans le moteur TypeScript.
 
@@ -504,5 +504,82 @@ Tests obligatoires : cycle A1 (jour N) → A5 (jour N+1) prouvé en intégration
 **Décision** : **la première tâche M2** est un audit du DDL réel des tables et enums touchés par M2 (`daily_checkins`, `decisions`, `planned_sessions`, `completed_sessions`, `health_flags`, enums `training_mode`, `health_flag_type`, `health_flag_status`, `session_type`). L'audit est tracé (résumé bref + décisions dérivées) avant l'écriture des migrations. En particulier, la clé exacte d'idempotence des `health_flags` (`type` seul ou `type + location_code`) est déterminée à ce moment.
 
 **Impact** : `docs/00_PROJECT_STATUS.md` (critère de sortie M2), `docs/12_BACKLOG.md` (tâche P0 en premier).
+
+**Statut** : active
+
+---
+
+## 2026-08-14 — M2 : audit DDL réel effectué (via MCP Supabase)
+
+**Contexte** : la première tâche M2 (audit DDL du schéma déployé) a été réalisée à distance via un MCP Supabase. Résultats factuels différents de plusieurs anticipations documentaires.
+
+**Faits confirmés** :
+1. `health_flags` : la colonne discriminante réelle est **`flag_type`** (pas `type`). Aucun discriminateur `location_code`. Clé d'idempotence retenue : **`(athlete_id, flag_type)`** filtré sur `status IN ('active','monitoring')`.
+2. `completed_sessions.main_content` : JSONB **libre**, table **vide**, sans convention canonique. La `TrainingIntervention` riche ne peut pas y vivre. Décision : **`M2_004` REQUIRED** (plus conditionnel).
+3. `decisions.confidence` réel : **`numeric(3,2)`**, incompatible avec les valeurs qualitatives `LOW|MEDIUM|HIGH` produites par le moteur M1 frozen.
+4. `decisions.overridden_by_user` réel : **`NOT NULL DEFAULT false`**, contrairement à la spec qui annonçait `NULL` en M2. En M2 il conserve son default DB (`false`).
+5. La DB distante ne possède **aucun historique de migrations Supabase** à ce jour.
+
+**Impact** : modifications canoniques des sections `decisions`, `completed_sessions`, `health_flags` de `docs/05_DATA_MODEL.md`, mise à jour de `docs/06_ARCHITECTURE.md`, refonte de l'ordre canonique des migrations M2 dans `docs/12_BACKLOG.md`, ajustement des critères de sortie dans `docs/00_PROJECT_STATUS.md`.
+
+**Statut** : active
+
+---
+
+## 2026-08-14 — M2 : `confidence_level` intégré dans `M2_002`, pas de `M2_007`
+
+**Contexte** : l'audit a révélé que `decisions.confidence` en base est `numeric(3,2)`, alors que le moteur M1 frozen produit un enum qualitatif `LOW|MEDIUM|HIGH`. Deux options ouvertes : écraser/convertir la colonne legacy, ou ajouter une nouvelle colonne enum à côté.
+
+**Décision** : nouvelle colonne enum ajoutée à côté, avec deux précisions structurantes :
+
+1. **Aucune migration `M2_007`** : puisque l'ordre canonique des migrations M2 n'a pas encore été appliqué (ni en local, ni en remote), la nouvelle colonne + enum sont intégrés directement à **`M2_002`** (aux côtés de `daily_plan` et `active_mode`). Ordre canonique final : baseline V0.2, `M2_001`, `M2_002` (`daily_plan`, `active_mode`, `confidence_level`), `M2_003`, `M2_004`, `M2_005`, `M2_006`.
+2. **Colonne legacy `confidence numeric(3,2)` conservée intacte**, non écrite par le DAL M2 — reste `NULL` pour les nouvelles rows M2 et garde ses valeurs historiques pour les rows pré-M2. La nouvelle colonne `decisions.confidence_level confidence_level NULL` (enum PostgreSQL `confidence_level ('LOW','MEDIUM','HIGH')`) est **obligatoire via DAL** pour toute nouvelle décision M2.
+
+**Alternatives considérées** :
+- Écraser la colonne `confidence` numeric par un enum — rejeté (destructif, perd les valeurs historiques).
+- Convertir la valeur qualitative en scalaire numérique — rejeté (fabrication d'un score numérique, contraire à la décision canonique du 2026-08-11 "Confidence qualitative en V0.2").
+- Créer une migration `M2_007` séparée — rejeté puisque `M2_002` n'est pas encore appliqué.
+
+**Impact** : `docs/05_DATA_MODEL.md` §decisions, `docs/06_ARCHITECTURE.md` (signature RPC), `docs/12_BACKLOG.md` (contenu de `M2_002`), mapping `dailyPlanToDecisionRow` côté DAL.
+
+**Statut** : active
+
+---
+
+## 2026-08-14 — M2 : baseline V0.2 strictement read-only via `db dump --linked --schema public`
+
+**Contexte** : la DB distante n'a aucun historique de migrations Supabase à ce jour. Il faut néanmoins figer l'état existant comme point de départ des migrations M2, sans jamais le rejouer et sans effet de bord côté remote.
+
+**Décision** :
+
+1. **Capture initiale** : `supabase db dump --linked --schema public > supabase/migrations/20260814095000_baseline_v0_2.sql`. Timestamp réel de capture (2026-08-14 09:50:00 UTC), antérieur à toute migration M2 dans l'ordre lexicographique. Toutes les migrations M2 (`M2_001` à `M2_006`) portent des timestamps de nom strictement postérieurs.
+2. **Read-only strict** : versionné pour référence factuelle et reconstruction locale, mais **jamais réédité manuellement** et **jamais poussé** via `db push`.
+3. **Aucun `db push`, aucun `migration repair`, aucune modification remote** pendant tout le développement local. Le développement local applique la baseline + les migrations M2 sur l'instance Supabase locale uniquement.
+4. **Avant le premier `supabase db push` M2** vers la DB Louis, la baseline devra être marquée comme **déjà appliquée** dans l'historique de migrations distant (via `supabase migration repair` ou méthode équivalente documentée), afin qu'elle ne soit jamais rejouée sur le schéma existant. À exécuter une seule fois, hors développement, uniquement après revue Louis.
+
+**Alternatives considérées** :
+- `supabase db pull` — peut générer une migration depuis le schéma distant et peut également proposer une synchronisation de l'historique de migrations distant. Nous choisissons `db dump --linked` pour garder la capture initiale strictement read-only vis-à-vis du schéma **et** de l'historique remote — aucune écriture, aucune synchronisation, aucun effet de bord côté DB Louis.
+- Reconstruction manuelle des DDL à partir de l'audit MCP — rejeté (fragile, sujet à erreurs de transcription).
+
+**Impact** : `docs/05_DATA_MODEL.md` §Décisions M2, `docs/06_ARCHITECTURE.md` §Baseline read-only et stratégie tests, `docs/12_BACKLOG.md` §Infra + §Validation, `docs/00_PROJECT_STATUS.md` critères de sortie.
+
+**Statut** : active
+
+---
+
+## 2026-08-14 — M2 : contrat de sécurité de la RPC `persist_daily_run`
+
+**Contexte** : la fonction `persist_daily_run` est le seul mécanisme d'écriture M2 sur `health_flags` et `decisions`. Elle doit être verrouillée dès sa création pour empêcher tout usage non prévu, en particulier depuis une future UI cliente.
+
+**Décision** : contrat de sécurité canonique de la fonction, fixé par la migration `M2_006` :
+
+- `SECURITY INVOKER` (pas `SECURITY DEFINER`) — la fonction s'exécute avec les droits du rôle appelant, pas ceux du créateur.
+- Aucune exposition à `PUBLIC`, `anon` ou `authenticated`.
+- `EXECUTE` accordé **uniquement** au rôle serveur utilisé par M2 (`service_role` ou équivalent serveur validé lors de l'implémentation).
+- **Jamais appelable directement depuis une future UI cliente sans nouvelle décision architecte tracée dans ce journal.** L'ouverture éventuelle à un JWT athlète (M3+) devra passer par une couche intermédiaire (Edge Function) validant les entrées, jamais par un `GRANT EXECUTE ... TO authenticated`.
+
+Également : aucun `COMMIT` ni `ROLLBACK` explicite dans le corps de la fonction. `persist_daily_run` est une `FUNCTION` (pas une `PROCEDURE`), donc s'exécute intrinsèquement dans une transaction unique. Toute erreur non capturée annule les écritures de cet appel.
+
+**Impact** : `docs/06_ARCHITECTURE.md` §Persistance idempotente + atomique, `docs/12_BACKLOG.md` (contenu de `M2_006`).
 
 **Statut** : active
