@@ -583,3 +583,23 @@ Tests obligatoires : cycle A1 (jour N) → A5 (jour N+1) prouvé en intégration
 **Impact** : `docs/06_ARCHITECTURE.md` §Persistance idempotente + atomique, `docs/12_BACKLOG.md` (contenu de `M2_006`).
 
 **Statut** : active
+
+---
+
+## 2026-08-16 — M2 : read path — normalisations de boundary (pain_intensity, race_format, race_phase)
+
+**Contexte** : revue du read path M2 (`buildRawContext`/`computeDailyFor`). Trois champs requis par les types M1 frozen n'ont pas de source DB directement compatible (colonne nullable ou absente). Décisions tranchées pour lever les interprétations précédemment signalées comme non actées.
+
+**Décisions** :
+
+- `pain=false` + `daily_checkins.pain_intensity IS NULL` → `DailyCheckin.pain_intensity = 0` côté M1. Normalisation de représentation à la frontière M2, pas une donnée clinique inventée : la contrainte SQL `pain_intensity_requires_pain` impose `pain=false ⟺ pain_intensity IS NULL` (l'intensité n'est pas un fait inconnu, elle n'existe pas), le type M1 `pain_intensity: number` ne peut pas représenter "non applicable", et tous les sites de lecture M1 (`safety.ts`, `computeDimensions.ts`, `painNonSafety.ts`) ne déréférencent `pain_intensity` que derrière un garde `pain===true`. `pain=true` + `pain_intensity` NULL/invalide reste rejeté sans exception.
+- `race_calendar.race_format IS NULL` → `UpcomingRace.race_format = "OTHER"` **et un warning explicite est émis** (porté par `buildRawContext`/`computeDailyFor`, pas par `DailyPlan`/M1). La course reste présente dans le contexte, aucun protocole T-X n'est déclenché par `"OTHER"` (comportement déjà identique à tout format non couvert par `PRE_EVENT_TABLES`), et le warning conserve la trace que la donnée source était inconnue. Une valeur `race_format` non-null mais non reconnue n'est **jamais** repliée sur `"OTHER"` : elle est rejetée explicitement (`InvalidRaceCalendarRowError`).
+- `race_phase` reste toujours absent (`undefined`) côté M2 : aucune colonne DB ne le porte. Le fallback déjà existant de M1 (`?? "RACE_DAY_GENERIC"`, `src/engine/eventContext.ts`) s'applique sans changement.
+
+**Alternatives considérées** :
+- Rejeter tout checkin avec `pain=false` + `pain_intensity` NULL comme incomplet — rejeté : la contrainte SQL montre que ce NULL est la représentation correcte et attendue de "non applicable", pas une omission.
+- Convertir silencieusement tout `race_format` inconnu (NULL ou valeur non reconnue) en `"OTHER"` — rejeté pour le cas "valeur non reconnue" : une valeur non-null hors vocabulaire n'est pas une absence de donnée, la masquer en `"OTHER"` perdrait un signal de schéma potentiellement significatif.
+
+**Impact** : `head-coach-engine/src/supabase/mapping/dailyCheckinRow.ts`, `head-coach-engine/src/supabase/mapping/raceCalendarRow.ts`, `head-coach-engine/src/supabase/buildRawContext.ts`, tests associés. Aucun impact sur `head-coach-engine/src/{types,engine,rules,domains,mapping}` (frozen, non modifiés).
+
+**Statut** : active
