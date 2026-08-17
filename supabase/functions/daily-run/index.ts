@@ -1,8 +1,12 @@
-// M3_002 — auth boundary + athlete resolution stub. Does NOT call
-// runDailyFor yet (see docs/11_DECISION_LOG.md, M3_001 / M3_002). This is
-// intentionally a thin auth+validation layer proven in isolation before
-// M3_003 wires in the engine.
+// M3_003 — wires the M3_002 auth boundary to the real M1/M2 engine. See
+// docs/11_DECISION_LOG.md (M3_001 / M3_002 / M3_003). Imports the compiled
+// head-coach-engine/dist output (M3_001-proven boundary), never the M1/M2
+// TypeScript source, and never head-coach-engine/src/supabase/client.ts —
+// ctx.supabaseAdmin (from @supabase/server) is the client passed to
+// runDailyFor.
 import { withSupabase } from "@supabase/server";
+import { runDailyFor } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
+import { mapDailyRunError } from "./errorMapping.ts";
 
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 const ALLOWED_BODY_KEYS = ["date"];
@@ -83,6 +87,25 @@ export default {
       return errorResponse(500, "internal_error", "Ambiguous athlete resolution for the authenticated user.");
     }
 
-    return Response.json({ ok: true, date: dateValue }, { status: 200 });
+    const athleteId = athletes[0].id as string;
+
+    try {
+      // ctx.supabaseAdmin only — athleteId came exclusively from the
+      // RLS-scoped ctx.supabase query above, never from client input.
+      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue);
+      return Response.json(
+        {
+          dailyPlan: result.dailyPlan,
+          decisionId: result.persistence.decision_id,
+          healthFlagId: result.persistence.health_flag_id,
+          warnings: result.warnings,
+        },
+        { status: 200 }
+      );
+    } catch (error) {
+      const mapped = mapDailyRunError(error);
+      console.error(`daily-run: runDailyFor failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
+      return errorResponse(mapped.status, mapped.code, mapped.message);
+    }
   }),
 };

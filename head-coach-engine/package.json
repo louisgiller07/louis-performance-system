@@ -11,6 +11,8 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:edge": "npm run build && vitest run --config vitest.edge.config.ts",
+    "test:m3:http": "npm run build && tsx tests/edge/http/orchestrate.ts",
     "run:example": "tsx src/cli/runExample.ts"
   },
   "devDependencies": {
