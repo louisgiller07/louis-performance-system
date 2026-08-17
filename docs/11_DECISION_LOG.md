@@ -603,3 +603,35 @@ Tests obligatoires : cycle A1 (jour N) → A5 (jour N+1) prouvé en intégration
 **Impact** : `head-coach-engine/src/supabase/mapping/dailyCheckinRow.ts`, `head-coach-engine/src/supabase/mapping/raceCalendarRow.ts`, `head-coach-engine/src/supabase/buildRawContext.ts`, tests associés. Aucun impact sur `head-coach-engine/src/{types,engine,rules,domains,mapping}` (frozen, non modifiés).
 
 **Statut** : active
+
+---
+
+## 2026-08-16 — M2 : clôture locale — Supabase persistence + integration = DONE (local)
+
+**Contexte** : passe d'audit/clôture final du milestone M2 (baseline V0.2 + `M2_001` à `M2_006` + adapter read/write). Objectif : vérifier factuellement, pas réimplémenter, que M2 satisfait ses critères de sortie canoniques (`docs/00_PROJECT_STATUS.md`, `docs/10_TEST_PLAN.md` §Critères d'acceptation M2) avant toute review Louis / déploiement remote.
+
+**Constats factuels de l'audit** :
+
+- **Migrations** : `baseline_v0_2.sql`, `M2_001` à `M2_006` rejouent sans erreur sur `supabase db reset --local --no-seed`, dans l'ordre canonique, aucune `M2_007`. Chaque fichier de migration a exactement **un seul commit** dans son historique Git (celui de sa création) — aucune modification postérieure.
+- **M1 strictement intact** : `git diff --stat` entre le commit d'implémentation M1 (`eab2072`) et `HEAD` sur `head-coach-engine/src/{types,engine,rules,domains,mapping}` est **vide**. 75/75 tests M1 toujours verts, isolément vérifiés (`tests/*.test.ts`, hors `tests/supabase/`).
+- **Read path** (`buildRawContext`/`computeDailyFor`) : zéro écriture confirmée par test d'intégration réel (comptage avant/après sur `decisions`/`health_flags`/`planned_sessions`/`completed_sessions`/`daily_checkins`) et par audit statique (aucun `.insert`/`.update`/`.delete`/`.upsert`, aucun import de `persistDailyRun`/`runDailyFor`).
+- **Write path** (`runDailyFor`/`persistDailyRun`) : `computeDailyFor` appelé exactement une fois, `persist_daily_run` invoqué exactement une fois par run (un seul appel `client.rpc`, aucun `.insert`/`.update`/`.delete` applicatif reproduisant la transaction côté TypeScript).
+- **Cycle longitudinal A1→A5→résolution** prouvé avec le vrai moteur M1, le vrai `buildRawContext`, le vrai `computeDailyFor`, le vrai `runDailyFor`, la vraie RPC `persist_daily_run`, sur la vraie DB locale — aucun mock sur cette chaîne (vérifié : aucune occurrence de `vi.fn`/mock dans les fichiers de test correspondants). Idempotence A1 répétée prouvée de la même façon : même `health_flag_id` réutilisé, decisions distinctes, jamais de doublon de flag ouvert.
+- **Atomicité côté TypeScript** prouvée sans contourner `persistDailyRun` : payload santé valide + `decisionRow` volontairement invalide → RPC échoue, aucune trace en base (ni flag, ni decision).
+- **Équivalence fixture M1 ↔ Supabase** : démontrée par égalité structurelle stricte (`toEqual`) sur **19 scénarios canoniques réels** de `head-coach-engine/src/cli/runExample.ts` (`t1-grip-red`, `t1-legs-red`, `t1-mental-red`, `t1-sleep-deficit`, `t3-concussion`, `t3-pain-non-safety`, `t3-pain-safety-traumatic`, `t4-tx-respected`, `t4-tx-vs-planned`, `t5-race-in-progress`, `t5-post-event`, `t6-fallback`, `t7-keep`, `t10-overlapping-races`, `t10-plausible-not-contradiction`, `soft-constraint-applied`, `soft-constraint-overridden`, `a5-dh-planned`, `a5-non-dh-planned`). Aucun scénario canonique n'a été trouvé irreprésentable depuis le schéma M2 actuel.
+- **Correctif d'infrastructure de test découvert pendant l'audit** : `tests/supabase/testDb.ts` utilisait un checkin neutre (`NEUTRAL_CHECKIN`) dont les valeurs par défaut différaient numériquement de `fixtures/louis.ts` `baseCheckin()` (ex. `sleep_hours` 7.5 vs 8). Les deux jeux de valeurs retombaient par coïncidence dans la même bande de classification (`PROVISIONAL_THRESHOLDS`), ce qui masquait le risque plutôt que l'éliminer. Aligné pour être numériquement identique à `baseCheckin()` — fichier de test uniquement, aucun impact sur `src/` ni sur M1.
+- **Confidence qualitative uniquement** : aucune occurrence de mapping `LOW/MEDIUM/HIGH → nombre` dans `src/supabase/` (vérifié par grep) ; `decisions.confidence` (legacy numeric) n'est jamais écrit par le DAL M2.
+- **Secrets** : `git grep "sb_secret_"` ne retourne aucune occurrence. `git grep "service_role"` ne retourne que des noms de rôle/grants SQL et de la prose documentaire — aucune clé littérale versionnée.
+- **`decisions` append-only / current decision** : prouvé par les tests d'idempotence et le cycle longitudinal (plusieurs decisions par jour/par athlète, jamais d'écrasement). Convention `ORDER BY created_at DESC LIMIT 1` documentée dans `docs/05_DATA_MODEL.md` §decisions. **Aucun code M2 actuel ne lit la "decision courante"** (aucune requête sur `decisions` dans `src/` — vérifié par grep) : aucun repository n'a été créé pour cette lecture, conformément au principe "ne pas construire pour un besoin théorique".
+
+**Décision** : **M2 Supabase persistence + integration = DONE (local)**. Résumé : baseline locale capturée + `M2_001` → `M2_006` appliquées et inchangées depuis leurs commits respectifs ; read path (`computeDailyFor`) et write path (`runDailyFor`) implémentés, testés unitairement et en intégration réelle contre la stack Supabase locale ; RPC `persist_daily_run` atomique et sécurisée (`SECURITY INVOKER`, `service_role` uniquement) ; cycle longitudinal A1→A5 et idempotence health flag prouvés avec la chaîne complète réelle ; équivalence fixture ↔ Supabase démontrée sur 19 scénarios canoniques.
+
+**Important — portée de cette clôture** : **M2 DONE signifie DONE localement, pas déployé.** Le déploiement Supabase distant (`supabase migration repair` puis premier `supabase db push` vers la DB Louis) reste une **opération séparée, non effectuée**, explicitement conditionnée à une review Louis préalable (voir `docs/00_PROJECT_STATUS.md` critères de sortie M2). CLI `compute:daily`/`run:daily`, résolution applicative des health flags, et toute nouvelle table/colonne/RPC restent hors scope de cette clôture.
+
+**Alternatives considérées** :
+- Créer `athletesRepo`, `trainingBlocksRepo.getCurrentBlock` (complet), `weeklyAvailabilityRepo` pour satisfaire littéralement l'inventaire de repositories initialement esquissé dans `docs/12_BACKLOG.md` — rejeté : aucun n'est consommé par le moteur M1 (vérifié par grep exhaustif sur `src/{engine,rules,domains}`), les construire aurait été du code mort maintenu pour rien.
+- Mettre à jour `docs/00_PROJECT_STATUS.md` dans cette même passe — rejeté : cette clôture ne modifie que les fichiers de suivi explicitement dans son mandat (`11_DECISION_LOG.md`, `12_BACKLOG.md`) ; `00_PROJECT_STATUS.md` reste à mettre à jour séparément (ses critères de sortie mentionnent aussi la review Louis et le déploiement remote, non encore effectués).
+
+**Impact** : `docs/12_BACKLOG.md` (checklist M2 mise à jour). Aucun impact sur `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md`, `docs/00_PROJECT_STATUS.md` (non modifiés dans cette passe), ni sur `head-coach-engine/src/{types,engine,rules,domains,mapping}`.
+
+**Statut** : active

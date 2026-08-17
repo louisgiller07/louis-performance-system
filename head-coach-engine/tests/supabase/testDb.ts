@@ -93,11 +93,19 @@ export interface CheckinFixture {
   fever_or_illness?: boolean;
 }
 
+// Deliberately identical to fixtures/louis.ts's baseCheckin() defaults (M2
+// closure pass — read-path equivalence matrix): any scenario override object
+// applied to both baseCheckin(overrides) and insertCheckin(...,overrides)
+// must leave the *unoverridden* fields in the same PROVISIONAL_THRESHOLDS
+// classification band on both sides, or fixture/Supabase equivalence tests
+// would compare apples to oranges by accident. Keeping the two default sets
+// numerically identical removes that risk entirely rather than relying on
+// both sets happening to land in the same GREEN band.
 const NEUTRAL_CHECKIN: Required<Omit<CheckinFixture, "pain_location_code">> = {
-  sleep_hours: 7.5,
-  sleep_quality: 7,
-  sleep_wake_ups: 1,
-  energy: 6,
+  sleep_hours: 8,
+  sleep_quality: 8,
+  sleep_wake_ups: 0,
+  energy: 8,
   work_stress: 3,
   motivation: 8,
   leg_fatigue: 2,
