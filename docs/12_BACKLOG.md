@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : M2 — Connexion Supabase read/write locale : **DONE (local)**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture). Déploiement remote non effectué — review Louis puis `supabase migration repair` + premier `db push` restent à faire séparément.
-**Prochain milestone** : review Louis M2 → décision Go/No-Go M3
+**Phase** : M2 — Connexion Supabase read/write locale : **DONE local + remote**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote sur `uvolpldwwyvadlamulvr`).
+**Prochain milestone** : décision Go/No-Go M3 (Louis, non encore prise)
 
 ---
 
@@ -135,11 +135,11 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - [x] RPC `persist_daily_run` : `SECURITY INVOKER` vérifié, `EXECUTE` limité au rôle serveur M2 (`service_role`), aucune exposition à `PUBLIC`/`anon`/`authenticated`
 - [x] Aucune modification de `src/{types,engine,rules,domains,mapping}` — `git diff --stat` vide entre le commit M1 (`eab2072`) et l'état courant
 - [x] Aucun secret Supabase commité dans le repo (`git grep "sb_secret_"` vide ; `git grep "service_role"` = noms de rôle/grants/prose uniquement)
-- [ ] Review Louis (local + tests, avant tout push remote) — **reste à faire**
-- [ ] **Uniquement après review Louis** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement) — **non fait**
-- [ ] Premier `supabase db push` M2 vers la DB Louis — **non fait**
-- [x] Update `00_PROJECT_STATUS.md` avec M2 DONE (local)
-- [ ] Décision Go/No-Go M3 — décision de Louis, pas de Claude Code
+- [x] Review Louis (local + tests, avant tout push remote)
+- [x] **Uniquement après review Louis** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement) — fait 2026-08-17
+- [x] Premier `supabase db push` M2 vers la DB Louis — fait 2026-08-17 sur `uvolpldwwyvadlamulvr` (`M2_001`→`M2_006`), post-deploy audit PASS, données existantes préservées
+- [x] Update `00_PROJECT_STATUS.md` avec M2 DONE (local + remote)
+- [ ] Décision Go/No-Go M3 — décision de Louis, pas encore prise
 
 ---
 

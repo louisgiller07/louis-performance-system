@@ -635,3 +635,27 @@ Tests obligatoires : cycle A1 (jour N) → A5 (jour N+1) prouvé en intégration
 **Impact** : `docs/12_BACKLOG.md` (checklist M2 mise à jour). Aucun impact sur `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md`, `docs/00_PROJECT_STATUS.md` (non modifiés dans cette passe), ni sur `head-coach-engine/src/{types,engine,rules,domains,mapping}`.
 
 **Statut** : active
+
+---
+
+## 2026-08-17 — Déploiement remote M2
+
+**Contexte** : M2 étant DONE localement (clôture 2026-08-16) et l'architecture ayant reçu l'approbation de Claude Project pour le déploiement remote, la baseline V0.2 et les migrations `M2_001`→`M2_006` ont été déployées sur le projet Supabase distant `uvolpldwwyvadlamulvr` ("LOUIS PERFORMANCE SYSTEM", eu-central-1/Frankfurt), suivant strictement la procédure déjà documentée (`docs/06_ARCHITECTURE.md` §Baseline read-only, `docs/05_DATA_MODEL.md` §Déploiement remote).
+
+**Décision / constats** :
+
+- **Preflight strictement read-only** effectué avant tout déploiement : `supabase/preflight/m2_remote_preflight.sql` (uniquement des `SELECT`, versionné pour audit), exécuté via une connexion MCP confirmée serveur-enforced read-only (`transaction_read_only=on`, rôle `supabase_read_only_user`). Résultat : les 7 tables baseline présentes, aucun objet M2 prématurément présent, 0 doublon open `health_flags`, `decisions.confidence` toujours `numeric(3,2)` intact.
+- **Remote schema = baseline** : `supabase db dump --linked --schema public` comparé à `supabase/migrations/20260814095000_baseline_v0_2.sql` — **identique caractère pour caractère** (`diff --strip-trailing-cr` exit 0 ; seule différence brute constatée avant normalisation : terminaisons de ligne CRLF/LF, non-sémantique). Aucun schema drift réel sur tables, colonnes, types/enums, contraintes, index, fonctions, triggers, RLS/policies.
+- **Zéro duplicate open health_flags** confirmé avant et après déploiement (requête `GROUP BY athlete_id, flag_type HAVING count(*) > 1` → 0 ligne), condition nécessaire à l'application sans conflit de l'index unique partiel `health_flags_open_unique` (M2_005).
+- **`migration repair` utilisé uniquement pour la baseline** `20260814095000` — marquée comme déjà appliquée dans l'historique de migrations remote **sans rejouer son SQL** (conformément à la décision du 2026-08-14 : la baseline capture un état déjà existant sur `uvolpldwwyvadlamulvr`, la rejouer aurait tenté de recréer des objets déjà présents).
+- **`db push` utilisé uniquement pour `M2_001`→`M2_006`** — ces 6 migrations, elles, exécutent réellement leur SQL additif contre le schéma remote.
+- **Post-deploy audit PASS**, strictement read-only, exécuté après déploiement :
+  - `migration list --linked` : les 7 timestamps LOCAL alignés avec REMOTE, aucun écart.
+  - `db push --linked --dry-run` → `"Remote database is up to date."`
+  - M2_001 à M2_006 vérifiés individuellement (colonnes, enum `confidence_level` = exactement `LOW`/`MEDIUM`/`HIGH`, index `health_flags_open_unique` avec le predicate exact, fonction `persist_daily_run` inspectée via `pg_get_functiondef` — corps **identique** au fichier de migration local, `SECURITY INVOKER` confirmé (`prosecdef=false`), `search_path=public`, ACL `{postgres=X,service_role=X}` sans `PUBLIC`/`anon`/`authenticated`).
+  - Données préexistantes (`athletes`, `goals`, `training_blocks`, `race_calendar`, `athlete_baselines`, `weekly_availability`) : comptages identiques avant/après déploiement — aucune perte.
+- **Aucune `M2_007`** : exactement les 7 fichiers de migration prévus, aucun ajout.
+
+**Impact** : `docs/00_PROJECT_STATUS.md` (statut M2 DONE local + remote), `docs/12_BACKLOG.md` (cases Review Louis / migration repair / premier db push cochées). Aucune modification de `supabase/migrations/`, aucune modification de `head-coach-engine/src/{types,engine,rules,domains,mapping}`, aucune écriture métier sur le remote (seules les migrations DDL M2_001→M2_006 ont écrit du schéma ; aucune donnée métier insérée/modifiée/supprimée par ce déploiement).
+
+**Statut** : active

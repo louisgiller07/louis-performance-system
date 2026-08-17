@@ -2,7 +2,7 @@
 
 **Dernière mise à jour :** 17 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** M2 — Connexion Supabase read/write locale : **DONE (local)**. Développement local terminé (baseline + `M2_001`→`M2_006`, read path, write path, tests). **Déploiement Supabase remote NON effectué** : `migration repair` remote NON effectué, `db push` remote NON effectué. Voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture M2 locale).
+**Phase actuelle :** M2 — Connexion Supabase read/write locale : **DONE (local + remote)**. Développement local terminé (baseline + `M2_001`→`M2_006`, read path, write path, 226/226 tests dont 75/75 M1). **Déploiement Supabase remote effectué** sur `uvolpldwwyvadlamulvr` : baseline `20260814095000` enregistrée comme déjà appliquée (`migration repair`, sans rejouer son SQL), puis `M2_001`→`M2_006` déployées via `db push`. Migration history LOCAL = REMOTE ; `db push --dry-run` → "Remote database is up to date" ; post-deploy audit PASS ; données existantes préservées. Voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote).
 
 ## Où on en est réellement
 
@@ -12,11 +12,11 @@
 - **DB Supabase V0.2 déployée et validée** : 12 tables, enums, RLS, triggers, seed data Louis.
 - **Spec Head Coach Engine V0.2 consolidée** avec tous les principes canoniques (multidimensional state, décisions causales, non-double-counting, T-X default framework, support multi-jours, SAFETY limitée, soft constraints arbitrables, douleur non-SAFETY actionnable, séparation DB/interne).
 - **M1 — Vertical Slice locale du Head Coach Engine** (`head-coach-engine/src/{types,engine,rules,domains,mapping}`) : pipeline complet `RawContext → DailyPlan`, 75/75 tests verts, build TypeScript strict clean, CLI de démonstration fonctionnelle. **Verdict architecte : APPROVED (2026-08-13). Frozen** sauf bug métier réel découvert ultérieurement.
-- **M2 — Connexion Supabase read/write locale : DONE (local)** (2026-08-16) : baseline V0.2 + migrations `M2_001`→`M2_006`, DAL/adapter, `computeDailyFor` (zéro écriture) et `runDailyFor` (RPC `persist_daily_run` atomique), cycle longitudinal A1→A5 prouvé, équivalence fixture ↔ Supabase démontrée sur 19 scénarios canoniques, 226/226 tests verts (dont 75/75 M1). Voir `docs/11_DECISION_LOG.md` et `docs/12_BACKLOG.md`. **Développement local uniquement — aucun déploiement remote.**
+- **M2 — Connexion Supabase read/write locale : DONE (local + remote)** : développement local terminé 2026-08-16 (baseline V0.2 + migrations `M2_001`→`M2_006`, DAL/adapter, `computeDailyFor` zéro écriture et `runDailyFor` RPC `persist_daily_run` atomique, cycle longitudinal A1→A5 prouvé, équivalence fixture ↔ Supabase sur 19 scénarios canoniques, 226/226 tests verts dont 75/75 M1). Déploiement remote effectué 2026-08-17 sur `uvolpldwwyvadlamulvr` : baseline `20260814095000` enregistrée comme applied sans rejouer son SQL, `M2_001`→`M2_006` déployées via `db push`, migration history LOCAL=REMOTE, `db push --dry-run` = "Remote database is up to date", post-deploy audit PASS, données existantes préservées (`athletes`, `goals`, `training_blocks`, `race_calendar`, `athlete_baselines`, `weekly_availability` — comptages identiques avant/après). Voir `docs/11_DECISION_LOG.md` et `docs/12_BACKLOG.md`.
 
 ### IN PROGRESS
 
-- Aucun développement en cours. En attente de la **review Louis de M2** avant déploiement Supabase remote (`migration repair` puis premier `db push`) et démarrage de M3.
+- Aucun développement en cours. M2 déployé (local + remote). En attente de la **décision Go/No-Go M3** (Louis, non encore prise).
 
 ### NOT STARTED
 
@@ -26,16 +26,16 @@
 ## Prochaines étapes (ordre)
 
 1. ~~**Implémenter M2** (Claude Code) : audit DDL → migrations additives → DAL → adapter → `computeDailyFor` / `runDailyFor` → tests A/B/C/D.~~ **DONE (local), 2026-08-16.**
-2. **Review Louis M2 → déploiement remote séparé → décision Go/No-Go M3.**
+2. ~~**Review Louis M2 → déploiement remote séparé.**~~ **DONE, 2026-08-17.** → **Décision Go/No-Go M3** (Louis, à venir).
 3. **M3 — Edge Function** Supabase exposant `runDailyFor` en HTTP.
 4. **Première interface de check-in** (Today screen) — M4+.
 5. **Enrichissement des domaines de coaching**, runtime `ActiveExperiment`, LLM couche E, intégrations externes — après M4, ordre à trancher au moment venu.
 
 ## Prochain milestone
 
-**Review Louis M2 → déploiement remote séparé → décision Go/No-Go M3**
+**Décision Go/No-Go M3** (Louis)
 
-Statut M2 : **DONE (local), 2026-08-16 — développement local terminé. Déploiement Supabase remote NON effectué.**
+Statut M2 : **DONE (local + remote), 2026-08-17 — développement local terminé (2026-08-16) et déploiement Supabase remote effectué (2026-08-17) sur `uvolpldwwyvadlamulvr`.**
 
 Critères de sortie M2 :
 - [x] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé (2026-08-14).
@@ -54,10 +54,10 @@ Critères de sortie M2 :
 - [x] Équivalence fixture ↔ Supabase prouvée pour tous les scénarios M1 canoniques (19 scénarios).
 - [x] Aucun `db push`, aucun `migration repair`, aucune modification remote pendant tout le développement local.
 - [x] Aucune modification de `src/{types,engine,rules,domains,mapping}`.
-- [x] Update `00_PROJECT_STATUS.md` avec M2 DONE (local) — ce document, 2026-08-17.
-- [ ] Revue Louis (local + tests, avant tout push remote).
-- [ ] **Uniquement après review** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement), puis premier `supabase db push` M2 vers la DB Louis.
-- [ ] Commit / push des sources M2 dans le repo (aucun secret).
+- [x] Update `00_PROJECT_STATUS.md` avec M2 DONE (local + remote) — ce document, 2026-08-17.
+- [x] Revue Louis (local + tests, avant tout push remote).
+- [x] **Uniquement après review** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement), puis premier `supabase db push` M2 vers la DB Louis — effectué 2026-08-17 sur `uvolpldwwyvadlamulvr`. Post-deploy audit PASS (M2_001→M2_006, RPC `persist_daily_run` permissions, données existantes préservées).
+- [x] Commit / push des sources M2 dans le repo (aucun secret).
 - [ ] Décision Go/No-Go M3.
 
 ## Règle
