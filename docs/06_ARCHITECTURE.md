@@ -109,7 +109,7 @@ Aucun appel HTTP, aucun accès DB, aucun LLM, aucun fichier système au runtime 
 
 ### M3 — API HTTP
 
-- Edge Function `supabase/functions/daily-run` (DONE local, 2026-08-17 ; remote PENDING) :
+- Edge Function `supabase/functions/daily-run` (DONE local + remote, 2026-08-18) :
   `Authorization: Bearer <JWT>` → `@supabase/server@1.4.1` (`withSupabase({auth:"user"})`)
   → `ctx.supabase`/RLS `athletes_own_data` → athlete propre (jamais body/query)
   → `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` (appelé une fois)
@@ -128,9 +128,30 @@ Aucun appel HTTP, aucun accès DB, aucun LLM, aucun fichier système au runtime 
   - `IncompleteDailyCheckinError` → 422 `checkin_incomplete`
   - `PersistDailyRunRpcError` → 500 `persistence_failed`
   - erreurs invalides/invariant cassé/imprévues → 500 `internal_error`
-- **Remote : PAS encore prouvé.** `supabase functions deploy --use-api` (packaging de
-  `dist/`, gitignored, hors `supabase/functions/`) n'a jamais été exécuté. Canary requis
-  avant tout déploiement réel de `daily-run`.
+- **Remote : DONE, prouvé sur `uvolpldwwyvadlamulvr`** (M3_005 canary + M3_006 run réel) :
+  - `--use-api` packaging de l'import externe `head-coach-engine/dist/**` (gitignored,
+    hors `supabase/functions/`) **proven** : le CLI bundle automatiquement tout le
+    graphe transitif compilé, sans copie manuelle ni duplication du moteur.
+  - `daily-run` **ACTIVE** sur le projet remote, `verify_jwt: true` (comportement par
+    défaut du gateway conservé, jamais désactivé pour cette fonction).
+  - Exécution authentifiée remote **proven** : JWT utilisateur réel → gateway →
+    `withSupabase({auth:"user"})` → `ctx.supabase`/RLS → athlete propre → `ctx.supabaseAdmin`
+    → `runDailyFor` → `persist_daily_run`.
+  - Résolution RLS de l'athlete propre **proven** sur le remote (même mécanisme qu'en
+    local, aucun `athlete_id` client).
+  - Persistance réelle de la decision **proven** : `200` avec `dailyPlan` réel,
+    `decisionId` correspondant exactement à la row `decisions` créée, `daily_plan`
+    DB deep-equal à la réponse HTTP, `confidence` legacy `NULL`, `confidence_level`
+    renseigné.
+- **Workflow de déploiement validé** :
+  ```
+  cd head-coach-engine
+  npm run deploy:daily-run
+  ```
+  soit `npm run build` (compile `dist/`) → Supabase CLI invoqué avec `--workdir ..`
+  (résout `supabase/config.toml` depuis `head-coach-engine/`) → `--use-api` (bundling
+  serveur, sans Docker) → `--project-ref uvolpldwwyvadlamulvr` explicite (jamais le
+  linked project implicite).
 - Toujours pas d'UI, pas de LLM
 
 ### M4+ — UI et enrichissements
