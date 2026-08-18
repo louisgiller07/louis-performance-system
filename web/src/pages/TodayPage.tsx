@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
+import { CheckinForm } from "../features/checkin/CheckinForm";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -12,7 +13,7 @@ const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
 // resolution already happened in RequireAuth/AuthContext; this page never
 // re-resolves it.
 export function TodayPage() {
-  const { user, signOut } = useAuth();
+  const { user, athleteId, signOut } = useAuth();
 
   // Canonical YYYY-MM-DD in the user's own local timezone (see
   // src/lib/date.ts) — kept for the future check-in/daily-run calls, not
@@ -53,10 +54,12 @@ export function TodayPage() {
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-900">Daily Check-in</h2>
-          <p className="mt-1 text-sm text-gray-500">Ton état du jour</p>
-          <p className="mt-4 rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-400">
-            Formulaire disponible dans M4_003
-          </p>
+          <p className="mb-4 mt-1 text-sm text-gray-500">Ton état du jour</p>
+          {athleteId ? (
+            <CheckinForm athleteId={athleteId} date={canonicalDate} />
+          ) : (
+            <p className="text-sm text-red-600">Configuration error: no athlete resolved.</p>
+          )}
         </section>
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

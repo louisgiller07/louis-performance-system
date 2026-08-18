@@ -8,8 +8,20 @@ const signOut = vi.fn();
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({
     user: { email: "louis@example.test" },
+    athleteId: "athlete-1",
     signOut,
   }),
+}));
+
+// CheckinForm's own behavior (load/save/validation) is covered by
+// src/features/checkin/CheckinForm.test.tsx — TodayPage only needs to prove
+// it's wired in with the right athleteId/date, not re-test its internals.
+vi.mock("../features/checkin/CheckinForm", () => ({
+  CheckinForm: ({ athleteId, date }: { athleteId: string; date: string }) => (
+    <div data-testid="checkin-form-stub">
+      checkin-form athlete={athleteId} date={date}
+    </div>
+  ),
 }));
 
 afterEach(() => {
@@ -28,11 +40,15 @@ describe("TodayPage", () => {
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
 
-  it("displays the Daily Check-in placeholder", () => {
+  it("renders the real CheckinForm, wired with athleteId and the canonical date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
+    const expectedDate = todayLocal();
+
     render(<TodayPage />);
 
     expect(screen.getByText("Daily Check-in")).toBeInTheDocument();
-    expect(screen.getByText(/Formulaire disponible dans M4_003/)).toBeInTheDocument();
+    expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent(`checkin-form athlete=athlete-1 date=${expectedDate}`);
   });
 
   it("displays the Daily Plan placeholder", () => {
