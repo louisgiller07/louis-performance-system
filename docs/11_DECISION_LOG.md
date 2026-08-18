@@ -751,3 +751,53 @@ Jamais renvoyé en HTTP : message d'erreur brut, SQL, stack trace, nom de colonn
 **Impact** : `supabase/functions/daily-run/index.ts`, `errorMapping.ts` (modifiés/créés), `head-coach-engine/tests/edge/` (nouveaux tests dédiés), `head-coach-engine/package.json` (`test:edge`, `test:m3:http`), `head-coach-engine/vitest.config.ts`/`vitest.edge.config.ts` (nouveaux). Aucun impact sur `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md` (diff proposé séparément, non encore appliqué).
 
 **Statut** : active
+
+---
+
+## 2026-08-18 — M3_005 : canary de packaging remote `--use-api` — external `dist` graph prouvé
+
+**Contexte** : M3_001 avait prouvé la frontière de build `npm run build → head-coach-engine/dist/*.js` uniquement en local (`supabase functions serve`). Le packaging remote (comment `supabase functions deploy` embarque un import externe pointant hors de `supabase/functions/`, vers un dossier gitignored) n'avait jamais été testé. Avant tout déploiement réel de `daily-run`, une fonction canary jetable a été déployée pour isoler ce risque.
+
+**Constats factuels (projet `uvolpldwwyvadlamulvr`, canary temporaire, jamais commitée)** :
+
+- `supabase/functions/daily-run-canary/index.ts` : importe uniquement `head-coach-engine/dist/supabase/runDailyFor.js`, **n'appelle jamais `runDailyFor`** (seulement `typeof runDailyFor === "function"`), aucun client Supabase, aucun accès DB, aucun secret.
+- `npx supabase functions deploy daily-run-canary --use-api --no-verify-jwt --project-ref uvolpldwwyvadlamulvr` : le CLI a **automatiquement découvert et uploadé tout le graphe transitif compilé** (~40 fichiers : `runDailyFor.js`, `computeDailyFor.js`, `persistDailyRun.js`, tout `engine/`, `rules/`, `domains/`, `types/`, `mapping/`, `repositories/`), en plus des fichiers de la fonction elle-même — sans copie manuelle, sans modification de `supabase/functions/`.
+- Invocation remote (`POST https://uvolpldwwyvadlamulvr.supabase.co/functions/v1/daily-run-canary`) → **HTTP 200**, `{"ok":true,"runDailyForLoaded":true}` — le runtime Deno distant a réellement chargé et résolu le module compilé.
+- **`--no-verify-jwt` utilisé uniquement pour cette canary temporaire** (aucune donnée, aucun secret, aucun accès DB, réponse statique sur chargement de module) — jamais retenu comme configuration pour `daily-run`.
+- Canary supprimée immédiatement après le test : `supabase functions delete daily-run-canary --project-ref uvolpldwwyvadlamulvr`, confirmé absente (`404 NOT_FOUND` en réinvoquant), fichier local supprimé, jamais commitée.
+
+**Décision** : le packaging remote `--use-api` est validé pour l'import externe `head-coach-engine/dist/**` — aucune modification d'architecture nécessaire. Ouvre la voie au déploiement réel de `daily-run` (voir entrée M3_006 ci-dessous).
+
+**Impact** : aucun fichier versionné modifié par cette entrée elle-même (canary jetable, jamais commitée). Aucune migration, aucun changement M1/M2.
+
+**Statut** : active
+
+---
+
+## 2026-08-18 — M3_006 : premier déploiement remote réel de `daily-run` — run authentifié complet prouvé
+
+**Contexte** : après M3_005 (packaging remote prouvé via canary), déploiement réel de la fonction `daily-run` (celle utilisée en local depuis M3_002/M3_003) sur `uvolpldwwyvadlamulvr`, avec un run utilisateur authentifié complet, de bout en bout, sur la vraie infrastructure remote.
+
+**Déploiement** : `npx supabase functions deploy daily-run --use-api --project-ref uvolpldwwyvadlamulvr` (sans `--no-verify-jwt` — `daily-run` garde la vérification JWT par défaut du gateway). Fonction confirmée `ACTIVE`, `verify_jwt: true` via `supabase functions list`.
+
+**Chaîne prouvée réellement remote** : `Authorization: Bearer <JWT>` → gateway (`verify_jwt=true`) → `withSupabase({auth:"user"})` → `ctx.supabase`/RLS `athletes_own_data` → athlete propre → `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` → RPC `persist_daily_run`.
+
+**Preuves empiriques (un seul athlete/user scratch créé, jamais un vrai compte Louis)** :
+
+- Sans `Authorization` → `401`. JWT invalide → `401`. Aucune requête n'atteint le handler.
+- User scratch réel créé (`auth.admin.createUser` + `signInWithPassword`), JWT réel obtenu.
+- Avant tout checkin : `{"date":"2026-08-18"}` avec le JWT réel → `422 no_checkin_for_date`, **zéro** `decisions`/`health_flags` créés pour l'athlete scratch (vérifié par requête DB directe).
+- Après insertion d'un seul checkin neutre complet (`pain=false`, les trois critères douleur `false`, `suspected_concussion=false`, `fever_or_illness=false`, tous les scalaires requis renseignés) : même appel → **`200`**, `dailyPlan` réel présent, `decisionId` UUID, `healthFlagId=null`, `warnings` array.
+- Vérifié côté DB (client admin) : **exactement 1** `decisions` row pour l'athlete scratch, `id` == `decisionId` HTTP, `athlete_id` == athlete scratch, `daily_plan` **deep-equal** au `dailyPlan` HTTP, `confidence` (legacy) `NULL`, `confidence_level` renseigné (`MEDIUM`), `health_flags` = 0.
+- Réponse de succès vérifiée sans fuite : aucune occurrence de `rawContext`, `athleteId`, `userId`, `Authorization`, du JWT, ni d'aucune clé API dans le corps de la réponse.
+- **Un seul run de succès effectué** (pas de deuxième run redondant sur le remote, conformément à la consigne de minimiser les écritures réelles).
+
+**Gestion des clés remote** : les clés nouveau format `sb_publishable_*`/`sb_secret_*` (préférence initiale) étaient listées par `supabase projects api-keys` mais **rejetées** par ce projet (`Invalid API key` sur PostgREST et l'API Auth Admin — pas encore activées côté gateway pour ce projet). **Fallback vers les clés legacy `anon`/`service_role`** utilisé pour le harnais temporaire — comme prévu et documenté à l'avance. Clés lues depuis un fichier temporaire local, jamais affichées, jamais commitées, jamais loguées ; fichier et harnais (`.m3006-remote-smoke.mjs`) supprimés immédiatement après usage.
+
+**Cleanup remote** : `decisions`, `health_flags` (aucun créé), `daily_checkins`, `training_blocks`, `athletes` (scratch), `auth.users` (scratch) tous supprimés individuellement puis vérifiés absents par requête directe. Aucune donnée réelle de Louis consultée, modifiée ou énumérée (toutes les requêtes de vérification étaient scopées par `athlete_id`/`user_id` scratch spécifiques, jamais de requête large).
+
+**Décision** : **M3 remote validation complete.** `daily-run` reste déployée sur `uvolpldwwyvadlamulvr` (aucune raison de la supprimer — tous les tests sont passés). M3 est considéré **DONE local + remote**.
+
+**Impact** : aucun fichier versionné modifié par le run lui-même. Voir `docs/00_PROJECT_STATUS.md` et `docs/12_BACKLOG.md` pour la clôture M3.
+
+**Statut** : active

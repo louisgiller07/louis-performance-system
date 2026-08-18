@@ -1,8 +1,8 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 17 août 2026
+**Dernière mise à jour :** 18 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** M3 — Edge Function HTTP exposant `runDailyFor`. **M3 local implementation = DONE. M3 remote validation = PENDING.** M3_001 (frontière de build Deno prouvée localement), M3_002 (boundary d'authentification JWT→RLS→athlete prouvée) et M3_003 (branchement réel du moteur + mapping d'erreurs) sont **committés**, tous prouvés uniquement via `supabase functions serve` **local** (Edge Runtime local + DB locale). **Aucun déploiement remote n'a eu lieu.** Le packaging remote (`supabase functions deploy --use-api`, requis car `head-coach-engine/dist/` est gitignored) reste non prouvé — prochaine action : canary remote sur `uvolpldwwyvadlamulvr`. Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003).
+**Phase actuelle :** M3 — Edge Function HTTP exposant `runDailyFor`. **M3 = DONE local + remote.** `daily-run` est déployée et **ACTIVE** sur `uvolpldwwyvadlamulvr` (`verify_jwt: true`). Preuves remote : packaging `--use-api` de `head-coach-engine/dist/**` (canary jetable M3_005, supprimée), puis run authentifié réel complet (M3_006) — JWT utilisateur scratch → gateway → RLS → athlete propre → `ctx.supabaseAdmin` → `runDailyFor` → `persist_daily_run` → `200` avec `DailyPlan` réel, decision persistée et vérifiée en DB (id, athlete_id, `daily_plan` deep-equal, `confidence` legacy NULL, `confidence_level` renseigné), `422 no_checkin_for_date` avant checkin avec zéro écriture, réponse sans fuite de donnée sensible, tous les fixtures scratch remote supprimés et vérifiés absents. Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
 
 M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir entrée précédente ci-dessous et `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote).
 
@@ -15,16 +15,15 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir entrée p
 - **Spec Head Coach Engine V0.2 consolidée** avec tous les principes canoniques (multidimensional state, décisions causales, non-double-counting, T-X default framework, support multi-jours, SAFETY limitée, soft constraints arbitrables, douleur non-SAFETY actionnable, séparation DB/interne).
 - **M1 — Vertical Slice locale du Head Coach Engine** (`head-coach-engine/src/{types,engine,rules,domains,mapping}`) : pipeline complet `RawContext → DailyPlan`, 75/75 tests verts, build TypeScript strict clean, CLI de démonstration fonctionnelle. **Verdict architecte : APPROVED (2026-08-13). Frozen** sauf bug métier réel découvert ultérieurement.
 - **M2 — Connexion Supabase read/write locale : DONE (local + remote)** : développement local terminé 2026-08-16 (baseline V0.2 + migrations `M2_001`→`M2_006`, DAL/adapter, `computeDailyFor` zéro écriture et `runDailyFor` RPC `persist_daily_run` atomique, cycle longitudinal A1→A5 prouvé, équivalence fixture ↔ Supabase sur 19 scénarios canoniques, 226/226 tests verts dont 75/75 M1). Déploiement remote effectué 2026-08-17 sur `uvolpldwwyvadlamulvr` : baseline `20260814095000` enregistrée comme applied sans rejouer son SQL, `M2_001`→`M2_006` déployées via `db push`, migration history LOCAL=REMOTE, `db push --dry-run` = "Remote database is up to date", post-deploy audit PASS, données existantes préservées (`athletes`, `goals`, `training_blocks`, `race_calendar`, `athlete_baselines`, `weekly_availability` — comptages identiques avant/après). Voir `docs/11_DECISION_LOG.md` et `docs/12_BACKLOG.md`.
-- **M3 local implementation : DONE (M3_001, M3_002, M3_003 — committés)** : `supabase/functions/daily-run` — `Authorization: Bearer <JWT>` → `@supabase/server@1.4.1` (`withSupabase({auth:"user"})`) → `ctx.supabase`/RLS → athlete propre → `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` (import du JS compilé `head-coach-engine/dist/supabase/runDailyFor.js`, jamais la source `.ts`) → réponse `{dailyPlan, decisionId, healthFlagId, warnings}` ou mapping d'erreur HTTP stable (422/500/403/400/405). Tests locaux : `npm test` 226/226 (dont 75/75 M1), `npm run test:edge` 9/9, `npm run test:m3:http` 26/26 (répété avec succès, cleanup vérifié). Aucune migration, aucun changement M1/M2. Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003).
+- **M3 — API HTTP : DONE (local + remote)** : `supabase/functions/daily-run` — `Authorization: Bearer <JWT>` → `@supabase/server@1.4.1` (`withSupabase({auth:"user"})`) → `ctx.supabase`/RLS → athlete propre → `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` (import du JS compilé `head-coach-engine/dist/supabase/runDailyFor.js`, jamais la source `.ts`) → réponse `{dailyPlan, decisionId, healthFlagId, warnings}` ou mapping d'erreur HTTP stable (422/500/403/400/405). Local : `npm test` 226/226 (dont 75/75 M1), `npm run test:edge` 9/9, `npm run test:m3:http` 26/26. Remote (`uvolpldwwyvadlamulvr`) : packaging `--use-api` prouvé (canary M3_005), `daily-run` déployée et ACTIVE, run authentifié réel complet prouvé (M3_006 — 401/422/200, persistance vérifiée, isolation RLS, aucune fuite, cleanup complet). Aucune migration, aucun changement M1/M2. Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
 
 ### IN PROGRESS
 
-- **M3 remote validation : PENDING.** Prochaine action : canary de packaging remote (`supabase functions deploy --use-api`) sur `uvolpldwwyvadlamulvr`, avant tout déploiement réel de `daily-run`. `head-coach-engine/dist/` étant gitignored, le packaging remote (comment le CLI embarque `dist/` dans le déploiement d'une fonction hors de `supabase/functions/`) n'a **jamais été testé** — c'est le seul risque opérationnel restant identifié pour M3.
+- Aucun développement en cours. M3 déployé (local + remote).
 
 ### NOT STARTED
 
-- M3 remote deployment (dépend de la validation du canary ci-dessus).
-- M4 (première interface de check-in / Today screen).
+- M4 — première interface utilisable (Today screen / check-in).
 - Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, UI, LLM couche E, intégrations externes).
 
 ## Prochaines étapes (ordre)
@@ -32,16 +31,16 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir entrée p
 1. ~~**Implémenter M2** (Claude Code) : audit DDL → migrations additives → DAL → adapter → `computeDailyFor` / `runDailyFor` → tests A/B/C/D.~~ **DONE (local), 2026-08-16.**
 2. ~~**Review Louis M2 → déploiement remote séparé.**~~ **DONE, 2026-08-17.**
 3. ~~**M3 — Edge Function locale** (`daily-run`) : portabilité Deno, boundary auth, branchement moteur.~~ **DONE (local), 2026-08-17 (M3_001/M3_002/M3_003).**
-4. **M3 remote canary** : valider `supabase functions deploy --use-api` (packaging de `dist/` hors `supabase/functions/`) avant tout déploiement réel de `daily-run` sur `uvolpldwwyvadlamulvr`.
-5. **Première interface de check-in** (Today screen) — M4+.
+4. ~~**M3 remote** : canary de packaging `--use-api` (M3_005), déploiement réel de `daily-run` + run authentifié complet prouvé (M3_006).~~ **DONE (remote), 2026-08-18.**
+5. **M4 — première interface utilisable** (Today screen / check-in).
 6. **Enrichissement des domaines de coaching**, runtime `ActiveExperiment`, LLM couche E, intégrations externes — après M4, ordre à trancher au moment venu.
 
 ## Prochain milestone
 
-**M3 remote canary / packaging `--use-api`**
+**M4 — première interface utilisable**
 
 Statut M2 : **DONE (local + remote), 2026-08-17.**
-Statut M3 : **local implementation DONE (2026-08-17, M3_001/M3_002/M3_003) — remote validation PENDING.**
+Statut M3 : **DONE (local + remote), 2026-08-18.**
 
 Critères de sortie M2 :
 - [x] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé (2026-08-14).
@@ -74,10 +73,12 @@ Critères de sortie M3 (local, DONE) :
 - [x] Aucune migration DB, aucun changement `head-coach-engine/src/{types,engine,rules,domains,mapping,supabase}`.
 - [x] Commit / push M3_001, M3_002, M3_003 dans le repo (aucun secret).
 
-Critères de sortie M3 (remote, PENDING) :
-- [ ] Canary de packaging `supabase functions deploy --use-api` validé sur `uvolpldwwyvadlamulvr` (jamais testé à ce jour).
-- [ ] Déploiement remote de `daily-run`.
-- [ ] Audit post-déploiement remote.
+Critères de sortie M3 (remote, DONE 2026-08-18) :
+- [x] Canary de packaging `supabase functions deploy --use-api` validée sur `uvolpldwwyvadlamulvr` (M3_005) : graphe transitif `dist/**` uploadé automatiquement, module chargé remote (`{"ok":true,"runDailyForLoaded":true}`), canary supprimée.
+- [x] Déploiement remote de `daily-run` (M3_006), `verify_jwt: true`, statut `ACTIVE`.
+- [x] Run authentifié réel complet prouvé : 401 (sans auth / JWT invalide), 422 `no_checkin_for_date` avec zéro écriture, 200 avec `DailyPlan` réel après checkin neutre, decision persistée et vérifiée (id/athlete_id/`daily_plan` deep-equal/`confidence` NULL/`confidence_level` renseigné), réponse sans fuite, isolation RLS via athlete propre.
+- [x] Tous les fixtures scratch remote (user, athlete, training_block, checkin) supprimés et vérifiés absents ; aucune donnée réelle de Louis touchée.
+- [x] Aucune valeur de clé/secret affichée, loguée ou commitée ; fichiers temporaires supprimés.
 
 ## Règle
 

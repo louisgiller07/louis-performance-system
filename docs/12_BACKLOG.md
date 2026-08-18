@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : M3 — Edge Function HTTP. **M3_001, M3_002, M3_003 : DONE (local, committés)**. **M3 remote validation : PENDING** — voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003). M2 : **DONE local + remote**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote sur `uvolpldwwyvadlamulvr`).
-**Prochain milestone** : M3 remote canary — validation du packaging `supabase functions deploy --use-api` (jamais testé à ce jour). M3 reste ouvert tant que cet item n'est pas validé.
+**Phase** : M3 — Edge Function HTTP. **M3 = DONE (local + remote)**, `daily-run` déployée et ACTIVE sur `uvolpldwwyvadlamulvr` — voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006). M2 : **DONE local + remote**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote sur `uvolpldwwyvadlamulvr`).
+**Prochain milestone** : M4 — première interface utilisable (Today screen / check-in).
 
 ---
 
@@ -173,13 +173,28 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - [x] `npx tsc --noEmit -p tsconfig.json` = 0 erreur.
 - [x] Aucune migration DB, aucun changement M1/M2.
 
-### M3 remote — item ouvert (bloquant pour clore M3)
+### M3_005 — Canary de packaging remote `--use-api` — DONE (2026-08-18)
 
-- [ ] **Canary de packaging** : valider `supabase functions deploy --use-api` sur `uvolpldwwyvadlamulvr` — comment le CLI embarque `head-coach-engine/dist/` (gitignored, hors `supabase/functions/`) dans un déploiement remote. Jamais exécuté à ce jour.
-- [ ] Déploiement remote de `daily-run` (uniquement après validation du canary).
-- [ ] Audit post-déploiement remote.
+- [x] `supabase functions deploy daily-run-canary --use-api --no-verify-jwt --project-ref uvolpldwwyvadlamulvr` : le CLI embarque automatiquement tout le graphe transitif `head-coach-engine/dist/**` (gitignored, hors `supabase/functions/`), sans copie manuelle.
+- [x] Invocation remote → `200`, `{"ok":true,"runDailyForLoaded":true}` — module chargé réellement par le runtime Deno distant.
+- [x] Canary n'appelait jamais `runDailyFor`, aucun accès DB, aucun secret.
+- [x] Canary supprimée remote (confirmé `404`) et localement, jamais commitée.
 
-**M3 reste ouvert tant que cet item n'est pas validé.**
+### M3_006 — Déploiement remote réel de `daily-run` — DONE (2026-08-18)
+
+- [x] `daily-run` déployée (`--use-api`, `verify_jwt` par défaut, PAS de `--no-verify-jwt`) sur `uvolpldwwyvadlamulvr` — statut `ACTIVE`, `verify_jwt: true`.
+- [x] Sans auth / JWT invalide → `401` (jamais atteint le handler).
+- [x] User scratch réel créé, JWT réel obtenu, résolution athlete via RLS confirmée.
+- [x] Avant checkin : `422 no_checkin_for_date`, zéro `decisions`/`health_flags` créés.
+- [x] Après checkin neutre réel : `200`, `dailyPlan` réel, `decisionId` UUID, `healthFlagId=null`.
+- [x] DB vérifiée : exactement 1 decision, `id`/`athlete_id`/`daily_plan` (deep-equal) corrects, `confidence` legacy `NULL`, `confidence_level` renseigné, `health_flags=0`.
+- [x] Réponse sans fuite (`rawContext`/`athleteId`/`userId`/JWT/clés absents).
+- [x] Un seul run de succès effectué (pas de doublon inutile sur le remote).
+- [x] Toutes les fixtures scratch (user, athlete, training_block, checkin) supprimées et vérifiées absentes ; aucune donnée réelle de Louis touchée.
+- [x] Aucune valeur de clé affichée/loguée/commitée ; fichiers temporaires supprimés.
+- [x] `daily-run` conservée déployée (tous les tests passés).
+
+**M3 est fermé : local + remote tous deux DONE.**
 
 ---
 
@@ -198,7 +213,7 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - Domaine Analyse (quasi-passif)
 
 ### M3 — API HTTP additionnelle (au-delà de `daily-run`)
-- `daily-run` (`runDailyFor` en HTTP, auth JWT/RLS) : **DONE local** — voir section `M3 — Edge Function HTTP` ci-dessus. Remote : PENDING.
+- `daily-run` (`runDailyFor` en HTTP, auth JWT/RLS) : **DONE (local + remote)** — voir section `M3 — Edge Function HTTP` ci-dessus.
 - Endpoint check-in (POST daily_checkin + trigger recompute)
 - Endpoint récupération de la décision courante du jour
 
