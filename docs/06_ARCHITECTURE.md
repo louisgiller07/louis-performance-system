@@ -109,7 +109,28 @@ Aucun appel HTTP, aucun accès DB, aucun LLM, aucun fichier système au runtime 
 
 ### M3 — API HTTP
 
-- Edge Function Supabase exposant `runDailyFor` en HTTP
+- Edge Function `supabase/functions/daily-run` (DONE local, 2026-08-17 ; remote PENDING) :
+  `Authorization: Bearer <JWT>` → `@supabase/server@1.4.1` (`withSupabase({auth:"user"})`)
+  → `ctx.supabase`/RLS `athletes_own_data` → athlete propre (jamais body/query)
+  → `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` (appelé une fois)
+  → `{dailyPlan, decisionId, healthFlagId, warnings}` (200) ou erreur mappée (400/403/405/422/500)
+- **Frontière de build** : `npm run build` → `head-coach-engine/dist/*.js` (gitignored,
+  généré à la demande) → import Deno. Jamais la source `.ts` M1/M2 (résolution littérale
+  Deno incompatible avec la convention `.js`-suffixe→`.ts`, prouvé M3_001).
+- **Séparation des tests** : `npm test` (suite historique, dist-indépendante) /
+  `npm run test:edge` (build + mapping d'erreurs, dépend de `dist/`) /
+  `npm run test:m3:http` (E2E réel : build + Edge Runtime local + DB locale).
+- **Error mapping** (`supabase/functions/daily-run/errorMapping.ts`, aucune logique
+  métier/M1/persistance) :
+  - `NoCurrentCheckinError` → 422 `no_checkin_for_date`
+  - `NoCurrentTrainingBlockError` → 422 `no_current_training_block`
+  - `IncompleteCheckinPainCriteriaError` → 422 `pain_criteria_missing`
+  - `IncompleteDailyCheckinError` → 422 `checkin_incomplete`
+  - `PersistDailyRunRpcError` → 500 `persistence_failed`
+  - erreurs invalides/invariant cassé/imprévues → 500 `internal_error`
+- **Remote : PAS encore prouvé.** `supabase functions deploy --use-api` (packaging de
+  `dist/`, gitignored, hors `supabase/functions/`) n'a jamais été exécuté. Canary requis
+  avant tout déploiement réel de `daily-run`.
 - Toujours pas d'UI, pas de LLM
 
 ### M4+ — UI et enrichissements

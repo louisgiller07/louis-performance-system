@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : M2 — Connexion Supabase read/write locale : **DONE local + remote**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote sur `uvolpldwwyvadlamulvr`).
-**Prochain milestone** : décision Go/No-Go M3 (Louis, non encore prise)
+**Phase** : M3 — Edge Function HTTP. **M3_001, M3_002, M3_003 : DONE (local, committés)**. **M3 remote validation : PENDING** — voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003). M2 : **DONE local + remote**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote sur `uvolpldwwyvadlamulvr`).
+**Prochain milestone** : M3 remote canary — validation du packaging `supabase functions deploy --use-api` (jamais testé à ce jour). M3 reste ouvert tant que cet item n'est pas validé.
 
 ---
 
@@ -139,7 +139,47 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - [x] **Uniquement après review Louis** : baseline V0.2 marquée comme déjà appliquée dans l'historique remote via `supabase migration repair` (une seule fois, hors développement) — fait 2026-08-17
 - [x] Premier `supabase db push` M2 vers la DB Louis — fait 2026-08-17 sur `uvolpldwwyvadlamulvr` (`M2_001`→`M2_006`), post-deploy audit PASS, données existantes préservées
 - [x] Update `00_PROJECT_STATUS.md` avec M2 DONE (local + remote)
-- [ ] Décision Go/No-Go M3 — décision de Louis, pas encore prise
+- [x] Décision Go/No-Go M3 — Go (Louis), 2026-08-17
+
+---
+
+## M3 — Edge Function HTTP (`daily-run`)
+
+### M3_001 — Portabilité Deno / frontière de build — DONE (local, committé 2026-08-17)
+
+- [x] Import direct de la source TS M1/M2 dans Deno → échec reproductible et attendu (imports `.js` résolus littéralement par Deno).
+- [x] Import du JS compilé (`head-coach-engine/dist/supabase/*.js`, produit par `npm run build`) → fonctionne dans `supabase functions serve` local.
+- [x] Aucune duplication du moteur, aucune copie dans `supabase/functions/`.
+- [x] `dist/` reste gitignored, non versionné.
+- [x] `head-coach-engine/src/{types,engine,rules,domains,mapping,supabase}` non modifiés.
+- [ ] **Packaging remote `--use-api` : PAS encore prouvé.** Aucun déploiement remote n'a eu lieu — voir item ouvert ci-dessous.
+
+### M3_002 — Boundary d'authentification — DONE (local, committé 2026-08-17)
+
+- [x] `Authorization: Bearer <JWT>` → `@supabase/server@1.4.1` (`withSupabase({auth:"user"})`) → `ctx.supabase`/RLS → athlete propre uniquement.
+- [x] `athlete_id`/`athleteId`/`user_id`/`userId` dans le body → `400 invalid_request`, jamais utilisé.
+- [x] Aucun athlete pour l'utilisateur → `403 no_athlete_for_user`.
+- [x] Isolation RLS cross-user prouvée (JWT A ne voit jamais l'athlete B).
+- [x] Zéro écriture métier.
+- [x] Méthode ≠ POST → `405` + `Allow: POST`.
+
+### M3_003 — Branchement réel du moteur — DONE (local, committé 2026-08-17)
+
+- [x] `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` — `athlete.id` exclusivement RLS-dérivé (M3_002), jamais du client.
+- [x] Réponse `{dailyPlan, decisionId, healthFlagId, warnings}` — mapping exact depuis `RunDailyForResult` (`persistence.decision_id`/`health_flag_id`, snake_case).
+- [x] Mapping d'erreurs typées M1/M2 → HTTP stable (4×422 spécifiques, 500 générique pour le reste), aucune fuite (message brut/SQL/stack/JWT/secret).
+- [x] Run neutre réel, SAFETY A1 réel, appels répétés (append-only + idempotence health flag), isolation cross-user, injection `athlete_id`, audit d'écriture — tous prouvés avec vrai moteur/vraie DB/vraie RPC, aucun mock sur le chemin critique.
+- [x] `npm test` = 226/226 (dont 75/75 M1), `npm run test:edge` = 9/9, `npm run test:m3:http` = 26/26 (répété deux fois, cleanup vérifié).
+- [x] `npx tsc --noEmit -p tsconfig.json` = 0 erreur.
+- [x] Aucune migration DB, aucun changement M1/M2.
+
+### M3 remote — item ouvert (bloquant pour clore M3)
+
+- [ ] **Canary de packaging** : valider `supabase functions deploy --use-api` sur `uvolpldwwyvadlamulvr` — comment le CLI embarque `head-coach-engine/dist/` (gitignored, hors `supabase/functions/`) dans un déploiement remote. Jamais exécuté à ce jour.
+- [ ] Déploiement remote de `daily-run` (uniquement après validation du canary).
+- [ ] Audit post-déploiement remote.
+
+**M3 reste ouvert tant que cet item n'est pas validé.**
 
 ---
 
@@ -157,11 +197,10 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - Domaine Contexte pro (basique)
 - Domaine Analyse (quasi-passif)
 
-### M3 — API HTTP
-- Edge Function Supabase exposant `runDailyFor` en HTTP
+### M3 — API HTTP additionnelle (au-delà de `daily-run`)
+- `daily-run` (`runDailyFor` en HTTP, auth JWT/RLS) : **DONE local** — voir section `M3 — Edge Function HTTP` ci-dessus. Remote : PENDING.
 - Endpoint check-in (POST daily_checkin + trigger recompute)
 - Endpoint récupération de la décision courante du jour
-- Authentification JWT athlète (RLS active)
 
 ### `athlete_state` recalculé (si UI en a besoin)
 - Trigger ou fonction serveur recalculant `athlete_state` après chaque checkin

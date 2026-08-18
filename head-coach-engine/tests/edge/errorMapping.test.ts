@@ -2,7 +2,7 @@
 // Pure, deterministic, no DB/network: covers error classes that are real
 // but awkward to provoke cleanly via a live DB fixture.
 import { describe, expect, it } from "vitest";
-import { mapDailyRunError } from "../../../supabase/functions/daily-run/errorMapping.ts";
+import { mapDailyRunError } from "../../../supabase/functions/daily-run/errorMapping.js";
 import { NoCurrentCheckinError, NoCurrentTrainingBlockError } from "../../dist/supabase/buildRawContext.js";
 import { IncompleteDailyCheckinError } from "../../dist/supabase/mapping/dailyCheckinRow.js";
 import { IncompleteCheckinPainCriteriaError } from "../../dist/supabase/mapping/dailyCheckinPainCriteria.js";

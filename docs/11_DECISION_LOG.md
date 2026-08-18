@@ -659,3 +659,95 @@ Tests obligatoires : cycle A1 (jour N) → A5 (jour N+1) prouvé en intégration
 **Impact** : `docs/00_PROJECT_STATUS.md` (statut M2 DONE local + remote), `docs/12_BACKLOG.md` (cases Review Louis / migration repair / premier db push cochées). Aucune modification de `supabase/migrations/`, aucune modification de `head-coach-engine/src/{types,engine,rules,domains,mapping}`, aucune écriture métier sur le remote (seules les migrations DDL M2_001→M2_006 ont écrit du schéma ; aucune donnée métier insérée/modifiée/supprimée par ce déploiement).
 
 **Statut** : active
+
+---
+
+## 2026-08-17 — M3_001 : frontière de build prouvée pour l'Edge Runtime (source TS incompatible, `dist/*.js` compilé compatible)
+
+**Contexte** : M3 doit exposer `runDailyFor` (M2) via une Edge Function Supabase (Deno). Tout le code M1/M2 utilise la convention TypeScript `NodeNext` : imports relatifs suffixés `.js` pointant vers des fichiers source `.ts` (résolus par Node au moment du build, jamais littéralement). Il fallait déterminer expérimentalement, sans supposer, si Deno peut consommer directement cette source ou nécessite un artefact compilé.
+
+**Constats factuels (spike local, `supabase functions serve`, sans aucun déploiement remote)** :
+
+- **Import direct de la source TypeScript** (`head-coach-engine/src/supabase/runDailyFor.ts`) → **échec reproductible**. Deno résout chaque import relatif `.js` **littéralement** : il cherche un fichier réellement nommé `x.js` et échoue (`failed to read file: open .../persistDailyRun.js: no such file or directory`) dès le premier import interne du graphe, pas seulement au point d'entrée. Ce n'est pas un bug M1/M2 — c'est la preuve attendue de l'incompatibilité de la convention `.js`-suffixe-vers-`.ts` avec la résolution Deno.
+- **Import du JavaScript compilé** (`head-coach-engine/dist/supabase/runDailyFor.js`, produit par `npm run build` = `tsc -p tsconfig.build.json`) → **fonctionne proprement** dans `supabase functions serve` local (Deno v2.1.4 / edge-runtime 1.74.3). Le graphe transitif complet (engine/rules/domains/types/mapping/repositories compilés) charge sans erreur, sans aucune duplication de code, sans copie du moteur dans `supabase/functions/`.
+- **`head-coach-engine/src/{types,engine,rules,domains,mapping}` (M1, frozen) et `head-coach-engine/src/supabase/` (M2) strictement non modifiés** par ce spike.
+- **`dist/` reste gitignored, non versionné, généré à la demande** (`npm run build`) — jamais commité.
+- **`--unstable-sloppy-imports`** évalué explicitement comme option de contournement et **rejeté** comme solution production (autorisé seulement en diagnostic, jamais retenu).
+
+**Décision** : la frontière de build retenue est `npm run build → head-coach-engine/dist/*.js → import Deno`. L'Edge Function importe exclusivement le JavaScript compilé, jamais la source `.ts` de `src/`.
+
+**Important — ce qui n'a PAS été prouvé par M3_001** : aucun déploiement remote n'a eu lieu. `supabase functions deploy --use-api` (packaging remote de `dist/` hors du dossier `supabase/functions/`, `dist/` étant gitignored) **n'a jamais été exécuté**. Le portability spike ne couvre que `supabase functions serve` **local**. Le packaging remote reste **pending first canary** — voir `docs/00_PROJECT_STATUS.md` et `docs/12_BACKLOG.md`.
+
+**Impact** : architecture de `supabase/functions/daily-run/` (M3_002, M3_003). Aucun impact sur `docs/05_DATA_MODEL.md`, aucune migration.
+
+**Statut** : active
+
+---
+
+## 2026-08-17 — M3_002 : boundary d'authentification — JWT utilisateur → RLS → athlete propre
+
+**Contexte** : `supabase/functions/daily-run` doit résoudre l'athlete du seul utilisateur authentifié, jamais un `athlete_id` fourni par le client, avant de brancher le moteur (M3_003).
+
+**Décision** : chaîne d'authentification et de résolution, via `@supabase/server@1.4.1` (`withSupabase({ auth: "user" })`) :
+
+1. `Authorization: Bearer <JWT utilisateur>` → vérifié par `@supabase/server` (JWKS local, gateway `verify_jwt` par défaut à `true`, aucune modification de `supabase/config.toml` nécessaire).
+2. `ctx.supabase` (client scopé RLS, jamais `ctx.supabaseAdmin` à ce stade) → `SELECT id FROM athletes` sans filtre client → la policy `athletes_own_data` (`USING/WITH CHECK (user_id = auth.uid())`, seule policy sur `athletes`, `athletes.user_id UNIQUE`) garantit qu'au plus une ligne — celle de l'utilisateur — est jamais visible.
+3. `ctx.supabaseAdmin` (client privilégié) est disponible dans le contexte mais **volontairement pas utilisé** pour la résolution de l'athlete en M3_002 — réservé au futur moteur (branché en M3_003).
+
+**Contrat request/erreurs stub (M3_002)** : body strict `{ "date": "YYYY-MM-DD" }`, toute propriété inconnue (`athlete_id`, `athleteId`, `user_id`, `userId`, ou autre) → `400 invalid_request`, jamais transmise ni utilisée. `0` athlete → `403 no_athlete_for_user`. `>1` athlete (défensif, normalement inatteignable vu `UNIQUE`) → `500 internal_error` plutôt qu'un choix arbitraire. Méthode ≠ `POST` → `405 method_not_allowed` + header `Allow: POST`.
+
+**Tests prouvés (local, JWT scratch réels, DB locale, aucun mock sur le chemin critique)** :
+- JWT absent/invalide → `401` (géré par la couche auth, avant le handler).
+- Aucun athlete pour l'utilisateur → `403 no_athlete_for_user`.
+- Injection `athlete_id`/`athleteId`/`user_id`/`userId` dans le body → `400 invalid_request`, jamais `200`.
+- Isolation RLS croisée prouvée : avec le JWT d'un utilisateur A, seul l'athlete A est visible via le même client RLS que celui utilisé par la fonction ; l'athlete B est invisible.
+- Zéro écriture métier (`decisions`, `health_flags`, `completed_sessions`, `planned_sessions`, `daily_checkins` inchangés avant/après).
+
+**Impact** : `supabase/functions/daily-run/index.ts` (créé). Aucune migration, aucun impact M1/M2.
+
+**Statut** : active
+
+---
+
+## 2026-08-17 — M3_003 : branchement réel de `runDailyFor` + mapping d'erreurs HTTP
+
+**Contexte** : après M3_002 (boundary d'auth prouvée) et M3_001 (frontière de build prouvée), brancher réellement le moteur M2 sur l'Edge Function, sans dupliquer ni modifier M1/M2.
+
+**Décision** : après résolution de l'athlete via `ctx.supabase`/RLS (M3_002, inchangé), l'appel devient :
+
+```
+ctx.supabaseAdmin → runDailyFor(ctx.supabaseAdmin, athlete.id, date) — appelé une fois par requête réussie
+```
+
+`athlete.id` provient exclusivement de la ligne résolue par `ctx.supabase` (RLS) — jamais de `body`/`query`/header client. Import via `head-coach-engine/dist/supabase/runDailyFor.js` (frontière prouvée en M3_001), jamais la source `.ts`, jamais `head-coach-engine/src/supabase/client.ts`.
+
+**Réponse HTTP 200** — mapping exact depuis `RunDailyForResult` (noter la correction factuelle par rapport à une hypothèse initiale erronée : `persistence` expose `decision_id`/`health_flag_id` en snake_case, pas camelCase) :
+
+```json
+{ "dailyPlan": <DailyPlan M1 exact>, "decisionId": <persistence.decision_id>, "healthFlagId": <persistence.health_flag_id>, "warnings": <warnings[]> }
+```
+
+Jamais renvoyé : `rawContext`, `athleteId`, `userId`, JWT, secrets, rows DB internes.
+
+**Mapping d'erreurs** (`supabase/functions/daily-run/errorMapping.ts`, aucune logique métier/M1/persistance) :
+
+| Erreur (classe réelle) | HTTP | code |
+|---|---|---|
+| `NoCurrentCheckinError` | 422 | `no_checkin_for_date` |
+| `NoCurrentTrainingBlockError` | 422 | `no_current_training_block` |
+| `IncompleteCheckinPainCriteriaError` | 422 | `pain_criteria_missing` |
+| `IncompleteDailyCheckinError` | 422 | `checkin_incomplete` |
+| `PersistDailyRunRpcError` | 500 | `persistence_failed` |
+| `InvalidPersistDailyRunResultError`, `DailyPlanDateMismatchError`, toute autre erreur/invariant cassé (`InvalidHealthFlagRowError`, `InvalidRaceCalendarRowError`, `InvalidCompletedSessionRowError`, `InvalidTrainingInterventionJsonError`, `InvalidTrainingModeError`, `MissingSupabaseServerConfigError`, imprévu) | 500 | `internal_error` |
+
+Jamais renvoyé en HTTP : message d'erreur brut, SQL, stack trace, nom de colonne, payload Supabase interne. Logs serveur : nom de classe + code uniquement, jamais JWT/secret.
+
+**Tests prouvés (local, vrai moteur M1, vraie DB, vraie RPC `persist_daily_run`, aucun mock sur le chemin succès critique)** : run neutre réel (200, `daily_plan` DB == réponse HTTP, `confidence` legacy NULL, `confidence_level` renseigné), SAFETY A1 réel (`healthFlagId` = vraie row ouverte), appels répétés (decisions distinctes, append-only, même flag ouvert réutilisé), les 4 mappings 422 provoqués avec de vraies fixtures DB, isolation cross-user (JWT A ne consomme jamais les données de B), injection `athlete_id` → 400, audit d'écriture (`decisions`/`health_flags` seuls modifiés). Suites : `npm test` = 226/226 (dont 75/75 M1), `npm run test:edge` = 9/9 (mapping d'erreurs, unitaire, isolé de `dist/` via config vitest dédiée), `npm run test:m3:http` = 26/26, répété deux fois avec succès (stabilité prouvée, y compris nettoyage complet des fixtures scratch).
+
+**Aucune migration DB. Aucun changement M1. Aucun changement M2** (`head-coach-engine/src/{types,engine,rules,domains,mapping,supabase}` strictement non modifiés).
+
+**Important — portée non couverte par M3_003** : aucun déploiement remote, aucun test du packaging `supabase functions deploy --use-api`. Voir l'entrée M3_001 ci-dessus.
+
+**Impact** : `supabase/functions/daily-run/index.ts`, `errorMapping.ts` (modifiés/créés), `head-coach-engine/tests/edge/` (nouveaux tests dédiés), `head-coach-engine/package.json` (`test:edge`, `test:m3:http`), `head-coach-engine/vitest.config.ts`/`vitest.edge.config.ts` (nouveaux). Aucun impact sur `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md` (diff proposé séparément, non encore appliqué).
+
+**Statut** : active

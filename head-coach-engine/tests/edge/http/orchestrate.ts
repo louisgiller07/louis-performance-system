@@ -259,16 +259,26 @@ const WRITE_AUDIT_TABLES = [
   "daily_checkins",
   "training_blocks",
   "athletes",
-];
+] as const;
 
-async function countsFor(admin: SupabaseClient, tables: string[]): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {};
+// A named union of literal keys (not `string`) gives every property of
+// Record<AuditTable, number> a known type — unlike Record<string, number>,
+// which is an index signature and forces every access to `number |
+// undefined` under noUncheckedIndexedAccess. countsFor is only ever called
+// with the full WRITE_AUDIT_TABLES list, so every key is genuinely always
+// present; the single assertion at the return makes that real invariant
+// explicit instead of scattering `?? 0` fallbacks at each read site, which
+// would silently hide a real bug (e.g. a table dropped from the list).
+type AuditTable = (typeof WRITE_AUDIT_TABLES)[number];
+
+async function countsFor(admin: SupabaseClient, tables: readonly AuditTable[]): Promise<Record<AuditTable, number>> {
+  const counts: Partial<Record<AuditTable, number>> = {};
   for (const t of tables) {
     const { count, error } = await admin.from(t).select("*", { count: "exact", head: true });
     if (error) throw new Error(`count(${t}) failed: ${error.message}`);
     counts[t] = count ?? 0;
   }
-  return counts;
+  return counts as Record<AuditTable, number>;
 }
 
 // --- main ----------------------------------------------------------------
@@ -434,7 +444,7 @@ async function main(): Promise<void> {
     // ================= 15. Allowed-write audit =================
     {
       const after = await countsFor(admin, WRITE_AUDIT_TABLES);
-      const untouched = ["athletes", "daily_checkins", "training_blocks", "completed_sessions", "planned_sessions"];
+      const untouched: readonly AuditTable[] = ["athletes", "daily_checkins", "training_blocks", "completed_sessions", "planned_sessions"];
       record("15. non-decision/health_flag tables untouched", untouched.every((t) => before[t] === after[t]), JSON.stringify({ before, after }));
       record("15. decisions increased, health_flags increased by exactly 1", after.decisions > before.decisions && after.health_flags === before.health_flags + 1, `before=${JSON.stringify(before)} after=${JSON.stringify(after)}`);
     }
