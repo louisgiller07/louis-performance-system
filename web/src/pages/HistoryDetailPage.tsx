@@ -50,8 +50,11 @@ export function HistoryDetailPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
-        <Link to="/history" className="text-sm font-medium text-gray-500 active:text-gray-900">
+      <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-2 py-2">
+        <Link
+          to="/history"
+          className="inline-flex min-h-11 items-center rounded px-2 text-sm font-medium text-gray-500 active:bg-gray-100 active:text-gray-900"
+        >
           ← Historique
         </Link>
       </header>

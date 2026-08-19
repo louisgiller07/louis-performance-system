@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : M3 — Edge Function HTTP. **M3 = DONE (local + remote)**, `daily-run` déployée et ACTIVE sur `uvolpldwwyvadlamulvr` — voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006). M2 : **DONE local + remote**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote sur `uvolpldwwyvadlamulvr`).
-**Prochain milestone** : M4 — première interface utilisable (Today screen / check-in).
+**Phase** : **M4 COMPLETE (2026-08-19)** — premier client web de production, déployé en HTTPS sur `https://louis-performance-system.vercel.app`, smoke authentifié réel validé sur téléphone. Voir `docs/11_DECISION_LOG.md` (2026-08-19 — M4_006 sécurité, M4_007 déploiement) et la section M4 ci-dessous. M3 : **DONE (local + remote)**, `daily-run` déployée et ACTIVE sur `uvolpldwwyvadlamulvr`. M2 : **DONE (local + remote)**.
+**Prochain milestone** : M5 — périmètre non encore défini.
 
 ---
 
@@ -198,6 +198,56 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 
 ---
 
+## M4 — Interface web mobile (Today / Check-in / DailyPlan / Historique) — COMPLETE (2026-08-19)
+
+### M4_001 — Bootstrap web + Supabase Auth — DONE
+
+- [x] `web/` : React 19, Vite, TypeScript strict, Tailwind CSS v4, React Router 7, Vitest/RTL.
+- [x] `AuthContext`/`RequireAuth`/`LoginPage` (email/password) ; résolution de l'athlete via RLS (`athletes_own_data`) uniquement, jamais un pick arbitraire.
+
+### M4_002 — `/today` skeleton + date locale — DONE
+
+- [x] `todayLocal()` sans biais UTC (`Intl.DateTimeFormat` sur les composantes Y/M/D), jamais `toISOString().slice(0,10)`.
+- [x] `/today` : en-tête, carte date, sections Check-in / DailyPlan.
+
+### M4_003 — Daily Check-in + persistance RLS — DONE
+
+- [x] CRUD `daily_checkins` via le client Supabase RLS-scopé de l'utilisateur, `upsert` sur la contrainte réelle `unique_checkin_per_day`.
+- [x] Champs santé/douleur en tri-état (`boolean | null`) — une question non répondue ne devient jamais silencieusement `false`.
+- [x] Bugfix : bascule douleur `true→false` normalise immédiatement les champs conditionnels (évitait un échec de sauvegarde silencieux).
+
+### M4_004 — Génération `daily-run` depuis `/today` — DONE
+
+- [x] `runDailyRun()` via `supabase.functions.invoke("daily-run", {body:{date}})`, mapping d'erreurs structuré (`dailyRunErrors.ts`).
+- [x] Garde anti double-soumission (ref synchrone), invalidation du plan affiché par révision de check-in, garde anti-réponse-obsolète en vol.
+- [x] Validation runtime du contrat de réponse (`isValidDailyRunResponse`).
+
+### M4_005 — Rendu production du DailyPlan — DONE
+
+- [x] `DailyPlanView` : toutes les sections réelles (training, technique, mental, récupération, sommeil, nutrition, protection, monitoring), labels français par mapping (jamais de valeur métier modifiée).
+- [x] Aucune règle A1-A5 côté frontend — signal santé strictement dérivé de données serveur explicites.
+
+### M4_006 — Historique en lecture seule + sécurité append-only — DONE
+
+- [x] `/history`, `/history/:decisionId` : lecture seule via le client RLS de l'utilisateur, aucun recalcul, aucune dépendance à `daily-run`.
+- [x] Dégradation propre sur une ligne au shape legacy (`isValidDailyPlan` réutilisé), jamais de champ inventé.
+- [x] **Correctif de sécurité** : policy `decisions_own_data` (`FOR ALL`, vulnérable) remplacée par `decisions_own_select` (`SELECT`-only pour `authenticated`) ; privilèges d'écriture directs révoqués pour `authenticated`/`anon`. `persist_daily_run`/`service_role` reste l'unique chemin d'écriture. Prouvé empiriquement en local puis sur `uvolpldwwyvadlamulvr` (`supabase/migrations/20260819200000_decisions_append_only_security.sql`, `supabase/preflight/decisions_append_only_security_check.sql`).
+
+### M4_007 — Mobile polish + déploiement production HTTPS — DONE (2026-08-19)
+
+- [x] Cibles tactiles ≥44px, `text-base` sur tous les champs de saisie (évite le zoom automatique iOS Safari au focus).
+- [x] `web/vercel.json` — rewrite SPA catch-all pour les deep-links `/today`, `/history`, `/history/:id`.
+- [x] Projet Vercel dédié `louis-performance-system`, scope `louis-performance-system` — scope `graviacoach` jamais touché.
+- [x] Variables d'environnement browser-safe uniquement (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`) déployées Preview + Production.
+- [x] Déploiement production : `https://louis-performance-system.vercel.app`.
+- [x] Supabase Auth Site URL mise à jour sur `uvolpldwwyvadlamulvr` (Louis, Dashboard).
+- [x] Smoke authentifié réel sur téléphone : login, `/today`, check-in, `/history`, détail, refresh direct, logout/relogin — tous PASS.
+- [x] `npm test` = 163/163, `npm run build` = PASS.
+
+**M4 est fermé : COMPLETE, 2026-08-19.**
+
+---
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)
@@ -229,7 +279,6 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - Debrief course post-mortem structuré
 - Intégration Zwift (FTP + puissance)
 - Intégration Garmin (FC + sommeil détaillé)
-- Interface app mobile complète (M4+)
 - Table `learned_patterns` en base (couche D)
 - Premiers patterns confirmés après données longitudinales
 - Domaine 7 Analyse enrichi (patterns émergents)

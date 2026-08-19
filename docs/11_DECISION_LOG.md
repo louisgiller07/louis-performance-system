@@ -829,3 +829,29 @@ Jamais renvoyé en HTTP : message d'erreur brut, SQL, stack trace, nom de colonn
 **Impact** : `supabase/migrations/20260819200000_decisions_append_only_security.sql`, `supabase/preflight/decisions_append_only_security_check.sql`. Aucun changement `head-coach-engine/**`, aucun changement de colonne/table, aucun impact sur `docs/05_DATA_MODEL.md`. Le frontend M4_006 (`web/src/features/history/**`) n'écrivait déjà jamais dans `decisions` (confirmé par grep avant et après ce fix) — ce correctif ferme un accès qui existait au niveau DB indépendamment du frontend, pas une régression introduite par lui.
 
 **Statut** : active
+
+---
+
+## 2026-08-19 — M4_007 : déploiement production HTTPS (Vercel) + polish mobile — M4 COMPLETE
+
+**Contexte** : après M4_001→M4_006 (client web fonctionnel en local, historique en lecture seule sécurisé), dernière étape M4 avant utilisation quotidienne réelle : ergonomie mobile, séparation stricte production/debug, et déploiement HTTPS accessible depuis le téléphone de Louis.
+
+**Mobile polish** : corrections ciblées, aucune refonte de design system — cibles tactiles portées à ≥44px sur les contrôles les plus sollicités (`AppNav`, boutons `LoginPage`/`CheckinForm`, lien retour `HistoryDetailPage`), `text-base` explicite sur tous les champs de saisie (évite le zoom automatique iOS Safari au focus, déclenché par tout `<input>`/`<select>`/`<textarea>` sous 16px), piste de `RatingSlider` élargie, `aria-label` ajouté au `<textarea>` commentaire (seul contrôle sans label explicite trouvé). Séparation production/debug reconfirmée : `import.meta.env.DEV` élimine bien le panneau "Détails techniques"/JSON brut du bundle de production (grep sur le build réel).
+
+**Déploiement Vercel** : projet dédié `louis-performance-system` créé dans le scope Vercel du même nom (`npx vercel link --scope louis-performance-system --project louis-performance-system`), root = `web/`, framework Vite auto-détecté, build `npm run build` → `dist`. Scope `graviacoach` (projet `gravia-coach`, `https://www.graviacoach.ch`) **jamais touché** — vérifié avant et après (`vercel project ls --scope graviacoach` inchangé). `web/vercel.json` créé avec le rewrite SPA catch-all officiel (`{"source": "/(.*)", "destination": "/index.html"}`, syntaxe vérifiée contre la documentation Vercel actuelle) — permet le refresh direct de `/today`, `/history`, `/history/:id` sans 404. `.vercel/` ajouté à `web/.gitignore` avant tout link.
+
+**Variables d'environnement** : uniquement `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` (noms réels lus dans `src/lib/supabase.ts`), configurées pour Preview et Production via stdin (`vercel env add ... < valeur`, jamais affichées), confirmées par `vercel env ls` (noms uniquement). Aucune variable `service_role`/secret/JWT/mot de passe DB.
+
+**Déploiement** : le tout premier déploiement d'un projet Vercel est automatiquement assigné à `production` par la plateforme, quel que soit le flag (`npx vercel deploy` sans `--prod` a été aliasé à `https://louis-performance-system.vercel.app` avec `target: production`) — comportement de plateforme, pas un choix. Vérifié aussi rigoureusement qu'un preview avant validation : `/`, `/login`, `/today`, `/history`, `/history/<id réel>` → `200`, shell SPA présent, zéro 404 Vercel (curl direct + Playwright réel pour les redirections côté client `/today`→`/login` sans session). Bundle de production réellement servi grepé : `evynmzyjhobdpmxdiwsy` = 0 occurrence, `uvolpldwwyvadlamulvr` = 1 (attendu), `service_role` = 0, `sb_secret_` = 1 (classificateur interne `@supabase/supabase-js`, pas une valeur secrète).
+
+**Supabase Auth** : Site URL du projet `uvolpldwwyvadlamulvr` mise à jour manuellement par Louis (Dashboard) vers `https://louis-performance-system.vercel.app`, conformément aux étapes fournies — `supabase config push` délibérément **non exécuté** (aurait synchronisé tout `config.toml`, dont `[auth].site_url` local `http://127.0.0.1:3000`, vers le projet remote sans portée réduite possible).
+
+**Smoke réel** : Louis a testé l'URL de production sur son téléphone réel — login, `/today`, check-in, `/history`, détail d'une décision, refresh direct sur route profonde, navigation mobile portrait, logout/relogin. **Tous PASS.**
+
+**Décision** : **M4 est COMPLETE.** Premier client de production réellement utilisable au quotidien.
+
+**Validation finale** : `npm test` = 163/163, `npm run build` = PASS, `git diff --check` = PASS.
+
+**Impact** : `web/**` (polish mobile, `web/vercel.json`, `web/.gitignore`), `docs/00_PROJECT_STATUS.md`, `docs/12_BACKLOG.md`. Aucun changement `head-coach-engine/**`, aucune migration DB dans cette entrée (le correctif DB fait l'objet de l'entrée M4_006 ci-dessus).
+
+**Statut** : active

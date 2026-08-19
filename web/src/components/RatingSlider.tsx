@@ -21,7 +21,7 @@ export function RatingSlider({ label, value, min = 0, max = 10, onChange, error 
         step={1}
         value={value === "" ? min : value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-6 w-full touch-manipulation accent-gray-900"
+        className="h-8 w-full touch-manipulation accent-gray-900"
       />
       {error && (
         <span role="alert" className="text-xs text-red-600">

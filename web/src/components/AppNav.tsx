@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 
-const LINK_BASE = "rounded px-3 py-1.5 text-xs font-medium";
+const LINK_BASE = "flex min-h-11 flex-1 items-center justify-center rounded px-3 text-sm font-medium";
 const LINK_ACTIVE = "bg-gray-900 text-white";
 const LINK_INACTIVE = "text-gray-500 active:bg-gray-100";
 

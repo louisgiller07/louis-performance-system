@@ -1,10 +1,12 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 18 août 2026
+**Dernière mise à jour :** 19 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** M3 — Edge Function HTTP exposant `runDailyFor`. **M3 = DONE local + remote.** `daily-run` est déployée et **ACTIVE** sur `uvolpldwwyvadlamulvr` (`verify_jwt: true`). Preuves remote : packaging `--use-api` de `head-coach-engine/dist/**` (canary jetable M3_005, supprimée), puis run authentifié réel complet (M3_006) — JWT utilisateur scratch → gateway → RLS → athlete propre → `ctx.supabaseAdmin` → `runDailyFor` → `persist_daily_run` → `200` avec `DailyPlan` réel, decision persistée et vérifiée en DB (id, athlete_id, `daily_plan` deep-equal, `confidence` legacy NULL, `confidence_level` renseigné), `422 no_checkin_for_date` avant checkin avec zéro écriture, réponse sans fuite de donnée sensible, tous les fixtures scratch remote supprimés et vérifiés absents. Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
+**Phase actuelle :** **M4 COMPLETE.** Premier client web de production réellement utilisable au quotidien depuis un téléphone, déployé en HTTPS sur `https://louis-performance-system.vercel.app`. Le client couvre : authentification Supabase, check-in quotidien, génération réelle du coaching via `daily-run`, rendu production du `DailyPlan`, historique des décisions en lecture seule, ergonomie mobile, et un correctif de sécurité rendant `decisions` réellement append-only (`authenticated` ne peut plus écrire directement, seul `persist_daily_run`/`service_role` le peut). Smoke authentifié réel effectué par Louis sur son téléphone (login, `/today`, check-in, `/history`, détail, refresh direct, logout/relogin) : **tous PASS**. Voir `docs/11_DECISION_LOG.md` (2026-08-19 — M4_001 à M4_007) et `docs/12_BACKLOG.md` (section M4).
 
-M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir entrée précédente ci-dessous et `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote).
+M3 — Edge Function HTTP exposant `runDailyFor` : **DONE (local + remote)**, `daily-run` déployée et **ACTIVE** sur `uvolpldwwyvadlamulvr` (`verify_jwt: true`). Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
+
+M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_DECISION_LOG.md` (2026-08-16 — clôture locale ; 2026-08-17 — déploiement remote).
 
 ## Où on en est réellement
 
@@ -16,15 +18,16 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir entrée p
 - **M1 — Vertical Slice locale du Head Coach Engine** (`head-coach-engine/src/{types,engine,rules,domains,mapping}`) : pipeline complet `RawContext → DailyPlan`, 75/75 tests verts, build TypeScript strict clean, CLI de démonstration fonctionnelle. **Verdict architecte : APPROVED (2026-08-13). Frozen** sauf bug métier réel découvert ultérieurement.
 - **M2 — Connexion Supabase read/write locale : DONE (local + remote)** : développement local terminé 2026-08-16 (baseline V0.2 + migrations `M2_001`→`M2_006`, DAL/adapter, `computeDailyFor` zéro écriture et `runDailyFor` RPC `persist_daily_run` atomique, cycle longitudinal A1→A5 prouvé, équivalence fixture ↔ Supabase sur 19 scénarios canoniques, 226/226 tests verts dont 75/75 M1). Déploiement remote effectué 2026-08-17 sur `uvolpldwwyvadlamulvr` : baseline `20260814095000` enregistrée comme applied sans rejouer son SQL, `M2_001`→`M2_006` déployées via `db push`, migration history LOCAL=REMOTE, `db push --dry-run` = "Remote database is up to date", post-deploy audit PASS, données existantes préservées (`athletes`, `goals`, `training_blocks`, `race_calendar`, `athlete_baselines`, `weekly_availability` — comptages identiques avant/après). Voir `docs/11_DECISION_LOG.md` et `docs/12_BACKLOG.md`.
 - **M3 — API HTTP : DONE (local + remote)** : `supabase/functions/daily-run` — `Authorization: Bearer <JWT>` → `@supabase/server@1.4.1` (`withSupabase({auth:"user"})`) → `ctx.supabase`/RLS → athlete propre → `ctx.supabaseAdmin` → `runDailyFor(admin, athlete.id, date)` (import du JS compilé `head-coach-engine/dist/supabase/runDailyFor.js`, jamais la source `.ts`) → réponse `{dailyPlan, decisionId, healthFlagId, warnings}` ou mapping d'erreur HTTP stable (422/500/403/400/405). Local : `npm test` 226/226 (dont 75/75 M1), `npm run test:edge` 9/9, `npm run test:m3:http` 26/26. Remote (`uvolpldwwyvadlamulvr`) : packaging `--use-api` prouvé (canary M3_005), `daily-run` déployée et ACTIVE, run authentifié réel complet prouvé (M3_006 — 401/422/200, persistance vérifiée, isolation RLS, aucune fuite, cleanup complet). Aucune migration, aucun changement M1/M2. Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
+- **M4 — première interface utilisable : COMPLETE (2026-08-19)** : client web `web/` (React 19 + Vite + TypeScript strict + Tailwind v4 + React Router 7), authentification Supabase (`AuthContext`/`RequireAuth`/`LoginPage`), `/today` (date locale, check-in, génération/rendu du `DailyPlan`), `/history` + `/history/:decisionId` (lecture seule des décisions persistées, dégradation propre sur ligne legacy), polish mobile (cibles tactiles, zoom iOS évité, navigation deux-onglets), déploiement production HTTPS sur Vercel (`https://louis-performance-system.vercel.app`, projet/scope dédiés `louis-performance-system`, jamais `graviacoach`). **Correctif de sécurité** : `public.decisions` rendue réellement append-only (policy `SELECT`-only pour `authenticated`, `REVOKE` des privilèges d'écriture directs, `persist_daily_run`/`service_role` reste l'unique chemin d'écriture). Smoke authentifié réel sur le téléphone de Louis (login, `/today`, check-in, `/history`, détail, refresh direct, logout/relogin) : **tous PASS**. Voir `docs/11_DECISION_LOG.md` (2026-08-19 — M4_006 sécurité, M4_007 déploiement) et `docs/12_BACKLOG.md` (section M4).
 
 ### IN PROGRESS
 
-- Aucun développement en cours. M3 déployé (local + remote).
+- Aucun développement en cours. M4 déployé et validé en production.
 
 ### NOT STARTED
 
-- M4 — première interface utilisable (Today screen / check-in).
-- Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, UI, LLM couche E, intégrations externes).
+- M5 — périmètre non encore défini.
+- Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, LLM couche E, intégrations externes).
 
 ## Prochaines étapes (ordre)
 
@@ -32,15 +35,16 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir entrée p
 2. ~~**Review Louis M2 → déploiement remote séparé.**~~ **DONE, 2026-08-17.**
 3. ~~**M3 — Edge Function locale** (`daily-run`) : portabilité Deno, boundary auth, branchement moteur.~~ **DONE (local), 2026-08-17 (M3_001/M3_002/M3_003).**
 4. ~~**M3 remote** : canary de packaging `--use-api` (M3_005), déploiement réel de `daily-run` + run authentifié complet prouvé (M3_006).~~ **DONE (remote), 2026-08-18.**
-5. **M4 — première interface utilisable** (Today screen / check-in).
-6. **Enrichissement des domaines de coaching**, runtime `ActiveExperiment`, LLM couche E, intégrations externes — après M4, ordre à trancher au moment venu.
+5. ~~**M4 — première interface utilisable** (Today screen / check-in, historique, déploiement production HTTPS).~~ **DONE, 2026-08-19.**
+6. **M5** — périmètre non encore défini. Candidats connus (non engagés) : enrichissement des domaines de coaching, runtime `ActiveExperiment`, LLM couche E, intégrations externes — ordre à trancher au moment venu.
 
 ## Prochain milestone
 
-**M4 — première interface utilisable**
+**M5 — périmètre non encore défini.**
 
 Statut M2 : **DONE (local + remote), 2026-08-17.**
 Statut M3 : **DONE (local + remote), 2026-08-18.**
+Statut M4 : **COMPLETE, 2026-08-19.**
 
 Critères de sortie M2 :
 - [x] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé (2026-08-14).
@@ -79,6 +83,17 @@ Critères de sortie M3 (remote, DONE 2026-08-18) :
 - [x] Run authentifié réel complet prouvé : 401 (sans auth / JWT invalide), 422 `no_checkin_for_date` avec zéro écriture, 200 avec `DailyPlan` réel après checkin neutre, decision persistée et vérifiée (id/athlete_id/`daily_plan` deep-equal/`confidence` NULL/`confidence_level` renseigné), réponse sans fuite, isolation RLS via athlete propre.
 - [x] Tous les fixtures scratch remote (user, athlete, training_block, checkin) supprimés et vérifiés absents ; aucune donnée réelle de Louis touchée.
 - [x] Aucune valeur de clé/secret affichée, loguée ou commitée ; fichiers temporaires supprimés.
+
+Critères de sortie M4 (COMPLETE, 2026-08-19) :
+- [x] `web/` bootstrap (React 19, Vite, TypeScript strict, Tailwind v4, React Router 7, Vitest/RTL), authentification Supabase (`AuthContext`/`RequireAuth`/`LoginPage`, résolution athlete via RLS uniquement).
+- [x] `/today` : date locale sans biais UTC, check-in quotidien (CRUD RLS-scopé, champs santé/douleur tri-state `boolean | null` jamais coercés en `false`), génération et rendu production du `DailyPlan` réel via `daily-run`.
+- [x] `/history` + `/history/:decisionId` : lecture seule des décisions persistées (`decisions.daily_plan`), aucune recomputation, dégradation propre sur une ligne au shape legacy, aucun signal santé déduit côté frontend.
+- [x] **Correctif de sécurité** : `decisions` rendue réellement append-only — policy `decisions_own_data` (`FOR ALL`) remplacée par `decisions_own_select` (`SELECT`-only pour `authenticated`), privilèges d'écriture directs révoqués (`authenticated`/`anon`), `persist_daily_run`/`service_role` reste l'unique chemin d'écriture. Prouvé empiriquement en local puis sur `uvolpldwwyvadlamulvr` (INSERT/UPDATE/DELETE directs → `permission denied`).
+- [x] Polish mobile : cibles tactiles ≥44px, zoom automatique iOS évité (inputs ≥16px), navigation deux-onglets, aucune régression de hiérarchie produit.
+- [x] Déploiement production HTTPS sur Vercel : projet/scope dédiés `louis-performance-system` (jamais `graviacoach`), rewrite SPA (`web/vercel.json`) pour les deep-links `/today`/`/history`/`/history/:id`, variables d'environnement browser-safe uniquement (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`).
+- [x] Supabase Auth Site URL mise à jour sur `uvolpldwwyvadlamulvr` pour `https://louis-performance-system.vercel.app`.
+- [x] Smoke authentifié réel sur le téléphone de Louis : login, `/today`, check-in, `/history`, détail, refresh direct, logout/relogin — tous PASS.
+- [x] `npm test` = 163/163, `npm run build` = PASS.
 
 ## Règle
 

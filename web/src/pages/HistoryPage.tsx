@@ -50,7 +50,7 @@ export function HistoryPage() {
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
       <header className="flex flex-col gap-2 border-b border-gray-200 bg-white px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-semibold text-gray-900">Louis Performance System</span>
+          <span className="shrink-0 text-sm font-semibold text-gray-900">Louis Performance System</span>
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate text-xs text-gray-400">{user?.email}</span>
             <button

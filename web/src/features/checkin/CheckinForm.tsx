@@ -135,7 +135,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
             max={24}
             value={form.sleep_hours}
             onChange={(event) => updateField("sleep_hours", event.target.value === "" ? "" : Number(event.target.value))}
-            className="rounded border border-gray-300 px-3 py-2"
+            className="rounded border border-gray-300 px-3 py-3 text-base"
           />
           {errors.sleep_hours && (
             <span role="alert" className="text-xs text-red-600">
@@ -159,7 +159,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
             step={1}
             value={form.sleep_wake_ups}
             onChange={(event) => updateField("sleep_wake_ups", event.target.value === "" ? "" : Number(event.target.value))}
-            className="rounded border border-gray-300 px-3 py-2"
+            className="rounded border border-gray-300 px-3 py-3 text-base"
           />
           {errors.sleep_wake_ups && (
             <span role="alert" className="text-xs text-red-600">
@@ -225,7 +225,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
               <select
                 value={form.pain_location_code}
                 onChange={(event) => updateField("pain_location_code", event.target.value as CheckinFormState["pain_location_code"])}
-                className="rounded border border-gray-300 px-3 py-2"
+                className="rounded border border-gray-300 px-3 py-3 text-base"
               >
                 <option value="">—</option>
                 {PAIN_LOCATION_CODES.map((code) => (
@@ -275,11 +275,12 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">Commentaire</legend>
         <textarea
+          aria-label="Commentaire"
           value={form.free_comment}
           onChange={(event) => updateField("free_comment", event.target.value)}
           rows={3}
           placeholder="Optionnel"
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-gray-300 px-3 py-3 text-base"
         />
       </fieldset>
 
