@@ -801,3 +801,31 @@ Jamais renvoyé en HTTP : message d'erreur brut, SQL, stack trace, nom de colonn
 **Impact** : aucun fichier versionné modifié par le run lui-même. Voir `docs/00_PROJECT_STATUS.md` et `docs/12_BACKLOG.md` pour la clôture M3.
 
 **Statut** : active
+
+---
+
+## 2026-08-19 — SECURITY FIX : `decisions` rendue réellement append-only (RLS + grants)
+
+**Contexte** : pendant l'audit sécurité pré-commit de M4_006 (`/history`, lecture seule côté frontend), inspection des catalogues PostgreSQL réels de `public.decisions` (policy `decisions_own_data` du baseline, `CREATE POLICY ... USING (...) WITH CHECK (...)` sans clause `FOR`) a révélé qu'elle est traitée par PostgreSQL comme `FOR ALL`, combinée au `GRANT ALL ON TABLE decisions TO anon, authenticated` du baseline (jamais restreint depuis).
+
+**Risque** : un utilisateur `authenticated` pouvait — via son propre client Supabase RLS-scopé, donc y compris **depuis le frontend M4_006 lui-même si un bug l'y avait un jour poussé** — insérer, modifier ou supprimer directement ses propres lignes `decisions`, contournant entièrement `persist_daily_run` (seul chemin d'écriture légitime, `SECURITY INVOKER`, `EXECUTE` réservé à `service_role`). Ceci violait l'invariant append-only : l'historique de coaching (`/history`, M4_006) n'était pas réellement immuable.
+
+**Preuve empirique locale (stack Docker locale, fixtures scratch uniquement, jamais remote)** avant fix : `SET ROLE authenticated` + JWT `sub` d'un athlete scratch → `INSERT`, `UPDATE`, `DELETE` directs sur `decisions` **tous réussis** (RLS `WITH CHECK` satisfaite par l'ownership réelle). Fixtures scratch nettoyées immédiatement après (0 ligne restante vérifié).
+
+**Décision** :
+1. `decisions_own_data` (`FOR ALL`) supprimée, remplacée par `decisions_own_select` — `FOR SELECT TO authenticated` uniquement, avec **exactement la même expression d'ownership** que le baseline (`athlete_id` appartient à un `athletes` dont `user_id = auth.uid()`), non réinventée.
+2. `REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public.decisions FROM authenticated` (ne conserve que `SELECT`, least privilege).
+3. `REVOKE ALL PRIVILEGES ON public.decisions FROM anon` (aucun accès direct, aucune policy ne le ciblait de toute façon).
+4. `persist_daily_run` **non modifiée** — reste l'unique chemin d'écriture (`SECURITY INVOKER`, `EXECUTE` refusé à `anon`/`authenticated`, autorisé à `service_role` uniquement).
+
+**Migration** : `supabase/migrations/20260819200000_decisions_append_only_security.sql` (additive, ne touche aucune colonne/table, uniquement policy + grants).
+
+**Preuve empirique locale post-fix** (stack Docker fraîche, `supabase db reset`, deux athlètes scratch A/B) : `authenticated` (athlete A) `SELECT` de sa propre décision → 1 ligne ; `authenticated` (athlete B) `SELECT` des décisions de l'athlete A → 0 ligne (RLS cross-athlete confirmée) ; `INSERT`/`UPDATE`/`DELETE` directs (athlete A, sur sa propre ligne) → **`ERROR: permission denied for table decisions`** dans les trois cas (échec au niveau `GRANT`, avant même l'évaluation RLS — pas un simple rejet de contrainte). Appel réel de `persist_daily_run` sous `service_role` → succès, ligne persistée et vérifiée en base, puis nettoyée. Toutes les fixtures scratch (2 users, 2 athletes, 2 decisions dont celle créée par le RPC) supprimées, 0 ligne restante vérifié.
+
+**Preuve empirique remote (`uvolpldwwyvadlamulvr` uniquement — jamais `evynmzyjhobdpmxdiwsy`)** : état pré-migration vérifié identique au baseline vulnérable attendu (`decisions_own_data`/`FOR ALL`, `authenticated`/`anon` avec `INSERT`/`UPDATE`/`DELETE`/`SELECT`, `persist_daily_run` déjà correctement restreinte à `service_role`) — aucune dérive de schéma. Migration appliquée via `supabase db push --linked --project-ref uvolpldwwyvadlamulvr` (dry-run préalable confirmant une seule migration en attente), confirmée appliquée exactement une fois (`supabase migration list` local == remote sur les 8 migrations). Post-migration, catalogues remote re-vérifiés en lecture seule : `decisions_own_select`/`SELECT` seule policy, `authenticated` = `SELECT` uniquement, `anon` = aucun privilège, `persist_daily_run` inchangée. **Aucun test destructif (INSERT/UPDATE/DELETE scratch) exécuté sur le remote** — la preuve remote repose uniquement sur les catalogues (`pg_policy`, `information_schema.role_table_grants`, `has_function_privilege`), la dénégation d'écriture ayant déjà été prouvée empiriquement en local.
+
+**Régression future** : `supabase/preflight/decisions_append_only_security_check.sql` (nouveau, lecture seule, suit le pattern `m2_remote_preflight.sql`) — sections A-C doivent rester vides ; vérifié vide en local et en remote après application.
+
+**Impact** : `supabase/migrations/20260819200000_decisions_append_only_security.sql`, `supabase/preflight/decisions_append_only_security_check.sql`. Aucun changement `head-coach-engine/**`, aucun changement de colonne/table, aucun impact sur `docs/05_DATA_MODEL.md`. Le frontend M4_006 (`web/src/features/history/**`) n'écrivait déjà jamais dans `decisions` (confirmé par grep avant et après ce fix) — ce correctif ferme un accès qui existait au niveau DB indépendamment du frontend, pas une régression introduite par lui.
+
+**Statut** : active

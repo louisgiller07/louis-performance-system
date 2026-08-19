@@ -22,3 +22,28 @@ export function todayLocal(timeZone?: string): string {
 
   return `${year}-${month}-${day}`;
 }
+
+const CALENDAR_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", { day: "numeric", month: "long" });
+
+/**
+ * Friendly display of a stored SQL `date` value (e.g. decisions.decision_date,
+ * "YYYY-MM-DD"). Parses the Y/M/D components and builds a local Date from
+ * them — never `new Date(dateString)`, which parses a bare date as UTC
+ * midnight and can render the wrong day near a timezone boundary.
+ */
+export function formatCalendarDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return CALENDAR_DATE_FORMAT.format(new Date(year, month - 1, day));
+}
+
+const LOCAL_TIME_FORMAT = new Intl.DateTimeFormat("fr-CH", { hour: "2-digit", minute: "2-digit" });
+
+/**
+ * Friendly local time for a `timestamptz` column (e.g. decisions.created_at).
+ * Unlike a bare SQL date, an ISO timestamp carries real offset information,
+ * so `new Date(isoTimestamp)` is safe here — it's then formatted in the
+ * browser's own timezone (no hardcoded zone).
+ */
+export function formatLocalTime(isoTimestamp: string): string {
+  return LOCAL_TIME_FORMAT.format(new Date(isoTimestamp));
+}

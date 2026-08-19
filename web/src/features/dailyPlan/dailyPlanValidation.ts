@@ -1,4 +1,4 @@
-import type { ArbitrationDecision, Confidence, DailyRunResponse, TrainingMode } from "./dailyPlanTypes";
+import type { ArbitrationDecision, Confidence, DailyPlan, DailyRunResponse, HealthFlagType, TrainingMode } from "./dailyPlanTypes";
 
 // supabase.functions.invoke<DailyRunResponse>() only gives compile-time
 // typing — the actual JSON on the wire is unchecked `unknown` until this
@@ -19,6 +19,7 @@ const ALLOWED_TRAINING_MODES: readonly TrainingMode[] = [
   "INJURY_RECOVERY",
   "OTHER",
 ];
+const ALLOWED_HEALTH_FLAG_TYPES: readonly HealthFlagType[] = ["concussion_suspect", "injury_suspect", "illness", "pain_persistent"];
 
 function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value);
@@ -51,15 +52,29 @@ function isValidTriggeredRules(value: unknown): boolean {
   );
 }
 
-export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse {
-  if (!isObject(data)) return false;
+/**
+ * health_flag_to_create is what both DailyPlanView (hasHealthSignal) and
+ * /history's HistoryDetail treat as the one legitimate source of a health
+ * banner — so an untrusted or malformed value here must never survive as
+ * "present" (`!== undefined`) just because it happens to not be undefined.
+ * `{"health_flag_to_create": null}` or `"A1"` must be rejected outright,
+ * not silently read as "no signal" or, worse, misrendered as one.
+ */
+function isValidHealthFlagToCreate(value: unknown): boolean {
+  if (value === undefined) return true;
+  return isObject(value) && isOneOf(value.type, ALLOWED_HEALTH_FLAG_TYPES) && typeof value.reason === "string";
+}
 
-  if (typeof data.decisionId !== "string") return false;
-  if (data.healthFlagId !== null && typeof data.healthFlagId !== "string") return false;
-  if (!isStringArray(data.warnings)) return false;
-
-  if (!isObject(data.dailyPlan)) return false;
-  const plan = data.dailyPlan;
+/**
+ * Validates a bare DailyPlan object — the same shape whether it just came
+ * back from daily-run (nested in a DailyRunResponse) or was read back from
+ * decisions.daily_plan for /history (M4_006). A historical row's JSON may
+ * predate the current DailyPlan contract (engine_version drift) — this
+ * guard is what lets a caller fall back to a degraded summary for that one
+ * row instead of crashing the whole page.
+ */
+export function isValidDailyPlan(plan: unknown): plan is DailyPlan {
+  if (!isObject(plan)) return false;
 
   if (!isOneOf(plan.decision, ALLOWED_DECISIONS)) return false;
   if (!isOneOf(plan.confidence, ALLOWED_CONFIDENCE)) return false;
@@ -79,6 +94,7 @@ export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse
   if (!isObject(plan.monitoring) || !isStringArray(plan.monitoring.observe)) return false;
 
   if (!isValidTriggeredRules(plan.triggered_rules)) return false;
+  if (!isValidHealthFlagToCreate(plan.health_flag_to_create)) return false;
 
   if (plan.planned_session_before !== null && !isValidIntervention(plan.planned_session_before)) return false;
   if (!isValidIntervention(plan.final_session)) return false;
@@ -87,4 +103,14 @@ export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse
   if (typeof plan.engine_version !== "string") return false;
 
   return true;
+}
+
+export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse {
+  if (!isObject(data)) return false;
+
+  if (typeof data.decisionId !== "string") return false;
+  if (data.healthFlagId !== null && typeof data.healthFlagId !== "string") return false;
+  if (!isStringArray(data.warnings)) return false;
+
+  return isValidDailyPlan(data.dailyPlan);
 }

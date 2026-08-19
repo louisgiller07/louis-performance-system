@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
 import { CheckinForm } from "../features/checkin/CheckinForm";
 import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
+import { AppNav } from "../components/AppNav";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -37,18 +38,21 @@ export function TodayPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3">
-        <span className="text-sm font-semibold text-gray-900">Louis Performance System</span>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-xs text-gray-400">{user?.email}</span>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
-          >
-            Logout
-          </button>
+      <header className="flex flex-col gap-2 border-b border-gray-200 bg-white px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-gray-900">Louis Performance System</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-xs text-gray-400">{user?.email}</span>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
+            >
+              Logout
+            </button>
+          </div>
         </div>
+        <AppNav />
       </header>
 
       <main className="flex flex-1 flex-col gap-4 px-4 py-6">

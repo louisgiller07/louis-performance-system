@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidDailyRunResponse } from "./dailyPlanValidation";
+import { isValidDailyRunResponse, isValidDailyPlan } from "./dailyPlanValidation";
 
 const VALID_DAILY_PLAN = {
   active_mode: "IN_SEASON",
@@ -101,5 +101,45 @@ describe("isValidDailyRunResponse", () => {
         dailyPlan: { ...VALID_DAILY_PLAN, triggered_rules: [{ layer: "A", rule_id: "A1" }] },
       })
     ).toBe(false);
+  });
+});
+
+// isValidDailyPlan is reused (not duplicated) by web/src/features/history's
+// summarizeDecision to decide whether a stored decisions.daily_plan row
+// (from an engine_version that might predate the current contract) is
+// trustworthy enough for rich rendering.
+describe("isValidDailyPlan", () => {
+  it("accepts a real, well-formed DailyPlan (no decisionId/healthFlagId/warnings wrapper needed)", () => {
+    expect(isValidDailyPlan(VALID_DAILY_PLAN)).toBe(true);
+  });
+
+  it("rejects a legacy/malformed shape without crashing", () => {
+    expect(isValidDailyPlan({ decision: "NOT_A_REAL_ENUM" })).toBe(false);
+    expect(isValidDailyPlan(null)).toBe(false);
+    expect(isValidDailyPlan("not an object")).toBe(false);
+  });
+
+  it("accepts a well-formed health_flag_to_create", () => {
+    expect(
+      isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: { type: "pain_persistent", reason: "Douleur 3 jours de suite" } })
+    ).toBe(true);
+  });
+
+  it("accepts an absent health_flag_to_create (undefined — the normal no-signal case)", () => {
+    expect(isValidDailyPlan(VALID_DAILY_PLAN)).toBe(true);
+  });
+
+  it("rejects health_flag_to_create: null — never silently treated as 'no signal' by staying undefined-shaped", () => {
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: null })).toBe(false);
+  });
+
+  it("rejects health_flag_to_create as a bare string, e.g. a stray rule id", () => {
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: "A1" })).toBe(false);
+  });
+
+  it("rejects health_flag_to_create with an invalid type or a non-string reason", () => {
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: { type: "NOT_A_REAL_TYPE", reason: "x" } })).toBe(false);
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: { type: "illness", reason: 42 } })).toBe(false);
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: { type: "illness" } })).toBe(false);
   });
 });

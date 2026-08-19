@@ -1,7 +1,16 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { TodayPage } from "./TodayPage";
 import { todayLocal } from "../lib/date";
+
+function renderTodayPage() {
+  return render(
+    <MemoryRouter initialEntries={["/today"]}>
+      <TodayPage />
+    </MemoryRouter>
+  );
+}
 
 const signOut = vi.fn();
 
@@ -65,7 +74,7 @@ describe("TodayPage", () => {
     vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
     const expected = todayLocal();
 
-    render(<TodayPage />);
+    renderTodayPage();
 
     expect(screen.getByText(expected)).toBeInTheDocument();
   });
@@ -75,7 +84,7 @@ describe("TodayPage", () => {
     vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
     const expectedDate = todayLocal();
 
-    render(<TodayPage />);
+    renderTodayPage();
 
     expect(screen.getByText("Daily Check-in")).toBeInTheDocument();
     expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent(`checkin-form athlete=athlete-1 date=${expectedDate}`);
@@ -86,7 +95,7 @@ describe("TodayPage", () => {
     vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
     const expectedDate = todayLocal();
 
-    render(<TodayPage />);
+    renderTodayPage();
 
     expect(screen.getByText("Daily Plan")).toBeInTheDocument();
     expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent(
@@ -95,7 +104,7 @@ describe("TodayPage", () => {
   });
 
   it("passes hasCheckin=true to DailyPlanPanel once CheckinForm reports a checkin is available, without bumping checkinRevision", async () => {
-    render(<TodayPage />);
+    renderTodayPage();
 
     screen.getByText("simulate checkin available (load)").click();
 
@@ -105,7 +114,7 @@ describe("TodayPage", () => {
   });
 
   it("bumps checkinRevision only when CheckinForm reports an actual save (onSaved)", async () => {
-    render(<TodayPage />);
+    renderTodayPage();
 
     screen.getByText("simulate checkin saved").click();
 
@@ -117,7 +126,7 @@ describe("TodayPage", () => {
   });
 
   it("logout button calls signOut", () => {
-    render(<TodayPage />);
+    renderTodayPage();
 
     screen.getByText("Logout").click();
 
