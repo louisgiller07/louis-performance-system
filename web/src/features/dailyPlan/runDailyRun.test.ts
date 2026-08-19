@@ -14,7 +14,25 @@ beforeEach(() => {
 });
 
 const SUCCESS_RESPONSE = {
-  dailyPlan: { date: "2026-08-19", active_mode: "IN_SEASON", decision: "KEEP", confidence: "MEDIUM", reasoning: "Tout va bien." },
+  dailyPlan: {
+    active_mode: "IN_SEASON",
+    training: { active: true, session_type: { kind: "AEROBIC_BASE", load_profile: "MODERATE" }, objective: "Base aérobie" },
+    dh_or_technical: { active: false },
+    mental: { active: false },
+    recovery: { active: true, actions: ["Étirements 10 min"] },
+    nutrition: { active: false },
+    sleep: { active: true, target_hours: 8 },
+    protection: { do_not_do: [] },
+    monitoring: { observe: [] },
+    reasoning: "Tout va bien.",
+    confidence: "MEDIUM",
+    triggered_rules: [],
+    planned_session_before: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+    final_session: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+    decision: "KEEP",
+    overrode_race_protocol: false,
+    engine_version: "1.0.0",
+  },
   decisionId: "11111111-1111-1111-1111-111111111111",
   healthFlagId: null,
   warnings: [],

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { runDailyRun } from "./runDailyRun";
+import { DailyPlanResult } from "./DailyPlanResult";
 import type { DailyRunError } from "./dailyRunErrors";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 
@@ -18,9 +19,11 @@ interface DailyPlanPanelProps {
   checkinRevision: number;
 }
 
-// M4_004 — minimal, real remote daily-run invocation + minimal readable
-// result. No rich cards (M4_005), no history, no coaching/safety logic —
-// the decision and any safety signal come only from the server response.
+// M4_004 request/state orchestration (invocation, concurrency guard,
+// checkin-revision invalidation, error mapping) — the actual rendering of
+// a successful result lives in DailyPlanResult.tsx (M4_005). No history,
+// no coaching/safety logic here — the decision and any safety signal come
+// only from the server response.
 export function DailyPlanPanel({ date, hasCheckin, checkinRevision }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
@@ -127,52 +130,6 @@ export function DailyPlanPanel({ date, hasCheckin, checkinRevision }: DailyPlanP
       )}
 
       {result && <DailyPlanResult result={result} />}
-    </div>
-  );
-}
-
-function DailyPlanResult({ result }: { result: DailyRunResponse }) {
-  const { dailyPlan, healthFlagId, warnings, decisionId } = result;
-  // Explicit server signal only — never a frontend-deduced safety rule
-  // (no A1-A5 hardcoded here).
-  const hasSafetySignal = healthFlagId !== null || dailyPlan.health_flag_to_create !== undefined;
-
-  return (
-    <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-      {hasSafetySignal && (
-        <div className="rounded border border-red-300 bg-red-50 p-3">
-          <p className="text-sm font-semibold text-red-700">Attention santé</p>
-          <p className="text-xs text-red-600">Le coach a généré un signal de santé pour cette décision.</p>
-        </div>
-      )}
-
-      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-        <dt className="text-gray-400">Décision</dt>
-        <dd className="font-medium text-gray-900">{dailyPlan.decision}</dd>
-        <dt className="text-gray-400">Confiance</dt>
-        <dd className="font-medium text-gray-900">{dailyPlan.confidence}</dd>
-        <dt className="text-gray-400">Mode</dt>
-        <dd className="font-medium text-gray-900">{dailyPlan.active_mode}</dd>
-      </dl>
-
-      <p className="text-sm text-gray-700">{dailyPlan.reasoning}</p>
-
-      {warnings.length > 0 && (
-        <ul className="list-disc pl-5 text-xs text-amber-600">
-          {warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
-      )}
-
-      {import.meta.env.DEV && (
-        <details className="text-xs text-gray-400">
-          <summary>Détails (dev)</summary>
-          <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(result, null, 2)}</pre>
-        </details>
-      )}
-
-      <p className="font-mono text-[10px] text-gray-300">decisionId: {decisionId}</p>
     </div>
   );
 }

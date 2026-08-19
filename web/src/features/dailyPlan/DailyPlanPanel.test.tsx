@@ -17,15 +17,32 @@ import { runDailyRun } from "./runDailyRun";
 
 const mockedRun = runDailyRun as unknown as ReturnType<typeof vi.fn>;
 
+const BASE_DAILY_PLAN = {
+  active_mode: "IN_SEASON",
+  training: { active: true, session_type: { kind: "AEROBIC_BASE", load_profile: "MODERATE" }, objective: "Base aérobie" },
+  dh_or_technical: { active: false },
+  mental: { active: false },
+  recovery: { active: true, actions: ["Étirements 10 min"] },
+  nutrition: { active: false },
+  sleep: { active: true, target_hours: 8 },
+  protection: { do_not_do: [] },
+  monitoring: { observe: [] },
+  triggered_rules: [],
+  planned_session_before: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+  final_session: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+  overrode_race_protocol: false,
+  engine_version: "1.0.0",
+};
+
 const SUCCESS_RESPONSE = {
-  dailyPlan: { date: "2026-08-19", active_mode: "IN_SEASON", decision: "KEEP", confidence: "MEDIUM", reasoning: "Tout va bien." },
+  dailyPlan: { ...BASE_DAILY_PLAN, decision: "KEEP", confidence: "MEDIUM", reasoning: "Tout va bien." },
   decisionId: "11111111-1111-1111-1111-111111111111",
   healthFlagId: null,
   warnings: [],
 };
 
 const SUCCESS_RESPONSE_2 = {
-  dailyPlan: { date: "2026-08-19", active_mode: "IN_SEASON", decision: "MODIFY", confidence: "LOW", reasoning: "Deuxième génération." },
+  dailyPlan: { ...BASE_DAILY_PLAN, decision: "MODIFY", confidence: "LOW", reasoning: "Deuxième génération." },
   decisionId: "22222222-2222-2222-2222-222222222222",
   healthFlagId: null,
   warnings: [],
@@ -70,9 +87,9 @@ describe("DailyPlanPanel", () => {
     render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
 
-    await waitFor(() => expect(screen.getByText("KEEP")).toBeInTheDocument());
-    expect(screen.getByText("MEDIUM")).toBeInTheDocument();
-    expect(screen.getByText("IN_SEASON")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    expect(screen.getByText(/Confiance moyenne/)).toBeInTheDocument();
+    expect(screen.getByText(/En saison/)).toBeInTheDocument();
     expect(screen.getByText("Tout va bien.")).toBeInTheDocument();
   });
 
@@ -98,7 +115,7 @@ describe("DailyPlanPanel", () => {
     expect(mockedRun).toHaveBeenCalledTimes(1);
 
     resolveRun({ ok: true, data: SUCCESS_RESPONSE });
-    await waitFor(() => expect(screen.getByText("KEEP")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
     expect(mockedRun).toHaveBeenCalledTimes(1);
   });
 
@@ -137,11 +154,11 @@ describe("DailyPlanPanel", () => {
 
     const { rerender } = render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
-    await waitFor(() => expect(screen.getByText("KEEP")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
 
     rerender(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={1} />);
 
-    expect(screen.queryByText("KEEP")).not.toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
     expect(screen.getByText(/Ton check-in a changé/)).toBeInTheDocument();
   });
 
@@ -151,7 +168,7 @@ describe("DailyPlanPanel", () => {
 
     render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
-    await waitFor(() => expect(screen.getByText("KEEP")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
 
     let resolveSecond!: (value: unknown) => void;
     mockedRun.mockReturnValueOnce(
@@ -163,10 +180,10 @@ describe("DailyPlanPanel", () => {
 
     // The old plan must be gone the instant the new attempt starts, not
     // only once the new response arrives.
-    expect(screen.queryByText("KEEP")).not.toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
 
     resolveSecond({ ok: true, data: SUCCESS_RESPONSE_2 });
-    await waitFor(() => expect(screen.getByText("MODIFY")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Adapter")).toBeInTheDocument());
   });
 
   it("does not leave the old plan visible when the next generation fails", async () => {
@@ -175,7 +192,7 @@ describe("DailyPlanPanel", () => {
 
     render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
-    await waitFor(() => expect(screen.getByText("KEEP")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
 
     mockedRun.mockResolvedValueOnce({
       ok: false,
@@ -184,7 +201,7 @@ describe("DailyPlanPanel", () => {
     await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.queryByText("KEEP")).not.toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });
 
   it("ignores a stale in-flight response once checkinRevision has moved on before it resolves", async () => {
@@ -207,7 +224,7 @@ describe("DailyPlanPanel", () => {
     // Give the pending .then/await a tick to run, then assert the stale
     // result was never rendered.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.queryByText("KEEP")).not.toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });
 
   it("rejects a malformed success response with invalid_response and never renders invented data", async () => {
@@ -225,6 +242,6 @@ describe("DailyPlanPanel", () => {
     await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/invalide/));
-    expect(screen.queryByText("KEEP")).not.toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });
 });
