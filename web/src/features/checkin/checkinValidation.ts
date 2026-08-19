@@ -65,8 +65,16 @@ export function validateCheckin(state: CheckinFormState): ValidateCheckinResult 
     errors.fever_or_illness = "Réponds Oui ou Non.";
   }
 
-  // pain_intensity: required + 0-10 iff pain=true; must be absent iff pain=false
-  // (mirrors the DB CHECK pain_intensity_requires_pain exactly).
+  // pain_intensity + the four pain criteria: required and validated only
+  // when pain=true. When pain=false they are simply not applicable — a
+  // leftover value from a previous pain=true state (e.g. the user answered
+  // Oui, filled details, then switched back to Non) is never an error
+  // here. The pain section is hidden in the UI once pain=false, so a
+  // validation error attached to one of these fields would be invisible
+  // and would silently block the save — this was a real bug (fixed
+  // together with CheckinForm normalizing these fields immediately when
+  // pain flips to false). Any stale value still just gets normalized to
+  // "not applicable" below, never rejected.
   let painIntensity: number | null = null;
   if (state.pain === true) {
     const intensity = validateRequiredNumber(state.pain_intensity, RANGE_0_10, "Intensité de la douleur");
@@ -84,8 +92,6 @@ export function validateCheckin(state: CheckinFormState): ValidateCheckinResult 
     if (state.pain_traumatic === null) errors.pain_traumatic = "Réponds Oui ou Non.";
     if (state.pain_function_loss === null) errors.pain_function_loss = "Réponds Oui ou Non.";
     if (state.pain_getting_worse === null) errors.pain_getting_worse = "Réponds Oui ou Non.";
-  } else if (state.pain === false && state.pain_intensity !== "") {
-    errors.pain_intensity = "L'intensité de la douleur ne doit être renseignée que si tu as répondu Oui à douleur.";
   }
 
   if (state.pain_location_code !== "" && !PAIN_LOCATION_CODES.includes(state.pain_location_code)) {

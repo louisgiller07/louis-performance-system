@@ -11,12 +11,28 @@ type SaveState = "idle" | "saving" | "saved" | "error";
 interface CheckinFormProps {
   athleteId: string;
   date: string;
+  /**
+   * Reports whether a checkin currently exists for this date — fired once
+   * after the initial load (row found vs. none), and again after every
+   * successful save (always true then). This is the single signal
+   * TodayPage needs to enable "Générer mon plan" — it never needs a
+   * separate query to know whether a checkin exists.
+   */
+  onCheckinAvailabilityChange?: (hasCheckin: boolean) => void;
+  /**
+   * Fired only when a save actually persists new values — never on the
+   * initial load of an existing row. TodayPage uses this (not
+   * onCheckinAvailabilityChange) to bump a checkin revision counter, so a
+   * DailyPlan generated from an older checkin is invalidated after an edit
+   * — merely loading an already-saved checkin must not do that.
+   */
+  onSaved?: () => void;
 }
 
 // M4_003 — real persistence, RLS-scoped. No daily-run call, no DailyPlan
 // rendering, no coaching/safety decision here — this component only
 // collects and saves facts.
-export function CheckinForm({ athleteId, date }: CheckinFormProps) {
+export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSaved }: CheckinFormProps) {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [form, setForm] = useState<CheckinFormState>(EMPTY_CHECKIN_FORM_STATE);
   const [errors, setErrors] = useState<CheckinFieldErrors>({});
@@ -31,6 +47,7 @@ export function CheckinForm({ athleteId, date }: CheckinFormProps) {
         if (!active) return;
         setForm(rowToFormState(row));
         setLoadState("loaded");
+        onCheckinAvailabilityChange?.(row !== null);
       })
       .catch(() => {
         if (!active) return;
@@ -43,6 +60,33 @@ export function CheckinForm({ athleteId, date }: CheckinFormProps) {
 
   function updateField<K extends keyof CheckinFormState>(key: K, value: CheckinFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    setSaveState("idle");
+  }
+
+  // Dedicated handler (not the generic updateField) — switching pain to
+  // Non must immediately reset the conditional pain fields to "not
+  // applicable", not just hide their inputs. Leaving stale values in
+  // CheckinFormState after pain flipped to false was the root cause of a
+  // real bug: validateCheckin used to reject a stale pain_intensity, but
+  // the error was attached to a field the UI no longer rendered — the
+  // submit silently did nothing. Both sides are fixed: this immediate
+  // normalization, and validateCheckin no longer treating a stale
+  // conditional value as an error when pain=false (see checkinValidation.ts).
+  function handlePainChange(value: boolean) {
+    setForm((prev) => ({
+      ...prev,
+      pain: value,
+      ...(value === false
+        ? {
+            pain_intensity: "",
+            pain_new: null,
+            pain_location_code: "",
+            pain_traumatic: null,
+            pain_function_loss: null,
+            pain_getting_worse: null,
+          }
+        : {}),
+    }));
     setSaveState("idle");
   }
 
@@ -61,6 +105,8 @@ export function CheckinForm({ athleteId, date }: CheckinFormProps) {
       const saved = await saveCheckin(athleteId, date, result.values);
       setForm(rowToFormState(saved));
       setSaveState("saved");
+      onCheckinAvailabilityChange?.(true);
+      onSaved?.();
     } catch (error) {
       setSaveState("error");
       setSaveErrorMessage(error instanceof Error ? error.message : "Erreur inconnue.");
@@ -158,7 +204,7 @@ export function CheckinForm({ athleteId, date }: CheckinFormProps) {
 
       <fieldset className="flex flex-col gap-3">
         <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">Santé / douleur</legend>
-        <YesNoChoice label="Douleur" value={form.pain} onChange={(value) => updateField("pain", value)} error={errors.pain} />
+        <YesNoChoice label="Douleur" value={form.pain} onChange={handlePainChange} error={errors.pain} />
 
         {form.pain === true && (
           <div className="flex flex-col gap-3 border-l-2 border-gray-200 pl-3">
@@ -236,6 +282,12 @@ export function CheckinForm({ athleteId, date }: CheckinFormProps) {
           className="rounded border border-gray-300 px-3 py-2 text-sm"
         />
       </fieldset>
+
+      {Object.keys(errors).length > 0 && (
+        <p role="alert" className="text-sm text-red-600">
+          Certains champs doivent encore être complétés.
+        </p>
+      )}
 
       {saveState === "error" && saveErrorMessage && (
         <p role="alert" className="text-sm text-red-600">

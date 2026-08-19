@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
 import { CheckinForm } from "../features/checkin/CheckinForm";
+import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -14,6 +15,11 @@ const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
 // re-resolves it.
 export function TodayPage() {
   const { user, athleteId, signOut } = useAuth();
+  const [hasCheckin, setHasCheckin] = useState(false);
+  // Bumped only on an actual save (CheckinForm's onSaved), never on the
+  // initial load of an existing row — see DailyPlanPanel's checkinRevision
+  // prop doc for why that distinction matters.
+  const [checkinRevision, setCheckinRevision] = useState(0);
 
   // Canonical YYYY-MM-DD in the user's own local timezone (see
   // src/lib/date.ts) — kept for the future check-in/daily-run calls, not
@@ -56,7 +62,12 @@ export function TodayPage() {
           <h2 className="text-sm font-semibold text-gray-900">Daily Check-in</h2>
           <p className="mb-4 mt-1 text-sm text-gray-500">Ton état du jour</p>
           {athleteId ? (
-            <CheckinForm athleteId={athleteId} date={canonicalDate} />
+            <CheckinForm
+              athleteId={athleteId}
+              date={canonicalDate}
+              onCheckinAvailabilityChange={setHasCheckin}
+              onSaved={() => setCheckinRevision((revision) => revision + 1)}
+            />
           ) : (
             <p className="text-sm text-red-600">Configuration error: no athlete resolved.</p>
           )}
@@ -64,10 +75,8 @@ export function TodayPage() {
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-900">Daily Plan</h2>
-          <p className="mt-1 text-sm text-gray-500">Aucun plan généré</p>
-          <p className="mt-4 rounded-lg bg-gray-50 px-3 py-4 text-center text-sm text-gray-400">
-            Disponible après check-in
-          </p>
+          <p className="mb-4 mt-1 text-sm text-gray-500">Généré à partir de ton check-in du jour</p>
+          {athleteId && <DailyPlanPanel date={canonicalDate} hasCheckin={hasCheckin} checkinRevision={checkinRevision} />}
         </section>
       </main>
     </div>

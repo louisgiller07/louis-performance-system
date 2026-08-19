@@ -180,19 +180,26 @@ describe("validateCheckin", () => {
     }
   });
 
-  it("rejects pain_intensity set while pain=false", () => {
+  it("does NOT reject a stale pain_intensity left over from a previous pain=true state (regression: this used to silently block save)", () => {
+    // Bug scenario: user answered pain=true, filled pain_intensity=4, then
+    // switched back to pain=false without CheckinForm's normalization
+    // running (e.g. any future code path that sets `pain` directly).
+    // validateCheckin itself must be tolerant here — the pain section is
+    // hidden once pain=false, so an error attached to pain_intensity would
+    // be invisible to the user and the submit would appear to do nothing.
     const result = validateCheckin(baseValidState({ pain: false, pain_intensity: 5 }));
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errors.pain_intensity).toBeDefined();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.values.pain_intensity).toBeNull();
     }
   });
 
-  it("pain=false normalizes all four pain criteria to false in the final payload, regardless of stray leftover values", () => {
+  it("pain=false normalizes all four pain criteria and pain_intensity/pain_location_code to not-applicable in the final payload, regardless of stray leftover values", () => {
     const result = validateCheckin(
       baseValidState({
         pain: false,
+        pain_intensity: 7,
         pain_new: true,
         pain_traumatic: true,
         pain_function_loss: true,
