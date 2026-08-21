@@ -227,6 +227,56 @@ describe("DailyPlanPanel", () => {
     expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });
 
+  // --- M5_003: onLiveContextChange ---
+
+  it("fires onLiveContextChange with the exact decisionId and the mapped coarse session_type on a successful generation", async () => {
+    mockedRun.mockResolvedValueOnce({ ok: true, data: SUCCESS_RESPONSE });
+    const onLiveContextChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />);
+    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+
+    // BASE_DAILY_PLAN.final_session.kind === "AEROBIC_BASE", which maps 1:1
+    // to the coarse SessionType "AEROBIC_BASE" (see trainingInterventionToSessionType.ts).
+    await waitFor(() =>
+      expect(onLiveContextChange).toHaveBeenCalledWith({ decisionId: SUCCESS_RESPONSE.decisionId, sessionType: "AEROBIC_BASE" })
+    );
+  });
+
+  it("fires onLiveContextChange(null) when the checkin changes and invalidates the visible plan", async () => {
+    mockedRun.mockResolvedValue({ ok: true, data: SUCCESS_RESPONSE });
+    const onLiveContextChange = vi.fn();
+    const user = userEvent.setup();
+
+    const { rerender } = render(
+      <DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />
+    );
+    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    await waitFor(() =>
+      expect(onLiveContextChange).toHaveBeenCalledWith({ decisionId: SUCCESS_RESPONSE.decisionId, sessionType: "AEROBIC_BASE" })
+    );
+
+    rerender(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={1} onLiveContextChange={onLiveContextChange} />);
+
+    await waitFor(() => expect(onLiveContextChange).toHaveBeenLastCalledWith(null));
+  });
+
+  it("never fires onLiveContextChange with a value on a failed generation — stays null", async () => {
+    mockedRun.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "persistence_failed", message: "Erreur d'enregistrement côté serveur. Réessaie.", retryable: true, action: "retry" },
+    });
+    const onLiveContextChange = vi.fn();
+    const user = userEvent.setup();
+
+    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />);
+    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(onLiveContextChange).not.toHaveBeenCalledWith(expect.objectContaining({ decisionId: expect.any(String) }));
+  });
+
   it("rejects a malformed success response with invalid_response and never renders invented data", async () => {
     // runDailyRun itself is responsible for the runtime shape guard — a
     // component-level test only needs to prove the panel handles the

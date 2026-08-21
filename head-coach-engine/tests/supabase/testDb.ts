@@ -165,6 +165,28 @@ export async function insertPlannedSession(
   if (error) throw new Error(`insertPlannedSession failed: ${error.message}`);
 }
 
+/** Minimal direct insert into decisions (admin client only — decisions is append-only, no direct authenticated write path). Returns the new row's id for FK-linkage tests (e.g. M5_003's decision-link preflight). */
+export async function insertDecision(
+  client: SupabaseClient,
+  athleteId: string,
+  decisionDate: string,
+  fields: { final_session?: string } = {}
+): Promise<string> {
+  const { data, error } = await client
+    .from("decisions")
+    .insert({
+      athlete_id: athleteId,
+      decision_date: decisionDate,
+      final_session: fields.final_session ?? "REST",
+      reason: "test fixture",
+      engine_version: "test",
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(`insertDecision failed: ${error?.message}`);
+  return data.id as string;
+}
+
 export async function insertHealthFlag(
   client: SupabaseClient,
   athleteId: string,

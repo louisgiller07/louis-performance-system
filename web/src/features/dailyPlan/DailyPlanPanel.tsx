@@ -2,10 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { runDailyRun } from "./runDailyRun";
 import { DailyPlanResult } from "./DailyPlanResult";
+import { mapTrainingInterventionToSessionType, type CoarseSessionType } from "./trainingInterventionToSessionType";
 import type { DailyRunError } from "./dailyRunErrors";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 
 type RequestState = "idle" | "running" | "success" | "error";
+
+export interface LiveDailyPlanContext {
+  decisionId: string;
+  sessionType: CoarseSessionType;
+}
 
 interface DailyPlanPanelProps {
   date: string;
@@ -17,6 +23,21 @@ interface DailyPlanPanelProps {
    * never keep being shown as if it were still current.
    */
   checkinRevision: number;
+  /**
+   * Reports the exact decisionId AND coarse session_type of the
+   * currently-displayed DailyPlan, or null the instant it's no longer
+   * current (a new generation started, the checkin was invalidated, or the
+   * request errored). `sessionType` is derived via
+   * trainingInterventionToSessionType.ts's canonical mapping — the same
+   * deterministic projection the backend itself uses to persist
+   * decisions.final_session — never a guess, never RECOVERY as a fallback.
+   * M5_003's post-session card uses this — and only this — to preselect a
+   * decision link + session type on a brand-new session log; it must never
+   * fall back to a "latest decision" lookup once this goes null. Not fired
+   * on mount with an initial value — there is no daily-run result until the
+   * user actually generates one.
+   */
+  onLiveContextChange?: (context: LiveDailyPlanContext | null) => void;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -24,7 +45,7 @@ interface DailyPlanPanelProps {
 // a successful result lives in DailyPlanResult.tsx (M4_005). No history,
 // no coaching/safety logic here — the decision and any safety signal come
 // only from the server response.
-export function DailyPlanPanel({ date, hasCheckin, checkinRevision }: DailyPlanPanelProps) {
+export function DailyPlanPanel({ date, hasCheckin, checkinRevision, onLiveContextChange }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
@@ -50,6 +71,19 @@ export function DailyPlanPanel({ date, hasCheckin, checkinRevision }: DailyPlanP
   useEffect(() => {
     if (result !== null || error !== null) hadVisibleResultRef.current = true;
   }, [result, error]);
+
+  // A ref (not a direct dependency-array entry) so a new inline function
+  // passed by the parent on every render never re-fires this effect —
+  // only an actual `result` change should notify the caller.
+  const onLiveContextChangeRef = useRef(onLiveContextChange);
+  onLiveContextChangeRef.current = onLiveContextChange;
+  useEffect(() => {
+    onLiveContextChangeRef.current?.(
+      result
+        ? { decisionId: result.decisionId, sessionType: mapTrainingInterventionToSessionType(result.dailyPlan.final_session) }
+        : null
+    );
+  }, [result]);
 
   useEffect(() => {
     if (previousRevisionRef.current === checkinRevision) return;

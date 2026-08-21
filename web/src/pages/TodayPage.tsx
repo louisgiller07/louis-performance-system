@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
 import { CheckinForm } from "../features/checkin/CheckinForm";
 import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
+import { CompletedSessionCard } from "../features/completedSession/CompletedSessionCard";
+import type { LiveDailyPlanContext } from "../features/dailyPlan/DailyPlanPanel";
 import { AppNav } from "../components/AppNav";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
@@ -21,6 +23,15 @@ export function TodayPage() {
   // initial load of an existing row — see DailyPlanPanel's checkinRevision
   // prop doc for why that distinction matters.
   const [checkinRevision, setCheckinRevision] = useState(0);
+  // The exact decisionId + coarse session_type of the DailyPlan currently
+  // displayed by DailyPlanPanel, or null — see DailyPlanPanel's
+  // onLiveContextChange doc. CompletedSessionCard uses this, and only this,
+  // to preselect a decision link + session type on a brand-new session log
+  // — never RECOVERY or any other invented default. useCallback keeps a
+  // stable identity so it doesn't re-trigger DailyPlanPanel's
+  // onLiveContextChange effect.
+  const [liveContext, setLiveContext] = useState<LiveDailyPlanContext | null>(null);
+  const handleLiveContextChange = useCallback((context: LiveDailyPlanContext | null) => setLiveContext(context), []);
 
   // Canonical YYYY-MM-DD in the user's own local timezone (see
   // src/lib/date.ts) — kept for the future check-in/daily-run calls, not
@@ -80,7 +91,19 @@ export function TodayPage() {
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-900">Daily Plan</h2>
           <p className="mb-4 mt-1 text-sm text-gray-500">Généré à partir de ton check-in du jour</p>
-          {athleteId && <DailyPlanPanel date={canonicalDate} hasCheckin={hasCheckin} checkinRevision={checkinRevision} />}
+          {athleteId && (
+            <DailyPlanPanel
+              date={canonicalDate}
+              hasCheckin={hasCheckin}
+              checkinRevision={checkinRevision}
+              onLiveContextChange={handleLiveContextChange}
+            />
+          )}
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-900">Séance du jour</h2>
+          {athleteId && <CompletedSessionCard date={canonicalDate} liveContext={liveContext} />}
         </section>
       </main>
     </div>
