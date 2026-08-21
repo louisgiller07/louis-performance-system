@@ -1,0 +1,23 @@
+{
+  "name": "longitudinal-engine",
+  "version": "0.1.0",
+  "description": "Louis Performance System — Longitudinal Engine (M5). Sibling package to head-coach-engine: reads persisted source facts (check-ins, decisions, completed sessions, decision outcomes, health flags) for future detector/pattern work. Never imported by head-coach-engine or daily-run; implements no coaching logic and does not influence daily-run.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.3"
+  }
+}
