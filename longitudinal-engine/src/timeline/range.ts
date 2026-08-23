@@ -21,10 +21,14 @@ export class InvalidDateRangeError extends Error {
 }
 
 const CANONICAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/** Exported for reuse by calculators/horizonDates.ts (M5_004) — same UTC-safe arithmetic, never reimplemented. Not re-exported through index.ts; a same-package internal import only. */
+export const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** Parses a canonical "YYYY-MM-DD" string to a UTC-midnight timestamp, rejecting both malformed strings and impossible calendar dates (e.g. 2026-02-30) via an exact round-trip check. */
-function parseCanonicalDateUtc(value: string, label: string): number {
+/**
+ * Parses a canonical "YYYY-MM-DD" string to a UTC-midnight timestamp, rejecting both malformed strings and impossible calendar dates (e.g. 2026-02-30) via an exact round-trip check.
+ * Exported for reuse by calculators/horizonDates.ts (M5_004) — same reasoning as MS_PER_DAY above. Throws {@link InvalidDateRangeError}; callers outside this module that need a different error identity (e.g. InvalidObservedThroughDateError) catch and rewrap.
+ */
+export function parseCanonicalDateUtc(value: string, label: string): number {
   const match = CANONICAL_DATE.exec(value);
   if (!match) {
     throw new InvalidDateRangeError(`${label} "${value}" is not in canonical YYYY-MM-DD format`);
@@ -44,7 +48,8 @@ function parseCanonicalDateUtc(value: string, label: string): number {
   return utcMs;
 }
 
-function formatUtcMs(ms: number): string {
+/** Exported for reuse by calculators/horizonDates.ts (M5_004) — see MS_PER_DAY doc above. */
+export function formatUtcMs(ms: number): string {
   const d = new Date(ms);
   const year = String(d.getUTCFullYear()).padStart(4, "0");
   const month = String(d.getUTCMonth() + 1).padStart(2, "0");
