@@ -6,19 +6,15 @@
  * implements. `calculators/**` never imports Supabase; the only place that
  * touches it is supabase/outcomeOrchestrator.ts (a separate module).
  */
-import type { AthleteDay, AthleteTimeline, CompletedSessionOnDay, DecisionThread } from "../timeline/types.js";
+import type { AthleteTimeline, CompletedSessionOnDay } from "../timeline/types.js";
 import { isFlagActiveOnDay } from "../timeline/healthContext.js";
 import { sortedBy } from "../timeline/ordering.js";
 import type { DailyCheckinSource, DecisionOutcomeHorizon, HealthFlagSource } from "../types/sources.js";
+import { resolveDecisionThreadById, resolveUniqueDay, resolveExecutionRelationship } from "../relations/index.js";
 import {
-  DecisionNotFoundInTimelineError,
-  DuplicateDecisionThreadError,
   HorizonNotMatureError,
   InconsistentBaselineCheckinError,
-  InconsistentExecutionDateError,
-  InconsistentExecutionLinkError,
   InconsistentTargetCheckinError,
-  InconsistentTimelineDayError,
   InvalidHorizonError,
   OutcomeTimelineCoverageError,
 } from "./errors.js";
@@ -30,7 +26,6 @@ import type {
   DeltaSignals,
   DeltaUnavailableReason,
   DeltaValue,
-  ExecutionSignal,
   HealthContextSignals,
   HealthFlagRef,
   InputSnapshot,
@@ -48,26 +43,6 @@ export interface CalculateDecisionOutcomeSnapshotInput {
   readonly horizon: DecisionOutcomeHorizon;
   /** Latest calendar date ("YYYY-MM-DD") the caller declares fully closed/observable. Never derived from the clock inside this package. */
   readonly observedThroughDate: string;
-}
-
-/**
- * Resolves the canonical DecisionThread for `decisionId` by value equality
- * (`thread.decision.id === decisionId`) only — never `.includes()` or any
- * JavaScript reference-identity check (M5_002B explicitly forbids
- * reference-identity invariants).
- */
-function resolveDecisionThread(timeline: AthleteTimeline, decisionId: string): DecisionThread {
-  const matches = timeline.decisionThreads.filter((t) => t.decision.id === decisionId);
-  if (matches.length === 0) throw new DecisionNotFoundInTimelineError(decisionId);
-  if (matches.length > 1) throw new DuplicateDecisionThreadError(decisionId, matches.length);
-  return matches[0]!;
-}
-
-/** M5_002B materializes exactly one AthleteDay per date in range — once `date` is proven inside range, anything other than exactly one match is a malformed timeline, never silently treated as "zero check-ins". */
-function resolveUniqueDay(timeline: AthleteTimeline, date: string): AthleteDay {
-  const matches = timeline.days.filter((d) => d.date === date);
-  if (matches.length !== 1) throw new InconsistentTimelineDayError(date, matches.length);
-  return matches[0]!;
 }
 
 function numericSignal(checkin: DailyCheckinSource | null, field: (c: DailyCheckinSource) => number | null): SignalValue<number> {
@@ -140,98 +115,6 @@ function healthFlagRef(f: HealthFlagSource): HealthFlagRef {
   return { id: f.id, flagDate: f.flagDate, flagType: f.flagType, status: f.status, resolvedAt: f.resolvedAt };
 }
 
-interface ExecutionResolution {
-  readonly signal: ExecutionSignal;
-  readonly sameDaySession: SameDaySessionSnapshot | null;
-}
-
-/**
- * Execution is anchored on decisionDate, never targetDate (see
- * docs/11_DECISION_LOG.md, M5_004) — the same result is therefore reported
- * identically across J+1/J+3/J+7 for a given decision, which is expected,
- * not a redundancy to fix.
- *
- * Two independent canonical views of the same underlying relationship are
- * cross-checked, never trusted alone (M5_004 final lock, point 13):
- *   - `sameDay` — AthleteDay(decisionDate).completedSessions (date-driven).
- *   - `reverseLinked` — DecisionThread.linkedCompletedSessions (decision_id-driven).
- * Any disagreement between them is a structural inconsistency, never
- * repaired by picking one view over the other.
- */
-function resolveExecution(timeline: AthleteTimeline, thread: DecisionThread): ExecutionResolution {
-  const decisionId = thread.decision.id;
-  const decisionDate = thread.decisionDate;
-
-  const decisionDay = resolveUniqueDay(timeline, decisionDate);
-  if (decisionDay.completedSessions.length > 1) {
-    throw new InconsistentExecutionLinkError(
-      `AthleteDay(${decisionDate}) has ${decisionDay.completedSessions.length} completed sessions — violates the DB's UNIQUE(athlete_id, session_date) invariant`
-    );
-  }
-  const sameDay: CompletedSessionOnDay | null = decisionDay.completedSessions[0] ?? null;
-
-  const reverseLinked = thread.linkedCompletedSessions;
-  if (reverseLinked.length > 1) {
-    throw new InconsistentExecutionLinkError(
-      `decision "${decisionId}" has ${reverseLinked.length} completed sessions explicitly linked via decision_id — expected at most one`
-    );
-  }
-  if (reverseLinked.length === 1) {
-    const linkedSession = reverseLinked[0]!;
-    if (linkedSession.sessionDate !== decisionDate) {
-      throw new InconsistentExecutionDateError(decisionId, decisionDate, linkedSession.id, linkedSession.sessionDate);
-    }
-  }
-
-  // Bidirectional agreement — three exhaustive cases, matching the sameDay.decisionId classification below one-to-one.
-  if (sameDay === null) {
-    if (reverseLinked.length !== 0) {
-      throw new InconsistentExecutionLinkError(
-        `decision "${decisionId}" has a completed session explicitly linked via decision_id, but AthleteDay(${decisionDate}) has no completed session at all`
-      );
-    }
-  } else if (sameDay.completedSession.decisionId === decisionId) {
-    if (reverseLinked.length !== 1 || reverseLinked[0]!.id !== sameDay.completedSession.id) {
-      throw new InconsistentExecutionLinkError(
-        `AthleteDay(${decisionDate})'s completed session "${sameDay.completedSession.id}" claims decision_id "${decisionId}", but the reverse decision_id lookup does not agree`
-      );
-    }
-  } else {
-    // sameDay.decisionId is either null (unlinked) or a different decision's id (linked elsewhere).
-    if (reverseLinked.length !== 0) {
-      throw new InconsistentExecutionLinkError(
-        `decision "${decisionId}" has a completed session explicitly linked via decision_id, but AthleteDay(${decisionDate})'s same-day session is not linked to this decision`
-      );
-    }
-  }
-
-  const snapshot = sameDay === null ? null : sameDaySessionSnapshot(sameDay);
-
-  let signal: ExecutionSignal;
-  if (snapshot === null) {
-    signal = { state: "no_completed_session" };
-  } else if (snapshot.linkedDecisionId === null) {
-    signal = { state: "same_day_session_unlinked" };
-  } else if (snapshot.linkedDecisionId === decisionId) {
-    signal = {
-      state: "explicit",
-      completedSessionId: snapshot.id,
-      sessionType: snapshot.sessionType,
-      completionStatus: snapshot.completionStatus,
-      actualDurationMin: snapshot.actualDurationMin,
-      rpe: snapshot.rpe,
-      sessionLoad: snapshot.sessionLoad,
-      postLegFatigue: snapshot.postLegFatigue,
-      postGripFatigue: snapshot.postGripFatigue,
-      newPain: snapshot.newPain,
-    };
-  } else {
-    signal = { state: "same_day_session_linked_elsewhere" };
-  }
-
-  return { signal, sameDaySession: snapshot };
-}
-
 function buildResponseSignals(checkin: DailyCheckinSource | null): ResponseSignals {
   return {
     energy: numericSignal(checkin, (c) => c.energy),
@@ -296,7 +179,7 @@ export function calculateDecisionOutcomeSnapshot(input: CalculateDecisionOutcome
   validateObservedThroughDate(observedThroughDate);
 
   // --- Canonical decision resolution — by value, never reference identity. ---
-  const thread = resolveDecisionThread(timeline, decisionId);
+  const thread = resolveDecisionThreadById(timeline, decisionId);
   const decisionDate = thread.decisionDate;
 
   const targetDate = targetDateForHorizon(decisionDate, horizon);
@@ -326,7 +209,14 @@ export function calculateDecisionOutcomeSnapshot(input: CalculateDecisionOutcome
     baselineCheckinSource = baselineLink.ref;
   }
 
-  const execution = resolveExecution(timeline, thread);
+  // --- Execution — resolved by the shared relations/executionRelationship
+  // resolver (M5_005 extraction), never re-implemented here. The resolver
+  // does its own (redundant but harmless) decisionId lookup internally —
+  // see relations/executionRelationship.ts's own doc for why. Its raw
+  // CompletedSessionOnDay result is converted to this calculator's own
+  // SameDaySessionSnapshot shape locally, exactly as before the extraction.
+  const execution = resolveExecutionRelationship({ timeline, decisionId });
+  const sameDaySession = execution.sameDaySession === null ? null : sameDaySessionSnapshot(execution.sameDaySession);
 
   const healthFlags = timeline.healthFlagThreads.map((t) => t.flag);
   const health = buildHealthContext(healthFlags, decisionDate, targetDate);
@@ -348,7 +238,7 @@ export function calculateDecisionOutcomeSnapshot(input: CalculateDecisionOutcome
     targetDate,
     sourceCheckin: baselineCheckinSource === null ? null : checkinSnapshot(baselineCheckinSource),
     targetCheckin: targetCheckinSource === null ? null : checkinSnapshot(targetCheckinSource),
-    sameDaySession: execution.sameDaySession,
+    sameDaySession,
     healthFlagsInWindow: health.flagsInWindow,
   };
 

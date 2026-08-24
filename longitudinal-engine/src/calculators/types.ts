@@ -8,6 +8,9 @@
  * belongs to a future M5_005 detector layer, never here.
  */
 import type { CompletionStatus, DbSessionType, DecisionOutcomeHorizon, HealthFlagStatus, HealthFlagType } from "../types/sources.js";
+import type { ExecutionSignal } from "../relations/types.js";
+
+export type { ExecutionSignal } from "../relations/types.js";
 
 // ===========================================================================
 // Signal primitives
@@ -32,25 +35,9 @@ export interface HealthFlagRef {
 }
 
 // ===========================================================================
-// Execution — strict discriminated union (M5_004 final lock, point 15)
+// Execution — ExecutionSignal is defined in relations/types.ts (shared with
+// M5_005's detector layer) and re-exported above for backward compatibility.
 // ===========================================================================
-
-export type ExecutionSignal =
-  | {
-      readonly state: "explicit";
-      readonly completedSessionId: string;
-      readonly sessionType: DbSessionType;
-      readonly completionStatus: CompletionStatus;
-      readonly actualDurationMin: number | null;
-      readonly rpe: number | null;
-      readonly sessionLoad: number | null;
-      readonly postLegFatigue: number | null;
-      readonly postGripFatigue: number | null;
-      readonly newPain: boolean;
-    }
-  | { readonly state: "no_completed_session" }
-  | { readonly state: "same_day_session_unlinked" }
-  | { readonly state: "same_day_session_linked_elsewhere" };
 
 // ===========================================================================
 // Response / delta / health-context signal groups

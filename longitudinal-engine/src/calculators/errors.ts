@@ -9,22 +9,22 @@
  * timeline/athleteScoping.ts's TimelineAthleteMismatchError and
  * timeline/decisionThread.ts's OrphanedDecisionOutcomeError, which this
  * module deliberately does not duplicate.
+ *
+ * `DecisionNotFoundInTimelineError`, `DuplicateDecisionThreadError`,
+ * `InconsistentTimelineDayError`, `InconsistentExecutionLinkError`, and
+ * `InconsistentExecutionDateError` moved to `relations/errors.ts` in
+ * M5_005 (shared with the detector layer) and are re-exported here
+ * verbatim — same class identity, `instanceof` still works — so the M5_004
+ * import surface (`calculators/index.ts` and, transitively, the package
+ * root) remains valid for every existing consumer.
  */
-
-export class DecisionNotFoundInTimelineError extends Error {
-  constructor(decisionId: string) {
-    super(`DecisionNotFoundInTimelineError: no DecisionThread found for decisionId "${decisionId}" in the supplied timeline`);
-    this.name = "DecisionNotFoundInTimelineError";
-  }
-}
-
-/** Structurally should never happen (decision.id is a DB primary key, and M5_002B builds exactly one thread per decision row) — kept as defense in depth, never resolved by picking one. */
-export class DuplicateDecisionThreadError extends Error {
-  constructor(decisionId: string, count: number) {
-    super(`DuplicateDecisionThreadError: ${count} DecisionThreads found for decisionId "${decisionId}" — expected exactly one`);
-    this.name = "DuplicateDecisionThreadError";
-  }
-}
+export {
+  DecisionNotFoundInTimelineError,
+  DuplicateDecisionThreadError,
+  InconsistentTimelineDayError,
+  InconsistentExecutionLinkError,
+  InconsistentExecutionDateError,
+} from "../relations/errors.js";
 
 export class InvalidObservedThroughDateError extends Error {
   constructor(value: string, reason: string) {
@@ -58,14 +58,6 @@ export class OutcomeTimelineCoverageError extends Error {
   }
 }
 
-/** M5_002B materializes exactly one AthleteDay per date in range — once a date is proven inside range, finding anything other than exactly one is a malformed timeline, never treated as "zero check-ins". */
-export class InconsistentTimelineDayError extends Error {
-  constructor(date: string, count: number) {
-    super(`InconsistentTimelineDayError: expected exactly one AthleteDay for date ${date} within the covered range, found ${count}`);
-    this.name = "InconsistentTimelineDayError";
-  }
-}
-
 export class InconsistentTargetCheckinError extends Error {
   constructor(targetDate: string, count: number) {
     super(`InconsistentTargetCheckinError: expected 0 or 1 check-in on ${targetDate}, found ${count}`);
@@ -80,31 +72,5 @@ export class InconsistentBaselineCheckinError extends Error {
       `InconsistentBaselineCheckinError: decision "${decisionId}" linkedSourceCheckin "${checkinId}" has checkinDate ${checkinDate}, expected exactly decisionDate ${decisionDate}`
     );
     this.name = "InconsistentBaselineCheckinError";
-  }
-}
-
-/**
- * Covers every same-day/reverse-link cardinality and bidirectional
- * agreement violation (see decisionOutcomeSnapshot.ts's resolveExecution
- * for the exact truth table) — a single class, distinguished by its
- * message, rather than one class per violated invariant: all of them are
- * the same underlying fact ("the two canonical views of this decision's
- * execution relationship disagree"), never repaired by picking one view
- * over the other.
- */
-export class InconsistentExecutionLinkError extends Error {
-  constructor(reason: string) {
-    super(`InconsistentExecutionLinkError: ${reason}`);
-    this.name = "InconsistentExecutionLinkError";
-  }
-}
-
-/** Violates the frozen M5_001A/M5_003 contract that an explicitly linked completed_sessions row always has session_date === decisions.decision_date (enforced by completed-session/index.ts's own preflight). */
-export class InconsistentExecutionDateError extends Error {
-  constructor(decisionId: string, decisionDate: string, sessionId: string, sessionDate: string) {
-    super(
-      `InconsistentExecutionDateError: completed session "${sessionId}" is explicitly linked to decision "${decisionId}" (decisionDate ${decisionDate}) but has sessionDate ${sessionDate}`
-    );
-    this.name = "InconsistentExecutionDateError";
   }
 }
