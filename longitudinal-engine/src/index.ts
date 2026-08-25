@@ -22,9 +22,17 @@
  * top-level barrel (its shared error/type identities are already reachable
  * via `calculators/index.js`'s existing re-exports; a second `export *`
  * for the same names would create an ambiguous star-export collision).
+ * M5_006A: append-only evidence persistence for M5_005's detector
+ * (pattern_evidence_identities/_revisions/_source_refs +
+ * persist_pattern_evidence RPC), plus the M5_005-specific persistence
+ * adapter (src/persistence/**) — DB interaction confined to that
+ * directory; detectors/** and relations/** remain pure. Still no
+ * aggregation, no learned patterns, no scheduler/trigger, no other
+ * detector's persistence adapter.
  */
 export * from "./types/index.js";
 export * from "./supabase/index.js";
 export * from "./timeline/index.js";
 export * from "./calculators/index.js";
 export * from "./detectors/index.js";
+export * from "./persistence/index.js";
