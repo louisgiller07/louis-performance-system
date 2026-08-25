@@ -11,3 +11,15 @@
 export { persistRecommendationVsActualEvidence } from "./recommendationVsActualAdapter.js";
 export type { PersistRecommendationVsActualEvidenceParams } from "./recommendationVsActualAdapter.js";
 export type { PersistPatternEvidenceAdapterResult, PersistPatternEvidenceAction } from "./types.js";
+
+// M5_006B — generic lifecycle RPC adapters (detector-agnostic) + result shapes.
+export { transitionPatternEvidenceLifecycle, persistActivePatternEvidence } from "./lifecycleAdapter.js";
+export type { TransitionPatternEvidenceLifecycleParams, PersistActivePatternEvidenceParams } from "./lifecycleAdapter.js";
+export type {
+  PatternEvidenceLifecycleState,
+  TransitionPatternEvidenceLifecycleAction,
+  TransitionPatternEvidenceLifecycleResult,
+  PersistActivePatternEvidenceEvidenceAction,
+  PersistActivePatternEvidenceLifecycleAction,
+  PersistActivePatternEvidenceResult,
+} from "./lifecycleTypes.js";

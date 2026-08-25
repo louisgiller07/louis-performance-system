@@ -565,6 +565,10 @@ describe("pattern_evidence schema — integration", () => {
       // reaching this point; these are an independent, redundant confirmation, not the only check.
       expect(scratchTriggerCount()).toBe(0);
       expect(scratchFunctionCount()).toBe(0);
-    });
+      // M5_006B added more concurrent writers to this same table (persist_active_pattern_evidence's
+      // sibling test files) — the DDL CREATE/DROP TRIGGER calls above can legitimately queue behind
+      // that extra write traffic during a full parallel `npm test` run, past vitest's 5s default. This
+      // widens the timeout only — no assertion, no guarantee proven by this test changes.
+    }, 20_000);
   });
 });
