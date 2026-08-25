@@ -29,3 +29,21 @@ export type {
   RecommendationVsActualSourceRefs,
   NoEvidenceReason,
 } from "./types.js";
+
+// M5_006B — sleep_quality_to_same_day_energy_correlation detector.
+export { detectSleepQualityToSameDayEnergyCorrelation } from "./sleepQualityToSameDayEnergyCorrelation.js";
+export type { DetectSleepQualityToSameDayEnergyCorrelationInput } from "./sleepQualityToSameDayEnergyCorrelation.js";
+export { SLEEP_ENERGY_RULE_ID, SLEEP_ENERGY_RULE_VERSION, SLEEP_ENERGY_RANKING_METHOD } from "./sleepEnergyConstants.js";
+export { CheckinNotFoundInTimelineError, InsufficientTimelineCoverageError, DuplicateCheckinDateError } from "./sleepEnergyErrors.js";
+export type {
+  SleepEnergyRuleId,
+  SleepEnergyBucket,
+  RatingHistogram,
+  SleepEnergyConfounderReason,
+  SleepEnergySourceRefs,
+  SleepEnergyObservedValue,
+  SleepEnergyEvidence,
+  SleepEnergyNoEvidenceReason,
+  SleepEnergyNoEvidence,
+  SleepEnergyDetection,
+} from "./sleepEnergyTypes.js";

@@ -23,3 +23,7 @@ export type {
   PersistActivePatternEvidenceLifecycleAction,
   PersistActivePatternEvidenceResult,
 } from "./lifecycleTypes.js";
+
+// M5_006B — sleep-energy detector's own persistence adapter.
+export { persistSleepEnergyEvidence } from "./sleepEnergyAdapter.js";
+export type { PersistSleepEnergyEvidenceParams, PersistSleepEnergyEvidenceResult, SleepEnergyNoEvidenceAction } from "./sleepEnergyAdapter.js";

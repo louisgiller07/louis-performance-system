@@ -100,6 +100,11 @@ export interface CheckinOverrides {
   pain_getting_worse?: boolean | null;
   pain_location_code?: string | null;
   sleep_hours?: number | null;
+  /** M5_006B sleep-energy detector fixtures. */
+  sleep_quality?: number | null;
+  energy?: number | null;
+  suspected_concussion?: boolean;
+  fever_or_illness?: boolean;
 }
 
 export async function insertCheckin(
