@@ -32,6 +32,56 @@ function runPsql(sql: string): string {
   return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
+/**
+ * Same transport as `runPsql`, but for statements whose success this suite's
+ * own correctness depends on (DDL install/teardown of the scratch
+ * fault-injection trigger). `spawnSync`'s `status`/`error` were previously
+ * never inspected here — a spawn failure, a non-zero psql exit code, or a
+ * statement-level ERROR (e.g. a DDL lock wait/contention against concurrent
+ * writers to the same table from sibling integration-test files running in
+ * parallel during a full `npm test`) could all pass through completely
+ * silently. `ON_ERROR_STOP=1` makes psql itself exit non-zero on the first
+ * failing statement; combined with checking `status`/`error` here, any such
+ * failure now throws immediately with the real stdout+stderr attached,
+ * instead of being swallowed and only surfacing later (or never) via an
+ * unrelated downstream assertion.
+ */
+function runPsqlChecked(sql: string, extraArgs: readonly string[] = []): { stdout: string; stderr: string } {
+  const result = spawnSync("docker", ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", ...extraArgs], {
+    input: sql,
+    encoding: "utf8",
+  });
+  const stdout = result.stdout ?? "";
+  const stderr = result.stderr ?? "";
+  if (result.error) {
+    throw new Error(`runPsqlChecked: failed to spawn "docker exec ... psql": ${result.error.message}\nsql:\n${sql}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`runPsqlChecked: psql exited with status ${String(result.status)} (signal=${String(result.signal)})\nstdout:\n${stdout}\nstderr:\n${stderr}\nsql:\n${sql}`);
+  }
+  return { stdout, stderr };
+}
+
+/**
+ * Runs exactly one `select count(*) ...` via the CLI flags `-t` (tuples
+ * only) and `-A` (unaligned) — not the `\pset` meta-commands, which echo a
+ * confirmation line ("Output format is unaligned.") into stdout and would
+ * have to be stripped right back out. With `-t -A` the entire stdout is
+ * just the digits — no header, no row-count footer, no column padding, no
+ * confirmation noise, nothing to regex around. Throws (via
+ * `runPsqlChecked`) on any spawn/exit-code/statement failure, and throws
+ * separately if the output isn't a clean non-negative integer — a
+ * malformed/empty result is a harness bug, never silently treated as 0.
+ */
+function psqlScalarCount(sql: string): number {
+  const { stdout } = runPsqlChecked(sql, ["-t", "-A"]);
+  const trimmed = stdout.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error(`psqlScalarCount: expected a single non-negative integer, got: ${JSON.stringify(stdout)}\nsql:\n${sql}`);
+  }
+  return Number(trimmed);
+}
+
 describe("pattern_evidence schema — integration", () => {
   let client: SupabaseClient;
   let athleteA: TestAthlete;
@@ -383,8 +433,22 @@ describe("pattern_evidence schema — integration", () => {
 
   describe("atomic rollback — REAL RPC provenance failure -> full transaction rollback", () => {
     const MARKER_ROLE = "__m5006a_force_provenance_failure__";
-    const FAULT_FN = "public.__m5006a_test_force_provenance_failure";
+    const FAULT_FN_NAME = "__m5006a_test_force_provenance_failure";
+    const FAULT_FN = `public.${FAULT_FN_NAME}`;
     const FAULT_TRIGGER = "__m5006a_test_force_provenance_failure_trigger";
+
+    /**
+     * Scratch-object presence, read via `psqlScalarCount` (machine-readable
+     * `-t`/unaligned output, not a regex over psql's human-formatted table)
+     * so both the pre-test and post-cleanup invariants are checked the same
+     * deterministic way.
+     */
+    function scratchTriggerCount(): number {
+      return psqlScalarCount(`select count(*) from pg_trigger where tgname = '${FAULT_TRIGGER}';`);
+    }
+    function scratchFunctionCount(): number {
+      return psqlScalarCount(`select count(*) from pg_proc where proname = '${FAULT_FN_NAME}';`);
+    }
 
     /**
      * Installs a scratch BEFORE INSERT trigger on pattern_evidence_source_refs
@@ -396,9 +460,13 @@ describe("pattern_evidence schema — integration", () => {
      * public-schema object is required for the fault to actually be reachable
      * by the real persist_pattern_evidence execution path — removed in the
      * `finally` block below, never left behind, never part of a migration.
+     * Uses `runPsqlChecked`: a failed CREATE (e.g. lock contention against
+     * concurrent writers to the same table from sibling integration-test
+     * files running in parallel during a full suite run) now throws with the
+     * real error instead of silently leaving the fault not actually armed.
      */
     function installFaultTrigger(): void {
-      const out = runPsql(`
+      runPsqlChecked(`
         create or replace function ${FAULT_FN}() returns trigger
           language plpgsql
           as $fn$
@@ -414,18 +482,40 @@ describe("pattern_evidence schema — integration", () => {
           before insert on public.pattern_evidence_source_refs
           for each row execute function ${FAULT_FN}();
       `);
-      expect(out).not.toMatch(/ERROR/i);
     }
 
+    /**
+     * Drops the scratch trigger and function. Each DROP is issued as its own
+     * `runPsqlChecked` call (rather than one multi-statement invocation) so a
+     * failure on either statement is attributed unambiguously and throws
+     * immediately with that statement's own stderr — this is the fix for the
+     * previously-observed silent cleanup failure: `removeFaultTrigger()` used
+     * to call the unchecked `runPsql`, discard its output entirely, and never
+     * verify the DROPs actually took effect; a `docker exec` spawn failure or
+     * a Postgres-side error (most plausibly DDL lock contention: DROP TRIGGER
+     * / DROP FUNCTION both require an ACCESS EXCLUSIVE lock on
+     * pattern_evidence_source_refs, which can be held up by concurrent
+     * INSERT traffic from other integration-test files racing against this
+     * one during a full parallel `npm test` run) would then surface, if at
+     * all, only later via the separate final count-based assertion — or not
+     * at all, if that assertion were ever weakened. Now: any such failure
+     * throws here, loudly, with the exact command and error attached.
+     */
     function removeFaultTrigger(): void {
-      runPsql(`
-        drop trigger if exists ${FAULT_TRIGGER} on public.pattern_evidence_source_refs;
-        drop function if exists ${FAULT_FN}();
-      `);
+      runPsqlChecked(`drop trigger if exists ${FAULT_TRIGGER} on public.pattern_evidence_source_refs;`);
+      runPsqlChecked(`drop function if exists ${FAULT_FN}();`);
     }
 
     it("a forced failure on the REAL persist_pattern_evidence provenance-insert step rolls back the entire RPC call — no orphan identity, no orphan revision, no orphan source_ref", async () => {
+      // Required invariant, checked before touching anything: no scratch
+      // trigger/function already present from a previous run.
+      expect(scratchTriggerCount()).toBe(0);
+      expect(scratchFunctionCount()).toBe(0);
+
       installFaultTrigger();
+      expect(scratchTriggerCount()).toBe(1);
+      expect(scratchFunctionCount()).toBe(1);
+
       const marker = `rpc-atomic-rollback-${randomUUID()}`;
       const evaluationKey = `decision:${decisionId}`;
       const evidenceKey = `decision:${decisionId}:atomicfault:${marker}`;
@@ -457,26 +547,24 @@ describe("pattern_evidence schema — integration", () => {
           .eq("evidence_key", evidenceKey);
         expect(identityCount).toBe(0);
 
-        const revisionCountOut = runPsql(`
+        const revisionCount = psqlScalarCount(`
           select count(*) from public.pattern_evidence_revisions r
           join public.pattern_evidence_identities i on i.id = r.evidence_identity_id
           where i.evidence_key = '${evidenceKey}';
         `);
-        expect(revisionCountOut).toMatch(/\n\s*0\s*\n/);
+        expect(revisionCount).toBe(0);
 
-        const sourceRefCountOut = runPsql(`select count(*) from public.pattern_evidence_source_refs where role = '${MARKER_ROLE}';`);
-        expect(sourceRefCountOut).toMatch(/\n\s*0\s*\n/);
+        const sourceRefCount = psqlScalarCount(`select count(*) from public.pattern_evidence_source_refs where role = '${MARKER_ROLE}';`);
+        expect(sourceRefCount).toBe(0);
       } finally {
         removeFaultTrigger();
       }
 
       // Prove cleanup actually happened — no scratch trigger/function remains after this test.
-      const remaining = runPsql(`
-        select count(*) from pg_trigger where tgname = '${FAULT_TRIGGER}';
-        select count(*) from pg_proc where proname = '__m5006a_test_force_provenance_failure';
-      `);
-      const zeroCounts = remaining.match(/\n\s*0\s*\n/g) ?? [];
-      expect(zeroCounts.length).toBeGreaterThanOrEqual(2);
+      // If either DROP above had failed, removeFaultTrigger() would already have thrown before
+      // reaching this point; these are an independent, redundant confirmation, not the only check.
+      expect(scratchTriggerCount()).toBe(0);
+      expect(scratchFunctionCount()).toBe(0);
     });
   });
 });
