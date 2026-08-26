@@ -51,13 +51,24 @@ function readSingleCheckin(timeline: AthleteTimeline, date: string): DailyChecki
   return day.checkins.length === 1 ? day.checkins[0]! : null;
 }
 
-/** Validates the real DB's pain<=>intensity invariant — never normalizes/coerces, only rejects. */
+/**
+ * Validates the real DB's pain<=>intensity invariant — never
+ * normalizes/coerces, only rejects. The real column is PostgreSQL INTEGER
+ * in [0,10]: `painIntensity < 0`/`> 10` alone would silently accept `NaN`
+ * (both comparisons are false for NaN) and any non-integer finite value
+ * (e.g. 4.5, which a real INTEGER column can never hold) — `Number.isFinite`
+ * and `Number.isInteger` close both gaps explicitly, never by rounding or
+ * coercing the value itself.
+ */
 function assertConsistentPainState(checkin: DailyCheckinSource): void {
   const { id, pain, painIntensity } = checkin;
   if (pain === false && painIntensity !== null) {
     throw new InconsistentPainStateError(id, pain, painIntensity);
   }
-  if (pain === true && (painIntensity === null || painIntensity < 0 || painIntensity > 10)) {
+  if (
+    pain === true &&
+    (painIntensity === null || !Number.isFinite(painIntensity) || !Number.isInteger(painIntensity) || painIntensity < 0 || painIntensity > 10)
+  ) {
     throw new InconsistentPainStateError(id, pain, painIntensity);
   }
 }

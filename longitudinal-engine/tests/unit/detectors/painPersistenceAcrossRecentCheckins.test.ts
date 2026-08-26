@@ -12,7 +12,7 @@ import {
   DuplicateCheckinDateError,
 } from "../../../src/detectors/index.js";
 import type { PainPersistenceEvidence, PainPersistenceNoEvidence } from "../../../src/detectors/index.js";
-import { ATHLETE_A, checkin, emptySources, resetIdSequence } from "../timeline/fixtures.js";
+import { ATHLETE_A, checkin, completedSession, decision, decisionOutcome, emptySources, healthFlag, resetIdSequence } from "../timeline/fixtures.js";
 import type { DailyCheckinSource } from "../../../src/types/sources.js";
 
 beforeEach(() => resetIdSequence());
@@ -322,10 +322,62 @@ describe("detectPainPersistenceAcrossRecentCheckins", () => {
       const timeline = buildScenarioTimeline([c, p]);
       expect(() => detect(timeline, c.id)).not.toThrow();
     });
+
+    it("candidate: pain=true with non-integer finite intensity (4.5) throws — the real column is INTEGER", () => {
+      const bad = { ...candidateCheckin(), pain: true, painIntensity: 4.5 } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([bad]);
+      expect(() => detect(timeline, bad.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("previous checkin: pain=true with non-integer finite intensity (4.5) throws", () => {
+      const c = candidateCheckin();
+      const badP = { ...painCheckin({ checkinDate: offsetDate(-1) }), painIntensity: 4.5 } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([c, badP]);
+      expect(() => detect(timeline, c.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("candidate: pain=true with NaN intensity throws — NaN < 0 and NaN > 10 are both false, so a naive range check alone would miss this", () => {
+      const bad = { ...candidateCheckin(), pain: true, painIntensity: Number.NaN } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([bad]);
+      expect(() => detect(timeline, bad.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("previous checkin: pain=true with NaN intensity throws", () => {
+      const c = candidateCheckin();
+      const badP = { ...painCheckin({ checkinDate: offsetDate(-1) }), painIntensity: Number.NaN } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([c, badP]);
+      expect(() => detect(timeline, c.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("candidate: pain=true with Infinity intensity throws", () => {
+      const bad = { ...candidateCheckin(), pain: true, painIntensity: Number.POSITIVE_INFINITY } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([bad]);
+      expect(() => detect(timeline, bad.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("candidate: pain=true with -Infinity intensity throws", () => {
+      const bad = { ...candidateCheckin(), pain: true, painIntensity: Number.NEGATIVE_INFINITY } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([bad]);
+      expect(() => detect(timeline, bad.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("candidate: pain=true with intensity=-1 throws", () => {
+      const bad = { ...candidateCheckin(), pain: true, painIntensity: -1 } as DailyCheckinSource;
+      const timeline = buildScenarioTimeline([bad]);
+      expect(() => detect(timeline, bad.id)).toThrow(InconsistentPainStateError);
+    });
+
+    it("every integer 0..10 is accepted for pain=true (boundary sweep)", () => {
+      for (let intensity = 0; intensity <= 10; intensity++) {
+        const c = candidateCheckin({ id: `boundary-${intensity}`, painIntensity: intensity });
+        const timeline = buildScenarioTimeline([c]);
+        expect(() => detect(timeline, c.id)).not.toThrow();
+      }
+    });
   });
 
   describe("non-consumption of safety/context fields", () => {
-    it("painTraumatic/painFunctionLoss/painGettingWorse/suspectedConcussion/feverOrIllness never affect the result", () => {
+    it("painTraumatic/painFunctionLoss/painGettingWorse/suspectedConcussion/feverOrIllness never affect the result (on the CANDIDATE)", () => {
       const p = painCheckin({ checkinDate: offsetDate(-1), painLocationCode: "knee_L" });
       const cA = candidateCheckin({ painLocationCode: "knee_L", painNew: false, painTraumatic: false, painFunctionLoss: false, painGettingWorse: false, suspectedConcussion: false, feverOrIllness: false });
       const cB = { ...cA, painTraumatic: true, painFunctionLoss: true, painGettingWorse: true, suspectedConcussion: true, feverOrIllness: true };
@@ -334,13 +386,68 @@ describe("detectPainPersistenceAcrossRecentCheckins", () => {
       expect(detect(timelineA, cA.id)).toEqual(detect(timelineB, cB.id));
     });
 
-    it("sleepHours/sleepQuality/energy/workStress/motivation/legFatigue/gripFatigue never affect the result", () => {
+    it("sleepHours/sleepQuality/energy/workStress/motivation/legFatigue/gripFatigue never affect the result (on the CANDIDATE)", () => {
       const p = painCheckin({ checkinDate: offsetDate(-1), painLocationCode: "knee_L" });
       const cA = candidateCheckin({ painLocationCode: "knee_L", painNew: false, sleepHours: 4, sleepQuality: 2, energy: 1, workStress: 9, motivation: 1, legFatigue: 9, gripFatigue: 9 });
       const cB = { ...cA, sleepHours: 9, sleepQuality: 9, energy: 9, workStress: 1, motivation: 9, legFatigue: 1, gripFatigue: 1 };
       const timelineA = buildScenarioTimeline([cA, p]);
       const timelineB = buildScenarioTimeline([cB, p]);
       expect(detect(timelineA, cA.id)).toEqual(detect(timelineB, cB.id));
+    });
+
+    it("painTraumatic/painFunctionLoss/painGettingWorse/suspectedConcussion/feverOrIllness never affect the result (on the PREVIOUS checkin)", () => {
+      const c = candidateCheckin({ painLocationCode: "knee_L", painNew: false });
+      const pA = painCheckin({
+        checkinDate: offsetDate(-1),
+        painLocationCode: "knee_L",
+        painTraumatic: false,
+        painFunctionLoss: false,
+        painGettingWorse: false,
+        suspectedConcussion: false,
+        feverOrIllness: false,
+      });
+      const pB = { ...pA, painTraumatic: true, painFunctionLoss: true, painGettingWorse: true, suspectedConcussion: true, feverOrIllness: true };
+      const timelineA = buildScenarioTimeline([c, pA]);
+      const timelineB = buildScenarioTimeline([c, pB]);
+      expect(detect(timelineA, c.id)).toEqual(detect(timelineB, c.id));
+    });
+
+    it("sleepHours/sleepQuality/energy/workStress/motivation/legFatigue/gripFatigue never affect the result (on the PREVIOUS checkin)", () => {
+      const c = candidateCheckin({ painLocationCode: "knee_L", painNew: false });
+      const pA = painCheckin({ checkinDate: offsetDate(-1), painLocationCode: "knee_L", sleepHours: 4, sleepQuality: 2, energy: 1, workStress: 9, motivation: 1, legFatigue: 9, gripFatigue: 9 });
+      const pB = { ...pA, sleepHours: 9, sleepQuality: 9, energy: 9, workStress: 1, motivation: 9, legFatigue: 1, gripFatigue: 1 };
+      const timelineA = buildScenarioTimeline([c, pA]);
+      const timelineB = buildScenarioTimeline([c, pB]);
+      expect(detect(timelineA, c.id)).toEqual(detect(timelineB, c.id));
+    });
+
+    it("irrelevant data in decisions/completedSessions/outcomes/healthFlags never affects the result — freezes the architecture boundary (M5_006C consumes DailyCheckin pain facts only)", () => {
+      const p = painCheckin({ checkinDate: offsetDate(-1), painLocationCode: "knee_L" });
+      const c = candidateCheckin({ painLocationCode: "knee_L", painNew: false });
+
+      const emptyTimeline = buildScenarioTimeline([c, p]);
+
+      const noisyDecision = decision({ decisionDate: offsetDate(-2) });
+      const noisyCompletedSession = completedSession({ sessionDate: offsetDate(-2) });
+      const noisyHealthFlag = healthFlag({ flagDate: offsetDate(-2) });
+      const noisyOutcome = decisionOutcome({ decisionId: noisyDecision.id });
+
+      const noisyTimeline = buildTimeline({
+        athleteId: ATHLETE_A,
+        range: RANGE,
+        sources: {
+          ...emptySources(),
+          checkins: [c, p],
+          decisions: [noisyDecision],
+          completedSessions: [noisyCompletedSession],
+          healthFlags: [noisyHealthFlag],
+          outcomes: [noisyOutcome],
+        },
+      });
+
+      expect(detectPainPersistenceAcrossRecentCheckins({ timeline: noisyTimeline, evaluationCheckinId: c.id })).toEqual(
+        detectPainPersistenceAcrossRecentCheckins({ timeline: emptyTimeline, evaluationCheckinId: c.id })
+      );
     });
   });
 
