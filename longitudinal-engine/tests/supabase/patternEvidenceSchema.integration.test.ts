@@ -436,6 +436,8 @@ describe("pattern_evidence schema — integration", () => {
     const FAULT_FN_NAME = "__m5006a_test_force_provenance_failure";
     const FAULT_FN = `public.${FAULT_FN_NAME}`;
     const FAULT_TRIGGER = "__m5006a_test_force_provenance_failure_trigger";
+    /** Bounds the fault-injection DDL's lock wait — see installFaultTrigger's doc for why a JS-level timeout alone cannot do this. Comfortably inside the test's own 15s `it()` timeout below. */
+    const LOCK_TIMEOUT = "8s";
 
     /**
      * Scratch-object presence, read via `psqlScalarCount` (machine-readable
@@ -460,13 +462,44 @@ describe("pattern_evidence schema — integration", () => {
      * public-schema object is required for the fault to actually be reachable
      * by the real persist_pattern_evidence execution path — removed in the
      * `finally` block below, never left behind, never part of a migration.
-     * Uses `runPsqlChecked`: a failed CREATE (e.g. lock contention against
-     * concurrent writers to the same table from sibling integration-test
-     * files running in parallel during a full suite run) now throws with the
-     * real error instead of silently leaving the fault not actually armed.
+     *
+     * `SET lock_timeout` (see LOCK_TIMEOUT below) bounds how long the
+     * `CREATE TRIGGER`/`CREATE FUNCTION` DDL below may wait for its required
+     * ACCESS EXCLUSIVE lock. `runPsqlChecked` uses `spawnSync` — a genuinely
+     * thread-blocking call — so an unbounded lock wait here would freeze the
+     * whole worker at the OS level for as long as the wait lasts; vitest's
+     * own JS-level `it()` timeout cannot fire while the thread is blocked in
+     * native code (empirically reproduced: a held ACCESS EXCLUSIVE lock on
+     * this table let a 3-second `it()` timeout run past 30+ seconds with no
+     * timeout ever reported), so a JS timeout alone cannot bound this wait —
+     * only a SQL-level timeout can. With `test.fileParallelism: false`
+     * (vitest.config.ts) no sibling tests/supabase/** file can be writing to
+     * this table concurrently any more, so this should never actually fire —
+     * it exists as defense in depth, converting any residual/future
+     * contention into a fast, loud, clearly-diagnosable failure instead of
+     * an unbounded hang that becomes a real orphan if something external
+     * (a CI job budget, an interrupted local run) kills the hung process
+     * mid-wait, letting the detached docker-exec child finish the CREATE
+     * with nothing left alive to ever call cleanup — see
+     * docs/11_DECISION_LOG.md (M5_006B hardening entry) for the full,
+     * reproduced root-cause account.
      */
     function installFaultTrigger(): void {
+      // Explicit BEGIN/COMMIT: this is two separate DDL statements (function,
+      // then trigger). Without a transaction wrapper, each autocommits on its
+      // own — if the second (CREATE TRIGGER) fails after the first (CREATE
+      // FUNCTION) already succeeded (e.g. a lock_timeout abort on the
+      // trigger specifically), the function would be left behind, committed,
+      // even though this call as a whole throws. Empirically confirmed: an
+      // unwrapped two-statement version left an orphaned function after a
+      // deliberately-forced lock_timeout failure on the trigger statement.
+      // `ON_ERROR_STOP=1` means psql never reaches COMMIT once any statement
+      // fails, and the session closing without a COMMIT rolls the whole
+      // transaction back.
       runPsqlChecked(`
+        set lock_timeout = '${LOCK_TIMEOUT}';
+        begin;
+
         create or replace function ${FAULT_FN}() returns trigger
           language plpgsql
           as $fn$
@@ -481,6 +514,8 @@ describe("pattern_evidence schema — integration", () => {
         create trigger ${FAULT_TRIGGER}
           before insert on public.pattern_evidence_source_refs
           for each row execute function ${FAULT_FN}();
+
+        commit;
       `);
     }
 
@@ -488,22 +523,17 @@ describe("pattern_evidence schema — integration", () => {
      * Drops the scratch trigger and function. Each DROP is issued as its own
      * `runPsqlChecked` call (rather than one multi-statement invocation) so a
      * failure on either statement is attributed unambiguously and throws
-     * immediately with that statement's own stderr — this is the fix for the
+     * immediately with that statement's own stderr — the fix for the
      * previously-observed silent cleanup failure: `removeFaultTrigger()` used
      * to call the unchecked `runPsql`, discard its output entirely, and never
-     * verify the DROPs actually took effect; a `docker exec` spawn failure or
-     * a Postgres-side error (most plausibly DDL lock contention: DROP TRIGGER
-     * / DROP FUNCTION both require an ACCESS EXCLUSIVE lock on
-     * pattern_evidence_source_refs, which can be held up by concurrent
-     * INSERT traffic from other integration-test files racing against this
-     * one during a full parallel `npm test` run) would then surface, if at
-     * all, only later via the separate final count-based assertion — or not
-     * at all, if that assertion were ever weakened. Now: any such failure
-     * throws here, loudly, with the exact command and error attached.
+     * verify the DROPs actually took effect. `SET lock_timeout` again bounds
+     * the wait (see installFaultTrigger's doc above) — any failure here now
+     * throws loudly, with the exact command and error attached, instead of
+     * hanging unboundedly.
      */
     function removeFaultTrigger(): void {
-      runPsqlChecked(`drop trigger if exists ${FAULT_TRIGGER} on public.pattern_evidence_source_refs;`);
-      runPsqlChecked(`drop function if exists ${FAULT_FN}();`);
+      runPsqlChecked(`set lock_timeout = '${LOCK_TIMEOUT}'; drop trigger if exists ${FAULT_TRIGGER} on public.pattern_evidence_source_refs;`);
+      runPsqlChecked(`set lock_timeout = '${LOCK_TIMEOUT}'; drop function if exists ${FAULT_FN}();`);
     }
 
     it("a forced failure on the REAL persist_pattern_evidence provenance-insert step rolls back the entire RPC call — no orphan identity, no orphan revision, no orphan source_ref", async () => {
@@ -569,6 +599,9 @@ describe("pattern_evidence schema — integration", () => {
       // sibling test files) — the DDL CREATE/DROP TRIGGER calls above can legitimately queue behind
       // that extra write traffic during a full parallel `npm test` run, past vitest's 5s default. This
       // widens the timeout only — no assertion, no guarantee proven by this test changes.
-    }, 20_000);
+      // Comfortably above LOCK_TIMEOUT (8s) plus normal install/RPC/drop overhead — not inflated to
+      // paper over contention (fileParallelism:false + lock_timeout now bound/eliminate that), just
+      // realistic headroom for a slower CI-class machine.
+    }, 15_000);
   });
 });
