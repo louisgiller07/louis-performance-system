@@ -47,3 +47,20 @@ export type {
   SleepEnergyNoEvidence,
   SleepEnergyDetection,
 } from "./sleepEnergyTypes.js";
+
+// M5_006C — pain_persistence_across_recent_checkins detector.
+export { detectPainPersistenceAcrossRecentCheckins } from "./painPersistenceAcrossRecentCheckins.js";
+export type { DetectPainPersistenceAcrossRecentCheckinsInput } from "./painPersistenceAcrossRecentCheckins.js";
+export { PAIN_PERSISTENCE_RULE_ID, PAIN_PERSISTENCE_RULE_VERSION, PAIN_PERSISTENCE_LOOKBACK_DAYS } from "./painPersistenceConstants.js";
+export { InconsistentPainStateError } from "./painPersistenceErrors.js";
+export type {
+  PainPersistenceRuleId,
+  PainPersistenceTransitionKind,
+  PainPersistenceAmbiguityReason,
+  PainPersistenceSourceRefs,
+  PainPersistenceObservedValue,
+  PainPersistenceEvidence,
+  PainPersistenceNoEvidenceReason,
+  PainPersistenceNoEvidence,
+  PainPersistenceDetection,
+} from "./painPersistenceTypes.js";

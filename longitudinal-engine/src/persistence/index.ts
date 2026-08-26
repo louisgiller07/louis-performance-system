@@ -27,3 +27,7 @@ export type {
 // M5_006B — sleep-energy detector's own persistence adapter.
 export { persistSleepEnergyEvidence } from "./sleepEnergyAdapter.js";
 export type { PersistSleepEnergyEvidenceParams, PersistSleepEnergyEvidenceResult, SleepEnergyNoEvidenceAction } from "./sleepEnergyAdapter.js";
+
+// M5_006C — pain-persistence detector's own persistence adapter.
+export { persistPainPersistenceEvidence } from "./painPersistenceAdapter.js";
+export type { PersistPainPersistenceEvidenceParams, PersistPainPersistenceEvidenceResult, PainPersistenceNoEvidenceAction } from "./painPersistenceAdapter.js";

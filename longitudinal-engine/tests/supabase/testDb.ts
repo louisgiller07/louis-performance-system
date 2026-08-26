@@ -95,6 +95,8 @@ export interface CheckinOverrides {
   free_comment?: string | null;
   pain?: boolean;
   pain_intensity?: number | null;
+  /** M5_006C pain-persistence detector fixtures. */
+  pain_new?: boolean | null;
   pain_traumatic?: boolean | null;
   pain_function_loss?: boolean | null;
   pain_getting_worse?: boolean | null;
