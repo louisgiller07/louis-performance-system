@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : **M4 COMPLETE (2026-08-19)** — premier client web de production, déployé en HTTPS sur `https://louis-performance-system.vercel.app`, smoke authentifié réel validé sur téléphone. Voir `docs/11_DECISION_LOG.md` (2026-08-19 — M4_006 sécurité, M4_007 déploiement) et la section M4 ci-dessous. M3 : **DONE (local + remote)**, `daily-run` déployée et ACTIVE sur `uvolpldwwyvadlamulvr`. M2 : **DONE (local + remote)**.
-**Prochain milestone** : M5 — périmètre non encore défini.
+**Phase** : **M5 EN COURS.** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26** — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_006B. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production.
+**Prochain milestone** : M5_006C — détecteur de persistance de la douleur.
 
 ---
 

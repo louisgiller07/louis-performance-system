@@ -2,7 +2,7 @@
 
 **Dernière mise à jour :** 19 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** **M4 COMPLETE.** Premier client web de production réellement utilisable au quotidien depuis un téléphone, déployé en HTTPS sur `https://louis-performance-system.vercel.app`. Le client couvre : authentification Supabase, check-in quotidien, génération réelle du coaching via `daily-run`, rendu production du `DailyPlan`, historique des décisions en lecture seule, ergonomie mobile, et un correctif de sécurité rendant `decisions` réellement append-only (`authenticated` ne peut plus écrire directement, seul `persist_daily_run`/`service_role` le peut). Smoke authentifié réel effectué par Louis sur son téléphone (login, `/today`, check-in, `/history`, détail, refresh direct, logout/relogin) : **tous PASS**. Voir `docs/11_DECISION_LOG.md` (2026-08-19 — M4_001 à M4_007) et `docs/12_BACKLOG.md` (section M4).
+**Phase actuelle :** **M5 EN COURS.** M4 reste COMPLETE (client web de production, `https://louis-performance-system.vercel.app`). M5 (longitudinal/pattern evidence) a franchi M5_001 à M5_006B — voir `docs/11_DECISION_LOG.md` pour le détail milestone par milestone. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) est **CLOSED**, déployé sur `uvolpldwwyvadlamulvr` (schéma/RPC uniquement — aucun peuplement automatique de production, aucun pattern appris n'influence `daily-run`). Prochain : **M5_006C — détecteur de persistance de la douleur.**
 
 M3 — Edge Function HTTP exposant `runDailyFor` : **DONE (local + remote)**, `daily-run` déployée et **ACTIVE** sur `uvolpldwwyvadlamulvr` (`verify_jwt: true`). Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
 
@@ -26,7 +26,7 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_
 
 ### NOT STARTED
 
-- M5 — périmètre non encore défini.
+- M5_006C (détecteur persistance douleur), M5_006D (agrégation déterministe d'evidence), M5_007 (insights / revue humaine) — jalons gelés, non entamés.
 - Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, LLM couche E, intégrations externes).
 
 ## Prochaines étapes (ordre)
@@ -36,15 +36,17 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_
 3. ~~**M3 — Edge Function locale** (`daily-run`) : portabilité Deno, boundary auth, branchement moteur.~~ **DONE (local), 2026-08-17 (M3_001/M3_002/M3_003).**
 4. ~~**M3 remote** : canary de packaging `--use-api` (M3_005), déploiement réel de `daily-run` + run authentifié complet prouvé (M3_006).~~ **DONE (remote), 2026-08-18.**
 5. ~~**M4 — première interface utilisable** (Today screen / check-in, historique, déploiement production HTTPS).~~ **DONE, 2026-08-19.**
-6. **M5** — périmètre non encore défini. Candidats connus (non engagés) : enrichissement des domaines de coaching, runtime `ActiveExperiment`, LLM couche E, intégrations externes — ordre à trancher au moment venu.
+6. ~~**M5_001-M5_006B** — timeline longitudinal, calculateur d'outcomes, détecteurs recommandation-vs-exécution et sommeil-énergie, ledger d'evidence append-only + cycle de vie.~~ **M5_006B CLOSED, 2026-08-26.** Voir `docs/11_DECISION_LOG.md`.
+7. **M5_006C** — détecteur de persistance de la douleur. Puis M5_006D (agrégation), M5_007 (insights).
 
 ## Prochain milestone
 
-**M5 — périmètre non encore défini.**
+**M5_006C — détecteur de persistance de la douleur** (non entamé).
 
 Statut M2 : **DONE (local + remote), 2026-08-17.**
 Statut M3 : **DONE (local + remote), 2026-08-18.**
 Statut M4 : **COMPLETE, 2026-08-19.**
+Statut M5 : **EN COURS** — M5_006B **CLOSED (local + remote), 2026-08-26**. Détail milestone par milestone dans `docs/11_DECISION_LOG.md`.
 
 Critères de sortie M2 :
 - [x] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé (2026-08-14).
