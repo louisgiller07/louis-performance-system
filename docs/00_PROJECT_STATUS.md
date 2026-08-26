@@ -1,6 +1,6 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 19 août 2026
+**Dernière mise à jour :** 26 août 2026
 **Version canonique en cours :** V0.2
 **Phase actuelle :** **M5 EN COURS.** M4 reste COMPLETE (client web de production, `https://louis-performance-system.vercel.app`). M5 (longitudinal/pattern evidence) a franchi M5_001 à M5_006B — voir `docs/11_DECISION_LOG.md` pour le détail milestone par milestone. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) est **CLOSED**, déployé sur `uvolpldwwyvadlamulvr` (schéma/RPC uniquement — aucun peuplement automatique de production, aucun pattern appris n'influence `daily-run`). Prochain : **M5_006C — détecteur de persistance de la douleur.**
 
