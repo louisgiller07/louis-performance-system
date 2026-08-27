@@ -359,6 +359,212 @@ describe("pattern_insight review ledger — integration", () => {
   });
 
   // ==========================================================================
+  // Append-only — TRIGGER-LEVEL proofs, not merely grants. The existing
+  // "append-only: UPDATE/DELETE is rejected" tests above go through the
+  // service_role Supabase client, which lacks UPDATE/DELETE table
+  // privileges — those tests prove least privilege, but a hypothetical
+  // future over-broad GRANT would silently defeat them. Here, direct
+  // PostgreSQL DML runs as the `postgres` superuser (bypasses RLS AND every
+  // grant), so the ONLY thing that can still block the mutation is the
+  // BEFORE UPDATE/DELETE trigger (reject_append_only_mutation) itself —
+  // isolating the assertion to the trigger, independent of role privileges.
+  // ==========================================================================
+  describe("append-only — trigger-level (bypasses grants entirely, via the postgres superuser)", () => {
+    it("UPDATE on pattern_insight_identities is rejected by the trigger itself", async () => {
+      const r1 = (await persistReview({ insightKind: freshInsightKind("trigger-update-identity") })).data as ReviewResult;
+      expect(() => runPsqlChecked(`update public.pattern_insight_identities set insight_kind = 'hacked' where id = '${r1.identity_id}';`)).toThrow(
+        /append-only violation.*pattern_insight_identities/i
+      );
+    });
+
+    it("DELETE on pattern_insight_identities is rejected by the trigger itself", async () => {
+      const r1 = (await persistReview({ insightKind: freshInsightKind("trigger-delete-identity") })).data as ReviewResult;
+      expect(() => runPsqlChecked(`delete from public.pattern_insight_identities where id = '${r1.identity_id}';`)).toThrow(/append-only violation.*pattern_insight_identities/i);
+    });
+
+    it("UPDATE on pattern_insight_reviews is rejected by the trigger itself", async () => {
+      const r1 = (await persistReview({ insightKind: freshInsightKind("trigger-update-review") })).data as ReviewResult;
+      expect(() => runPsqlChecked(`update public.pattern_insight_reviews set decision = 'dismissed' where id = '${r1.review_id}';`)).toThrow(/append-only violation.*pattern_insight_reviews/i);
+    });
+
+    it("DELETE on pattern_insight_reviews is rejected by the trigger itself", async () => {
+      const r1 = (await persistReview({ insightKind: freshInsightKind("trigger-delete-review") })).data as ReviewResult;
+      expect(() => runPsqlChecked(`delete from public.pattern_insight_reviews where id = '${r1.review_id}';`)).toThrow(/append-only violation.*pattern_insight_reviews/i);
+    });
+  });
+
+  // ==========================================================================
+  // Locked schema shape — constraints under-proven by the behavior-matrix
+  // tests above (which only ever go through the RPC's own upfront
+  // validation, never exercising the raw table CHECK constraints directly).
+  // ==========================================================================
+  describe("schema — locked shape proofs", () => {
+    async function freshReviewIdentity(label: string): Promise<ReviewResult> {
+      return (await persistReview({ insightKind: freshInsightKind(label) })).data as ReviewResult;
+    }
+
+    describe("candidate_snapshot — jsonb_typeof must be object", () => {
+      it("a JSON object is accepted", async () => {
+        const r1 = await freshReviewIdentity("snapshot-object-ok");
+        const { stdout } = runPsqlChecked(
+          `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 2, '${r1.review_id}', 'dismissed', '{"a":1}'::jsonb) returning id;`,
+          ["-t", "-A"]
+        );
+        expect(stdout.trim()).not.toBe("");
+      });
+
+      it("a JSON array is rejected", async () => {
+        const r1 = await freshReviewIdentity("snapshot-array");
+        expect(() =>
+          runPsqlChecked(
+            `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 2, '${r1.review_id}', 'dismissed', '[]'::jsonb);`
+          )
+        ).toThrow(/pattern_insight_reviews_snapshot_is_object/i);
+      });
+
+      it("a JSON string is rejected", async () => {
+        const r1 = await freshReviewIdentity("snapshot-string");
+        expect(() =>
+          runPsqlChecked(
+            `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 2, '${r1.review_id}', 'dismissed', '"x"'::jsonb);`
+          )
+        ).toThrow(/pattern_insight_reviews_snapshot_is_object/i);
+      });
+
+      it("a JSON number is rejected", async () => {
+        const r1 = await freshReviewIdentity("snapshot-number");
+        expect(() =>
+          runPsqlChecked(
+            `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 2, '${r1.review_id}', 'dismissed', '1'::jsonb);`
+          )
+        ).toThrow(/pattern_insight_reviews_snapshot_is_object/i);
+      });
+
+      it("a JSON null (jsonb 'null', distinct from SQL NULL) is rejected", async () => {
+        const r1 = await freshReviewIdentity("snapshot-json-null");
+        expect(() =>
+          runPsqlChecked(
+            `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 2, '${r1.review_id}', 'dismissed', 'null'::jsonb);`
+          )
+        ).toThrow(/pattern_insight_reviews_snapshot_is_object/i);
+      });
+
+      it("SQL NULL is rejected (column is NOT NULL)", async () => {
+        const r1 = await freshReviewIdentity("snapshot-sql-null");
+        expect(() =>
+          runPsqlChecked(
+            `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 2, '${r1.review_id}', 'dismissed', null);`
+          )
+        ).toThrow(/null value.*candidate_snapshot|violates not-null constraint/i);
+      });
+    });
+
+    it("review_number = 0 is rejected", async () => {
+      const r1 = await freshReviewIdentity("review-number-zero");
+      expect(() =>
+        runPsqlChecked(
+          `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 0, null, 'dismissed', '{}'::jsonb);`
+        )
+      ).toThrow();
+    });
+
+    describe("reviewer_note — 1-2000 trimmed chars, or NULL", () => {
+      it("NULL is accepted", async () => {
+        const { data, error } = await persistReview({ insightKind: freshInsightKind("note-null-ok"), reviewerNote: null });
+        expect(error).toBeNull();
+        expect((data as ReviewResult).action).toBe("inserted");
+      });
+
+      it("a 1-char trimmed note is accepted", async () => {
+        const { data, error } = await persistReview({ insightKind: freshInsightKind("note-1char-ok"), reviewerNote: "x" });
+        expect(error).toBeNull();
+        expect((data as ReviewResult).action).toBe("inserted");
+      });
+
+      it("exactly 2000 chars is accepted", async () => {
+        const note = "a".repeat(2000);
+        const { data, error } = await persistReview({ insightKind: freshInsightKind("note-2000-ok"), reviewerNote: note });
+        expect(error).toBeNull();
+        expect((data as ReviewResult).action).toBe("inserted");
+      });
+
+      it("2001 chars is rejected", async () => {
+        const note = "a".repeat(2001);
+        const { error } = await persistReview({ insightKind: freshInsightKind("note-2001-rejected"), reviewerNote: note });
+        expect(error).not.toBeNull();
+      });
+
+      it("leading whitespace is rejected", async () => {
+        const { error } = await persistReview({ insightKind: freshInsightKind("note-leading-ws"), reviewerNote: " x" });
+        expect(error).not.toBeNull();
+      });
+
+      it("trailing whitespace is rejected", async () => {
+        const { error } = await persistReview({ insightKind: freshInsightKind("note-trailing-ws"), reviewerNote: "x " });
+        expect(error).not.toBeNull();
+      });
+
+      it("empty string is rejected", async () => {
+        const { error } = await persistReview({ insightKind: freshInsightKind("note-empty"), reviewerNote: "" });
+        expect(error).not.toBeNull();
+      });
+    });
+
+    it("neither table has an updated_at column (append-only by construction)", () => {
+      for (const table of ["pattern_insight_identities", "pattern_insight_reviews"]) {
+        const out = runPsqlChecked(
+          `select count(*) from information_schema.columns where table_schema='public' and table_name='${table}' and column_name='updated_at';`,
+          ["-t", "-A"]
+        );
+        expect(out.stdout.trim(), `updated_at column count on ${table}`).toBe("0");
+      }
+    });
+
+    it("FK delete actions are RESTRICT for all three foreign keys", () => {
+      const out = runPsqlChecked(
+        `select conrelid::regclass::text, conname, confdeltype from pg_constraint where contype = 'f' and conrelid in ('public.pattern_insight_identities'::regclass, 'public.pattern_insight_reviews'::regclass) order by conrelid::regclass::text, conname;`,
+        ["-t", "-A"]
+      );
+      const rows = out.stdout
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => line.split("|"));
+      expect(rows.length).toBeGreaterThanOrEqual(3); // identities.athlete_id + reviews.insight_identity_id + reviews.supersedes_id
+      for (const [table, conname, deltype] of rows) {
+        expect(deltype, `${table}.${conname} confdeltype`).toBe("r");
+      }
+    });
+
+    it("UNIQUE natural identity (athlete_id, detector_rule_id, detector_rule_version, insight_kind) is enforced", async () => {
+      const kind = freshInsightKind("unique-natural-key");
+      const r1 = (await persistReview({ insightKind: kind })).data as ReviewResult;
+      void r1;
+      expect(() =>
+        runPsqlChecked(
+          `insert into public.pattern_insight_identities (athlete_id, detector_rule_id, detector_rule_version, insight_kind) values ('${athleteA.athleteId}', '${DETECTOR_ID}', '${DETECTOR_VERSION}', '${kind}');`
+        )
+      ).toThrow(/pattern_insight_identities_unique_key|duplicate key/i);
+    });
+
+    it("UNIQUE (insight_identity_id, review_number) is enforced", async () => {
+      const r1 = await freshReviewIdentity("unique-review-number");
+      expect(() =>
+        runPsqlChecked(
+          `insert into public.pattern_insight_reviews (insight_identity_id, review_number, supersedes_id, decision, candidate_snapshot) values ('${r1.identity_id}', 1, null, 'dismissed', '{}'::jsonb);`
+        )
+      ).toThrow(/pattern_insight_reviews_unique_review|duplicate key/i);
+    });
+
+    it("partial UNIQUE index on supersedes_id exists (WHERE supersedes_id IS NOT NULL) — fork protection", () => {
+      const out = runPsqlChecked(`select indexdef from pg_indexes where indexname = 'idx_pattern_insight_reviews_supersedes_unique';`, ["-t", "-A"]);
+      expect(out.stdout).toMatch(/CREATE UNIQUE INDEX/i);
+      expect(out.stdout).toMatch(/supersedes_id/i);
+      expect(out.stdout).toMatch(/WHERE.*supersedes_id IS NOT NULL/i);
+    });
+  });
+
+  // ==========================================================================
   // RPC security properties — direct SQL introspection
   // ==========================================================================
   describe("persist_pattern_insight_review — security properties", () => {
@@ -386,6 +592,26 @@ describe("pattern_insight review ledger — integration", () => {
     it("function body uses pg_advisory_xact_lock (transaction-scoped advisory lock)", () => {
       const out = runPsqlChecked(`select pg_get_functiondef(oid) from pg_proc where proname = 'persist_pattern_insight_review';`, ["-t", "-A"]);
       expect(out.stdout).toMatch(/pg_advisory_xact_lock/);
+    });
+
+    it("advisory lock is keyed by the SAME natural-key tuple used by persist_pattern_evidence/transition_pattern_evidence_lifecycle (athlete_id/detector_rule_id/detector_rule_version, length-prefixed)", () => {
+      const out = runPsqlChecked(`select pg_get_functiondef(oid) from pg_proc where proname = 'persist_pattern_insight_review';`, ["-t", "-A"]);
+      const body = out.stdout;
+      expect(body).toMatch(/p_athlete_id/);
+      expect(body).toMatch(/p_detector_rule_id/);
+      expect(body).toMatch(/p_detector_rule_version/);
+      expect(body).toMatch(/hashtextextended/);
+      // Length-prefixed encoding ("<byteLength>:<value>"), same collision-avoidance scheme as
+      // persist_pattern_evidence — never a plain pipe-join of the raw components.
+      expect(body).toMatch(/length\(p_athlete_id::text\)::text/);
+    });
+
+    it("proconfig includes search_path=public", () => {
+      const out = runPsqlChecked(
+        `select proconfig from pg_proc where proname = 'persist_pattern_insight_review';`,
+        ["-t", "-A"]
+      );
+      expect(out.stdout.trim()).toContain("search_path=public");
     });
 
     it("authenticated cannot call the RPC directly", async () => {
