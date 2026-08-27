@@ -26,9 +26,19 @@
  * (pattern_evidence_identities/_revisions/_source_refs +
  * persist_pattern_evidence RPC), plus the M5_005-specific persistence
  * adapter (src/persistence/**) — DB interaction confined to that
- * directory; detectors/** and relations/** remain pure. Still no
- * aggregation, no learned patterns, no scheduler/trigger, no other
- * detector's persistence adapter.
+ * directory; detectors/** and relations/** remain pure.
+ * M5_006B: active/withdrawn lifecycle for evidence
+ * (pattern_evidence_lifecycle_transitions + transition_pattern_evidence_lifecycle
+ * / persist_active_pattern_evidence RPCs) plus a second detector
+ * (sleep-energy, same-day correlation). M5_006C: a third detector
+ * (pain-persistence across recent checkins), zero new migrations, reusing
+ * M5_006A/B's infrastructure verbatim.
+ * M5_006D: pure, deterministic aggregation over currently-effective
+ * evidence only (src/aggregation/**, consumes exclusively
+ * `pattern_evidence_current_effective` rows) — descriptive counts/ratios/
+ * balance labels, never a confidence score, never pattern confirmation,
+ * never causal inference, never a coaching activation. Still no learned
+ * patterns, no scheduler/trigger, no daily-run influence.
  */
 export * from "./types/index.js";
 export * from "./supabase/index.js";
@@ -36,3 +46,4 @@ export * from "./timeline/index.js";
 export * from "./calculators/index.js";
 export * from "./detectors/index.js";
 export * from "./persistence/index.js";
+export * from "./aggregation/index.js";

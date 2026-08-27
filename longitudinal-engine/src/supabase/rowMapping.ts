@@ -21,6 +21,7 @@ import type {
   PainLocationCode,
   TrainingMode,
 } from "../types/sources.js";
+import type { PatternEvidenceCurrentEffectiveRow, PatternEvidenceEventType } from "../aggregation/types.js";
 
 export class InvalidSourceRowError extends Error {
   constructor(table: string, reason: string, value: unknown) {
@@ -47,6 +48,14 @@ function requireBoolean(table: string, field: string, row: RawRow): boolean {
   const value = row[field];
   if (typeof value !== "boolean") {
     throw new InvalidSourceRowError(table, `${field} is missing or not a boolean`, row);
+  }
+  return value;
+}
+
+function requireNumber(table: string, field: string, row: RawRow): number {
+  const value = row[field];
+  if (typeof value !== "number") {
+    throw new InvalidSourceRowError(table, `${field} is missing or not a number`, row);
   }
   return value;
 }
@@ -151,6 +160,8 @@ const TRAINING_MODES: readonly TrainingMode[] = [
 ];
 
 const DECISION_OUTCOME_HORIZONS: readonly DecisionOutcomeHorizon[] = ["J_PLUS_1", "J_PLUS_3", "J_PLUS_7"];
+
+const PATTERN_EVIDENCE_EVENT_TYPES: readonly PatternEvidenceEventType[] = ["supporting", "contradicting", "neutral"];
 
 // ---------------------------------------------------------------------------
 // Mappers
@@ -258,5 +269,32 @@ export function mapHealthFlagRow(row: RawRow): HealthFlagSource {
     resolutionNote: optionalString(table, "resolution_note", row),
     sourceCheckinId: optionalString(table, "source_checkin_id", row),
     createdAt: requireString(table, "created_at", row),
+  };
+}
+
+/**
+ * M5_006D — maps a `pattern_evidence_current_effective` row (M5_006B view)
+ * to its camelCase domain shape. `observed_value` is passed through
+ * verbatim as `unknown` — never validated/interpreted here, same
+ * "opaque to this layer" discipline as `input_snapshot`/`outcome_signals`
+ * above, except this one is never even required to be a JSON object,
+ * since aggregation never reads it at all.
+ */
+export function mapPatternEvidenceCurrentEffectiveRow(row: RawRow): PatternEvidenceCurrentEffectiveRow {
+  const table = "pattern_evidence_current_effective";
+  return {
+    identityId: requireString(table, "identity_id", row),
+    athleteId: requireString(table, "athlete_id", row),
+    detectorRuleId: requireString(table, "detector_rule_id", row),
+    detectorRuleVersion: requireString(table, "detector_rule_version", row),
+    evaluationKey: requireString(table, "evaluation_key", row),
+    evidenceKey: requireString(table, "evidence_key", row),
+    revisionId: requireString(table, "revision_id", row),
+    revisionNumber: requireNumber(table, "revision_number", row),
+    supersedesId: optionalString(table, "supersedes_id", row),
+    eventType: requireEnum(table, "event_type", row, PATTERN_EVIDENCE_EVENT_TYPES),
+    eventDate: requireString(table, "event_date", row),
+    observedValue: row["observed_value"],
+    revisionCreatedAt: requireString(table, "revision_created_at", row),
   };
 }
