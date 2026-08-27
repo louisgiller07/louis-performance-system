@@ -39,6 +39,14 @@
  * balance labels, never a confidence score, never pattern confirmation,
  * never causal inference, never a coaching activation. Still no learned
  * patterns, no scheduler/trigger, no daily-run influence.
+ * M5_007: pure, deterministic insight projection over M5_006D aggregates
+ * (src/insights/**, exactly 3 registered detector/version → insight-kind
+ * projectors) plus an append-only human-review ledger
+ * (pattern_insight_identities/_reviews + persist_pattern_insight_review
+ * RPC). `accepted_as_insight` records ONLY a human's read of an insight's
+ * wording — never a confidence score, never a coaching activation, never a
+ * daily-run influence. Still no scheduler/trigger, no automatic review, no
+ * LLM.
  */
 export * from "./types/index.js";
 export * from "./supabase/index.js";
@@ -47,3 +55,4 @@ export * from "./calculators/index.js";
 export * from "./detectors/index.js";
 export * from "./persistence/index.js";
 export * from "./aggregation/index.js";
+export * from "./insights/index.js";

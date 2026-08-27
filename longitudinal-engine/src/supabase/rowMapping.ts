@@ -22,6 +22,7 @@ import type {
   TrainingMode,
 } from "../types/sources.js";
 import type { PatternEvidenceCurrentEffectiveRow, PatternEvidenceEventType } from "../aggregation/types.js";
+import type { PatternInsightKind, PatternInsightReviewDecision, PatternInsightReviewRecord, PatternInsightSnapshot } from "../insights/types.js";
 
 export class InvalidSourceRowError extends Error {
   constructor(table: string, reason: string, value: unknown) {
@@ -163,6 +164,14 @@ const DECISION_OUTCOME_HORIZONS: readonly DecisionOutcomeHorizon[] = ["J_PLUS_1"
 
 const PATTERN_EVIDENCE_EVENT_TYPES: readonly PatternEvidenceEventType[] = ["supporting", "contradicting", "neutral"];
 
+const PATTERN_INSIGHT_KINDS: readonly PatternInsightKind[] = [
+  "recommendation_execution_alignment",
+  "sleep_energy_same_day_association",
+  "pain_persistence_between_recent_checkins",
+];
+
+const PATTERN_INSIGHT_REVIEW_DECISIONS: readonly PatternInsightReviewDecision[] = ["accepted_as_insight", "dismissed", "needs_more_evidence"];
+
 // ---------------------------------------------------------------------------
 // Mappers
 // ---------------------------------------------------------------------------
@@ -296,5 +305,27 @@ export function mapPatternEvidenceCurrentEffectiveRow(row: RawRow): PatternEvide
     eventDate: requireString(table, "event_date", row),
     observedValue: row["observed_value"],
     revisionCreatedAt: requireString(table, "revision_created_at", row),
+  };
+}
+
+/**
+ * M5_007 — maps a `pattern_insight_review_current` row (the review ledger's
+ * own read view) to its camelCase domain shape. `candidate_snapshot` is
+ * required to be a JSON object (the write RPC never persists anything else)
+ * but is otherwise trusted verbatim as the exact `PatternInsightSnapshot`
+ * this package itself wrote — never re-derived or partially reconstructed
+ * from other columns.
+ */
+export function mapPatternInsightReviewCurrentRow(row: RawRow): PatternInsightReviewRecord {
+  const table = "pattern_insight_review_current";
+  return {
+    athleteId: requireString(table, "athlete_id", row),
+    detectorRuleId: requireString(table, "detector_rule_id", row),
+    detectorRuleVersion: requireString(table, "detector_rule_version", row),
+    insightKind: requireEnum(table, "insight_kind", row, PATTERN_INSIGHT_KINDS),
+    decision: requireEnum(table, "decision", row, PATTERN_INSIGHT_REVIEW_DECISIONS),
+    reviewNumber: requireNumber(table, "review_number", row),
+    reviewerNote: optionalString(table, "reviewer_note", row),
+    candidateSnapshot: requireJsonObject(table, "candidate_snapshot", row) as unknown as PatternInsightSnapshot,
   };
 }

@@ -31,3 +31,7 @@ export type { PersistSleepEnergyEvidenceParams, PersistSleepEnergyEvidenceResult
 // M5_006C — pain-persistence detector's own persistence adapter.
 export { persistPainPersistenceEvidence } from "./painPersistenceAdapter.js";
 export type { PersistPainPersistenceEvidenceParams, PersistPainPersistenceEvidenceResult, PainPersistenceNoEvidenceAction } from "./painPersistenceAdapter.js";
+
+// M5_007 — human-review ledger write adapter.
+export { persistPatternInsightReview } from "./insightReviewAdapter.js";
+export type { PersistPatternInsightReviewParams, PersistPatternInsightReviewAction, PersistPatternInsightReviewResult } from "./insightReviewAdapter.js";
