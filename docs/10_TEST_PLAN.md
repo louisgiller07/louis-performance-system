@@ -344,3 +344,23 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Planificateur hebdomadaire
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
+
+---
+
+## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (FUTURS, RUNTIME NON IMPLÉMENTÉ)
+
+**Statut : contrat de test verrouillé pour le futur runtime V0.3_001.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`) ; les scénarios ci-dessous décrivent les preuves **nouvelles** à ajouter à travers l'orchestration, les opérations serveur et la surface V0.3_001, qui ne sont pas encore implémentées.
+
+- Orchestration réelle de bout en bout, données source réelles → evidence (les 3 détecteurs existants)
+- Rejeu idempotent de `refresh-longitudinal` (deux exécutions consécutives → zéro doublon, tout `unchanged`)
+- Retrait par cycle de vie sur `no_evidence` (les 3 détecteurs, y compris la correction `recommendation_vs_actual_execution`)
+- Réactivation après un retrait quand l'evidence redevient positive
+- Maturité des horizons d'outcome (J+1/J+3/J+7) découverte correctement sur plusieurs passes
+- Agrégation + production de candidat à partir d'evidence réellement orchestrée (pas de fixtures synthétiques)
+- État de revue courant/périmé contre de l'evidence réellement orchestrée, y compris un déclencheur de péremption par révision réelle
+- Isolation inter-athlètes à travers la nouvelle frontière serveur
+- Frontière d'authentification navigateur : athlète authentifié mais erroné ne peut lire/écrire l'evidence/les revues d'un autre athlète ; `anon` sans accès ; aucun appel RPC direct depuis le navigateur possible
+- Preuve explicite que la suite `daily-run` reste inchangée/non affectée (gate de régression)
+- Aucune revue n'est jamais créée automatiquement par l'orchestration
+- Matrice de course de soumission de revue : jeton identique → persistance ; `sourceEvidenceRefs`/`insightProjectorVersion`/plage/version de règle/`insightKind` divergents → `stale_candidate`, aucune écriture ; candidat absent → aucune écriture ; rejeu navigateur après revue identique déjà réussie → `unchanged`
+- Comportement historique/backfill : une première passe complète produit exactement le jeu attendu sans doublon ; une seconde passe immédiate est un no-op complet

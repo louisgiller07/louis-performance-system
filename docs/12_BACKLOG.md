@@ -3,7 +3,7 @@
 ## Statut actuel
 
 **Phase** : **M5 COMPLETE (2026-08-27).** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr` ; moteur d'insight implémenté/testé localement, non invoqué automatiquement en production — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_007. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
-**Prochain milestone** : aucun jalon M5 restant. Aucune prochaine étape concrète actuellement sélectionnée — voir §P1/§P2 ci-dessous pour les catégories d'enrichissement candidates, non architecturées.
+**Prochain milestone** : **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review.** Architecture verrouillée le 2026-08-27 (voir `docs/11_DECISION_LOG.md`, `docs/06_ARCHITECTURE.md`). **Implémentation non commencée.** Décomposition : V0.3_001A/B/C ci-dessous.
 
 ---
 
@@ -245,6 +245,46 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 - [x] `npm test` = 163/163, `npm run build` = PASS.
 
 **M4 est fermé : COMPLETE, 2026-08-19.**
+
+---
+
+## V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review — ARCHITECTURE LOCKED (2026-08-27), IMPLÉMENTATION NON COMMENCÉE
+
+Objectif : rendre utilisable le pipeline M5 déjà construit (`evidence → agrégat → candidat d'insight → revue humaine`), sans jamais influencer `daily-run` ni activer automatiquement un pattern. Les briques M5 sous-jacentes existent déjà selon leur statut canonique propre (decision outcomes + RPC déployés depuis M5_001B/M5_004, ledger d'evidence déployé depuis M5_006A, cycle de vie + RPC/vues déployés depuis M5_006B, ledger de revue humaine + RPC/vues déployés depuis M5_007 ; M5_006D et le projecteur M5_007 restent une logique TypeScript pure, sans migration ni objet DB propre). Ce qui n'existe pas encore est décrit ci-dessous. Détail architectural complet : `docs/11_DECISION_LOG.md` (entrée de verrouillage d'architecture), `docs/06_ARCHITECTURE.md` §V0.3_001.
+
+### V0.3_001A — Correction de runtime + orchestration (AUCUN CODE ENCORE)
+
+- [ ] Précondition remote read-only : `pattern_evidence_identities` count = 0 pour `(recommendation_vs_actual_execution, 1.0.0)` — à exécuter AVANT tout changement de code d'`evidenceKey`
+- [ ] Constante de domaine `ALL_HISTORY_RANGE = {fromDate: "1900-01-01", toDate: "9999-12-31"}` câblée dans la couche runtime (jamais dans `aggregateEffectivePatternEvidence.ts`)
+- [ ] `longitudinalProcessingDate` côté serveur, fuseau V1 fixe `Europe/Zurich`, séparé strictement de la plage d'agrégation
+- [ ] Correction identité `recommendation_vs_actual_execution` : `evaluationKey = evidenceKey = decision:<decisionId>` (evidence + no_evidence), retrait de cycle de vie sur `no_evidence` via `transition_pattern_evidence_lifecycle` existante (déployée depuis M5_006B) — `detector_rule_version` reste `1.0.0`
+- [ ] Orchestrateur de lot pour les 3 détecteurs existants (miroir de `outcomeOrchestrator.ts`)
+- [ ] Appelant réel pour `calculateAndPersistOutcomes`
+- [ ] Frontière serveur authentifiée (motif JWT→RLS→athlète propre→`service_role`, miroir de `daily-run`, `daily-run` lui-même non modifié)
+- [ ] `refresh-longitudinal` (écriture, idempotent)
+- [ ] `get-insights` (lecture, calcul de candidat côté serveur uniquement)
+
+### V0.3_001B — Backfill + durcissement complet (NON EXÉCUTÉ)
+
+- [ ] Preuve locale complète fraîche (stack locale, incluant le comportement corrigé du détecteur recommendation)
+- [ ] Aperçu/rapport remote read-only (ce qu'un backfill toucherait)
+- [ ] Reconfirmation des préconditions critiques remote (ne doit pas être la première vérification — déjà faite en 001A)
+- [ ] Invocation remote historique explicitement approuvée (`refresh-longitudinal` réel, supervisé)
+- [ ] Validation post-backfill read-only (comptages, provenance, cycle de vie)
+- [ ] Preuve d'idempotence par une seconde invocation remote consécutive
+
+### V0.3_001C — API de revue canonique + surface web Insights (NON IMPLÉMENTÉ)
+
+- [ ] `submit-review`
+- [ ] Validation complète du jeton de fraîcheur (7 dimensions : `detectorRuleId`/`detectorRuleVersion`/`insightKind`/`insightProjectorVersion`/`rangeFromDate`/`rangeToDate`/`sourceEvidenceRefs`)
+- [ ] Gestion `stale_candidate` / `candidate_not_found`
+- [ ] `candidate_snapshot` persisté = toujours généré par le serveur
+- [ ] Page web Insights minimale (liste, résumé d'evidence, état de revue `unreviewed`/`reviewed_current`/`reviewed_stale`, actions `accepted_as_insight`/`dismissed`/`needs_more_evidence`, note optionnelle)
+- [ ] Tests de bout en bout course/idempotence à travers l'API réelle
+
+### Explicitement hors périmètre V0.3_001
+
+Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur hebdomadaire, runtime `ActiveExperiment`, Garmin/Zwift/Strava, LLM, activation de coaching par pattern appris, scheduler/cron, table de persistance de candidat, scores de confiance/signification, causalité.
 
 ---
 

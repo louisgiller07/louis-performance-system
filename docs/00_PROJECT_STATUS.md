@@ -27,7 +27,8 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_
 
 ### NOT STARTED
 
-- Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, LLM couche E, intégrations externes) — aucun jalon concret sélectionné/architecturé à ce stade ; voir `docs/12_BACKLOG.md` §P1/§P2.
+- **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review** : architecture verrouillée le 2026-08-27 (voir `docs/11_DECISION_LOG.md`, `docs/06_ARCHITECTURE.md`). **Implémentation non commencée** — aucun nouvel orchestrateur, aucune nouvelle opération serveur, aucune correction du détecteur recommendation, aucun backfill V0.3_001, aucune API `submit-review`, aucune UI Insights pour ce jalon à ce jour.
+- **Autres enrichissements P1+** (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, LLM couche E, intégrations externes) — aucun **autre** jalon concret sélectionné/architecturé à ce stade ; voir `docs/12_BACKLOG.md` §P1/§P2.
 
 ## Prochaines étapes (ordre)
 
@@ -40,10 +41,11 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_
 7. ~~**M5_006C** — détecteur de persistance de la douleur.~~ **CLOSED, 2026-08-27** (implémentation locale uniquement, aucune migration). Voir `docs/11_DECISION_LOG.md`.
 8. ~~**M5_006D** — agrégation déterministe d'evidence (`pattern_evidence_current_effective`).~~ **CLOSED, 2026-08-27** (implémentation locale uniquement, aucune migration). Voir `docs/11_DECISION_LOG.md`.
 9. ~~**M5_007** — insights / revue humaine.~~ **CLOSED, 2026-08-27** (schéma/RPC de revue humaine déployé sur `uvolpldwwyvadlamulvr` ; moteur d'insight implémenté/testé localement, non invoqué automatiquement en production). Voir `docs/11_DECISION_LOG.md`. **M5 dans son ensemble : COMPLETE.**
+10. **V0.3_001** — Longitudinal Intelligence Runtime + Human Insight Review. Architecture verrouillée le 2026-08-27 (voir `docs/11_DECISION_LOG.md`). **Implémentation non commencée.**
 
 ## Prochain milestone
 
-Aucun jalon M5 restant — **M5 COMPLETE, 2026-08-27**. Aucune prochaine étape concrète n'est actuellement sélectionnée ou architecturée dans les documents canoniques ; `docs/12_BACKLOG.md` §P1/§P2 liste des catégories d'enrichissement candidates (runtime `ActiveExperiment`, domaines enrichis, LLM couche E, intégrations Zwift/Garmin, table `learned_patterns`), aucune n'étant à ce jour retenue comme prochain jalon.
+**V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review.** Architecture verrouillée le 2026-08-27 (voir `docs/11_DECISION_LOG.md` et `docs/06_ARCHITECTURE.md` pour le détail complet). **Statut : ARCHITECTURE LOCKED — IMPLÉMENTATION NON COMMENCÉE.** Les briques M5 sous-jacentes que ce jalon opérationnalise existent déjà selon leur statut canonique propre (voir M5_004→M5_007 ci-dessus) ; ce qui n'existe pas encore est la nouvelle couche runtime V0.3_001 elle-même — aucun orchestrateur opérationnel, aucune nouvelle opération serveur, aucune correction du détecteur recommendation, aucun backfill V0.3_001, aucune API `submit-review`, aucune UI Insights, aucun déploiement remote V0.3_001. Décomposition verrouillée : V0.3_001A (correction de runtime + orchestration), V0.3_001B (backfill + durcissement complet), V0.3_001C (API de revue + surface web). Objectif produit : rendre utilisable le pipeline M5 déjà construit (`evidence → agrégat → candidat d'insight → revue humaine`), **jamais** au-delà — aucune activation automatique de coaching, aucune intégration `daily-run`.
 
 Statut M2 : **DONE (local + remote), 2026-08-17.**
 Statut M3 : **DONE (local + remote), 2026-08-18.**

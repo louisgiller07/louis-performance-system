@@ -342,3 +342,77 @@ Contraintes canoniques :
 - Confidence : nouvelle colonne `decisions.confidence_level` (enum `LOW|MEDIUM|HIGH`) écrite par le DAL pour toute décision M2. Colonne legacy `decisions.confidence` (numeric) jamais écrite par M2.
 - `overridden_by_user` conserve son default DB (`false`) — jamais renseigné par M2.
 - RPC `persist_daily_run` : `SECURITY INVOKER`, `EXECUTE` réservé au rôle serveur M2, jamais exposée à `PUBLIC`/`anon`/`authenticated`.
+
+---
+
+## V0.3_001 — Longitudinal Intelligence Runtime (ARCHITECTURE V0.3_001 LOCKED, NOUVELLE IMPLÉMENTATION RUNTIME NON COMMENCÉE)
+
+**Statut : ARCHITECTURE V0.3_001 LOCKED — NEW V0.3_001 RUNTIME IMPLEMENTATION NOT STARTED.** Cette section documente une décision d'architecture approuvée avant implémentation (voir `docs/11_DECISION_LOG.md` pour l'historique complet de la revue). **Les briques M5 sous-jacentes existent déjà selon leur statut canonique** (calculateur d'outcomes + RPC `persist_decision_outcome` déployés depuis M5_001B/M5_004 ; ledger d'evidence append-only déployé depuis M5_006A ; cycle de vie actif/retiré + ses RPC/vues déployés depuis M5_006B ; agrégation déterministe M5_006D et projecteur d'insight déterministe M5_007 implémentés/testés en TypeScript pur dans `longitudinal-engine`, sans migration ni déploiement propre ; ledger de revue humaine + son RPC + ses vues déployés depuis M5_007). **En revanche, aucun des nouveaux éléments runtime V0.3_001 décrits dans cette section n'est encore implémenté** : aucun orchestrateur opérationnel, aucune nouvelle opération serveur, aucune correction du détecteur recommendation-vs-actual, aucun backfill V0.3_001, aucune API `submit-review` V0.3_001, aucune UI Insights.
+
+### Objectif produit
+
+Rendre utilisable le pipeline M5 déjà construit :
+
+```
+données athlète réelles
+  -> outcomes de décision (déterministe, M5_004, déjà déployé)
+  -> détecteurs (déterministe, M5_005/M5_006B/M5_006C, purs TypeScript)
+  -> evidence append-only/révisionnée (M5_006A, déjà déployé)
+  -> cycle de vie actif/retiré (M5_006B, déjà déployé)
+  -> pattern_evidence_current_effective (M5_006B, déjà déployé)
+  -> agrégation déterministe (M5_006D, pur TypeScript, non déployé en soi)
+  -> candidat d'insight déterministe (M5_007, pur TypeScript)
+  -> revue humaine (M5_007, ledger déjà déployé)
+```
+
+**S'arrête strictement là.** Interdits explicites : insight → `daily-run`, revue → `daily-run`, `accepted_as_insight` → activation de coaching, personnalisation automatique par pattern appris, score de confiance/signification, causalité, autorité décisionnelle LLM. Safety A1-A5 inchangée. Le comportement de décision quotidienne M1-M4 reste frozen — `daily-run` n'est pas modifié.
+
+### Modèle de dates — deux concepts strictement séparés
+
+**A. `insightAggregationRange`** — constante de domaine **statique et immuable** :
+```
+ALL_HISTORY_RANGE = { fromDate: "1900-01-01", toDate: "9999-12-31" }
+```
+Jamais dérivée de l'horloge (ni navigateur, ni serveur), jamais de la date de migration, jamais d'une date de carrière athlète. Choisie précisément pour que l'empreinte de fraîcheur M5_007 (qui inclut `rangeFromDate`/`rangeToDate`) reste stable tant que l'evidence ne change pas — une plage glissante ou basée sur "aujourd'hui" ferait passer une revue acceptée en `reviewed_stale` chaque jour sans aucun changement de contenu. `1900` évite la zone de traitement spéciale des années 0-99 par `Date.UTC` ; `9999` est le maximum représentable par le parseur `YYYY-MM-DD` à 4 chiffres déjà verrouillé par M5_006D. `aggregateEffectivePatternEvidence.ts` lui-même n'est **pas modifié** — cette politique vit dans la couche runtime/produit qui fournit la plage explicite à l'appel.
+
+**B. `longitudinalProcessingDate`** — date calendaire courante, **côté serveur uniquement**, fuseau produit V1 fixe `Europe/Zurich` (aucun champ fuseau par athlète n'existe dans le schéma — limitation V1 explicite). Utilisée **exclusivement** pour la maturité des outcomes (J+1/J+3/J+7, `calculateAndPersistOutcomes`). N'entre **jamais** dans `PatternInsightSnapshot`, dans l'empreinte de fraîcheur d'une revue, ni dans aucune identité de candidat.
+
+### Correction de persistance — détecteur `recommendation_vs_actual_execution@1.0.0`
+
+Avant opérationnalisation, l'identité de persistance de ce détecteur doit être corrigée : `evaluationKey = evidenceKey = decision:<decisionId>` (au lieu de l'actuel `decision:<id>:completion:<completedSessionId>`, irreproductible quand `no_evidence` se déclenche puisque `completedSessionId` n'existe pas dans cette branche). `no_evidence` doit alors déclencher un retrait via `transition_pattern_evidence_lifecycle` (`reason_code = detection.reason`, `context = {}`), exactement comme `sleepEnergyAdapter`/`painPersistenceAdapter` le font déjà — aucune logique de cycle de vie dupliquée, aucun `SELECT`-puis-transition côté application. `detector_rule_version` reste `1.0.0` (sémantique de classification inchangée), **sous précondition stricte** : une vérification remote read-only doit confirmer `pattern_evidence_identities` count = 0 pour `(recommendation_vs_actual_execution, 1.0.0)` avant tout changement de code — si le compte est non nul, arrêt, décision d'architecture/versionnement à reprendre, aucune réécriture de ligne historique. Aucune migration requise (`transition_pattern_evidence_lifecycle` existe déjà, générique, déployée depuis M5_006B). **Cette correction elle-même est approuvée mais non implémentée.**
+
+### Modèle d'exécution
+
+**On-demand, aucun scheduler initialement.** Trois opérations conceptuelles, **aucune implémentée** (chemins HTTP exacts non gelés dans cette passe) :
+
+- **`refresh-longitudinal`** (écriture) — pour l'athlète authentifié : calcule les outcomes matures, exécute les 3 détecteurs existants sur la timeline, persiste evidence/cycle de vie via les RPC déjà déployées. Idempotent, sûr à rejouer/réessayer.
+- **`get-insights`** (lecture) — résout l'athlète authentifié, lit `pattern_evidence_current_effective`, applique `ALL_HISTORY_RANGE`, agrège, lit les revues humaines courantes, construit des candidats **côté serveur uniquement**, retourne candidats + état de revue. Aucune table de persistance de candidat.
+- **`submit-review`** (écriture humaine explicite uniquement) — jamais de création de revue automatique.
+
+### Limite d'authentification/frontière serveur
+
+Réutilise **conceptuellement** le motif déjà établi par `daily-run` : JWT navigateur → frontière serveur authentifiée → résolution de l'athlète propre (RLS) → opérations `service_role` internes si nécessaire. Le navigateur ne reçoit **jamais** de identifiants `service_role`. Le navigateur ne peut **jamais** appeler directement les RPC de persistance réservées à `service_role`. Le partage du motif d'authentification **ne signifie pas** une intégration dans `daily-run` — ce sont de nouvelles opérations serveur séparées, `daily-run` lui-même n'est pas modifié.
+
+### Candidats côté serveur uniquement
+
+Autorité candidat navigateur = **AUCUNE**. Autorité candidat serveur = **COMPLÈTE**. Le navigateur ne fournit jamais d'autorité sur `candidateSnapshot`/`title`/`statement`/`caveats`/`direction`/comptages/ratios/`evidenceBalance`/`firstEventDate`/`lastEventDate`/`athleteId`.
+
+### Jeton de fraîcheur de revue complet
+
+Le navigateur peut renvoyer exactement : `detectorRuleId`, `detectorRuleVersion`, `insightKind`, `insightProjectorVersion`, `rangeFromDate`, `rangeToDate`, `sourceEvidenceRefs`, plus `decision` et `reviewerNote` optionnel. `athleteId` n'est jamais fourni par le navigateur — résolu depuis la session authentifiée. Le serveur reconstruit indépendamment le candidat courant canonique et compare les 7 dimensions exactement — réutilise la même logique que la dérivation `reviewed_stale` déjà verrouillée dans `buildPatternInsightCandidates.ts` (`fingerprintMatches`), sans hash inventé. Toute divergence → `stale_candidate`/conflit typé, **aucune écriture**, retour du candidat frais. Correspondance complète → persistance du `candidate.snapshot` **généré par le serveur** uniquement.
+
+### Persistance de candidat
+
+Modèle M5_007 inchangé : evidence = persistée, revue humaine = persistée, agrégat = calculé, candidat = calculé. Aucune table de candidat, aucun ledger matérialisé de candidat.
+
+### Discipline de backfill
+
+Le traitement historique réutilise la **même** logique d'orchestration canonique que le fonctionnement normal, mais le premier traitement historique remote est une étape de rollout **séparément supervisée**, jamais déclenchée implicitement par un premier chargement de page Insights. Discipline requise (non exécutée dans cette passe) : preuve locale complète fraîche → aperçu/rapport remote read-only → invocation remote historique explicitement approuvée → validation read-only post-backfill → preuve d'idempotence par une seconde invocation consécutive.
+
+### Échelle MVP
+
+Balayage complet de la timeline athlète pertinente à chaque `refresh-longitudinal` explicite — aucun curseur, aucune marque haute, aucune file, aucune infrastructure de job en arrière-plan. Simplification délibérée V1/athlète-unique. Le passage à un traitement incrémental n'est justifié que par un symptôme qualitatif (latence perceptible, ou passage à plusieurs athlètes), jamais par un seuil numérique choisi à l'avance.
+
+### Hors périmètre explicite
+
+Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur hebdomadaire, runtime `ActiveExperiment`, Garmin/Zwift/Strava, LLM, activation de coaching par pattern appris, scheduler/cron, table de persistance de candidat, scores de confiance/signification, causalité.
