@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : **M5 EN COURS.** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26** — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_006B. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production.
-**Prochain milestone** : M5_006C — détecteur de persistance de la douleur.
+**Phase** : **M5 EN COURS.** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27** — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_006C. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production.
+**Prochain milestone** : M5_006D — agrégation déterministe d'evidence (`pattern_evidence_current_effective`).
 
 ---
 

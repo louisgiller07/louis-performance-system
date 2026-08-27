@@ -1386,4 +1386,20 @@ Nettoyage : tous les fixtures scratch supprimés (3 users/athletes distincts uti
 
 **Impact** : `longitudinal-engine/src/detectors/painPersistenceConstants.ts`/`painPersistenceErrors.ts`/`painPersistenceTypes.ts`/`painPersistenceAcrossRecentCheckins.ts` (nouveaux), `longitudinal-engine/src/detectors/index.ts` (exports ajoutés), `longitudinal-engine/src/persistence/painPersistenceAdapter.ts` (nouveau), `longitudinal-engine/src/persistence/index.ts` (exports ajoutés), `longitudinal-engine/tests/unit/detectors/painPersistenceAcrossRecentCheckins.test.ts` (39 tests), `longitudinal-engine/tests/unit/persistence/painPersistenceAdapter.test.ts` (10 tests), `longitudinal-engine/tests/supabase/painPersistencePersistence.integration.test.ts` (3 tests), `longitudinal-engine/tests/supabase/testDb.ts` (`CheckinOverrides.pain_new` ajouté), cette entrée. Aucun changement `head-coach-engine/src/**`, `web/**`, `supabase/functions/**`, `docs/03*`/`05*`/`06*`, aucune migration.
 
-**Statut** : implémentation locale validée, toutes les preuves empiriques (pures + DB-dépendantes) au vert, **zéro migration, aucune écriture remote, aucune clôture** ; revue de clôture M5_006C reste une étape distincte, non entamée ; M5 dans son ensemble reste en cours
+**Statut** : implémentation locale validée à l'époque de cette entrée ; **durcie puis CLOSED depuis** — voir l'entrée de clôture ci-dessous (2026-08-27).
+
+---
+
+## 2026-08-27 — M5_006C : CLOSED (implémentation locale + durcissement, aucun déploiement)
+
+**Contexte** : les deux commits M5_006C (`34242ec7` implémentation, `ff2d3062` durcissement — validation entière/finie de l'intensité de douleur, preuves de non-consommation complètes sur `P` et sur les pools de timeline non liés au check-in) sont poussés sur `origin/main`, toutes les preuves empiriques sont au vert, et il n'y a — par conception — aucune étape de déploiement pour ce milestone : M5_006C n'ajoute **aucune migration**, ne touche ni `head-coach-engine/src/**`, ni `web/**`, ni `supabase/functions/**`. Contrairement à M5_006B (dont le modèle de cycle de vie a été déployé au niveau schéma/RPC sur `uvolpldwwyvadlamulvr`), M5_006C ne réutilise que l'infrastructure déjà déployée par M5_006A/M5_006B — il n'y a rien à pousser en remote.
+
+**Décision** : **M5_006C = CLOSED.** Le détecteur pur `pain_persistence_across_recent_checkins@1.0.0` et son adaptateur de persistance sont implémentés, testés et verrouillés dans `longitudinal-engine` uniquement — aucun runtime distant, aucune invocation automatique en production, aucun scheduler, aucune intégration `daily-run`. **Aucun pattern appris n'influence `daily-run` en M5.** Safety A1-A5 inchangée. M1-M4 restent frozen. **M5 dans son ensemble reste EN COURS.**
+
+**Preuves empiriques finales** : tests détecteur = **50/50**, adaptateur = **10/10**, intégration bout-en-bout = **3/3** (dont la preuve obligatoire de backfill/réactivation T1→T2→T3 — voir l'entrée d'implémentation ci-dessus pour le détail). `longitudinal-engine` suite complète = **472/472**, build = PASS. Régressions gelées : M5_004 = **59/59**, résolveur = **15/15**, M5_005 = **31/31**, M1/M2 = **226/226**, edge = **9/9**, M3 HTTP = **26/26**, completed-session unit = **73/73**, completed-session HTTP = **70/70**, web = **242/242**, web build = PASS. Migrations : **local = remote = 22**, `pending = 0`, inchangé — zéro migration ajoutée par ce milestone. Aucune écriture remote, aucun déploiement Edge/Vercel.
+
+**Prochain jalon (gelé, non entamé)** : **M5_006D — agrégation déterministe d'evidence.** Contrat d'entrée verrouillé : consomme obligatoirement `pattern_evidence_current_effective` (jamais `pattern_evidence_current` directement) — doit agréger uniquement l'evidence dont l'état de cycle de vie effectif est actif. Suivi ultérieurement de M5_007 (insights / revue humaine). Aucun de ces jalons n'est implémenté ou architecturé par cette entrée.
+
+**Impact** : aucun fichier de code — clôture documentaire uniquement.
+
+**Statut** : **CLOSED.** Commits : implémentation `34242ec72935e62e708750bef602709a835e1be9` (`feat: add pain persistence detector`), durcissement `ff2d306206bfe3dfd944d9ebc64a5fc06dc964db` (`test: harden pain persistence invariants`). Aucun déploiement, aucune écriture remote. M5 dans son ensemble reste EN COURS — M5_006D et suivants restent à implémenter.
