@@ -1458,3 +1458,25 @@ Nettoyage : tous les fixtures scratch supprimés (3 users/athletes distincts uti
 **Portée** : `longitudinal-engine/tests/supabase/patternEvidenceAggregation.integration.test.ts` uniquement, plus cette entrée. Aucun changement `longitudinal-engine/src/**`, `head-coach-engine/src/**`, `web/**`, `supabase/functions/**`, aucune migration.
 
 **Statut** : durcissement local validé, **zéro migration, aucune écriture remote, aucune clôture** ; revue de clôture M5_006D reste une étape distincte, non entamée ; M5 dans son ensemble reste en cours.
+
+---
+
+## 2026-08-27 — M5_006D : CLOSED (implémentation locale + durcissement, aucun déploiement)
+
+**Contexte** : les deux commits M5_006D (`20d87ef7` implémentation, `5817f77f` durcissement) sont poussés sur `origin/main`. La revue de vérification finale (passe verification-only) a reconfirmé chaque preuve empirique du contrat verrouillé sans modification de code ni de test.
+
+**Contrat verrouillé, reconfirmé** : `aggregateEffectivePatternEvidence({athleteId, range, evidence})` — pure, groupement exact `(athleteId, detectorRuleId, detectorRuleVersion)`, aucune interprétation d'`observedValue`, aucun score de confiance/significativité/causalité/recommandation/état d'acceptation. Adaptateur `SupabasePatternEvidenceAggregationAdapter` — lecture seule, exclusivement `pattern_evidence_current_effective`, jamais `pattern_evidence_current`/`_history`/`_current_state`/`_with_provenance`. Entrée vide → `[]`. Échecs forts : evidence hors plage, mésappartenance athlète, doublon d'identité (portée globale), doublon d'`evidenceKey` (portée du groupe). Ordonnancement déterministe prouvé par invariance au mélange.
+
+**Preuves d'intégration (vraie DB, reconfirmées vertes)** : cycle de vie T1→T2→T3 (retrait/réactivation, zéro logique de cycle de vie propre à M5_006D) ; tête-de-révision-uniquement isolée (identité X, révision 1 `supporting` → révision 2 `contradicting`, l'agrégat ne compte que la révision 2, contrat complet vérifié : `evidenceCount=1, supportingCount=0, contradictingCount=1, evidenceBalance=contradicting_only`) ; filtrage de plage inclusif (bornes `fromDate`/`toDate` incluses, hors-plage exclu) ; isolation par athlète (double sens) ; exclusivité de portée de l'adaptateur (une identité retirée absente de l'adaptateur bien que toujours présente dans `pattern_evidence_current`).
+
+**Tests — état final** : 33 unitaires purs + 5 intégration = **38 tests M5_006D**. Suite `longitudinal-engine` complète = **510/510**. Régressions gelées reconfirmées : M5_004=59/59, résolveur=15/15, M5_005=31/31, M5_006C détecteur=50/50, adaptateur=10/10, intégration=3/3, M1/M2=226/226, edge=9/9, M3 HTTP=26/26, completed-session unit=73/73, completed-session HTTP=70/70, web=242/242, web build=PASS, longitudinal build=PASS. Aucune régression produit — les erreurs rencontrées pendant la passe de durcissement précédente (mauvais répertoire de travail, clé serveur locale manquante, clé anonyme locale manquante) étaient des erreurs opérateur/configuration, jamais des flakes de test ni des régressions produit. La passe finale de vérification correctement configurée a ensuite reconfirmé tous les gates requis sans nouvelle erreur opérateur ni relance.
+
+**Migrations — ZÉRO** : M5_006D n'a jamais ajouté ni modifié de migration. `local = remote = 22`, `pending = 0`, inchangé depuis M5_006B.
+
+**Décision** : **M5_006D = CLOSED.** L'agrégation déterministe d'evidence effective (`aggregateEffectivePatternEvidence.ts`) et son adaptateur de lecture (`SupabasePatternEvidenceAggregationAdapter`) sont implémentés, testés et verrouillés dans `longitudinal-engine`, en lecture seule vis-à-vis de Supabase. Aucun déploiement Edge Function, aucun déploiement Vercel, aucune écriture remote, aucune table de persistance d'agrégat créée. **Aucun agrégat n'est calculé automatiquement en production, aucun scheduler, aucune intégration `daily-run`.** Aucun pattern appris n'influence `daily-run` en M5. Safety A1-A5 inchangée. M1-M4 restent frozen. **M5 dans son ensemble reste EN COURS.**
+
+**Prochain jalon (gelé, non entamé)** : **M5_007 — insights / revue humaine.** Aucun état de revue finale, seuil, UX ou comportement d'activation n'est implémenté ni architecturé par cette entrée.
+
+**Impact** : aucun changement de code dans cette entrée (revue de vérification uniquement) ; `docs/00_PROJECT_STATUS.md`, `docs/12_BACKLOG.md`, cette entrée.
+
+**Statut** : **CLOSED.** Commits : implémentation `20d87ef7a3605bcb909221977195c56fe9d0265f` (`feat: add deterministic evidence aggregation`), durcissement `5817f77f86e7742ce5b440adf8872037cd1683bf` (`test: harden evidence aggregation proofs`). Aucun déploiement, aucune écriture remote. M5 dans son ensemble reste EN COURS — M5_007 reste à implémenter.

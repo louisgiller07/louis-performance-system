@@ -2,7 +2,7 @@
 
 **Dernière mise à jour :** 27 août 2026
 **Version canonique en cours :** V0.2
-**Phase actuelle :** **M5 EN COURS.** M4 reste COMPLETE (client web de production, `https://louis-performance-system.vercel.app`). M5 (longitudinal/pattern evidence) a franchi M5_001 à M5_006C — voir `docs/11_DECISION_LOG.md` pour le détail milestone par milestone. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) est **CLOSED**, déployé sur `uvolpldwwyvadlamulvr`. M5_006C (détecteur de persistance de la douleur) est **CLOSED** — implémenté et testé dans `longitudinal-engine` uniquement, aucune migration, aucun déploiement (il réutilise entièrement le schéma/RPC déjà déployés par M5_006A/M5_006B). Aucun peuplement automatique de production, aucun pattern appris n'influence `daily-run`. Prochain : **M5_006D — agrégation déterministe d'evidence.**
+**Phase actuelle :** **M5 EN COURS.** M4 reste COMPLETE (client web de production, `https://louis-performance-system.vercel.app`). M5 (longitudinal/pattern evidence) a franchi M5_001 à M5_006D — voir `docs/11_DECISION_LOG.md` pour le détail milestone par milestone. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) est **CLOSED**, déployé sur `uvolpldwwyvadlamulvr`. M5_006C (détecteur de persistance de la douleur) est **CLOSED** — implémenté et testé dans `longitudinal-engine` uniquement, aucune migration, aucun déploiement (il réutilise entièrement le schéma/RPC déjà déployés par M5_006A/M5_006B). M5_006D (agrégation déterministe d'evidence effective) est **CLOSED** — implémenté et testé dans `longitudinal-engine` uniquement, consomme exclusivement `pattern_evidence_current_effective`, aucune migration, aucun déploiement, aucune persistance d'agrégat, aucun score de confiance/significativité. Aucun peuplement automatique de production, aucun pattern appris n'influence `daily-run`. Prochain : **M5_007 — insights / revue humaine.**
 
 M3 — Edge Function HTTP exposant `runDailyFor` : **DONE (local + remote)**, `daily-run` déployée et **ACTIVE** sur `uvolpldwwyvadlamulvr` (`verify_jwt: true`). Voir `docs/11_DECISION_LOG.md` (2026-08-17 — M3_001/M3_002/M3_003 ; 2026-08-18 — M3_005/M3_006).
 
@@ -26,7 +26,7 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_
 
 ### NOT STARTED
 
-- M5_006D (agrégation déterministe d'evidence, contrat d'entrée verrouillé sur `pattern_evidence_current_effective`), M5_007 (insights / revue humaine) — jalons gelés, non entamés.
+- M5_007 (insights / revue humaine) — jalon gelé, non entamé.
 - Enrichissements P1+ (runtime `ActiveExperiment`, domaines mental/nutrition/analyse, LLM couche E, intégrations externes).
 
 ## Prochaines étapes (ordre)
@@ -38,16 +38,17 @@ M2 — Connexion Supabase read/write : **DONE (local + remote)**, voir `docs/11_
 5. ~~**M4 — première interface utilisable** (Today screen / check-in, historique, déploiement production HTTPS).~~ **DONE, 2026-08-19.**
 6. ~~**M5_001-M5_006B** — timeline longitudinal, calculateur d'outcomes, détecteurs recommandation-vs-exécution et sommeil-énergie, ledger d'evidence append-only + cycle de vie.~~ **M5_006B CLOSED, 2026-08-26.** Voir `docs/11_DECISION_LOG.md`.
 7. ~~**M5_006C** — détecteur de persistance de la douleur.~~ **CLOSED, 2026-08-27** (implémentation locale uniquement, aucune migration). Voir `docs/11_DECISION_LOG.md`.
-8. **M5_006D** — agrégation déterministe d'evidence (`pattern_evidence_current_effective`). Puis M5_007 (insights).
+8. ~~**M5_006D** — agrégation déterministe d'evidence (`pattern_evidence_current_effective`).~~ **CLOSED, 2026-08-27** (implémentation locale uniquement, aucune migration). Voir `docs/11_DECISION_LOG.md`.
+9. **M5_007** — insights / revue humaine (non entamé).
 
 ## Prochain milestone
 
-**M5_006D — agrégation déterministe d'evidence** (non entamé).
+**M5_007 — insights / revue humaine** (non entamé).
 
 Statut M2 : **DONE (local + remote), 2026-08-17.**
 Statut M3 : **DONE (local + remote), 2026-08-18.**
 Statut M4 : **COMPLETE, 2026-08-19.**
-Statut M5 : **EN COURS** — M5_006B **CLOSED (local + remote), 2026-08-26** ; M5_006C **CLOSED (local uniquement, aucune migration), 2026-08-27**. Détail milestone par milestone dans `docs/11_DECISION_LOG.md`.
+Statut M5 : **EN COURS** — M5_006B **CLOSED (local + remote), 2026-08-26** ; M5_006C **CLOSED (local uniquement, aucune migration), 2026-08-27** ; M5_006D **CLOSED (local uniquement, aucune migration), 2026-08-27**. Détail milestone par milestone dans `docs/11_DECISION_LOG.md`.
 
 Critères de sortie M2 :
 - [x] Audit initial du DDL réel (tables + enums touchés par M2) réalisé et tracé (2026-08-14).
