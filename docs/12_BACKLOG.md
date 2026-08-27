@@ -2,8 +2,8 @@
 
 ## Statut actuel
 
-**Phase** : **M5 EN COURS.** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27** — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_006D. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production.
-**Prochain milestone** : M5_007 — insights / revue humaine.
+**Phase** : **M5 COMPLETE (2026-08-27).** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr` ; moteur d'insight implémenté/testé localement, non invoqué automatiquement en production — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_007. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Prochain milestone** : aucun jalon M5 restant. Aucune prochaine étape concrète actuellement sélectionnée — voir §P1/§P2 ci-dessous pour les catégories d'enrichissement candidates, non architecturées.
 
 ---
 
