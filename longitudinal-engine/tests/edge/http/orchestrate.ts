@@ -110,6 +110,35 @@ function submitReviewPost(token: string | null, body: unknown): Promise<HttpResu
   return rawRequest(SUBMIT_REVIEW_URL, "POST", headers, JSON.stringify(body));
 }
 
+// --- diagnostic-output sanitization -----------------------------------------
+// Assertions below always inspect the FULL real response/row object — these
+// helpers only shrink what gets printed to the console/report as a `record()`
+// detail string, so a human/log reader never sees athlete UUIDs, full
+// candidateSnapshot/sourceEvidenceRefs, or identity/revision UUIDs. No
+// assertion strength changes; this is output hygiene only.
+function summarizeCandidateForLog(candidate: any): string {
+  if (!candidate) return "null";
+  return JSON.stringify({
+    detectorRuleId: candidate.snapshot?.detectorRuleId,
+    detectorRuleVersion: candidate.snapshot?.detectorRuleVersion,
+    insightKind: candidate.snapshot?.insightKind,
+    direction: candidate.snapshot?.direction,
+    evidenceCount: candidate.snapshot?.evidenceCount,
+    sourceEvidenceRefsCount: candidate.snapshot?.sourceEvidenceRefs?.length,
+    reviewState: candidate.reviewState,
+  });
+}
+
+function summarizeReviewForLog(review: any): string {
+  if (!review) return "null";
+  return JSON.stringify({
+    detectorRuleId: review.detectorRuleId,
+    decision: review.decision,
+    reviewNumber: review.reviewNumber,
+    hasReviewerNote: review.reviewerNote !== null && review.reviewerNote !== undefined,
+  });
+}
+
 function freshnessTokenFrom(snapshot: any, overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     detectorRuleId: snapshot.detectorRuleId,
@@ -335,7 +364,11 @@ async function main(): Promise<void> {
         .select("event_type, athlete_id")
         .eq("evidence_key", `decision:${decisionIdA}`)
         .maybeSingle();
-      record("refresh. real pattern_evidence row persisted for A's decision", !error && evidenceRow?.event_type === "supporting" && evidenceRow?.athlete_id === userA.athleteId, JSON.stringify(evidenceRow));
+      record(
+        "refresh. real pattern_evidence row persisted for A's decision",
+        !error && evidenceRow?.event_type === "supporting" && evidenceRow?.athlete_id === userA.athleteId,
+        JSON.stringify({ event_type: evidenceRow?.event_type, athlete_matches_expected: evidenceRow?.athlete_id === userA.athleteId })
+      );
     }
     {
       const after = await admin.from("pattern_evidence_identities").select("id", { count: "exact", head: true }).eq("athlete_id", userA.athleteId);
@@ -388,7 +421,11 @@ async function main(): Promise<void> {
         insightsA.json?.range?.fromDate === "1900-01-01" &&
         insightsA.json?.range?.toDate === "9999-12-31" &&
         Array.isArray(insightsA.json?.candidates);
-      record("insights. real read -> 200, static domain-wide range", ok, `status=${insightsA.status} body=${insightsA.text.slice(0, 300)}`);
+      record(
+        "insights. real read -> 200, static domain-wide range",
+        ok,
+        `status=${insightsA.status} range=${JSON.stringify(insightsA.json?.range)} candidateCount=${(insightsA.json?.candidates ?? []).length}`
+      );
     }
     {
       const candidates: any[] = insightsA.json?.candidates ?? [];
@@ -399,7 +436,7 @@ async function main(): Promise<void> {
         recCandidate.snapshot.direction === "supporting" &&
         recCandidate.reviewState === "unreviewed" &&
         recCandidate.currentReview === null;
-      record("insights. recommendation_execution_alignment candidate present, correctly shaped, unreviewed", ok, JSON.stringify(recCandidate));
+      record("insights. recommendation_execution_alignment candidate present, correctly shaped, unreviewed", ok, summarizeCandidateForLog(recCandidate));
     }
 
     // ================= cross-athlete isolation =================
@@ -575,7 +612,11 @@ async function main(): Promise<void> {
       {
         submitReviewStale = await submitReviewPost(userA.token, staleToken);
         const ok = submitReviewStale.status === 409 && submitReviewStale.json?.error?.code === "stale_candidate" && submitReviewStale.json?.candidate?.snapshot?.detectorRuleId === RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID;
-        record("submit-review. stale token (evidence mutated after load) -> 409 stale_candidate, fresh candidate returned", ok, `status=${submitReviewStale.status} body=${submitReviewStale.text.slice(0, 400)}`);
+        record(
+          "submit-review. stale token (evidence mutated after load) -> 409 stale_candidate, fresh candidate returned",
+          ok,
+          `status=${submitReviewStale.status} code=${submitReviewStale.json?.error?.code} freshCandidate=${summarizeCandidateForLog(submitReviewStale.json?.candidate)}`
+        );
       }
       {
         const freshRefs = submitReviewStale.json?.candidate?.snapshot?.sourceEvidenceRefs ?? [];
@@ -619,7 +660,7 @@ async function main(): Promise<void> {
         record(
           "submit-review. real pattern_insight_reviews row persisted, decision=accepted_as_insight, reviewer_note NULL",
           !error && reviewRow?.decision === "accepted_as_insight" && reviewRow?.reviewer_note === null && reviewRow?.athlete_id === userA.athleteId,
-          JSON.stringify(reviewRow)
+          JSON.stringify({ decision: reviewRow?.decision, reviewer_note_is_null: reviewRow?.reviewer_note === null, detector_rule_id: reviewRow?.detector_rule_id, athlete_matches_expected: reviewRow?.athlete_id === userA.athleteId })
         );
       }
       {
@@ -638,7 +679,7 @@ async function main(): Promise<void> {
         record(
           "submit-review. get-insights after review -> reviewState=reviewed_current, decision=dismissed",
           reviewedCandidate?.reviewState === "reviewed_current" && reviewedCandidate?.currentReview?.decision === "dismissed",
-          JSON.stringify(reviewedCandidate?.currentReview)
+          `reviewState=${reviewedCandidate?.reviewState} review=${summarizeReviewForLog(reviewedCandidate?.currentReview)}`
         );
       }
     }

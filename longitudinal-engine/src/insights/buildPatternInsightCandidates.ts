@@ -51,7 +51,7 @@
 import type { PatternEvidenceAggregate, PatternEvidenceAggregateSourceRef, PatternEvidenceBalance } from "../aggregation/types.js";
 import { UnsupportedPatternInsightProjectorError } from "./errors.js";
 import { INSIGHT_COPY, PATTERN_INSIGHT_PROJECTOR_VERSION, resolveInsightKind } from "./registry.js";
-import type { PatternInsightCandidate, PatternInsightCandidateReviewState, PatternInsightDirection, PatternInsightFreshnessFingerprint, PatternInsightReviewRecord, PatternInsightSnapshot } from "./types.js";
+import type { PatternInsightCandidate, PatternInsightCandidateReviewState, PatternInsightDirection, PatternInsightReviewComparisonKey, PatternInsightReviewRecord, PatternInsightSnapshot } from "./types.js";
 
 export interface BuildPatternInsightCandidatesInput {
   readonly aggregates: readonly PatternEvidenceAggregate[];
@@ -67,8 +67,15 @@ const DIRECTION_MAP: Readonly<Record<PatternEvidenceBalance, PatternInsightDirec
   neutral_only: "neutral",
 };
 
-function identityKey(athleteId: string, detectorRuleId: string, detectorRuleVersion: string, insightKind: string): string {
-  return `${athleteId} ${detectorRuleId} ${detectorRuleVersion} ${insightKind}`;
+// NUL-separated (not space) — preserves the exact historical runtime
+// identity-key semantics this module has always used (see
+// resolveCandidateForReview.identityKey.test.ts for a direct proof of the
+// runtime string). NUL can never occur inside athleteId/detectorRuleId/
+// detectorRuleVersion/insightKind, so this remains a reliable Map-key
+// separator; only the SOURCE representation changed (a textual `\u0000`
+// escape, never a raw NUL byte in the file itself).
+export function identityKey(athleteId: string, detectorRuleId: string, detectorRuleVersion: string, insightKind: string): string {
+  return `${athleteId}\u0000${detectorRuleId}\u0000${detectorRuleVersion}\u0000${insightKind}`;
 }
 
 function sourceRefsEqual(a: readonly PatternEvidenceAggregateSourceRef[], b: readonly PatternEvidenceAggregateSourceRef[]): boolean {
@@ -96,13 +103,15 @@ function sourceRefsEqual(a: readonly PatternEvidenceAggregateSourceRef[], b: rea
  * `reviewed_current`/`reviewed_stale` derivation, and reused verbatim
  * (never re-implemented) by `resolveCandidateForReview.ts` for
  * `submit-review`'s server-side freshness check (V0.3_001C). Parameter type
- * is `PatternInsightFreshnessFingerprint` (a structural subset of
- * `PatternInsightSnapshot`) so a browser-supplied freshness token — which
- * has no `title`/`statement`/counts/ratios/etc. — can be compared directly
- * without fabricating placeholder values for fields this function never
- * reads anyway.
+ * is `PatternInsightReviewComparisonKey` — the 7 locked freshness
+ * dimensions PLUS `athleteId` (server-scope/isolation, never an eighth
+ * browser-supplied freshness dimension — see that type's own doc). A
+ * structural subset of `PatternInsightSnapshot`, so a browser-supplied
+ * freshness token — which has no `title`/`statement`/counts/ratios/etc. —
+ * can be compared directly without fabricating placeholder values for
+ * fields this function never reads anyway.
  */
-export function fingerprintMatches(snapshot: PatternInsightFreshnessFingerprint, reviewedSnapshot: PatternInsightFreshnessFingerprint): boolean {
+export function fingerprintMatches(snapshot: PatternInsightReviewComparisonKey, reviewedSnapshot: PatternInsightReviewComparisonKey): boolean {
   return (
     reviewedSnapshot.insightProjectorVersion === snapshot.insightProjectorVersion &&
     reviewedSnapshot.athleteId === snapshot.athleteId &&

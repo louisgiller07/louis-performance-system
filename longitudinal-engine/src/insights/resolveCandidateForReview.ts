@@ -21,10 +21,14 @@
  *    comparator.
  */
 import { fingerprintMatches } from "./buildPatternInsightCandidates.js";
-import type { PatternInsightCandidate, PatternInsightFreshnessFingerprint } from "./types.js";
+import type { PatternInsightCandidate, PatternInsightReviewFreshnessDimensions } from "./types.js";
 
-/** The exact 7 locked freshness dimensions the browser may supply, plus the server-resolved athleteId `fingerprintMatches` also compares. */
-export type ReviewFreshnessRequest = Omit<PatternInsightFreshnessFingerprint, "athleteId">;
+/**
+ * Exactly the 7 locked freshness dimensions the browser may supply — never
+ * `athleteId` (server scope, injected below, not part of this type at all —
+ * see `PatternInsightReviewFreshnessDimensions`'s own doc).
+ */
+export type ReviewFreshnessRequest = PatternInsightReviewFreshnessDimensions;
 
 export type CandidateResolutionResult =
   | { readonly status: "not_found" }

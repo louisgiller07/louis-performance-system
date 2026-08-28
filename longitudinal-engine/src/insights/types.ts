@@ -65,19 +65,31 @@ export type PatternInsightReviewDecision = "accepted_as_insight" | "dismissed" |
 export type PatternInsightCandidateReviewState = "unreviewed" | "reviewed_current" | "reviewed_stale";
 
 /**
- * The exact fields `fingerprintMatches` compares — a structural subset of
- * `PatternInsightSnapshot` (any `PatternInsightSnapshot` already satisfies
- * this type, so this is a pure narrowing, never a behavior change). Used
- * both by the `reviewed_current`/`reviewed_stale` derivation and by
- * `submit-review`'s candidate-freshness check (V0.3_001C), so a
- * browser-supplied freshness token (which is not a full 23-field snapshot)
- * can be compared with the exact same comparator without inventing a
- * second one.
+ * The exact 7 locked, browser-facing freshness dimensions (see
+ * docs/06_ARCHITECTURE.md "Jeton de fraîcheur de revue complet") —
+ * deliberately does NOT include `athleteId`. `athleteId` is always
+ * server-resolved (never browser-supplied); a type that included it here
+ * would misleadingly suggest a browser could influence it. A structural
+ * subset of `PatternInsightSnapshot` (any `PatternInsightSnapshot` already
+ * satisfies this type — a pure narrowing, never a behavior change).
  */
-export type PatternInsightFreshnessFingerprint = Pick<
+export type PatternInsightReviewFreshnessDimensions = Pick<
   PatternInsightSnapshot,
-  "insightProjectorVersion" | "athleteId" | "insightKind" | "detectorRuleId" | "detectorRuleVersion" | "rangeFromDate" | "rangeToDate" | "sourceEvidenceRefs"
+  "detectorRuleId" | "detectorRuleVersion" | "insightKind" | "insightProjectorVersion" | "rangeFromDate" | "rangeToDate" | "sourceEvidenceRefs"
 >;
+
+/**
+ * What `fingerprintMatches` actually compares at runtime: the 7 freshness
+ * dimensions above PLUS `athleteId` — `athleteId` here is a SERVER-SCOPE /
+ * athlete-isolation guard, never an eighth browser-supplied freshness
+ * dimension. Every real caller (both `buildPatternInsightCandidates`'s own
+ * `reviewed_current`/`reviewed_stale` derivation and
+ * `resolveCandidateForReview.ts` for `submit-review`) always injects the
+ * server-resolved `athleteId` into this shape; a browser-facing request
+ * type (see `resolveCandidateForReview.ts`'s `ReviewFreshnessRequest`)
+ * never carries this field at all.
+ */
+export type PatternInsightReviewComparisonKey = PatternInsightReviewFreshnessDimensions & { readonly athleteId: string };
 
 /**
  * One current review-ledger row for one insight identity

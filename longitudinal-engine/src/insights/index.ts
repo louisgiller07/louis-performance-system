@@ -16,7 +16,8 @@ export type {
   PatternInsightCandidateReviewState,
   PatternInsightReviewRecord,
   PatternInsightCandidate,
-  PatternInsightFreshnessFingerprint,
+  PatternInsightReviewFreshnessDimensions,
+  PatternInsightReviewComparisonKey,
 } from "./types.js";
 
 // V0.3_001C — submit-review's pure candidate-resolution helper (selector +

@@ -10,7 +10,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { fingerprintMatches } from "../../../src/insights/index.js";
-import type { PatternInsightFreshnessFingerprint } from "../../../src/insights/index.js";
+import type { PatternInsightReviewComparisonKey } from "../../../src/insights/index.js";
 import type { PatternEvidenceAggregateSourceRef } from "../../../src/aggregation/index.js";
 import { nextId, resetIdSequence } from "../timeline/fixtures.js";
 
@@ -29,7 +29,7 @@ function sourceRef(overrides: Partial<PatternEvidenceAggregateSourceRef> = {}): 
   };
 }
 
-function fingerprintFixture(overrides: Partial<PatternInsightFreshnessFingerprint> = {}): PatternInsightFreshnessFingerprint {
+function fingerprintFixture(overrides: Partial<PatternInsightReviewComparisonKey> = {}): PatternInsightReviewComparisonKey {
   return {
     insightProjectorVersion: "1.0.0",
     athleteId: "athlete-a",
