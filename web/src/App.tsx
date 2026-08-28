@@ -5,6 +5,7 @@ import { LoginPage } from "./auth/LoginPage";
 import { TodayPage } from "./pages/TodayPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { HistoryDetailPage } from "./pages/HistoryDetailPage";
+import { InsightsPage } from "./pages/InsightsPage";
 
 export default function App() {
   return (
@@ -33,6 +34,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <HistoryDetailPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/insights"
+            element={
+              <RequireAuth>
+                <InsightsPage />
               </RequireAuth>
             }
           />
