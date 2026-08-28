@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeSourceFingerprint } from "../../../tools/sourceFingerprint.js";
 import { buildTimeline } from "../../../src/timeline/buildTimeline.js";
-import { ATHLETE_A, checkin, decision, emptySources, resetIdSequence } from "../timeline/fixtures.js";
+import { ATHLETE_A, checkin, decision, decisionOutcome, emptySources, resetIdSequence } from "../timeline/fixtures.js";
 
 function timelineFixture() {
   resetIdSequence();
@@ -53,5 +53,26 @@ describe("computeSourceFingerprint", () => {
     const fp = computeSourceFingerprint("2026-08-10", timeline);
     // The digest is a fixed-length hex string — structurally incapable of echoing back any raw field value.
     expect(fp.replace("sha256:", "")).toHaveLength(64);
+  });
+
+  it("V0.3_001B idempotency audit — changes when an existing decision_outcomes row appears in the source pool (via decisionThreads[].outcomesByHorizon), proving a fresh post-backfill preview will naturally report a different fingerprint than the pre-backfill approval", () => {
+    resetIdSequence();
+    const d = decision({ id: "d1", decisionDate: "2026-08-10" });
+    const timelineWithoutOutcome = buildTimeline({
+      athleteId: ATHLETE_A,
+      range: { fromDate: "2026-08-01", toDate: "2026-08-10" },
+      sources: { ...emptySources(), decisions: [d] },
+    });
+
+    resetIdSequence();
+    const d2 = decision({ id: "d1", decisionDate: "2026-08-10" });
+    const outcome = decisionOutcome({ decisionId: "d1", horizon: "J_PLUS_1" });
+    const timelineWithOutcome = buildTimeline({
+      athleteId: ATHLETE_A,
+      range: { fromDate: "2026-08-01", toDate: "2026-08-10" },
+      sources: { ...emptySources(), decisions: [d2], outcomes: [outcome] },
+    });
+
+    expect(computeSourceFingerprint("2026-08-10", timelineWithoutOutcome)).not.toBe(computeSourceFingerprint("2026-08-10", timelineWithOutcome));
   });
 });
