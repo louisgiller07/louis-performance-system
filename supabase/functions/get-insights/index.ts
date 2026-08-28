@@ -39,6 +39,17 @@ export default {
       );
     }
 
+    // Strict no-input contract (locked): no query parameter may ever
+    // influence athlete selection, range, or candidate calculation — the
+    // athlete is always server-resolved from the JWT, and the range is
+    // always the static INSIGHT_AGGREGATION_RANGE below. Any query
+    // parameter at all (athleteId, range, fromDate, foo, ...) is rejected
+    // outright rather than silently ignored.
+    const url = new URL(req.url);
+    if ([...url.searchParams.keys()].length > 0) {
+      return errorResponse(400, "invalid_request", "This endpoint takes no query parameters.");
+    }
+
     const { data: athletes, error: athleteError } = await ctx.supabase.from("athletes").select("id");
     if (athleteError) {
       console.error(`get-insights: athlete resolution failed [${athleteError.code}]`);

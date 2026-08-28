@@ -29,6 +29,7 @@ import {
   runDetectors,
 } from "../../../longitudinal-engine/dist/index.js";
 import { mapRefreshLongitudinalError } from "./errorMapping.ts";
+import { buildRefreshLongitudinalResponse } from "./responseShaping.ts";
 
 function errorResponse(status: number, code: string, message: string): Response {
   return Response.json({ error: { code, message } }, { status });
@@ -90,36 +91,20 @@ export default {
       const detectors = await runDetectors({ supabaseAdmin: ctx.supabaseAdmin, timeline });
 
       // Sanitized summary only — per-item error STRINGS (which may embed a
-      // short Postgres error code) stay server-side in the orchestrators'
-      // own return values for logs; the HTTP response reports counts only,
-      // never the raw error text. status flags whether every item
-      // succeeded, without ever using an HTTP 207.
+      // raw Postgres/RPC message) stay server-side in the orchestrators'
+      // own return values for logs; buildRefreshLongitudinalResponse is the
+      // SOLE production transport-builder and never reads `.error` beyond
+      // deciding an error occurred (see responseShaping.ts's own doc).
+      // status flags whether every item succeeded, without ever using an
+      // HTTP 207 — both "complete" and "partial_failure" are HTTP 200.
       if (outcomes.errors.length > 0 || detectors.errors.length > 0) {
         console.error(
           `refresh-longitudinal: partial failure — outcomes.errors=${outcomes.errors.length} detectors.errors=${detectors.errors.length}`
         );
       }
-      const status = outcomes.errors.length > 0 || detectors.errors.length > 0 ? "partial_failure" : "complete";
 
-      return Response.json(
-        {
-          status,
-          processingDate: longitudinalProcessingDate,
-          outcomes: {
-            attempted: outcomes.attempted,
-            writeSucceeded: outcomes.writeSucceeded,
-            alreadyExisted: outcomes.alreadyExisted,
-            skippedImmature: outcomes.skippedImmature,
-            errorCount: outcomes.errors.length,
-          },
-          detectors: {
-            attempted: detectors.attempted,
-            succeeded: detectors.results.length,
-            errorCount: detectors.errors.length,
-          },
-        },
-        { status: 200 }
-      );
+      const responseBody = buildRefreshLongitudinalResponse(longitudinalProcessingDate, outcomes, detectors);
+      return Response.json(responseBody, { status: 200 });
     } catch (error) {
       const mapped = mapRefreshLongitudinalError(error);
       console.error(`refresh-longitudinal: failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);

@@ -8,10 +8,12 @@
     "node": ">=24"
   },
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc -p tsconfig.build.json",
+    "build:clean": "npm run clean && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:v3:http": "npm run build && tsx tests/edge/http/orchestrate.ts"
+    "test:v3:http": "npm run build:clean && tsx tests/edge/http/orchestrate.ts"
   },
   "devDependencies": {
     "@types/node": "latest",

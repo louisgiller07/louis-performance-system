@@ -11,10 +11,12 @@
  * Get both via `npx supabase status -o env`.
  *
  * This script builds nothing itself (the `test:v3:http` npm script runs
- * `npm run build` first) — it starts `supabase functions serve`, waits for
- * it to accept connections, runs every scenario against the real Edge
- * Runtime with real scratch users/athletes/fixtures, and exits non-zero if
- * any assertion failed. Never logs a JWT or service key.
+ * `npm run build:clean` first — a full `rm dist` + rebuild, so the Edge
+ * Runtime always consumes a freshly compiled `dist/**`, never a stale one)
+ * — it starts `supabase functions serve`, waits for it to accept
+ * connections, runs every scenario against the real Edge Runtime with real
+ * scratch users/athletes/fixtures, and exits non-zero if any assertion
+ * failed. Never logs a JWT or service key.
  *
  * Cleanup convention: pattern_evidence_identities.athlete_id and
  * pattern_insight_identities.athlete_id are both ON DELETE RESTRICT (by
@@ -31,6 +33,7 @@ import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, insertCheckin, insertCompletedSession, insertDecision, type TestAthlete } from "../../supabase/testDb.js";
+import { PAIN_PERSISTENCE_RULE_ID, RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID, SLEEP_ENERGY_RULE_ID } from "../../../src/detectors/index.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
 const LOCAL_URL = "http://127.0.0.1:54321";
@@ -283,9 +286,27 @@ async function main(): Promise<void> {
         (firstRun.json?.status === "complete" || firstRun.json?.status === "partial_failure") &&
         /^\d{4}-\d{2}-\d{2}$/.test(firstRun.json?.processingDate ?? "") &&
         typeof firstRun.json?.outcomes === "object" &&
-        typeof firstRun.json?.detectors === "object";
+        typeof firstRun.json?.detectors === "object" &&
+        Array.isArray(firstRun.json?.errors);
       record("refresh. real success -> 200, well-shaped summary", ok, `status=${firstRun.status} body=${firstRun.text.slice(0, 300)}`);
-      record("refresh. real success -> status complete (no orchestration errors)", firstRun.json?.status === "complete", JSON.stringify(firstRun.json));
+      record("refresh. real success -> status complete (no orchestration errors)", firstRun.json?.status === "complete" && (firstRun.json?.errors ?? []).length === 0, JSON.stringify(firstRun.json));
+    }
+    {
+      const detectors = firstRun.json?.detectors ?? {};
+      const hasAllThreeRuleKeys =
+        typeof detectors[RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID] === "object" &&
+        typeof detectors[SLEEP_ENERGY_RULE_ID] === "object" &&
+        typeof detectors[PAIN_PERSISTENCE_RULE_ID] === "object";
+      const recSummary = detectors[RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID];
+      const requiredKeys = ["attempted", "inserted", "superseded", "unchanged", "withdrawn", "unchangedWithdrawal", "skippedNoPrior", "errorCount"];
+      const recHasAllKeys = recSummary !== undefined && requiredKeys.every((k) => typeof recSummary[k] === "number");
+      record("refresh. per-detector summary keyed by exact rule ids, all 3 present", hasAllThreeRuleKeys, JSON.stringify(detectors));
+      record("refresh. per-detector summary has all 8 required numeric keys", recHasAllKeys, JSON.stringify(recSummary));
+      record(
+        "refresh. recommendation detector summary reflects the real inserted evidence (attempted=1, inserted=1)",
+        recSummary?.attempted === 1 && recSummary?.inserted === 1 && recSummary?.errorCount === 0,
+        JSON.stringify(recSummary)
+      );
     }
     {
       const { data: evidenceRow, error } = await admin
@@ -373,6 +394,38 @@ async function main(): Promise<void> {
       record("insights. A never sees B's athleteId in any candidate", !leaksIntoA, `count=${candidatesAAfter.length}`);
     }
 
+    // ================= get-insights strict query contract =================
+    // Real deterministic proof (no placeholder): every one of these must be
+    // REJECTED outright with 400 invalid_request — never silently ignored,
+    // and never allowed to influence athlete/range/candidate selection.
+    {
+      const cases: Array<[string, string]> = [
+        ["athleteId query rejected", `?athleteId=${userB.athleteId}`],
+        ["range query rejected", "?range=whatever"],
+        ["fromDate query rejected", "?fromDate=2026-01-01"],
+        ["unknown query rejected", "?foo=bar"],
+      ];
+      for (const [label, qs] of cases) {
+        const res = await fetch(`${INSIGHTS_URL}${qs}`, { method: "GET", headers: { Authorization: `Bearer ${userA.token}` } });
+        const body = await res.text();
+        let json: any = null;
+        try {
+          json = JSON.parse(body);
+        } catch {
+          /* not JSON */
+        }
+        record(`insights. ${label} -> 400 invalid_request`, res.status === 400 && json?.error?.code === "invalid_request", `status=${res.status} qs=${qs}`);
+      }
+    }
+    {
+      // athleteId query param must never override the JWT-resolved athlete
+      // — confirmed by the 400 rejection above (never reaching candidate
+      // calculation at all), reconfirmed here: A's real read still only
+      // ever returns A's own athleteId in every candidate.
+      const stillOnlyA = (insightsA.json?.candidates ?? []).every((c: any) => c.snapshot?.athleteId === userA.athleteId);
+      record("insights. athleteId query cannot influence athlete selection (real read still A-only)", stillOnlyA, "");
+    }
+
     // ================= sensitive-response check =================
     {
       const serverKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -382,12 +435,13 @@ async function main(): Promise<void> {
       record("responses never leak the JWT or service key", !leaked, "");
     }
     {
-      // Force a 500 by starving a downstream dependency is out of scope for
-      // this harness (would require breaking real infra); instead prove the
-      // documented sanitized-500 CONTRACT holds for the one reachable 500
-      // path exercised above (ambiguous-athlete) has no raw error text —
-      // already covered by the "well-shaped summary"/error.code assertions.
-      record("error responses use the documented {error:{code,message}} shape only", true, "");
+      // Deterministic proof that internal-error text is sanitized before it
+      // ever reaches the browser lives at the unit level
+      // (tests/edge/refreshLongitudinal/responseShaping.test.ts and
+      // tests/edge/getInsights/errorMapping.test.ts), exercising the EXACT
+      // production transport-builder/error-mapper functions against
+      // synthetic sentinel-carrying errors — not a placeholder here, and
+      // not a production debug backdoor forcing a real 500 over HTTP.
     }
   } finally {
     if (noAthleteUserId) {
