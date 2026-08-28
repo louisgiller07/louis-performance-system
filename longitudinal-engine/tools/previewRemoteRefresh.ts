@@ -38,14 +38,25 @@
  *
  * Output is the sanitized PreviewReport JSON only (see buildPreviewReport.ts
  * for its full privacy contract) — safe to paste back for review.
+ *
+ * REPOSITORY GUARD: before anything else — before authentication, before
+ * athlete resolution, before any remote read — this script verifies
+ * `branch === "main"`, a CLEAN working tree, and `HEAD === origin/main`
+ * (see repositoryGuard.ts). `tsx` executes the working tree, not a
+ * committed SHA, so a dirty tree could silently run uncommitted code while
+ * a bare `git rev-parse HEAD` still reports the previous committed SHA —
+ * the guard closes that gap. It never runs `git fetch` itself (zero
+ * network git I/O); if `origin/main` is stale, it fails and tells the
+ * operator to fetch manually. On success, `report.canonicalHead` is the
+ * verified HEAD — never the literal string "unknown" for a successful run.
  */
-import { execSync } from "node:child_process";
 import { assembleAthleteTimeline } from "../src/supabase/assembleAthleteTimeline.js";
 import { calculateAndPersistOutcomes } from "../src/supabase/outcomeOrchestrator.js";
 import { runDetectors } from "../src/supabase/detectorOrchestrator.js";
 import { currentLongitudinalProcessingDate } from "../src/timeline/index.js";
 import { buildPreviewReport } from "./buildPreviewReport.js";
 import { createRecordingRpcClient } from "./recordingRpcClient.js";
+import { runRepositoryGuard } from "./repositoryGuard.js";
 import {
   checkOwnEvidenceLedgerEmpty,
   NoInteractiveTtyError,
@@ -54,14 +65,6 @@ import {
   signInInteractive,
   signOutBestEffort,
 } from "./operatorAuth.js";
-
-function resolveCanonicalHead(): string {
-  try {
-    return execSync("git rev-parse HEAD").toString().trim();
-  } catch {
-    return "unknown";
-  }
-}
 
 function manualCommandFor(mode: "remote" | "local"): string {
   const flag = mode === "local" ? " --local" : "";
@@ -75,7 +78,14 @@ function manualCommandFor(mode: "remote" | "local"): string {
 
 async function main(): Promise<void> {
   const mode: "remote" | "local" = process.argv.includes("--local") ? "local" : "remote";
-  const canonicalHead = resolveCanonicalHead();
+
+  // Repository guard — MUST run before any config resolution, any
+  // authentication attempt, and any remote read. On success, guardState.head
+  // becomes canonicalHead; on failure, zero auth request, zero remote read,
+  // zero remote write ever happens.
+  const guardState = runRepositoryGuard();
+  const canonicalHead = guardState.head;
+
   const config = resolveOperatorSupabaseConfig(mode);
 
   let session;

@@ -194,11 +194,20 @@ export async function signInInteractive(config: OperatorSupabaseConfig): Promise
 }
 
 /** Best-effort — never throws; a failed sign-out just means the short-lived in-memory session expires naturally (persistSession is already false, so nothing is left on disk regardless). */
+/**
+ * `{ scope: "local" }` is deliberate and MUST NOT be relaxed to the
+ * default (global) scope: `client.auth.signOut()` with no scope
+ * invalidates every one of the user's active sessions everywhere (their
+ * phone, their browser, any other device) — a real, dangerous side effect
+ * for a short-lived operator preview tool to have, never something an
+ * operator running a read-only preview would expect or want. This must
+ * sign out ONLY the session this tool itself just created.
+ */
 export async function signOutBestEffort(client: SupabaseClient): Promise<void> {
   try {
-    await client.auth.signOut();
+    await client.auth.signOut({ scope: "local" });
   } catch {
-    /* best-effort only */
+    /* best-effort only — never rethrows, never logs credential material */
   }
 }
 
