@@ -40,6 +40,7 @@ const LOCAL_URL = "http://127.0.0.1:54321";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? LOCAL_URL;
 const REFRESH_URL = `${SUPABASE_URL}/functions/v1/refresh-longitudinal`;
 const INSIGHTS_URL = `${SUPABASE_URL}/functions/v1/get-insights`;
+const SUBMIT_REVIEW_URL = `${SUPABASE_URL}/functions/v1/submit-review`;
 
 class MissingAnonKeyError extends Error {
   constructor() {
@@ -101,6 +102,26 @@ function insightsGet(token: string | null): Promise<HttpResult> {
   const headers: Record<string, string> = {};
   if (token !== null) headers.Authorization = `Bearer ${token}`;
   return rawRequest(INSIGHTS_URL, "GET", headers);
+}
+
+function submitReviewPost(token: string | null, body: unknown): Promise<HttpResult> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token !== null) headers.Authorization = `Bearer ${token}`;
+  return rawRequest(SUBMIT_REVIEW_URL, "POST", headers, JSON.stringify(body));
+}
+
+function freshnessTokenFrom(snapshot: any, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    detectorRuleId: snapshot.detectorRuleId,
+    detectorRuleVersion: snapshot.detectorRuleVersion,
+    insightKind: snapshot.insightKind,
+    insightProjectorVersion: snapshot.insightProjectorVersion,
+    rangeFromDate: snapshot.rangeFromDate,
+    rangeToDate: snapshot.rangeToDate,
+    sourceEvidenceRefs: snapshot.sourceEvidenceRefs,
+    decision: "accepted_as_insight",
+    ...overrides,
+  };
 }
 
 // --- server lifecycle --------------------------------------------------------
@@ -426,13 +447,230 @@ async function main(): Promise<void> {
       record("insights. athleteId query cannot influence athlete selection (real read still A-only)", stillOnlyA, "");
     }
 
+    // ================= submit-review =================
+    let submitReviewSuccess: HttpResult;
+    let submitReviewStale: HttpResult;
+    {
+      // ---------- auth/method boundary ----------
+      {
+        const r = await submitReviewPost(null, {});
+        record("submit-review. no Authorization header -> 401", r.status === 401, `status=${r.status}`);
+      }
+      {
+        const r = await submitReviewPost("not.a.valid.jwt", {});
+        record("submit-review. invalid JWT -> 401", r.status === 401, `status=${r.status}`);
+      }
+      {
+        // A well-formed (but arbitrary) body — must pass request validation
+        // so the athlete-resolution check (which runs AFTER validation,
+        // same order as refresh-longitudinal/get-insights) is what actually
+        // produces the response here, not an earlier 400.
+        const r = await submitReviewPost(
+          noAthleteToken,
+          freshnessTokenFrom({
+            detectorRuleId: RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID,
+            detectorRuleVersion: "1.0.0",
+            insightKind: "recommendation_execution_alignment",
+            insightProjectorVersion: "1.0.0",
+            rangeFromDate: "1900-01-01",
+            rangeToDate: "9999-12-31",
+            sourceEvidenceRefs: [],
+          })
+        );
+        record("submit-review. no athlete -> 403 no_athlete_for_user", r.status === 403 && r.json?.error?.code === "no_athlete_for_user", `status=${r.status}`);
+      }
+      for (const method of ["GET", "PUT", "DELETE"]) {
+        const res = await fetch(SUBMIT_REVIEW_URL, { method, headers: { Authorization: `Bearer ${userA.token}` } });
+        const allow = res.headers.get("allow");
+        record(`submit-review. ${method} -> 405 + Allow: POST`, res.status === 405 && allow === "POST", `status=${res.status} allow=${allow}`);
+      }
+
+      // ---------- request validation ----------
+      {
+        const r = await rawRequest(SUBMIT_REVIEW_URL, "POST", { Authorization: `Bearer ${userA.token}`, "Content-Type": "application/json" }, "not json");
+        record("submit-review. malformed JSON body -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const r = await rawRequest(SUBMIT_REVIEW_URL, "POST", { Authorization: `Bearer ${userA.token}`, "Content-Type": "application/json" }, "null");
+        record("submit-review. null body -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const r = await rawRequest(SUBMIT_REVIEW_URL, "POST", { Authorization: `Bearer ${userA.token}`, "Content-Type": "application/json" }, "[]");
+        record("submit-review. array body -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const r = await submitReviewPost(userA.token, { detectorRuleId: "x" });
+        record("submit-review. missing required fields -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const validCandidate = (insightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+        const r = await submitReviewPost(userA.token, freshnessTokenFrom(validCandidate.snapshot, { unknownField: "x" }));
+        record("submit-review. unknown top-level field -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const validCandidate = (insightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+        const r = await submitReviewPost(userA.token, freshnessTokenFrom(validCandidate.snapshot, { athleteId: userB.athleteId }));
+        record("submit-review. athleteId injection -> 400 invalid_request (unknown field, never used to override server resolution)", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const validCandidate = (insightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+        const r = await submitReviewPost(userA.token, freshnessTokenFrom(validCandidate.snapshot, { candidateSnapshot: validCandidate.snapshot }));
+        record("submit-review. candidateSnapshot injection -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const validCandidate = (insightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+        const r = await submitReviewPost(userA.token, freshnessTokenFrom(validCandidate.snapshot, { decision: "activated" }));
+        record("submit-review. invalid decision value -> 400 invalid_request", r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+      }
+      {
+        const validCandidate = (insightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+        const cases: Array<[string, unknown]> = [
+          ["empty string", ""],
+          ["whitespace-only", "   "],
+          ["leading/trailing whitespace", " note "],
+          ["too long (2001 chars)", "a".repeat(2001)],
+          ["wrong type (number)", 42],
+        ];
+        for (const [label, reviewerNote] of cases) {
+          const r = await submitReviewPost(userA.token, freshnessTokenFrom(validCandidate.snapshot, { reviewerNote }));
+          record(`submit-review. reviewerNote ${label} -> 400 invalid_request`, r.status === 400 && r.json?.error?.code === "invalid_request", `status=${r.status}`);
+        }
+      }
+
+      // ---------- candidate_not_found (B has no recommendation-alignment candidate: no completed_session ever linked) ----------
+      const reviewCountBefore = await admin.from("pattern_insight_reviews").select("id", { count: "exact", head: true });
+      {
+        const bogusToken = freshnessTokenFrom({
+          detectorRuleId: RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID,
+          detectorRuleVersion: "1.0.0",
+          insightKind: "recommendation_execution_alignment",
+          insightProjectorVersion: "1.0.0",
+          rangeFromDate: "1900-01-01",
+          rangeToDate: "9999-12-31",
+          sourceEvidenceRefs: [],
+        });
+        const r = await submitReviewPost(userB.token, bogusToken);
+        record("submit-review. candidate_not_found -> 404, no write", r.status === 404 && r.json?.error?.code === "candidate_not_found", `status=${r.status} body=${r.text.slice(0, 200)}`);
+      }
+      {
+        const reviewCountAfterNotFound = await admin.from("pattern_insight_reviews").select("id", { count: "exact", head: true });
+        record("submit-review. candidate_not_found writes zero review rows", reviewCountBefore.count === reviewCountAfterNotFound.count, `before=${reviewCountBefore.count} after=${reviewCountAfterNotFound.count}`);
+      }
+
+      // ---------- stale_candidate: genuine evidence mutation between "browser load" and submit ----------
+      const staleToken = freshnessTokenFrom((insightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment").snapshot);
+      {
+        // A second decision+completed_session for A, then a real refresh —
+        // adds a second sourceEvidenceRef to the SAME detectorRuleId,
+        // changing its fingerprint. The token above was captured BEFORE
+        // this mutation, exactly modeling "browser loaded candidate, then
+        // evidence changed before submit".
+        const decisionDateA2 = "2026-06-25";
+        const decisionIdA2 = await insertDecision(admin, userA.athleteId, decisionDateA2, { final_session: "STRENGTH_A" });
+        await insertCompletedSession(admin, userA.athleteId, decisionDateA2, { decision_id: decisionIdA2, session_type: "STRENGTH_A", completion_status: "done" });
+        const mutateRun = await refreshPost(userA.token, {});
+        record("submit-review setup. second refresh after new evidence -> 200", mutateRun.status === 200, `status=${mutateRun.status}`);
+      }
+      const reviewCountBeforeStale = await admin.from("pattern_insight_reviews").select("id", { count: "exact", head: true });
+      {
+        submitReviewStale = await submitReviewPost(userA.token, staleToken);
+        const ok = submitReviewStale.status === 409 && submitReviewStale.json?.error?.code === "stale_candidate" && submitReviewStale.json?.candidate?.snapshot?.detectorRuleId === RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID;
+        record("submit-review. stale token (evidence mutated after load) -> 409 stale_candidate, fresh candidate returned", ok, `status=${submitReviewStale.status} body=${submitReviewStale.text.slice(0, 400)}`);
+      }
+      {
+        const freshRefs = submitReviewStale.json?.candidate?.snapshot?.sourceEvidenceRefs ?? [];
+        const staleRefs = (staleToken as any).sourceEvidenceRefs;
+        record("submit-review. stale response's fresh candidate has a DIFFERENT sourceEvidenceRefs than the stale token", JSON.stringify(freshRefs) !== JSON.stringify(staleRefs), `freshCount=${freshRefs.length} staleCount=${staleRefs.length}`);
+      }
+      {
+        const reviewCountAfterStale = await admin.from("pattern_insight_reviews").select("id", { count: "exact", head: true });
+        record("submit-review. stale_candidate writes zero review rows", reviewCountBeforeStale.count === reviewCountAfterStale.count, `before=${reviewCountBeforeStale.count} after=${reviewCountAfterStale.count}`);
+      }
+
+      // ---------- version/kind mismatch resolve to stale_candidate, never candidate_not_found ----------
+      const currentInsightsA = await insightsGet(userA.token);
+      const currentCandidate = (currentInsightsA.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+      {
+        const r = await submitReviewPost(userA.token, freshnessTokenFrom(currentCandidate.snapshot, { detectorRuleVersion: "0.0.1-does-not-exist" }));
+        record("submit-review. detectorRuleVersion mismatch -> 409 stale_candidate, NOT 404", r.status === 409 && r.json?.error?.code === "stale_candidate", `status=${r.status} code=${r.json?.error?.code}`);
+      }
+      {
+        const r = await submitReviewPost(userA.token, freshnessTokenFrom(currentCandidate.snapshot, { insightKind: "sleep_energy_same_day_association" }));
+        record("submit-review. insightKind mismatch -> 409 stale_candidate, NOT 404", r.status === 409 && r.json?.error?.code === "stale_candidate", `status=${r.status} code=${r.json?.error?.code}`);
+      }
+
+      // ---------- real success: inserted -> unchanged -> superseded ----------
+      {
+        submitReviewSuccess = await submitReviewPost(userA.token, freshnessTokenFrom(currentCandidate.snapshot, { decision: "accepted_as_insight", reviewerNote: null }));
+        const ok = submitReviewSuccess.status === 200 && submitReviewSuccess.json?.review?.action === "inserted" && submitReviewSuccess.json?.review?.reviewNumber === 1;
+        record("submit-review. fresh candidate + real success -> 200, action=inserted, reviewNumber=1", ok, `status=${submitReviewSuccess.status} body=${submitReviewSuccess.text.slice(0, 300)}`);
+      }
+      {
+        const keys = Object.keys(submitReviewSuccess.json?.review ?? {});
+        record("submit-review. success response contains ONLY {action, reviewNumber} — no identityId/reviewId/athleteId/candidate_snapshot", JSON.stringify(keys.sort()) === JSON.stringify(["action", "reviewNumber"]), JSON.stringify(submitReviewSuccess.json));
+      }
+      {
+        const { data: reviewRow, error } = await admin
+          .from("pattern_insight_review_current")
+          .select("decision, reviewer_note, athlete_id, detector_rule_id")
+          .eq("athlete_id", userA.athleteId)
+          .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID)
+          .maybeSingle();
+        record(
+          "submit-review. real pattern_insight_reviews row persisted, decision=accepted_as_insight, reviewer_note NULL",
+          !error && reviewRow?.decision === "accepted_as_insight" && reviewRow?.reviewer_note === null && reviewRow?.athlete_id === userA.athleteId,
+          JSON.stringify(reviewRow)
+        );
+      }
+      {
+        const identicalResubmit = await submitReviewPost(userA.token, freshnessTokenFrom(currentCandidate.snapshot, { decision: "accepted_as_insight", reviewerNote: null }));
+        const ok = identicalResubmit.status === 200 && identicalResubmit.json?.review?.action === "unchanged" && identicalResubmit.json?.review?.reviewNumber === 1;
+        record("submit-review. identical resubmit -> 200, action=unchanged, same reviewNumber, no new row (RPC-native idempotency)", ok, `status=${identicalResubmit.status} body=${identicalResubmit.text.slice(0, 300)}`);
+      }
+      {
+        const changedDecision = await submitReviewPost(userA.token, freshnessTokenFrom(currentCandidate.snapshot, { decision: "dismissed", reviewerNote: "changed my mind" }));
+        const ok = changedDecision.status === 200 && changedDecision.json?.review?.action === "superseded" && changedDecision.json?.review?.reviewNumber === 2;
+        record("submit-review. different decision on the same candidate -> 200, action=superseded, reviewNumber=2", ok, `status=${changedDecision.status} body=${changedDecision.text.slice(0, 300)}`);
+      }
+      {
+        const insightsAfterReview = await insightsGet(userA.token);
+        const reviewedCandidate = (insightsAfterReview.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+        record(
+          "submit-review. get-insights after review -> reviewState=reviewed_current, decision=dismissed",
+          reviewedCandidate?.reviewState === "reviewed_current" && reviewedCandidate?.currentReview?.decision === "dismissed",
+          JSON.stringify(reviewedCandidate?.currentReview)
+        );
+      }
+    }
+
     // ================= sensitive-response check =================
     {
       const serverKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
       const forbidden = [serverKey, userA.token, userB.token, "Authorization"].filter(Boolean);
-      const bodies = [firstRun.text, insightsA.text];
+      const bodies = [firstRun.text, insightsA.text, submitReviewSuccess.text, submitReviewStale.text];
       const leaked = bodies.some((body) => forbidden.some((s) => body.includes(s)));
       record("responses never leak the JWT or service key", !leaked, "");
+    }
+    {
+      // submit-review's success response never carries identityId/reviewId
+      // (server-internal review-ledger row ids — the exact success shape is
+      // already pinned above as {action, reviewNumber} only). The stale
+      // response legitimately embeds a fresh PatternInsightCandidate,
+      // including its own sourceEvidenceRefs[].identityId (per-evidence
+      // provenance — the SAME locked shape get-insights already returns,
+      // never a leak), so a blind substring search for "identityId" would
+      // false-positive on that expected field. Structural proof instead:
+      // the stale response's top-level keys are exactly {error, candidate},
+      // and `candidate` itself has exactly {snapshot, reviewState,
+      // currentReview} — the locked PatternInsightCandidate shape, nothing
+      // extra (no ledger row id ever attached to the candidate object).
+      const staleTopKeys = Object.keys(submitReviewStale.json ?? {}).sort();
+      const staleCandidateKeys = Object.keys(submitReviewStale.json?.candidate ?? {}).sort();
+      record(
+        "submit-review. stale response shape is exactly {error, candidate}, candidate is exactly {snapshot, reviewState, currentReview}",
+        JSON.stringify(staleTopKeys) === JSON.stringify(["candidate", "error"]) && JSON.stringify(staleCandidateKeys) === JSON.stringify(["currentReview", "reviewState", "snapshot"]),
+        `topKeys=${JSON.stringify(staleTopKeys)} candidateKeys=${JSON.stringify(staleCandidateKeys)}`
+      );
     }
     {
       // Deterministic proof that internal-error text is sanitized before it

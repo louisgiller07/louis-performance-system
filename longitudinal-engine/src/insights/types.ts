@@ -65,6 +65,21 @@ export type PatternInsightReviewDecision = "accepted_as_insight" | "dismissed" |
 export type PatternInsightCandidateReviewState = "unreviewed" | "reviewed_current" | "reviewed_stale";
 
 /**
+ * The exact fields `fingerprintMatches` compares — a structural subset of
+ * `PatternInsightSnapshot` (any `PatternInsightSnapshot` already satisfies
+ * this type, so this is a pure narrowing, never a behavior change). Used
+ * both by the `reviewed_current`/`reviewed_stale` derivation and by
+ * `submit-review`'s candidate-freshness check (V0.3_001C), so a
+ * browser-supplied freshness token (which is not a full 23-field snapshot)
+ * can be compared with the exact same comparator without inventing a
+ * second one.
+ */
+export type PatternInsightFreshnessFingerprint = Pick<
+  PatternInsightSnapshot,
+  "insightProjectorVersion" | "athleteId" | "insightKind" | "detectorRuleId" | "detectorRuleVersion" | "rangeFromDate" | "rangeToDate" | "sourceEvidenceRefs"
+>;
+
+/**
  * One current review-ledger row for one insight identity
  * (athleteId, detectorRuleId, detectorRuleVersion, insightKind) — the exact
  * shape `SupabasePatternInsightReviewAdapter.getCurrentPatternInsightReviews`
