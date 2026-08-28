@@ -15,21 +15,38 @@ export interface AthleteCoachingProfile {
       readonly focus: string;
     };
   };
+  readonly mental: {
+    readonly preRaceCue: {
+      readonly id: string;
+      readonly cue: string;
+    };
+  };
 }
 
 /**
- * `focus` est une formulation PROVISIONAL nouvellement approuvée en
- * V0.3_002B — pas une citation directe de Louis. Elle dérive de la
- * priorité de développement technique déjà canonique
+ * `technique.primaryFocus.focus` est une formulation PROVISIONAL nouvellement
+ * approuvée en V0.3_002B — pas une citation directe de Louis. Elle dérive de
+ * la priorité de développement technique déjà canonique
  * (docs/02_ATHLETE_PROFILE.md §7.2 "tendance au surfreinage par peur" en
  * sections rapides/précises + §12 item 4, seule faiblesse technique
  * explicitement élevée au rang de priorité de développement).
+ *
+ * `mental.preRaceCue.cue` est une cue mentale déjà canonique (V0.3_002C) —
+ * dérivée directement de docs/02_ATHLETE_PROFILE.md §7.4/§8 (course flow de
+ * référence Wiriehorn) et de docs/03_COACHING_MODEL.md C2.1 ("Comme à
+ * Wiriehorn", hypothèse issue de l'onboarding, révisable).
  */
 export const ATHLETE_COACHING_PROFILE: AthleteCoachingProfile = {
   technique: {
     primaryFocus: {
       id: "fast_precision_overbraking",
       focus: "Fixe ta ligne, dose le freinage, laisse rouler.",
+    },
+  },
+  mental: {
+    preRaceCue: {
+      id: "wiriehorn_flow_reference",
+      cue: "Comme à Wiriehorn.",
     },
   },
 };

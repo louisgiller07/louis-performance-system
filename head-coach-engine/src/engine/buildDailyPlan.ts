@@ -20,10 +20,11 @@ import { applyTrainingDomainRules } from "../domains/training.js";
 import { computeRecoveryDomain } from "../domains/recovery.js";
 import { inferFallbackSession } from "../domains/fallbackInference.js";
 import { computeTechniqueDomain } from "../domains/technique.js";
+import { computeMentalDomain } from "../domains/mental.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_002b";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_002c";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -240,6 +241,18 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
 
   const sleepActive = modeConstraints.some((c) => c.type === "protect_sleep") || dimensions.systemic.level === "RED";
 
+  // Calculé ici (après Training, avant la construction du plan) mais son
+  // éventuelle triggeredRule n'est poussée qu'APRÈS la construction du
+  // littéral ci-dessous — training.objective et override_reason lisent
+  // triggeredRules avant cet ajout, jamais après, pour ne jamais confondre
+  // une règle Mental avec la dernière règle Training/override réellement
+  // pertinente.
+  const mentalResult = computeMentalDomain({
+    mentalDimension: dimensions.mental,
+    eventContext,
+    signalTrace: trace,
+  });
+
   const plan: DailyPlan = {
     date: ctx.today,
     active_mode: ctx.active_mode,
@@ -259,7 +272,7 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
       legsLevel: dimensions.legs.level,
       armsGripLevel: dimensions.arms_grip.level,
     }),
-    mental: { active: false },
+    mental: mentalResult.mental,
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),
     nutrition: { active: false },
     sleep: sleepActive
@@ -289,6 +302,13 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
 
     engine_version: ENGINE_VERSION,
   };
+
+  // Ajoutée seulement maintenant (même référence de tableau que
+  // plan.triggered_rules) : training.objective/reasoning/override_reason
+  // ci-dessus ont déjà lu triggeredRules avant cet ajout.
+  if (mentalResult.triggeredRule) {
+    triggeredRules.push(mentalResult.triggeredRule);
+  }
 
   return plan;
 }
