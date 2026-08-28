@@ -33,6 +33,7 @@ import { execSync, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, insertCheckin, insertCompletedSession, insertDecision, type TestAthlete } from "../../supabase/testDb.js";
+import { acquireReviewAdvisoryLockForTest } from "../../supabase/reviewAdvisoryLock.js";
 import { PAIN_PERSISTENCE_RULE_ID, RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID, SLEEP_ENERGY_RULE_ID } from "../../../src/detectors/index.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
@@ -137,6 +138,21 @@ function summarizeReviewForLog(review: any): string {
     reviewNumber: review.reviewNumber,
     hasReviewerNote: review.reviewerNote !== null && review.reviewerNote !== undefined,
   });
+}
+
+// Canonical (key-order-independent) JSON serialization — JSONB round-trips
+// through Postgres do not guarantee preserving the original JS object's key
+// insertion order, so a naive JSON.stringify comparison between an
+// in-memory candidate snapshot and one read back from the DB can produce a
+// false mismatch even when the two are genuinely deeply equal. Recurses
+// into arrays/objects; primitives pass through JSON.stringify unchanged.
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function freshnessTokenFrom(snapshot: any, overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -687,6 +703,248 @@ async function main(): Promise<void> {
           `reviewState=${reviewedCandidate?.reviewState} review=${summarizeReviewForLog(reviewedCandidate?.currentReview)}`
         );
       }
+    }
+
+    // ================= V0.3_001C-2: real API race / concurrency / isolation =================
+    // Each scenario uses a dedicated fresh scratch athlete for isolated,
+    // easy-to-reason-about starting state (never reusing userA/userB's
+    // already-evolved review history from the block above).
+    {
+      // ---------- A. freshness linearization (semantics A) through the REAL API ----------
+      const raceUser = await createScratchUserWithToken(admin, "001C-2 race-semantics-a");
+      const raceDecisionId1 = await insertDecision(admin, raceUser.athleteId, "2026-07-01", { final_session: "STRENGTH_A" });
+      await insertCompletedSession(admin, raceUser.athleteId, "2026-07-01", { decision_id: raceDecisionId1, session_type: "STRENGTH_A", completion_status: "done" });
+      const raceSetupRefresh = await refreshPost(raceUser.token, {});
+      record("001C-2. race setup: initial refresh -> 200", raceSetupRefresh.status === 200, `status=${raceSetupRefresh.status}`);
+
+      const raceInsightsBefore = await insightsGet(raceUser.token);
+      const raceCandidateAtComparison = (raceInsightsBefore.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+      record(
+        "001C-2. race setup: exactly one fresh unreviewed candidate found before submit",
+        raceCandidateAtComparison !== undefined && raceCandidateAtComparison.reviewState === "unreviewed",
+        summarizeCandidateForLog(raceCandidateAtComparison)
+      );
+
+      const raceToken = freshnessTokenFrom(raceCandidateAtComparison.snapshot, { decision: "accepted_as_insight", reviewerNote: null });
+
+      const heldLock = await acquireReviewAdvisoryLockForTest({
+        athleteId: raceUser.athleteId,
+        detectorRuleId: RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID,
+        detectorRuleVersion: "1.0.0",
+        insightKind: "recommendation_execution_alignment",
+      });
+
+      // Fire the REAL submit-review request. It reaches candidate
+      // reconstruction + the freshness comparison (both succeed — evidence
+      // hasn't mutated yet) and then genuinely blocks inside
+      // persist_pattern_insight_review, waiting for the identity advisory
+      // lock this test already holds.
+      const submitPromise = submitReviewPost(raceUser.token, raceToken);
+
+      let waitObserved = false;
+      let waitError = "";
+      try {
+        await heldLock.waitUntilAnotherSessionIsWaiting();
+        waitObserved = true;
+      } catch (e) {
+        waitError = e instanceof Error ? e.message : String(e);
+      }
+      record("001C-2. real submit-review request objectively observed blocked on the identity advisory lock (pg_locks, not a sleep+assume)", waitObserved, waitError);
+
+      // Mutate effective evidence for the SAME identity WHILE submit-review
+      // is still blocked — a real second decision+completed_session,
+      // committed via a genuinely separate refresh-longitudinal call.
+      // Evidence writers lock on evidence_key, never insight_kind (see
+      // docs/06_ARCHITECTURE.md's locked "Sélecteur de candidat et
+      // cardinalité"), so this commits successfully even while the review
+      // lock is held.
+      const raceDecisionId2 = await insertDecision(admin, raceUser.athleteId, "2026-07-05", { final_session: "STRENGTH_A" });
+      await insertCompletedSession(admin, raceUser.athleteId, "2026-07-05", { decision_id: raceDecisionId2, session_type: "STRENGTH_A", completion_status: "done" });
+      const raceMutationRefresh = await refreshPost(raceUser.token, {});
+      record("001C-2. evidence mutation committed WHILE submit-review is still blocked on the review lock", raceMutationRefresh.status === 200, `status=${raceMutationRefresh.status}`);
+
+      await heldLock.release();
+
+      const submitResult = await submitPromise;
+      record(
+        "001C-2. blocked submit-review completes successfully once the lock is released -> 200, action=inserted, NO retroactive stale_candidate",
+        submitResult.status === 200 && submitResult.json?.review?.action === "inserted" && submitResult.json?.review?.reviewNumber === 1,
+        `status=${submitResult.status} body=${submitResult.text.slice(0, 200)}`
+      );
+
+      const raceInsightsAfter = await insightsGet(raceUser.token);
+      const raceCandidateAfter = (raceInsightsAfter.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+      record(
+        "001C-2. post-comparison evidence mutation is real: get-insights now reconstructs a DIFFERENT candidate (C2)",
+        raceCandidateAfter?.snapshot?.evidenceCount === 2 && raceCandidateAtComparison?.snapshot?.evidenceCount === 1,
+        `evidenceCountBefore=${raceCandidateAtComparison?.snapshot?.evidenceCount} evidenceCountAfter=${raceCandidateAfter?.snapshot?.evidenceCount}`
+      );
+      record(
+        "001C-2. semantics A through the REAL API: the review persisted for C1 now projects reviewed_stale; historical review unchanged, decision still accepted_as_insight",
+        raceCandidateAfter?.reviewState === "reviewed_stale" && raceCandidateAfter?.currentReview?.decision === "accepted_as_insight",
+        `reviewState=${raceCandidateAfter?.reviewState} review=${summarizeReviewForLog(raceCandidateAfter?.currentReview)}`
+      );
+
+      // ---------- server-snapshot DB proof ----------
+      {
+        const { data: storedReview } = await admin
+          .from("pattern_insight_review_current")
+          .select("candidate_snapshot")
+          .eq("athlete_id", raceUser.athleteId)
+          .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID)
+          .maybeSingle();
+        const snapshotMatchesExpected = canonicalJson(storedReview?.candidate_snapshot) === canonicalJson(raceCandidateAtComparison.snapshot);
+        record("001C-2. DB-stored candidate_snapshot deep-equals the SERVER candidate reviewed (C1), never the browser body or C2", snapshotMatchesExpected, `snapshot_matches_expected=${snapshotMatchesExpected}`);
+      }
+
+      // ---------- append-only integrity (single-review case) ----------
+      {
+        const { data: historyRows } = await admin
+          .from("pattern_insight_review_history")
+          .select("review_number, supersedes_id")
+          .eq("athlete_id", raceUser.athleteId)
+          .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID);
+        const rows = historyRows ?? [];
+        record(
+          "001C-2. append-only: exactly one history row, review_number=1, supersedes_id NULL",
+          rows.length === 1 && rows[0]?.review_number === 1 && rows[0]?.supersedes_id === null,
+          `rowCount=${rows.length}`
+        );
+      }
+    }
+
+    {
+      // ---------- B. concurrent IDENTICAL first submissions ----------
+      const identUser = await createScratchUserWithToken(admin, "001C-2 concurrent-identical");
+      const identDecisionId = await insertDecision(admin, identUser.athleteId, "2026-07-10", { final_session: "STRENGTH_A" });
+      await insertCompletedSession(admin, identUser.athleteId, "2026-07-10", { decision_id: identDecisionId, session_type: "STRENGTH_A", completion_status: "done" });
+      await refreshPost(identUser.token, {});
+
+      const identInsights = await insightsGet(identUser.token);
+      const identCandidate = (identInsights.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+      const identToken = freshnessTokenFrom(identCandidate.snapshot, { decision: "accepted_as_insight", reviewerNote: null });
+
+      const [respX, respY] = await Promise.all([submitReviewPost(identUser.token, identToken), submitReviewPost(identUser.token, identToken)]);
+
+      const bothSucceeded = respX.status === 200 && respY.status === 200;
+      const actions = [respX.json?.review?.action, respY.json?.review?.action].sort();
+      const reviewNumbers = [respX.json?.review?.reviewNumber, respY.json?.review?.reviewNumber];
+      record(
+        "001C-2. two concurrent IDENTICAL real submissions -> both 200, exactly one inserted + one unchanged, same reviewNumber=1 (order-independent)",
+        bothSucceeded && JSON.stringify(actions) === JSON.stringify(["inserted", "unchanged"]) && reviewNumbers[0] === 1 && reviewNumbers[1] === 1,
+        `actions=${JSON.stringify(actions)} reviewNumbers=${JSON.stringify(reviewNumbers)}`
+      );
+
+      // pattern_insight_reviews (the raw table) has no athlete_id/detector_rule_id
+      // columns of its own (only via its parent identity row) — query the
+      // read view, which already joins them in, instead.
+      const identReviewRowCount = await admin
+        .from("pattern_insight_review_history")
+        .select("review_id", { count: "exact", head: true })
+        .eq("athlete_id", identUser.athleteId)
+        .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID);
+      record("001C-2. DB has exactly ONE review row for this identity after the identical race (no duplicate insert)", identReviewRowCount.count === 1, `count=${identReviewRowCount.count}`);
+
+      const identCurrentCount = await admin
+        .from("pattern_insight_review_current")
+        .select("athlete_id", { count: "exact", head: true })
+        .eq("athlete_id", identUser.athleteId)
+        .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID);
+      record("001C-2. pattern_insight_review_current has exactly ONE current row for this identity", identCurrentCount.count === 1, `count=${identCurrentCount.count}`);
+    }
+
+    {
+      // ---------- C. concurrent DIFFERING first submissions ----------
+      const diffUser = await createScratchUserWithToken(admin, "001C-2 concurrent-differing");
+      const diffDecisionId = await insertDecision(admin, diffUser.athleteId, "2026-07-15", { final_session: "STRENGTH_A" });
+      await insertCompletedSession(admin, diffUser.athleteId, "2026-07-15", { decision_id: diffDecisionId, session_type: "STRENGTH_A", completion_status: "done" });
+      await refreshPost(diffUser.token, {});
+
+      const diffInsights = await insightsGet(diffUser.token);
+      const diffCandidate = (diffInsights.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+      const diffTokenA = freshnessTokenFrom(diffCandidate.snapshot, { decision: "accepted_as_insight", reviewerNote: null });
+      const diffTokenB = freshnessTokenFrom(diffCandidate.snapshot, { decision: "dismissed", reviewerNote: "second reviewer's note" });
+
+      const submissions = [
+        { decision: (diffTokenA as any).decision as string, request: submitReviewPost(diffUser.token, diffTokenA) },
+        { decision: (diffTokenB as any).decision as string, request: submitReviewPost(diffUser.token, diffTokenB) },
+      ];
+      const responses = await Promise.all(submissions.map((s) => s.request));
+      const paired = responses.map((response, i) => ({ response, decision: submissions[i]!.decision }));
+
+      const bothSucceeded = paired.every((p) => p.response.status === 200);
+      const actions = paired.map((p) => p.response.json?.review?.action).sort();
+      record(
+        "001C-2. two concurrent DIFFERING real submissions -> both 200, exactly one inserted + one superseded",
+        bothSucceeded && JSON.stringify(actions) === JSON.stringify(["inserted", "superseded"]),
+        `actions=${JSON.stringify(actions)}`
+      );
+
+      const supersededPair = paired.find((p) => p.response.json?.review?.action === "superseded");
+      const insertedPair = paired.find((p) => p.response.json?.review?.action === "inserted");
+      record(
+        "001C-2. inserted response has reviewNumber=1, superseded response has reviewNumber=2 (winner derived by reported action, never by Promise order)",
+        insertedPair?.response.json?.review?.reviewNumber === 1 && supersededPair?.response.json?.review?.reviewNumber === 2,
+        `inserted=${insertedPair?.response.json?.review?.reviewNumber} superseded=${supersededPair?.response.json?.review?.reviewNumber}`
+      );
+
+      const { data: historyRows } = await admin
+        .from("pattern_insight_review_history")
+        .select("review_id, review_number, supersedes_id")
+        .eq("athlete_id", diffUser.athleteId)
+        .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID)
+        .order("review_number", { ascending: true });
+      const rows = historyRows ?? [];
+      record("001C-2. DB has exactly 2 review rows, review_number set = {1,2}", rows.length === 2 && rows[0]?.review_number === 1 && rows[1]?.review_number === 2, `rowCount=${rows.length}`);
+      record(
+        "001C-2. append-only chain intact: review #2 supersedes review #1, review #1 supersedes nothing (no lost update)",
+        rows.length === 2 && rows[1]?.supersedes_id === rows[0]?.review_id && rows[0]?.supersedes_id === null,
+        ""
+      );
+
+      const { data: currentRow } = await admin
+        .from("pattern_insight_review_current")
+        .select("decision")
+        .eq("athlete_id", diffUser.athleteId)
+        .eq("detector_rule_id", RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID)
+        .maybeSingle();
+      record(
+        "001C-2. exactly one current head, decision matches whichever request reported superseded",
+        currentRow?.decision === supersededPair?.decision,
+        `current_decision=${currentRow?.decision}`
+      );
+    }
+
+    {
+      // ---------- D. cross-athlete submit isolation via real token reuse ----------
+      const isoOwner = await createScratchUserWithToken(admin, "001C-2 isolation-owner");
+      const isoDecisionId = await insertDecision(admin, isoOwner.athleteId, "2026-07-20", { final_session: "STRENGTH_A" });
+      await insertCompletedSession(admin, isoOwner.athleteId, "2026-07-20", { decision_id: isoDecisionId, session_type: "STRENGTH_A", completion_status: "done" });
+      await refreshPost(isoOwner.token, {});
+      const isoInsights = await insightsGet(isoOwner.token);
+      const isoCandidate = (isoInsights.json?.candidates ?? []).find((c: any) => c.snapshot?.insightKind === "recommendation_execution_alignment");
+      const isoOwnerToken = freshnessTokenFrom(isoCandidate.snapshot, { decision: "accepted_as_insight", reviewerNote: null });
+
+      const isoOther = await createScratchUserWithToken(admin, "001C-2 isolation-other"); // zero evidence of its own
+
+      const reviewCountBeforeIso = await admin.from("pattern_insight_reviews").select("id", { count: "exact", head: true });
+
+      // isoOther's authenticated request, carrying isoOwner's REAL freshness
+      // token (real evidence identity/revision UUIDs included). athleteId is
+      // still resolved server-side from isoOther's own JWT — never
+      // influenced by the token's content.
+      const crossResult = await submitReviewPost(isoOther.token, isoOwnerToken);
+      record(
+        "001C-2. cross-athlete token reuse never succeeds as a write attributed to the token's original owner -> candidate_not_found (isoOther has zero evidence for this detector)",
+        crossResult.status === 404 && crossResult.json?.error?.code === "candidate_not_found",
+        `status=${crossResult.status} code=${crossResult.json?.error?.code}`
+      );
+
+      const reviewCountAfterIso = await admin.from("pattern_insight_reviews").select("id", { count: "exact", head: true });
+      record("001C-2. cross-athlete submit attempt writes zero review rows anywhere", reviewCountBeforeIso.count === reviewCountAfterIso.count, `before=${reviewCountBeforeIso.count} after=${reviewCountAfterIso.count}`);
+
+      const ownerReviewCount = await admin.from("pattern_insight_review_history").select("review_id", { count: "exact", head: true }).eq("athlete_id", isoOwner.athleteId);
+      record("001C-2. the token's original owner still has zero reviews of their own (never silently created)", ownerReviewCount.count === 0, `count=${ownerReviewCount.count}`);
     }
 
     // ================= sensitive-response check =================
