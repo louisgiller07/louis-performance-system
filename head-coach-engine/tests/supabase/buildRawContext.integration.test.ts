@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildRawContext, NoCurrentCheckinError } from "../../src/supabase/buildRawContext.js";
+import { buildDailyPlan } from "../../src/engine/buildDailyPlan.js";
 import { IncompleteDailyCheckinError } from "../../src/supabase/mapping/dailyCheckinRow.js";
 import { IncompleteCheckinPainCriteriaError } from "../../src/supabase/mapping/dailyCheckinPainCriteria.js";
 import {
@@ -11,6 +12,7 @@ import {
   insertTrainingBlock,
   insertPlannedSession,
   insertHealthFlag,
+  insertRace,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -156,5 +158,142 @@ describe("M2 read path — buildRawContext (integration, local Supabase)", () =>
     expect(rawContext.planned_session).toBeNull();
     expect(rawContext.planned_intent).toBeUndefined();
     expect(warnings).toEqual([]);
+  });
+});
+
+describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => {
+  let client: SupabaseClient;
+  let athlete: TestAthlete;
+
+  beforeEach(async () => {
+    client = createTestClient();
+    athlete = await createTestAthlete(client, "V0.3_002B race window test athlete");
+  });
+
+  afterEach(async () => {
+    await deleteTestAthlete(client, athlete);
+  });
+
+  it("CASE A — race only at J+8: RawContext includes it, but EventContext/Training decision are unchanged", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+
+    const { rawContext: baseline } = await buildRawContext(client, athlete.athleteId, TODAY);
+    const baselinePlan = buildDailyPlan(baseline);
+
+    await insertRace(client, athlete.athleteId, {
+      event_name: "J+8 fixture race",
+      start_date: "2026-08-24",
+      end_date: "2026-08-24",
+    });
+    const { rawContext: withRace } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(withRace.upcoming_races).toHaveLength(1);
+
+    const plan = buildDailyPlan(withRace);
+    expect(plan.event_context).toBeUndefined();
+    expect(plan.decision).toBe(baselinePlan.decision);
+    expect(plan.final_session).toEqual(baselinePlan.final_session);
+    expect(plan.triggered_rules).toEqual(baselinePlan.triggered_rules);
+  });
+
+  it("CASE B — race only at J+14: RawContext includes it, but EventContext/Training decision are unchanged", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+
+    const { rawContext: baseline } = await buildRawContext(client, athlete.athleteId, TODAY);
+    const baselinePlan = buildDailyPlan(baseline);
+
+    await insertRace(client, athlete.athleteId, {
+      event_name: "J+14 fixture race",
+      start_date: "2026-08-30",
+      end_date: "2026-08-30",
+    });
+    const { rawContext: withRace } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(withRace.upcoming_races).toHaveLength(1);
+
+    const plan = buildDailyPlan(withRace);
+    expect(plan.event_context).toBeUndefined();
+    expect(plan.decision).toBe(baselinePlan.decision);
+    expect(plan.final_session).toEqual(baselinePlan.final_session);
+    expect(plan.triggered_rules).toEqual(baselinePlan.triggered_rules);
+  });
+
+  it("CASE C — race at J+15 is excluded from RawContext.upcoming_races", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "J+15 fixture race",
+      start_date: "2026-08-31",
+      end_date: "2026-08-31",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toEqual([]);
+  });
+
+  it("CASE D — race at J+7 (existing EventContext window) behaves exactly as before the widening", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "J+7 fixture race",
+      start_date: "2026-08-23",
+      end_date: "2026-08-23",
+      priority: "A",
+      race_format: "HOT_TRAIL_2DAY",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toHaveLength(1);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context?.phase).toBe("PRE_EVENT");
+    expect(plan.event_context?.days_to_event).toBe(7);
+  });
+
+  it("CASE E — an irrelevant J+8 race alongside a nearer J+3 race does not change EventContext/Training vs. J+3 alone", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "J+3 nearer race",
+      start_date: "2026-08-19",
+      end_date: "2026-08-19",
+      priority: "A",
+      race_format: "HOT_TRAIL_2DAY",
+    });
+
+    const { rawContext: onlyNear } = await buildRawContext(client, athlete.athleteId, TODAY);
+    const baselinePlan = buildDailyPlan(onlyNear);
+
+    await insertRace(client, athlete.athleteId, {
+      event_name: "J+8 farther irrelevant race",
+      start_date: "2026-08-24",
+      end_date: "2026-08-24",
+    });
+    const { rawContext: both } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(both.upcoming_races).toHaveLength(2);
+
+    const plan = buildDailyPlan(both);
+    expect(plan.event_context).toEqual(baselinePlan.event_context);
+    expect(plan.decision).toBe(baselinePlan.decision);
+    expect(plan.final_session).toEqual(baselinePlan.final_session);
+    expect(plan.triggered_rules).toEqual(baselinePlan.triggered_rules);
+  });
+
+  it("CASE F — historical/post-event backward window remains exactly unchanged", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "Recent past race",
+      start_date: "2026-08-13",
+      end_date: "2026-08-14",
+      priority: "A",
+      race_format: "HOT_TRAIL_2DAY",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toHaveLength(1);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context?.phase).toBe("POST_EVENT");
   });
 });

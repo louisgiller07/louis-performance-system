@@ -19,6 +19,7 @@ import { evaluatePainNonSafety } from "../rules/painNonSafety.js";
 import { applyTrainingDomainRules } from "../domains/training.js";
 import { computeRecoveryDomain } from "../domains/recovery.js";
 import { inferFallbackSession } from "../domains/fallbackInference.js";
+import { computeTechniqueDomain } from "../domains/technique.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
@@ -250,7 +251,14 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
       duration_min: session.duration_min,
       objective: triggeredRules.length > 0 ? triggeredRules[triggeredRules.length - 1]?.detail : undefined,
     },
-    dh_or_technical: { active: false },
+    dh_or_technical: computeTechniqueDomain({
+      finalSession: session,
+      today: ctx.today,
+      upcomingRaces: ctx.upcoming_races,
+      systemicLevel: dimensions.systemic.level,
+      legsLevel: dimensions.legs.level,
+      armsGripLevel: dimensions.arms_grip.level,
+    }),
     mental: { active: false },
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),
     nutrition: { active: false },
