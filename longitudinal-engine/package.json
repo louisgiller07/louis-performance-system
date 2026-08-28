@@ -13,7 +13,8 @@
     "build:clean": "npm run clean && npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:v3:http": "npm run build:clean && tsx tests/edge/http/orchestrate.ts"
+    "test:v3:http": "npm run build:clean && tsx tests/edge/http/orchestrate.ts",
+    "preview:remote-refresh": "tsx tools/previewRemoteRefresh.ts"
   },
   "devDependencies": {
     "@types/node": "latest",

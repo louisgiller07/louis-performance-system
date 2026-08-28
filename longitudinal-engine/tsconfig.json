@@ -16,5 +16,5 @@
     "verbatimModuleSyntax": false,
     "types": ["node"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "tools"]
 }
