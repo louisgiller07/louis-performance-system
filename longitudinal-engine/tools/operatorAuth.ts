@@ -96,8 +96,17 @@ export function resolveOperatorSupabaseConfig(mode: "remote" | "local"): Operato
   return { url, publicKey };
 }
 
-/** Plain, echoed prompt (email is not a secret). */
-async function promptVisible(question: string): Promise<string> {
+/**
+ * Plain, echoed prompt — for non-secret input only (email, or an explicit
+ * typed confirmation phrase like "BACKFILL"). Same TTY guard as
+ * `promptHidden`, for the same reason: a non-interactive stdin (exactly
+ * what Claude Code's own Bash tool presents) must never silently read EOF
+ * as an empty/default answer and let the caller proceed.
+ */
+export async function promptVisible(question: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    throw new NoInteractiveTtyError();
+  }
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     return (await rl.question(question)).trim();
