@@ -2,9 +2,10 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_001 COMPLETE (2026-08-28).** M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED (2026-08-28).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**Prochain milestone** : aucun prochain jalon concret n'est actuellement défini dans les documents canoniques ; `docs/12_BACKLOG.md` §P1/§P2 liste des catégories d'enrichissement candidates non architecturées, à titre indicatif uniquement.
+**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B (Technique DH) **NOT STARTED — prochain** ; V0.3_002C/D/E/F **NOT STARTED** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
+**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED / ARCHITECTURE LOCKED**, 2026-08-28. Prochain jalon concret : **V0.3_002B — Technique DH**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
 
 ---
 
@@ -290,6 +291,21 @@ Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur heb
 
 ---
 
+## V0.3_002A — Domain Coaching Enrichment, architecture/contrats (CLOSED / ARCHITECTURE LOCKED, 2026-08-28)
+
+- [x] Jalon parent verrouillé : V0.3_002A (architecture, ce jalon) → V0.3_002B (Technique DH) → V0.3_002C (Mental) → V0.3_002D (Nutrition) → V0.3_002E (intégration/régressions) → V0.3_002F (rollout remote/clôture)
+- [x] Propriété de signal — Option C verrouillée (Training reste seul propriétaire de décision des signaux mentaux RED déjà consommés par `MENTAL_RED` ; Mental s'exécute strictement après Training ; lecture de support non consommante autorisée)
+- [x] Config de coaching-profil statique — Option A bornée approuvée (mono-athlète, typée, PROVISIONAL, faits personnels stables uniquement — non encore créée)
+- [x] Contrat de sortie verrouillé sur les champs `DailyPlan` déjà existants, aucun nouveau champ
+- [x] Contrat numérique hydratation verrouillé (`hydration_target_l` uniquement si cible unique canonique existante, aucun point médian inventé depuis une plage)
+- [x] Aucune migration, aucun nouveau champ `daily_checkins`, aucun changement de production web requis pour le scope minimum
+
+### Explicitement hors périmètre V0.3_002A (reporté à 002B/C/D/E/F)
+
+Toute implémentation de code (`src/domains/technique.ts`/`mental.ts`/`nutrition.ts`), toute création de la config TypeScript de profil, tout test, toute migration, tout déploiement.
+
+---
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)
@@ -299,8 +315,6 @@ Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur heb
 - Table `active_experiments` en base
 
 ### Enrichissement des domaines (couche C)
-- Domaine Mental (basique)
-- Domaine Nutrition (basique)
 - Domaine Contexte pro (basique)
 - Domaine Analyse (quasi-passif)
 

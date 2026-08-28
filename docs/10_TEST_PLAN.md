@@ -342,6 +342,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Intégrations externes (M4+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire
+- Enrichissement des domaines Technique/Mental/Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — NOT STARTED)
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
 
@@ -458,3 +459,36 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - **Sélecteur de candidat — aucun candidat courant pour `detectorRuleId`** → `candidate_not_found`, aucune écriture
 - **Sélecteur de candidat — plus d'un candidat courant pour `detectorRuleId`** (violation d'invariant) → échec `internal_error`, aucune écriture, preuve qu'aucune sélection par premier élément/`array[0]`/ordre de tri ne se produit
 - Comportement historique/backfill : une première passe complète produit exactement le jeu attendu sans doublon ; une seconde passe immédiate est un no-op complet
+
+---
+
+## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B/C/D/E/F NOT STARTED)
+
+**Statut : contrat de test verrouillé pour V0.3_002, implémentation non commencée.** Les scénarios ci-dessous seront implémentés progressivement par 002B/C/D, puis vérifiés collectivement par 002E.
+
+### T11. Technique DH (V0.3_002B — NOT STARTED)
+- Fixture weekday hors contexte technique → `dh_or_technical.active = false`
+- Fixture weekend DH pertinente → `active = true`, `focus` = une seule chaîne de cue technique actionnable, `spot_hint` catégoriel peuplé
+- Fatigue AMBER (`legs`/`arms_grip`/`systemic`) → `spot_hint` reflète une préférence de proximité ; `focus` inchangé par ce signal ; décision Training inchangée
+- Proximité course (`event_context.days_to_event` bas) → `spot_hint` reflète une préférence terrain-représentatif ; `focus` n'est **pas** écrasé par la proximité course
+- Plan Safety REST → `dh_or_technical = {active:false}` inchangé
+
+### T12. Mental (V0.3_002C — NOT STARTED)
+- `mental = AMBER` (stress ou motivation) → domaine Mental consomme le signal AMBER, `action_hint` peuplé, décision Training inchangée
+- **Preuve comportementale intégrée** (sur une fixture `mental = RED` déjà couverte par le comportement M1 frozen) : `decision`/`action`/`session_type` de Training restent strictement identiques à la fixture pré-existante ; la règle `MENTAL_RED` reste présente dans `triggered_rules` ; `SignalTrace` rapporte `MENTAL_RED` comme propriétaire de décision du signal (`consumedByRule()`) ; la sortie `mental.action_hint` est peuplée de façon supportive ; une tentative de second `consume()` sur ce même signal échoue (retourne `false`). Aucune assertion sur la structure/l'ordre des appels source — uniquement sur le comportement et l'état de `SignalTrace`.
+- `event_context.phase === "PRE_EVENT"` → cue attentionnelle pré-course
+- Plan Safety REST → `mental = {active:false}` inchangé
+
+### T13. Nutrition (V0.3_002D — NOT STARTED)
+- Race-week → `nutrition.focus` rappel énergétique peuplé
+- Jour DH → `nutrition.active = true`, `hydration_target_l` **absent** (C5.4 est une plage `~3-3.5 L/jour`, jamais convertie en point estimé), `notes` contient le texte de plage canonique
+- Jour avec séance de force **planifiée** → `nutrition.active = true` ; `notes` contient une guidance générique de récupération à appliquer après la séance (le moteur ne connaît pas l'exécution/complétion de la séance) ; `hydration_target_l = 2` si la baseline C5.3 (seule cible numérique canonique unique existante) est également applicable à cette fixture
+- Contexte non pertinent → `nutrition.active = false` (pas de section toujours active)
+- Plan Safety REST → `nutrition = {active:false}` inchangé
+
+### T14. Intégration/régressions (V0.3_002E — NOT STARTED)
+- 100% des suites frozen M1-M4 pré-existantes toujours vertes
+- `decision`/`session_type`/`triggered_rules` de Training strictement identiques sur toutes les fixtures pré-existantes
+- Aucune double-consommation de signal (assertion `SignalTrace` sur tout scénario combiné Technique+Mental+Nutrition+Training)
+- Aucune chaîne de downgrade générique introduite
+- `isValidDailyPlan` (web) accepte un `DailyPlan` réel avec sections enrichies, zéro changement de production web requis

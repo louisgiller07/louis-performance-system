@@ -165,6 +165,9 @@ Le moteur doit **tracer les signaux déjà consommés** par les règles précéd
 
 L'implémentation TypeScript exacte (classe mutable, structure immuable, closure, etc.) est laissée à Claude Code, tant que le comportement est couvert par tests.
 
+**Propriété de signal — décision vs coaching de support (verrouillé V0.3_002A, 2026-08-28)** :
+un domaine ne peut jamais reconsommer (`consume()`) un signal déjà consommé par un autre domaine, ni faire découler une seconde adaptation d'intervention de la même cause — l'exclusivité de `consume()` reste totale. Une **lecture de support non consommante** (`SignalTrace.has()`/`consumedByRule()`) reste autorisée quand elle est sémantiquement justifiée : elle permet à un domaine de décrire/expliquer une cause déjà revendiquée ailleurs, sans jamais modifier la décision du propriétaire. Premier cas d'usage verrouillé : le domaine Préparation physique reste seul propriétaire de décision des signaux `stress_high`/`motivation_low` en `mental = RED` (règle `MENTAL_RED` existante) ; le domaine Mental (V0.3_002) lit ce signal déjà consommé pour produire son propre `action_hint` explicatif.
+
 ### 4. Soft constraints réellement soft (règle canonique unique)
 
 **SAFETY** (couche A) = **hard** / non-contournable.
@@ -314,6 +317,8 @@ Toutes les heuristiques ci-dessous sont **PROVISIONAL** et révisables. Elles vi
 | C1.6 | Si fatigue AMBER : préférer spot proche |
 | C1.7 | Si Bullit disponible : sessions courtes semaine possibles aux Pléiades |
 
+*Portée V0.3_002B verrouillée (`docs/06_ARCHITECTURE.md` §V0.3_002) : `focus` = une seule chaîne de cue technique actionnable (pas de champ "priorité" séparé) ; `spot_hint` = catégorie terrain/logistique uniquement, jamais un nom de spot réel affirmé comme actuellement disponible ; la proximité course (C1.5) influence `spot_hint`, jamais `focus`.*
+
 ### Domaine 2 — Mental
 
 | ID | Heuristique |
@@ -323,6 +328,8 @@ Toutes les heuristiques ci-dessous sont **PROVISIONAL** et révisables. Elles vi
 | C2.3 | Cue post-erreur : toujours technique, jamais émotionnelle |
 | C2.4 | Post-course : debrief mental séparé du debrief technique/physique |
 | C2.5 | Si stress détecté élevé plusieurs jours → suggestion respiration courte |
+
+*Portée V0.3_002C verrouillée (`docs/06_ARCHITECTURE.md` §V0.3_002) : régulation courte en `mental = AMBER`, cue attentionnelle en `PRE_EVENT`, lecture de support en `RED` (signal déjà propriété de Training). C2.2 (pit routine), C2.3 (cue post-erreur en direct) et le debrief mental post-course structuré (C2.4) restent différés — aucun déclencheur intra-jour fiable dans ce moteur à cadence quotidienne.*
 
 ### Domaine 3 — Préparation physique
 
@@ -358,6 +365,8 @@ Toutes les heuristiques ci-dessous sont **PROVISIONAL** et révisables. Elles vi
 | C5.4 | Hydratation cible baseline jour DH : ~3-3.5 L/jour (PROVISIONAL) |
 | C5.5 | Zéro stimulants (Red Bull, café tardif) tant que l'experiment `sleep-liquids-cutoff-2026-08` est actif |
 | C5.6 | Jour de course : petit-déjeuner riche à 2h min avant premier run |
+
+*Portée V0.3_002D verrouillée (`docs/06_ARCHITECTURE.md` §V0.3_002) : uniquement guidance contextuelle race-week/jour-DH/séance de force ; `hydration_target_l` peuplé seulement quand une cible numérique canonique unique existe déjà (C5.3), jamais un point estimé inventé depuis une plage (C5.4 reste en `notes`) ; aucun nouveau seuil numérique introduit. C5.5 reste différé jusqu'à l'existence réelle du runtime `ActiveExperiment`.*
 
 ### Domaine 6 — Contexte professionnel
 

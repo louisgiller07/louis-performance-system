@@ -444,3 +444,88 @@ Balayage complet de la timeline athlète pertinente à chaque `refresh-longitudi
 ### Hors périmètre explicite
 
 Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur hebdomadaire, runtime `ActiveExperiment`, Garmin/Zwift/Strava, LLM, activation de coaching par pattern appris, scheduler/cron, table de persistance de candidat, scores de confiance/signification, causalité.
+
+---
+
+## V0.3_002 — Domain Coaching Enrichment (ARCHITECTURE V0.3_002A LOCKED — 2026-08-28 ; V0.3_002B/C/D/E/F NOT STARTED)
+
+**Statut : V0.3_002A CLOSED (architecture/contrats verrouillés) — V0.3_002B/C/D/E/F NOT STARTED.** Cette section documente une décision d'architecture approuvée avant implémentation, sur le modèle de la section V0.3_001 ci-dessus.
+
+### Objectif produit
+
+Peupler les sections `dh_or_technical`, `mental`, `nutrition` du `DailyPlan` — actuellement systématiquement `{active: false}` (`buildDailyPlan.ts`) — via de nouvelles fonctions pures de domaine (couche C), sans toucher Safety (A), Mode/Race (B), ni la sémantique d'arbitrage KEEP/MODIFY/REPLACE/REST du domaine Préparation physique.
+
+### Frontière moteur frozen
+
+M1-M4 restent frozen. V0.3_002 autorise une extension étroitement scoped, comportement-préservante :
+- nouvelles fonctions pures `src/domains/technique.ts`, `src/domains/mental.ts`, `src/domains/nutrition.ts`
+- population des sections `DailyPlan` déjà existantes, jamais un nouveau schéma de sortie
+- une config de coaching-profil statique typée, bornée (voir §Profil statique)
+- câblage sur le chemin non-SAFETY uniquement
+
+Pour toutes les fixtures pré-existantes, restent **identiques** : `decision` (KEEP/MODIFY/REPLACE/REST), la `TrainingIntervention` sélectionnée, `triggered_rules` existants. Le `DailyPlan` complet **n'est pas** attendu byte-identique, puisque les sections Technique/Mental/Nutrition gagnent intentionnellement du contenu.
+
+### Frontière Safety
+
+`buildSafetyPlan` reste structurellement et comportementalement inchangé : `dh_or_technical/mental/nutrition = {active:false}` sur toute décision Safety REST. Le calcul des nouveaux domaines n'a lieu que sur le chemin non-SAFETY.
+
+### Propriété de signal — Option C verrouillée
+
+Voir `docs/03_COACHING_MODEL.md` §3 (Propriété de signal) et `docs/04_DAILY_DECISION_ENGINE.md` §7.17. Contrat exact :
+- Le domaine Mental (V0.3_002C) s'exécute **strictement après** le domaine Préparation physique (`applyTrainingDomainRules`) dans `buildDailyPlan.ts` — jamais avant. Un signal `mental RED` consommé avant Training désactiverait silencieusement la règle `MENTAL_RED` existante et changerait un comportement M1 frozen.
+- `mental = AMBER` : Training ne consomme jamais `stress_high`/`motivation_low` (garde `level === "RED"` uniquement dans `training.ts`) — le domaine Mental peut consommer librement le signal AMBER applicable comme cause propre.
+- `mental = RED` : Training reste seul propriétaire de décision du signal déjà consommé par `MENTAL_RED`. Le domaine Mental **ne rappelle jamais `consume()`** sur ce signal ; il peut le lire via `SignalTrace.has()`/`consumedByRule()` pour produire un `action_hint` de coaching de support, sans revendiquer la cause ni modifier l'intervention.
+- Aucune modification de `SignalTrace` (`engine/signalTrace.ts`) n'est nécessaire — `has()`/`consumedByRule()` existent déjà.
+- Aucun domaine ne peut reconsommer (`consume()`) un signal déjà consommé par un autre, ni faire découler une seconde adaptation d'intervention de la même cause. Une lecture de support non consommante (`has()`/`consumedByRule()`) reste possible quand justifiée sémantiquement — Mental/RED en est le premier cas d'usage verrouillé ; Technique et Nutrition n'ont aujourd'hui aucun besoin identifié de lecture de support et ne consomment aucun signal déjà utilisé par Training.
+
+### Profil de coaching statique — Option A bornée
+
+Une config typée, déterministe, source-controlled, mono-athlète peut être ajoutée sous `head-coach-engine/src/**` (ex. `src/config/athleteCoachingProfile.ts`), marquée explicitement : mono-athlète, V0.3, PROVISIONAL, remplacement multi-athlète futur attendu. `docs/02_ATHLETE_PROFILE.md` reste la provenance/documentation ; la config runtime en est une copie explicite, testée, limitée aux faits **spécifiquement propres à Louis** et stables : priorités de développement technique personnelles approuvées, chaînes de cue technique personnelles approuvées, cue mentale pré-course personnelle approuvée ("Comme à Wiriehorn"), capacité d'équipement stable uniquement quand directement nécessaire à une heuristique (ex. disponibilité du Bullit). Les baselines d'hydratation PROVISIONAL (C5.3/C5.4) sont des heuristiques de domaine génériques, pas des faits personnels de Louis — elles vivent dans une constante de configuration de domaine (ex. `src/domains/nutritionThresholds.ts`, sur le modèle de `PROVISIONAL_THRESHOLDS`), jamais dans `athleteCoachingProfile`. La config de profil athlète ne devient pas un sac de constantes heuristiques génériques. **Interdit** : encoder comme vrai-maintenant tout état opérationnel (disponibilité bikepark, météo, état du terrain, chaînon logistique courant, position actuelle de l'athlète) — `spot_hint` reste catégoriel par défaut (terrain DH représentatif / spot proche-faible-coût / terrain adapté au focus du jour), jamais un nom de spot affirmé comme actuellement correct sans capacité runtime de disponibilité. **En V0.3_002A, seule l'architecture est documentée — la config TypeScript elle-même n'est pas créée.**
+
+### Portée verrouillée V0.3_002B — Technique DH
+
+Champs utilisés : `dh_or_technical.{active, focus, spot_hint}` uniquement — aucun nouveau champ de sortie. `focus` = une seule chaîne de cue technique actionnable par jour pertinent (pas de champ priorité distinct — la forme `DhTechnicalSection` n'en a qu'un), `spot_hint` = catégorie terrain/logistique uniquement selon contexte réel (jour de semaine/weekend, fatigue AMBER → proximité), gating weekday/weekend/session observable. La proximité course (C1.5) influence `spot_hint`, jamais `focus`. DO NOT : venue nommée depuis une donnée de disponibilité non réellement connue, retest/outcome de drill (reporté au futur debrief structuré), inférence depuis vidéo/télémétrie (absente du runtime), modification de la décision Training.
+
+### Portée verrouillée V0.3_002C — Mental
+
+Champs utilisés : `mental.{active, focus, action_hint}` uniquement. DO NOW : AMBER stress/motivation → action de régulation courte ; `event_context.phase === "PRE_EVENT"` → cue attentionnelle pré-course générale ; RED → coaching de support en lecture seule du signal déjà consommé par `MENTAL_RED` (voir §Propriété de signal). DO NOT : score/inférence de confiance, inférence de peur/appréhension, inférence d'état psychologique depuis un champ non lié, logique pit-avant-run-chronométré (aucune donnée intra-jour fiable — `EventContext.phase` en cours ne dérive `TRACKWALK`/`PRACTICE`/`PRACTICE_TIMED`/`QUALI`/`FINAL` que si `race.race_phase` a été explicitement saisi sur la row course, sinon repli `RACE_DAY_GENERIC`), coaching post-erreur en direct (aucun déclencheur intra-jour dans ce moteur à cadence quotidienne), debrief post-course structuré.
+
+### Portée verrouillée V0.3_002D — Nutrition
+
+Champs utilisés : `nutrition.{active, focus, hydration_target_l, notes}` uniquement. DO NOW, seulement quand le contexte rend le conseil matériel : rappel race-week, guidance hydratation jour DH, guidance récupération pour un jour avec séance de force **planifiée** (le moteur ne connaît pas l'exécution/complétion de la séance à ce stade — la guidance porte sur une séance planifiée du jour, formulée comme conseil générique à appliquer après la séance, jamais comme si le moteur savait qu'elle a déjà eu lieu), timing repas pré-course **relatif générique uniquement** (`UpcomingRace.event_start` est une date, jamais un timestamp — aucune heure de départ exacte n'existe dans le modèle de données ; aucun conseil à heure fixe possible).
+
+**Contrat numérique hydratation** : `hydration_target_l` n'est peuplé que lorsqu'une cible numérique canonique **unique** existe déjà (C5.3, `~2 L/jour`). Quand la guidance canonique est une plage/approximation (C5.4, `~3-3.5 L/jour` jour DH), elle est exprimée en texte dans `notes` et `hydration_target_l` reste absent — aucun point médian n'est inventé. Aucun nouveau seuil numérique n'est introduit par V0.3_002.
+
+DO NOT : suivi calories/repas, nouveau seuil numérique inventé, allégation médicale, C5.5 (stimulants — reste bloqué sur `ActiveExperiment`/T9, hors périmètre V0.3_002).
+
+### Densité d'activation
+
+Technique/Mental/Nutrition restent des sections **contextuellement déclenchées** — jamais actives par défaut simplement parce qu'un conseil générique existe. La cible canonique "2 à 4 domaines actifs par jour" (`docs/03_COACHING_MODEL.md` §Priorisation, `docs/04_DAILY_DECISION_ENGINE.md` §7.9) reste inchangée. Une Nutrition systématiquement active pour répéter la seule baseline d'hydratation normale est explicitement proscrite.
+
+### Frontière web
+
+V0.3_002B/C/D n'utilisent que des champs déjà acceptés par `web/src/features/dailyPlan/dailyPlanValidation.ts` (`isSectionActive` ne valide que `.active`) et déjà rendus par `DailyPlanView.tsx` (lignes 81-119). Changement de production web attendu pour 002B/C/D : **AUCUN**. Toute découverte contraire en implémentation doit arrêter le travail plutôt qu'étendre silencieusement le périmètre UI — nouvelle revue requise.
+
+### Frontière données
+
+Aucune migration, aucun nouveau champ `daily_checkins`, aucun nouveau champ de session, aucune nouvelle table de profil en base pour le scope minimum V0.3_002. La config statique typée (§Profil de coaching statique) est le scope MVP délibéré, documentée mais pas encore créée en V0.3_002A. Tout besoin de migration découvert en implémentation nécessite une nouvelle revue d'architecture.
+
+### Frontière V0.3_001 / Couche D
+
+V0.3_002 ne lit ni ne réagit à `pattern_evidence*`, `PatternInsightCandidate`, `pattern_insight_reviews`, `accepted_as_insight`, `learned_patterns`. Aucune revue d'insight n'influence Technique/Mental/Nutrition — territoire Couche D / v1.0.
+
+### Frontière `ActiveExperiment`
+
+`ActiveExperiment`/T9 reste un chantier V0.3 séparé, non implémenté. `RawContext.active_experiments` restant inerte (`[]` hardcodé, `buildRawContext.ts:132`) n'est pas un blocant pour V0.3_002. C5.5 (nutrition) reste différée jusqu'à l'existence réelle du runtime `ActiveExperiment`.
+
+### Contrat d'intégration V0.3_002E (futur)
+
+Le futur jalon d'intégration/régressions devra prouver au minimum : tous les tests frozen M1-M4 pré-existants toujours verts ; `decision`/`session_type`/`triggered_rules` de Training inchangés pour les fixtures pré-existantes ; Safety A1-A5 inchangée ; les plans Safety gardent les nouvelles sections inactives ; sortie de domaine identique pour entrée identique ; aucune double-consommation de signal, prouvée par comportement (fixture `mental RED` pré-existante : décision/action/session Training strictement inchangées, règle `MENTAL_RED` toujours présente dans `triggered_rules`, `SignalTrace` rapporte `MENTAL_RED` comme propriétaire de décision, sortie Mental peuplée en lecture de support, aucun second `consume()` ne réussit) — `Training → Mental` reste un contrat normatif d'implémentation, jamais vérifié par une assertion sur la structure du code source ; aucune chaîne de downgrade générique ; aucune recommandation sans fait de support observable/configuré ; les domaines non pertinents restent inactifs ; le renderer web existant accepte le `DailyPlan` enrichi réel ; aucune influence M5/Couche D.
+
+### Frontière rollout V0.3_002F (futur)
+
+Le déploiement remote n'intervient qu'après revue/clôture locale de 002B, 002C, 002D, 002E. 002F couvrira séparément : déploiement du runtime déjà revu, vérification remote authentifiée contrôlée, zéro mutation de donnée applicative non liée, clôture documentaire canonique. Aucun déploiement pendant 002A-E sans nouvelle approbation explicite.
+
+### Hors périmètre explicite V0.3_002
+
+Planificateur hebdomadaire, debrief course post-mortem structuré, runtime `ActiveExperiment` (T9), pit-routine précise (C2.2) sans `race_phase` fiable, coaching post-erreur en direct (C2.3), retest/outcome de drill technique, Garmin/Zwift/Strava, LLM, Couche D, nouvelle migration/table de profil en base.

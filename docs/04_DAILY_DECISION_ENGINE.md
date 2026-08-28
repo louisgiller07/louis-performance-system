@@ -480,6 +480,7 @@ Le `training.session_type` en `TrainingIntervention` (riche) est mappé vers `Db
 14. Experiments actifs distincts des heuristiques permanentes.
 15. Événements mécaniques loggés comme contexte, sans recommandation setup.
 16. Head Coach ne remplace pas médecin/physio — oriente vers eux.
+17. Propriété de signal (verrouillé V0.3_002A) : un signal a au plus un propriétaire de décision (`consume()`, exclusif) ; une lecture de support non consommante (`has()`/`consumedByRule()`) est autorisée quand justifiée sémantiquement, sans jamais causer de seconde adaptation ni modifier la décision du propriétaire.
 
 ---
 
@@ -493,7 +494,7 @@ Le `training.session_type` en `TrainingIntervention` (riche) est mappé vers `Db
 
 ### V0.3
 - **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review** : architecture verrouillée le 2026-08-27 ; V0.3_001A **CLOSED LOCALLY** (orchestration + correction du détecteur recommendation, 2026-08-28), V0.3_001B **CLOSED REMOTE** (déploiement + premier backfill + idempotence remote vérifiés, 2026-08-28), V0.3_001C **NOT STARTED**. Opérationnalise le pipeline M5 déjà construit et déployé selon son statut canonique propre (`evidence → agrégat → candidat d'insight → revue humaine`), sans jamais influencer `daily-run` ni activer automatiquement un pattern — `daily-run` reste non modifié. Voir `docs/06_ARCHITECTURE.md` et `docs/11_DECISION_LOG.md` pour le détail complet.
-- Enrichissement des domaines 1, 2, 5 (technique DH, mental, nutrition)
+- **V0.3_002 — Domain Coaching Enrichment** : architecture verrouillée le 2026-08-28 (voir `docs/06_ARCHITECTURE.md` §V0.3_002 et `docs/11_DECISION_LOG.md`) ; décomposition V0.3_002A (architecture, CLOSED) → V0.3_002B (Technique DH, NOT STARTED — next) → V0.3_002C (Mental) → V0.3_002D (Nutrition) → V0.3_002E (intégration/régressions) → V0.3_002F (rollout remote/clôture). Peuple `dh_or_technical`/`mental`/`nutrition`, actuellement inertes.
 - Debrief course post-mortem structuré
 - Planificateur hebdomadaire
 - Runtime ActiveExperiment (T9)
