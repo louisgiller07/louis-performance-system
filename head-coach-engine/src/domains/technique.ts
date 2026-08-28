@@ -16,8 +16,8 @@ const TECHNIQUE_ACTIVE_KINDS: ReadonlySet<TrainingInterventionKind> = new Set([
 /**
  * C1.5 — course dans la fenêtre TECHNIQUE_POLICY.raceProximityWindowDays
  * (1..N jours après `today`, inclusif). Jour 0 (aujourd'hui) et toute
- * course passée sont explicitement exclus — voir docs/11_DECISION_LOG.md
- * (V0.3_002B). N'utilise PAS EventContext.PRE_EVENT (fenêtre différente,
+ * course passée sont explicitement exclus — voir docs/06_ARCHITECTURE.md
+ * §V0.3_002. N'utilise PAS EventContext.PRE_EVENT (fenêtre différente,
  * 7 jours, voir engine/eventContext.ts).
  */
 function isRaceProximate(today: string, races: readonly UpcomingRace[]): boolean {

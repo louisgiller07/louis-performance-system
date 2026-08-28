@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeTechniqueDomain } from "../src/domains/technique.js";
 import { buildDailyPlan } from "../src/engine/buildDailyPlan.js";
+import { ATHLETE_COACHING_PROFILE } from "../src/config/athleteCoachingProfile.js";
 import { baseRawContext, RACE_CALENDAR } from "../fixtures/louis.js";
 import type { TrainingIntervention } from "../src/types/trainingIntervention.js";
 import type { DimensionLevel } from "../src/types/dimensions.js";
@@ -73,6 +74,13 @@ const INACTIVE_KINDS: TrainingIntervention[] = [
 ];
 
 describe("T11 — Technique DH (V0.3_002B)", () => {
+  describe("Athlete coaching profile config contract", () => {
+    it("technique.primaryFocus has exactly the approved id and focus", () => {
+      expect(ATHLETE_COACHING_PROFILE.technique.primaryFocus.id).toBe("fast_precision_overbraking");
+      expect(ATHLETE_COACHING_PROFILE.technique.primaryFocus.focus).toBe(FOCUS);
+    });
+  });
+
   describe("Activation", () => {
     for (const session of ACTIVE_KINDS) {
       it(`${session.kind} → active`, () => {

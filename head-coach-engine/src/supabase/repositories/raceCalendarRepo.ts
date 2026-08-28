@@ -1,7 +1,8 @@
 /**
  * Read-only access to `race_calendar`. See docs/05_DATA_MODEL.md
  * §race_calendar and docs/11_DECISION_LOG.md (2026-08-11 — Support courses
- * multi-jours ; V0.3_002B — élargissement de la fenêtre future).
+ * multi-jours) and docs/06_ARCHITECTURE.md §V0.3_002 (élargissement de la
+ * fenêtre future).
  *
  * The actual pre/in-progress/post-event relevance decision is made by M1's
  * own `computeEventContext`/`hasOverlappingInProgressRaces`

@@ -7,7 +7,7 @@
  * "course ≤ 2 semaines") — un horizon volontairement distinct de la fenêtre
  * PRE_EVENT de 7 jours utilisée par engine/eventContext.ts et
  * rules/raceProtocol.ts. Les deux fenêtres coexistent sans se substituer
- * l'une à l'autre — voir docs/11_DECISION_LOG.md (V0.3_002B).
+ * l'une à l'autre — voir docs/06_ARCHITECTURE.md §V0.3_002.
  */
 export interface TechniquePolicy {
   readonly raceProximityWindowDays: number;
