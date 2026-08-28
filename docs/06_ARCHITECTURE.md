@@ -447,9 +447,9 @@ Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur heb
 
 ---
 
-## V0.3_002 — Domain Coaching Enrichment (ARCHITECTURE V0.3_002A LOCKED — 2026-08-28 ; V0.3_002B/C/D/E/F NOT STARTED)
+## V0.3_002 — Domain Coaching Enrichment (ARCHITECTURE V0.3_002A LOCKED — 2026-08-28 ; V0.3_002B CLOSED LOCALLY — 2026-08-28 ; V0.3_002C/D/E/F NOT STARTED)
 
-**Statut : V0.3_002A CLOSED (architecture/contrats verrouillés) — V0.3_002B/C/D/E/F NOT STARTED.** Cette section documente une décision d'architecture approuvée avant implémentation, sur le modèle de la section V0.3_001 ci-dessus.
+**Statut : V0.3_002A CLOSED (architecture/contrats verrouillés) — V0.3_002B CLOSED LOCALLY (2026-08-28) — V0.3_002C/D/E/F NOT STARTED.** Cette section documente une décision d'architecture approuvée avant implémentation, sur le modèle de la section V0.3_001 ci-dessus ; la portée verrouillée V0.3_002B ci-dessous est désormais implémentée et testée localement (voir la sous-section de clôture juste après, et `docs/11_DECISION_LOG.md`).
 
 ### Objectif produit
 
@@ -485,6 +485,12 @@ Une config typée, déterministe, source-controlled, mono-athlète peut être aj
 ### Portée verrouillée V0.3_002B — Technique DH
 
 Champs utilisés : `dh_or_technical.{active, focus, spot_hint}` uniquement — aucun nouveau champ de sortie. `focus` = une seule chaîne de cue technique actionnable par jour pertinent (pas de champ priorité distinct — la forme `DhTechnicalSection` n'en a qu'un), `spot_hint` = catégorie terrain/logistique uniquement selon contexte réel (jour de semaine/weekend, fatigue AMBER → proximité), gating weekday/weekend/session observable. La proximité course (C1.5) influence `spot_hint`, jamais `focus`. DO NOT : venue nommée depuis une donnée de disponibilité non réellement connue, retest/outcome de drill (reporté au futur debrief structuré), inférence depuis vidéo/télémétrie (absente du runtime), modification de la décision Training.
+
+#### V0.3_002B — CLOSED LOCALLY (2026-08-28)
+
+**Résultat d'implémentation** (conforme à la portée verrouillée ci-dessus) : `computeTechniqueDomain` actif exactement pour `DH_TECHNICAL`/`DH_PERFORMANCE`/`DH_LIGHT`/`PUMPTRACK` (séance finale post-arbitrage Training/douleur/soft constraints/A5 — aucun gating direct sur jour de semaine ou `active_mode`), focus unique "Fixe ta ligne, dose le freinage, laisse rouler.", `spot_hint` à allowlist de 4 chaînes catégorielles, C1.5 = J+1..J+14 sur `RawContext.upcoming_races`, C1.6 = `systemic`/`legs`/`arms_grip` AMBER exactement (RED seul exclu), zéro interaction `SignalTrace`. `ENGINE_VERSION` → `head-coach-engine@0.2.0-m1-v0.3_002b` (provenance comportementale, décision bornée à cette occasion, `package.json` inchangé). Commits `b28e013fce8ca7f3a9896a76351c4f058c82e9fa` / `e9573dd4cea8a1e804e2acc2a20bd6517817fcd6`. Tests `npm test` 275/275, `npm run test:edge` 9/9, build PASS. Aucune migration, aucun changement web, aucun déploiement remote.
+
+**Exception M2 read-only à la frontière frozen M1-M4** : la vérification préalable a révélé que `raceCalendarRepo.ts` ne bornait `RawContext.upcoming_races` qu'à J+7 (superset historique aligné sur `EventContext.PRE_EVENT`), rendant C1.5 (J+1..J+14, déjà canonique dans `docs/03_COACHING_MODEL.md`) invisible au runtime au-delà de J+7. Cette modification constitue l'exception M2 read-only explicitement approuvée après le preflight de V0.3_002B à la frontière frozen M1-M4 ; elle est strictement bornée à l'élargissement de la disponibilité des données de course dans `RawContext` et ne modifie aucun contrat de persistance/écriture M2. Concrètement : borne future de la requête SQL élargie à `max(preEventWindowDays, TECHNIQUE_POLICY.raceProximityWindowDays)` = J+14 — borne historique, tri, colonnes sélectionnées et mapping d'erreur inchangés. Restent strictement inchangés : sémantique de décision/règles M1, `training.ts`, Safety, `SignalTrace`, `computeEventContext`/`PRE_EVENT` (7 jours), `raceProtocol.ts`, les contrats de persistance/écriture M2, le schéma DB, le contrat HTTP `daily-run`. Inertie des lignes J+8..J+14 sur `EventContext`/`decision`/`final_session`/`triggered_rules` prouvée par intégration réelle contre Supabase local (6 cas). Détail complet dans `docs/11_DECISION_LOG.md`.
 
 ### Portée verrouillée V0.3_002C — Mental
 

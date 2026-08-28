@@ -1752,3 +1752,36 @@ Nettoyage : tous les fixtures scratch supprimés (3 users/athletes distincts uti
 V0.3_002A = CLOSED / ARCHITECTURE LOCKED
 V0.3_002 (ensemble) = IN PROGRESS
 V0.3_002B/C/D/E/F = NOT STARTED
+
+---
+
+## 2026-08-28 — V0.3_002B : Technique DH CLOSED LOCALLY
+
+**Contexte** : suite à l'architecture verrouillée en V0.3_002A, implémentation du domaine Technique DH (couche C) peuplant `DailyPlan.dh_or_technical`, revue par une passe d'acceptation adversariale, corrigée par une passe de durcissement mineur (config profil id/focus directement testés, `ENGINE_VERSION` incrémenté, références source pendantes vers docs/11 remplacées par `docs/06_ARCHITECTURE.md §V0.3_002`).
+
+**Décision** :
+1. `computeTechniqueDomain` (`src/domains/technique.ts`, NEW) active `dh_or_technical` exactement pour les kinds `DH_TECHNICAL`/`DH_PERFORMANCE`/`DH_LIGHT`/`PUMPTRACK` de la séance finale (post-arbitrage Training/douleur/soft constraints/A5) — les 12 autres kinds restent inactifs (exhaustivité vérifiée contre l'union `TrainingInterventionKind` réelle).
+2. Focus unique verrouillé : "Fixe ta ligne, dose le freinage, laisse rouler." — dérivé de `docs/02_ATHLETE_PROFILE.md` §7.2 + §12 item 4, formulation PROVISIONAL nouvellement approuvée, pas une citation athlète directe.
+3. `spot_hint` limité à un allowlist exact de 4 chaînes catégorielles ("Terrain adapté au focus technique du jour." / "Terrain proche, à faible coût logistique." / "Terrain représentatif de la prochaine course." / "Terrain représentatif de la prochaine course, à faible coût logistique.") — jamais de venue nommée.
+4. C1.5 (proximité course) implémentée sur un horizon J+1..J+14 inclusif (`src/config/techniquePolicy.ts`, `TECHNIQUE_POLICY.raceProximityWindowDays = 14`), distinct de la fenêtre `PRE_EVENT` de 7 jours (`PROVISIONAL_THRESHOLDS.event.preEventWindowDays`, inchangée). `raceCalendarRepo.ts` élargi en lecture seule (borne future uniquement, `Math.max(preEventWindowDays, raceProximityWindowDays)` ; borne historique inchangée) pour que `RawContext.upcoming_races` couvre ce nouvel horizon — exception M2 read-only explicitement approuvée après le preflight de V0.3_002B à la frontière frozen M1-M4, strictement bornée à l'élargissement de la disponibilité des données de course dans `RawContext`, ne modifiant aucun contrat de persistance/écriture M2. Preuve empirique contre Supabase local réel (6 cas d'intégration) : races J+8 et J+14 retournées, J+15 exclue, et inertie complète de ces lignes supplémentaires sur `EventContext`, `decision`, `final_session` et `triggered_rules` pré-existants.
+5. C1.6 (fatigue) implémentée exactement comme `systemic.level === "AMBER" || legs.level === "AMBER" || arms_grip.level === "AMBER"` — un RED isolé ne déclenche jamais l'indice de proximité. Lecture non-causale de `DimensionState.level` uniquement (Option C, propriété de signal verrouillée en V0.3_002A) — zéro appel à `SignalTrace.consume()`/`has()`/`consumedByRule()`.
+6. Config athlète bornée créée (`src/config/athleteCoachingProfile.ts`) contenant uniquement `technique.primaryFocus.{id: "fast_precision_overbraking", focus}` ; config de politique de domaine générique créée séparément (`src/config/techniquePolicy.ts`) — aucune donnée opérationnelle courante (venue/météo/disponibilité), aucune fuite de constante générique dans le profil athlète.
+7. Persistance/idempotence : `decisions.daily_plan` persiste le `DailyPlan` complet, donc `dh_or_technical` peut désormais différer entre décisions pré/post-002B pour une même date si une course entre dans la fenêtre J+8..J+14 — effet intentionnel de la fonctionnalité. `decisions` reste append-only sans contrainte d'unicité `(athlete_id, decision_date)` ; aucune garantie d'idempotence par jour n'existait avant 002B et n'a donc pas pu être rompue.
+8. `ENGINE_VERSION` porté de `head-coach-engine@0.2.0-m1` à `head-coach-engine@0.2.0-m1-v0.3_002b` — décision bornée à cette seule occasion (identité comportementale/provenance du `DailyPlan`, pas une politique de versioning générale), `package.json` (`0.2.0`) inchangé. S'applique à tous les plans nouvellement produits, y compris les plans Safety (l'identité décrit l'implémentation du moteur, pas la branche exécutée).
+9. Trois commentaires source pointant vers une entrée `docs/11_DECISION_LOG.md (V0.3_002B)` non encore existante ont été corrigés pour pointer vers `docs/06_ARCHITECTURE.md §V0.3_002` (déjà existant) — hygiène de référence, aucun changement de comportement.
+
+**Preuve** : implémentation (`b28e013fce8ca7f3a9896a76351c4f058c82e9fa`, `feat: add V0.3_002B technique coaching domain`) + durcissement (`e9573dd4cea8a1e804e2acc2a20bd6517817fcd6`, `fix: harden V0.3_002B engine provenance`) poussés sur `origin/main`. `head-coach-engine/tests/t11_technique.test.ts` (NEW) + 6 nouveaux cas dans `tests/supabase/buildRawContext.integration.test.ts` : `npm test` **275/275**, `npm run test:edge` **9/9**, build TypeScript strict PASS. Aucune régression sur les suites frozen M1-M4 pré-existantes.
+
+**Incident consigné** : durant l'implémentation locale, un appel `supabase status` non redirigé a affiché du matériel de credentials de développement local dans le transcript. Exposition de secret production/remote = NON. Rotation requise = NON. Violation de process = OUI (extraction sûre via redirection systématique adoptée pour la suite). N'a pas bloqué cette clôture.
+
+**Alternatives considérées** :
+- Horizon de proximité course / observabilité runtime : réutiliser `EventContext.PRE_EVENT` (7 jours) comme sélecteur C1.5 — **rejeté**, ne satisferait pas l'horizon canonique "≤ 2 semaines" (C1.5) et confondrait deux mécanismes distincts ; élargir globalement `EventContext`/`PROVISIONAL_THRESHOLDS.event.preEventWindowDays` — **rejeté**, altérerait la sémantique `PRE_EVENT`/`raceProtocol` déjà verrouillée ; **retenu** : `TECHNIQUE_POLICY.raceProximityWindowDays = 14` (politique de domaine C distincte) + élargissement en lecture seule, borné à la seule borne future, de `raceCalendarRepo.ts`.
+- `ENGINE_VERSION` : laisser `head-coach-engine@0.2.0-m1` inchangé — **rejeté**, la sémantique persistée du `DailyPlan` a matériellement changé (`dh_or_technical` désormais réellement variable) ; adopter un schéma de version générique (semver `package.json`, métadonnée de build) — **non retenu**, aurait impliqué une politique de versioning plus large non demandée pour cette clôture ; **retenu** : `head-coach-engine@0.2.0-m1-v0.3_002b`, décision de provenance explicitement bornée à cette seule occasion.
+- Propriété de signal et config profil : voir l'entrée V0.3_002A (Option B pour le profil, Option B pour la propriété de signal) — non répétées ici ; aucune alternative supplémentaire sur ces deux points spécifiquement en 002B.
+
+**Impact** : `docs/00_PROJECT_STATUS.md`, `docs/04_DAILY_DECISION_ENGINE.md` (roadmap §8), `docs/06_ARCHITECTURE.md` (sous-section de clôture §V0.3_002B), `docs/10_TEST_PLAN.md` (statut T11), `docs/12_BACKLOG.md` (phase actuelle, nouveau bloc V0.3_002B). Aucun changement `web/**`, `supabase/functions/**`, `supabase/migrations/**`, `longitudinal-engine/**`.
+
+**Statut** :
+V0.3_002B = CLOSED LOCALLY
+V0.3_002 (ensemble) = IN PROGRESS
+V0.3_002C/D/E/F = NOT STARTED

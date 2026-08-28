@@ -342,7 +342,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Intégrations externes (M4+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire
-- Enrichissement des domaines Technique/Mental/Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — NOT STARTED)
+- Enrichissement des domaines Mental/Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11 CLOSED LOCALLY, Mental/Nutrition NOT STARTED)
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
 
@@ -462,16 +462,22 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B/C/D/E/F NOT STARTED)
+## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B CLOSED LOCALLY — 2026-08-28 ; V0.3_002C/D/E/F NOT STARTED)
 
-**Statut : contrat de test verrouillé pour V0.3_002, implémentation non commencée.** Les scénarios ci-dessous seront implémentés progressivement par 002B/C/D, puis vérifiés collectivement par 002E.
+**Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH) implémenté et vérifié (002B CLOSED LOCALLY) ; T12/T13 (Mental/Nutrition) restent à implémenter.** Les scénarios restants seront implémentés progressivement par 002C/D, puis vérifiés collectivement par 002E.
 
-### T11. Technique DH (V0.3_002B — NOT STARTED)
-- Fixture weekday hors contexte technique → `dh_or_technical.active = false`
-- Fixture weekend DH pertinente → `active = true`, `focus` = une seule chaîne de cue technique actionnable, `spot_hint` catégoriel peuplé
-- Fatigue AMBER (`legs`/`arms_grip`/`systemic`) → `spot_hint` reflète une préférence de proximité ; `focus` inchangé par ce signal ; décision Training inchangée
-- Proximité course (`event_context.days_to_event` bas) → `spot_hint` reflète une préférence terrain-représentatif ; `focus` n'est **pas** écrasé par la proximité course
-- Plan Safety REST → `dh_or_technical = {active:false}` inchangé
+### T11. Technique DH (V0.3_002B — CLOSED LOCALLY, 2026-08-28)
+
+Activation : source unique = `final_session.kind` (séance déjà entièrement arbitrée — après règles de domaine, douleur non-SAFETY, soft constraints et A5). Actif exactement pour `DH_TECHNICAL`/`DH_PERFORMANCE`/`DH_LIGHT`/`PUMPTRACK` ; inactif pour tout autre kind courant (y compris `RACE_ACTIVITY`) — aucun gating direct sur jour de semaine/weekend, aucun gating sur `active_mode`.
+
+- Séance finale hors des 4 kinds actifs → `dh_or_technical.active = false`
+- Séance finale dans les 4 kinds actifs → `active = true`, `focus` = une seule chaîne de cue technique actionnable ("Fixe ta ligne, dose le freinage, laisse rouler."), `spot_hint` catégoriel peuplé
+- Fatigue AMBER (`systemic` OU `legs` OU `arms_grip` == AMBER, RED seul exclu) → `spot_hint` reflète une préférence de proximité ; `focus` inchangé par ce signal ; décision Training inchangée
+- Proximité course : une course réelle dans `RawContext.upcoming_races` avec `event_start` J+1 à J+14 inclusif (C1.5, `TECHNIQUE_POLICY.raceProximityWindowDays`) → `spot_hint` reflète une préférence terrain-représentatif ; `focus` n'est **pas** écrasé. `EventContext`/`PRE_EVENT` reste un mécanisme séparé à 7 jours (`PROVISIONAL_THRESHOLDS.event.preEventWindowDays`) et n'est **jamais** le sélecteur de C1.5.
+- Course + fatigue AMBER simultanées → `spot_hint` combine les deux (chaîne dédiée, aucune contrainte ignorée)
+- Plan Safety REST → `dh_or_technical = {active:false}` inchangé, Technique jamais invoqué sur ce chemin
+
+**Preuve finale (2026-08-28)** : `head-coach-engine/tests/t11_technique.test.ts` — 4 kinds actifs / 12 inactifs exhaustifs contre l'union `TrainingInterventionKind` réelle, focus unique déterministe, allowlist `spot_hint` à 4 chaînes exactes, C1.5 sur J+1..J+14 réel (adaptateur `raceCalendarRepo.ts` élargi, `EventContext`/`PRE_EVENT` à J+7 inchangé — inertie prouvée par 6 cas d'intégration Supabase réels dans `buildRawContext.integration.test.ts`), config profil `id`+`focus` directement testés. `npm test` 275/275, `npm run test:edge` 9/9.
 
 ### T12. Mental (V0.3_002C — NOT STARTED)
 - `mental = AMBER` (stress ou motivation) → domaine Mental consomme le signal AMBER, `action_hint` peuplé, décision Training inchangée

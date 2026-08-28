@@ -2,10 +2,10 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED (2026-08-28).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED, V0.3_002B (Technique DH) CLOSED LOCALLY (2026-08-28).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B (Technique DH) **NOT STARTED — prochain** ; V0.3_002C/D/E/F **NOT STARTED** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED / ARCHITECTURE LOCKED**, 2026-08-28. Prochain jalon concret : **V0.3_002B — Technique DH**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
+**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B (Technique DH) **CLOSED LOCALLY** (2026-08-28) ; V0.3_002C (Mental) **NOT STARTED — prochain** ; V0.3_002D/E/F **NOT STARTED** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
+**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED**, V0.3_002B (Technique DH) **CLOSED LOCALLY**, 2026-08-28. Prochain jalon concret : **V0.3_002C — Mental**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
 
 ---
 
@@ -303,6 +303,25 @@ Enrichissement des domaines Technique DH / Mental / Nutrition, planificateur heb
 ### Explicitement hors périmètre V0.3_002A (reporté à 002B/C/D/E/F)
 
 Toute implémentation de code (`src/domains/technique.ts`/`mental.ts`/`nutrition.ts`), toute création de la config TypeScript de profil, tout test, toute migration, tout déploiement.
+
+---
+
+## V0.3_002B — Technique DH (CLOSED LOCALLY, 2026-08-28)
+
+- [x] `computeTechniqueDomain` (`src/domains/technique.ts`) — actif pour `DH_TECHNICAL`/`DH_PERFORMANCE`/`DH_LIGHT`/`PUMPTRACK` (séance finale post-arbitrage), inactif pour les 12 autres kinds
+- [x] Focus unique approuvé : "Fixe ta ligne, dose le freinage, laisse rouler." — aucune rotation
+- [x] `spot_hint` — allowlist exact à 4 chaînes catégorielles, aucune venue nommée
+- [x] C1.5 — proximité course J+1..J+14 sur `RawContext.upcoming_races` (`TECHNIQUE_POLICY.raceProximityWindowDays`), adaptateur `raceCalendarRepo.ts` élargi en lecture seule (borne future uniquement — exception M2 read-only explicitement approuvée après le preflight, à la frontière frozen M1-M4, sans modification d'aucun contrat de persistance/écriture M2), `EventContext`/`PRE_EVENT` (7 jours) inchangé et jamais le sélecteur C1.5, inertie prouvée par intégration réelle (6 cas)
+- [x] C1.6 — fatigue AMBER = `systemic` OU `legs` OU `arms_grip`, RED seul exclu, zéro interaction `SignalTrace`
+- [x] Config profil athlète bornée (`athleteCoachingProfile.ts`) + config de politique de domaine distincte (`techniquePolicy.ts`)
+- [x] `ENGINE_VERSION` → `head-coach-engine@0.2.0-m1-v0.3_002b` (provenance comportementale, `package.json` inchangé)
+- [x] Safety/Training/`SignalTrace`/`eventContext.ts`/`raceProtocol.ts` strictement inchangés
+- [x] Tests : `npm test` 275/275, `npm run test:edge` 9/9, build PASS
+- [x] Aucune migration, aucun nouveau champ `daily_checkins`, aucun changement web, aucun déploiement remote
+
+### Explicitement hors périmètre V0.3_002B (reporté)
+
+Mental (V0.3_002C), Nutrition (V0.3_002D), planificateur hebdomadaire (C1.2/C1.3, comparaison inter-jours), retest/outcome de drill, pit-routine/coaching post-erreur en direct, `ActiveExperiment`, rollout remote (V0.3_002F).
 
 ---
 
