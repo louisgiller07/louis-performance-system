@@ -347,9 +347,58 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (FUTURS, RUNTIME NON IMPLÉMENTÉ)
+## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (V0.3_001A implémenté et testé localement, 2026-08-28 ; scénarios restant FUTURS pour V0.3_001B/C : backfill remote, API `submit-review`, surface web)
 
-**Statut : contrat de test verrouillé pour le futur runtime V0.3_001.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`) ; les scénarios ci-dessous décrivent les preuves **nouvelles** à ajouter à travers l'orchestration, les opérations serveur et la surface V0.3_001, qui ne sont pas encore implémentées.
+**Statut : contrat de test verrouillé pour le runtime V0.3_001.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`). La plupart des scénarios d'orchestration/opérations-serveur listés ci-dessous disposent désormais d'une preuve réelle locale (V0.3_001A — voir la nouvelle sous-section ci-dessous et `docs/11_DECISION_LOG.md`, entrée de clôture 2026-08-28) ; les scénarios spécifiques au backfill remote et à la soumission de revue (`submit-review`) restent **futurs**, non implémentés (V0.3_001B/C).
+
+### V0.3_001A — CLOSED LOCALLY (2026-08-28) — invariants de non-régression prouvés
+
+**Plage/timeline** :
+- `INSIGHT_AGGREGATION_RANGE` (1900-01-01..9999-12-31) n'est **jamais** transmise à `buildTimeline`
+- la plage de timeline réellement transmise à `buildTimeline` est compacte
+- la borne supérieure de la plage de requête source = `longitudinalProcessingDate`
+- la marge de lookback couvre la fenêtre de référence de 60 jours du détecteur sommeil-énergie
+- la marge de lookback couvre la fenêtre de 3 jours du détecteur persistance-douleur
+- athlète sans données → timeline d'un seul jour (`{processingDate, processingDate}`)
+- lignes sources datées dans le futur exclues
+- aucune matérialisation non bornée/de plusieurs millions de jours
+
+**Identité recommendation** :
+- `evaluationKey = decision:<decisionId>`
+- `evidenceKey = decision:<decisionId>`
+- même identité pour `evidence`/`no_evidence`
+- actif → retiré → retrait inchangé → réactivé
+- le compte d'identités reste à un
+
+**Transport** :
+- `refresh-longitudinal` retourne des résumés d'action par détecteur
+- des échecs d'item partiels → `status: partial_failure`, HTTP 200
+- les messages Postgres/RPC/Supabase/SQL bruts n'entrent jamais dans le JSON exposé au navigateur
+- le test de non-fuite par sentinel reste obligatoire
+
+**`get-insights`** :
+- `GET` uniquement
+- aucun paramètre de requête accepté
+- athlète résolu côté serveur
+- plage d'insight statique
+- client RLS authentifié uniquement
+- un projecteur non supporté échoue explicitement (jamais de repli silencieux)
+- aucune persistance de candidat
+
+**Build Edge** :
+- `dist` est généré/gitignored
+- suppression complète + reconstruction avant chaque test HTTP V0.3
+- aucun `dist` généré n'est jamais commité
+
+**Répétabilité runtime** :
+- le harness HTTP V0.3 peut s'exécuter deux fois consécutives
+- le harness M3 HTTP peut s'enchaîner immédiatement après
+- le harness HTTP completed-session peut s'enchaîner immédiatement après
+- aucun nettoyage manuel du runtime Edge n'est requis entre ces exécutions
+
+**Preuve empirique actuelle** : `longitudinal-engine` = 689/689 ; harness HTTP V0.3 = 30/30 (×2 consécutifs) ; régressions gelées reconfirmées M1/M2=226/226, daily-run Edge=9/9, M3 HTTP=26/26, completed-session unit=73/73, completed-session HTTP=70/70, web=242/242, web build=PASS, longitudinal build=PASS. **Ces preuves couvrent uniquement V0.3_001A** — aucun scénario de backfill remote (V0.3_001B) ni de soumission de revue (V0.3_001C) n'est encore prouvé ; la liste FUTURS ci-dessous reste le contrat de test verrouillé pour ces deux jalons.
+
+### Liste complète des scénarios (référence — statut détaillé dans la sous-section V0.3_001A ci-dessus ; les scénarios de soumission de revue et de backfill restent FUTURS/V0.3_001B/C)
 
 - Orchestration réelle de bout en bout, données source réelles → evidence (les 3 détecteurs existants)
 - Rejeu idempotent de `refresh-longitudinal` (deux exécutions consécutives → zéro doublon, tout `unchanged`)
