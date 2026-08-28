@@ -464,6 +464,10 @@ async function main(): Promise<void> {
         ["unknown query rejected", "?foo=bar"],
       ];
       for (const [label, qs] of cases) {
+        // `qs` (the real query string, including userB.athleteId's raw UUID
+        // for the first case) is what's actually SENT — required to prove
+        // the endpoint genuinely rejects it. Only the query PARAMETER NAME,
+        // never its value, is printed in the diagnostic detail below.
         const res = await fetch(`${INSIGHTS_URL}${qs}`, { method: "GET", headers: { Authorization: `Bearer ${userA.token}` } });
         const body = await res.text();
         let json: any = null;
@@ -472,7 +476,8 @@ async function main(): Promise<void> {
         } catch {
           /* not JSON */
         }
-        record(`insights. ${label} -> 400 invalid_request`, res.status === 400 && json?.error?.code === "invalid_request", `status=${res.status} qs=${qs}`);
+        const paramName = qs.replace(/^\?/, "").split("=")[0] || qs;
+        record(`insights. ${label} -> 400 invalid_request`, res.status === 400 && json?.error?.code === "invalid_request", `query=${paramName} status=${res.status} code=${json?.error?.code}`);
       }
     }
     {
