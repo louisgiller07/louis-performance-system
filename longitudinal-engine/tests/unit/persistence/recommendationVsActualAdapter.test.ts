@@ -1,7 +1,10 @@
 /**
  * persistRecommendationVsActualEvidence adapter — pure unit tests. No
  * Docker/Supabase connection: a stub client captures/controls the single
- * `rpc()` call the adapter is allowed to make.
+ * `rpc()` call the adapter is allowed to make per detection. V0.3_001A:
+ * this adapter is now lifecycle-aware (evidence -> persist_active_pattern_evidence,
+ * no_evidence -> transition_pattern_evidence_lifecycle) — mirrors
+ * painPersistenceAdapter.test.ts's own structure exactly.
  */
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -13,7 +16,7 @@ const EVIDENCE: RecommendationVsActualEvidence = {
   detectorRuleId: "recommendation_vs_actual_execution",
   detectorRuleVersion: "1.0.0",
   evaluationKey: "decision:d1",
-  evidenceKey: "decision:d1:completion:s1",
+  evidenceKey: "decision:d1",
   eventType: "supporting",
   eventDate: "2026-08-10",
   observedValue: {
@@ -34,6 +37,7 @@ const NO_EVIDENCE: RecommendationVsActualNoEvidence = {
   detectorRuleId: "recommendation_vs_actual_execution",
   detectorRuleVersion: "1.0.0",
   evaluationKey: "decision:d1",
+  evidenceKey: "decision:d1",
   eventDate: "2026-08-10",
   reason: "no_completed_session",
 };
@@ -49,82 +53,136 @@ function stubClient(rpcImpl: (fn: string, args: unknown) => Promise<{ data: unkn
   return { client, calls };
 }
 
-describe("persistRecommendationVsActualEvidence", () => {
-  it("maps evidence to the exact persist_pattern_evidence RPC payload", async () => {
+describe("persistRecommendationVsActualEvidence — evidence path", () => {
+  it("calls persist_active_pattern_evidence with the exact provenance: evaluation_decision then linked_completed_session", async () => {
     const { client, calls } = stubClient(async () => ({
-      data: { identity_id: "i1", revision_id: "r1", revision_number: 1, action: "inserted" },
+      data: {
+        identity_id: "i1",
+        revision_id: "r1",
+        revision_number: 1,
+        evidence_action: "inserted",
+        lifecycle_action: "unchanged",
+        lifecycle_transition_id: null,
+        lifecycle_transition_number: null,
+      },
       error: null,
     }));
 
     await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: EVIDENCE });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.fn).toBe("persist_pattern_evidence");
-    expect(calls[0]!.args).toEqual({
-      p_athlete_id: "athlete-1",
-      p_detector_rule_id: "recommendation_vs_actual_execution",
-      p_detector_rule_version: "1.0.0",
-      p_evaluation_key: "decision:d1",
-      p_evidence_key: "decision:d1:completion:s1",
-      p_event_type: "supporting",
-      p_event_date: "2026-08-10",
-      p_observed_value: EVIDENCE.observedValue,
-      p_provenance: [
-        { role: "evaluation_decision", source_kind: "decision", source_id: "d1" },
-        { role: "linked_completed_session", source_kind: "completed_session", source_id: "s1" },
-      ],
-    });
-  });
-
-  it("provenance is exactly two entries, no extra fields on each entry", async () => {
-    const { client, calls } = stubClient(async () => ({
-      data: { identity_id: "i1", revision_id: "r1", revision_number: 1, action: "inserted" },
-      error: null,
-    }));
-
-    await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: EVIDENCE });
-
-    const args = calls[0]!.args as { p_provenance: Array<Record<string, unknown>> };
+    expect(calls[0]!.fn).toBe("persist_active_pattern_evidence");
+    const args = calls[0]!.args as { p_evaluation_key: string; p_evidence_key: string; p_provenance: Array<Record<string, unknown>> };
+    expect(args.p_evaluation_key).toBe("decision:d1");
+    expect(args.p_evidence_key).toBe("decision:d1");
+    expect(args.p_provenance).toEqual([
+      { role: "evaluation_decision", source_kind: "decision", source_id: "d1" },
+      { role: "linked_completed_session", source_kind: "completed_session", source_id: "s1" },
+    ]);
     expect(args.p_provenance).toHaveLength(2);
-    for (const entry of args.p_provenance) {
-      expect(Object.keys(entry).sort()).toEqual(["role", "source_id", "source_kind"]);
-    }
   });
 
-  it("no_evidence -> skipped_no_evidence, zero RPC calls", async () => {
-    const { client, calls } = stubClient(async () => {
-      throw new Error("rpc must never be called for no_evidence");
-    });
-
-    const result = await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE });
-
-    expect(result).toEqual({ action: "skipped_no_evidence" });
-    expect(calls).toHaveLength(0);
-  });
-
-  it("maps a successful RPC response exactly (inserted/superseded/unchanged, ids, revision_number)", async () => {
+  it("maps the composite RPC response exactly", async () => {
     const { client } = stubClient(async () => ({
-      data: { identity_id: "identity-abc", revision_id: "revision-xyz", revision_number: 3, action: "superseded" },
+      data: {
+        identity_id: "i1",
+        revision_id: "r1",
+        revision_number: 2,
+        evidence_action: "superseded",
+        lifecycle_action: "transitioned",
+        lifecycle_transition_id: "t2",
+        lifecycle_transition_number: 2,
+      },
       error: null,
     }));
 
     const result = await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: EVIDENCE });
 
     expect(result).toEqual({
-      action: "superseded",
-      identityId: "identity-abc",
-      revisionId: "revision-xyz",
-      revisionNumber: 3,
+      kind: "evidence",
+      identityId: "i1",
+      revisionId: "r1",
+      revisionNumber: 2,
+      evidenceAction: "superseded",
+      lifecycleAction: "transitioned",
+      lifecycleTransitionId: "t2",
+      lifecycleTransitionNumber: 2,
     });
   });
 
-  it("propagates the exact RPC error object unwrapped — identity, not just message equality", async () => {
-    // A genuinely distinct object identity (not merely "an object with the same shape") — asserting
-    // .toBe() below proves the adapter rethrows this EXACT reference, never a copy/rewrap/new Error.
+  it("propagates the exact RPC error object unwrapped", async () => {
     const rpcError = { code: "42501", message: "permission denied", details: null, hint: null };
     const { client, calls } = stubClient(async () => ({ data: null, error: rpcError }));
 
     await expect(persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: EVIDENCE })).rejects.toBe(rpcError);
-    expect(calls).toHaveLength(1); // called exactly once for evidence, even though it failed
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("persistRecommendationVsActualEvidence — no_evidence path", () => {
+  it("calls transition_pattern_evidence_lifecycle with target=withdrawn, reason_code=detection.reason, and context={}", async () => {
+    const { client, calls } = stubClient(async () => ({
+      data: { identity_id: "i2", transition_id: "t1", transition_number: 1, state: "withdrawn", action: "transitioned" },
+      error: null,
+    }));
+
+    await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.fn).toBe("transition_pattern_evidence_lifecycle");
+    expect(calls[0]!.args).toEqual({
+      p_athlete_id: "athlete-1",
+      p_detector_rule_id: "recommendation_vs_actual_execution",
+      p_detector_rule_version: "1.0.0",
+      p_evidence_key: "decision:d1",
+      p_target_state: "withdrawn",
+      p_reason_code: "no_completed_session",
+      p_context: {},
+    });
+  });
+
+  it("never calls persist_active_pattern_evidence for a no_evidence detection", async () => {
+    const { client, calls } = stubClient(async () => ({
+      data: { identity_id: null, transition_id: null, transition_number: null, state: null, action: "skipped_no_prior" },
+      error: null,
+    }));
+    await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE });
+    expect(calls.every((c) => c.fn === "transition_pattern_evidence_lifecycle")).toBe(true);
+  });
+
+  it("maps action=transitioned -> withdrawn", async () => {
+    const { client } = stubClient(async () => ({
+      data: { identity_id: "i2", transition_id: "t1", transition_number: 1, state: "withdrawn", action: "transitioned" },
+      error: null,
+    }));
+    const result = await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE });
+    expect(result).toEqual({ kind: "no_evidence", action: "withdrawn", identityId: "i2", transitionId: "t1", transitionNumber: 1 });
+  });
+
+  it("maps action=unchanged -> unchanged_withdrawal", async () => {
+    const { client } = stubClient(async () => ({
+      data: { identity_id: "i2", transition_id: "t1", transition_number: 1, state: "withdrawn", action: "unchanged" },
+      error: null,
+    }));
+    const result = await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE });
+    expect(result.kind).toBe("no_evidence");
+    expect((result as { action: string }).action).toBe("unchanged_withdrawal");
+  });
+
+  it("maps action=skipped_no_prior -> skipped_no_evidence_no_prior, all-null fields preserved", async () => {
+    const { client } = stubClient(async () => ({
+      data: { identity_id: null, transition_id: null, transition_number: null, state: null, action: "skipped_no_prior" },
+      error: null,
+    }));
+    const result = await persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE });
+    expect(result).toEqual({ kind: "no_evidence", action: "skipped_no_evidence_no_prior", identityId: null, transitionId: null, transitionNumber: null });
+  });
+
+  it("propagates the exact RPC error object unwrapped", async () => {
+    const rpcError = { code: "P0001", message: "some structural error", details: null, hint: null };
+    const { client, calls } = stubClient(async () => ({ data: null, error: rpcError }));
+
+    await expect(persistRecommendationVsActualEvidence(client, { athleteId: "athlete-1", detection: NO_EVIDENCE })).rejects.toBe(rpcError);
+    expect(calls).toHaveLength(1);
   });
 });

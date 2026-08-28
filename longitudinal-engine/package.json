@@ -10,10 +10,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:v3:http": "npm run build && tsx tests/edge/http/orchestrate.ts"
   },
   "devDependencies": {
     "@types/node": "latest",
+    "tsx": "latest",
     "typescript": "latest",
     "vitest": "latest"
   },

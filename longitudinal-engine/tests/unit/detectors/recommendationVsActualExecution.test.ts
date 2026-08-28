@@ -109,7 +109,7 @@ const OBSERVED_VALUE_KEYS = [
 
 const SOURCE_REFS_KEYS = ["decisionId", "completedSessionId"].sort();
 
-const NO_EVIDENCE_KEYS = ["kind", "detectorRuleId", "detectorRuleVersion", "evaluationKey", "eventDate", "reason"].sort();
+const NO_EVIDENCE_KEYS = ["kind", "detectorRuleId", "detectorRuleVersion", "evaluationKey", "evidenceKey", "eventDate", "reason"].sort();
 
 describe("detectRecommendationVsActualExecution", () => {
   describe("classification matrix", () => {
@@ -198,6 +198,7 @@ describe("detectRecommendationVsActualExecution", () => {
         detectorRuleId: RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID,
         detectorRuleVersion: RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_VERSION,
         evaluationKey: `decision:${d.id}`,
+        evidenceKey: `decision:${d.id}`,
         eventDate: DECISION_DATE,
         reason: "no_completed_session",
       });
@@ -317,13 +318,37 @@ describe("detectRecommendationVsActualExecution", () => {
       expect(noEvidence.evaluationKey).toBe(`decision:${d.id}`);
     });
 
-    it("evidenceKey is decision:<id>:completion:<completedSessionId>", () => {
+    it("evidenceKey is decision:<id> — decision-only, not embedding completedSessionId", () => {
       const d = baseDecision();
       const s = explicitSession(d.id);
       const timeline = buildScenarioTimeline({ decisions: [d], completedSessions: [s] });
       const result = detectRecommendationVsActualExecution({ timeline, decisionId: d.id });
-      if (result.kind === "evidence") expect(result.evidenceKey).toBe(`decision:${d.id}:completion:${s.id}`);
+      if (result.kind === "evidence") expect(result.evidenceKey).toBe(`decision:${d.id}`);
       else throw new Error("expected evidence");
+    });
+
+    it("evidenceKey equals evaluationKey for both evidence and no_evidence — one identity per decision, by design", () => {
+      const d = baseDecision();
+      const withSession = buildScenarioTimeline({ decisions: [d], completedSessions: [explicitSession(d.id)] });
+      const withoutSession = buildScenarioTimeline({ decisions: [d] });
+      const evidence = detectRecommendationVsActualExecution({ timeline: withSession, decisionId: d.id });
+      const noEvidence = detectRecommendationVsActualExecution({ timeline: withoutSession, decisionId: d.id });
+      expect(evidence.evidenceKey).toBe(evidence.evaluationKey);
+      expect(noEvidence.evidenceKey).toBe(noEvidence.evaluationKey);
+      expect(evidence.evidenceKey).toBe(`decision:${d.id}`);
+    });
+
+    it("evidenceKey does NOT embed completedSessionId — two different completed_session ids for the same decision produce the SAME evidenceKey", () => {
+      const d = baseDecision();
+      const timelineWithSessionA = buildScenarioTimeline({ decisions: [d], completedSessions: [explicitSession(d.id, { id: "session-a" })] });
+      const timelineWithSessionB = buildScenarioTimeline({ decisions: [d], completedSessions: [explicitSession(d.id, { id: "session-b" })] });
+      const resultA = detectRecommendationVsActualExecution({ timeline: timelineWithSessionA, decisionId: d.id });
+      const resultB = detectRecommendationVsActualExecution({ timeline: timelineWithSessionB, decisionId: d.id });
+      if (resultA.kind === "evidence" && resultB.kind === "evidence") {
+        expect(resultA.evidenceKey).toBe(resultB.evidenceKey);
+      } else {
+        throw new Error("expected evidence for both");
+      }
     });
   });
 
@@ -463,7 +488,10 @@ describe("detectRecommendationVsActualExecution", () => {
       expect(before.kind).toBe("evidence");
       expect(after.kind).toBe("no_evidence");
       expect(after.evaluationKey).toBe(before.evaluationKey);
-      expect(after).not.toHaveProperty("evidenceKey");
+      // V0.3_001A: evidenceKey is now present on BOTH branches and stays identical across the
+      // evidence -> no_evidence transition — this is precisely what lets the persistence adapter
+      // withdraw the SAME identity a prior evidence result created, instead of losing track of it.
+      expect(after.evidenceKey).toBe(before.evidenceKey);
     });
   });
 

@@ -32,6 +32,28 @@ export interface DetectRecommendationVsActualExecutionInput {
 }
 
 /**
+ * The ONE canonical persistence-identity derivation for this detector,
+ * shared by both the `evidence` and `no_evidence` branches below — never
+ * independently re-derived in the persistence adapter. Decision-only,
+ * deliberately NOT embedding `completedSessionId`: the original design
+ * (`decision:<id>:completion:<completedSessionId>`) made a `no_evidence`
+ * result structurally unable to identify a prior `evidence` result's
+ * identity (completedSessionId does not exist in that branch), and could
+ * in principle fragment ONE decision's evidence trail across multiple
+ * identities if its linked completed_session ever changed. Decision-only
+ * identity fixes both: exactly one `pattern_evidence_identity` per
+ * decision, for its whole lifetime, regardless of how many times its
+ * completed-session link is created/edited/removed. `evaluationKey` and
+ * `evidenceKey` are therefore identical for this detector — not a
+ * shortcut, the natural consequence of there being exactly one evidence
+ * relationship per decision.
+ */
+function evidenceIdentityFor(decisionId: string): { evaluationKey: string; evidenceKey: string } {
+  const key = `decision:${decisionId}`;
+  return { evaluationKey: key, evidenceKey: key };
+}
+
+/**
  * Classification matrix (M5_005 lock, point 13 — exact):
  *   explicit + done    + type match    -> supporting
  *   explicit + partial + type match    -> neutral
@@ -54,7 +76,7 @@ export function detectRecommendationVsActualExecution(input: DetectRecommendatio
 
   const decisionDate = thread.decisionDate;
   const recommendedSessionType = thread.decision.finalSession;
-  const evaluationKey = `decision:${thread.decision.id}`;
+  const { evaluationKey, evidenceKey } = evidenceIdentityFor(thread.decision.id);
 
   // Shared resolver — owns all execution-relationship lookup/consistency logic. Its own (redundant but
   // harmless) decisionId lookup uses the exact same shared primitive as the resolution above.
@@ -66,6 +88,7 @@ export function detectRecommendationVsActualExecution(input: DetectRecommendatio
       detectorRuleId: RULE_ID,
       detectorRuleVersion: RULE_VERSION,
       evaluationKey,
+      evidenceKey,
       eventDate: decisionDate,
       reason: resolution.signal.state,
     };
@@ -105,7 +128,7 @@ export function detectRecommendationVsActualExecution(input: DetectRecommendatio
     detectorRuleId: RULE_ID,
     detectorRuleVersion: RULE_VERSION,
     evaluationKey,
-    evidenceKey: `decision:${thread.decision.id}:completion:${completedSessionId}`,
+    evidenceKey,
     eventType,
     eventDate: decisionDate,
     observedValue: {

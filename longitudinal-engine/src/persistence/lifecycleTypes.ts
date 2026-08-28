@@ -1,9 +1,11 @@
 /**
- * M5_006B — lifecycle persistence-layer result shapes. Distinct from
- * types.ts's PersistPatternEvidenceAdapterResult (M5_006A, evidence-only,
- * unaware of lifecycle) — these mirror the exact machine-readable shapes
- * transition_pattern_evidence_lifecycle / persist_active_pattern_evidence
- * return, per their own migrations' doc comments.
+ * M5_006B — lifecycle persistence-layer result shapes. These mirror the
+ * exact machine-readable shapes transition_pattern_evidence_lifecycle /
+ * persist_active_pattern_evidence return, per their own migrations' doc
+ * comments. All three detector adapters (sleep-energy, pain-persistence,
+ * and — since the V0.3_001A correction — recommendation-vs-actual) are
+ * lifecycle-aware and use these shapes; there is no longer a
+ * lifecycle-unaware evidence-only adapter in this package.
  */
 export type PatternEvidenceLifecycleState = "active" | "withdrawn";
 

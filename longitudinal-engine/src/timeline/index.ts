@@ -27,3 +27,4 @@ export { InvalidDateRangeError } from "./range.js";
 export { TimelineAthleteMismatchError } from "./athleteScoping.js";
 export { OrphanedDecisionOutcomeError } from "./decisionThread.js";
 export { buildTimeline } from "./buildTimeline.js";
+export { currentLongitudinalProcessingDate, LONGITUDINAL_PROCESSING_TIMEZONE } from "./processingDate.js";

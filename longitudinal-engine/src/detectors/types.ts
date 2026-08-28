@@ -48,16 +48,25 @@ export interface RecommendationVsActualEvidence {
 export type NoEvidenceReason = "no_completed_session" | "same_day_session_unlinked" | "same_day_session_linked_elsewhere";
 
 /**
- * Exactly 6 fields (M5_005 lock, point 18) — never more, never fewer. No
- * `evidenceKey`, no `observedValue`, no `sourceRefs`, no `eventType`: a
- * no_evidence result is never eventType/neutral/contradiction/pattern
- * evidence, it is the explicit absence of a usable relationship.
+ * Exactly 7 fields (V0.3_001A correction to the original M5_005 lock, point
+ * 18 — see docs/11_DECISION_LOG.md). Originally 6 fields with no
+ * `evidenceKey` at all; `evidenceKey` was added because the original
+ * design made a no_evidence result structurally unable to identify the
+ * `pattern_evidence_identity` a prior `evidence` result for the SAME
+ * decision may have created (the old identity derivation embedded
+ * `completedSessionId`, which by definition does not exist here) — see
+ * `evidenceIdentityFor` below, the single canonical derivation shared by
+ * both branches. Still no `observedValue`, no `sourceRefs`, no
+ * `eventType`: a no_evidence result is never eventType/neutral/
+ * contradiction/pattern evidence, it is the explicit absence of a usable
+ * relationship — only its PERSISTENCE IDENTITY changed, never its meaning.
  */
 export interface RecommendationVsActualNoEvidence {
   readonly kind: "no_evidence";
   readonly detectorRuleId: RecommendationVsActualRuleId;
   readonly detectorRuleVersion: string;
   readonly evaluationKey: string;
+  readonly evidenceKey: string;
   readonly eventDate: string;
   readonly reason: NoEvidenceReason;
 }

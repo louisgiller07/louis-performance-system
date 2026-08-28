@@ -3,14 +3,23 @@
  * result shapes. DB interaction is confined to this directory — no
  * detector or relation module imports Supabase.
  *
- * No package-owned error class here: a failed persist_pattern_evidence RPC
- * call propagates the exact error object the Supabase client itself
- * returned, unwrapped (see recommendationVsActualAdapter.ts) — never
- * parsed, never reduced to code/message, never rewrapped.
+ * No package-owned error class here: a failed RPC call propagates the
+ * exact error object the Supabase client itself returned, unwrapped (see
+ * recommendationVsActualAdapter.ts) — never parsed, never reduced to
+ * code/message, never rewrapped.
+ *
+ * V0.3_001A: recommendation-vs-actual's own adapter is now lifecycle-aware
+ * (see recommendationVsActualAdapter.ts's own doc) — its result shapes are
+ * exported directly from that module, mirroring sleep-energy/
+ * pain-persistence's own convention; the old lifecycle-unaware `types.ts`
+ * shapes no longer have any real consumer and were removed.
  */
 export { persistRecommendationVsActualEvidence } from "./recommendationVsActualAdapter.js";
-export type { PersistRecommendationVsActualEvidenceParams } from "./recommendationVsActualAdapter.js";
-export type { PersistPatternEvidenceAdapterResult, PersistPatternEvidenceAction } from "./types.js";
+export type {
+  PersistRecommendationVsActualEvidenceParams,
+  PersistRecommendationVsActualEvidenceResult,
+  RecommendationVsActualNoEvidenceAction,
+} from "./recommendationVsActualAdapter.js";
 
 // M5_006B — generic lifecycle RPC adapters (detector-agnostic) + result shapes.
 export { transitionPatternEvidenceLifecycle, persistActivePatternEvidence } from "./lifecycleAdapter.js";
