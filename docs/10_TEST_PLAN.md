@@ -347,9 +347,9 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (V0.3_001A CLOSED LOCALLY, V0.3_001B CLOSED REMOTE — 2026-08-28 ; scénarios restant FUTURS pour V0.3_001C : API `submit-review`, surface web)
+## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (V0.3_001A CLOSED LOCALLY, V0.3_001B CLOSED REMOTE, V0.3_001C CLOSED REMOTE — 2026-08-28 ; V0.3_001 COMPLETE)
 
-**Statut : contrat de test verrouillé pour le runtime V0.3_001.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`). Les scénarios d'orchestration/opérations-serveur listés ci-dessous disposent désormais d'une preuve réelle locale (V0.3_001A, voir la sous-section ci-dessous) **et d'une preuve remote** (V0.3_001B, premier backfill + idempotence remote — voir la sous-section suivante et `docs/11_DECISION_LOG.md`, entrées de clôture 2026-08-28). Seuls les scénarios spécifiques à la soumission de revue (`submit-review`) et à la surface web restent **futurs**, non implémentés (V0.3_001C).
+**Statut : contrat de test verrouillé pour le runtime V0.3_001, désormais COMPLET.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`). Les scénarios d'orchestration/opérations-serveur listés ci-dessous disposent désormais d'une preuve réelle locale (V0.3_001A, voir la sous-section ci-dessous), **d'une preuve remote de déploiement/backfill/idempotence** (V0.3_001B) et **d'une preuve réelle locale du chemin d'écriture de revue plus d'un déploiement/surface de lecture remote vérifiés** (V0.3_001C, voir les sous-sections suivantes et `docs/11_DECISION_LOG.md`, entrées de clôture 2026-08-28). L'écriture de revue réussie en production reste explicitement **non exercée** (aucun candidat naturel en production à ce jour) — voir la sous-section V0.3_001C pour la portée exacte.
 
 ### V0.3_001A — CLOSED LOCALLY (2026-08-28) — invariants de non-régression prouvés
 
@@ -396,7 +396,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - le harness HTTP completed-session peut s'enchaîner immédiatement après
 - aucun nettoyage manuel du runtime Edge n'est requis entre ces exécutions
 
-**Preuve empirique de clôture V0.3_001A** : `longitudinal-engine` = 689/689 ; harness HTTP V0.3 = 30/30 (×2 consécutifs) ; régressions gelées reconfirmées M1/M2=226/226, daily-run Edge=9/9, M3 HTTP=26/26, completed-session unit=73/73, completed-session HTTP=70/70, web=242/242, web build=PASS, longitudinal build=PASS. Ces nombres restent le compte-rendu historique de la clôture locale V0.3_001A. **La preuve remote V0.3_001B (déploiement, premier backfill, vérification relationnelle, idempotence) est documentée dans la sous-section suivante** ; seuls les scénarios de soumission de revue (`submit-review`) et de surface web restent non prouvés, réservés à V0.3_001C.
+**Preuve empirique de clôture V0.3_001A** : `longitudinal-engine` = 689/689 ; harness HTTP V0.3 = 30/30 (×2 consécutifs) ; régressions gelées reconfirmées M1/M2=226/226, daily-run Edge=9/9, M3 HTTP=26/26, completed-session unit=73/73, completed-session HTTP=70/70, web=242/242, web build=PASS, longitudinal build=PASS. Ces nombres restent le compte-rendu historique de la clôture locale V0.3_001A. **La preuve remote V0.3_001B (déploiement, premier backfill, vérification relationnelle, idempotence) est documentée dans la sous-section suivante** ; les scénarios de soumission de revue (`submit-review`) et de surface web sont documentés dans la sous-section V0.3_001C ci-dessous.
 
 ### V0.3_001B — CLOSED REMOTE (2026-08-28) — invariants prouvés
 
@@ -405,9 +405,39 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - vérification relationnelle post-backfill : 0 orphelin, 0 décision hors périmètre, 0 décision manquante, exactement 3 horizons par décision, 0 incohérence athlète
 - second appel (idempotence) : `attempted/writeSucceeded = 0`, `alreadyExisted = 42`, mêmes 3 détecteurs 100% `skippedNoPrior` ; l'ensemble des métriques agrégées et relationnelles revérifiées est resté strictement identique à l'état post-premier-backfill
 
-**Preuve empirique** : voir `docs/11_DECISION_LOG.md` (entrée de clôture V0.3_001B, 2026-08-28) pour le résultat complet. Ces preuves couvrent le backfill et l'idempotence remote — les scénarios de soumission de revue (`submit-review`) et de surface web restent futurs (V0.3_001C).
+**Preuve empirique** : voir `docs/11_DECISION_LOG.md` (entrée de clôture V0.3_001B, 2026-08-28) pour le résultat complet. Ces preuves couvrent le backfill et l'idempotence remote — les scénarios de soumission de revue (`submit-review`) et de surface web sont documentés dans la sous-section V0.3_001C ci-dessous.
 
-### Liste complète des scénarios (référence — statut détaillé dans les sous-sections V0.3_001A/B ci-dessus ; seuls les scénarios de soumission de revue et de surface web restent FUTURS/V0.3_001C)
+### V0.3_001C — CLOSED REMOTE (2026-08-28) — invariants prouvés
+
+**Local (réel, jamais mocké — endpoint HTTP `submit-review` réel, Postgres/RPC locaux réels)** :
+- insertion / inchangé / supersession réels via `persist_pattern_insight_review`
+- égalité DB du `candidate_snapshot` **côté serveur uniquement**, jamais le corps navigateur
+- soumissions concurrentes identiques (RPC-sérialisées) → exactement un `inserted` + un `unchanged`, aucune ligne dupliquée
+- soumissions concurrentes divergentes → exactement un `inserted` + un `superseded`, chaîne de supersession valide, aucune écriture perdue
+- isolation inter-athlète via réutilisation réelle d'un jeton de fraîcheur d'un autre athlète → `candidate_not_found`, zéro écriture croisée
+- linéarisation de fraîcheur verrouillée (sémantique A) : mutation d'evidence après comparaison réussie, observée objectivement via un verrou consultatif PostgreSQL réel (`pg_locks`, jamais une pause arbitraire) — l'écriture reste valide, projection `reviewed_stale` ultérieure confirmée
+- `V0.3` HTTP harness = **84/84**
+
+**Web (réel, `web/src/features/insights/**` + `pages/InsightsPage.tsx`)** :
+- surface `/insights` authentifiée, chargement `get-insights` uniquement (jamais `refresh-longitudinal` automatique)
+- corps `submit-review` construit explicitement (7 dimensions de fraîcheur + `decision` + `reviewerNote`, jamais `athleteId`/`candidateSnapshot`)
+- `stale_candidate`/`candidate_not_found` gérés par refetch authoritatif, aucune resoumission automatique
+- `web` = **293/293**, `web build` = **PASS**
+
+**Remote (déploiement/authentification/surface de lecture, athlète réel)** :
+- cible correcte `uvolpldwwyvadlamulvr`, migrations 26 local/26 remote/0 pending
+- primitives M5_007 confirmées présentes
+- `submit-review` déployé `ACTIVE v1`, `verify_jwt: true`
+- `get-insights`/`refresh-longitudinal` inchangés (hash identique avant/après déploiement)
+- lecture authentifiée remote réelle `get-insights` → `HTTP 200`, `candidateCount = 0`
+- production web déployée, `/insights` sert la SPA réelle
+- delta d'écriture applicatif remote sur l'ensemble du rollout/preflight = **0**
+
+**Écriture de revue réussie en production** : **NON APPLICABLE À L'ÉTAT NATUREL ACTUEL** — la production ne contient aucun candidat courant naturel (`pattern_evidence_identities`/`_revisions`/`pattern_evidence_current_effective` = 0/0/0 ; `pattern_insight_identities`/`_reviews`/`_review_current` = 0/0/0). Aucune donnée applicative synthétique n'a été créée pour fabriquer cette précondition. Voir `docs/06_ARCHITECTURE.md`, « Discipline de rollout `submit-review` », pour la règle de clôture verrouillée.
+
+**Preuve empirique** : voir `docs/11_DECISION_LOG.md` (entrée de clôture V0.3_001C / V0.3_001, 2026-08-28) pour le résultat complet.
+
+### Liste complète des scénarios (référence — statut détaillé dans les sous-sections V0.3_001A/B/C ci-dessus)
 
 - Orchestration réelle de bout en bout, données source réelles → evidence (les 3 détecteurs existants)
 - Rejeu idempotent de `refresh-longitudinal` (deux exécutions consécutives → zéro doublon, tout `unchanged`)
