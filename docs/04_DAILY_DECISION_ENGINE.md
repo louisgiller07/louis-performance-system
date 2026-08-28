@@ -492,7 +492,7 @@ Le `training.session_type` en `TrainingIntervention` (riche) est mappé vers `Db
 - Tests déterministes
 
 ### V0.3
-- **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review** : architecture verrouillée le 2026-08-27 ; V0.3_001A (orchestration + correction du détecteur recommendation) **CLOSED LOCALLY, 2026-08-28**, V0.3_001B/C **NOT STARTED**. Opérationnalise le pipeline M5 déjà construit et déployé selon son statut canonique propre (`evidence → agrégat → candidat d'insight → revue humaine`), sans jamais influencer `daily-run` ni activer automatiquement un pattern — `daily-run` reste non modifié. Voir `docs/06_ARCHITECTURE.md` et `docs/11_DECISION_LOG.md` pour le détail complet.
+- **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review** : architecture verrouillée le 2026-08-27 ; V0.3_001A **CLOSED LOCALLY** (orchestration + correction du détecteur recommendation, 2026-08-28), V0.3_001B **CLOSED REMOTE** (déploiement + premier backfill + idempotence remote vérifiés, 2026-08-28), V0.3_001C **NOT STARTED**. Opérationnalise le pipeline M5 déjà construit et déployé selon son statut canonique propre (`evidence → agrégat → candidat d'insight → revue humaine`), sans jamais influencer `daily-run` ni activer automatiquement un pattern — `daily-run` reste non modifié. Voir `docs/06_ARCHITECTURE.md` et `docs/11_DECISION_LOG.md` pour le détail complet.
 - Enrichissement des domaines 1, 2, 5 (technique DH, mental, nutrition)
 - Debrief course post-mortem structuré
 - Planificateur hebdomadaire

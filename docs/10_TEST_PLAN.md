@@ -347,9 +347,9 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (V0.3_001A implémenté et testé localement, 2026-08-28 ; scénarios restant FUTURS pour V0.3_001B/C : backfill remote, API `submit-review`, surface web)
+## Scénarios V0.3_001 — Longitudinal Intelligence Runtime (V0.3_001A CLOSED LOCALLY, V0.3_001B CLOSED REMOTE — 2026-08-28 ; scénarios restant FUTURS pour V0.3_001C : API `submit-review`, surface web)
 
-**Statut : contrat de test verrouillé pour le runtime V0.3_001.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`). La plupart des scénarios d'orchestration/opérations-serveur listés ci-dessous disposent désormais d'une preuve réelle locale (V0.3_001A — voir la nouvelle sous-section ci-dessous et `docs/11_DECISION_LOG.md`, entrée de clôture 2026-08-28) ; les scénarios spécifiques au backfill remote et à la soumission de revue (`submit-review`) restent **futurs**, non implémentés (V0.3_001B/C).
+**Statut : contrat de test verrouillé pour le runtime V0.3_001.** Les invariants M5 sous-jacents disposent déjà de leurs propres suites de tests (maturité des outcomes, idempotence de l'evidence, retrait/réactivation par cycle de vie, agrégation, revue courante/périmée, RLS/isolation, concurrence — voir les entrées M5_004 à M5_007 de `docs/11_DECISION_LOG.md`). Les scénarios d'orchestration/opérations-serveur listés ci-dessous disposent désormais d'une preuve réelle locale (V0.3_001A, voir la sous-section ci-dessous) **et d'une preuve remote** (V0.3_001B, premier backfill + idempotence remote — voir la sous-section suivante et `docs/11_DECISION_LOG.md`, entrées de clôture 2026-08-28). Seuls les scénarios spécifiques à la soumission de revue (`submit-review`) et à la surface web restent **futurs**, non implémentés (V0.3_001C).
 
 ### V0.3_001A — CLOSED LOCALLY (2026-08-28) — invariants de non-régression prouvés
 
@@ -396,9 +396,18 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - le harness HTTP completed-session peut s'enchaîner immédiatement après
 - aucun nettoyage manuel du runtime Edge n'est requis entre ces exécutions
 
-**Preuve empirique actuelle** : `longitudinal-engine` = 689/689 ; harness HTTP V0.3 = 30/30 (×2 consécutifs) ; régressions gelées reconfirmées M1/M2=226/226, daily-run Edge=9/9, M3 HTTP=26/26, completed-session unit=73/73, completed-session HTTP=70/70, web=242/242, web build=PASS, longitudinal build=PASS. **Ces preuves couvrent uniquement V0.3_001A** — aucun scénario de backfill remote (V0.3_001B) ni de soumission de revue (V0.3_001C) n'est encore prouvé ; la liste FUTURS ci-dessous reste le contrat de test verrouillé pour ces deux jalons.
+**Preuve empirique de clôture V0.3_001A** : `longitudinal-engine` = 689/689 ; harness HTTP V0.3 = 30/30 (×2 consécutifs) ; régressions gelées reconfirmées M1/M2=226/226, daily-run Edge=9/9, M3 HTTP=26/26, completed-session unit=73/73, completed-session HTTP=70/70, web=242/242, web build=PASS, longitudinal build=PASS. Ces nombres restent le compte-rendu historique de la clôture locale V0.3_001A. **La preuve remote V0.3_001B (déploiement, premier backfill, vérification relationnelle, idempotence) est documentée dans la sous-section suivante** ; seuls les scénarios de soumission de revue (`submit-review`) et de surface web restent non prouvés, réservés à V0.3_001C.
 
-### Liste complète des scénarios (référence — statut détaillé dans la sous-section V0.3_001A ci-dessus ; les scénarios de soumission de revue et de backfill restent FUTURS/V0.3_001B/C)
+### V0.3_001B — CLOSED REMOTE (2026-08-28) — invariants prouvés
+
+**Remote (athlète réel, via les runners guardés)** :
+- premier backfill : `outcomes.attempted/writeSucceeded = 42`, `alreadyExisted = 0`, les 3 détecteurs 100% `skippedNoPrior` (14/3/3), `errors: []`
+- vérification relationnelle post-backfill : 0 orphelin, 0 décision hors périmètre, 0 décision manquante, exactement 3 horizons par décision, 0 incohérence athlète
+- second appel (idempotence) : `attempted/writeSucceeded = 0`, `alreadyExisted = 42`, mêmes 3 détecteurs 100% `skippedNoPrior` ; l'ensemble des métriques agrégées et relationnelles revérifiées est resté strictement identique à l'état post-premier-backfill
+
+**Preuve empirique** : voir `docs/11_DECISION_LOG.md` (entrée de clôture V0.3_001B, 2026-08-28) pour le résultat complet. Ces preuves couvrent le backfill et l'idempotence remote — les scénarios de soumission de revue (`submit-review`) et de surface web restent futurs (V0.3_001C).
+
+### Liste complète des scénarios (référence — statut détaillé dans les sous-sections V0.3_001A/B ci-dessus ; seuls les scénarios de soumission de revue et de surface web restent FUTURS/V0.3_001C)
 
 - Orchestration réelle de bout en bout, données source réelles → evidence (les 3 détecteurs existants)
 - Rejeu idempotent de `refresh-longitudinal` (deux exécutions consécutives → zéro doublon, tout `unchanged`)

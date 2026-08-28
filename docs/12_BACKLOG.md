@@ -3,7 +3,7 @@
 ## Statut actuel
 
 **Phase** : **M5 COMPLETE (2026-08-27).** M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr` ; moteur d'insight implémenté/testé localement, non invoqué automatiquement en production — voir `docs/11_DECISION_LOG.md` pour l'historique complet M5_001→M5_007. M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` en M5 ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
-**Prochain milestone** : **V0.3_001B — Backfill + durcissement complet (remote).** V0.3_001A **CLOSED LOCALLY, 2026-08-28** (voir ci-dessous et `docs/11_DECISION_LOG.md`). V0.3_001C reste **NOT STARTED**.
+**Prochain milestone** : **V0.3_001C — API de revue canonique + surface web Insights.** V0.3_001A **CLOSED LOCALLY** et V0.3_001B **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
 
 ---
 
@@ -248,7 +248,7 @@ Tous les fichiers de migration M2 portent des timestamps de nom strictement post
 
 ---
 
-## V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review — V0.3_001A CLOSED LOCALLY (2026-08-28), V0.3_001B/C NOT STARTED
+## V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review — V0.3_001A CLOSED LOCALLY, V0.3_001B CLOSED REMOTE (2026-08-28), V0.3_001C NOT STARTED
 
 Objectif : rendre utilisable le pipeline M5 déjà construit (`evidence → agrégat → candidat d'insight → revue humaine`), sans jamais influencer `daily-run` ni activer automatiquement un pattern. Les briques M5 sous-jacentes existent déjà selon leur statut canonique propre (decision outcomes + RPC déployés depuis M5_001B/M5_004, ledger d'evidence déployé depuis M5_006A, cycle de vie + RPC/vues déployés depuis M5_006B, ledger de revue humaine + RPC/vues déployés depuis M5_007 ; M5_006D et le projecteur M5_007 restent une logique TypeScript pure, sans migration ni objet DB propre). Ce qui n'existe pas encore est décrit ci-dessous. Détail architectural complet : `docs/11_DECISION_LOG.md` (entrée de verrouillage d'architecture), `docs/06_ARCHITECTURE.md` §V0.3_001.
 
@@ -264,14 +264,14 @@ Objectif : rendre utilisable le pipeline M5 déjà construit (`evidence → agr�
 - [x] `refresh-longitudinal` (écriture, idempotent) — implémenté et testé **localement uniquement**, aucun déploiement remote
 - [x] `get-insights` (lecture, calcul de candidat côté serveur uniquement) — implémenté et testé **localement uniquement**, aucun déploiement remote
 
-### V0.3_001B — Backfill + durcissement complet (NON EXÉCUTÉ)
+### V0.3_001B — Backfill + durcissement complet (CLOSED REMOTE, 2026-08-28)
 
-- [ ] Preuve locale complète fraîche (stack locale, incluant le comportement corrigé du détecteur recommendation)
-- [ ] Aperçu/rapport remote read-only (ce qu'un backfill toucherait)
-- [ ] Reconfirmation des préconditions critiques remote (ne doit pas être la première vérification — déjà faite en 001A)
-- [ ] Invocation remote historique explicitement approuvée (`refresh-longitudinal` réel, supervisé)
-- [ ] Validation post-backfill read-only (comptages, provenance, cycle de vie)
-- [ ] Preuve d'idempotence par une seconde invocation remote consécutive
+- [x] Preuve locale complète fraîche (stack locale, incluant le comportement corrigé du détecteur recommendation)
+- [x] Aperçu/rapport remote read-only (ce qu'un backfill toucherait) — `previewRemoteRefresh.ts`
+- [x] Reconfirmation des préconditions critiques remote (ne doit pas être la première vérification — déjà faite en 001A)
+- [x] Invocation remote historique explicitement approuvée (`refresh-longitudinal` réel, supervisé) — `invokeApprovedRefresh.ts` : `outcomes: {attempted:42, writeSucceeded:42, errorCount:0}`, 3 détecteurs 100% `skippedNoPrior` (14/3/3)
+- [x] Validation post-backfill read-only (comptages, provenance, cycle de vie) — 42 outcomes joints sans orphelin, 14 décisions sources exactement représentées, 3 horizons chacune, zéro incohérence athlète
+- [x] Preuve d'idempotence par une seconde invocation remote consécutive — `invokeApprovedIdempotencyRefresh.ts` : `outcomes: {attempted:0, writeSucceeded:0, alreadyExisted:42, errorCount:0}` ; ensemble des métriques agrégées et relationnelles revérifiées strictement identique à l'état post-premier-backfill
 
 ### V0.3_001C — API de revue canonique + surface web Insights (NON IMPLÉMENTÉ)
 
