@@ -21,10 +21,11 @@ import { computeRecoveryDomain } from "../domains/recovery.js";
 import { inferFallbackSession } from "../domains/fallbackInference.js";
 import { computeTechniqueDomain } from "../domains/technique.js";
 import { computeMentalDomain } from "../domains/mental.js";
+import { computeNutritionDomain } from "../domains/nutrition.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_002c";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_002d";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -274,7 +275,12 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     }),
     mental: mentalResult.mental,
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),
-    nutrition: { active: false },
+    nutrition: computeNutritionDomain({
+      finalSession: session,
+      plannedSession: ctx.planned_session,
+      activeMode: ctx.active_mode,
+      eventContext,
+    }),
     sleep: sleepActive
       ? {
           active: true,

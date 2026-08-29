@@ -331,7 +331,11 @@ describe("T12 — Mental (V0.3_002C)", () => {
     it("asserts the exact current ENGINE_VERSION provenance", () => {
       const ctx = baseRawContext();
       const plan = buildDailyPlan(ctx);
-      expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_002c");
+      // Tracks the current global ENGINE_VERSION constant, updated in
+      // V0.3_002D (head-coach-engine@0.2.0-m1-v0.3_002d) — not a Mental
+      // behavior regression, this constant is intentionally shared across
+      // milestones.
+      expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_002d");
     });
   });
 
