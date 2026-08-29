@@ -1785,3 +1785,35 @@ V0.3_002B/C/D/E/F = NOT STARTED
 V0.3_002B = CLOSED LOCALLY
 V0.3_002 (ensemble) = IN PROGRESS
 V0.3_002C/D/E/F = NOT STARTED
+
+---
+
+## 2026-08-29 — V0.3_002C : Mental CLOSED LOCALLY
+
+**Contexte** : suite à V0.3_002B (Technique DH, CLOSED LOCALLY), implémentation du domaine Mental (couche C) peuplant `DailyPlan.mental`, revue par acceptation adversariale, corrigée par une passe de durcissement fermant les preuves d'intégration manquantes (both-RED, mixte stress/motivation, isolation du late-push `triggered_rules`, provenance `ENGINE_VERSION`).
+
+**Décision** :
+1. `computeMentalDomain` (`src/domains/mental.ts`, NEW) exécuté après stabilisation complète de l'arbitrage Training et de `final_session`. `focus` et `action_hint` sont des champs orthogonaux, dérivés indépendamment : `focus` uniquement depuis `event_context.phase === "PRE_EVENT"` (toute priorité de course) ; `action_hint` uniquement depuis `dimensions.mental` AMBER ou RED.
+2. `focus` = "Comme à Wiriehorn." (`docs/02_ATHLETE_PROFILE.md` §7.4/§8, `docs/03_COACHING_MODEL.md` C2.1), ajouté à `athleteCoachingProfile.mental.preRaceCue.{id: "wiriehorn_flow_reference", cue}`.
+3. AMBER : Mental consomme exactement un signal par précédence `stress_high` puis `motivation_low` (`MENTAL_AMBER_STRESS`/`MENTAL_AMBER_MOTIVATION`) — les deux signaux canoniques sont en scope.
+4. RED : Training reste seul propriétaire de décision (règle `MENTAL_RED` existante, précédence `stress_high` puis `motivation_low` inchangée). Mental n'appelle jamais `consume()` en RED — lecture non consommante (`consumedByRule() === "MENTAL_RED"`) avant d'émettre un texte de support unique ; si la propriété n'est pas vérifiable, aucun texte n'est fabriqué. Comportement Training existant enregistré tel quel dans le cas mixte stress AMBER + motivation RED (Training sélectionne `stress_high` par présence, pas par sévérité) — observé et couvert par régression intégrée réelle, jamais reconçu.
+5. `TriggeredRule` AMBER calculée avant la construction du littéral `DailyPlan` (le `consume()` doit précéder), mais poussée dans le tableau partagé `triggeredRules` seulement après. Chronologie exacte : `override_reason` est finalisé avant le littéral (calculé comme `const` séparée) ; `training.objective` et `reasoning` sont dérivés pendant sa construction ; la `TriggeredRule` Mental AMBER n'est ajoutée qu'après fermeture du littéral. `plan.triggered_rules` reste la même référence de tableau que la variable locale et reflète l'ajout a posteriori, sans jamais influencer rétroactivement les trois champs dérivés de Training. Prouvé par comparaison appariée réelle GREEN/AMBER (égalité stricte de `decision`/`final_session`/`training`/`reasoning`/`override_reason`).
+6. POST_EVENT/RACE_DAY_GENERIC n'inhibent jamais globalement Mental — seul `focus` (PRE_EVENT) reste absent ; `action_hint` (AMBER/RED) reste indépendant de la phase. Aucun debrief post-course déguisé, aucun coaching de course en direct.
+7. `ENGINE_VERSION` porté de `head-coach-engine@0.2.0-m1-v0.3_002b` à `head-coach-engine@0.2.0-m1-v0.3_002c` — décision de provenance bornée à cette seule occasion, `package.json` (`0.2.0`) inchangé, désormais couverte par une assertion directe.
+8. `docs/03_COACHING_MODEL.md` réconcilié en cohérence : C2.1 ne restreint plus la cue pré-course aux courses A/A+ (déclencheur direct = `PRE_EVENT`, toute priorité) ; C2.5 ne requiert plus "plusieurs jours" de stress (déclencheur = AMBER du jour) ; nouveau C2.6 documente explicitement la régulation motivation-basse. Aucune inférence de score, de peur, d'appréhension, ni de logique intra-jour (pit/quali/final/post-erreur) n'a été ajoutée.
+
+**Preuve** : implémentation (`06e878887e3e09f8737bfdc81af999977b92e9ac`, `feat: add V0.3_002C mental coaching domain`) + durcissement (`3b1753b4eabb73cdf9050fbf1a994bd1f1a72e8a`, `test: harden V0.3_002C mental ownership regressions`) poussés sur `origin/main`. `head-coach-engine/tests/t12_mental.test.ts` (NEW, étendu) — couverture unitaire complète (AMBER/RED/PRE_EVENT/POST_EVENT/RACE_DAY_GENERIC/consume-failure/déterminisme) et preuve intégrée réelle (`RawContext → computeDimensions → Training → MENTAL_RED → Mental → DailyPlan`) des cas both-RED, stress RED + motivation AMBER, stress AMBER + motivation RED, plus comparaison appariée GREEN/AMBER pour l'isolation du late-push. `npm test` **310/310**, `npm run test:edge` **9/9**, build TypeScript strict PASS. Aucune régression sur les suites frozen M1-M4/V0.3_002B pré-existantes.
+
+**Alternatives considérées** :
+- Restreindre l'AMBER Mental au seul `stress_high` (recommandation initiale du preflight, faute de heuristique C2.x dédiée à la motivation) — **REJETÉE** lors de l'approbation d'implémentation : la portée V0.3_002A déjà verrouillée couvre explicitement "AMBER stress/motivation", les deux signaux restent en scope ; docs/03 réconcilié en conséquence (nouveau C2.6).
+- Gater `focus` PRE_EVENT sur la priorité de course A/A+ (lecture stricte de l'ancien C2.1) — **REJETÉE** lors de l'approbation d'implémentation : la portée V0.3_002A verrouillée utilise `event_context.phase === "PRE_EVENT"` comme déclencheur direct, sans filtre de priorité ; docs/03 C2.1 réconcilié en conséquence. Aucune inférence Couche D n'influence actuellement ce déclencheur ni ne réintroduit automatiquement un filtre de priorité — seule une future décision explicite pourrait le faire.
+- Reconcevoir la précédence Training `stress_high`/`motivation_low` pour refléter la sévérité réelle plutôt que la simple présence — **HORS PÉRIMÈTRE / REJETÉE POUR 002C** : comportement Training frozen, seulement observé et régression-testé, jamais reconçu.
+- Voir l'entrée V0.3_002A pour les alternatives de propriété de signal (Option C) et de stratégie de profil (Option A bornée) — non répétées ici.
+
+**Impact** : `docs/00_PROJECT_STATUS.md`, `docs/03_COACHING_MODEL.md` (C2.1/C2.5/C2.6), `docs/04_DAILY_DECISION_ENGINE.md` (roadmap §8), `docs/06_ARCHITECTURE.md` (sous-section de clôture §V0.3_002C), `docs/10_TEST_PLAN.md` (statut T12), `docs/12_BACKLOG.md` (phase actuelle, nouveau bloc V0.3_002C). Aucun changement `web/**`, `supabase/functions/**`, `supabase/migrations/**`, `longitudinal-engine/**`.
+
+**Statut** :
+V0.3_002C = CLOSED LOCALLY
+V0.3_002 (ensemble) = IN PROGRESS
+V0.3_002D/E/F = NOT STARTED
+Prochain jalon = V0.3_002D — Nutrition

@@ -323,11 +323,12 @@ Toutes les heuristiques ci-dessous sont **PROVISIONAL** et révisables. Elles vi
 
 | ID | Heuristique |
 |---|---|
-| C2.1 | Avant les courses A/A+ : proposer une cue mentale efficace pour Louis (actuellement "Comme à Wiriehorn", hypothèse issue de l'onboarding — le modèle peut apprendre qu'une autre cue fonctionne mieux) |
+| C2.1 | En PRE_EVENT, toute priorité : proposer une cue mentale efficace pour Louis (actuellement "Comme à Wiriehorn.", hypothèse issue de l'onboarding — la cue pourra être réévaluée par une décision future explicite) |
 | C2.2 | Avant chaque run chronométré ou finale : recommander routine pit 60-90s |
 | C2.3 | Cue post-erreur : toujours technique, jamais émotionnelle |
 | C2.4 | Post-course : debrief mental séparé du debrief technique/physique |
-| C2.5 | Si stress détecté élevé plusieurs jours → suggestion respiration courte |
+| C2.5 | Si stress élevé détecté (AMBER) → suggestion respiration courte, retour à une priorité unique |
+| C2.6 | Si motivation basse détectée (AMBER) → suggestion d'une action simple unique pour démarrer (verrouillé V0.3_002C, 2026-08-29) |
 
 *Portée V0.3_002C verrouillée (`docs/06_ARCHITECTURE.md` §V0.3_002) : régulation courte en `mental = AMBER`, cue attentionnelle en `PRE_EVENT`, lecture de support en `RED` (signal déjà propriété de Training). C2.2 (pit routine), C2.3 (cue post-erreur en direct) et le debrief mental post-course structuré (C2.4) restent différés — aucun déclencheur intra-jour fiable dans ce moteur à cadence quotidienne.*
 

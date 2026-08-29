@@ -342,7 +342,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Intégrations externes (M4+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire
-- Enrichissement des domaines Mental/Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11 CLOSED LOCALLY, Mental/Nutrition NOT STARTED)
+- Enrichissement du domaine Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11 et Mental/T12 CLOSED LOCALLY, Nutrition NOT STARTED)
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
 
@@ -462,7 +462,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B CLOSED LOCALLY — 2026-08-28 ; V0.3_002C/D/E/F NOT STARTED)
+## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B CLOSED LOCALLY — 2026-08-28 ; V0.3_002C CLOSED LOCALLY — 2026-08-29 ; V0.3_002D/E/F NOT STARTED)
 
 **Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH) implémenté et vérifié (002B CLOSED LOCALLY) ; T12/T13 (Mental/Nutrition) restent à implémenter.** Les scénarios restants seront implémentés progressivement par 002C/D, puis vérifiés collectivement par 002E.
 
@@ -479,11 +479,20 @@ Activation : source unique = `final_session.kind` (séance déjà entièrement a
 
 **Preuve finale (2026-08-28)** : `head-coach-engine/tests/t11_technique.test.ts` — 4 kinds actifs / 12 inactifs exhaustifs contre l'union `TrainingInterventionKind` réelle, focus unique déterministe, allowlist `spot_hint` à 4 chaînes exactes, C1.5 sur J+1..J+14 réel (adaptateur `raceCalendarRepo.ts` élargi, `EventContext`/`PRE_EVENT` à J+7 inchangé — inertie prouvée par 6 cas d'intégration Supabase réels dans `buildRawContext.integration.test.ts`), config profil `id`+`focus` directement testés. `npm test` 275/275, `npm run test:edge` 9/9.
 
-### T12. Mental (V0.3_002C — NOT STARTED)
-- `mental = AMBER` (stress ou motivation) → domaine Mental consomme le signal AMBER, `action_hint` peuplé, décision Training inchangée
-- **Preuve comportementale intégrée** (sur une fixture `mental = RED` déjà couverte par le comportement M1 frozen) : `decision`/`action`/`session_type` de Training restent strictement identiques à la fixture pré-existante ; la règle `MENTAL_RED` reste présente dans `triggered_rules` ; `SignalTrace` rapporte `MENTAL_RED` comme propriétaire de décision du signal (`consumedByRule()`) ; la sortie `mental.action_hint` est peuplée de façon supportive ; une tentative de second `consume()` sur ce même signal échoue (retourne `false`). Aucune assertion sur la structure/l'ordre des appels source — uniquement sur le comportement et l'état de `SignalTrace`.
-- `event_context.phase === "PRE_EVENT"` → cue attentionnelle pré-course
-- Plan Safety REST → `mental = {active:false}` inchangé
+### T12. Mental (V0.3_002C — CLOSED LOCALLY, 2026-08-29)
+
+Activation : `focus` et `action_hint` sont orthogonaux. `focus` uniquement depuis `event_context.phase === "PRE_EVENT"` (toute priorité de course). `action_hint` uniquement depuis `dimensions.mental` AMBER (précédence `stress_high` puis `motivation_low`, exactement un signal consommé) ou RED (lecture de support non consommante du signal déjà propriété de `MENTAL_RED`).
+
+- PRE_EVENT, priorité A, B ou C → `focus` identique dans les trois cas (aucun filtre)
+- AMBER stress seul → `action_hint` régulation, `MENTAL_AMBER_STRESS` consomme `stress_high`
+- AMBER motivation seul → `action_hint` régulation, `MENTAL_AMBER_MOTIVATION` consomme `motivation_low`
+- AMBER stress + motivation simultanés → `stress_high` gagne, `motivation_low` reste non consommé, une seule règle
+- RED (stress, motivation, ou les deux) → Training reste seul propriétaire de décision (`MENTAL_RED`, précédence `stress_high` puis `motivation_low` inchangée) ; Mental n'appelle jamais `consume()`, vérifie la propriété via `consumedByRule()` et émet un texte de support unique ; aucune règle `MENTAL_AMBER_*` n'est jamais émise en cas RED, y compris dans le cas mixte stress AMBER + motivation RED (Training sélectionne `stress_high` malgré tout par sa précédence existante — comportement enregistré, non modifié par 002C)
+- `consume()` AMBER en échec inattendu → aucun `action_hint`, aucun repli sur le second signal ; `focus` PRE_EVENT indépendamment présent reste actif
+- POST_EVENT / RACE_DAY_GENERIC → n'inhibent jamais globalement Mental (seul `focus` reste absent) ; aucun texte de debrief ni de coaching de course en direct
+- Plan Safety REST → `mental = {active:false}` inchangé, Mental jamais invoqué
+
+**Preuve finale (2026-08-29)** : `head-coach-engine/tests/t12_mental.test.ts` — couverture unitaire complète des cas ci-dessus, preuve intégrée réelle (`RawContext → DailyPlan`) des cas both-RED, stress RED + motivation AMBER et stress AMBER + motivation RED, comparaison appariée GREEN/AMBER prouvant l'isolation `training`/`reasoning`/`override_reason` vis-à-vis du late-push `triggered_rules`, config profil `id`+`cue` directement testés, `ENGINE_VERSION` directement testé. `npm test` 310/310, `npm run test:edge` 9/9.
 
 ### T13. Nutrition (V0.3_002D — NOT STARTED)
 - Race-week → `nutrition.focus` rappel énergétique peuplé
