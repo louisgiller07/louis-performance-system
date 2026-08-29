@@ -143,6 +143,18 @@ describe("T12 — Mental (V0.3_002C)", () => {
       expect(result.mental).toEqual({ active: false });
       expect(result.triggeredRule).toBeUndefined();
     });
+
+    it("stress AMBER consume() failure + PRE_EVENT → no action_hint, but independent PRE_EVENT focus survives", () => {
+      const trace = new SignalTrace();
+      trace.consume("stress_high", "SOME_OTHER_RULE"); // artificial invariant-failure state
+      const result = computeMentalDomain({
+        mentalDimension: dim("AMBER", ["stress_high"]),
+        eventContext: eventContext("PRE_EVENT"),
+        signalTrace: trace,
+      });
+      expect(result.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS });
+      expect(result.triggeredRule).toBeUndefined();
+    });
   });
 
   describe("RED — Training remains sole decision owner", () => {
@@ -315,6 +327,12 @@ describe("T12 — Mental (V0.3_002C)", () => {
       const planB = buildDailyPlan(ctx);
       expect(planA.mental).toEqual(planB.mental);
     });
+
+    it("asserts the exact current ENGINE_VERSION provenance", () => {
+      const ctx = baseRawContext();
+      const plan = buildDailyPlan(ctx);
+      expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_002c");
+    });
   });
 
   describe("Training regression — RED mental fixture unchanged", () => {
@@ -337,6 +355,104 @@ describe("T12 — Mental (V0.3_002C)", () => {
       expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT });
       expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
       expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_MOTIVATION")).toBe(false);
+    });
+  });
+
+  describe("Integrated RED paths — real checkin through buildDailyPlan", () => {
+    // Reuses the exact planned_session (AEROBIC_INTERVALS MODERATE) already
+    // established by the "Training regression — RED mental fixture
+    // unchanged" test above, so the expected Training transformation
+    // (AEROBIC_INTERVALS → AEROBIC_BASE, same load_profile, decision
+    // MODIFY) is the currently-canonical fixture behavior, not re-derived
+    // here from the implementation.
+    const RED_PLANNED_SESSION = { kind: "AEROBIC_INTERVALS" as const, load_profile: "MODERATE" as const };
+    const EXPECTED_RED_FINAL_SESSION = { kind: "AEROBIC_BASE", load_profile: "MODERATE" };
+
+    it("both stress and motivation RED (real checkin) → Training selects stress_high, Mental supports it, no AMBER rule", () => {
+      const ctx = baseRawContext({
+        planned_session: RED_PLANNED_SESSION,
+        checkin: { work_stress: 9, motivation: 1 },
+      });
+      const plan = buildDailyPlan(ctx);
+
+      expect(plan.final_session).toEqual(EXPECTED_RED_FINAL_SESSION);
+      expect(plan.decision).toBe("MODIFY");
+      const mentalRedRule = plan.triggered_rules.find((r) => r.rule_id === "MENTAL_RED");
+      expect(mentalRedRule).toBeDefined();
+      expect(mentalRedRule?.signals_used).toEqual(["stress_high"]);
+
+      expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT });
+      expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
+      expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_MOTIVATION")).toBe(false);
+    });
+
+    it("stress RED + motivation AMBER (real checkin) → Training selects stress_high (also the true RED cause), Mental supports it", () => {
+      const ctx = baseRawContext({
+        planned_session: RED_PLANNED_SESSION,
+        checkin: { work_stress: 9, motivation: 4 },
+      });
+      const plan = buildDailyPlan(ctx);
+
+      expect(plan.final_session).toEqual(EXPECTED_RED_FINAL_SESSION);
+      expect(plan.decision).toBe("MODIFY");
+      const mentalRedRule = plan.triggered_rules.find((r) => r.rule_id === "MENTAL_RED");
+      expect(mentalRedRule).toBeDefined();
+      expect(mentalRedRule?.signals_used).toEqual(["stress_high"]);
+
+      expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT });
+      expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
+      expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_MOTIVATION")).toBe(false);
+    });
+
+    it("stress AMBER + motivation RED (real checkin) → Training's existing precedence still selects stress_high even though motivation is the true RED cause; Mental mirrors that ownership, never touches motivation_low", () => {
+      const ctx = baseRawContext({
+        planned_session: RED_PLANNED_SESSION,
+        checkin: { work_stress: 6, motivation: 2 },
+      });
+      const plan = buildDailyPlan(ctx);
+
+      // Records existing Training ownership behavior as-is — this test does
+      // not endorse or change the severity-selection policy in 002C.
+      expect(plan.final_session).toEqual(EXPECTED_RED_FINAL_SESSION);
+      expect(plan.decision).toBe("MODIFY");
+      const mentalRedRule = plan.triggered_rules.find((r) => r.rule_id === "MENTAL_RED");
+      expect(mentalRedRule).toBeDefined();
+      expect(mentalRedRule?.signals_used).toEqual(["stress_high"]);
+
+      expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT });
+      expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
+      expect(plan.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_MOTIVATION")).toBe(false);
+    });
+  });
+
+  describe("Late-push isolation — paired GREEN vs AMBER regression", () => {
+    it("Mental AMBER rule is visible in plan.triggered_rules but never leaks into training/reasoning/override_reason/decision/final_session", () => {
+      const baselineCtx = baseRawContext({
+        active_mode: "OFF_SEASON_DEVELOPMENT",
+        planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" },
+      });
+      const amberCtx = baseRawContext({
+        active_mode: "OFF_SEASON_DEVELOPMENT",
+        planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" },
+        checkin: { work_stress: 6 },
+      });
+
+      const baseline = buildDailyPlan(baselineCtx);
+      const amber = buildDailyPlan(amberCtx);
+
+      // Training-derived fields already finalized before Mental's late
+      // push — must be byte-identical between the two runs.
+      expect(amber.decision).toBe(baseline.decision);
+      expect(amber.final_session).toEqual(baseline.final_session);
+      expect(amber.training).toEqual(baseline.training);
+      expect(amber.reasoning).toBe(baseline.reasoning);
+      expect(amber.override_reason).toBe(baseline.override_reason);
+
+      // Expected, isolated differences.
+      expect(baseline.mental).toEqual({ active: false });
+      expect(amber.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT });
+      expect(baseline.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
+      expect(amber.triggered_rules.filter((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toHaveLength(1);
     });
   });
 
