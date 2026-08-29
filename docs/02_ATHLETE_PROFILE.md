@@ -285,7 +285,7 @@ Correspond au profil du pilote bikepark rapide sur pistes travaillées.
 
 **Wiriehorn (Coupe Suisse)** : run où tout s'alignait mentalement. Dérailleur cassé → chrono impacté par la mécanique, pas par la performance mentale ou technique.
 
-Utilisation dans le moteur : cue de départ "Comme à Wiriehorn" pour les courses A/A+ (hypothèse actuelle, révisable — voir `03_COACHING_MODEL.md` C2.1).
+Utilisation dans le moteur : cue de départ "Comme à Wiriehorn." en phase PRE_EVENT, toutes priorités de course (hypothèse actuelle, révisable — voir `03_COACHING_MODEL.md` C2.1).
 
 ---
 
