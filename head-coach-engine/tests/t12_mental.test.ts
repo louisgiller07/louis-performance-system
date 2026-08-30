@@ -328,15 +328,9 @@ describe("T12 — Mental (V0.3_002C)", () => {
       expect(planA.mental).toEqual(planB.mental);
     });
 
-    it("asserts the exact current ENGINE_VERSION provenance", () => {
-      const ctx = baseRawContext();
-      const plan = buildDailyPlan(ctx);
-      // Tracks the current global ENGINE_VERSION constant, updated in
-      // V0.3_002D (head-coach-engine@0.2.0-m1-v0.3_002d) — not a Mental
-      // behavior regression, this constant is intentionally shared across
-      // milestones.
-      expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_002d");
-    });
+    // The exact-current ENGINE_VERSION provenance assertion lives solely in
+    // tests/engineVersion.test.ts — T12 does not own the mutable global
+    // current version (see that file for rationale).
   });
 
   describe("Training regression — RED mental fixture unchanged", () => {

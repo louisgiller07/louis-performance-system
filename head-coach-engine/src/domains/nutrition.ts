@@ -18,14 +18,18 @@ const STRENGTH_KINDS: ReadonlySet<TrainingInterventionKind> = new Set([
   "GRIP_WORK",
 ]);
 
-// Textes littéraux approuvés — non dérivés de NUTRITION_POLICY par
-// interpolation, pour garantir une correspondance exacte (ex. virgule
-// française "3,5" plutôt que le point JS "3.5"). Les valeurs numériques
-// canoniques vivent et sont testées séparément dans nutritionPolicy.ts.
+/** Formatage décimal français minimal ("3.5" → "3,5") — pas d'infrastructure de localisation. */
+function formatFrenchDecimal(value: number): string {
+  return String(value).replace(".", ",");
+}
+
+// Textes interpolés depuis NUTRITION_POLICY — les quatre valeurs
+// numériques canoniques pilotent réellement le texte rendu, aucune copie
+// numérique dupliquée ici (évite toute dérive entre la config et le texte).
 const RACE_WEEK_FOCUS = "En race week : pense à augmenter légèrement l'apport énergétique.";
-const RACE_DAY_NOTES = "Jour de course : petit-déjeuner consistant au moins 2 h avant le premier run.";
-const DH_DAY_NOTES = "Jour DH : vise environ 3 à 3,5 L sur la journée.";
-const STRENGTH_NOTES = "Séance de force planifiée : protéines + glucides dans les 60 minutes après.";
+const RACE_DAY_NOTES = `Jour de course : petit-déjeuner consistant au moins ${NUTRITION_POLICY.raceBreakfastLeadHours} h avant le premier run.`;
+const DH_DAY_NOTES = `Jour DH : vise environ ${NUTRITION_POLICY.dhHydrationRangeL.min} à ${formatFrenchDecimal(NUTRITION_POLICY.dhHydrationRangeL.max)} L sur la journée.`;
+const STRENGTH_NOTES = `Séance de force planifiée : protéines + glucides dans les ${NUTRITION_POLICY.strengthPostWindowMinutes} minutes après.`;
 
 /**
  * Couche C — Domaine Nutrition (V0.3_002D). Voir docs/06_ARCHITECTURE.md §V0.3_002.

@@ -87,6 +87,22 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
     });
   });
 
+  describe("PRE_EVENT orthogonality — contributes nothing itself, never suppresses an independent trigger", () => {
+    it("PRE_EVENT + final DH → exactly DH Nutrition", () => {
+      const result = computeNutritionDomain(
+        baseParams({ eventContext: eventContext("PRE_EVENT"), finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } })
+      );
+      expect(result).toEqual({ active: true, notes: DH_DAY_NOTES });
+    });
+
+    it("PRE_EVENT + planned strength → exactly strength Nutrition, hydration_target_l = 2", () => {
+      const result = computeNutritionDomain(
+        baseParams({ eventContext: eventContext("PRE_EVENT"), plannedSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
+      );
+      expect(result).toEqual({ active: true, hydration_target_l: 2, notes: STRENGTH_NOTES });
+    });
+  });
+
   describe("RACE_WEEK — focus only", () => {
     it("active_mode RACE_WEEK alone → focus only, no notes, no hydration", () => {
       const result = computeNutritionDomain(baseParams({ activeMode: "RACE_WEEK" }));
@@ -133,6 +149,14 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
         baseParams({ activeMode: "RACE_WEEK", finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } })
       );
       expect(result).toEqual({ active: true, focus: RACE_WEEK_FOCUS, notes: DH_DAY_NOTES });
+    });
+
+    it("RACE_WEEK + race day → focus + race-day notes, hydration_target_l absent", () => {
+      const result = computeNutritionDomain(
+        baseParams({ activeMode: "RACE_WEEK", eventContext: eventContext("RACE_DAY_GENERIC", { in_progress: true }) })
+      );
+      expect(result).toEqual({ active: true, focus: RACE_WEEK_FOCUS, notes: RACE_DAY_NOTES });
+      expect(result.hydration_target_l).toBeUndefined();
     });
   });
 
@@ -231,36 +255,65 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
       expect(planA.nutrition).toEqual(planB.nutrition);
     });
 
-    it("asserts the exact current ENGINE_VERSION provenance", () => {
-      const plan = buildDailyPlan(baseRawContext());
-      expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_002d");
+    // The exact-current ENGINE_VERSION provenance assertion lives solely in
+    // tests/engineVersion.test.ts — T13 does not own the mutable global
+    // current version.
+
+    it("real race-day: a genuine in-progress race (via computeEventContext, not a hand-built EventContext) reaches Nutrition, and the strength hydration value cannot leak in", () => {
+      // baseRawContext's default `today` is 2026-08-24 — bracket it with a
+      // real race so EventContext.in_progress is computed by the actual
+      // production date-math (engine/eventContext.ts), never passed by hand.
+      // Also includes a planned strength session to simultaneously prove
+      // the hydration_target_l leak-prevention integration case (§13),
+      // without a redundant second integration test.
+      const ctx = baseRawContext({
+        upcoming_races: [
+          { event_name: "Course en cours", event_start: "2026-08-23", event_end: "2026-08-25", priority: "A", race_format: "OTHER" },
+        ],
+        planned_session: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.event_context?.in_progress).toBe(true);
+      expect(plan.nutrition.notes).toBe(RACE_DAY_NOTES);
+      expect(plan.nutrition.hydration_target_l).toBeUndefined();
+    });
+
+    it("Safety hard-stop dominates a genuinely competing Nutrition trigger (RACE_WEEK + planned strength)", () => {
+      const ctx = baseRawContext({
+        checkin: { suspected_concussion: true },
+        active_mode: "RACE_WEEK",
+        planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.nutrition).toEqual({ active: false });
     });
   });
 
-  describe("triggered_rules regression — paired GREEN vs planned-strength", () => {
-    it("Nutrition never appends a TriggeredRule; Training-derived fields stay identical to a no-nutrition-trigger baseline", () => {
-      const baselineCtx = baseRawContext({
-        active_mode: "OFF_SEASON_DEVELOPMENT",
-        planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" },
-        checkin: { work_stress: 3 }, // keeps Mental GREEN so it doesn't add its own rule
-      });
-      // Same context, only the RACE_WEEK-independent trigger set differs via
-      // active_mode; Training/session/dimensions are otherwise identical.
-      const nutritionCtx = baseRawContext({
-        active_mode: "RACE_WEEK",
-        planned_session: { kind: "AEROBIC_BASE", load_profile: "LIGHT" },
-        checkin: { work_stress: 3 },
-      });
+  describe("triggered_rules — Nutrition never owns a rule", () => {
+    // Not a paired-equality regression (Nutrition has no SignalTrace/late-push
+    // mechanism to protect against — see production source doc-comment).
+    // This proves only the true, narrower contract: across several
+    // independently representative Nutrition-active scenarios, no
+    // NUTRITION_*-prefixed TriggeredRule is ever present, and Training's own
+    // rules remain whatever that scenario legitimately produces on its own
+    // terms (not compared against an unrelated context).
+    it("no NUTRITION_* rule_id appears in triggered_rules across representative Nutrition-active scenarios", () => {
+      const scenarios = [
+        baseRawContext({ active_mode: "RACE_WEEK" }),
+        baseRawContext({ planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } }),
+        baseRawContext({ planned_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } }),
+        baseRawContext({
+          upcoming_races: [
+            { event_name: "Course en cours", event_start: "2026-08-23", event_end: "2026-08-25", priority: "A", race_format: "OTHER" },
+          ],
+        }),
+      ];
 
-      const baseline = buildDailyPlan(baselineCtx);
-      const nutrition = buildDailyPlan(nutritionCtx);
-
-      // Nutrition itself never contributes a TriggeredRule in either case.
-      expect(baseline.triggered_rules.some((r) => r.rule_id.startsWith("NUTRITION"))).toBe(false);
-      expect(nutrition.triggered_rules.some((r) => r.rule_id.startsWith("NUTRITION"))).toBe(false);
-
-      expect(baseline.nutrition).toEqual({ active: true, hydration_target_l: 2, notes: STRENGTH_NOTES });
-      expect(nutrition.nutrition).toEqual({ active: true, focus: RACE_WEEK_FOCUS });
+      for (const ctx of scenarios) {
+        const plan = buildDailyPlan(ctx);
+        expect(plan.nutrition.active).toBe(true);
+        expect(plan.triggered_rules.some((r) => r.rule_id.startsWith("NUTRITION"))).toBe(false);
+      }
     });
   });
 
