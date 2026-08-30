@@ -342,7 +342,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Intégrations externes (M4+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire
-- Enrichissement des domaines Technique/Mental/Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11, Mental/T12 et Nutrition/T13 CLOSED LOCALLY ; intégration/régressions V0.3_002E NOT STARTED)
+- Enrichissement des domaines Technique/Mental/Nutrition et leur intégration cross-domaine (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11, Mental/T12, Nutrition/T13 et intégration/T14 tous CLOSED LOCALLY ; seul le rollout remote V0.3_002F reste ouvert)
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
 
@@ -462,9 +462,9 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B/C/D CLOSED LOCALLY — 2026-08-28/29/30 ; V0.3_002E/F NOT STARTED)
+## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B/C/D/E CLOSED LOCALLY — 2026-08-28/29/30/30 ; V0.3_002F NOT STARTED)
 
-**Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH), T12 (Mental) et T13 (Nutrition) implémentés et vérifiés (002B/C/D CLOSED LOCALLY).** Les scénarios d'intégration/régressions cross-domaine (T14) restent à implémenter et vérifier collectivement par 002E.
+**Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH), T12 (Mental), T13 (Nutrition) et T14 (intégration cross-domaine) implémentés et vérifiés (002B/C/D/E CLOSED LOCALLY).** Seul le rollout remote (002F), incluant le gate de vérification web reporté par 002E, reste ouvert.
 
 ### T11. Technique DH (V0.3_002B — CLOSED LOCALLY, 2026-08-28)
 
@@ -508,9 +508,21 @@ Activation : `focus` (race-week) et la branche primaire `notes`/`hydration_targe
 
 **Preuve finale (2026-08-30)** : `head-coach-engine/tests/t13_nutrition.test.ts` — couverture unitaire complète des combinaisons ci-dessus, preuve d'intégration réelle course-en-cours (`upcoming_races` → `computeEventContext` → `buildDailyPlan`, jamais un `EventContext` construit à la main) combinée à la prévention de fuite `hydration_target_l`, preuve Safety dominant un déclencheur par ailleurs valide, quatre constantes `NUTRITION_POLICY` directement testées et réellement consommées par le runtime (`baselineHydrationTargetL` pilote le champ structuré `hydration_target_l`, les trois autres pilotent les textes déterministes). `npm test` 347/347, `npm run test:edge` 9/9.
 
-### T14. Intégration/régressions (V0.3_002E — NOT STARTED)
-- 100% des suites frozen M1-M4 pré-existantes toujours vertes
-- `decision`/`session_type`/`triggered_rules` de Training strictement identiques sur toutes les fixtures pré-existantes
-- Aucune double-consommation de signal (assertion `SignalTrace` sur tout scénario combiné Technique+Mental+Nutrition+Training)
-- Aucune chaîne de downgrade générique introduite
-- `isValidDailyPlan` (web) accepte un `DailyPlan` réel avec sections enrichies, zéro changement de production web requis
+### T14. Intégration/régressions cross-domaine (V0.3_002E — CLOSED LOCALLY, 2026-08-30)
+
+Test-only : `head-coach-engine/tests/t14_crossDomainIntegration.test.ts` (NEW), aucun fichier de production modifié. Preuves via `buildDailyPlan(RawContext)` réel uniquement (aucune dimension injectée, aucune instrumentation `SignalTrace`) :
+
+- `PRE_EVENT`/`RACE_WEEK` indépendants — chaque quadrant (l'un seul, l'autre seul, les deux) produit exactement les `focus` attendus, sans dérivation croisée
+- Technique + Mental AMBER + Nutrition simultanément actifs (séance DH), exactement une `TriggeredRule` `MENTAL_AMBER_STRESS`, zéro `TECHNIQUE_*`/`NUTRITION_*`
+- Late-push Mental (§V0.3_002C) étendu à une paire GREEN/AMBER appariée avec Technique+Nutrition actifs des deux côtés — tous les champs dérivés de Training strictement égaux
+- Propriété `MENTAL_RED` confirmée sur une séance DH réelle : le kind DH survit (charge seule dégradée), Technique/Nutrition suivent le `final_session` stabilisé, aucune seconde règle Mental observable — preuve de composition cross-domaine uniquement (T14 n'instrumente jamais `SignalTrace`) ; la preuve directe qu'aucun second `consume()` n'a lieu reste T12
+- Propagation `final_session` + asymétrie `planned_session` acceptée prouvées sur un fixture réel unique (`GRIP_WORK`+RED double → `RECOVERY_ACTIVE` ; Technique/Nutrition-DH inactifs ; Nutrition-force reste active via le `planned_session` brut)
+- Composition jour de course réel (`computeEventContext`) : Nutrition race-day + Mental AMBER coexistent, `mental.focus` structurellement absent
+- Safety dominant une pression maximale (concussion + RACE_WEEK + PRE_EVENT réel + DH planifiée) : `triggered_rules=[A1]`, trois sections enrichies exactement `{active:false}`
+- Aucun `rule_id` `TECHNIQUE_*`/`NUTRITION_*` à travers tous les plans combinés
+- Régression Recovery appariée sous charge Technique+Mental+Nutrition, à entrées Recovery-pertinentes équivalentes
+- Déterminisme d'un `DailyPlan` riche multi-domaine
+
+**Hors périmètre T14** : la preuve bout-en-bout que le renderer web accepte le `DailyPlan` enrichi n'est **pas** couverte par T14 (`web/**` hors scope approuvé de 002E) — reportée comme gate requis de V0.3_002F, voir `docs/06_ARCHITECTURE.md` §V0.3_002E.
+
+**Preuve finale (2026-08-30)** : `npm test` 359/359, `npm run test:edge` 9/9, build PASS. `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_002d`), `tests/engineVersion.test.ts` non modifié.

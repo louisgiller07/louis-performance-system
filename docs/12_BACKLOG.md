@@ -2,10 +2,10 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED, V0.3_002B/C/D (Technique DH/Mental/Nutrition) CLOSED LOCALLY (2026-08-28/29/30).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED, V0.3_002B/C/D/E (Technique DH/Mental/Nutrition/Intégration) CLOSED LOCALLY (2026-08-28/29/30/30).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D (Technique DH/Mental/Nutrition) **CLOSED LOCALLY** (2026-08-28/29/30) ; V0.3_002E (intégration/régressions) **NOT STARTED — prochain** ; V0.3_002F **NOT STARTED** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED**, V0.3_002B/C/D **CLOSED LOCALLY** (2026-08-28/29/30). Prochain jalon concret : **V0.3_002E — Intégration/régressions**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
+**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D/E (Technique DH/Mental/Nutrition/Intégration) **CLOSED LOCALLY** (2026-08-28/29/30/30) ; V0.3_002F (rollout remote/clôture) **NOT STARTED — prochain, dernier jalon** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
+**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED**, V0.3_002B/C/D/E **CLOSED LOCALLY** (2026-08-28/29/30/30). Prochain jalon concret : **V0.3_002F — Rollout remote + clôture finale V0.3_002** (inclut le gate de vérification web reporté par 002E), portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
 
 ---
 
@@ -360,6 +360,30 @@ Nutrition (V0.3_002D), pit-routine précise (C2.2, aucun déclencheur intra-jour
 ### Explicitement hors périmètre V0.3_002D (reporté)
 
 Intégration/régressions cross-domaine formelles (V0.3_002E), rollout remote (V0.3_002F), suivi calories/repas/macros, C5.5 (`ActiveExperiment`).
+
+---
+
+## V0.3_002E — Intégration/régressions cross-domaine (CLOSED LOCALLY, 2026-08-30, test-only)
+
+- [x] `head-coach-engine/tests/t14_crossDomainIntegration.test.ts` (NEW, seul fichier créé) — aucun fichier de production, aucun test historique modifié
+- [x] `PRE_EVENT` (Mental)/`RACE_WEEK` (Nutrition) — indépendance prouvée sur les 3 quadrants via `buildDailyPlan` réel
+- [x] Coexistence des trois domaines (DH + Mental AMBER) — exactement une `TriggeredRule` `MENTAL_AMBER_STRESS`, zéro `TECHNIQUE_*`/`NUTRITION_*`
+- [x] Late-push Mental étendu à une paire GREEN/AMBER avec Technique+Nutrition actifs des deux côtés — tous les champs Training-dérivés strictement égaux
+- [x] Propriété `MENTAL_RED` confirmée sur DH réel — kind survit, Technique/Nutrition suivent le `final_session` stabilisé, aucune seconde règle Mental observable (preuve directe `consume()` = T12, non T14)
+- [x] Propagation `final_session` + asymétrie `planned_session` acceptée — prouvées sur un fixture réel (`GRIP_WORK`+RED double)
+- [x] Composition jour de course réel (`computeEventContext`) — Nutrition race-day + Mental AMBER coexistent, `mental.focus` structurellement absent
+- [x] Safety dominant une pression maximale (concussion + RACE_WEEK + PRE_EVENT + DH planifiée) — `triggered_rules=[A1]`, zéro fuite cross-domaine
+- [x] Aucun `rule_id` `TECHNIQUE_*`/`NUTRITION_*` à travers tous les plans combinés
+- [x] Régression Recovery appariée sous charge Technique+Mental+Nutrition
+- [x] Déterminisme d'un `DailyPlan` riche multi-domaine
+- [x] `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_002d`), `tests/engineVersion.test.ts` non modifié
+- [x] Tests : `npm test` 359/359, `npm run test:edge` 9/9, build PASS
+- [x] Aucune migration, aucun changement production/web, aucun déploiement remote
+- [ ] **Preuve web bout-en-bout (`DailyPlan` enrichi → renderer web existant) : NON exécutée par 002E** (`web/**` hors périmètre approuvé) — **gate requis de V0.3_002F**
+
+### Explicitement hors périmètre V0.3_002E (reporté)
+
+Rollout remote (V0.3_002F), vérification web bout-en-bout (reportée comme gate V0.3_002F), toute nouvelle sémantique de domaine, tout nouveau champ `DailyPlan`, `ActiveExperiment`.
 
 ---
 
