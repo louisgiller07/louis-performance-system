@@ -342,7 +342,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Intégrations externes (M4+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire
-- Enrichissement du domaine Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11 et Mental/T12 CLOSED LOCALLY, Nutrition NOT STARTED)
+- Enrichissement des domaines Technique/Mental/Nutrition (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11, Mental/T12 et Nutrition/T13 CLOSED LOCALLY ; intégration/régressions V0.3_002E NOT STARTED)
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
 
@@ -462,9 +462,9 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B CLOSED LOCALLY — 2026-08-28 ; V0.3_002C CLOSED LOCALLY — 2026-08-29 ; V0.3_002D/E/F NOT STARTED)
+## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B/C/D CLOSED LOCALLY — 2026-08-28/29/30 ; V0.3_002E/F NOT STARTED)
 
-**Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH) implémenté et vérifié (002B CLOSED LOCALLY) ; T12/T13 (Mental/Nutrition) restent à implémenter.** Les scénarios restants seront implémentés progressivement par 002C/D, puis vérifiés collectivement par 002E.
+**Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH), T12 (Mental) et T13 (Nutrition) implémentés et vérifiés (002B/C/D CLOSED LOCALLY).** Les scénarios d'intégration/régressions cross-domaine (T14) restent à implémenter et vérifier collectivement par 002E.
 
 ### T11. Technique DH (V0.3_002B — CLOSED LOCALLY, 2026-08-28)
 
@@ -494,12 +494,19 @@ Activation : `focus` et `action_hint` sont orthogonaux. `focus` uniquement depui
 
 **Preuve finale (2026-08-29)** : `head-coach-engine/tests/t12_mental.test.ts` — couverture unitaire complète des cas ci-dessus, preuve intégrée réelle (`RawContext → DailyPlan`) des cas both-RED, stress RED + motivation AMBER et stress AMBER + motivation RED, comparaison appariée GREEN/AMBER prouvant l'isolation `training`/`reasoning`/`override_reason` vis-à-vis du late-push `triggered_rules`, config profil `id`+`cue` directement testés, `ENGINE_VERSION` directement testé. `npm test` 310/310, `npm run test:edge` 9/9.
 
-### T13. Nutrition (V0.3_002D — NOT STARTED)
-- Race-week → `nutrition.focus` rappel énergétique peuplé
-- Jour DH → `nutrition.active = true`, `hydration_target_l` **absent** (C5.4 est une plage `~3-3.5 L/jour`, jamais convertie en point estimé), `notes` contient le texte de plage canonique
-- Jour avec séance de force **planifiée** → `nutrition.active = true` ; `notes` contient une guidance générique de récupération à appliquer après la séance (le moteur ne connaît pas l'exécution/complétion de la séance) ; `hydration_target_l = 2` si la baseline C5.3 (seule cible numérique canonique unique existante) est également applicable à cette fixture
-- Contexte non pertinent → `nutrition.active = false` (pas de section toujours active)
-- Plan Safety REST → `nutrition = {active:false}` inchangé
+### T13. Nutrition (V0.3_002D — CLOSED LOCALLY, 2026-08-30)
+
+Activation : `focus` (race-week) et la branche primaire `notes`/`hydration_target_l` (précédence RACE DAY > JOUR DH > SÉANCE DE FORCE PLANIFIÉE > aucune) sont orthogonaux et indépendamment dérivés.
+
+- `active_mode === "RACE_WEEK"` → `focus` seul (aucun filtre `PRE_EVENT`, jamais utilisé par Nutrition)
+- `final_session.kind` ∈ {DH_TECHNICAL, DH_PERFORMANCE, DH_LIGHT, PUMPTRACK} → `notes` = plage C5.4 texte, `hydration_target_l` **absent**
+- `ctx.planned_session.kind` (brute, jamais `final_session`) ∈ famille force → `notes` = C5.2 texte, `hydration_target_l = 2` (seule branche à le peupler)
+- RACE DAY (`event_context.in_progress`, jamais `phase === "RACE_DAY_GENERIC"`) > JOUR DH > SÉANCE DE FORCE : la branche gagnante contrôle `notes`+`hydration_target_l` ensemble, aucune fuite possible (structurellement, `hydration_target_l` n'est assigné que dans la branche force)
+- `PRE_EVENT`/`POST_EVENT` seuls → aucune contribution Nutrition, mais ne suppriment jamais un déclencheur indépendant valide (mode/session)
+- Contexte non pertinent → `nutrition.active = false` (jamais actif par défaut pour la seule baseline)
+- Plan Safety REST → `nutrition = {active:false}` inchangé, y compris quand un déclencheur Nutrition aurait par ailleurs été valide (race-week/force)
+
+**Preuve finale (2026-08-30)** : `head-coach-engine/tests/t13_nutrition.test.ts` — couverture unitaire complète des combinaisons ci-dessus, preuve d'intégration réelle course-en-cours (`upcoming_races` → `computeEventContext` → `buildDailyPlan`, jamais un `EventContext` construit à la main) combinée à la prévention de fuite `hydration_target_l`, preuve Safety dominant un déclencheur par ailleurs valide, quatre constantes `NUTRITION_POLICY` directement testées et réellement consommées par le runtime (`baselineHydrationTargetL` pilote le champ structuré `hydration_target_l`, les trois autres pilotent les textes déterministes). `npm test` 347/347, `npm run test:edge` 9/9.
 
 ### T14. Intégration/régressions (V0.3_002E — NOT STARTED)
 - 100% des suites frozen M1-M4 pré-existantes toujours vertes

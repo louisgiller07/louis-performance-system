@@ -2,10 +2,10 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED, V0.3_002B (Technique DH) CLOSED LOCALLY (2026-08-28), V0.3_002C (Mental) CLOSED LOCALLY (2026-08-29).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED, V0.3_002B/C/D (Technique DH/Mental/Nutrition) CLOSED LOCALLY (2026-08-28/29/30).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B (Technique DH) **CLOSED LOCALLY** (2026-08-28) ; V0.3_002C (Mental) **CLOSED LOCALLY** (2026-08-29) ; V0.3_002D (Nutrition) **NOT STARTED — prochain** ; V0.3_002E/F **NOT STARTED** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED**, V0.3_002B (Technique DH) **CLOSED LOCALLY** (2026-08-28), V0.3_002C (Mental) **CLOSED LOCALLY** (2026-08-29). Prochain jalon concret : **V0.3_002D — Nutrition**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
+**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D (Technique DH/Mental/Nutrition) **CLOSED LOCALLY** (2026-08-28/29/30) ; V0.3_002E (intégration/régressions) **NOT STARTED — prochain** ; V0.3_002F **NOT STARTED** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
+**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED**, V0.3_002B/C/D **CLOSED LOCALLY** (2026-08-28/29/30). Prochain jalon concret : **V0.3_002E — Intégration/régressions**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
 
 ---
 
@@ -342,6 +342,24 @@ Mental (V0.3_002C), Nutrition (V0.3_002D), planificateur hebdomadaire (C1.2/C1.3
 ### Explicitement hors périmètre V0.3_002C (reporté)
 
 Nutrition (V0.3_002D), pit-routine précise (C2.2, aucun déclencheur intra-jour fiable), coaching post-erreur en direct (C2.3), debrief mental post-course structuré (C2.4), `ActiveExperiment`, rollout remote (V0.3_002F).
+
+---
+
+## V0.3_002D — Nutrition (CLOSED LOCALLY, 2026-08-30)
+
+- [x] `computeNutritionDomain` (`src/domains/nutrition.ts`) — lit le contexte déjà stabilisé, `focus`/branche primaire orthogonaux
+- [x] `focus` — uniquement `active_mode === "RACE_WEEK"` (jamais `PRE_EVENT`), texte unique de rappel énergétique générique
+- [x] Branche primaire — précédence RACE DAY (`event_context.in_progress`) > JOUR DH (`final_session.kind`) > SÉANCE DE FORCE PLANIFIÉE (`ctx.planned_session.kind` brute) > aucune ; contrôle `notes`+`hydration_target_l` ensemble, aucune fuite structurellement possible
+- [x] `hydration_target_l = 2` uniquement sur la branche force (C5.3, seule cible numérique canonique unique) ; C5.4/C5.2/C5.6 restent texte uniquement
+- [x] Config `nutritionPolicy.ts` (NEW) — source de vérité runtime réelle des quatre constantes : `baselineHydrationTargetL` pilote le champ structuré `hydration_target_l`, les trois autres pilotent les textes déterministes (durcissement), aucune extension `athleteCoachingProfile.ts`
+- [x] `ENGINE_VERSION` → `head-coach-engine@0.2.0-m1-v0.3_002d`, propriétaire unique désormais `tests/engineVersion.test.ts` (copies retirées de T12 et T13)
+- [x] Safety/Training/Technique/Mental/`SignalTrace`/`eventContext.ts`/`raceProtocol.ts` strictement inchangés ; aucune `TriggeredRule` Nutrition
+- [x] Tests : `npm test` 347/347, `npm run test:edge` 9/9, build PASS
+- [x] Aucune migration, aucun nouveau champ `daily_checkins`, aucun changement web, aucun déploiement remote
+
+### Explicitement hors périmètre V0.3_002D (reporté)
+
+Intégration/régressions cross-domaine formelles (V0.3_002E), rollout remote (V0.3_002F), suivi calories/repas/macros, C5.5 (`ActiveExperiment`).
 
 ---
 

@@ -1817,3 +1817,35 @@ V0.3_002C = CLOSED LOCALLY
 V0.3_002 (ensemble) = IN PROGRESS
 V0.3_002D/E/F = NOT STARTED
 Prochain jalon = V0.3_002D — Nutrition
+
+---
+
+## 2026-08-30 — V0.3_002D : Nutrition CLOSED LOCALLY
+
+**Contexte** : suite à V0.3_002C (Mental, CLOSED LOCALLY), implémentation du domaine Nutrition (couche C) peuplant `DailyPlan.nutrition`, revue par acceptation adversariale, corrigée par une passe de durcissement (source de vérité `nutritionPolicy.ts` réellement consommée par le runtime, propriétaire unique de l'assertion `ENGINE_VERSION` exacte, preuves d'intégration Safety/race-day/précédence renforcées).
+
+**Décision** :
+1. `computeNutritionDomain` (`src/domains/nutrition.ts`, NEW) lit le contexte déjà stabilisé par Training — aucune participation à l'arbitrage, aucune modification de `decision`/`final_session`/`training`/`triggered_rules`. `focus` (rappel race-week) et la branche primaire (`notes`/`hydration_target_l`) sont orthogonaux.
+2. Source race-week : `ctx.active_mode === "RACE_WEEK"` — délibérément distinct de `event_context.phase === "PRE_EVENT"` (que Nutrition n'utilise jamais), car C5.1 ("En race week") et C5.6 ("Jour de course") de `docs/03_COACHING_MODEL.md` référencent des concepts déjà précis n'impliquant aucune fenêtre PRE_EVENT.
+3. Branche primaire à précédence déterministe explicite : RACE DAY (`event_context.in_progress`, jamais `phase === "RACE_DAY_GENERIC"` — reste valide si une phase granulaire est un jour curée) > JOUR DH (`final_session.kind`, séance déjà arbitrée — l'hydratation doit suivre ce qui se passe réellement) > SÉANCE DE FORCE PLANIFIÉE (`ctx.planned_session.kind` brute, jamais `final_session` — le moteur ne connaît pas l'exécution/complétion à ce stade, conformément à la portée verrouillée) > aucune. La branche gagnante contrôle `notes` et `hydration_target_l` ensemble ; `hydration_target_l` n'est structurellement assigné que dans la branche force (aucune fuite possible par construction, pas seulement par test).
+4. `hydration_target_l` ne prend jamais que la valeur canonique unique `2` (C5.3). La plage C5.4 (`~3-3.5 L/jour`), le délai C5.2 (60 min post-force) et le délai C5.6 (2 h avant le premier run) restent texte uniquement dans `notes`, jamais convertis en champ numérique structuré.
+5. Aucune interaction `SignalTrace`, aucune `TriggeredRule` émise — confirmé par la signature même de `computeNutritionDomain` (retourne `NutritionSection` seul, aucune heuristique C5.x ne consommant de signal de dimension).
+6. Config `src/config/nutritionPolicy.ts` (NEW) porte les quatre constantes numériques génériques canoniques et en est la source de vérité runtime réelle : `baselineHydrationTargetL` pilote le champ structuré `hydration_target_l`, tandis que `dhHydrationRangeL`, `strengthPostWindowMinutes` et `raceBreakfastLeadHours` pilotent les chaînes de texte déterministes (via des littéraux de gabarit + un formatteur décimal français minimal pour "3,5"). Durcissement post-acceptation : ces trois dernières valeurs ne pilotaient initialement rien (dupliquées en dur dans le texte) ; l'implémentation finale élimine cette duplication sans changer un seul caractère des chaînes approuvées. Aucune extension `athleteCoachingProfile.ts` — les faits déclarés dans `docs/02_ATHLETE_PROFILE.md` §6.2 (repas/jour, créatine+whey, Red Bull) ne sont pas promus en configuration runtime, faute de heuristique C5.x canonique les couvrant.
+7. `ENGINE_VERSION` porté de `head-coach-engine@0.2.0-m1-v0.3_002c` à `head-coach-engine@0.2.0-m1-v0.3_002d` — décision de provenance bornée à cette seule occasion, `package.json` (`0.2.0`) inchangé. Durcissement architectural : l'assertion exacte de la version courante n'a désormais qu'un seul propriétaire (`tests/engineVersion.test.ts`, NEW, valeur en dur non tautologique) ; les copies qui existaient dans T12 et T13 ont été retirées — toute future décision de provenance ne nécessite plus qu'un seul fichier de test à modifier.
+
+**Preuve** : implémentation (`eac175869a8f30ddd49352c97c942ea574f5106b`, `feat: add V0.3_002D nutrition coaching domain`) + durcissement (`792608c633922aeea5464cc385382a544d1b74c4`, `fix: harden V0.3_002D nutrition provenance`) poussés sur `origin/main`. `head-coach-engine/tests/t13_nutrition.test.ts` (NEW, étendu) — couverture unitaire complète, preuve d'intégration réelle course-en-cours (`upcoming_races` → `computeEventContext` → `buildDailyPlan`, jamais un `EventContext` construit à la main) combinée à la prévention de fuite `hydration_target_l`, preuve Safety dominant un déclencheur RACE_WEEK+force par ailleurs valide, quatre constantes `NUTRITION_POLICY` directement testées. `npm test` **347/347**, `npm run test:edge` **9/9**, build TypeScript strict PASS. Aucune régression sur les suites frozen M1-M4/V0.3_002B/V0.3_002C pré-existantes.
+
+**Alternatives considérées** :
+- Dériver le rappel race-week de `event_context.phase === "PRE_EVENT"` (par analogie avec Mental) — **REJETÉE** : C5.1/C5.6 de `docs/03` référencent déjà précisément "race week"/"jour de course", des concepts distincts de `PRE_EVENT` ; `active_mode === "RACE_WEEK"` est le signal exact et déjà existant.
+- Utiliser `final_session` (plutôt que `planned_session`) pour la branche force — **REJETÉE** : la portée V0.3_002A verrouillée est explicite ("séance de force **planifiée**") précisément parce que le moteur ne connaît pas l'exécution/complétion.
+- Convertir la plage C5.4 en point médian numérique (ex. 3.25) pour `hydration_target_l` — **REJETÉE**, verrouillé dès V0.3_002A : aucun point médian n'est jamais inventé depuis une plage canonique.
+- Laisser `nutritionPolicy.ts` comme documentation seule (trois des quatre valeurs non consommées par le texte) — **REJETÉE en durcissement** : risque de dérive config/texte, corrigé par interpolation directe ; `baselineHydrationTargetL` pilotait déjà `hydration_target_l` dès l'implémentation initiale.
+- Voir l'entrée V0.3_002A pour les alternatives de propriété de signal (Option C, sans objet ici — Nutrition n'en a pas besoin) et de stratégie de profil (Option A bornée) — non répétées ici.
+
+**Impact** : `docs/00_PROJECT_STATUS.md`, `docs/04_DAILY_DECISION_ENGINE.md` (roadmap §8), `docs/06_ARCHITECTURE.md` (reconciliation "jour de course" + sous-section de clôture §V0.3_002D), `docs/10_TEST_PLAN.md` (statut T13), `docs/12_BACKLOG.md` (phase actuelle, nouveau bloc V0.3_002D). Aucun changement `web/**`, `supabase/functions/**`, `supabase/migrations/**`, `longitudinal-engine/**`.
+
+**Statut** :
+V0.3_002D = CLOSED LOCALLY
+V0.3_002 (ensemble) = IN PROGRESS
+V0.3_002E/F = NOT STARTED
+Prochain jalon = V0.3_002E — Intégration/régressions cross-domaine
