@@ -1882,3 +1882,34 @@ V0.3_002E = CLOSED LOCALLY
 V0.3_002 (ensemble) = IN PROGRESS
 V0.3_002F = NOT STARTED
 Prochain jalon = V0.3_002F — Rollout remote + clôture finale V0.3_002 (inclut le gate de vérification web reporté par 002E)
+
+---
+
+## 2026-08-30 — V0.3_002F : Remote rollout + V0.3_002 COMPLETE
+
+**Contexte** : suite à V0.3_002E (intégration cross-domaine, CLOSED LOCALLY, test-only), dernier jalon de la décomposition V0.3_002A→F : fermeture durable du gate de compatibilité web reporté par 002E, puis rollout remote minimal (`daily-run` uniquement) et clôture canonique de V0.3_002 dans son ensemble.
+
+**Décision** :
+1. Gate web fermé durablement par `web/src/features/dailyPlan/DailyPlanView.enriched.test.tsx` (commit `a59a1bce07a2a85cf5bfc095284c5096800d7803`) : un vrai `RawContext` est passé au vrai `buildDailyPlan` de `head-coach-engine` via un import relatif direct de sa source (`../../../../head-coach-engine/src/engine/buildDailyPlan.js`) — empiriquement vérifié résoluble par Vite/Vitest et par `tsc -b` sans aucune dépendance/workspace/alias/config ajouté au dépôt — produisant un `DailyPlan` réellement Technique+Mental+Nutrition actif, validé par le vrai `isValidDailyPlan` et rendu par le vrai `DailyPlanView`. Aucun objet `DailyPlan` capturé/copié à la main n'a été utilisé comme fixture permanente. `web` 294/294 (28 fichiers), build PASS.
+2. Seule `daily-run` a été redéployée (`npm run deploy:daily-run`, cible `uvolpldwwyvadlamulvr` exclusivement) — `completed-session`/`get-insights`/`refresh-longitudinal`/`submit-review` confirmées non modifiées par `functions list` post-déploiement. Le bundle transitif uploadé inclut `head-coach-engine/dist/domains/{technique,mental,nutrition}.js` et leurs configurations. `daily-run` post-déploiement : `ACTIVE`, version 2, `verify_jwt: true`.
+3. Provenance et composition remote prouvées par un canary fonctionnel unique sur un athlète scratch temporaire (jamais l'athlète réel de Louis) créé/utilisé/supprimé via le mécanisme déjà sanctionné `head-coach-engine/tests/supabase/testDb.ts` (identique à M3_006), pointé sur `uvolpldwwyvadlamulvr`. Un seul appel authentifié `POST /functions/v1/daily-run` → `HTTP 200`, `engine_version` remote = `head-coach-engine@0.2.0-m1-v0.3_002d`, `dh_or_technical.active`/`mental.active`/`nutrition.active` tous `true`, décision `KEEP` (aucune fuite Safety). Relecture de la décision persistée : `engine_version` dénormalisé et `daily_plan->>'engine_version'` identiques, les trois sections enrichies actives dans le JSONB réellement persisté — la survie des sections enrichies à la persistance est donc prouvée empiriquement.
+4. Nettoyage scratch complet et vérifié en lecture seule : zéro ligne restante sur `athletes`/`decisions`/`daily_checkins`/`training_blocks`/`planned_sessions`/`health_flags`/`completed_sessions`, utilisateur d'authentification confirmé absent. Écritures sur l'athlète réel : zéro sur l'ensemble du rollout.
+5. Parité de migration reconfirmée en lecture seule avant et après déploiement : 26 locales/26 remote/0 en attente, inchangé — aucune migration, aucun changement de schéma introduit par V0.3_002.
+6. Aucune source `web/**` de production modifiée (seul le nouveau fichier de test l'a été) ; aucun déploiement Vercel effectué ni requis.
+7. `ENGINE_VERSION` reste `head-coach-engine@0.2.0-m1-v0.3_002d` — ni 002E ni 002F n'ont modifié la sémantique persistée du `DailyPlan`.
+8. Rollback non requis, non exécuté. Candidat d'urgence audité et confirmé valide : `b9a39dfe39d1c07116c85f4b41cc74f0b8387b85` (parent immédiat pré-002B).
+9. **V0.3_002 — Domain Coaching Enrichment dans son ensemble déclaré COMPLETE (2026-08-30)** : les 6 jalons verrouillés en V0.3_002A (002A→002F) sont tous clos.
+
+**Preuve** : gate web — `web` 294/294, build PASS (commit `a59a1bce07a2a85cf5bfc095284c5096800d7803`, préexistant au rollout). Rollout remote — déploiement `daily-run` réussi, métadonnées post-déploiement confirmées (`ACTIVE`/version 2/`verify_jwt:true`), canary scratch complet (réponse HTTP + relecture persistée + nettoyage vérifié), parité de migration confirmée deux fois en lecture seule. Local pré-rollout : `head-coach-engine` build PASS, `npm test` 359/359, `npm run test:edge` 9/9.
+
+**Alternatives considérées** :
+- Interroger un agrégat `decisions.engine_version` en lecture seule avant déploiement pour documenter la provenance remote pré-existante — **NON EXÉCUTÉE** : l'environnement d'exécution a bloqué cet appel authentifié optionnel ; non bloquant pour le rollout, la preuve de provenance post-déploiement (canary + relecture) est plus forte et suffisante.
+- Importer `head-coach-engine/dist/**` (compilé) plutôt que la source directement dans le test web permanent — **REJETÉE** : dépendrait silencieusement d'un `dist/` local potentiellement absent/périmé, aucune garantie de fraîcheur dans le flux `web` normal ; l'import source direct a été empiriquement prouvé fonctionner et build sans changement de config.
+- Utiliser l'athlète réel de Louis pour le canary afin d'éviter la complexité du fixture scratch — **REJETÉE**, invariant explicite : écritures sur l'athlète réel = zéro.
+
+**Impact** : `docs/00_PROJECT_STATUS.md`, `docs/04_DAILY_DECISION_ENGINE.md` (roadmap §8), `docs/06_ARCHITECTURE.md` (sous-section de clôture §V0.3_002F + note de fermeture du gate 002E), `docs/10_TEST_PLAN.md` (clôture finale §V0.3_002), `docs/12_BACKLOG.md` (phase actuelle, checklist V0.3_002E/F). Aucun changement `head-coach-engine/src/**`, `supabase/migrations/**`, `longitudinal-engine/**`. Un seul fichier `web/**` modifié au total sur V0.3_002E+F (`DailyPlanView.enriched.test.tsx`, test-only). Une Edge Function (`daily-run`) redéployée.
+
+**Statut** :
+V0.3_002F = CLOSED / REMOTE ROLLOUT COMPLETE
+V0.3_002 (ensemble) = COMPLETE
+Prochain milestone = non encore sélectionné architecturalement (voir `docs/12_BACKLOG.md` §P1/§P2)

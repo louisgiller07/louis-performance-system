@@ -342,7 +342,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 - Intégrations externes (M4+)
 - Domaine 7 avancé (patterns émergents)
 - Planificateur hebdomadaire
-- Enrichissement des domaines Technique/Mental/Nutrition et leur intégration cross-domaine (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — Technique DH/T11, Mental/T12, Nutrition/T13 et intégration/T14 tous CLOSED LOCALLY ; seul le rollout remote V0.3_002F reste ouvert)
+- Enrichissement des domaines Technique/Mental/Nutrition et leur intégration cross-domaine (V0.3_002, voir §Scénarios V0.3_002 ci-dessous — **COMPLETE, 2026-08-30** : T11/T12/T13/T14 CLOSED LOCALLY, gate web durable + rollout remote CLOSED via V0.3_002F)
 - ActiveExperiment runtime (T9, P1)
 - Edge Function / API HTTP (M3)
 
@@ -462,9 +462,9 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ---
 
-## Scénarios V0.3_002 — Domain Coaching Enrichment (V0.3_002A CLOSED — architecture/contrats ; V0.3_002B/C/D/E CLOSED LOCALLY — 2026-08-28/29/30/30 ; V0.3_002F NOT STARTED)
+## Scénarios V0.3_002 — Domain Coaching Enrichment (COMPLETE — 2026-08-30 ; V0.3_002A/B/C/D/E/F tous CLOSED)
 
-**Statut : contrat de test verrouillé pour V0.3_002 — T11 (Technique DH), T12 (Mental), T13 (Nutrition) et T14 (intégration cross-domaine) implémentés et vérifiés (002B/C/D/E CLOSED LOCALLY).** Seul le rollout remote (002F), incluant le gate de vérification web reporté par 002E, reste ouvert.
+**Statut : contrat de test verrouillé pour V0.3_002 — désormais COMPLET.** T11 (Technique DH), T12 (Mental), T13 (Nutrition), T14 (intégration cross-domaine) implémentés et vérifiés (002B/C/D/E CLOSED LOCALLY) ; le gate web bout-en-bout reporté par 002E est fermé durablement (`web/src/features/dailyPlan/DailyPlanView.enriched.test.tsx`) et le rollout remote de `daily-run` est complet et vérifié (V0.3_002F CLOSED — voir `docs/11_DECISION_LOG.md`).
 
 ### T11. Technique DH (V0.3_002B — CLOSED LOCALLY, 2026-08-28)
 
@@ -523,6 +523,18 @@ Test-only : `head-coach-engine/tests/t14_crossDomainIntegration.test.ts` (NEW), 
 - Régression Recovery appariée sous charge Technique+Mental+Nutrition, à entrées Recovery-pertinentes équivalentes
 - Déterminisme d'un `DailyPlan` riche multi-domaine
 
-**Hors périmètre T14** : la preuve bout-en-bout que le renderer web accepte le `DailyPlan` enrichi n'est **pas** couverte par T14 (`web/**` hors scope approuvé de 002E) — reportée comme gate requis de V0.3_002F, voir `docs/06_ARCHITECTURE.md` §V0.3_002E.
+**Hors périmètre T14** : la preuve bout-en-bout que le renderer web accepte le `DailyPlan` enrichi n'est **pas** couverte par T14 (`web/**` hors scope approuvé de 002E) — ce gate a ensuite été fermé durablement par V0.3_002F (`DailyPlanView.enriched.test.tsx`), voir `docs/06_ARCHITECTURE.md` §V0.3_002F.
 
 **Preuve finale (2026-08-30)** : `npm test` 359/359, `npm run test:edge` 9/9, build PASS. `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_002d`), `tests/engineVersion.test.ts` non modifié.
+
+### V0.3_002F. Gate web durable + rollout remote (CLOSED, 2026-08-30)
+
+Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
+
+- `web/src/features/dailyPlan/DailyPlanView.enriched.test.tsx` (NEW) — real RawContext → real `buildDailyPlan` (import source direct `head-coach-engine/src/**`, aucune dépendance/alias ajouté) → real `isValidDailyPlan` → real `DailyPlanView`, aucun objet copié. `web` 294/294, build PASS
+- `daily-run` (seule) redéployée sur `uvolpldwwyvadlamulvr`, ACTIVE, `verify_jwt: true`, version 2
+- canary scratch (athlète temporaire, jamais l'athlète réel) : `engine_version` remote = `head-coach-engine@0.2.0-m1-v0.3_002d`, Technique/Mental/Nutrition actifs, persistance confirmée (colonne + JSONB), nettoyage complet vérifié
+- migration parity : 26/26, 0 en attente, avant et après déploiement
+- aucun déploiement Vercel
+
+**V0.3_002 — contrat de test complet.**

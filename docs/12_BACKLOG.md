@@ -2,10 +2,10 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_002 IN PROGRESS — V0.3_002A CLOSED / ARCHITECTURE LOCKED, V0.3_002B/C/D/E (Technique DH/Mental/Nutrition/Intégration) CLOSED LOCALLY (2026-08-28/29/30/30).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** Les 6 jalons (002A→002F) sont tous **CLOSED**. V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**V0.3_002 — Domain Coaching Enrichment : IN PROGRESS (depuis 2026-08-28).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D/E (Technique DH/Mental/Nutrition/Intégration) **CLOSED LOCALLY** (2026-08-28/29/30/30) ; V0.3_002F (rollout remote/clôture) **NOT STARTED — prochain, dernier jalon** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
-**Phase actuelle : V0.3_002 IN PROGRESS.** V0.3_002A (architecture) **CLOSED**, V0.3_002B/C/D/E **CLOSED LOCALLY** (2026-08-28/29/30/30). Prochain jalon concret : **V0.3_002F — Rollout remote + clôture finale V0.3_002** (inclut le gate de vérification web reporté par 002E), portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_002. V0.3_001 reste **COMPLETE** comme historique clos. `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement restantes non architecturées, à titre indicatif uniquement.
+**V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D/E/F **tous CLOSED** (2026-08-28/29/30/30/30) — voir ci-dessous et `docs/11_DECISION_LOG.md`.
+**Phase actuelle : V0.3_002 COMPLETE.** Les 6 jalons (002A→002F) sont tous clos ; `daily-run` sert l'engine enrichi en production sur `uvolpldwwyvadlamulvr`. **Prochain milestone produit non encore sélectionné architecturalement** — `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement candidates, à titre indicatif uniquement. V0.3_001 reste **COMPLETE** comme historique clos.
 
 ---
 
@@ -379,11 +379,28 @@ Intégration/régressions cross-domaine formelles (V0.3_002E), rollout remote (V
 - [x] `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_002d`), `tests/engineVersion.test.ts` non modifié
 - [x] Tests : `npm test` 359/359, `npm run test:edge` 9/9, build PASS
 - [x] Aucune migration, aucun changement production/web, aucun déploiement remote
-- [ ] **Preuve web bout-en-bout (`DailyPlan` enrichi → renderer web existant) : NON exécutée par 002E** (`web/**` hors périmètre approuvé) — **gate requis de V0.3_002F**
+- [x] **Preuve web bout-en-bout (`DailyPlan` enrichi → renderer web existant)** — non exécutée par 002E (`web/**` hors périmètre approuvé), fermée par V0.3_002F (`DailyPlanView.enriched.test.tsx`)
 
 ### Explicitement hors périmètre V0.3_002E (reporté)
 
 Rollout remote (V0.3_002F), vérification web bout-en-bout (reportée comme gate V0.3_002F), toute nouvelle sémantique de domaine, tout nouveau champ `DailyPlan`, `ActiveExperiment`.
+
+---
+
+## V0.3_002F — Rollout remote + clôture finale (CLOSED / REMOTE ROLLOUT COMPLETE, 2026-08-30)
+
+- [x] Gate web durable : `web/src/features/dailyPlan/DailyPlanView.enriched.test.tsx` — real `RawContext` → real `buildDailyPlan` (import source direct, aucune dépendance ajoutée) → real `isValidDailyPlan` → real `DailyPlanView`, aucun objet copié ; `web` 294/294, build PASS
+- [x] Seule `daily-run` redéployée sur `uvolpldwwyvadlamulvr` (`npm run deploy:daily-run`, commande non modifiée) — aucune autre fonction touchée
+- [x] Post-déploiement : `daily-run` ACTIVE, version 2, `verify_jwt: true`
+- [x] Canary scratch (athlète temporaire, jamais l'athlète réel) : `engine_version` remote = `head-coach-engine@0.2.0-m1-v0.3_002d`, Technique/Mental/Nutrition actifs, décision KEEP
+- [x] Persistance remote confirmée : `engine_version` dénormalisé + `daily_plan->>'engine_version'` identiques, sections enrichies actives dans le JSONB persisté
+- [x] Nettoyage scratch complet et vérifié (0 ligne restante toutes tables + auth), écritures athlète réel = zéro
+- [x] Parité de migration : 26/26, 0 en attente, avant et après déploiement
+- [x] Aucun déploiement Vercel, aucune source `web/**` de production modifiée
+- [x] `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_002d`)
+- [x] Rollback non requis ; candidat d'urgence audité et valide (`b9a39dfe39d1c07116c85f4b41cc74f0b8387b85`)
+
+**V0.3_002 — Domain Coaching Enrichment dans son ensemble : COMPLETE (2026-08-30).**
 
 ---
 
