@@ -117,7 +117,11 @@ export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onT
   // unselected for this case (draftKind initializes from
   // row?.intervention?.kind, which is undefined here).
   const isLegacyRow = row !== null && row.intervention === null;
-  const legacyLabel = row ? (SESSION_TYPE_LABELS[row.session_type] ?? row.session_type) : null;
+  // Never falls back to the raw row.session_type value — an internal
+  // DbSessionType enum must never reach the athlete-facing UI, even for a
+  // legacy row whose coarse type somehow isn't in SESSION_TYPE_LABELS
+  // despite the typed contract (same discipline as TodayPlanningSummary.tsx).
+  const legacyLabel = row ? (SESSION_TYPE_LABELS[row.session_type] ?? "Séance planifiée (ancienne)") : null;
   const displayLabel = row ? (row.intervention ? formatIntervention(row.intervention) : legacyLabel) : "Non planifié";
 
   return (

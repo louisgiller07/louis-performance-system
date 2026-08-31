@@ -15,6 +15,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../src/supabase/client.js";
 
 const LOCAL_URL = "http://127.0.0.1:54321";
+/** The local Supabase CLI's default REST API port. */
+const LOCAL_SUPABASE_PORT = "54321";
 
 export class MissingTestServerKeyError extends Error {
   constructor() {
@@ -28,12 +30,61 @@ export class MissingTestServerKeyError extends Error {
   }
 }
 
+/**
+ * Thrown by {@link createTestClient} instead of ever building a privileged
+ * client against a non-local target. `SUPABASE_URL` is environment-derived
+ * (see below) — a leftover export from unrelated remote work (e.g.
+ * V0.3_002F's rollout) plus a present server key would otherwise be enough
+ * to point every fixture helper in this file at a real project. No network
+ * call happens before this check (V0.3_003D hardening).
+ */
+export class UnsafeTestTargetError extends Error {
+  constructor(url: string) {
+    super(
+      `createTestClient refused to build a privileged Supabase client against a non-local target ("${url}"). ` +
+        "This test scaffolding may only run against the local Supabase stack " +
+        `(${LOCAL_URL} or http://localhost:${LOCAL_SUPABASE_PORT}) — never a remote/hosted project, a different ` +
+        "port, or a LAN address, even with a valid server key present. Unset SUPABASE_URL or point it at your " +
+        "local stack."
+    );
+    this.name = "UnsafeTestTargetError";
+  }
+}
+
+/**
+ * True only for an explicit loopback-local Supabase URL on the local
+ * stack's own default port (`http://127.0.0.1:54321` or
+ * `http://localhost:54321`) — exact hostname AND port match, deliberately
+ * narrower than "any localhost port": a stray `SUPABASE_URL` pointing at
+ * some other local service on a different port must not silently pass this
+ * check either. Never true for a production/hosted project URL, a LAN
+ * address, or any `https:` scheme, however it was supplied.
+ */
+export function isLoopbackSupabaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:") return false;
+    if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") return false;
+    return parsed.port === LOCAL_SUPABASE_PORT;
+  } catch {
+    return false;
+  }
+}
+
+/** The exact URL `createTestClient()` resolves to and safety-checks — a single source, so the check can never drift from what the client actually targets. */
+export function resolveTestSupabaseUrl(): string {
+  return process.env.SUPABASE_URL ?? LOCAL_URL;
+}
+
 export function createTestClient(): SupabaseClient {
   const serverKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serverKey) throw new MissingTestServerKeyError();
 
+  const url = resolveTestSupabaseUrl();
+  if (!isLoopbackSupabaseUrl(url)) throw new UnsafeTestTargetError(url);
+
   return createSupabaseServerClient({
-    url: process.env.SUPABASE_URL ?? LOCAL_URL,
+    url,
     serverKey,
   });
 }

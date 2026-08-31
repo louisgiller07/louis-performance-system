@@ -52,6 +52,18 @@ vi.mock("../features/checkin/CheckinForm", () => ({
   ),
 }));
 
+// TodayPlanningSummary's own behavior (states, legacy handling, error
+// isolation, /plan link) is covered by
+// src/features/planning/TodayPlanningSummary.test.tsx — TodayPage only
+// needs to prove it's wired in with the right athleteId/date.
+vi.mock("../features/planning/TodayPlanningSummary", () => ({
+  TodayPlanningSummary: ({ athleteId, date }: { athleteId: string; date: string }) => (
+    <div data-testid="today-planning-summary-stub">
+      today-planning-summary athlete={athleteId} date={date}
+    </div>
+  ),
+}));
+
 // DailyPlanPanel's own behavior is covered by
 // src/features/dailyPlan/DailyPlanPanel.test.tsx — TodayPage only needs to
 // prove it's wired in with the right date/hasCheckin/checkinRevision, and
@@ -115,6 +127,23 @@ describe("TodayPage", () => {
 
     expect(screen.getByText("Daily Check-in")).toBeInTheDocument();
     expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent(`checkin-form athlete=athlete-1 date=${expectedDate}`);
+  });
+
+  it("renders TodayPlanningSummary wired with athleteId and the canonical date (K)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
+    const expectedDate = todayLocal();
+
+    renderTodayPage();
+
+    expect(screen.getByTestId("today-planning-summary-stub")).toHaveTextContent(`today-planning-summary athlete=athlete-1 date=${expectedDate}`);
+  });
+
+  it("keeps Prévu aujourd'hui (Planning) and Daily Plan (Head Coach decision) as distinct, coexisting sections (J)", () => {
+    renderTodayPage();
+
+    expect(screen.getByTestId("today-planning-summary-stub")).toBeInTheDocument();
+    expect(screen.getByText("Daily Plan")).toBeInTheDocument();
   });
 
   it("renders the real DailyPlanPanel, wired with the canonical date, hasCheckin=false and checkinRevision=0 initially", () => {

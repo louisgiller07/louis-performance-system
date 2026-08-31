@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
 import { CheckinForm } from "../features/checkin/CheckinForm";
+import { TodayPlanningSummary } from "../features/planning/TodayPlanningSummary";
 import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
 import { CompletedSessionCard } from "../features/completedSession/CompletedSessionCard";
 import type { LiveDailyPlanContext } from "../features/dailyPlan/DailyPlanPanel";
@@ -72,6 +73,8 @@ export function TodayPage() {
           <p className="mt-1 text-lg font-semibold capitalize text-gray-900">{friendlyDate}</p>
           <p className="mt-0.5 font-mono text-xs text-gray-400">{canonicalDate}</p>
         </section>
+
+        {athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-900">Daily Check-in</h2>

@@ -277,6 +277,13 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
     expect(screen.queryByText("STRENGTH_A")).not.toBeInTheDocument();
   });
 
+  it("A2: an unmapped/unknown runtime session_type falls back to a generic safe label, never the raw enum", () => {
+    const row = { planned_date: "2026-09-01", session_type: "SOME_FUTURE_ENUM_VALUE", intervention: null, planned_intent: null } as unknown as PlannedSessionRow;
+    render(<Harness initialRow={row} />);
+    expect(screen.getByText("Séance planifiée (ancienne)")).toBeInTheDocument();
+    expect(screen.queryByText("SOME_FUTURE_ENUM_VALUE")).not.toBeInTheDocument();
+  });
+
   it("B: opening it never fabricates/preselects a rich kind, and explains why", () => {
     render(<Harness initialRow={legacyRow()} initialExpanded />);
     expect(screen.getByLabelText("Séance")).toHaveValue("");
