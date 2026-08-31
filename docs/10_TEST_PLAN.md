@@ -541,9 +541,9 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 
 ---
 
-## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B CLOSED / PASS — 2026-08-31 ; V0.3_003C CLOSED / PASS — 2026-08-31 ; V0.3_003D/E NOT STARTED)
+## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B CLOSED / PASS — 2026-08-31 ; V0.3_003C CLOSED / PASS — 2026-08-31 ; V0.3_003D CLOSED / PASS — 2026-08-31 ; V0.3_003E NOT STARTED)
 
-**Statut : T15 CLOSED / PASS (2026-08-31) ; T16 CLOSED / PASS (2026-08-31) ; T17-T18 contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
+**Statut : T15 CLOSED / PASS (2026-08-31) ; T16 CLOSED / PASS (2026-08-31) ; T17 CLOSED / PASS (2026-08-31) ; T18 contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
 
 ### T15. Planning data-access (V0.3_003B — CLOSED / PASS, 2026-08-31)
 - Chargement/upsert/édition/suppression réels sous RLS locale (athlète propre uniquement) — `planningRepo.integration.test.ts` tests A-D, PASS
@@ -571,13 +571,20 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 - Arithmétique calendaire `addDays` : bornes mois/année/année bissextile — `date.test.ts`, PASS
 - **Contrat d'exécution** : `web` par défaut 473 passed/9 skipped (482 total, 35 fichiers) ; `web` complet avec opt-in 482/482 PASS ; `head-coach-engine` 359/359 ; edge 9/9. Voir `docs/11_DECISION_LOG.md` (2026-08-31 — V0.3_003C).
 
-### T17. Today intégration + régressions e2e (V0.3_003D — NOT STARTED)
-- Résumé "Prévu aujourd'hui" distingue non-planifié / REST explicite / séance explicite, jamais l'inférence de fallback présentée comme intention athlète ; preuve qu'il recharge l'intention courante à chaque montage, aucun cache de planification persistant across navigation
-- Chaîne réelle bout-en-bout : row planificateur → `daily-run` réel → `RawContext.planned_session` → arbitrage inchangé → `DailyPlan.{planned_session_before,final_session}` riche → persistance : `decisions.daily_plan.planned_session_before` (JSONB, source de vérité riche) **et** `decisions.planned_session_before` (colonne dénormalisée coarse, projection uniquement — jamais confondue avec la source riche) → rendu `DailyPlanView` existant (qui lit toujours l'objet riche, jamais la colonne dénormalisée)
-- **Cas protocole de course** : intention planifiée `DH_TECHNICAL` un jour où le protocole T-X recommande `RACE_ACTIVITY` → `final_session` reflète l'arbitrage réel, mais `planned_session_before` (riche, dans `daily_plan`, et dénormalisé coarse) reste exactement l'intention brute originale, jamais substituée par `baseline`/`raceProtocol.recommended_session` — preuve directe que l'intention athlète brute survit même quand le protocole de course l'emporte
-- DELETE → repli T-X/inférence inchangé ; REST explicite → intention honorée ; force planifiée → branche Nutrition existante activée ; DH planifié → comportement Technique existant inchangé ; jour de course en cours → arbitrage course existant toujours prioritaire
+### T17. Today intégration + régressions e2e (V0.3_003D — CLOSED / PASS, 2026-08-31)
+- Résumé "Prévu aujourd'hui" (lecture seule, `TodayPlanningSummary.tsx`) distingue non-planifié / REST explicite / séance explicite / legacy coarse sûr / enum inconnu sûr, jamais l'inférence de fallback présentée comme intention athlète — `TodayPlanningSummary.test.tsx`, `TodayPage.test.tsx`, PASS
+- Défaut de cohérence 003C corrigé en revue : `PlanningDayCard.tsx` ne retombe plus jamais sur l'enum brut `row.session_type` pour une row legacy non mappée — régression ajoutée dans `PlanningDayCard.test.tsx`, PASS
+- **Chaîne réelle bout-en-bout, exécutée contre une vraie stack Supabase locale (aucun mock)** : `t17_planningE2E.integration.test.ts`, via `runDailyFor(admin, athleteId, date)` directement (même pattern que `buildRawContext.integration.test.ts`/`runDailyFor.integration.test.ts`, jamais l'Edge Function HTTP `daily-run`) : row planificateur → `RawContext.planned_session` → arbitrage réel inchangé → `DailyPlan.{planned_session_before,final_session}` riche → persistance : `decisions.daily_plan.planned_session_before` (JSONB, source de vérité riche) **et** `decisions.planned_session_before` (colonne dénormalisée coarse, projection uniquement — jamais confondue avec la source riche), chaque décision identifiée par `result.persistence.decision_id`
+- Jamais planifié — `planned_session=null`, `INFERENCE_FALLBACK`, `final_session` = split hebdomadaire déterministe exact, PASS
+- Planifié puis supprimé — scénario distinct du précédent, converge vers le même contrat no-intent (DELETE ≠ REST), PASS
+- REST explicite — survit intact DB→RawContext→persistance, `final_session.kind="REST"` sous conditions neutres, PASS
+- `STRENGTH_LOWER`/`HEAVY` planifié — charge préservée de bout en bout, branche Nutrition force existante activée (`NUTRITION_POLICY.baselineHydrationTargetL`), aucune règle Nutrition modifiée, PASS
+- `DH_TECHNICAL`/`MODERATE` planifié — domaine Technique existant activé sous conditions neutres, aucune règle Technique modifiée, PASS
+- **Cas protocole de course (régression critique)** : intention planifiée `DH_TECHNICAL`/`MODERATE` + course réelle du jour (`event_start=event_end=today`) → `final_session.kind="RACE_ACTIVITY"` (coarse persisté `"RACE_PREP"`) reflète l'arbitrage réel, mais `planned_session_before` (riche, mémoire et `daily_plan` persisté, et dénormalisé coarse `"DH_TECHNICAL"`) reste exactement l'intention brute originale, jamais substituée — preuve empirique directe (pas seulement auditée) que l'intention athlète brute survit même quand le protocole de course l'emporte, PASS
+- **Garde cible locale forte, infrastructure de test partagée** : `head-coach-engine/tests/supabase/testDb.ts`'s `createTestClient()` refuse un client privilégié contre toute cible autre que `http://127.0.0.1:54321`/`http://localhost:54321` (hôte et port stricts), avant toute mutation — corrige une lacune pré-existante sur tous les fichiers d'intégration `head-coach-engine` — `testDbSafety.test.ts` (17 tests) + preuve négative empirique dans `t17_planningE2E.integration.test.ts` (URL de production + opt-in + clé valides ⇒ les 6 scénarios destructifs restent SKIPPED), PASS
 - Aucune nouvelle assertion de contenu de coaching — T11/T12/T13/T14 restent seuls propriétaires des chaînes exactes
 - Suites gelées M1-M4/T11-T14/web existantes toujours vertes
+- **Contrat d'exécution final** : `web` par défaut **485 passed / 9 skipped** (494 total, 36 fichiers) ; `web` complet avec opt-in **494/494 PASS** ; `head-coach-engine` avec clé locale sans opt-in T17 **378 passed / 6 skipped** (384 total) ; avec opt-in T17 **384/384 PASS** ; edge **9/9**. Voir `docs/11_DECISION_LOG.md` (2026-08-31 — V0.3_003D).
 
 ### T18. Rollout production (V0.3_003E — NOT STARTED)
 - Build/déploiement web réel sur `nalynt`/`louis-performance-system`
