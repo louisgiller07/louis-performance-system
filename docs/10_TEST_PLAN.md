@@ -541,17 +541,20 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 
 ---
 
-## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B/C/D/E NOT STARTED)
+## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B CLOSED / PASS — 2026-08-31 ; V0.3_003C/D/E NOT STARTED)
 
-**Statut : contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
+**Statut : T15 CLOSED / PASS (2026-08-31) ; T16-T18 contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
 
-### T15. Planning data-access (V0.3_003B — NOT STARTED)
-- Chargement/upsert/édition/suppression réels sous RLS locale (athlète propre uniquement)
-- Isolation inter-athlète réelle (jamais de lecture/écriture croisée)
-- Remplacement par unicité `(athlete_id, planned_date)` — un upsert remplace, ne duplique jamais
-- `source='manual'`, `intervention` toujours renseigné, `planned_intent` toujours `NULL`, les 5 colonnes engine-inertes jamais référencées
-- **Préservation empiriquement prouvée (verrouillée en 003A)** : un upsert planificateur omettant `primary_objective`/`notes`/`planned_duration_min`/`planned_time_of_day`/`training_block_id` préserve leur valeur préexistante sur conflit — ce test devient la régression permanente de ce qui a été vérifié manuellement en 003A
-- Mapping `session_type` réutilisant `trainingInterventionToSessionType.ts` — test-only comparé à `head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts` (import source direct, frontière déjà prouvée V0.3_002F) sur les 16 kinds
+### T15. Planning data-access (V0.3_003B — CLOSED / PASS, 2026-08-31)
+- Chargement/upsert/édition/suppression réels sous RLS locale (athlète propre uniquement) — `planningRepo.integration.test.ts` tests A-D, PASS
+- Isolation inter-athlète réelle (jamais de lecture/écriture croisée) — tests E-G, PASS
+- Remplacement par unicité `(athlete_id, planned_date)` — un upsert remplace, ne duplique jamais — test C, PASS ; unicité par-athlète (jamais globale) — test H, PASS
+- `source='manual'`, `intervention` toujours renseigné, `planned_intent` toujours `NULL`, les 5 colonnes engine-inertes jamais référencées — test B + `planningRepo.test.ts` (payload de save), PASS
+- **Préservation empiriquement prouvée devenue régression permanente** : un upsert planificateur omettant `primary_objective`/`notes`/`planned_duration_min`/`planned_time_of_day`/`training_block_id` préserve leur valeur préexistante sur conflit — bloc `OMIT AND PRESERVE` dédié dans `planningRepo.integration.test.ts`, PASS
+- Mapping `session_type` réutilisant `trainingInterventionToSessionType.ts` — `planningMappingParity.test.ts`, import source direct de `head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts` (frontière déjà prouvée V0.3_002F), 16 kinds, PASS
+- Guard de code (pas seulement UI) : `RACE_ACTIVITY` et tout couple `(kind, load_profile)` invalide rejetés avant tout appel réseau — `planningValidation.test.ts` + `planningRepo.test.ts`, PASS
+- **Cible locale forte** : la suite RLS destructive est gated par opt-in explicite (`RUN_LOCAL_SUPABASE_INTEGRATION=1` + clé serveur + URL résolue explicitement loopback locale) — une URL de production ne peut jamais l'activer, prouvé sans mutation production
+- **Contrat d'exécution final** : `web` par défaut **415 passed / 9 skipped** (424 total, aucune stack Supabase requise) ; fichier d'intégration Planning avec opt-in local **18/18 PASS** (9 tests RLS réels authentifiés + 9 régressions pures de la garde cible locale, sans réseau) ; `web` complet avec opt-in **424/424 PASS** ; `head-coach-engine` **359/359** ; edge **9/9**. Voir `docs/11_DECISION_LOG.md` (2026-08-31 — V0.3_003B).
 
 ### T16. Web planning workflow (V0.3_003C — NOT STARTED)
 - Rendu 7 jours glissants, création/édition/suppression par carte

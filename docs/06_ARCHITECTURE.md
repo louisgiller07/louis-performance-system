@@ -578,9 +578,9 @@ Planificateur hebdomadaire, debrief course post-mortem structuré, runtime `Acti
 
 ---
 
-## V0.3_003 — Planning / Session Intent (ARCHITECTURE V0.3_003A LOCKED — 2026-08-31 ; V0.3_003B/C/D/E NOT STARTED)
+## V0.3_003 — Planning / Session Intent (V0.3_003A ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B DATA-ACCESS CLOSED LOCALLY — 2026-08-31 ; V0.3_003C/D/E NOT STARTED)
 
-**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B/C/D/E NOT STARTED.**
+**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B (data-access/write path) CLOSED LOCALLY (2026-08-31) — V0.3_003C/D/E NOT STARTED.**
 
 ### Objectif produit
 
@@ -624,9 +624,21 @@ Toute row écrite par le planificateur V0.3_003 fixe explicitement `planned_inte
 
 Le planificateur réutilise `web/src/features/dailyPlan/trainingInterventionToSessionType.ts` (`mapTrainingInterventionToSessionType`) — déjà le miroir documenté exact de `head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts`, déjà utilisé côté lecture. Aucune nouvelle table de mapping, aucune duplication supplémentaire. Stratégie de régression : un test *test-only* comparant directement les deux fonctions (import source direct de `head-coach-engine/src/**` depuis un fichier de test web, suivant exactement la frontière déjà prouvée en V0.3_002F — jamais en code de production) sur l'union complète des 16 kinds.
 
-### Architecture d'écriture — verrouillée
+### Architecture d'écriture — implémentée (V0.3_003B, 2026-08-31)
 
-CRUD Supabase authentifié direct sous la policy RLS déjà existante — **aucune nouvelle Edge Function, aucune nouvelle RPC, aucun accès `service_role` navigateur**. `web/src/features/planning/planningRepo.ts` reproduit exactement le pattern déjà établi et testé de `web/src/features/checkin/checkinRepo.ts` (client RLS-scopé uniquement, `.upsert(..., {onConflict:"athlete_id,planned_date"})`, classes d'erreur typées, aucune fuite de message PostgREST brut). Payload exact : écrit explicitement `athlete_id`/`planned_date`/`session_type`/`intervention`/`planned_intent=null`/`source="manual"` ; omet (OMIT AND PRESERVE, prouvé ci-dessus) les cinq colonnes hors périmètre. Justifié par : `decisions` nécessitait un verrou `service_role` précisément parce que c'est un historique immuable ; `planned_sessions` a été conçue dès la baseline comme intention mutable athlète (`source DEFAULT 'manual'`), et la policy RLS `athlete_id`-scopée est déjà l'unique autorité nécessaire — ajouter une Edge Function serait une symétrie non justifiée.
+CRUD Supabase authentifié direct sous la policy RLS déjà existante — **aucune nouvelle Edge Function, aucune nouvelle RPC, aucun accès `service_role` navigateur**. Implémenté (`1b11750`, `feat: add V0.3_003B planning data access`, durci par `9ed4fa6`, `test: harden V0.3_003B planning integration tests`, puis `5ee6dfc`, `test: harden planning local integration target`) : `web/src/features/planning/planningRepo.ts` reproduit exactement le pattern déjà établi et testé de `web/src/features/checkin/checkinRepo.ts` (client RLS-scopé uniquement — `supabase` de `lib/supabase.ts`, jamais un client `service_role` —, `.upsert(..., {onConflict:"athlete_id,planned_date"})`, classes d'erreur typées `PlanningLoadError`/`PlanningSaveError`/`PlanningDeleteError`, aucune fuite de message PostgREST brut). Payload exact confirmé dans le code : écrit explicitement `athlete_id`/`planned_date`/`session_type` (via `mapTrainingInterventionToSessionType` réutilisé, aucune duplication)/`intervention`/`planned_intent=null`/`source="manual"` ; omet (OMIT AND PRESERVE) les cinq colonnes hors périmètre. `validatePlannedIntervention` (`planningValidation.ts`) rejette `RACE_ACTIVITY` et tout couple `(kind, load_profile)` invalide **avant tout appel réseau** — garde de code, pas seulement restriction UI. Justifié par : `decisions` nécessitait un verrou `service_role` précisément parce que c'est un historique immuable ; `planned_sessions` a été conçue dès la baseline comme intention mutable athlète (`source DEFAULT 'manual'`), et la policy RLS `athlete_id`-scopée est déjà l'unique autorité nécessaire — ajouter une Edge Function serait une symétrie non justifiée.
+
+### V0.3_003B — clôture locale, preuve de test (2026-08-31)
+
+Fichiers de production (3, tous nouveaux) : `web/src/features/planning/{planningRepo,planningTypes,planningValidation}.ts`. Fichiers de test (4, tous nouveaux) : `planningRepo.test.ts` (unitaire, client mocké), `planningValidation.test.ts` (unitaire, catalogue complet des 15 kinds plannables), `planningMappingParity.test.ts` (régression test-only, import source direct de `head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts`, 16 kinds), `planningRepo.integration.test.ts` (RLS réelle, stack Supabase locale réelle).
+
+**Contrat d'exécution des tests** : un `npm test` normal dans `web/` reste self-contained — la suite RLS locale réelle (9 tests) est gated par un opt-in explicite à trois conditions : `RUN_LOCAL_SUPABASE_INTEGRATION === "1"` ET une clé serveur présente (`SUPABASE_SECRET_KEY` ou `SUPABASE_SERVICE_ROLE_KEY`) ET l'URL Supabase résolue par le client admin explicitement loopback locale (`http://127.0.0.1:...`/`http://localhost:...`), via `describe.skipIf` (Vitest natif, aucun changement `vitest.config.ts`/`package.json`). **Garde cible locale forte** : une URL de production/hébergée ne peut jamais activer la suite destructive, même avec opt-in et clé serveur valides — prouvé de bout en bout sans mutation production (`SUPABASE_URL` pointé sur le projet réel de production + opt-in + clé valides ⇒ les 9 tests RLS restent SKIPPED). Résultat par défaut : `web` **415 passed / 9 skipped** (424 total, 32 fichiers). Avec opt-in local explicite : fichier d'intégration Planning **18/18 PASS** (9 tests RLS réels + 9 régressions pures de la logique de garde, ces dernières toujours actives sans réseau) ; `web` complet **424/424 PASS**.
+
+Couverture RLS réelle prouvée (authentification réelle via `signInWithPassword`, jamais `service_role` pour les assertions comportementales) : CRUD athlète-propre, isolation inter-athlète (lecture/écriture/suppression croisées bloquées), unicité par athlète (jamais globale), et **OMIT AND PRESERVE** devenu régression permanente réelle.
+
+**Durcissement additionnel** (`9ed4fa6`, `5ee6dfc`) : suppression d'un exemple de commande non sûre dans le commentaire du fichier de test au profit de la discipline déjà établie (sortie CLI porteuse de secret redirigée vers un fichier temporaire, jamais affichée) ; correction d'un défaut de harnais de test (`createSignedInTestAthlete` laissait un utilisateur `auth` local orphelin si l'insertion `athletes` échouait après création de l'utilisateur — corrigé) ; ajout de la garde cible locale forte ci-dessus. Aucun changement de comportement produit/runtime.
+
+Moteur strictement inchangé : `head-coach-engine` build PASS, **359/359**, edge **9/9**, `ENGINE_VERSION` inchangé. Aucune migration, aucun déploiement remote, aucune action Vercel. `/plan` et l'intégration `/today` restent V0.3_003C/D — **NOT STARTED**.
 
 ### GRANT `anon` hérité
 

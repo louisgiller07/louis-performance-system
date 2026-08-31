@@ -1950,3 +1950,37 @@ V0.3_003A = CLOSED / ARCHITECTURE LOCKED
 V0.3_003 (ensemble) = IN PROGRESS
 V0.3_003B/C/D/E = NOT STARTED
 Prochain jalon = V0.3_003B — data-access/write path
+
+---
+
+## 2026-08-31 — V0.3_003B : Planning data-access CLOSED LOCALLY
+
+**Contexte** : V0.3_003A (entrée ci-dessus) a verrouillé l'architecture. Cette entrée clôt l'implémentation réelle du data-access/write path, incluant sa preuve de sécurité finale.
+
+**Décision** :
+1. Implémentation (`1b1175042c2822c57c5ac229ffee7ee84b6a0f3d`, `feat: add V0.3_003B planning data access`, 7 fichiers nouveaux : 3 production + 4 test) + durcissement intégration (`9ed4fa68ff0e4ebf87427a8515fcde258b7ce3c2`, `test: harden V0.3_003B planning integration tests`) + durcissement cible locale (`5ee6dfc1e284a641ffb423795f4734021cc03018`, `test: harden planning local integration target`) poussés sur `origin/main`.
+2. Production : `web/src/features/planning/{planningRepo,planningTypes,planningValidation}.ts`. Test : `planningRepo.test.ts`, `planningValidation.test.ts`, `planningMappingParity.test.ts`, `planningRepo.integration.test.ts`. Aucun autre fichier de production Planning introduit.
+3. Architecture confirmée par le code réel : CRUD Supabase authentifié direct sous la RLS `planned_sessions_own_data` existante — aucune Edge Function/RPC nouvelle, aucun `service_role` côté web (`planningRepo.ts` reproduit exactement `checkinRepo.ts`).
+4. Sémantique d'écriture implémentée conformément à 003A : upsert `(athlete_id, planned_date)` ; `session_type` via `mapTrainingInterventionToSessionType` réutilisé (zéro duplication) ; `intervention` toujours renseigné après validation ; `planned_intent=NULL` systématique ; `source='manual'` systématique ; `RACE_ACTIVITY` et tout couple `(kind, load_profile)` invalide rejetés déterministiquement en code (`validatePlannedIntervention`, avant tout appel réseau) ; cinq colonnes engine-inertes (`primary_objective`, `planned_duration_min`, `planned_time_of_day`, `training_block_id`, `notes`) omises, jamais mises à `NULL`. DELETE (absence de row) reste distinct de REST explicite (row `{kind:"REST"}`) — deux états jamais confondus.
+5. **OMIT AND PRESERVE devenu régression permanente réelle** : `planningRepo.integration.test.ts` (stack Supabase locale réelle, athlète scratch authentifié réel, aucun mock) confirme que les cinq colonnes hors périmètre survivent intactes à une sauvegarde authentifiée.
+6. **Preuve RLS réelle authentifiée** : CRUD athlète-propre (chargement, insertion, remplacement upsert, suppression) et isolation inter-athlète (SELECT/INSERT/UPDATE/DELETE croisés tous bloqués — une suppression croisée ne supprime jamais la row cible) via de vrais clients utilisateur authentifiés (`signInWithPassword`), jamais le client admin/`service_role` pour les assertions comportementales — celui-ci ne sert qu'à la mise en place/au nettoyage des fixtures scratch.
+7. **Contrat d'exécution des tests verrouillé** : la suite RLS locale réelle (9 tests) est gated par un opt-in explicite à trois conditions — `RUN_LOCAL_SUPABASE_INTEGRATION === "1"` ET une clé serveur présente ET l'URL Supabase résolue par le client admin explicitement loopback locale — via `describe.skipIf` (Vitest natif, aucun changement `vitest.config.ts`/`package.json`). Un `npm test` normal dans `web/` reste self-contained et ne requiert jamais une stack Supabase locale.
+8. **Garde cible locale forte (fait canonique)** : la suite RLS destructive de Planning est hard-bound à une cible Supabase loopback et ne peut jamais s'exécuter contre une URL de production/non-locale, même avec un opt-in valide et une clé serveur valide — prouvé de bout en bout sans aucune mutation de production (URL de production + opt-in + clé valides ⇒ les 9 tests RLS restent SKIPPED). Neuf régressions pures et sans réseau exercent directement la logique de la garde.
+9. **Durcissement des secrets** : un exemple de commande non sûre dans le commentaire du fichier de test a été retiré, remplacé par la discipline déjà établie (sortie CLI porteuse de secret redirigée vers un fichier temporaire, jamais affichée, fichier supprimé après extraction).
+10. **Défaut de harnais de test corrigé** : `createSignedInTestAthlete` laissait un utilisateur `auth` local orphelin si l'insertion de la row `athletes` échouait après création de l'utilisateur — corrigé par suppression de l'utilisateur orphelin avant re-lancement de l'erreur d'origine. Défaut de harnais de test uniquement, aucun impact comportement produit/runtime — **aucun défaut de comportement Planning en production trouvé**.
+11. Résultats de test finaux : `web` par défaut **415 passed / 9 skipped** (424 total, 32 fichiers, aucune stack Supabase requise) ; fichier d'intégration Planning avec opt-in local **18/18 PASS** (9 tests RLS réels + 9 régressions pures de la garde cible locale) ; `web` complet avec opt-in **424/424 PASS** ; `head-coach-engine` build PASS, **359/359** ; `npm run test:edge` **9/9**.
+12. Aucune migration, aucune Edge Function, aucun déploiement remote (Supabase ou Vercel) sur ce jalon — toute la preuve RLS est locale.
+13. Moteur strictement inchangé : `head-coach-engine/src/**` non touché, `DailyPlan` inchangé, `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_002d`).
+14. `/plan` (UI) et l'intégration `/today` restent V0.3_003C/D — **NOT STARTED**. V0.3_003C devient le prochain jalon concret.
+
+**Alternatives considérées** :
+- Exclure la suite RLS via `vitest.config.ts`/un script `package.json` séparé — **REJETÉE** : `describe.skipIf` en interne du fichier de test est le mécanisme le plus étroit possible, sans toucher la configuration partagée du projet.
+- Gate sur la seule présence d'une clé serveur et d'un opt-in, sans vérifier la cible réelle — **REJETÉE après audit de sécurité dédié** : `SUPABASE_URL` peut rediriger le client admin vers un projet réel sans que l'opt-in/la clé seuls ne le révèlent ; la garde de cible loopback ferme ce risque.
+
+**Impact** : `docs/00_PROJECT_STATUS.md`, `docs/04_DAILY_DECISION_ENGINE.md`, `docs/05_DATA_MODEL.md`, `docs/06_ARCHITECTURE.md` (§V0.3_003), `docs/10_TEST_PLAN.md` (§T15), `docs/12_BACKLOG.md`. Aucun changement `head-coach-engine/src/**`, `head-coach-engine/tests/supabase/testDb.ts`, `supabase/migrations/**`, `longitudinal-engine/**`.
+
+**Statut** :
+V0.3_003B = CLOSED LOCALLY
+V0.3_003 (ensemble) = IN PROGRESS
+V0.3_003C/D/E = NOT STARTED
+Prochain jalon = V0.3_003C — web weekly planner
