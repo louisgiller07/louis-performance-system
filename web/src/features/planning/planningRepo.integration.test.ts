@@ -14,8 +14,19 @@
  * head-coach-engine/tests/supabase/*.integration.test.ts can stand in for
  * this: they only ever use createTestClient(), i.e. admin/service_role).
  *
- * Run with, e.g.:
- *   SUPABASE_SECRET_KEY="$(npx supabase status -o env | grep SECRET_KEY | cut -d'"' -f2)" npm test
+ * OPT-IN ONLY — a normal `npm test` in web/ must stay self-contained and
+ * must never require a running local Supabase stack. This whole suite is
+ * skipped unless BOTH of the following are set in the environment:
+ *   RUN_LOCAL_SUPABASE_INTEGRATION=1
+ *   SUPABASE_SECRET_KEY (or the legacy SUPABASE_SERVICE_ROLE_KEY)
+ * A missing opt-in must show up as SKIPPED in the report, never as a
+ * silent pass or a hard failure.
+ *
+ * Run through the repository's established safe local-Supabase test
+ * environment; credential-bearing CLI output (e.g. `supabase status -o
+ * env`) must be redirected to temporary storage and never printed — see
+ * head-coach-engine/tests/supabase/testDb.ts's own header comment for the
+ * same discipline.
  *
  * The web app's own vitest.config.ts stubs VITE_SUPABASE_URL/
  * VITE_SUPABASE_PUBLISHABLE_KEY to dummy non-local values globally (see
@@ -31,13 +42,23 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // planningMappingParity.test.ts / DailyPlanView.enriched.test.tsx).
 import { createTestClient, deleteTestAthlete, type TestAthlete } from "../../../../head-coach-engine/tests/supabase/testDb.js";
 
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Explicit two-part opt-in: an environment can carry a server key for
+// unrelated reasons (e.g. a shell left over from another task) without that
+// alone activating a suite that creates/deletes real local auth users.
+const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY;
+
 const LOCAL_URL = "http://127.0.0.1:54321";
-// The Supabase CLI's well-known, non-secret default local anon key —
-// identical for every local `supabase init` install, published by
-// `supabase status` and compiled into the OSS CLI itself (role: anon,
-// iss: supabase-demo). Same non-secret treatment as testDb.ts's LOCAL_URL.
-// Overridable via SUPABASE_ANON_KEY for a non-default local setup.
+// LOCAL DEV / PUBLIC — never a secret. The Supabase CLI's well-known
+// default local anon key: identical for every local `supabase init`
+// install, published by `supabase status`, and compiled into the OSS CLI
+// itself (decodes to role: anon, iss: supabase-demo). Same non-secret
+// treatment as testDb.ts's LOCAL_URL. Overridable via
+// SUPABASE_PUBLISHABLE_KEY (preferred) or SUPABASE_ANON_KEY (legacy) for a
+// non-default local setup, mirroring src/lib/supabase.ts's own preference
+// order.
 const LOCAL_ANON_KEY =
+  process.env.SUPABASE_PUBLISHABLE_KEY ??
   process.env.SUPABASE_ANON_KEY ??
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
@@ -63,12 +84,17 @@ async function createSignedInTestAthlete(admin: SupabaseClient, name: string): P
   const userId = userData.user.id;
 
   const { error: athleteError } = await admin.from("athletes").insert({ id: athleteId, user_id: userId, name });
-  if (athleteError) throw new Error(`createSignedInTestAthlete: athletes insert failed: ${athleteError.message}`);
+  if (athleteError) {
+    // Avoid leaving an orphaned local auth-user fixture behind when the
+    // athletes insert fails after the auth user was already created.
+    await admin.auth.admin.deleteUser(userId);
+    throw new Error(`createSignedInTestAthlete: athletes insert failed: ${athleteError.message}`);
+  }
 
   return { athleteId, userId, email, password };
 }
 
-describe("planningRepo — real local Supabase RLS integration (V0.3_003B)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS integration (V0.3_003B)", () => {
   let admin: SupabaseClient;
   let athleteA: SignedInTestAthlete;
   let athleteB: SignedInTestAthlete;
