@@ -23,6 +23,23 @@ export function todayLocal(timeZone?: string): string {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Adds `days` calendar days to a `YYYY-MM-DD` date, returning `YYYY-MM-DD`.
+ * Calendar-day arithmetic on the Y/M/D components (via `Date.setDate`, which
+ * correctly rolls over months/years/leap days) — never `+ days * 86400000`,
+ * which is wrong the moment a DST transition falls inside the range.
+ */
+export function addDays(dateISO: string, days: number): string {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 const CALENDAR_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", { day: "numeric", month: "long" });
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { todayLocal } from "./date";
+import { addDays, todayLocal } from "./date";
 
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,5 +41,31 @@ describe("todayLocal", () => {
 
   it("uses the runtime's default timezone when none is given", () => {
     expect(todayLocal()).toMatch(DATE_FORMAT);
+  });
+});
+
+describe("addDays", () => {
+  it("adds days within the same month", () => {
+    expect(addDays("2026-08-01", 6)).toBe("2026-08-07");
+  });
+
+  it("rolls over a month boundary", () => {
+    expect(addDays("2026-08-28", 6)).toBe("2026-09-03");
+  });
+
+  it("rolls over a year boundary", () => {
+    expect(addDays("2026-12-28", 6)).toBe("2027-01-03");
+  });
+
+  it("rolls over a leap-day boundary (2028 is a leap year)", () => {
+    expect(addDays("2028-02-27", 2)).toBe("2028-02-29");
+  });
+
+  it("rolls February 28 into March 1 on a non-leap year", () => {
+    expect(addDays("2026-02-28", 1)).toBe("2026-03-01");
+  });
+
+  it("supports zero days (identity)", () => {
+    expect(addDays("2026-08-19", 0)).toBe("2026-08-19");
   });
 });

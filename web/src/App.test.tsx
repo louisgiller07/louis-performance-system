@@ -23,4 +23,14 @@ describe("App routing", () => {
     render(<App />);
     await waitFor(() => expect(screen.getByLabelText(/email/i)).toBeInTheDocument());
   });
+
+  // V0.3_003C — proves /plan is actually wired behind RequireAuth in
+  // App.tsx (a real risk: a missed/typo'd wrap would silently expose the
+  // route), mirroring the existing /insights case above.
+  it("redirects an unauthenticated visitor at /plan to /login", async () => {
+    getSession.mockResolvedValue({ data: { session: null } });
+    window.history.pushState({}, "", "/plan");
+    render(<App />);
+    await waitFor(() => expect(screen.getByLabelText(/email/i)).toBeInTheDocument());
+  });
 });

@@ -4,13 +4,14 @@ import { MemoryRouter } from "react-router-dom";
 import { AppNav } from "./AppNav";
 
 describe("AppNav", () => {
-  it("renders both tabs linking to /today and /history", () => {
+  it("renders all tabs linking to /today, /plan, and /history", () => {
     render(
       <MemoryRouter initialEntries={["/today"]}>
         <AppNav />
       </MemoryRouter>
     );
     expect(screen.getByRole("link", { name: "Aujourd'hui" })).toHaveAttribute("href", "/today");
+    expect(screen.getByRole("link", { name: "Plan" })).toHaveAttribute("href", "/plan");
     expect(screen.getByRole("link", { name: "Historique" })).toHaveAttribute("href", "/history");
   });
 

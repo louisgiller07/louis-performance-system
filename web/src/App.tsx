@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
 import { LoginPage } from "./auth/LoginPage";
 import { TodayPage } from "./pages/TodayPage";
+import { PlanPage } from "./pages/PlanPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { HistoryDetailPage } from "./pages/HistoryDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
@@ -18,6 +19,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <TodayPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/plan"
+            element={
+              <RequireAuth>
+                <PlanPage />
               </RequireAuth>
             }
           />
