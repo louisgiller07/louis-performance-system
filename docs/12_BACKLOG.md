@@ -2,11 +2,11 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** **V0.3_003 — Planning / Session Intent : IN PROGRESS (depuis 2026-08-31), V0.3_003A CLOSED / ARCHITECTURE LOCKED, V0.3_003B (data-access/write path) CLOSED LOCALLY (2026-08-31).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** **V0.3_003 — Planning / Session Intent : IN PROGRESS (depuis 2026-08-31), V0.3_003A CLOSED / ARCHITECTURE LOCKED, V0.3_003B (data-access/write path) CLOSED LOCALLY, V0.3_003C (web planning workflow) CLOSED LOCALLY (2026-08-31).** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
 **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D/E/F **tous CLOSED** (2026-08-28/29/30/30/30) — voir ci-dessous et `docs/11_DECISION_LOG.md`.
-**V0.3_003 — Planning / Session Intent : IN PROGRESS (depuis 2026-08-31).** V0.3_003A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_003B (data-access/write path) **CLOSED LOCALLY** (2026-08-31) ; V0.3_003C/D/E **NOT STARTED** — voir ci-dessous et `docs/11_DECISION_LOG.md`.
-**Phase actuelle : V0.3_003 IN PROGRESS.** V0.3_003A (architecture) **CLOSED**, V0.3_003B (data-access/write path) **CLOSED LOCALLY** (2026-08-31). Prochain jalon concret : **V0.3_003C — web weekly planner** (`/plan`), portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_003. `ActiveExperiment` reste le candidat suivant après V0.3_003, différé mais non annulé. V0.3_002 reste **COMPLETE** comme historique clos.
+**V0.3_003 — Planning / Session Intent : IN PROGRESS (depuis 2026-08-31).** V0.3_003A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_003B (data-access/write path) **CLOSED LOCALLY** ; V0.3_003C (web planning workflow) **CLOSED LOCALLY** (2026-08-31) ; V0.3_003D/E **NOT STARTED** — voir ci-dessous et `docs/11_DECISION_LOG.md`.
+**Phase actuelle : V0.3_003 IN PROGRESS.** V0.3_003A (architecture) **CLOSED**, V0.3_003B (data-access/write path) **CLOSED LOCALLY**, V0.3_003C (web planning workflow, `/plan`) **CLOSED LOCALLY** (2026-08-31, implémenté et committé localement, pas encore déployé en production). Prochain jalon concret : **V0.3_003D — Today integration + e2e regressions**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_003. `ActiveExperiment` reste le candidat suivant après V0.3_003, différé mais non annulé. V0.3_002 reste **COMPLETE** comme historique clos.
 
 ---
 
@@ -441,6 +441,29 @@ Toute implémentation de code (`planningRepo.ts`, `/plan`, intégration `/today`
 ### Explicitement hors périmètre V0.3_003B (reporté aux slices suivantes)
 
 Route `/plan`, tout composant UI de planification, intégration `/today`, tout déploiement — restent V0.3_003C/D/E.
+
+---
+
+## V0.3_003C — Planning / Session Intent, web planning workflow (CLOSED LOCALLY, 2026-08-31)
+
+- [x] Implémentation + durcissement (`5c66385`, `feat: add V0.3_003C web planning workflow`) poussés sur `origin/main`
+- [x] Route authentifiée `/plan` (`web/src/pages/PlanPage.tsx`, `RequireAuth`) + entrée `AppNav` "Plan" (Aujourd'hui → Plan → Historique → Insights)
+- [x] Horizon aujourd'hui→J+6 (7 jours), arithmétique calendaire locale navigateur (`addDays`, `web/src/lib/date.ts`)
+- [x] Sélecteur natif `<select>`/`<optgroup>` sur les 15 kinds plannables, `RACE_ACTIVITY` jamais exposé
+- [x] 11 kinds à charge variable exigent un choix explicite HEAVY/MODERATE/LIGHT (aucun défaut) ; 4 kinds à charge fixe sans sélecteur de charge
+- [x] Libellés français réutilisés (`TRAINING_KIND_LABELS`/`LOAD_PROFILE_LABELS`), aucune duplication de mapping
+- [x] "Non planifié" (aucune row) vs "Repos" (REST explicite, sauvegardé par le chemin normal, jamais par suppression) — deux états jamais confondus
+- [x] `PlanPage` = source de vérité canonique des rows persistées ; `PlanningDayCard` = brouillon/édition uniquement ; brouillon non sauvegardé jamais affiché comme persisté ; échec de mutation laisse l'éditeur ouvert avec un message sûr
+- [x] Durcissement course contre la montre asynchrone inter-jours : une mutation résolue après changement de jour ne referme jamais un autre jour
+- [x] Row legacy `intervention=NULL` : label coarse réutilisé (`SESSION_TYPE_LABELS`), aucune intention riche fabriquée, sélection explicite requise pour remplacer, suppression toujours disponible
+- [x] Durcissement mobile : navigation à 4 items et actions de l'éditeur adaptées aux écrans étroits
+- [x] Couverture de test paramétrée 11/11 kinds variables + 4/4 kinds fixes (catalogue jamais dupliqué)
+- [x] Tests finaux : `web` 473 pass/9 skip par défaut ; `web` opt-in complet 482/482 ; `head-coach-engine` 359/359 ; edge 9/9
+- [x] Aucune migration, aucun déploiement remote (Supabase ou Vercel), `ENGINE_VERSION` inchangé — implémenté et committé localement uniquement
+
+### Explicitement hors périmètre V0.3_003C (reporté aux slices suivantes)
+
+Résumé "Prévu aujourd'hui" sur `/today`, intégration `/today`↔`/plan`, tout déploiement production — restent V0.3_003D/E.
 
 ---
 

@@ -578,9 +578,9 @@ Planificateur hebdomadaire, debrief course post-mortem structuré, runtime `Acti
 
 ---
 
-## V0.3_003 — Planning / Session Intent (V0.3_003A ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B DATA-ACCESS CLOSED LOCALLY — 2026-08-31 ; V0.3_003C/D/E NOT STARTED)
+## V0.3_003 — Planning / Session Intent (V0.3_003A ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B DATA-ACCESS CLOSED LOCALLY — 2026-08-31 ; V0.3_003C WEB PLANNING WORKFLOW CLOSED LOCALLY — 2026-08-31 ; V0.3_003D/E NOT STARTED)
 
-**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B (data-access/write path) CLOSED LOCALLY (2026-08-31) — V0.3_003C/D/E NOT STARTED.**
+**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B (data-access/write path) CLOSED LOCALLY (2026-08-31) — V0.3_003C (web planning workflow) CLOSED LOCALLY (2026-08-31) — V0.3_003D/E NOT STARTED.**
 
 ### Objectif produit
 
@@ -638,7 +638,19 @@ Couverture RLS réelle prouvée (authentification réelle via `signInWithPasswor
 
 **Durcissement additionnel** (`9ed4fa6`, `5ee6dfc`) : suppression d'un exemple de commande non sûre dans le commentaire du fichier de test au profit de la discipline déjà établie (sortie CLI porteuse de secret redirigée vers un fichier temporaire, jamais affichée) ; correction d'un défaut de harnais de test (`createSignedInTestAthlete` laissait un utilisateur `auth` local orphelin si l'insertion `athletes` échouait après création de l'utilisateur — corrigé) ; ajout de la garde cible locale forte ci-dessus. Aucun changement de comportement produit/runtime.
 
-Moteur strictement inchangé : `head-coach-engine` build PASS, **359/359**, edge **9/9**, `ENGINE_VERSION` inchangé. Aucune migration, aucun déploiement remote, aucune action Vercel. `/plan` et l'intégration `/today` restent V0.3_003C/D — **NOT STARTED**.
+Moteur strictement inchangé : `head-coach-engine` build PASS, **359/359**, edge **9/9**, `ENGINE_VERSION` inchangé. Aucune migration, aucun déploiement remote, aucune action Vercel. **À la clôture de V0.3_003B**, `/plan` restait différé à V0.3_003C — voir la sous-section suivante pour sa clôture réelle.
+
+### V0.3_003C — clôture locale, preuve de test (2026-08-31)
+
+Fichiers de production (3 nouveaux + 3 modifiés) : `web/src/pages/PlanPage.tsx`, `web/src/features/planning/PlanningDayCard.tsx`, `web/src/features/planning/planningKindGroups.ts` (nouveaux) ; `web/src/App.tsx` (route `/plan`), `web/src/components/AppNav.tsx` (entrée "Plan"), `web/src/lib/date.ts` (`addDays`, arithmétique calendaire sur les composantes Y/M/D, jamais `+ jours × 86400000`) (modifiés). Fichiers de test (3 nouveaux + 3 modifiés en miroir) : `PlanPage.test.tsx`, `PlanningDayCard.test.tsx`, `planningKindGroups.test.ts` ; `App.test.tsx`, `AppNav.test.tsx`, `date.test.ts`. Implémenté (`5c66385`, `feat: add V0.3_003C web planning workflow`, incluant le durcissement pré-commit du même commit).
+
+**Contrat produit implémenté** : route authentifiée `/plan` (`RequireAuth`, même pattern que `/today`/`/history`/`/insights`), entrée `AppNav` "Plan" (ordre Aujourd'hui → Plan → Historique → Insights), horizon aujourd'hui→J+6 (exactement 7 jours, `addDays`/`todayLocal`, sémantique calendaire locale navigateur, jamais UTC). Sélecteur natif `<select>`/`<optgroup>` (4 groupes de présentation, `planningKindGroups.ts`) sur les 15 kinds plannables ; `RACE_ACTIVITY` jamais exposé. Les 11 kinds à charge variable exigent un choix explicite HEAVY/MODERATE/LIGHT (aucun défaut) ; les 4 kinds à charge fixe (`MOBILITY`/`RECOVERY_ACTIVE`/`REST`/`BIKE_MAINTENANCE`) n'affichent aucun sélecteur de charge. Libellés français réutilisés depuis `TRAINING_KIND_LABELS`/`LOAD_PROFILE_LABELS` (`dailyPlanLabels.ts`) — aucune duplication de mapping. "Non planifié" (aucune row) et "Repos" (row `{kind:"REST"}` explicite, sauvegardée par le chemin normal `savePlannedSession`, jamais par suppression) restent deux états visuellement distincts.
+
+**Contrat d'état confirmé implémenté** : `PlanPage` est l'unique source de vérité en mémoire des rows persistées pour les 7 dates ; `PlanningDayCard` ne porte que son état de brouillon/édition (kind/load en cours de saisie, état de sauvegarde) — jamais une copie indépendante de "ce qui est persisté". Un brouillon non sauvegardé n'est jamais affiché comme persisté. Une mutation réussie ne met à jour l'affichage qu'après confirmation serveur (aucune mise à jour optimiste avant confirmation) ; une mutation échouée laisse l'éditeur ouvert, le brouillon intact, l'affichage persisté inchangé, et montre un message sûr — jamais un message PostgREST brut (seules les erreurs typées `PlanningSaveError`/`PlanningDeleteError`/`InvalidPlannedInterventionError` du dépôt sont affichées verbatim ; toute autre exception, ex. un échec réseau brut, est masquée par un message générique). **Durcissement course contre la montre asynchrone inter-jours** : une mutation qui se résout après que l'athlète a déjà ouvert un autre jour ne referme plus ce dernier — seul le jour ayant réellement produit la mutation se referme.
+
+**Compatibilité row legacy `intervention=NULL`** : une row antérieure à M2_003 (coarse `session_type` seul, sans `intervention` riche) est affichée via le label français coarse existant réutilisé (`SESSION_TYPE_LABELS`, `completedSessionTypes.ts` — jamais l'enum brut `STRENGTH_A` etc. affiché à l'athlète). Ouvrir une telle row pour édition ne fabrique jamais un `kind`/`load_profile` riche inventé : le sélecteur démarre non sélectionné, une note explique la situation, et une sélection explicite est requise avant sauvegarde. La suppression reste disponible sans condition.
+
+Résultats de test finaux : `web` par défaut **473 passed / 9 skipped** (482 total, 35 fichiers, aucune stack Supabase requise) ; `web` complet avec opt-in **482/482 PASS**. `head-coach-engine` build PASS, **359/359** ; edge **9/9** ; `ENGINE_VERSION` inchangé. Aucune migration, aucun déploiement remote (Supabase ou Vercel) — `/plan` est implémenté et committé localement uniquement, **pas déployé en production**. Intégration `/today` (résumé "Prévu aujourd'hui") reste V0.3_003D — **NOT STARTED**.
 
 ### GRANT `anon` hérité
 
@@ -646,11 +658,11 @@ Moteur strictement inchangé : `head-coach-engine` build PASS, **359/359**, edge
 
 ### Horizon / vue web
 
-7 jours glissants (aujourd'hui → J+6) pour la première UI. La couche de données reste générique (dates arbitraires déjà supportées par `getPlannedSessionFor`) — seule l'UI v1 se limite à 7 jours. Pas de calendrier mensuel, pas de glisser-déposer, pas de génération automatique, pas d'intégration Garmin/Zwift/calendrier, pas de récurrence.
+7 jours glissants (aujourd'hui → J+6) — **implémenté (V0.3_003C, 2026-08-31)**. La couche de données reste générique (dates arbitraires déjà supportées par `getPlannedSessionFor`) — seule l'UI v1 se limite à 7 jours. Pas de calendrier mensuel, pas de glisser-déposer, pas de génération automatique, pas d'intégration Garmin/Zwift/calendrier, pas de récurrence.
 
 ### Frontière web
 
-Nouvelle route `/plan` + entrée `AppNav` "Plan" ; résumé lecture-seule "Prévu aujourd'hui" sur `/today` (aucune édition inline). Aucune modification de `dailyPlanValidation.ts`, `DailyPlanView.tsx`, `dailyPlanTypes.ts`.
+Route `/plan` + entrée `AppNav` "Plan" — **implémentées (V0.3_003C, 2026-08-31)**, committées localement, pas encore déployées en production. Résumé lecture-seule "Prévu aujourd'hui" sur `/today` (aucune édition inline) reste **V0.3_003D, NOT STARTED**. Aucune modification de `dailyPlanValidation.ts`, `DailyPlanView.tsx`, `dailyPlanTypes.ts`, `TodayPage.tsx`, `DailyPlanPanel.tsx` sur l'ensemble de V0.3_003C.
 
 ### Invalidation de plan affiché
 

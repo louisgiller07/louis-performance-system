@@ -541,9 +541,9 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 
 ---
 
-## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B CLOSED / PASS — 2026-08-31 ; V0.3_003C/D/E NOT STARTED)
+## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B CLOSED / PASS — 2026-08-31 ; V0.3_003C CLOSED / PASS — 2026-08-31 ; V0.3_003D/E NOT STARTED)
 
-**Statut : T15 CLOSED / PASS (2026-08-31) ; T16-T18 contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
+**Statut : T15 CLOSED / PASS (2026-08-31) ; T16 CLOSED / PASS (2026-08-31) ; T17-T18 contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
 
 ### T15. Planning data-access (V0.3_003B — CLOSED / PASS, 2026-08-31)
 - Chargement/upsert/édition/suppression réels sous RLS locale (athlète propre uniquement) — `planningRepo.integration.test.ts` tests A-D, PASS
@@ -556,11 +556,20 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 - **Cible locale forte** : la suite RLS destructive est gated par opt-in explicite (`RUN_LOCAL_SUPABASE_INTEGRATION=1` + clé serveur + URL résolue explicitement loopback locale) — une URL de production ne peut jamais l'activer, prouvé sans mutation production
 - **Contrat d'exécution final** : `web` par défaut **415 passed / 9 skipped** (424 total, aucune stack Supabase requise) ; fichier d'intégration Planning avec opt-in local **18/18 PASS** (9 tests RLS réels authentifiés + 9 régressions pures de la garde cible locale, sans réseau) ; `web` complet avec opt-in **424/424 PASS** ; `head-coach-engine` **359/359** ; edge **9/9**. Voir `docs/11_DECISION_LOG.md` (2026-08-31 — V0.3_003B).
 
-### T16. Web planning workflow (V0.3_003C — NOT STARTED)
-- Rendu 7 jours glissants, création/édition/suppression par carte
-- Sélecteur limité aux 15 kinds plannables, `RACE_ACTIVITY` jamais proposé
-- Sélecteur de charge affiché uniquement pour les 11 `LoadVariableKind`, absent pour les 4 `FixedLoadKind` plannables
-- États visuels distincts "Non planifié" vs "Repos" (REST explicite)
+### T16. Web planning workflow (V0.3_003C — CLOSED / PASS, 2026-08-31)
+- Route `/plan` protégée, entrée `AppNav` "Plan" — `PlanPage.test.tsx`, `App.test.tsx`, `AppNav.test.tsx`, PASS
+- Rendu 7 jours glissants (aujourd'hui→J+6), rows persistées mappées sur la bonne date — `PlanPage.test.tsx`, PASS
+- États visuels distincts "Non planifié" (aucune row) vs "Repos" (REST explicite) — `PlanPage.test.tsx`, PASS
+- Sélecteur limité aux 15 kinds plannables, `RACE_ACTIVITY` jamais proposé — `PlanningDayCard.test.tsx`, PASS
+- Les 11 `LoadVariableKind` (paramétré sur `PLANNABLE_LOAD_VARIABLE_KINDS`) exigent un choix explicite de charge ; les 4 `FixedLoadKind` plannables (paramétré sur `PLANNABLE_FIXED_LOAD_KINDS`) n'affichent aucun sélecteur — couverture 11/11 + 4/4 réelle, catalogue jamais dupliqué dans les tests — `PlanningDayCard.test.tsx`, PASS
+- Create/edit/delete via `planningRepo` (mocké, 003B reste seul propriétaire de la preuve RLS réelle) — `PlanningDayCard.test.tsx`, PASS
+- Suppression → "Non planifié", jamais "Repos" ; sauvegarde REST → "Repos" explicite via le chemin de sauvegarde normal — `PlanningDayCard.test.tsx`, PASS
+- Invariant charge périmée : changement de kind efface toujours la charge en brouillon ; édition sans changement de kind préremplit la charge persistée — `PlanningDayCard.test.tsx`, PASS
+- Row legacy `intervention=NULL` : label coarse français affiché (jamais l'enum brut), aucune intention riche fabriquée à l'ouverture, remplacement exige une sélection explicite, suppression toujours disponible — `PlanningDayCard.test.tsx`, PASS
+- Ownership canonique : `PlanPage` détient les rows persistées, `PlanningDayCard` ne porte que le brouillon ; sauvegarde/suppression réussie met à jour l'état canonique et referme l'éditeur ; échec laisse l'éditeur ouvert, le brouillon intact, l'affichage persisté inchangé, avec un message sûr — `PlanPage.test.tsx` + `PlanningDayCard.test.tsx`, PASS
+- Durcissement course contre la montre asynchrone inter-jours : une mutation résolue après changement de jour ne referme jamais l'éditeur d'un autre jour — `PlanPage.test.tsx`, PASS
+- Arithmétique calendaire `addDays` : bornes mois/année/année bissextile — `date.test.ts`, PASS
+- **Contrat d'exécution** : `web` par défaut 473 passed/9 skipped (482 total, 35 fichiers) ; `web` complet avec opt-in 482/482 PASS ; `head-coach-engine` 359/359 ; edge 9/9. Voir `docs/11_DECISION_LOG.md` (2026-08-31 — V0.3_003C).
 
 ### T17. Today intégration + régressions e2e (V0.3_003D — NOT STARTED)
 - Résumé "Prévu aujourd'hui" distingue non-planifié / REST explicite / séance explicite, jamais l'inférence de fallback présentée comme intention athlète ; preuve qu'il recharge l'intention courante à chaque montage, aucun cache de planification persistant across navigation
