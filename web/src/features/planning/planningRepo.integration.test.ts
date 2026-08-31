@@ -16,11 +16,29 @@
  *
  * OPT-IN ONLY — a normal `npm test` in web/ must stay self-contained and
  * must never require a running local Supabase stack. This whole suite is
- * skipped unless BOTH of the following are set in the environment:
+ * skipped unless ALL of the following are true:
  *   RUN_LOCAL_SUPABASE_INTEGRATION=1
- *   SUPABASE_SECRET_KEY (or the legacy SUPABASE_SERVICE_ROLE_KEY)
- * A missing opt-in must show up as SKIPPED in the report, never as a
- * silent pass or a hard failure.
+ *   SUPABASE_SECRET_KEY (or the legacy SUPABASE_SERVICE_ROLE_KEY) is set
+ *   the admin client's resolved URL is loopback-local (see below)
+ * A missing opt-in, a missing key, or a non-loopback resolved URL must all
+ * show up as SKIPPED in the report, never as a silent pass or a hard
+ * failure.
+ *
+ * HARD LOOPBACK GUARD — this suite creates/deletes real auth users and
+ * database rows via createTestClient() (testDb.ts), whose URL resolves
+ * from `process.env.SUPABASE_URL ?? <local default>` — i.e. it is NOT
+ * hardcoded local and can be redirected by whatever SUPABASE_URL happens
+ * to be set in the shell (e.g. a leftover export from unrelated remote
+ * rollout work elsewhere in this repo's history). RUN_LOCAL_SUPABASE_INTEGRATION=1
+ * plus a present server key is therefore NOT by itself a safe boundary —
+ * the key could just as easily be a real project's key. INTEGRATION_ENABLED
+ * below additionally requires the exact same URL createTestClient() would
+ * resolve to be explicitly loopback (127.0.0.1/localhost) BEFORE the
+ * describe block below — and therefore before any mutation — is allowed
+ * to run. A resolved production/non-local URL is never rewritten to
+ * local; the suite simply stays skipped. This file owns LOCAL RLS
+ * integration only — there is no flag that runs it against remote; remote
+ * scratch verification is exclusively a future V0.3_003E concern.
  *
  * Run through the repository's established safe local-Supabase test
  * environment; credential-bearing CLI output (e.g. `supabase status -o
@@ -42,11 +60,83 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // planningMappingParity.test.ts / DailyPlanView.enriched.test.tsx).
 import { createTestClient, deleteTestAthlete, type TestAthlete } from "../../../../head-coach-engine/tests/supabase/testDb.js";
 
+/** True only for an explicit loopback-local Supabase URL (http://127.0.0.1 or http://localhost, any port). Never true for a production/hosted project URL, however it was supplied. */
+export function isLoopbackSupabaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" && (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost");
+  } catch {
+    return false;
+  }
+}
+
+/** Pure composition of the full opt-in gate — kept as a standalone function so it can be exercised directly by the always-on safety-gate tests below without spawning a second instance of the real suite under different env. */
+export function computeIntegrationEnabled(
+  optInFlag: string | undefined,
+  serverKey: string | undefined,
+  resolvedAdminUrl: string
+): boolean {
+  return optInFlag === "1" && !!serverKey && isLoopbackSupabaseUrl(resolvedAdminUrl);
+}
+
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-// Explicit two-part opt-in: an environment can carry a server key for
+// Mirrors testDb.ts's createTestClient() URL precedence EXACTLY
+// (process.env.SUPABASE_URL ?? its own local default) so this gate can
+// never diverge from what the admin client actually resolves to.
+const RESOLVED_ADMIN_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+// Explicit three-part opt-in: an environment can carry a server key for
 // unrelated reasons (e.g. a shell left over from another task) without that
-// alone activating a suite that creates/deletes real local auth users.
-const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY;
+// alone activating a suite that creates/deletes real auth users — and a
+// present key/opt-in pair must never be trusted to be local without also
+// checking where it actually points.
+const INTEGRATION_ENABLED = computeIntegrationEnabled(
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION,
+  SERVER_KEY,
+  RESOLVED_ADMIN_URL
+);
+
+// Always-on, pure-logic regression for the gate itself — no network, no
+// scratch fixtures, runs in every `npm test` regardless of opt-in. Proves
+// the safety property directly rather than only by inspection: a resolved
+// production/hosted URL can never enable the suite, even with a valid
+// opt-in flag and a present server key.
+describe("planningRepo integration — local-target safety gate (always-on, no network)", () => {
+  it("accepts http://127.0.0.1:54321 as loopback", () => {
+    expect(isLoopbackSupabaseUrl("http://127.0.0.1:54321")).toBe(true);
+  });
+
+  it("accepts http://localhost:54321 as loopback", () => {
+    expect(isLoopbackSupabaseUrl("http://localhost:54321")).toBe(true);
+  });
+
+  it("rejects the real production Supabase project URL", () => {
+    expect(isLoopbackSupabaseUrl("https://uvolpldwwyvadlamulvr.supabase.co")).toBe(false);
+  });
+
+  it("rejects an arbitrary non-loopback https URL", () => {
+    expect(isLoopbackSupabaseUrl("https://example.supabase.co")).toBe(false);
+  });
+
+  it("rejects a malformed URL", () => {
+    expect(isLoopbackSupabaseUrl("not-a-url")).toBe(false);
+  });
+
+  it("enables only when opt-in, a server key, and a loopback URL are all present", () => {
+    expect(computeIntegrationEnabled("1", "some-key", "http://127.0.0.1:54321")).toBe(true);
+  });
+
+  it("stays disabled against the real production project URL, even with opt-in and a key", () => {
+    expect(computeIntegrationEnabled("1", "some-key", "https://uvolpldwwyvadlamulvr.supabase.co")).toBe(false);
+  });
+
+  it("stays disabled when the opt-in flag is missing", () => {
+    expect(computeIntegrationEnabled(undefined, "some-key", "http://127.0.0.1:54321")).toBe(false);
+  });
+
+  it("stays disabled when no server key is present", () => {
+    expect(computeIntegrationEnabled("1", undefined, "http://127.0.0.1:54321")).toBe(false);
+  });
+});
 
 const LOCAL_URL = "http://127.0.0.1:54321";
 // LOCAL DEV / PUBLIC — never a secret. The Supabase CLI's well-known
