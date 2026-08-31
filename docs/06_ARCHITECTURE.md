@@ -575,3 +575,93 @@ Le déploiement remote est intervenu uniquement après revue/clôture locale de 
 ### Hors périmètre explicite V0.3_002
 
 Planificateur hebdomadaire, debrief course post-mortem structuré, runtime `ActiveExperiment` (T9), pit-routine précise (C2.2) sans `race_phase` fiable, coaching post-erreur en direct (C2.3), retest/outcome de drill technique, Garmin/Zwift/Strava, LLM, Couche D, nouvelle migration/table de profil en base.
+
+---
+
+## V0.3_003 — Planning / Session Intent (ARCHITECTURE V0.3_003A LOCKED — 2026-08-31 ; V0.3_003B/C/D/E NOT STARTED)
+
+**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B/C/D/E NOT STARTED.**
+
+### Objectif produit
+
+Donner à l'athlète un chemin produit réel pour définir son intention d'entraînement future (`planned_sessions`), remplaçant la saisie hors-bande actuelle (aucune UI n'existe aujourd'hui pour cette table). Planning est une **entrée**, jamais une nouvelle heuristique de coaching : le moteur consomme déjà `RawContext.planned_session` exactement comme documenté (`docs/04_DAILY_DECISION_ENGINE.md` §1/§5) — ce jalon ne modifie aucun fichier `head-coach-engine/src/**`.
+
+### Frontière moteur frozen
+
+`head-coach-engine/src/**` reste strictement inchangé sur l'ensemble de V0.3_003. Chaîne déjà tracée et confirmée réelle : `planned_sessions` row → `getPlannedSessionFor` (`plannedSessionsRepo.ts`, sélectionne `session_type, intervention, planned_intent` uniquement) → `mapPlannedSessionRow` (`intervention` JSONB prioritaire, jamais l'inversion legacy pour les rows écrites par ce planificateur) → `RawContext.planned_session` → arbitrage Training (`baseline = raceProtocol ?? planned_session ?? fallback`) → `DailyPlan.{planned_session_before, final_session}` (riche, `TrainingIntervention`) → persistance : `decisions.daily_plan` (JSONB, source de vérité riche complète) + `decisions.{planned_session_before, final_session}` (projection dénormalisée coarse `DbSessionType`, `mapTrainingInterventionToDbSessionType`) → `DailyPlanView.tsx` (carte "Prévu vs Aujourd'hui" déjà existante, qui lit toujours l'objet `DailyPlan` riche — réponse `daily-run` fraîche ou `decisions.daily_plan` relu pour `/history` — jamais les colonnes dénormalisées directement). `ENGINE_VERSION` reste `head-coach-engine@0.2.0-m1-v0.3_002d`.
+
+### Contrat schéma existant — verrouillé, non redessiné
+
+Aucune migration. Schéma `planned_sessions` déjà suffisant (vérifié depuis les migrations réelles, pas déduit des noms) : `UNIQUE (athlete_id, planned_date)` (`unique_planned_per_day`, présente depuis la baseline — au plus une séance planifiée par athlète par jour) ; RLS `planned_sessions_own_data` (`FOR ALL`, `athlete_id IN (SELECT athletes.id FROM athletes WHERE athletes.user_id = auth.uid())`) déjà correctement permissive pour un athlète authentifié sur ses propres rows ; `source public.session_source DEFAULT 'manual'` — la table anticipait déjà une saisie manuelle athlète dès la baseline V0.2. `intervention jsonb NULL` (M2_003) reste la source de vérité prioritaire en lecture ; toute row écrite par le planificateur V0.3_003 la renseigne systématiquement (jamais le chemin d'inversion legacy `invertDbSessionType`, réservé aux rows antérieures à M2_003).
+
+### Intention brute athlète vs baseline moteur — distinction précise, preuve source
+
+`RawContext.planned_session` = **intention brute athlète-authored**, chargée telle quelle depuis `planned_sessions`. `baseline` (`buildDailyPlan.ts`) = **variable locale uniquement**, jamais persistée en tant que telle, jamais partie du type `DailyPlan` : `raceProtocol.recommended_session ?? ctx.planned_session ?? inferFallbackSession(...)`. Preuve source exacte (`buildDailyPlan.ts:302`) : `DailyPlan.planned_session_before` est assigné **directement depuis `ctx.planned_session`**, jamais depuis `baseline`. Conséquence garantie **quand `ctx.planned_session` existe** : même si le protocole de course T-X l'emporte sur l'arbitrage réel (`baseline = raceProtocol.recommended_session`), `DailyPlan.planned_session_before` reste l'intention brute originale, jamais substituée. Exemple concret audité : intention planifiée `DH_TECHNICAL`/`MODERATE` un jour où le protocole recommande `RACE_ACTIVITY` → `final_session ≈ RACE_ACTIVITY` (arbitrage réel), mais `planned_session_before = DH_TECHNICAL`/`MODERATE` (intention brute intacte) et `decision = "REPLACE"` (`comparisonBase = ctx.planned_session ?? baseline` lit aussi l'intention brute en priorité, ligne 213). **Quand `ctx.planned_session` est absent** (aucune row `planned_sessions` ce jour-là), `planned_session_before` est légitimement `null` — le fallback (T-X ou inférence T6.1) ne "supplante" alors aucune intention athlète existante, puisqu'aucune n'existe pour ce jour.
+
+### Mutabilité — intention vs décision
+
+`planned_sessions` = **intention mutable** (upsert sur `(athlete_id, planned_date)`, édition/suppression légitimes jusqu'à exécution). `decisions` = **historique de décision append-only**, inchangé. Distinction précise (auditée depuis `dailyPlanToDecisionRow.ts`) : `decisions.daily_plan` (JSONB) est la source de vérité riche complète — elle contient `dailyPlan.planned_session_before` (donc l'intention brute athlète du run, quand elle existait) et `dailyPlan.final_session`, tous deux en `TrainingIntervention` riche exacts. `decisions.planned_session_before`/`decisions.final_session` (colonnes dénormalisées top-level) ne sont qu'une **projection coarse `DbSessionType`** de ces mêmes valeurs, pour compatibilité/requêtage — jamais la source complète. Éditer une row `planned_sessions` live **après coup** ne modifie et ne peut modifier aucune décision déjà persistée : quand une intention brute existait au moment du run, elle reste intacte dans `daily_plan.planned_session_before` de cette décision, quoi que devienne ensuite la row `planned_sessions` correspondante. Aucune UPDATE n'est jamais introduite sur `decisions`. Aucune ledger de révision `planned_sessions` n'est introduite — l'unicité `(athlete_id, planned_date)` rend un tel ledger non pertinent pour le scope V0.3_003. **Aucun changement `DailyPlan`/moteur n'est requis** pour cet historique : l'architecture existante satisfait déjà, sans modification, l'invariant le plus fort raisonnable ici.
+
+### Contrat DELETE vs REST explicite
+
+Absence de row pour `(athlete_id, planned_date)` ⇒ `RawContext.planned_session = null` ⇒ le moteur retombe sur le protocole T-X ou l'inférence de fallback (comportement M1 existant, inchangé) — il n'y a alors aucune intention athlète à "supplanter". Une row explicite `{kind:"REST"}` ⇒ intention de repos réellement déclarée, soumise au même arbitrage que toute autre intention planifiée (REST n'est jamais privilégié artificiellement). L'UI ne doit jamais confondre ces deux états — distinction verrouillée : **"Non planifié"** (aucune row) vs **"Repos"** (row `REST` explicite) comme deux états visuellement distincts.
+
+### Contrat `planned_intent`
+
+Toute row écrite par le planificateur V0.3_003 fixe explicitement `planned_intent = NULL`. Justification (audit réel du seul consommateur en production, `buildDailyPlan.ts` §Head Coach Arbitration) : `planned_intent` ne pilote qu'une seule chose — accepter une dérogation à une soft constraint `strong` de mode (ex. conserver `GRIP_WORK` planifié malgré `RACE_WEEK`/`no_grip_heavy`) plutôt que de laisser le moteur pivoter la séance. L'UI V0.3_003 ne collecte aucun texte de justification pour une telle dérogation — laisser une valeur périmée survivre à une édition risquerait une dérogation invisible et non voulue par l'athlète. Fixer `NULL` retire uniquement une capacité de dérogation (repli sur le comportement conservateur "contrainte appliquée"), ne fabrique jamais de dérogation. Un futur jalon pourra exposer ce champ explicitement s'il devient utile.
+
+### Colonnes hors périmètre V0.3_003 — préservation empiriquement prouvée
+
+`primary_objective`, `planned_duration_min`, `planned_time_of_day`, `notes`, `training_block_id` : confirmées non lues par le moteur (`getPlannedSessionFor` ne sélectionne que `session_type, intervention, planned_intent`). Le planificateur V0.3_003 ne les écrit ni ne les efface — politique délibérée "non touché, le moteur n'en a pas besoin", distincte du traitement de `planned_intent` ci-dessus précisément parce que ces cinq colonnes n'ont aujourd'hui aucune conséquence comportementale, quelle que soit leur valeur.
+
+**Contrat verrouillé : OMIT AND PRESERVE, empiriquement prouvé (2026-08-31)** — un test local réel (stack Supabase locale réelle, athlète scratch sanctionné via `head-coach-engine/tests/supabase/testDb.ts`, aucun mock, supabase-js `2.112.3`) a confirmé que l'upsert exact proposé pour le planificateur (payload omettant ces cinq colonnes) préserve intégralement toute valeur préexistante sur ces colonnes lors d'un conflit `(athlete_id, planned_date)`, tout en mettant correctement à jour `session_type`/`intervention`, en remettant `planned_intent` à `NULL`, et en conservant `source='manual'`. Ce n'est donc pas une hypothèse issue de la documentation `supabase-js`/PostgREST, mais un résultat vérifié directement contre le comportement réel — la régression permanente correspondante est prévue en V0.3_003B (T15).
+
+### Catalogue des kinds — plannable par l'athlète vs moteur uniquement
+
+`TrainingInterventionKind` compte 16 valeurs réelles (`head-coach-engine/src/types/trainingIntervention.ts`) : 11 `LoadVariableKind` + 5 `FixedLoadKind`. **15 sont plannables par l'athlète** : `STRENGTH_LOWER`, `STRENGTH_UPPER`, `STRENGTH_FULL_LIGHT`, `POWER`, `GRIP_WORK`, `AEROBIC_BASE`, `AEROBIC_INTERVALS`, `DH_TECHNICAL`, `DH_PERFORMANCE`, `DH_LIGHT`, `PUMPTRACK`, `MOBILITY`, `RECOVERY_ACTIVE`, `REST`, `BIKE_MAINTENANCE`. **`RACE_ACTIVITY` est exclusivement moteur** (dérivé du protocole T-X/course en cours, `raceProtocol.ts`) — jamais proposé dans le sélecteur athlète. Pour les 11 `LoadVariableKind`, l'UI propose HEAVY/MODERATE/LIGHT (`LoadProfile` existant, aucune nouvelle sémantique) ; pour les 4 `FixedLoadKind` plannables, aucun sélecteur de charge n'est affiché (le type ne l'autorise pas — `parseTrainingIntervention.ts` rejette un `load_profile` présent sur un kind fixe).
+
+### Mapping vers `session_type` (coarse)
+
+Le planificateur réutilise `web/src/features/dailyPlan/trainingInterventionToSessionType.ts` (`mapTrainingInterventionToSessionType`) — déjà le miroir documenté exact de `head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts`, déjà utilisé côté lecture. Aucune nouvelle table de mapping, aucune duplication supplémentaire. Stratégie de régression : un test *test-only* comparant directement les deux fonctions (import source direct de `head-coach-engine/src/**` depuis un fichier de test web, suivant exactement la frontière déjà prouvée en V0.3_002F — jamais en code de production) sur l'union complète des 16 kinds.
+
+### Architecture d'écriture — verrouillée
+
+CRUD Supabase authentifié direct sous la policy RLS déjà existante — **aucune nouvelle Edge Function, aucune nouvelle RPC, aucun accès `service_role` navigateur**. `web/src/features/planning/planningRepo.ts` reproduit exactement le pattern déjà établi et testé de `web/src/features/checkin/checkinRepo.ts` (client RLS-scopé uniquement, `.upsert(..., {onConflict:"athlete_id,planned_date"})`, classes d'erreur typées, aucune fuite de message PostgREST brut). Payload exact : écrit explicitement `athlete_id`/`planned_date`/`session_type`/`intervention`/`planned_intent=null`/`source="manual"` ; omet (OMIT AND PRESERVE, prouvé ci-dessus) les cinq colonnes hors périmètre. Justifié par : `decisions` nécessitait un verrou `service_role` précisément parce que c'est un historique immuable ; `planned_sessions` a été conçue dès la baseline comme intention mutable athlète (`source DEFAULT 'manual'`), et la policy RLS `athlete_id`-scopée est déjà l'unique autorité nécessaire — ajouter une Edge Function serait une symétrie non justifiée.
+
+### GRANT `anon` hérité
+
+`GRANT ALL ... TO anon` existe depuis la baseline V0.2, inerte (RLS bloque toute ligne pour `auth.uid()=NULL`). Dette héritée, non spécifique à V0.3_003, non corrigée par une migration dans ce jalon sauf découverte d'un défaut de sécurité réel.
+
+### Horizon / vue web
+
+7 jours glissants (aujourd'hui → J+6) pour la première UI. La couche de données reste générique (dates arbitraires déjà supportées par `getPlannedSessionFor`) — seule l'UI v1 se limite à 7 jours. Pas de calendrier mensuel, pas de glisser-déposer, pas de génération automatique, pas d'intégration Garmin/Zwift/calendrier, pas de récurrence.
+
+### Frontière web
+
+Nouvelle route `/plan` + entrée `AppNav` "Plan" ; résumé lecture-seule "Prévu aujourd'hui" sur `/today` (aucune édition inline). Aucune modification de `dailyPlanValidation.ts`, `DailyPlanView.tsx`, `dailyPlanTypes.ts`.
+
+### Invalidation de plan affiché
+
+Aucun nouveau mécanisme requis. `web/src/App.tsx` confirme une structure `<Routes>` plate, sans layout persistant — naviguer de `/today` vers `/plan` démonte entièrement `TodayPage`/`DailyPlanPanel` (état local `useState`, jamais remonté au-dessus de la route) ; le retour sur `/today` remonte une instance fraîche, réinitialisée. Comme l'édition ne peut se faire que sur `/plan` (jamais inline sur `/today`), le scénario de plan périmé affiché après édition est structurellement impossible — invariant de conception verrouillé, à réévaluer seulement si un futur refactor introduit un layout persistant gardant `/today` monté across navigation.
+
+**Invariant d'implémentation verrouillé** : le résumé "Prévu aujourd'hui" de `/today` doit **charger l'intention planifiée courante à chaque montage** (un vrai fetch au mount, comme `checkinRepo.loadCheckin` le fait déjà pour le check-in) — jamais une valeur mise en cache entre navigations. Aucun cache de planification persistant (mémoire globale, contexte React partagé au-dessus de la route, `localStorage`, etc.) ne doit être introduit : un tel cache recréerait exactement le risque de staleness que le démontage de route élimine naturellement aujourd'hui.
+
+### Frontière race protocol
+
+Planning reste subordonné à l'arbitrage existant. Une séance planifiée par l'athlète un jour de course en cours ne prime jamais mécaniquement — le Head Coach peut toujours la remplacer selon les règles déjà existantes (protocole T-X, `race_protocol`). Aucune nouvelle heuristique de course.
+
+### V0.3_003E — contrat de clôture requis (futur)
+
+Le rollout production V0.3_003 introduit un **nouveau chemin d'écriture athlète-authentifié réel** vers `planned_sessions` — la clôture finale V0.3_003 exige donc une preuve remote empirique, pas seulement un déploiement réussi. Requis (non optionnel) à 003E :
+A. Déploiement des changements web approuvés sur le projet/scope Vercel correct actuel (commande exacte réauditée immédiatement avant usage, jamais supposée à l'avance) — cible canonique `nalynt`/`louis-performance-system` (`prj_PmxPGlFwH5beHjzMFcwV1pOAf9CS`/`team_IiWY4r1APguWS767dwqkmrHe`, `https://louis-performance-system.vercel.app`) ; **jamais** `graviacoach`/`gravia-coach` (référence M4 historique uniquement).
+B. Canary borné sur un athlète scratch authentifié réel (jamais l'athlète réel de Louis), contre le projet Supabase remote réel.
+C. Écriture d'une `planned_sessions` réelle via exactement le même contrat RLS/authentifié que le produit.
+D. Appel `daily-run` remote réel (aucun redéploiement de `daily-run` requis pour ce seul canary — le runtime `_002d` déjà déployé suffit).
+E. Preuve que le `DailyPlan` riche résultant contient la relation attendue `planned_session_before`/`final_session`.
+F. Preuve que `daily_plan.planned_session_before` persisté (JSONB, source de vérité riche) porte l'intention brute attendue — pas seulement la colonne dénormalisée.
+G. Nettoyage complet de chaque artefact scratch, absence vérifiée.
+H. Smoke web production couvrant au minimum : auth, chargement `/plan`, création, édition, DELETE/"Non planifié", REST explicite, résumé "Prévu aujourd'hui" sur `/today`, génération d'un DailyPlan depuis une séance planifiée, `/history` non affecté.
+
+### Hors périmètre explicite V0.3_003
+
+Planificateur hebdomadaire *automatique* (génération de `planned_sessions` sans saisie athlète — reste `docs/12_BACKLOG.md` §P2, concept distinct), calendrier mensuel, récurrence, glisser-déposer, `primary_objective`/`planned_duration_min`/`planned_time_of_day`/`notes`/`training_block_id` en UI, exposition de `planned_intent`, intégrations Garmin/Zwift/calendrier, `ActiveExperiment` (reste le candidat suivant après V0.3_003), toute nouvelle heuristique de coaching.

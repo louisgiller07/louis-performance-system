@@ -538,3 +538,39 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 - aucun déploiement Vercel
 
 **V0.3_002 — contrat de test complet.**
+
+---
+
+## Scénarios V0.3_003 — Planning / Session Intent (V0.3_003A CLOSED / ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B/C/D/E NOT STARTED)
+
+**Statut : contrat de test verrouillé, implémentation non commencée.** Aucun scénario `head-coach-engine` n'est requis — le moteur reste strictement inchangé, T1-T14 continuent de posséder l'intégralité des assertions de comportement moteur.
+
+### T15. Planning data-access (V0.3_003B — NOT STARTED)
+- Chargement/upsert/édition/suppression réels sous RLS locale (athlète propre uniquement)
+- Isolation inter-athlète réelle (jamais de lecture/écriture croisée)
+- Remplacement par unicité `(athlete_id, planned_date)` — un upsert remplace, ne duplique jamais
+- `source='manual'`, `intervention` toujours renseigné, `planned_intent` toujours `NULL`, les 5 colonnes engine-inertes jamais référencées
+- **Préservation empiriquement prouvée (verrouillée en 003A)** : un upsert planificateur omettant `primary_objective`/`notes`/`planned_duration_min`/`planned_time_of_day`/`training_block_id` préserve leur valeur préexistante sur conflit — ce test devient la régression permanente de ce qui a été vérifié manuellement en 003A
+- Mapping `session_type` réutilisant `trainingInterventionToSessionType.ts` — test-only comparé à `head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts` (import source direct, frontière déjà prouvée V0.3_002F) sur les 16 kinds
+
+### T16. Web planning workflow (V0.3_003C — NOT STARTED)
+- Rendu 7 jours glissants, création/édition/suppression par carte
+- Sélecteur limité aux 15 kinds plannables, `RACE_ACTIVITY` jamais proposé
+- Sélecteur de charge affiché uniquement pour les 11 `LoadVariableKind`, absent pour les 4 `FixedLoadKind` plannables
+- États visuels distincts "Non planifié" vs "Repos" (REST explicite)
+
+### T17. Today intégration + régressions e2e (V0.3_003D — NOT STARTED)
+- Résumé "Prévu aujourd'hui" distingue non-planifié / REST explicite / séance explicite, jamais l'inférence de fallback présentée comme intention athlète ; preuve qu'il recharge l'intention courante à chaque montage, aucun cache de planification persistant across navigation
+- Chaîne réelle bout-en-bout : row planificateur → `daily-run` réel → `RawContext.planned_session` → arbitrage inchangé → `DailyPlan.{planned_session_before,final_session}` riche → persistance : `decisions.daily_plan.planned_session_before` (JSONB, source de vérité riche) **et** `decisions.planned_session_before` (colonne dénormalisée coarse, projection uniquement — jamais confondue avec la source riche) → rendu `DailyPlanView` existant (qui lit toujours l'objet riche, jamais la colonne dénormalisée)
+- **Cas protocole de course** : intention planifiée `DH_TECHNICAL` un jour où le protocole T-X recommande `RACE_ACTIVITY` → `final_session` reflète l'arbitrage réel, mais `planned_session_before` (riche, dans `daily_plan`, et dénormalisé coarse) reste exactement l'intention brute originale, jamais substituée par `baseline`/`raceProtocol.recommended_session` — preuve directe que l'intention athlète brute survit même quand le protocole de course l'emporte
+- DELETE → repli T-X/inférence inchangé ; REST explicite → intention honorée ; force planifiée → branche Nutrition existante activée ; DH planifié → comportement Technique existant inchangé ; jour de course en cours → arbitrage course existant toujours prioritaire
+- Aucune nouvelle assertion de contenu de coaching — T11/T12/T13/T14 restent seuls propriétaires des chaînes exactes
+- Suites gelées M1-M4/T11-T14/web existantes toujours vertes
+
+### T18. Rollout production (V0.3_003E — NOT STARTED)
+- Build/déploiement web réel sur `nalynt`/`louis-performance-system`
+- Aucune migration, aucun redéploiement `daily-run`, aucune autre Edge Function touchée
+- Canary scratch **requis** (pas optionnel) : écriture RLS réelle → `daily-run` remote réel (runtime `_002d` déjà déployé, aucun redéploiement requis) → vérification de la relation riche `planned_session_before`/`final_session` **et** de `daily_plan.planned_session_before` persisté (JSONB riche, pas seulement la colonne dénormalisée) → nettoyage complet, absence vérifiée
+- Smoke production **requis** : auth, `/plan` (chargement, création, édition, DELETE/"Non planifié", REST explicite), résumé "Prévu aujourd'hui" sur `/today`, génération d'un DailyPlan depuis une séance planifiée, `/history` intact
+
+**V0.3_002 — contrat de test complet.**

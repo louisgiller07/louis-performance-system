@@ -2,10 +2,11 @@
 
 ## Statut actuel
 
-**Phase** : **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** Les 6 jalons (002A→002F) sont tous **CLOSED**. V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
+**Phase** : **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** **V0.3_003 — Planning / Session Intent : IN PROGRESS (depuis 2026-08-31), V0.3_003A CLOSED / ARCHITECTURE LOCKED.** V0.3_001 reste **COMPLETE (2026-08-28)** comme historique clos. M5 reste COMPLETE (2026-08-27), M4 reste COMPLETE (2026-08-19) — client web de production HTTPS. M5_006B (cycle de vie de l'evidence + détecteur sommeil-énergie même-jour) **CLOSED (local + remote), 2026-08-26**. M5_006C (détecteur de persistance de la douleur) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_006D (agrégation déterministe d'evidence effective) **CLOSED (local uniquement — zéro migration, aucun déploiement), 2026-08-27**. M5_007 (insights déterministes + ledger de revue humaine) **CLOSED (local + remote), 2026-08-27** — schéma/RPC déployés sur `uvolpldwwyvadlamulvr`. V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (tous 2026-08-28) — `submit-review` déployé `ACTIVE v1` sur `uvolpldwwyvadlamulvr`, surface web `/insights` déployée en production sur `nalynt/louis-performance-system` ; aucune écriture de revue réelle exercée en remote (zéro candidat naturel en production, aucune donnée synthétique créée — voir `docs/06_ARCHITECTURE.md` §Discipline de rollout `submit-review`). M3 : **DONE (local + remote)**. M2 : **DONE (local + remote)**. Aucun pattern appris n'influence `daily-run` ; aucun peuplement automatique de production ; `accepted_as_insight` n'active jamais le coaching.
 **V0.3_001 — Longitudinal Intelligence Runtime + Human Insight Review : COMPLETE (2026-08-28).** V0.3_001A **CLOSED LOCALLY**, V0.3_001B **CLOSED REMOTE**, V0.3_001C **CLOSED REMOTE** (voir ci-dessous et `docs/11_DECISION_LOG.md`).
 **V0.3_002 — Domain Coaching Enrichment : COMPLETE (2026-08-30).** V0.3_002A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_002B/C/D/E/F **tous CLOSED** (2026-08-28/29/30/30/30) — voir ci-dessous et `docs/11_DECISION_LOG.md`.
-**Phase actuelle : V0.3_002 COMPLETE.** Les 6 jalons (002A→002F) sont tous clos ; `daily-run` sert l'engine enrichi en production sur `uvolpldwwyvadlamulvr`. **Prochain milestone produit non encore sélectionné architecturalement** — `docs/12_BACKLOG.md` §P1/§P2 liste les catégories d'enrichissement candidates, à titre indicatif uniquement. V0.3_001 reste **COMPLETE** comme historique clos.
+**V0.3_003 — Planning / Session Intent : IN PROGRESS (depuis 2026-08-31).** V0.3_003A **CLOSED / ARCHITECTURE LOCKED** ; V0.3_003B/C/D/E **NOT STARTED** — voir ci-dessous et `docs/11_DECISION_LOG.md`.
+**Phase actuelle : V0.3_003 IN PROGRESS.** V0.3_003A (architecture) **CLOSED**. Prochain jalon concret : **V0.3_003B — data-access/write path**, portée verrouillée dans `docs/06_ARCHITECTURE.md` §V0.3_003. `ActiveExperiment` reste le candidat suivant après V0.3_003, différé mais non annulé. V0.3_002 reste **COMPLETE** comme historique clos.
 
 ---
 
@@ -404,6 +405,26 @@ Rollout remote (V0.3_002F), vérification web bout-en-bout (reportée comme gate
 
 ---
 
+## V0.3_003A — Planning / Session Intent, architecture/contrats (CLOSED / ARCHITECTURE LOCKED, 2026-08-31)
+
+- [x] Jalon parent verrouillé : V0.3_003A (architecture, ce jalon) → V0.3_003B (data-access/write path) → V0.3_003C (web weekly planner) → V0.3_003D (Today integration/régressions) → V0.3_003E (rollout production)
+- [x] Aucune migration — schéma `planned_sessions` existant (unicité `(athlete_id,planned_date)`, RLS athlète-propre déjà `FOR ALL`) confirmé suffisant
+- [x] Architecture d'écriture verrouillée — CRUD authentifié direct sous RLS existante, aucune Edge Function/RPC nouvelle
+- [x] Contrat mutabilité verrouillé, preuve source exacte (`buildDailyPlan.ts:302`) — `planned_session_before` = `ctx.planned_session` directement, jamais `baseline` ; `decisions` append-only inchangée
+- [x] DELETE vs REST explicite verrouillé comme deux états distincts
+- [x] `planned_intent` = `NULL` systématique ; 5 colonnes engine-inertes préservées (`OMIT AND PRESERVE`, empiriquement prouvé en local le 2026-08-31)
+- [x] Catalogue verrouillé — 16 kinds réels, 15 plannables, `RACE_ACTIVITY` exclu
+- [x] Mapping `session_type` réutilisé (`trainingInterventionToSessionType.ts`), aucune duplication
+- [x] Aucun mécanisme d'invalidation nouveau requis (routes à démontage confirmé) ; résumé `/today` doit recharger l'intention au montage
+- [x] Aucun changement `head-coach-engine/src/**`, aucun changement `DailyPlan`, aucun bump `ENGINE_VERSION`
+- [x] Canary remote scratch et smoke web production verrouillés comme **requis** (non optionnels) à V0.3_003E
+
+### Explicitement hors périmètre V0.3_003A (reporté aux slices suivantes)
+
+Toute implémentation de code (`planningRepo.ts`, `/plan`, intégration `/today`), tout test, tout déploiement. Planificateur hebdomadaire *automatique* (distinct — reste P2 ci-dessous), `ActiveExperiment` (candidat suivant, différé), exposition `planned_intent`, calendrier/récurrence/Garmin/Zwift.
+
+---
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)
@@ -429,7 +450,7 @@ Rollout remote (V0.3_002F), vérification web bout-en-bout (reportée comme gate
 
 ## P2 — Enrichissements ultérieurs
 - LLM couche E pour rédaction contextuelle
-- Planificateur hebdomadaire (`planned_sessions` généré automatiquement)
+- Planificateur hebdomadaire **automatique** (`planned_sessions` généré automatiquement sans saisie athlète — distinct de V0.3_003, qui est une saisie manuelle athlète ; reste ici tant qu'aucune décision de génération auto n'est architecturée)
 - Debrief course post-mortem structuré
 - Intégration Zwift (FTP + puissance)
 - Intégration Garmin (FC + sommeil détaillé)

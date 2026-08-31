@@ -85,13 +85,15 @@ Champs : readiness_score, readiness_zone, fatigue_load_7d, fatigue_zone, days_si
 
 ### `planned_sessions`
 
-Séance prévue pour un jour donné. Une par jour maximum en V0.2.
+Séance prévue pour un jour donné. Une par jour maximum (contrainte `UNIQUE (athlete_id, planned_date)`, `unique_planned_per_day`, présente depuis la baseline V0.2).
 
 Colonne `session_type` de type `DbSessionType` (enum coarse).
 
 Colonnes ajoutées en M2 (migration `M2_003`) :
 - `intervention JSONB NULL` — `TrainingIntervention` riche (`kind` + `load_profile` + éventuels `focus`/`cue`/`duration_min`). Nécessaire car le mapping `TrainingIntervention → DbSessionType` est surjectif et non inversible sans information supplémentaire. Nullable : les rows antérieures à M2 ont `intervention = NULL`. Comportement de l'adapter dans ce cas : inversion appliquée uniquement pour les mappings mathématiquement non ambigus (`REST` → `{kind: "REST"}`, `BIKE_MAINTENANCE` → `{kind: "BIKE_MAINTENANCE"}`, `RACE_PREP` → `{kind: "RACE_ACTIVITY"}`). Pour tout autre `DbSessionType` (`STRENGTH_A`, `STRENGTH_B`, `AEROBIC_BASE`, `AEROBIC_INTERVALS`, `DH_TECHNICAL`, `DH_PERFORMANCE`, `RECOVERY`), l'adapter retourne `planned_session = null` et émet un warning — le moteur active alors le fallback M1 T6.1 (inférence). **Aucune reconstruction inventée du `kind` ou du `load_profile`.**
 - `planned_intent TEXT NULL` — notes du planificateur sur pourquoi cette séance était prévue. Participe à l'arbitrage des soft constraints strong côté moteur (voir `04_DAILY_DECISION_ENGINE.md` §Head Coach Arbitration et `11_DECISION_LOG.md` round 2 du 2026-08-13). **Jamais inféré automatiquement** depuis `primary_objective` ou tout autre champ existant : l'adapter mappe uniquement la valeur explicite de cette colonne vers `RawContext.planned_intent`.
+
+**V0.3_003 (Planning / Session Intent) — architecture verrouillée (2026-08-31), implémentation NON commencée** : V0.3_003 verrouille le contrat selon lequel le planificateur athlète gérera cette table directement depuis `web/` (route `/plan`, à implémenter) via écriture authentifiée directe sous la policy RLS `planned_sessions_own_data` déjà existante (`FOR ALL`, athlète propre — aucune nouvelle policy, aucun nouveau GRANT). Contrat verrouillé pour toute row future écrite par ce planificateur, une fois implémenté : `intervention` systématiquement renseigné (jamais le chemin d'inversion legacy), `planned_intent` explicitement remis à `NULL`, `primary_objective`/`planned_duration_min`/`planned_time_of_day`/`notes`/`training_block_id` hors périmètre v1 (non lus par le moteur — voir `getPlannedSessionFor`, qui ne sélectionne que `session_type, intervention, planned_intent`) et préservés tels quels sur conflit (`OMIT AND PRESERVE`, empiriquement prouvé en local le 2026-08-31 — voir `docs/06_ARCHITECTURE.md` §V0.3_003 pour la justification complète et la preuve). **Aucune de ces écritures n'existe encore** — ce paragraphe documente le contrat verrouillé pour l'implémentation à venir (V0.3_003B/C), pas un comportement actuel.
 
 ### `completed_sessions`
 
