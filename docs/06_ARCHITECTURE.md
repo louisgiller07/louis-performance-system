@@ -578,9 +578,9 @@ Planificateur hebdomadaire, debrief course post-mortem structuré, runtime `Acti
 
 ---
 
-## V0.3_003 — Planning / Session Intent (V0.3_003A ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B DATA-ACCESS CLOSED LOCALLY — 2026-08-31 ; V0.3_003C WEB PLANNING WORKFLOW CLOSED LOCALLY — 2026-08-31 ; V0.3_003D TODAY INTEGRATION + REAL LOCAL E2E CLOSED LOCALLY — 2026-08-31 ; V0.3_003E NOT STARTED)
+## V0.3_003 — Planning / Session Intent : COMPLETE — 2026-09-02 (V0.3_003A ARCHITECTURE LOCKED — 2026-08-31 ; V0.3_003B DATA-ACCESS CLOSED LOCALLY — 2026-08-31 ; V0.3_003C WEB PLANNING WORKFLOW CLOSED LOCALLY — 2026-08-31 ; V0.3_003D TODAY INTEGRATION + REAL LOCAL E2E CLOSED LOCALLY — 2026-08-31 ; V0.3_003E PRODUCTION ROLLOUT CLOSED — 2026-09-02)
 
-**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B (data-access/write path) CLOSED LOCALLY (2026-08-31) — V0.3_003C (web planning workflow) CLOSED LOCALLY (2026-08-31) — V0.3_003D (Today integration + real local e2e) CLOSED LOCALLY (2026-08-31) — V0.3_003E NOT STARTED.**
+**Statut : V0.3_003A CLOSED / ARCHITECTURE LOCKED (2026-08-31) — V0.3_003B (data-access/write path) CLOSED LOCALLY (2026-08-31) — V0.3_003C (web planning workflow) CLOSED LOCALLY (2026-08-31) — V0.3_003D (Today integration + real local e2e) CLOSED LOCALLY (2026-08-31) — V0.3_003E (rollout production + clôture) CLOSED / PRODUCTION ROLLOUT COMPLETE (2026-09-02). V0.3_003 dans son ensemble : COMPLETE.**
 
 ### Objectif produit
 
@@ -676,7 +676,7 @@ Résultats de test finaux : `web` par défaut **485 passed / 9 skipped** (494 to
 
 ### Frontière web
 
-Route `/plan` + entrée `AppNav` "Plan" — **implémentées (V0.3_003C, 2026-08-31)**. Résumé lecture-seule "Prévu aujourd'hui" sur `/today` (aucune édition inline) — **implémenté (V0.3_003D, 2026-08-31)**. Les deux sont implémentées sur `origin/main` ; **aucune action de déploiement Vercel explicite n'a été effectuée pour l'une ou l'autre, et leur état effectif en production n'a pas été vérifié** — V0.3_003E commence par ré-auditer le mécanisme réel de déploiement (Git auto-deploy ou non) et l'état actuellement servi avant toute décision de rollout. Aucune modification de `dailyPlanValidation.ts`, `DailyPlanView.tsx`, `dailyPlanTypes.ts` sur l'ensemble de V0.3_003 ; `TodayPage.tsx` a reçu exactement une nouvelle section (V0.3_003D), `DailyPlanPanel.tsx` reste inchangé.
+Route `/plan` + entrée `AppNav` "Plan" — **implémentées (V0.3_003C, 2026-08-31)**. Résumé lecture-seule "Prévu aujourd'hui" sur `/today` (aucune édition inline) — **implémenté (V0.3_003D, 2026-08-31)**. Les deux sont désormais **déployées et servies en production** (V0.3_003E, 2026-09-02 — `dpl_HQDuP893LoDSuqxdfzWXMbABmVzT`, bundle `/assets/index-F_rQBrBr.js` confirmé contenir `/plan`/"Prévu aujourd'hui"). Aucune modification de `dailyPlanValidation.ts`, `DailyPlanView.tsx`, `dailyPlanTypes.ts` sur l'ensemble de V0.3_003 ; `TodayPage.tsx` a reçu exactement une nouvelle section (V0.3_003D), `DailyPlanPanel.tsx` reste inchangé.
 
 ### Invalidation de plan affiché
 
@@ -688,17 +688,25 @@ Aucun nouveau mécanisme requis. `web/src/App.tsx` confirme une structure `<Rout
 
 Planning reste subordonné à l'arbitrage existant. Une séance planifiée par l'athlète un jour de course en cours ne prime jamais mécaniquement — le Head Coach peut toujours la remplacer selon les règles déjà existantes (protocole T-X, `race_protocol`). Aucune nouvelle heuristique de course.
 
-### V0.3_003E — contrat de clôture requis (futur)
+### V0.3_003E — rollout production + clôture, CLOSED (2026-09-02)
 
-Le rollout production V0.3_003 introduit un **nouveau chemin d'écriture athlète-authentifié réel** vers `planned_sessions` — la clôture finale V0.3_003 exige donc une preuve remote empirique, pas seulement un déploiement réussi. Requis (non optionnel) à 003E :
-A. Déploiement des changements web approuvés sur le projet/scope Vercel correct actuel (commande exacte réauditée immédiatement avant usage, jamais supposée à l'avance) — cible canonique `nalynt`/`louis-performance-system` (`prj_PmxPGlFwH5beHjzMFcwV1pOAf9CS`/`team_IiWY4r1APguWS767dwqkmrHe`, `https://louis-performance-system.vercel.app`) ; **jamais** `graviacoach`/`gravia-coach` (référence M4 historique uniquement).
-B. Canary borné sur un athlète scratch authentifié réel (jamais l'athlète réel de Louis), contre le projet Supabase remote réel.
-C. Écriture d'une `planned_sessions` réelle via exactement le même contrat RLS/authentifié que le produit.
-D. Appel `daily-run` remote réel (aucun redéploiement de `daily-run` requis pour ce seul canary — le runtime `_002d` déjà déployé suffit).
-E. Preuve que le `DailyPlan` riche résultant contient la relation attendue `planned_session_before`/`final_session`.
-F. Preuve que `daily_plan.planned_session_before` persisté (JSONB, source de vérité riche) porte l'intention brute attendue — pas seulement la colonne dénormalisée.
-G. Nettoyage complet de chaque artefact scratch, absence vérifiée.
-H. Smoke web production couvrant au minimum : auth, chargement `/plan`, création, édition, DELETE/"Non planifié", REST explicite, résumé "Prévu aujourd'hui" sur `/today`, génération d'un DailyPlan depuis une séance planifiée, `/history` non affecté.
+Le rollout production V0.3_003 introduisait un **nouveau chemin d'écriture athlète-authentifié réel** vers `planned_sessions` — la clôture finale exigeait donc une preuve remote empirique, pas seulement un déploiement réussi. Tous les points requis ci-dessous ont été satisfaits.
+
+**Architecture de déploiement (fait constaté)** : le projet Vercel `louis-performance-system`/`nalynt` n'est **pas** connecté à Git — un push sur `origin/main` ne déclenche aucun déploiement automatique. Le seul mécanisme de déploiement est `npx vercel deploy --prod --scope nalynt` depuis `web/` (racine liée `web/.vercel/project.json`, gitignored : `prj_PmxPGlFwH5beHjzMFcwV1pOAf9CS`/`team_IiWY4r1APguWS767dwqkmrHe`/`louis-performance-system`, jamais `graviacoach`/`gravia-coach`). C'est ce qui explique que V0.3_003C/003D, bien qu'implémentés et poussés sur `origin/main`, n'avaient jamais atteint la production avant 003E.
+
+**A. Premier déploiement — ÉCHEC, aucun impact production.** `npm run build` local passait, mais le build distant Vercel échouait (`Command "npm run build" exited with 2`) : Vercel ne reçoit que le répertoire `web/` (Root Directory), alors que `tsc -b` du build de production type-vérifiait trois tests `web/src/**` important par chemin relatif hors de cette frontière vers `head-coach-engine/**` (`DailyPlanView.enriched.test.tsx`, `planningMappingParity.test.ts`, `planningRepo.integration.test.ts`) — imports valides en local (tout le monorepo est présent sur disque) mais inexistants dans le contexte de build isolé Vercel. Défaut de frontière de build, pas un défaut Planning/engine/Supabase. L'alias de production est resté sur le déploiement `Ready` précédent pendant tout l'échec — **aucun impact production**, déploiement échoué conservé comme preuve d'audit (jamais supprimé).
+
+**Correctif (`ede2776dd75ee84ed5060298a679054fe86cb8cd`, `build: isolate web production typecheck`)** : `web/tsconfig.build.json` (nouveau — `extends "./tsconfig.app.json"`, `exclude: ["src/**/*.test.ts", "src/**/*.test.tsx"]`, `tsBuildInfoFile` distinct pour éviter toute collision de cache avec le graphe complet) + `web/package.json` (`build` pointe désormais sur `tsc -b tsconfig.build.json && vite build` ; nouveau script `typecheck` = `tsc -b tsconfig.app.json`, préservant intégralement le graphe local complet, y compris les 3 tests cross-package). Aucun fichier `web/src/**` modifié, aucune dépendance ajoutée, `package-lock.json` inchangé. Preuve avant nouvelle tentative : typecheck complet local PASS (3 tests cross-package confirmés toujours dans le graphe via `tsc --listFilesOnly`), build production local PASS, build isolé dans une copie temporaire de `web/` **sans** `head-coach-engine/` sibling PASS avec `dist/` produit (reproduction exacte de la frontière Vercel, exécutée deux fois : une fois en échec attendu sur HEAD pré-correctif, une fois en succès post-correctif), `web` par défaut **485 PASS / 9 SKIPPED**, `web` opt-in complet **494/494 PASS**.
+
+**Second déploiement — SUCCÈS.** `dpl_HQDuP893LoDSuqxdfzWXMbABmVzT`, alias canonique `https://louis-performance-system.vercel.app` → `Ready`/`production`. Bundle réellement servi (jamais inféré depuis `dist/` local) : `/assets/index-F_rQBrBr.js`, confirmé contenir `Plan`, `/plan`, `Prévu aujourd'hui`, `Modifier dans Plan`, `Aujourd'hui`, `Historique`, `Insights` ; project ref Supabase `uvolpldwwyvadlamulvr` présent, `evynmzyjhobdpmxdiwsy` absent. Smoke direct `/`, `/today`, `/plan`, `/history`, `/insights` : tous `HTTP 200`.
+
+**B–G. Canary remote authentifié — T18 PASS.** Athlète/utilisateur scratch entièrement neufs (jamais l'athlète réel de Louis), créés/nettoyés via un script éphémère hors dépôt (jamais `head-coach-engine/tests/supabase/testDb.ts`, dont la garde cible locale — 003D — refuse structurellement toute cible non-loopback ; ce garde-fou n'a pas été touché). Fixtures neutres (bloc `IN_SEASON`, check-in neutre, aucune course) — scénario identique à T17 §20 en local. **Écriture `planned_sessions` (`DH_TECHNICAL`/`MODERATE`) effectuée par le client authentifié scratch sous la policy RLS `planned_sessions_own_data` réelle, jamais `service_role`** ; relecture propre confirmée par ce même client. `daily-run` de production invoqué avec le JWT scratch authentifié (jamais `service_role`) : `HTTP 200`, `engine_version` confirmé directement `head-coach-engine@0.2.0-m1-v0.3_002d`, `dailyPlan.planned_session_before`/`final_session` riches `DH_TECHNICAL`/`MODERATE`/`DH_TECHNICAL`, `dh_or_technical.active=true`. Décision persistée relue via l'id exact retourné par l'endpoint (jamais "dernière ligne") : `daily_plan.planned_session_before` (JSONB riche) et projections dénormalisées coarse `planned_session_before`/`final_session` = `DH_TECHNICAL` confirmées identiques au contrat documenté §Distinction. Nettoyage complet et vérifié : 0 ligne restante sur `athletes`/`planned_sessions`/`daily_checkins`/`decisions`/`health_flags`/`training_blocks`, utilisateur d'authentification absent. **Écritures sur l'athlète réel : zéro.**
+
+Canary remote de précédence course délibérément **SKIP** — T17 §21 le prouve déjà localement contre une vraie stack Supabase ; 003E vérifie déploiement/auth/RLS/Edge/persistance, pas une duplication du comportement moteur déjà couvert.
+
+**H. Smoke web production.** Preuve par bundle réellement servi + smoke de routes direct (ci-dessus) + canary RLS/`daily-run` authentifié bout-en-bout (ci-dessus). Smoke navigateur visuel authentifié : **non automatisé** (aucune dépendance d'automatisation navigateur ajoutée — non requis pour T18, la confiance production reposant sur les preuves directes ci-dessus).
+
+**Sans rapport avec Planning** : `daily-run` reconfirmé `ACTIVE`/version 2/`verify_jwt: true` avant et après le canary ; migration parity reconfirmée 26 locales/26 remote/0 en attente avant et après ; aucune migration, aucun redéploiement Edge, aucun changement `head-coach-engine/src/**`, `ENGINE_VERSION` inchangé sur l'ensemble de V0.3_003.
 
 ### Hors périmètre explicite V0.3_003
 
