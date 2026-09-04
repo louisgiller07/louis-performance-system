@@ -21,6 +21,26 @@ interface AuthState {
   athleteResolution: AthleteResolution;
   loading: boolean;
   signOut: () => Promise<void>;
+  /**
+   * Re-runs the same RLS-scoped athlete resolution on demand and updates
+   * context state — the mechanism V0.3_004B's bootstrap flow uses to move
+   * from `no_athlete` to `resolved` after creating the row, without a
+   * logout/login or full page reload. Returns the freshly-resolved value
+   * so a caller can act on it directly rather than re-reading (possibly
+   * stale) context state after the await.
+   */
+  refreshAthlete: () => Promise<AthleteResolution>;
+}
+
+/** The single RLS-scoped athlete lookup — shared by the mount-time effect and refreshAthlete(), never duplicated. */
+async function resolveAthlete(): Promise<AthleteResolution> {
+  // RLS (athletes_own_data) already scopes this to the caller's own row —
+  // no .eq("user_id", ...) filter is added or needed here.
+  const { data, error } = await supabase.from("athletes").select("id");
+  if (error) return { status: "config_error", message: error.message };
+  if (!data || data.length === 0) return { status: "no_athlete" };
+  if (data.length > 1) return { status: "config_error", message: "Multiple athletes resolved for this user." };
+  return { status: "resolved", athleteId: data[0].id };
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
@@ -62,27 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     setAthleteResolution({ status: "loading" });
 
-    // RLS (athletes_own_data) already scopes this to the caller's own row —
-    // no .eq("user_id", ...) filter is added or needed here.
-    supabase
-      .from("athletes")
-      .select("id")
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setAthleteResolution({ status: "config_error", message: error.message });
-          return;
-        }
-        if (!data || data.length === 0) {
-          setAthleteResolution({ status: "no_athlete" });
-          return;
-        }
-        if (data.length > 1) {
-          setAthleteResolution({ status: "config_error", message: "Multiple athletes resolved for this user." });
-          return;
-        }
-        setAthleteResolution({ status: "resolved", athleteId: data[0].id });
-      });
+    resolveAthlete().then((result) => {
+      if (!active) return;
+      setAthleteResolution(result);
+    });
 
     return () => {
       active = false;
@@ -91,6 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+  };
+
+  const refreshAthlete = async (): Promise<AthleteResolution> => {
+    const result = await resolveAthlete();
+    setAthleteResolution(result);
+    return result;
   };
 
   const athleteId = athleteResolution.status === "resolved" ? athleteResolution.athleteId : null;
@@ -104,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         athleteResolution,
         loading,
         signOut,
+        refreshAthlete,
       }}
     >
       {children}

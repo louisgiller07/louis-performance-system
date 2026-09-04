@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { AthleteBootstrap } from "../features/athleteBootstrap/AthleteBootstrap";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading, athleteResolution } = useAuth();
@@ -14,11 +15,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
 
   if (athleteResolution.status === "no_athlete") {
-    return (
-      <div className="p-6 text-center text-sm text-red-600">
-        Configuration error: no athlete profile is linked to your account. Contact support.
-      </div>
-    );
+    return <AthleteBootstrap />;
   }
 
   if (athleteResolution.status === "config_error") {

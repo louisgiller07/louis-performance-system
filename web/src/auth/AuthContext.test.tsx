@@ -27,7 +27,7 @@ const FAKE_SESSION = {
 } as never;
 
 function Probe() {
-  const { session, athleteId, athleteResolution, loading, signOut } = useAuth();
+  const { session, athleteId, athleteResolution, loading, signOut, refreshAthlete } = useAuth();
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
@@ -35,6 +35,7 @@ function Probe() {
       <span data-testid="athlete-status">{athleteResolution.status}</span>
       <span data-testid="athlete-id">{athleteId ?? "none"}</span>
       <button onClick={() => void signOut()}>sign out</button>
+      <button onClick={() => void refreshAthlete()}>refresh athlete</button>
     </div>
   );
 }
@@ -110,5 +111,30 @@ describe("AuthContext — athlete resolution", () => {
     screen.getByText("sign out").click();
 
     await waitFor(() => expect(mockedAuth.signOut).toHaveBeenCalledTimes(1));
+  });
+
+  it("V0.3_004B — refreshAthlete transitions no_athlete -> resolved with the exact new athleteId, without a remount", async () => {
+    setupSession(FAKE_SESSION);
+    // First resolution (mount effect): zero rows. Second resolution
+    // (refreshAthlete, called after a successful bootstrap insert in the
+    // real flow): exactly one new row. Proves the transition contract
+    // itself, not just a mocked-into-place "ready" state.
+    mockedFrom
+      .mockReturnValueOnce({ select: vi.fn().mockResolvedValue({ data: [], error: null }) })
+      .mockReturnValueOnce({ select: vi.fn().mockResolvedValue({ data: [{ id: "athlete-new" }], error: null }) });
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("athlete-status")).toHaveTextContent("no_athlete"));
+    expect(screen.getByTestId("athlete-id")).toHaveTextContent("none");
+
+    screen.getByText("refresh athlete").click();
+
+    await waitFor(() => expect(screen.getByTestId("athlete-status")).toHaveTextContent("resolved"));
+    expect(screen.getByTestId("athlete-id")).toHaveTextContent("athlete-new");
   });
 });
