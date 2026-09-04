@@ -3,7 +3,6 @@ import type { EventContext } from "../types/context.js";
 import type { MentalSection } from "../types/dailyPlan.js";
 import type { TriggeredRule } from "../types/triggeredRule.js";
 import type { SignalTrace } from "../engine/signalTrace.js";
-import { ATHLETE_COACHING_PROFILE } from "../config/athleteCoachingProfile.js";
 
 const AMBER_STRESS_ACTION_HINT = "Fais quelques respirations lentes, puis reviens à une seule priorité.";
 const AMBER_MOTIVATION_ACTION_HINT = "Choisis une seule action simple et commence par celle-là.";
@@ -44,14 +43,19 @@ function buildMentalSection(focus: string | undefined, actionHint: string | unde
  * training.ts) — Mental peut donc consommer librement, avec la même
  * précédence stress_high > motivation_low, exactement un signal par jour.
  */
+// personalPreRaceCue (V0.3_004A): athlete's personal pre-race cue, read by
+// the caller from RawContext.coaching_profile.mental_pre_race_cue — never
+// looked up here from a global config. Absent -> focus stays undefined,
+// never a fabricated generic cue; existing action_hint behavior unaffected.
 export function computeMentalDomain(params: {
   mentalDimension: DimensionState;
   eventContext?: EventContext;
   signalTrace: SignalTrace;
+  personalPreRaceCue?: string;
 }): MentalDomainResult {
-  const { mentalDimension, eventContext, signalTrace } = params;
+  const { mentalDimension, eventContext, signalTrace, personalPreRaceCue } = params;
 
-  const focus = eventContext?.phase === "PRE_EVENT" ? ATHLETE_COACHING_PROFILE.mental.preRaceCue.cue : undefined;
+  const focus = eventContext?.phase === "PRE_EVENT" ? personalPreRaceCue : undefined;
 
   let actionHint: string | undefined;
   let triggeredRule: TriggeredRule | undefined;

@@ -76,6 +76,19 @@ export interface LifeConstraints {
   notes?: string;
 }
 
+/**
+ * CoachingProfile — personal coaching content owned by the athlete, read
+ * from `public.athlete_coaching_profiles` (V0.3_004A). V1 intentionally
+ * carries only the two fields the Technique/Mental domains actually
+ * consume — never a general athlete-profile dump. A missing row, or a
+ * missing individual field, means "not yet configured for this athlete",
+ * never a fabricated generic value.
+ */
+export interface CoachingProfile {
+  technique_primary_focus?: string;
+  mental_pre_race_cue?: string;
+}
+
 export interface TrainingBlockRef {
   id: string;
   mode: TrainingMode;

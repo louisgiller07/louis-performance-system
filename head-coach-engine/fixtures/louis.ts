@@ -69,6 +69,20 @@ export function baseCheckin(overrides: Partial<DailyCheckin> = {}): DailyCheckin
  */
 type RawContextOverrides = Omit<Partial<RawContext>, "checkin"> & { checkin?: Partial<DailyCheckin> };
 
+/**
+ * Louis's own coaching-profile fixture (V0.3_004A) — the exact two values
+ * previously hardcoded in the now-removed
+ * head-coach-engine/src/config/athleteCoachingProfile.ts singleton, now
+ * carried as ordinary fixture DATA on his own RawContext, exactly as his
+ * real athlete_coaching_profiles row will carry them in Supabase. Overridable
+ * (including to `undefined`) by any test exercising an athlete with no
+ * personal profile configured yet.
+ */
+export const LOUIS_COACHING_PROFILE = {
+  technique_primary_focus: "Fixe ta ligne, dose le freinage, laisse rouler.",
+  mental_pre_race_cue: "Comme à Wiriehorn.",
+};
+
 export function baseRawContext(overrides: RawContextOverrides = {}): RawContext {
   const { checkin: checkinOverrides, ...rest } = overrides;
   return {
@@ -80,6 +94,7 @@ export function baseRawContext(overrides: RawContextOverrides = {}): RawContext 
     recent_sessions: [],
     active_experiments: [],
     active_health_flags: [],
+    coaching_profile: LOUIS_COACHING_PROFILE,
     n_total_checkins: 0,
     n_total_completed_sessions: 0,
     ...rest,

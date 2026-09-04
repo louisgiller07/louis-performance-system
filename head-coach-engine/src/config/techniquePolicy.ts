@@ -1,7 +1,8 @@
 /**
  * Politique de domaine Technique DH (V0.3_002B) — PAS un fait athlète (voir
- * athleteCoachingProfile.ts pour ça), PAS un seuil M1 (voir
- * engine/provisionalThresholds.ts, jamais modifié par ce fichier).
+ * `public.athlete_coaching_profiles`/`RawContext.coaching_profile` pour ça,
+ * V0.3_004A), PAS un seuil M1 (voir engine/provisionalThresholds.ts, jamais
+ * modifié par ce fichier).
  *
  * `raceProximityWindowDays` implémente C1.5 (docs/03_COACHING_MODEL.md :
  * "course ≤ 2 semaines") — un horizon volontairement distinct de la fenêtre

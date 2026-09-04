@@ -30,6 +30,7 @@ import {
   insertTrainingBlock,
   insertPlannedSession,
   insertRace,
+  insertCoachingProfile,
   isLoopbackSupabaseUrl,
   resolveTestSupabaseUrl,
   type TestAthlete,
@@ -194,6 +195,11 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
         session_type: "DH_TECHNICAL",
         intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
       });
+      // V0.3_004A — personal technique focus is now athlete-scoped, read
+      // from athlete_coaching_profiles: a fresh scratch athlete has none by
+      // default, so this proves the real DB round-trip end-to-end rather
+      // than resting on a leftover global default.
+      await insertCoachingProfile(admin, athlete.athleteId, { technique_primary_focus: "T17 scratch technique focus" });
 
       const result = await runDailyFor(admin, athlete.athleteId, date);
 
@@ -201,7 +207,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
       expect(result.dailyPlan.planned_session_before).toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE" });
       expect(result.dailyPlan.final_session.kind).toBe("DH_TECHNICAL");
       expect(result.dailyPlan.dh_or_technical.active).toBe(true);
-      expect(result.dailyPlan.dh_or_technical.focus).toBeDefined();
+      expect(result.dailyPlan.dh_or_technical.focus).toBe("T17 scratch technique focus");
       expect(result.dailyPlan.dh_or_technical.spot_hint).toBeDefined();
     });
   });

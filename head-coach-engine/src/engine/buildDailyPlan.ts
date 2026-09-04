@@ -25,7 +25,7 @@ import { computeNutritionDomain } from "../domains/nutrition.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_002d";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_004a";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -252,6 +252,7 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     mentalDimension: dimensions.mental,
     eventContext,
     signalTrace: trace,
+    personalPreRaceCue: ctx.coaching_profile?.mental_pre_race_cue,
   });
 
   const plan: DailyPlan = {
@@ -272,6 +273,7 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
       systemicLevel: dimensions.systemic.level,
       legsLevel: dimensions.legs.level,
       armsGripLevel: dimensions.arms_grip.level,
+      personalFocus: ctx.coaching_profile?.technique_primary_focus,
     }),
     mental: mentalResult.mental,
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),

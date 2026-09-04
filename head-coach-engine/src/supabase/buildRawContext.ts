@@ -26,6 +26,7 @@ import { getRacesInWindow } from "./repositories/raceCalendarRepo.js";
 import { getRecentSessions } from "./repositories/completedSessionsRepo.js";
 import { getOpenHealthFlags } from "./repositories/healthFlagsRepo.js";
 import { getTotalCheckinsCount, getTotalCompletedSessionsCount } from "./repositories/athleteCountsRepo.js";
+import { getCoachingProfileFor } from "./repositories/athleteCoachingProfileRepo.js";
 
 import { mapDailyCheckinRow } from "./mapping/dailyCheckinRow.js";
 import { parseTrainingMode } from "./mapping/trainingMode.js";
@@ -33,6 +34,7 @@ import { mapPlannedSessionRow } from "./mapping/plannedSessionIntervention.js";
 import { mapRaceCalendarRow } from "./mapping/raceCalendarRow.js";
 import { mapCompletedSessionRow } from "./mapping/completedSessionRow.js";
 import { mapHealthFlagRow } from "./mapping/healthFlagRow.js";
+import { mapCoachingProfileRow } from "./mapping/coachingProfileRow.js";
 
 export class NoCurrentCheckinError extends Error {
   constructor(athleteId: string, date: string) {
@@ -121,6 +123,9 @@ export async function buildRawContext(
   const n_total_checkins = await getTotalCheckinsCount(client, athleteId);
   const n_total_completed_sessions = await getTotalCompletedSessionsCount(client, athleteId);
 
+  const coachingProfileRow = await getCoachingProfileFor(client, athleteId);
+  const coaching_profile = coachingProfileRow ? mapCoachingProfileRow(coachingProfileRow) : undefined;
+
   const rawContext: RawContext = {
     today,
     checkin,
@@ -131,6 +136,7 @@ export async function buildRawContext(
     recent_sessions,
     active_experiments: [],
     active_health_flags,
+    ...(coaching_profile !== undefined ? { coaching_profile } : {}),
     n_total_checkins,
     n_total_completed_sessions,
   };

@@ -35,7 +35,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDailyPlan } from "../../src/engine/buildDailyPlan.js";
 import { mapTrainingInterventionToDbSessionType } from "../../src/mapping/trainingInterventionToDbSessionType.js";
 import { computeDailyFor } from "../../src/supabase/computeDailyFor.js";
-import { baseRawContext, RACE_CALENDAR } from "../../fixtures/louis.js";
+import { baseRawContext, RACE_CALENDAR, LOUIS_COACHING_PROFILE } from "../../fixtures/louis.js";
 import type { DailyCheckin } from "../../src/types/checkin.js";
 import type { RawContext } from "../../src/types/rawContext.js";
 import type { TrainingIntervention } from "../../src/types/trainingIntervention.js";
@@ -50,6 +50,7 @@ import {
   insertRace,
   insertCompletedSession,
   insertHealthFlag,
+  insertCoachingProfile,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -312,6 +313,12 @@ describe("M2 closure pass — fixture ↔ Supabase equivalence matrix (integrati
 
     await insertCheckin(client, athlete.athleteId, scenario.today, scenario.checkinOverrides ?? {});
     await insertTrainingBlock(client, athlete.athleteId, scenario.activeMode);
+    // V0.3_004A — the fixture side (buildFixtureContext -> baseRawContext)
+    // defaults to Louis's own coaching_profile; mirror it into Supabase so
+    // this remains a genuine fixture <-> Supabase equivalence check rather
+    // than a false mismatch between "Louis's fixture cues" and "no profile
+    // row at all" for the scratch athlete.
+    await insertCoachingProfile(client, athlete.athleteId, LOUIS_COACHING_PROFILE);
 
     if (scenario.plannedSession) {
       await insertPlannedSession(client, athlete.athleteId, scenario.today, {

@@ -16,6 +16,6 @@ import { baseRawContext } from "../fixtures/louis.js";
 describe("ENGINE_VERSION — current provenance ownership", () => {
   it("DailyPlan.engine_version is exactly the current approved value", () => {
     const plan = buildDailyPlan(baseRawContext());
-    expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_002d");
+    expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_004a");
   });
 });

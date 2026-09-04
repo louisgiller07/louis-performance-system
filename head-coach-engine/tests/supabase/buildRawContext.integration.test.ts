@@ -13,6 +13,7 @@ import {
   insertPlannedSession,
   insertHealthFlag,
   insertRace,
+  insertCoachingProfile,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -295,5 +296,80 @@ describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => 
 
     const plan = buildDailyPlan(rawContext);
     expect(plan.event_context?.phase).toBe("POST_EVENT");
+  });
+
+  describe("V0.3_004A — coaching_profile mapping (real athlete_coaching_profiles table)", () => {
+    it("profile row exists → RawContext.coaching_profile contains the exact stored strings", async () => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertCoachingProfile(client, athlete.athleteId, {
+        technique_primary_focus: "Fixe ta ligne, dose le freinage, laisse rouler.",
+        mental_pre_race_cue: "Comme à Wiriehorn.",
+      });
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.coaching_profile).toEqual({
+        technique_primary_focus: "Fixe ta ligne, dose le freinage, laisse rouler.",
+        mental_pre_race_cue: "Comme à Wiriehorn.",
+      });
+    });
+
+    it("no profile row → RawContext.coaching_profile is absent (never a fabricated default)", async () => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      // Deliberately no insertCoachingProfile call at all — the exact
+      // new-athlete state.
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.coaching_profile).toBeUndefined();
+      expect(rawContext).not.toHaveProperty("coaching_profile");
+    });
+
+    it("a partially-configured profile (only technique focus set) maps only that field, mental cue stays absent", async () => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertCoachingProfile(client, athlete.athleteId, { technique_primary_focus: "Regarde loin devant." });
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.coaching_profile).toEqual({ technique_primary_focus: "Regarde loin devant." });
+      expect(rawContext.coaching_profile).not.toHaveProperty("mental_pre_race_cue");
+    });
+
+    it("a partially-configured profile (only mental cue set) maps only that field, technique focus stays absent — symmetric case", async () => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertCoachingProfile(client, athlete.athleteId, { mental_pre_race_cue: "Respire, regarde la ligne." });
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.coaching_profile).toEqual({ mental_pre_race_cue: "Respire, regarde la ligne." });
+      expect(rawContext.coaching_profile).not.toHaveProperty("technique_primary_focus");
+    });
+
+    it("athlete A's profile can never enter athlete B's RawContext — no global/latest lookup", async () => {
+      const athleteB = await createTestAthlete(client, "buildRawContext cross-athlete profile B");
+      try {
+        await insertCheckin(client, athlete.athleteId, TODAY);
+        await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+        await insertCoachingProfile(client, athlete.athleteId, {
+          technique_primary_focus: "Focus athlète A",
+          mental_pre_race_cue: "Cue athlète A",
+        });
+
+        await insertCheckin(client, athleteB.athleteId, TODAY);
+        await insertTrainingBlock(client, athleteB.athleteId, "IN_SEASON");
+        // athleteB deliberately gets no coaching profile of its own.
+
+        const { rawContext: rawA } = await buildRawContext(client, athlete.athleteId, TODAY);
+        const { rawContext: rawB } = await buildRawContext(client, athleteB.athleteId, TODAY);
+
+        expect(rawA.coaching_profile).toEqual({
+          technique_primary_focus: "Focus athlète A",
+          mental_pre_race_cue: "Cue athlète A",
+        });
+        expect(rawB.coaching_profile).toBeUndefined();
+      } finally {
+        await deleteTestAthlete(client, athleteB);
+      }
+    });
   });
 });

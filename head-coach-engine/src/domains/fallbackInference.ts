@@ -1,15 +1,20 @@
 import type { TrainingIntervention } from "../types/trainingIntervention.js";
-import { isoWeekday } from "../engine/dateUtils.js";
 
 /**
  * Fallback d'inférence — utilisé UNIQUEMENT quand `planned_session = null` ET
  * qu'aucune recommandation de protocole T-X n'est applicable. Voir
  * docs/03_COACHING_MODEL.md §7 (fallback) et docs/10_TEST_PLAN.md T6.1.
  *
- * Split hebdomadaire PROVISIONAL basé sur le split cible déclaré par Louis
- * (docs/02_ATHLETE_PROFILE.md §4.1 : "Lun haut / Mar bas / Mer pumptrack /
- * Jeu cardio / Ven repos ou léger ou DH / Sam DH / Dim DH"). Aucune donnée
- * inventée — reprend le split déclaré, pas le split réel dévié récent.
+ * V0.3_004A — générique, plus de split hebdomadaire personnel. Avant ce
+ * jalon, cette fonction retournait un split spécifique à Louis
+ * (docs/02_ATHLETE_PROFILE.md §4.1), qui se serait appliqué tel quel à
+ * n'importe quel autre athlète. V0.3_003 donne désormais à chaque athlète
+ * un vrai chemin explicite pour planifier ses séances (`/plan`) : le rôle
+ * de ce fallback se réduit donc à "aucune séance planifiée, valeur de repli
+ * sûre et générique" plutôt qu'à "deviner le planning personnel de
+ * l'athlète". `RECOVERY_ACTIVE` est repris tel quel de l'ancien filet de
+ * sécurité de cette même fonction (le cas hors-plage, jamais atteint avant
+ * ce jalon car les 7 jours ISO étaient tous couverts).
  *
  * Ne tient PAS compte des soft constraints de mode (`no_development`, etc.) :
  * seule SAFETY est hard, et une soft constraint `strong` reste une
@@ -18,17 +23,6 @@ import { isoWeekday } from "../engine/dateUtils.js";
  * courant et la séance inférée est un arbitrage normal, pas un cas à
  * résoudre silencieusement ici.
  */
-const WEEKDAY_SPLIT: Record<number, TrainingIntervention> = {
-  0: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" }, // lundi
-  1: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" }, // mardi
-  2: { kind: "PUMPTRACK", load_profile: "LIGHT" }, // mercredi
-  3: { kind: "AEROBIC_BASE", load_profile: "LIGHT" }, // jeudi
-  4: { kind: "RECOVERY_ACTIVE" }, // vendredi
-  5: { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, // samedi
-  6: { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, // dimanche
-};
-
-export function inferFallbackSession(today: string): TrainingIntervention {
-  const weekday = isoWeekday(today);
-  return WEEKDAY_SPLIT[weekday] ?? { kind: "RECOVERY_ACTIVE" };
+export function inferFallbackSession(_today: string): TrainingIntervention {
+  return { kind: "RECOVERY_ACTIVE" };
 }

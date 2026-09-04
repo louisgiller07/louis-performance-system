@@ -3,7 +3,6 @@ import type { UpcomingRace } from "../types/context.js";
 import type { DimensionLevel } from "../types/dimensions.js";
 import type { DhTechnicalSection } from "../types/dailyPlan.js";
 import { daysBetween } from "../engine/dateUtils.js";
-import { ATHLETE_COACHING_PROFILE } from "../config/athleteCoachingProfile.js";
 import { TECHNIQUE_POLICY } from "../config/techniquePolicy.js";
 
 const TECHNIQUE_ACTIVE_KINDS: ReadonlySet<TrainingInterventionKind> = new Set([
@@ -56,6 +55,14 @@ function selectSpotHint(fatigueAmber: boolean, raceProximate: boolean): string {
  * `finalSession` doit être la séance déjà entièrement arbitrée (après
  * règles de domaine, douleur non-SAFETY, soft constraints et A5) —
  * jamais le `planned_session` brut.
+ *
+ * `personalFocus` (V0.3_004A) est une entrée pure — le focus technique
+ * personnel de l'athlète, lu par l'appelant depuis
+ * `RawContext.coaching_profile.technique_primary_focus`, jamais consulté
+ * ici depuis une config globale. Absent (athlète sans focus configuré) :
+ * `focus` est simplement omis du résultat — jamais de valeur générique
+ * fabriquée à sa place. `DhTechnicalSection.focus` est déjà optionnel,
+ * aucun changement de schéma requis.
  */
 export function computeTechniqueDomain(params: {
   finalSession: TrainingIntervention;
@@ -64,8 +71,9 @@ export function computeTechniqueDomain(params: {
   systemicLevel: DimensionLevel;
   legsLevel: DimensionLevel;
   armsGripLevel: DimensionLevel;
+  personalFocus?: string;
 }): DhTechnicalSection {
-  const { finalSession, today, upcomingRaces, systemicLevel, legsLevel, armsGripLevel } = params;
+  const { finalSession, today, upcomingRaces, systemicLevel, legsLevel, armsGripLevel, personalFocus } = params;
 
   if (!TECHNIQUE_ACTIVE_KINDS.has(finalSession.kind)) {
     return { active: false };
@@ -76,7 +84,7 @@ export function computeTechniqueDomain(params: {
 
   return {
     active: true,
-    focus: ATHLETE_COACHING_PROFILE.technique.primaryFocus.focus,
+    ...(personalFocus !== undefined ? { focus: personalFocus } : {}),
     spot_hint: selectSpotHint(fatigueAmber, raceProximate),
   };
 }

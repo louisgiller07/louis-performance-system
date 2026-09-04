@@ -268,6 +268,20 @@ export async function insertCompletedSession(
   if (error) throw new Error(`insertCompletedSession failed: ${error.message}`);
 }
 
+/** V0.3_004A — upserts the athlete's coaching-profile row (`athlete_id` is the table's own PK, so this is always exactly 0 or 1 row). */
+export async function insertCoachingProfile(
+  client: SupabaseClient,
+  athleteId: string,
+  fields: { technique_primary_focus?: string | null; mental_pre_race_cue?: string | null }
+): Promise<void> {
+  const { error } = await client.from("athlete_coaching_profiles").upsert({
+    athlete_id: athleteId,
+    technique_primary_focus: fields.technique_primary_focus ?? null,
+    mental_pre_race_cue: fields.mental_pre_race_cue ?? null,
+  });
+  if (error) throw new Error(`insertCoachingProfile failed: ${error.message}`);
+}
+
 export async function insertRace(
   client: SupabaseClient,
   athleteId: string,

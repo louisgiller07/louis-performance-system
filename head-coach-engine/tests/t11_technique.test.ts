@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeTechniqueDomain } from "../src/domains/technique.js";
 import { buildDailyPlan } from "../src/engine/buildDailyPlan.js";
-import { ATHLETE_COACHING_PROFILE } from "../src/config/athleteCoachingProfile.js";
 import { baseRawContext, RACE_CALENDAR } from "../fixtures/louis.js";
 import type { TrainingIntervention } from "../src/types/trainingIntervention.js";
 import type { DimensionLevel } from "../src/types/dimensions.js";
@@ -25,6 +24,7 @@ function baseParams(overrides: {
   systemicLevel?: DimensionLevel;
   legsLevel?: DimensionLevel;
   armsGripLevel?: DimensionLevel;
+  personalFocus?: string;
 } = {}) {
   return {
     finalSession: overrides.finalSession ?? { kind: "DH_TECHNICAL" as const, load_profile: "MODERATE" as const },
@@ -33,6 +33,12 @@ function baseParams(overrides: {
     systemicLevel: overrides.systemicLevel ?? GREEN,
     legsLevel: overrides.legsLevel ?? GREEN,
     armsGripLevel: overrides.armsGripLevel ?? GREEN,
+    // V0.3_004A — pure input, mirrors what buildDailyPlan threads from
+    // RawContext.coaching_profile.technique_primary_focus. Defaults to
+    // Louis's own fixture value so every pre-existing call site in this
+    // file keeps its exact prior behavior unless a test explicitly probes
+    // a different/absent value.
+    personalFocus: "personalFocus" in overrides ? overrides.personalFocus : FOCUS,
   };
 }
 
@@ -74,13 +80,6 @@ const INACTIVE_KINDS: TrainingIntervention[] = [
 ];
 
 describe("T11 — Technique DH (V0.3_002B)", () => {
-  describe("Athlete coaching profile config contract", () => {
-    it("technique.primaryFocus has exactly the approved id and focus", () => {
-      expect(ATHLETE_COACHING_PROFILE.technique.primaryFocus.id).toBe("fast_precision_overbraking");
-      expect(ATHLETE_COACHING_PROFILE.technique.primaryFocus.focus).toBe(FOCUS);
-    });
-  });
-
   describe("Activation", () => {
     for (const session of ACTIVE_KINDS) {
       it(`${session.kind} → active`, () => {
@@ -110,6 +109,29 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       const first = computeTechniqueDomain(params);
       const second = computeTechniqueDomain(params);
       expect(first).toEqual(second);
+    });
+  });
+
+  describe("V0.3_004A — personalFocus is athlete-scoped pure input, never a global default", () => {
+    it("a different athlete's personalFocus produces that exact different focus, never Louis's", () => {
+      const otherFocus = "Regarde loin devant, pas la roue avant.";
+      const result = computeTechniqueDomain(baseParams({ personalFocus: otherFocus }));
+      expect(result.focus).toBe(otherFocus);
+      expect(result.focus).not.toBe(FOCUS);
+    });
+
+    it("personalFocus absent (athlete with no configured focus): Technique stays active, focus is omitted, spot_hint remains the existing generic value — no fabricated focus", () => {
+      const result = computeTechniqueDomain(baseParams({ personalFocus: undefined }));
+      expect(result.active).toBe(true);
+      expect(result.focus).toBeUndefined();
+      expect(result).not.toHaveProperty("focus");
+      expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
+    });
+
+    it("personalFocus absent still respects the existing fatigue/race spot_hint contract unchanged", () => {
+      const result = computeTechniqueDomain(baseParams({ personalFocus: undefined, legsLevel: AMBER }));
+      expect(result.focus).toBeUndefined();
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
     });
   });
 
@@ -251,6 +273,28 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       const planA = buildDailyPlan(ctx);
       const planB = buildDailyPlan(ctx);
       expect(planA.dh_or_technical).toEqual(planB.dh_or_technical);
+    });
+
+    it("V0.3_004A — a different athlete's RawContext.coaching_profile produces that athlete's own focus, never Louis's", () => {
+      const otherFocus = "Regarde loin devant, pas la roue avant.";
+      const ctx = baseRawContext({
+        planned_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+        coaching_profile: { technique_primary_focus: otherFocus },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.dh_or_technical.focus).toBe(otherFocus);
+      expect(plan.dh_or_technical.focus).not.toBe(FOCUS);
+    });
+
+    it("V0.3_004A — coaching_profile entirely absent (new athlete, never configured): Technique stays active, focus omitted, never Louis's fixture value", () => {
+      const ctx = baseRawContext({
+        planned_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+        coaching_profile: undefined,
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.dh_or_technical.active).toBe(true);
+      expect(plan.dh_or_technical.focus).toBeUndefined();
+      expect(plan.dh_or_technical.spot_hint).toBe(SPOT_HINT_DEFAULT);
     });
   });
 

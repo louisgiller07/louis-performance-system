@@ -1,6 +1,13 @@
 import type { DailyCheckin } from "./checkin.js";
 import type { TrainingIntervention } from "./trainingIntervention.js";
-import type { TrainingMode, UpcomingRace, WeeklyAvailability, LifeConstraints, TrainingBlockRef } from "./context.js";
+import type {
+  TrainingMode,
+  UpcomingRace,
+  WeeklyAvailability,
+  LifeConstraints,
+  TrainingBlockRef,
+  CoachingProfile,
+} from "./context.js";
 import type { ActiveExperiment } from "./experiment.js";
 import type { HealthFlag } from "./healthFlag.js";
 
@@ -30,6 +37,8 @@ export interface RawContext {
   active_health_flags: HealthFlag[];
   availability?: WeeklyAvailability;
   life_constraints?: LifeConstraints;
+  /** Personal coaching content (V0.3_004A) — absent means not yet configured for this athlete, never a fabricated default. */
+  coaching_profile?: CoachingProfile;
   n_total_checkins: number;
   n_total_completed_sessions: number;
 }

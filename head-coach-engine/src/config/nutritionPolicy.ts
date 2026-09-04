@@ -1,9 +1,10 @@
 /**
  * Politique de domaine Nutrition (V0.3_002D) — PAS un fait athlète (voir
- * athleteCoachingProfile.ts pour ça, qui ne contient aucune extension
- * Nutrition — voir docs/06_ARCHITECTURE.md §V0.3_002 : les baselines
- * d'hydratation PROVISIONAL sont des heuristiques de domaine génériques,
- * pas des faits personnels de Louis), PAS un seuil M1 (voir
+ * `public.athlete_coaching_profiles`/`RawContext.coaching_profile` pour ça,
+ * V0.3_004A, qui ne contient aucune extension Nutrition — voir
+ * docs/06_ARCHITECTURE.md §V0.3_002 : les baselines d'hydratation
+ * PROVISIONAL sont des heuristiques de domaine génériques, pas des faits
+ * personnels d'un athlète en particulier), PAS un seuil M1 (voir
  * engine/provisionalThresholds.ts, jamais modifié par ce fichier).
  *
  * Provenance : docs/03_COACHING_MODEL.md C5.2/C5.3/C5.4/C5.6.

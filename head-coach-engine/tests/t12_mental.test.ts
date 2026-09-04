@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { computeMentalDomain } from "../src/domains/mental.js";
 import { buildDailyPlan } from "../src/engine/buildDailyPlan.js";
 import { SignalTrace } from "../src/engine/signalTrace.js";
-import { ATHLETE_COACHING_PROFILE } from "../src/config/athleteCoachingProfile.js";
 import { baseRawContext } from "../fixtures/louis.js";
 import type { DimensionState, DimensionLevel } from "../src/types/dimensions.js";
 import type { EventContext, RacePhase, UpcomingRace } from "../src/types/context.js";
@@ -40,13 +39,6 @@ function eventContext(phase: RacePhase, overrides: Partial<EventContext> = {}): 
 }
 
 describe("T12 — Mental (V0.3_002C)", () => {
-  describe("Athlete profile config contract", () => {
-    it("mental.preRaceCue has exactly the approved id and cue", () => {
-      expect(ATHLETE_COACHING_PROFILE.mental.preRaceCue.id).toBe("wiriehorn_flow_reference");
-      expect(ATHLETE_COACHING_PROFILE.mental.preRaceCue.cue).toBe(PRE_EVENT_FOCUS);
-    });
-  });
-
   describe("GREEN", () => {
     it("GREEN, no event → inactive", () => {
       const result = computeMentalDomain({ mentalDimension: dim("GREEN"), eventContext: undefined, signalTrace: new SignalTrace() });
@@ -59,6 +51,7 @@ describe("T12 — Mental (V0.3_002C)", () => {
         mentalDimension: dim("GREEN"),
         eventContext: eventContext("PRE_EVENT", { race: race({ priority: "A" }) }),
         signalTrace: new SignalTrace(),
+        personalPreRaceCue: PRE_EVENT_FOCUS,
       });
       expect(result.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS });
     });
@@ -68,6 +61,7 @@ describe("T12 — Mental (V0.3_002C)", () => {
         mentalDimension: dim("GREEN"),
         eventContext: eventContext("PRE_EVENT", { race: race({ priority: "B" }) }),
         signalTrace: new SignalTrace(),
+        personalPreRaceCue: PRE_EVENT_FOCUS,
       });
       expect(result.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS });
     });
@@ -77,9 +71,47 @@ describe("T12 — Mental (V0.3_002C)", () => {
         mentalDimension: dim("GREEN"),
         eventContext: eventContext("PRE_EVENT", { race: race({ priority: "C" }) }),
         signalTrace: new SignalTrace(),
+        personalPreRaceCue: PRE_EVENT_FOCUS,
       });
       expect(result.mental.active).toBe(true);
       expect(result.mental.focus).toBe(PRE_EVENT_FOCUS);
+    });
+  });
+
+  describe("V0.3_004A — personalPreRaceCue is athlete-scoped pure input, never a global default", () => {
+    it("a different athlete's personalPreRaceCue produces that exact different cue, never Louis's", () => {
+      const otherCue = "Respire, regarde la ligne.";
+      const result = computeMentalDomain({
+        mentalDimension: dim("GREEN"),
+        eventContext: eventContext("PRE_EVENT"),
+        signalTrace: new SignalTrace(),
+        personalPreRaceCue: otherCue,
+      });
+      expect(result.mental).toEqual({ active: true, focus: otherCue });
+      expect(result.mental.focus).not.toBe(PRE_EVENT_FOCUS);
+    });
+
+    it("PRE_EVENT with no personal cue configured: never fabricates 'Comme à Wiriehorn.', section becomes inactive if focus was the only driver", () => {
+      const result = computeMentalDomain({
+        mentalDimension: dim("GREEN"),
+        eventContext: eventContext("PRE_EVENT"),
+        signalTrace: new SignalTrace(),
+        personalPreRaceCue: undefined,
+      });
+      expect(result.mental).toEqual({ active: false });
+      expect(result.mental).not.toHaveProperty("focus");
+    });
+
+    it("PRE_EVENT + AMBER with no personal cue: action_hint semantics unchanged, focus simply absent", () => {
+      const trace = new SignalTrace();
+      const result = computeMentalDomain({
+        mentalDimension: dim("AMBER", ["stress_high"]),
+        eventContext: eventContext("PRE_EVENT"),
+        signalTrace: trace,
+        personalPreRaceCue: undefined,
+      });
+      expect(result.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT });
+      expect(result.mental).not.toHaveProperty("focus");
     });
   });
 
@@ -128,6 +160,7 @@ describe("T12 — Mental (V0.3_002C)", () => {
         mentalDimension: dim("AMBER", ["stress_high"]),
         eventContext: eventContext("PRE_EVENT"),
         signalTrace: new SignalTrace(),
+        personalPreRaceCue: PRE_EVENT_FOCUS,
       });
       expect(result.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS, action_hint: AMBER_STRESS_HINT });
     });
@@ -151,6 +184,7 @@ describe("T12 — Mental (V0.3_002C)", () => {
         mentalDimension: dim("AMBER", ["stress_high"]),
         eventContext: eventContext("PRE_EVENT"),
         signalTrace: trace,
+        personalPreRaceCue: PRE_EVENT_FOCUS,
       });
       expect(result.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS });
       expect(result.triggeredRule).toBeUndefined();
@@ -213,6 +247,7 @@ describe("T12 — Mental (V0.3_002C)", () => {
         mentalDimension: dim("RED", ["stress_high"]),
         eventContext: eventContext("PRE_EVENT"),
         signalTrace: trace,
+        personalPreRaceCue: PRE_EVENT_FOCUS,
       });
       expect(result.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS, action_hint: RED_SUPPORTIVE_HINT });
     });
@@ -319,6 +354,30 @@ describe("T12 — Mental (V0.3_002C)", () => {
       const plan = buildDailyPlan(ctx);
       expect(plan.mental.active).toBe(true);
       expect(plan.mental.focus).toBe(PRE_EVENT_FOCUS);
+    });
+
+    it("V0.3_004A — a different athlete's RawContext.coaching_profile produces that athlete's own pre-race cue, never Louis's", () => {
+      const otherCue = "Respire, regarde la ligne.";
+      const ctx = baseRawContext({
+        upcoming_races: [
+          { event_name: "Course locale", event_start: "2026-08-27", event_end: "2026-08-27", priority: "B", race_format: "OTHER" },
+        ],
+        coaching_profile: { mental_pre_race_cue: otherCue },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.mental.focus).toBe(otherCue);
+      expect(plan.mental.focus).not.toBe(PRE_EVENT_FOCUS);
+    });
+
+    it("V0.3_004A — coaching_profile entirely absent (new athlete, never configured): PRE_EVENT never fabricates 'Comme à Wiriehorn.'", () => {
+      const ctx = baseRawContext({
+        upcoming_races: [
+          { event_name: "Course locale", event_start: "2026-08-27", event_end: "2026-08-27", priority: "B", race_format: "OTHER" },
+        ],
+        coaching_profile: undefined,
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.mental).toEqual({ active: false });
     });
 
     it("is deterministic: identical RawContext produces identical mental output", () => {
