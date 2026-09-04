@@ -28,10 +28,11 @@ athletes (1)
    ├── completed_sessions (N)
    ├── decisions (N)
    ├── race_calendar (N)
-   └── health_flags (N)
+   ├── health_flags (N)
+   └── athlete_coaching_profiles (0 ou 1 — V0.3_004A)
 ```
 
-12 tables. Toutes justifiées par une requête du Head Coach.
+13 tables (12 + `athlete_coaching_profiles`, V0.3_004A). Toutes justifiées par une requête du Head Coach.
 
 ---
 
@@ -51,7 +52,7 @@ Objectifs saison et bloc. Séparés par `level` (`season` / `block`).
 
 Périodes 3-6 semaines avec focus dominant. Un seul `is_current=true` à la fois.
 
-Colonne `mode` de type `training_mode` : `RACE_WEEK`, `RACE_CLUSTER`, `OFF_SEASON_RECOVERY`, `OFF_SEASON_DEVELOPMENT`, `PRE_SEASON`, `IN_SEASON`, `INJURY_RECOVERY`, `OTHER`.
+Colonne `mode` de type `training_mode` : `RACE_WEEK`, `RACE_CLUSTER`, `OFF_SEASON_RECOVERY`, `OFF_SEASON_DEVELOPMENT`, `PRE_SEASON`, `IN_SEASON`, `INJURY_RECOVERY`, `OTHER`, `UNSPECIFIED` (V0.3_004C — voir plus bas).
 
 ### `athlete_baselines`
 
@@ -134,6 +135,18 @@ Blessures, douleurs persistantes, suspicions de commotion, maladies. Table priv�
 
 Audit DDL M2 (2026-08-14) : la colonne discriminante réelle est **`flag_type`** (pas `type`). Aucun discriminateur `location_code` sur cette table. La clé d'idempotence retenue est **`(athlete_id, flag_type)`** pour les flags ouverts (`status IN ('active','monitoring')`). L'objet domaine `HealthFlag` côté moteur conserve son champ `type` — la traduction se fait dans le mapping SQL → domaine de l'adapter.
 
+### `athlete_coaching_profiles` (V0.3_004A, DONE local + remote)
+
+Contenu de coaching personnel, scopé par athlète, consommé aujourd'hui par les domaines Technique et Mental. `athlete_id uuid PRIMARY KEY REFERENCES athletes(id) ON DELETE CASCADE` — au plus une ligne par athlète (configuration courante mutable, pas un historique daté). Absence de ligne = absence de personnalisation, **jamais** une erreur ni une valeur générique fabriquée.
+
+Champs : `technique_primary_focus text NULL`, `mental_pre_race_cue text NULL`, `created_at`/`updated_at timestamptz`. Deux `CHECK` (`_not_blank`) interdisent une chaîne vide/blanche mais acceptent `NULL` — un `NULL` reste `NULL` ("pas encore configuré"), une valeur présente doit être un contenu réel. V1 délibérément minimal : uniquement les deux valeurs textuellement consommées par le moteur aujourd'hui — aucun champ sans consommateur runtime (pas de dump de profil général : objectifs/équipement/disponibilité/notes hors périmètre).
+
+RLS : policy `athlete_coaching_profiles_own_data` (`FOR ALL`, `USING`/`WITH CHECK` via `athlete_id IN (SELECT id FROM athletes WHERE user_id = auth.uid())`), même famille que `weekly_availability_own_data`/`training_blocks_own_data` — l'athlète édite directement sous RLS, pas de RPC. Grants : `authenticated` → `SELECT, INSERT, UPDATE, DELETE` ; `service_role` → `SELECT, INSERT, UPDATE` (délibérément **pas** `DELETE` — aucun chemin ne supprime une ligne en gardant l'athlète ; la suppression n'existe que via le `ON DELETE CASCADE` de la FK) ; `anon` → aucun grant.
+
+Avant V0.3_004A, ces deux valeurs vivaient dans un singleton de code mono-athlète (`head-coach-engine/src/config/athleteCoachingProfile.ts`, retiré par ce jalon) qui se serait appliqué tel quel à n'importe quel second athlète. Le repository `getCoachingProfileFor` (read-only) peuple `RawContext.coaching_profile` **uniquement** si une ligne existe ; `domains/technique.ts`/`domains/mental.ts` reçoivent le focus/cue comme paramètre pur — absence de profil ou champ `NULL` individuel ⇒ section correspondante simplement absente, jamais un texte par défaut, jamais le contenu d'un autre athlète. Voir `06_ARCHITECTURE.md` §V0.3_004 et `11_DECISION_LOG.md` (2026-09-04 — V0.3_004A).
+
+**Production** : ligne réelle de Louis peuplée en V0.3_004D (2026-09-04) avec ses deux valeurs approuvées. Preuve empirique de l'isolation cross-athlète (aucune fuite du contenu de Louis vers un second athlète) exécutée en production réelle contre deux utilisateurs scratch — voir `11_DECISION_LOG.md` (2026-09-04 — V0.3_004D).
+
 ---
 
 ## Enums
@@ -143,7 +156,7 @@ Audit DDL M2 (2026-08-14) : la colonne discriminante réelle est **`flag_type`**
 - `session_type` : `STRENGTH_A`, `STRENGTH_B`, `AEROBIC_BASE`, `AEROBIC_INTERVALS`, `DH_TECHNICAL`, `DH_PERFORMANCE`, `RECOVERY`, `REST`, `BIKE_MAINTENANCE`, `RACE_PREP`
 - `race_priority` : `A_PLUS`, `A`, `B`, `C`
 - `race_format` : `HOT_TRAIL_2DAY`, `IXS_3DAY`, `SWISS_CUP`, `UCI_WC`, `UCI_WORLDS`, `OTHER`
-- `training_mode` : `RACE_WEEK`, `RACE_CLUSTER`, `OFF_SEASON_RECOVERY`, `OFF_SEASON_DEVELOPMENT`, `PRE_SEASON`, `IN_SEASON`, `INJURY_RECOVERY`, `OTHER`
+- `training_mode` : `RACE_WEEK`, `RACE_CLUSTER`, `OFF_SEASON_RECOVERY`, `OFF_SEASON_DEVELOPMENT`, `PRE_SEASON`, `IN_SEASON`, `INJURY_RECOVERY`, `OTHER`, `UNSPECIFIED` (ajoutée par `ALTER TYPE ... ADD VALUE`, migration `20260904090000_v0_3_004c_training_mode_unspecified.sql` — signifie "aucune ligne `training_blocks` courante pour cet athlète", jamais une phase devinée ; voir §V0.3_004 ci-dessous)
 - `readiness_zone` : `GREEN`, `AMBER`, `RED`
 - `fatigue_zone` : `LOW`, `NORMAL`, `HIGH`, `VERY_HIGH`
 - `pain_location_code` : 32 zones anatomiques (voir DDL)

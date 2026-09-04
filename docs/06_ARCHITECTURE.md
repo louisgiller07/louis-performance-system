@@ -711,3 +711,51 @@ Canary remote de précédence course délibérément **SKIP** — T17 §21 le pr
 ### Hors périmètre explicite V0.3_003
 
 Planificateur hebdomadaire *automatique* (génération de `planned_sessions` sans saisie athlète — reste `docs/12_BACKLOG.md` §P2, concept distinct), calendrier mensuel, récurrence, glisser-déposer, `primary_objective`/`planned_duration_min`/`planned_time_of_day`/`notes`/`training_block_id` en UI, exposition de `planned_intent`, intégrations Garmin/Zwift/calendrier, `ActiveExperiment` (reste le candidat suivant après V0.3_003), toute nouvelle heuristique de coaching.
+
+---
+
+## V0.3_004 — Multi-Athlete Foundation Hardening : COMPLETE — 2026-09-04 (V0.3_004A/B/C CLOSED LOCALLY — 2026-09-04 ; V0.3_004D CLOSED / PRODUCTION ROLLOUT COMPLETE — 2026-09-04)
+
+### Objectif produit
+
+Jusqu'ici, une seule ligne `athletes` (Louis) a jamais existé — plusieurs parties du système, jamais testées avec un second athlète réel, se sont révélées en revue mono-athlète *de fait*, malgré une architecture qui a toujours prétendu être multi-athlète-par-construction (RLS scopée `athlete_id`/`user_id` partout depuis M2). V0.3_004 corrige les trois violations concrètes découvertes, puis **prouve empiriquement en production réelle**, avec deux utilisateurs authentifiés distincts et non liés, que l'invariant tient de bout en bout — bootstrap → planning → `daily-run` → historique — sans fuite ni interférence dans un seul sens vérifié.
+
+### Les trois violations corrigées
+
+1. **Profil de coaching hardcodé (004A)** — `src/config/athleteCoachingProfile.ts` était un singleton de code (un focus Technique, un cue Mental) consommé sans condition par `domains/technique.ts`/`domains/mental.ts`. Un second athlète aurait reçu tel quel le contenu personnel de Louis. Remplacé par la table `athlete_coaching_profiles` (voir `05_DATA_MODEL.md`), scopée par `athlete_id`, RLS `FOR ALL` self-service. Absence de ligne ou champ `NULL` ⇒ section correspondante simplement absente dans le `DailyPlan`, jamais un texte par défaut, jamais le contenu d'un autre athlète. Le fallback hebdomadaire personnel à Louis (`fallbackInference.ts`) est également généralisé — identique sur les 7 jours, quel que soit l'athlète.
+2. **Bootstrap athlète absent (004B)** — aucun chemin applicatif ne créait de ligne `athletes` pour un nouvel utilisateur authentifié ; `RequireAuth` supposait silencieusement qu'un athlète existait déjà. `AthleteBootstrap.tsx` (nouveau) : formulaire minimal (un seul champ, `name`), écriture directe sous la policy RLS `athletes_own_data` déjà existante (jamais `service_role`, aucune nouvelle policy/grant/migration), toujours suivie d'une re-résolution (`refreshAthlete()`) même après un insert échoué — une course avec `UNIQUE(user_id)` (double-clic, deux onglets) peut légitimement laisser une ligne réelle créée par la tentative gagnante.
+3. **Contexte d'entraînement bloquant (004C)** — `buildRawContext.ts` levait une erreur dure (`NoCurrentTrainingBlockError`) dès qu'un athlète n'avait aucune ligne `training_blocks.is_current=true` — l'état normal d'un athlète fraîchement bootstrappé (004B) avant sa première configuration. Nouvelle valeur d'enum `training_mode.UNSPECIFIED` ("aucune phase configurée" — un état honnête, jamais une phase devinée) ; `getModeSoftConstraints("UNSPECIFIED") === []` (ignorance conservatrice, regroupée avec les autres modes neutres) ; Safety et le protocole de course restent seuls prioritaires sur ce nouvel état, inchangés.
+
+### Frontière moteur frozen — respectée
+
+Aucune des trois corrections ne touche la logique d'arbitrage M1 elle-même (`SAFETY → mode/course → domaines → arbitrage`) : 004A/C ajoutent des entrées optionnelles au `RawContext` (`coaching_profile`) et un état supplémentaire déjà géré par le chemin neutre existant (`UNSPECIFIED`), jamais une nouvelle branche de décision. `ENGINE_VERSION` progresse `..._002d → ..._004a → ..._004c` (004B est web-only, aucun bump). `head-coach-engine@0.2.0-m1-v0.3_004c` est la valeur finale de V0.3_004, confirmée en production par 004D.
+
+### Nouvelle table `athlete_coaching_profiles` (004A)
+
+Voir `05_DATA_MODEL.md` §`athlete_coaching_profiles` pour le schéma complet (colonnes, `CHECK`, RLS, grants). Repository read-only `getCoachingProfileFor` (`src/supabase/repositories/athleteCoachingProfileRepo.ts`) — `RawContext.coaching_profile` reste `undefined` en l'absence de ligne, jamais un objet par défaut fabriqué.
+
+### `UNSPECIFIED` — état honnête, pas une phase devinée (004C)
+
+`getCurrentTrainingBlock(client, athleteId)` retourne la ligne courante ou `null` (jamais une chaîne brute indifférenciée comme avant). `null` ⇒ `active_mode = "UNSPECIFIED"`. Une ligne courante qui existe mais porte un `mode` malformé continue de lever `InvalidTrainingModeError` — les deux états (absence de configuration vs donnée invalide) restent délibérément distincts. Migration purement additive (`ALTER TYPE ... ADD VALUE`), aucun backfill, aucune ligne `training_blocks` existante touchée.
+
+### Bootstrap self-service (004B)
+
+`RequireAuth` rend `<AthleteBootstrap/>` quand la résolution athlète retourne `no_athlete` pour un utilisateur authentifié. Aucune nouvelle policy/grant/migration — réutilise `athletes_own_data` (`FOR ALL`, `USING`/`WITH CHECK (user_id = auth.uid())`) déjà présente depuis la baseline V0.2/M2.
+
+### V0.3_004D — rollout production + preuve empirique à deux athlètes, CLOSED (2026-09-04)
+
+Contrairement à V0.3_002F/V0.3_003E (un seul athlète scratch, suffisant pour prouver un chemin de données), V0.3_004D exige la preuve la plus forte disponible pour un invariant spécifiquement *multi*-athlète : **deux** utilisateurs authentifiés scratch, entièrement indépendants, exécutés simultanément contre la même production.
+
+**Déploiement** : les deux migrations en attente (004A/004C) déployées via `db push` (parité 28/28 avant/après/post-canary) ; `daily-run` redéployée (`ACTIVE`, version 2→3, `verify_jwt: true` préservé, bundle confirmé inclure les fichiers modifiés) ; web redéployé (`vercel deploy --prod`, alias canonique repointé, bundle réellement servi confirmé contenir la nouvelle UI de bootstrap, 5 routes canoniques `HTTP 200`).
+
+**Profil réel de Louis** : identité résolue sans ambiguïté (`count(athletes)=1` vérifié avant toute résolution, jamais un UUID statique ni une résolution par email/nom), upsert des deux valeurs approuvées, vérifié à exactement 1 ligne avec les deux chaînes exactes.
+
+**Canary A/B (script éphémère hors dépôt, jamais commité, supprimé après exécution)** : deux utilisateurs Auth scratch (emails générés uniques, jamais l'email de Louis) → bootstrap réel de chacun sous RLS authentifiée (jamais `service_role`) → preuve négative de bootstrap (A ne peut pas forger une ligne pour B, doublon pour soi-même rejeté) → intentions Planning délibérément différentes (A = `AEROBIC_BASE`/`LIGHT`, B = `DH_TECHNICAL`/`MODERATE` — ce dernier choisi pour activer le domaine Technique et rendre observable la preuve anti-fuite) → isolation Planning complète dans les deux sens (lecture/modification/suppression, 8 assertions) → `daily-run` réel sous JWT de chacun : A confirme le chemin nominal (`engine_version=..._004c`, intention exacte, décision propre) ; **B fournit la preuve zéro-bloc critique** — `training_blocks=0` avant **et** après l'appel, `active_mode="UNSPECIFIED"` en mémoire et persisté, décision appartenant exclusivement à B → **preuve anti-fuite de personnalisation** : les deux chaînes exactes de Louis confirmées absentes des réponses d'A et de B ; chez B, Technique `active:true` mais `focus` absent (le domaine s'active correctement, sans contenu personnel d'un autre athlète) → isolation historique/decisions dans les deux sens → matrice négative additionnelle (profil de coaching, `training_blocks`, injection `athlete_id` dans le corps HTTP → `400`, l'athlète étant exclusivement résolu côté serveur via RLS) → nettoyage complet en cascade FK + preuve de résidu zéro par comptage explicite sur chaque table pour chaque id trackée, utilisateurs Auth confirmés absents.
+
+**Régression Louis** : 7 comptages capturés avant/après le canary, identiques bit à bit — seule mutation intentionnelle du jalon : la ligne `athlete_coaching_profiles` de Louis. Aucun `daily-run` exécuté pour Louis dans ce jalon (choix délibéré).
+
+Détail complet des 15 points de preuve : `11_DECISION_LOG.md` (2026-09-04 — V0.3_004D).
+
+### Hors périmètre explicite V0.3_004
+
+Session complétée dans le canary (SKIP délibéré — les suites locales A/B/C déjà vertes couvrent ce chemin, aucune preuve supplémentaire pertinente pour la fermeture de l'invariant). UI d'édition du profil de coaching (la population reste manuelle/serveur pour l'instant). Onboarding complet au-delà du nom (`AthleteBootstrap` reste minimal). Toute activation automatique de la Couche D (V0.3_001) pour un second athlète. `ActiveExperiment` (reste le candidat suivant, différé mais non annulé).

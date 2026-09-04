@@ -593,4 +593,45 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 - Smoke production **exécuté** : bundle réellement servi + smoke direct `/`, `/today`, `/plan`, `/history`, `/insights` (tous HTTP 200) + canary RLS/`daily-run` authentifié bout-en-bout ci-dessus. Smoke navigateur visuel authentifié : **non automatisé** (aucune dépendance d'automatisation navigateur ajoutée — non requis pour T18, non-bloquant compte tenu des preuves directes ci-dessus).
 - **Contrat d'exécution final** : `web` par défaut **485 passed / 9 skipped** (494 total) ; `web` complet avec opt-in **494/494 PASS** ; build production local PASS ; build isolé `web/`-seul (sans sibling `head-coach-engine/`) PASS avec `dist/` produit ; `head-coach-engine`/edge inchangés depuis T17. Voir `docs/06_ARCHITECTURE.md` §V0.3_003E et `docs/11_DECISION_LOG.md` (2026-09-02 — V0.3_003E).
 
-**V0.3_002 — contrat de test complet.**
+**V0.3_003 — contrat de test complet.**
+
+---
+
+## Scénarios V0.3_004 — Multi-Athlete Foundation Hardening (V0.3_004A/B/C CLOSED / PASS — 2026-09-04 ; V0.3_004D CLOSED / PRODUCTION ROLLOUT COMPLETE — 2026-09-04)
+
+**Statut : V0.3_004 dans son ensemble COMPLETE (2026-09-04).** Aucune régression moteur — T1-T18 restent seuls propriétaires de leurs assertions respectives, non dupliquées ici.
+
+### T19. Profil de coaching athlete-scoped (V0.3_004A — CLOSED / PASS, 2026-09-04)
+- Isolation RLS réelle de `athlete_coaching_profiles` contre une vraie stack Supabase locale — `athleteCoachingProfileRLS.integration.test.ts` (nouveau, 245 lignes)
+- `buildRawContext.ts` peuple `coaching_profile` seulement si une ligne existe ; absence de ligne ⇒ `undefined`, jamais un objet par défaut — `buildRawContext.integration.test.ts` (étendu)
+- Domaines Technique/Mental reçoivent le focus/cue en paramètre pur ; absence de profil ou champ `NULL` individuel ⇒ section correspondante absente, jamais un texte par défaut ni le contenu d'un autre athlète — `t11_technique.test.ts`/`t12_mental.test.ts` (étendus)
+- Fallback générique, identique sur les 7 jours de la semaine, quel que soit l'athlète (plus de split personnel à Louis) — `t6_fallback.test.ts` (étendu)
+- `ENGINE_VERSION` = `head-coach-engine@0.2.0-m1-v0.3_004a` — `engineVersion.test.ts` (valeur intermédiaire, remplacée par 004C)
+- **Contrat d'exécution** : `head-coach-engine` unitaire (hors suite d'intégration Supabase) **233/233** ; edge **8/8** ; build PASS. Voir `docs/11_DECISION_LOG.md` (2026-09-04 — V0.3_004A).
+
+### T20. Bootstrap athlète authentifié (V0.3_004B — CLOSED / PASS, 2026-09-04)
+- `RequireAuth` rend `AthleteBootstrap` sur `no_athlete` — `RequireAuth.test.tsx` (étendu)
+- Écriture réelle sous RLS `athletes_own_data` (jamais `service_role`), toujours suivie d'une re-résolution même après un insert échoué (course avec `UNIQUE(user_id)` légitimement gagnée par une autre tentative) — `AthleteBootstrap.test.tsx` (nouveau, 129 lignes), `athleteBootstrapRepo.integration.test.ts` (nouveau, 206 lignes, RLS réelle contre stack locale)
+- Validation du nom avant tout appel réseau — `athleteBootstrapValidation` (couvert par `AthleteBootstrap.test.tsx`)
+- Moteur `head-coach-engine` strictement inchangé — aucune régression T1-T19
+- **Contrat d'exécution** : `web` **499 passed / 15 skipped** (514 total) ; build PASS. Voir `docs/11_DECISION_LOG.md` (2026-09-04 — V0.3_004B).
+
+### T21. Contexte d'entraînement non configuré — UNSPECIFIED (V0.3_004C — CLOSED / PASS, 2026-09-04)
+- `getModeSoftConstraints("UNSPECIFIED")` = `[]`, regroupé avec les modes neutres, jamais confondu avec un mode protecteur (`RACE_WEEK`/`INJURY_RECOVERY`) — `modesConstraints.test.ts` (étendu)
+- E — `UNSPECIFIED` + checkin neutre + pas de plan + pas de course ⇒ plan valide, `RECOVERY_ACTIVE` — `t6_fallback.test.ts`
+- F — `UNSPECIFIED` + `suspected_concussion` ⇒ `REST`, Safety reste seule autorité — `t6_fallback.test.ts`
+- G — `UNSPECIFIED` + course en cours ⇒ le protocole de course garde le contrôle (`RACE_ACTIVITY`, jamais `RECOVERY_ACTIVE`, jamais une contrainte de mode) — `t6_fallback.test.ts`
+- `NoCurrentTrainingBlockError` retirée ; mapping HTTP `no_current_training_block` retiré côté Edge et web — `errorMapping.test.ts`/`dailyRunErrors.test.ts` (allégés)
+- `ENGINE_VERSION` = `head-coach-engine@0.2.0-m1-v0.3_004c` (valeur finale de V0.3_004) — `engineVersion.test.ts`
+- **Contrat d'exécution** : `head-coach-engine` unitaire **233/233** ; edge **8/8** (un cas retiré avec `no_current_training_block`, contre 9/9 avant) ; `web` **499 passed / 15 skipped** ; builds PASS. Voir `docs/11_DECISION_LOG.md` (2026-09-04 — V0.3_004C).
+
+### T22. Rollout production + preuve empirique à deux athlètes (V0.3_004D — CLOSED / PASS, 2026-09-04)
+- Migrations 004A/004C déployées (`db push`), parité 28/28 avant/après/post-canary ; `athlete_coaching_profiles` (RLS + grants exacts) et `training_mode.UNSPECIFIED` vérifiés par SQL direct post-déploiement
+- Profil réel de Louis peuplé et vérifié (identité résolue sans ambiguïté, upsert idempotent, exactement 1 ligne, deux chaînes exactes)
+- `daily-run` redéployée (`ACTIVE`, version 3, `verify_jwt: true`), web redéployé (bundle réellement servi confirmé, 5 routes `HTTP 200`)
+- **Canary production à deux utilisateurs authentifiés scratch, jamais `service_role` pour les chemins athlète** : bootstrap réel de chacun + preuve négative de bootstrap (forgerie cross-user rejetée, doublon rejeté) ; intentions Planning délibérément différentes (A=`AEROBIC_BASE`/`LIGHT`, B=`DH_TECHNICAL`/`MODERATE`) ; isolation Planning complète dans les deux sens (8 assertions) ; `daily-run` réel sous JWT de chacun — A confirme le chemin nominal, **B fournit la preuve zéro-bloc critique** (`training_blocks=0` avant/après, `active_mode="UNSPECIFIED"` en mémoire et persisté) ; **preuve anti-fuite** : chaînes exactes de Louis absentes des réponses d'A et de B, Technique actif chez B sans `focus` ; isolation historique dans les deux sens ; matrice négative additionnelle (profil de coaching, `training_blocks`, injection `athlete_id` HTTP → `400`) ; nettoyage complet + résidu zéro prouvé par comptage explicite, utilisateurs Auth confirmés absents
+- Régression Louis : 7 comptages avant/après le canary, identiques bit à bit — seule mutation intentionnelle : `athlete_coaching_profiles` de Louis ; aucun `daily-run` exécuté pour Louis dans ce jalon
+- Session complétée délibérément **SKIP** (aucune preuve supplémentaire pertinente ; suites locales déjà vertes)
+- **Contrat d'exécution final** : chaque assertion du canary production PASS (aucune reprise nécessaire) ; migration parity 28/28 et `daily-run ACTIVE`/version 3 reconfirmés stables après le canary. Voir `docs/06_ARCHITECTURE.md` §V0.3_004D et `docs/11_DECISION_LOG.md` (2026-09-04 — V0.3_004D).
+
+**V0.3_004 — contrat de test complet.**
