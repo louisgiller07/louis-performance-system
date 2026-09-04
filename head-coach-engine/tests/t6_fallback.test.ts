@@ -79,4 +79,47 @@ describe("T6 — Absence de planned_session", () => {
       expect(plan.triggered_rules.some((r) => r.rule_id === "INFERENCE_FALLBACK")).toBe(false);
     });
   });
+
+  describe("V0.3_004C — active_mode UNSPECIFIED (aucun training_blocks courant)", () => {
+    it("E — UNSPECIFIED + checkin neutre + pas de plan + pas de course → plan valide, RECOVERY_ACTIVE", () => {
+      const ctx = baseRawContext({
+        today: "2026-08-24",
+        active_mode: "UNSPECIFIED",
+        planned_session: null,
+        upcoming_races: [],
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.active_mode).toBe("UNSPECIFIED");
+      expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+      expect(plan.planned_session_before).toBeNull();
+    });
+
+    it("F — UNSPECIFIED + suspected_concussion → REST, Safety reste seule autorité", () => {
+      const ctx = baseRawContext({
+        today: "2026-08-24",
+        active_mode: "UNSPECIFIED",
+        planned_session: null,
+        upcoming_races: [],
+        checkin: { suspected_concussion: true },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.active_mode).toBe("UNSPECIFIED");
+      expect(plan.final_session).toEqual({ kind: "REST" });
+    });
+
+    it("G — UNSPECIFIED + course en cours → le protocole de course garde le contrôle de la séance finale (jamais RECOVERY_ACTIVE, jamais une contrainte de mode)", () => {
+      // VERBIER (fixtures/louis.ts RACE_CALENDAR) : 2026-09-11..2026-09-13.
+      // today au milieu de cette plage -> event_context.in_progress = true.
+      const ctx = baseRawContext({
+        today: "2026-09-12",
+        active_mode: "UNSPECIFIED",
+        planned_session: null,
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.active_mode).toBe("UNSPECIFIED");
+      expect(plan.event_context?.in_progress).toBe(true);
+      expect(plan.final_session.kind).toBe("RACE_ACTIVITY");
+      expect(plan.final_session.kind).not.toBe("RECOVERY_ACTIVE");
+    });
+  });
 });

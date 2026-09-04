@@ -1,6 +1,6 @@
 // M3_003 — maps runDailyFor's typed errors to an HTTP status/code/message.
 // No business/M1/persistence logic here, only response shaping.
-import { NoCurrentCheckinError, NoCurrentTrainingBlockError } from "../../../head-coach-engine/dist/supabase/buildRawContext.js";
+import { NoCurrentCheckinError } from "../../../head-coach-engine/dist/supabase/buildRawContext.js";
 import { IncompleteDailyCheckinError } from "../../../head-coach-engine/dist/supabase/mapping/dailyCheckinRow.js";
 import { IncompleteCheckinPainCriteriaError } from "../../../head-coach-engine/dist/supabase/mapping/dailyCheckinPainCriteria.js";
 import { PersistDailyRunRpcError, InvalidPersistDailyRunResultError } from "../../../head-coach-engine/dist/supabase/persistDailyRun.js";
@@ -14,16 +14,16 @@ export interface MappedDailyRunError {
 
 // Every other error thrown along this path (InvalidHealthFlagRowError,
 // InvalidRaceCalendarRowError, InvalidCompletedSessionRowError,
-// InvalidTrainingInterventionJsonError, InvalidTrainingModeError,
+// InvalidTrainingInterventionJsonError, InvalidTrainingModeError — now
+// also the sole signal for a current training_blocks row with a malformed
+// mode, V0.3_004C, since a MISSING current row is no longer an error at
+// all (buildRawContext.ts resolves it to active_mode="UNSPECIFIED") —
 // MissingSupabaseServerConfigError, or anything unforeseen) falls through
 // to the generic 500 below by design — these represent a broken invariant
 // M2 already treats as a hard failure, not a client-correctable request.
 export function mapDailyRunError(error: unknown): MappedDailyRunError {
   if (error instanceof NoCurrentCheckinError) {
     return { status: 422, code: "no_checkin_for_date", message: "No check-in exists for the requested date." };
-  }
-  if (error instanceof NoCurrentTrainingBlockError) {
-    return { status: 422, code: "no_current_training_block", message: "No current training block is configured for this athlete." };
   }
   if (error instanceof IncompleteCheckinPainCriteriaError) {
     return { status: 422, code: "pain_criteria_missing", message: "The check-in for the requested date is missing required pain criteria." };

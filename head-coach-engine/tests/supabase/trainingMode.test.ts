@@ -12,6 +12,7 @@ describe("M2 read path — parseTrainingMode", () => {
       "IN_SEASON",
       "INJURY_RECOVERY",
       "OTHER",
+      "UNSPECIFIED",
     ];
     for (const mode of modes) {
       expect(parseTrainingMode(mode)).toBe(mode);

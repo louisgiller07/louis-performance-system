@@ -110,6 +110,13 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
     });
   });
 
+  describe("V0.3_004C — UNSPECIFIED never triggers the RACE_WEEK-only focus", () => {
+    it("active_mode UNSPECIFIED alone → inactive, exactly like any other non-RACE_WEEK mode", () => {
+      const result = computeNutritionDomain(baseParams({ activeMode: "UNSPECIFIED" }));
+      expect(result).toEqual({ active: false });
+    });
+  });
+
   describe("DH day — final_session", () => {
     for (const session of DH_KINDS) {
       it(`final ${session.kind} → DH notes, hydration_target_l absent`, () => {

@@ -4,6 +4,7 @@ import { buildRawContext, NoCurrentCheckinError } from "../../src/supabase/build
 import { buildDailyPlan } from "../../src/engine/buildDailyPlan.js";
 import { IncompleteDailyCheckinError } from "../../src/supabase/mapping/dailyCheckinRow.js";
 import { IncompleteCheckinPainCriteriaError } from "../../src/supabase/mapping/dailyCheckinPainCriteria.js";
+import { InvalidTrainingModeError } from "../../src/supabase/mapping/trainingMode.js";
 import {
   createTestClient,
   createTestAthlete,
@@ -367,6 +368,54 @@ describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => 
           mental_pre_race_cue: "Cue athlète A",
         });
         expect(rawB.coaching_profile).toBeUndefined();
+      } finally {
+        await deleteTestAthlete(client, athleteB);
+      }
+    });
+  });
+
+  describe("V0.3_004C — active_mode UNSPECIFIED (real athlete_coaching_profiles-adjacent training_blocks cases)", () => {
+    it("CASE 1 — zero current training_blocks rows -> active_mode = UNSPECIFIED (never an error)", async () => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      // Deliberately no insertTrainingBlock call at all.
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.active_mode).toBe("UNSPECIFIED");
+    });
+
+    it("CASE 3 — a current training_blocks row exists but mode is NULL -> explicit InvalidTrainingModeError, never silently mapped to UNSPECIFIED", async () => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      // Same shape insertTrainingBlock uses, but with mode explicitly NULL
+      // instead of a valid enum value — malformed configured data, not an
+      // absent row.
+      const { error } = await client.from("training_blocks").insert({
+        athlete_id: athlete.athleteId,
+        name: "Malformed current block",
+        start_date: "2026-01-01",
+        end_date: "2026-12-31",
+        primary_focus: "test",
+        is_current: true,
+        mode: null,
+      });
+      if (error) throw new Error(`malformed training_blocks insert failed: ${error.message}`);
+
+      await expect(buildRawContext(client, athlete.athleteId, TODAY)).rejects.toThrow(InvalidTrainingModeError);
+    });
+
+    it("CASE 4 — cross-athlete isolation: A has a current block, B has none -> B gets UNSPECIFIED, never A's mode", async () => {
+      const athleteB = await createTestAthlete(client, "buildRawContext V0.3_004C cross-athlete B");
+      try {
+        await insertCheckin(client, athlete.athleteId, TODAY);
+        await insertTrainingBlock(client, athlete.athleteId, "RACE_WEEK");
+
+        await insertCheckin(client, athleteB.athleteId, TODAY);
+        // athleteB deliberately gets no training_blocks row of its own.
+
+        const { rawContext: rawA } = await buildRawContext(client, athlete.athleteId, TODAY);
+        const { rawContext: rawB } = await buildRawContext(client, athleteB.athleteId, TODAY);
+
+        expect(rawA.active_mode).toBe("RACE_WEEK");
+        expect(rawB.active_mode).toBe("UNSPECIFIED");
       } finally {
         await deleteTestAthlete(client, athleteB);
       }

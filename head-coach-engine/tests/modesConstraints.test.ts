@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeStrongConstraintViolation } from "../src/rules/modes.js";
+import { describeStrongConstraintViolation, getModeSoftConstraints } from "../src/rules/modes.js";
 import type { SoftConstraint } from "../src/types/context.js";
 
 function strong(type: string): SoftConstraint {
@@ -69,5 +69,23 @@ describe("describeStrongConstraintViolation — chaque contrainte isolée", () =
       load_profile: "HEAVY",
     });
     expect(violation).toBeNull();
+  });
+});
+
+describe("getModeSoftConstraints — V0.3_004C UNSPECIFIED", () => {
+  it("UNSPECIFIED produces exactly zero soft constraints — conservative ignorance, never an inferred phase", () => {
+    expect(getModeSoftConstraints("UNSPECIFIED")).toEqual([]);
+  });
+
+  it("UNSPECIFIED matches the same empty result as the other neutral modes (OTHER/IN_SEASON/PRE_SEASON/OFF_SEASON_DEVELOPMENT)", () => {
+    const neutralModes = ["OTHER", "IN_SEASON", "PRE_SEASON", "OFF_SEASON_DEVELOPMENT"] as const;
+    for (const mode of neutralModes) {
+      expect(getModeSoftConstraints("UNSPECIFIED")).toEqual(getModeSoftConstraints(mode));
+    }
+  });
+
+  it("UNSPECIFIED never accidentally matches a protective mode's non-empty constraints", () => {
+    expect(getModeSoftConstraints("UNSPECIFIED")).not.toEqual(getModeSoftConstraints("RACE_WEEK"));
+    expect(getModeSoftConstraints("UNSPECIFIED")).not.toEqual(getModeSoftConstraints("INJURY_RECOVERY"));
   });
 });

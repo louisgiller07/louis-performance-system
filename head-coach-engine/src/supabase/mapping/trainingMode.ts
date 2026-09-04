@@ -16,6 +16,7 @@ const TRAINING_MODES: ReadonlySet<string> = new Set([
   "IN_SEASON",
   "INJURY_RECOVERY",
   "OTHER",
+  "UNSPECIFIED",
 ]);
 
 export class InvalidTrainingModeError extends Error {

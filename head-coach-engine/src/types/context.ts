@@ -2,6 +2,11 @@ import type { TrainingIntervention } from "./trainingIntervention.js";
 import type { ActiveExperiment } from "./experiment.js";
 
 // Voir docs/07_GLOSSARY.md §Modes opérationnels et docs/05_DATA_MODEL.md §training_blocks.
+//
+// UNSPECIFIED (V0.3_004C) — explicit "no current training phase has been
+// configured for this athlete" state (zero current training_blocks rows),
+// never a fabricated guess at a real phase. Distinct from OTHER (a real,
+// deliberately-chosen phase that doesn't fit the other named categories).
 export type TrainingMode =
   | "RACE_WEEK"
   | "RACE_CLUSTER"
@@ -10,7 +15,8 @@ export type TrainingMode =
   | "PRE_SEASON"
   | "IN_SEASON"
   | "INJURY_RECOVERY"
-  | "OTHER";
+  | "OTHER"
+  | "UNSPECIFIED";
 
 export type SoftConstraintWeight = "strong" | "moderate" | "weak";
 

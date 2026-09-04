@@ -30,13 +30,11 @@ function mapHttpBody(status: number, code: string | undefined): DailyRunError {
       return { code, message: "Complète les informations sur ta douleur.", retryable: false, action: "user_fixable" };
     case "checkin_incomplete":
       return { code, message: "Ton check-in est incomplet.", retryable: false, action: "user_fixable" };
-    case "no_current_training_block":
-      return {
-        code,
-        message: "Configuration manquante : aucun bloc d'entraînement actif. Contacte ton coach.",
-        retryable: false,
-        action: "config_issue",
-      };
+    // V0.3_004C — no_current_training_block is no longer a possible
+    // daily-run response for "zero current training_blocks rows": that
+    // state now resolves server-side to active_mode="UNSPECIFIED" and the
+    // run succeeds. This case is deliberately removed, not just unreached
+    // dead code — see supabase/functions/daily-run/errorMapping.ts.
     case "no_athlete_for_user":
       return {
         code,

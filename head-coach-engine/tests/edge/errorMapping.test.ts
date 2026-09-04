@@ -3,7 +3,7 @@
 // but awkward to provoke cleanly via a live DB fixture.
 import { describe, expect, it } from "vitest";
 import { mapDailyRunError } from "../../../supabase/functions/daily-run/errorMapping.js";
-import { NoCurrentCheckinError, NoCurrentTrainingBlockError } from "../../dist/supabase/buildRawContext.js";
+import { NoCurrentCheckinError } from "../../dist/supabase/buildRawContext.js";
 import { IncompleteDailyCheckinError } from "../../dist/supabase/mapping/dailyCheckinRow.js";
 import { IncompleteCheckinPainCriteriaError } from "../../dist/supabase/mapping/dailyCheckinPainCriteria.js";
 import { PersistDailyRunRpcError, InvalidPersistDailyRunResultError } from "../../dist/supabase/persistDailyRun.js";
@@ -13,12 +13,6 @@ describe("mapDailyRunError", () => {
   it("maps NoCurrentCheckinError to 422 no_checkin_for_date", () => {
     const mapped = mapDailyRunError(new NoCurrentCheckinError("athlete-1", "2026-08-17"));
     expect(mapped).toEqual({ status: 422, code: "no_checkin_for_date", message: mapped.message });
-  });
-
-  it("maps NoCurrentTrainingBlockError to 422 no_current_training_block", () => {
-    const mapped = mapDailyRunError(new NoCurrentTrainingBlockError("athlete-1"));
-    expect(mapped.status).toBe(422);
-    expect(mapped.code).toBe("no_current_training_block");
   });
 
   it("maps IncompleteCheckinPainCriteriaError to 422 pain_criteria_missing", () => {

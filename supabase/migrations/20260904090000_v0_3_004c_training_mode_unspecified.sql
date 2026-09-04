@@ -1,0 +1,22 @@
+-- V0.3_004C — adds UNSPECIFIED to public.training_mode.
+--
+-- Purely additive: no table/column/RLS/grant change, no data backfill, no
+-- training_blocks row touched. Existing rows and their existing mode
+-- values are completely unaffected.
+--
+-- Meaning: "no current training phase has been configured for this
+-- athlete" — a real, honest, explicit state (head-coach-engine derives it
+-- when zero training_blocks rows are current for an athlete), never a
+-- fabricated guess at a real phase. See
+-- head-coach-engine/src/supabase/buildRawContext.ts and
+-- head-coach-engine/src/rules/modes.ts (UNSPECIFIED produces zero
+-- mode-derived soft constraints, grouped with the least-restrictive
+-- existing modes).
+--
+-- PostgreSQL enum-addition note: `ALTER TYPE ... ADD VALUE` cannot run
+-- inside the same transaction block as a later statement that USES the new
+-- value (pre-PG12 restriction; still the safest cross-version pattern to
+-- follow here since this is the only statement in this migration file —
+-- Supabase applies each migration file as its own transaction). This file
+-- contains nothing else, so no such conflict arises.
+alter type public.training_mode add value 'UNSPECIFIED';

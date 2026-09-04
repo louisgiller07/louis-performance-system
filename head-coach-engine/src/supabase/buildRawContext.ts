@@ -20,7 +20,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CompletedSessionSummary, DbSessionType, RawContext } from "../types/index.js";
 
 import { getCheckinFor } from "./repositories/dailyCheckinsRepo.js";
-import { getCurrentTrainingModeRaw } from "./repositories/trainingBlocksRepo.js";
+import { getCurrentTrainingBlock } from "./repositories/trainingBlocksRepo.js";
 import { getPlannedSessionFor } from "./repositories/plannedSessionsRepo.js";
 import { getRacesInWindow } from "./repositories/raceCalendarRepo.js";
 import { getRecentSessions } from "./repositories/completedSessionsRepo.js";
@@ -43,16 +43,6 @@ export class NoCurrentCheckinError extends Error {
   }
 }
 
-export class NoCurrentTrainingBlockError extends Error {
-  constructor(athleteId: string) {
-    super(
-      `No current training_blocks row (is_current = true) for athlete ${athleteId} — cannot determine ` +
-        "RawContext.active_mode."
-    );
-    this.name = "NoCurrentTrainingBlockError";
-  }
-}
-
 export interface BuildRawContextResult {
   rawContext: RawContext;
   /**
@@ -70,9 +60,19 @@ export interface BuildRawContextResult {
 
 /**
  * Builds a complete `RawContext` for `athleteId` on `today` from Supabase.
- * Read-only — zero write. Throws explicitly ({@link NoCurrentCheckinError},
- * {@link NoCurrentTrainingBlockError}, or a mapper's own validation error)
- * rather than fabricating a value for data that isn't there.
+ * Read-only — zero write. Throws explicitly ({@link NoCurrentCheckinError}
+ * or a mapper's own validation error) rather than fabricating a value for
+ * data that isn't there.
+ *
+ * V0.3_004C — a missing current `training_blocks` row is no longer an
+ * error: it means `active_mode = "UNSPECIFIED"` ("no current training
+ * phase configured for this athlete yet"), a real explicit state, not
+ * missing data. A current row that DOES exist but carries a malformed
+ * `mode` (NULL or an unrecognized value) is a genuinely different,
+ * still-invalid state — `parseTrainingMode` still throws
+ * {@link InvalidTrainingModeError} for that case, exactly as before. These
+ * two states are deliberately never conflated — see
+ * repositories/trainingBlocksRepo.ts's `getCurrentTrainingBlock`.
  */
 export async function buildRawContext(
   client: SupabaseClient,
@@ -85,9 +85,11 @@ export async function buildRawContext(
   if (!checkinRow) throw new NoCurrentCheckinError(athleteId, today);
   const checkin = mapDailyCheckinRow(checkinRow);
 
-  const rawMode = await getCurrentTrainingModeRaw(client, athleteId);
-  if (rawMode === null) throw new NoCurrentTrainingBlockError(athleteId);
-  const active_mode = parseTrainingMode(rawMode);
+  const currentBlock = await getCurrentTrainingBlock(client, athleteId);
+  // No current row -> explicit "unconfigured" state, never a fabricated
+  // guess. A current row that exists but carries a malformed mode still
+  // throws via parseTrainingMode below, exactly as before.
+  const active_mode = currentBlock === null ? "UNSPECIFIED" : parseTrainingMode(currentBlock.mode);
 
   const plannedRow = await getPlannedSessionFor(client, athleteId, today);
   let planned_session = null as RawContext["planned_session"];

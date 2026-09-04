@@ -30,6 +30,10 @@ export function getModeSoftConstraints(mode: TrainingMode): SoftConstraint[] {
     case "PRE_SEASON":
     case "IN_SEASON":
     case "OTHER":
+    case "UNSPECIFIED":
+      // UNSPECIFIED (V0.3_004C) — no current training phase configured.
+      // Conservative ignorance: zero mode-derived soft constraints, never
+      // an inferred phase (no_development/race protection/injury/etc.).
       return [];
   }
 }

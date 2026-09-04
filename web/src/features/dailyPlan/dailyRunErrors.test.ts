@@ -32,12 +32,6 @@ describe("mapDailyRunError", () => {
     expect(mapped.retryable).toBe(false);
   });
 
-  it("maps no_current_training_block to a config_issue", async () => {
-    const mapped = await mapDailyRunError(httpError(422, { error: { code: "no_current_training_block" } }));
-    expect(mapped.action).toBe("config_issue");
-    expect(mapped.retryable).toBe(false);
-  });
-
   it("maps no_athlete_for_user to a config_issue", async () => {
     const mapped = await mapDailyRunError(httpError(403, { error: { code: "no_athlete_for_user" } }));
     expect(mapped.action).toBe("config_issue");

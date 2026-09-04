@@ -185,7 +185,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_004B — athlete bootstrap RLS (real
       await expect(historyRepo.loadDecisionHistory(athleteId)).resolves.toEqual([]);
     });
 
-    it("§24 — daily-run (real engine, direct runDailyFor call) requires a current training_blocks row: a fresh athlete with only a checkin still fails with NoCurrentTrainingBlockError, never a crash/500-shaped failure", async () => {
+    it("V0.3_004C — daily-run (real engine, direct runDailyFor call) succeeds for a fresh athlete with a checkin but no current training_blocks row: active_mode=UNSPECIFIED, never an error, never a fabricated training_blocks row", async () => {
       userA = await createScratchAuthUser(admin);
       await signInAs(userA);
       await repo.createOwnAthlete(userA.userId, "Fresh athlete — daily-run reachability check");
@@ -196,11 +196,24 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_004B — athlete bootstrap RLS (real
       // Isolate exactly the training_blocks variable: give this athlete a
       // real, known-good neutral checkin (same sanctioned fixture helper
       // used throughout head-coach-engine's own integration suite) so the
-      // FIRST missing-prerequisite the engine hits is unambiguously the
-      // training block, not the checkin.
+      // only remaining unconfigured prerequisite is the training block.
       await insertCheckin(admin, athleteId, "2026-09-04");
 
-      await expect(runDailyFor(admin, athleteId, "2026-09-04")).rejects.toThrow("No current training_blocks row");
+      const { data: blocksBefore } = await admin.from("training_blocks").select("id").eq("athlete_id", athleteId);
+      expect(blocksBefore).toEqual([]);
+
+      const result = await runDailyFor(admin, athleteId, "2026-09-04");
+      expect(result.dailyPlan.active_mode).toBe("UNSPECIFIED");
+
+      const { data: decisionRow } = await admin
+        .from("decisions")
+        .select("active_mode")
+        .eq("id", result.persistence.decision_id)
+        .single();
+      expect(decisionRow?.active_mode).toBe("UNSPECIFIED");
+
+      const { data: blocksAfter } = await admin.from("training_blocks").select("id").eq("athlete_id", athleteId);
+      expect(blocksAfter).toEqual([]);
     });
   });
 });

@@ -10,15 +10,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertNoSupabaseError } from "./supabaseError.js";
 
+export interface CurrentTrainingBlockRow {
+  mode: unknown;
+}
+
 /**
- * Fetches `training_blocks.mode` for the athlete's current block
- * (`is_current = true`). Returns `null` if no current block exists —
- * never guesses/defaults a mode.
+ * Fetches the athlete's current block (`is_current = true`), or `null` if
+ * none exists. V0.3_004C — deliberately returns the whole row (or null)
+ * rather than plucking `.mode` early: an ABSENT current row and a PRESENT
+ * current row whose `mode` column happens to be NULL are two genuinely
+ * different states (unconfigured athlete vs. malformed configured data)
+ * that a caller must not conflate. `null` from this function means
+ * exactly one thing — no current row — never "row exists but mode is
+ * null", which the caller can only tell apart by reading `.mode` off a
+ * non-null result.
  */
-export async function getCurrentTrainingModeRaw(
+export async function getCurrentTrainingBlock(
   client: SupabaseClient,
   athleteId: string
-): Promise<unknown> {
+): Promise<CurrentTrainingBlockRow | null> {
   const { data, error } = await client
     .from("training_blocks")
     .select("mode")
@@ -27,5 +37,5 @@ export async function getCurrentTrainingModeRaw(
     .maybeSingle();
 
   assertNoSupabaseError(error, "training_blocks");
-  return data ? (data as Record<string, unknown>).mode : null;
+  return data as CurrentTrainingBlockRow | null;
 }

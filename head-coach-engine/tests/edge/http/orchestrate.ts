@@ -417,7 +417,27 @@ async function main(): Promise<void> {
 
     // ================= 8-11. Error mapping over real fixtures =================
     await expectPost("8. missing checkin -> 422 no_checkin_for_date", userA.token, { date: "2026-08-19" }, 422, "no_checkin_for_date");
-    await expectPost("9. no current training block -> 422 no_current_training_block", userD.token, { date: "2026-08-17" }, 422, "no_current_training_block");
+
+    // ================= 9. V0.3_004C — no current training block is a SUCCESS, not an error =================
+    {
+      const beforeBlocks = await admin.from("training_blocks").select("id", { count: "exact", head: true }).eq("athlete_id", userD.athleteId);
+      const r = await post(userD.token, { date: "2026-08-17" });
+      const ok = r.status === 200 && typeof r.json?.decisionId === "string" && r.json?.dailyPlan?.active_mode === "UNSPECIFIED";
+      record("9. no current training block -> 200, dailyPlan.active_mode=UNSPECIFIED (never an error)", ok, `status=${r.status} body=${r.text.slice(0, 260)}`);
+
+      if (r.json?.decisionId) {
+        const { data: row, error } = await admin.from("decisions").select("active_mode").eq("id", r.json.decisionId).single();
+        if (error) throw error;
+        record("9. persisted decisions.active_mode == UNSPECIFIED", row.active_mode === "UNSPECIFIED", `active_mode=${row.active_mode}`);
+      }
+
+      const afterBlocks = await admin.from("training_blocks").select("id", { count: "exact", head: true }).eq("athlete_id", userD.athleteId);
+      record(
+        "9. daily-run never writes a training_blocks row for the unconfigured athlete",
+        (beforeBlocks.count ?? -1) === 0 && (afterBlocks.count ?? -1) === 0,
+        `before=${beforeBlocks.count} after=${afterBlocks.count}`
+      );
+    }
     await expectPost("10. pain criteria missing -> 422 pain_criteria_missing", userE.token, { date: "2026-08-17" }, 422, "pain_criteria_missing");
     await expectPost("11. incomplete checkin -> 422 checkin_incomplete", userE.token, { date: "2026-08-18" }, 422, "checkin_incomplete");
 
