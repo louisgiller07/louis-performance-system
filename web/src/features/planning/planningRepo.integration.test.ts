@@ -335,6 +335,47 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
     expect(rowsA[0].intervention).toEqual({ kind: "MOBILITY" });
   });
 
+  it("I. V0.3_005A: is_committed is saved/loaded for the caller's own athlete and isolated from another athlete's row", async () => {
+    await signInAs(athleteA);
+    const savedA = await repo.savePlannedSession(athleteA.athleteId, "2026-09-11", "DH_PERFORMANCE", "HEAVY", true);
+    expect(savedA.is_committed).toBe(true);
+
+    const [loadedA] = await repo.loadPlannedSessions(athleteA.athleteId, "2026-09-11", "2026-09-11");
+    expect(loadedA.is_committed).toBe(true);
+
+    await admin.from("planned_sessions").insert({
+      athlete_id: athleteB.athleteId,
+      planned_date: "2026-09-11",
+      session_type: "REST",
+      intervention: { kind: "REST" },
+      is_committed: false,
+    });
+
+    // A's commitment on their own row never leaks into B's, even on the same date.
+    const rowsA = await repo.loadPlannedSessions(athleteA.athleteId, "2026-09-11", "2026-09-11");
+    expect(rowsA).toHaveLength(1);
+    expect(rowsA[0].is_committed).toBe(true);
+    const { data: adminRowB } = await admin
+      .from("planned_sessions")
+      .select("is_committed")
+      .eq("athlete_id", athleteB.athleteId)
+      .eq("planned_date", "2026-09-11")
+      .single();
+    expect(adminRowB?.is_committed).toBe(false);
+
+    // A cannot forge a committed row for B either (mirrors test F for is_committed specifically).
+    await expect(
+      repo.savePlannedSession(athleteB.athleteId, "2026-09-12", "DH_PERFORMANCE", "HEAVY", true)
+    ).rejects.toThrow(repo.PlanningSaveError);
+    const { data: forgedRow } = await admin
+      .from("planned_sessions")
+      .select("is_committed")
+      .eq("athlete_id", athleteB.athleteId)
+      .eq("planned_date", "2026-09-12")
+      .maybeSingle();
+    expect(forgedRow).toBeNull();
+  });
+
   describe("OMIT AND PRESERVE — the five engine-inert columns survive an authenticated save untouched", () => {
     it("primary_objective, planned_duration_min, planned_time_of_day, training_block_id, notes are never cleared by savePlannedSession", async () => {
       const { data: block, error: blockError } = await admin

@@ -94,14 +94,17 @@ export async function buildRawContext(
   const plannedRow = await getPlannedSessionFor(client, athleteId, today);
   let planned_session = null as RawContext["planned_session"];
   let planned_intent: string | undefined;
+  let planned_session_committed: boolean | undefined;
   if (plannedRow) {
     const mapping = mapPlannedSessionRow({
       session_type: plannedRow.session_type as DbSessionType,
       intervention: plannedRow.intervention,
       planned_intent: plannedRow.planned_intent,
+      is_committed: plannedRow.is_committed,
     });
     planned_session = mapping.planned_session;
     planned_intent = mapping.planned_intent ?? undefined;
+    planned_session_committed = mapping.planned_session_committed;
     warnings.push(...mapping.warnings);
   }
 
@@ -133,6 +136,7 @@ export async function buildRawContext(
     checkin,
     planned_session,
     ...(planned_intent !== undefined ? { planned_intent } : {}),
+    ...(planned_session_committed !== undefined ? { planned_session_committed } : {}),
     active_mode,
     upcoming_races,
     recent_sessions,

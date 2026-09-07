@@ -33,7 +33,7 @@ describe("TodayPlanningSummary", () => {
   });
 
   it("C: explicit REST shows Repos", async () => {
-    const row: PlannedSessionRow = { planned_date: "2026-09-01", session_type: "REST", intervention: { kind: "REST" }, planned_intent: null };
+    const row: PlannedSessionRow = { planned_date: "2026-09-01", session_type: "REST", intervention: { kind: "REST" }, planned_intent: null, is_committed: false };
     loadPlannedSessions.mockResolvedValue([row]);
     renderSummary();
     expect(await screen.findByText("Repos")).toBeInTheDocument();
@@ -45,6 +45,7 @@ describe("TodayPlanningSummary", () => {
       session_type: "DH_TECHNICAL",
       intervention: { kind: "PUMPTRACK", load_profile: "LIGHT" },
       planned_intent: null,
+      is_committed: false,
     };
     loadPlannedSessions.mockResolvedValue([row]);
     renderSummary();
@@ -52,7 +53,7 @@ describe("TodayPlanningSummary", () => {
   });
 
   it("E: a legacy intervention=NULL row with a known coarse type shows the coarse label, never the raw enum", async () => {
-    const row: PlannedSessionRow = { planned_date: "2026-09-01", session_type: "STRENGTH_A", intervention: null, planned_intent: null };
+    const row: PlannedSessionRow = { planned_date: "2026-09-01", session_type: "STRENGTH_A", intervention: null, planned_intent: null, is_committed: false };
     loadPlannedSessions.mockResolvedValue([row]);
     renderSummary();
     expect(await screen.findByText("Force A")).toBeInTheDocument();
@@ -84,6 +85,7 @@ describe("TodayPlanningSummary", () => {
       session_type: "DH_TECHNICAL",
       intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
       planned_intent: null,
+      is_committed: false,
     };
     loadPlannedSessions.mockResolvedValue([row]);
     renderSummary();

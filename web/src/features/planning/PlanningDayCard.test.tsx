@@ -24,7 +24,13 @@ beforeEach(() => {
 });
 
 function restRow(): PlannedSessionRow {
-  return { planned_date: "2026-09-01", session_type: "REST", intervention: { kind: "REST" }, planned_intent: null };
+  return {
+    planned_date: "2026-09-01",
+    session_type: "REST",
+    intervention: { kind: "REST" },
+    planned_intent: null,
+    is_committed: false,
+  };
 }
 
 function strengthHeavyRow(): PlannedSessionRow {
@@ -33,6 +39,7 @@ function strengthHeavyRow(): PlannedSessionRow {
     session_type: "STRENGTH_A",
     intervention: { kind: "STRENGTH_LOWER", load_profile: "HEAVY" },
     planned_intent: null,
+    is_committed: false,
   };
 }
 
@@ -136,7 +143,9 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY"));
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false)
+    );
   });
 
   it("K: edit calls savePlannedSession, replacing the previous intervention", async () => {
@@ -147,7 +156,7 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false));
   });
 
   it("L, M: delete calls deletePlannedSession and returns the card to Non planifié, never Repos", async () => {
@@ -172,6 +181,42 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
 
     expect(await screen.findByText("Repos")).toBeInTheDocument();
     expect(deletePlannedSession).not.toHaveBeenCalled();
+  });
+
+  it("V0.3_005A: Activité engagée defaults unchecked for a new session and is passed through when checked", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(strengthHeavyRow());
+    render(<Harness initialExpanded />);
+
+    const committedToggle = screen.getByRole("checkbox", { name: /Activité engagée/ });
+    expect(committedToggle).not.toBeChecked();
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    await user.click(screen.getByRole("button", { name: "charge lourde" }));
+    await user.click(committedToggle);
+    expect(committedToggle).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", true)
+    );
+  });
+
+  it("V0.3_005A: Activité engagée initializes from the persisted row and survives an unrelated kind change", async () => {
+    const user = userEvent.setup();
+    const committedRow = { ...strengthHeavyRow(), is_committed: true };
+    savePlannedSession.mockResolvedValue(committedRow);
+    render(<Harness initialRow={committedRow} initialExpanded />);
+
+    const committedToggle = screen.getByRole("checkbox", { name: /Activité engagée/ });
+    expect(committedToggle).toBeChecked();
+
+    // Changing the kind is an unrelated edit — commitment must survive it.
+    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    expect(committedToggle).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, true));
   });
 
   it("does not show the delete action when no row exists yet", () => {
@@ -207,7 +252,7 @@ describe("PlanningDayCard — stale load invariant (R, S, T)", () => {
     expect(screen.queryByRole("group", { name: "Intensité" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "MOBILITY", null));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "MOBILITY", null, false));
   });
 });
 
@@ -267,7 +312,13 @@ describe("PlanningDayCard — failure and draft isolation (O, W, X)", () => {
 });
 
 function legacyRow(): PlannedSessionRow {
-  return { planned_date: "2026-09-01", session_type: "STRENGTH_A", intervention: null, planned_intent: null };
+  return {
+    planned_date: "2026-09-01",
+    session_type: "STRENGTH_A",
+    intervention: null,
+    planned_intent: null,
+    is_committed: false,
+  };
 }
 
 describe("PlanningDayCard — legacy row with intervention=NULL", () => {
@@ -312,7 +363,7 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false));
   });
 });
 
@@ -345,6 +396,6 @@ describe.each(PLANNABLE_FIXED_LOAD_KINDS)("PlanningDayCard — fixed kind %s (F,
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", kind, null));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", kind, null, false));
   });
 });

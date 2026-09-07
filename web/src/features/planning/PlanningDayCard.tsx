@@ -55,6 +55,7 @@ interface PlanningDayCardProps {
 export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onToggleExpand, onRowChange }: PlanningDayCardProps) {
   const [draftKind, setDraftKind] = useState<TrainingInterventionKind | "">("");
   const [draftLoad, setDraftLoad] = useState<LoadProfile | null>(null);
+  const [draftCommitted, setDraftCommitted] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -66,6 +67,9 @@ export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onT
     if (!isExpanded) return;
     setDraftKind(row?.intervention?.kind ?? "");
     setDraftLoad(row?.intervention?.load_profile ?? null);
+    // Preserved across unrelated edits (kind/load changes) within the same
+    // editing session — only an explicit toggle by the athlete changes it.
+    setDraftCommitted(row?.is_committed ?? false);
     setSaveState("idle");
     setSaveError(null);
     // Intentionally omits `row` from deps — see comment above.
@@ -90,7 +94,7 @@ export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onT
     setSaveState("saving");
     setSaveError(null);
     try {
-      const saved = await savePlannedSession(athleteId, date, draftKind, isVariableKind ? draftLoad : null);
+      const saved = await savePlannedSession(athleteId, date, draftKind, isVariableKind ? draftLoad : null, draftCommitted);
       onRowChange(date, saved);
     } catch (error) {
       setSaveState("error");
@@ -181,6 +185,23 @@ export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onT
               ))}
             </div>
           )}
+
+          <label className="flex items-start gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={draftCommitted}
+              onChange={(event) => setDraftCommitted(event.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0"
+            />
+            <span>
+              <span className="font-medium text-gray-900">Activité engagée</span>
+              <br />
+              <span className="text-xs text-gray-500">
+                Je compte réellement faire cette activité. Le coach peut l'alléger ou l'adapter, mais évitera de la
+                remplacer sauf raison importante.
+              </span>
+            </span>
+          </label>
 
           {saveState === "error" && saveError && (
             <p role="alert" className="text-sm text-red-600">

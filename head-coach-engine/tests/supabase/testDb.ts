@@ -204,7 +204,13 @@ export async function insertPlannedSession(
   client: SupabaseClient,
   athleteId: string,
   date: string,
-  fields: { session_type: string; intervention?: unknown; planned_intent?: string | null }
+  fields: {
+    session_type: string;
+    intervention?: unknown;
+    planned_intent?: string | null;
+    /** V0.3_005A (NAL-001) — omitted means the DB's own `DEFAULT FALSE` applies, never a value fabricated here. */
+    is_committed?: boolean;
+  }
 ): Promise<void> {
   const { error } = await client.from("planned_sessions").insert({
     athlete_id: athleteId,
@@ -212,6 +218,7 @@ export async function insertPlannedSession(
     session_type: fields.session_type,
     intervention: fields.intervention ?? null,
     planned_intent: fields.planned_intent ?? null,
+    ...(fields.is_committed !== undefined ? { is_committed: fields.is_committed } : {}),
   });
   if (error) throw new Error(`insertPlannedSession failed: ${error.message}`);
 }

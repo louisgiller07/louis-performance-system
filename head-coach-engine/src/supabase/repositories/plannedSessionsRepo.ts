@@ -21,7 +21,7 @@ export async function getPlannedSessionFor(
 ): Promise<PlannedSessionRawRow | null> {
   const { data, error } = await client
     .from("planned_sessions")
-    .select("session_type, intervention, planned_intent")
+    .select("session_type, intervention, planned_intent, is_committed")
     .eq("athlete_id", athleteId)
     .eq("planned_date", date)
     .maybeSingle();

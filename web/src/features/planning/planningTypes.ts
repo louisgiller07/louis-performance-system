@@ -62,4 +62,10 @@ export interface PlannedSessionRow {
   session_type: CoarseSessionType;
   intervention: TrainingIntervention | null;
   planned_intent: string | null;
+  /**
+   * V0.3_005A (NAL-001) — whether the athlete genuinely intends to perform
+   * this activity today ("Activité engagée"), as opposed to a loosely-held
+   * plan. `NOT NULL DEFAULT FALSE` in the DB — every legacy row is flexible.
+   */
+  is_committed: boolean;
 }

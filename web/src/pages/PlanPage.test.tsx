@@ -62,12 +62,13 @@ describe("PlanPage — C, E", () => {
   it("shows persisted rows on their correct dates, including an explicit REST row", async () => {
     const dates = horizonDates();
     const rows: PlannedSessionRow[] = [
-      { planned_date: dates[2], session_type: "REST", intervention: { kind: "REST" }, planned_intent: null },
+      { planned_date: dates[2], session_type: "REST", intervention: { kind: "REST" }, planned_intent: null, is_committed: false },
       {
         planned_date: dates[4],
         session_type: "DH_TECHNICAL",
         intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
         planned_intent: null,
+        is_committed: false,
       },
     ];
     loadPlannedSessions.mockResolvedValue(rows);
@@ -153,7 +154,7 @@ describe("PlanPage — cross-day async collapse race", () => {
     expect(screen.getByLabelText("Séance")).toBeInTheDocument(); // B's editor is now the one open
 
     // Now A's save resolves.
-    resolveSave({ planned_date: dates[0], session_type: "REST", intervention: { kind: "REST" }, planned_intent: null });
+    resolveSave({ planned_date: dates[0], session_type: "REST", intervention: { kind: "REST" }, planned_intent: null, is_committed: false });
 
     // A's canonical row updated (visible on its now-collapsed card)...
     await waitFor(() => expect(screen.getByText("Repos")).toBeInTheDocument());

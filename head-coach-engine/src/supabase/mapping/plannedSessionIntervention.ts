@@ -32,11 +32,20 @@ export interface PlannedSessionRow {
   session_type: DbSessionType;
   intervention?: unknown;
   planned_intent?: unknown;
+  /** V0.3_005A (NAL-001) — `planned_sessions.is_committed`, `NOT NULL DEFAULT FALSE`. */
+  is_committed?: unknown;
 }
 
 export interface PlannedSessionMapping {
   planned_session: TrainingIntervention | null;
   planned_intent: string | null;
+  /**
+   * V0.3_005A (NAL-001) — mirrors `planned_sessions.is_committed` exactly.
+   * Only `true` (the strict boolean) counts as committed; anything else
+   * (missing key, `null`, a non-boolean value) maps to `false` — the same
+   * flexible/historical behavior the column's own `DEFAULT FALSE` encodes.
+   */
+  planned_session_committed: boolean;
   /** Explicit signals for cases where no reliable TrainingIntervention could be reconstructed. */
   warnings: string[];
 }
@@ -60,10 +69,12 @@ export function mapPlannedSessionRow(row: PlannedSessionRow): PlannedSessionMapp
   }
 
   const planned_intent = typeof row.planned_intent === "string" ? row.planned_intent : null;
+  const planned_session_committed = row.is_committed === true;
 
   return {
     planned_session,
     planned_intent,
+    planned_session_committed,
     warnings,
   };
 }

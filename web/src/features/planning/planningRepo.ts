@@ -12,7 +12,7 @@ import type { PlannedSessionRow, TrainingIntervention } from "./planningTypes";
 // out of scope for V0.3_003B (docs/11_DECISION_LOG.md V0.3_003A). A single
 // string literal (not a runtime concatenation), same reason as
 // checkinRepo.ts's CHECKIN_COLUMNS.
-const PLANNED_SESSION_COLUMNS = "planned_date, session_type, intervention, planned_intent";
+const PLANNED_SESSION_COLUMNS = "planned_date, session_type, intervention, planned_intent, is_committed";
 
 export class PlanningLoadError extends Error {
   constructor() {
@@ -78,12 +78,16 @@ export async function loadPlannedSessions(
  * engine-inert columns are omitted entirely from the payload (never set to
  * null) so a pre-existing value on any of them survives untouched — proven
  * OMIT AND PRESERVE upsert semantics, see planningRepo.integration.test.ts.
+ *
+ * `isCommitted` (V0.3_005A, NAL-001) defaults to `false` — a session is
+ * only ever committed by an explicit athlete choice, never silently.
  */
 export async function savePlannedSession(
   athleteId: string,
   date: string,
   rawKind: string,
-  rawLoadProfile: string | null
+  rawLoadProfile: string | null,
+  isCommitted = false
 ): Promise<PlannedSessionRow> {
   const validated = validatePlannedIntervention(rawKind, rawLoadProfile);
   if (!validated.ok) {
@@ -102,6 +106,7 @@ export async function savePlannedSession(
         intervention,
         planned_intent: null,
         source: "manual",
+        is_committed: isCommitted,
       },
       { onConflict: "athlete_id,planned_date" }
     )

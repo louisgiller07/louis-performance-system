@@ -11,6 +11,16 @@ export interface RaceProtocolRecommendation {
   recommended_session: TrainingIntervention;
   reasoning: string;
   soft_constraints: SoftConstraint[];
+  /**
+   * V0.3_005A (NAL-001) — `true` for branches no committed activity family
+   * can survive: an actual event in progress, real post-event recovery
+   * need, or an explicit zero-load (`REST`)/official-activity
+   * (`RACE_ACTIVITY`) T-X entry. `false` for an ordinary PRE_EVENT taper
+   * entry, where a committed session's activity family should be preserved
+   * where a truthful same-family adaptation exists — see
+   * buildDailyPlan.ts and rules/committedActivityFamily.ts.
+   */
+  hard: boolean;
 }
 
 // T-X — pré-event (days_to_event 1..7). Voir docs/04_DAILY_DECISION_ENGINE.md §3.
@@ -56,6 +66,7 @@ export function computeRaceProtocolRecommendation(
       recommended_session: { kind: "RACE_ACTIVITY" },
       reasoning: `Événement en cours (event_day=${eventContext.event_day}, phase=${phase}) — activité de course.`,
       soft_constraints: [],
+      hard: true,
     };
   }
 
@@ -65,6 +76,7 @@ export function computeRaceProtocolRecommendation(
       recommended_session: { kind: "RECOVERY_ACTIVE" },
       reasoning: `T+${daysSinceEventEnd} après la fin de ${race.event_name} — récupération active post-course.`,
       soft_constraints: [],
+      hard: true,
     };
   }
 
@@ -73,6 +85,12 @@ export function computeRaceProtocolRecommendation(
     const x = eventContext.days_to_event;
     const recommended = table?.[x];
     if (!recommended) return null;
+
+    // V0.3_005A (NAL-001) — an ordinary taper entry (any load-bearing kind)
+    // preserves a committed activity's family; an explicit REST (zero-load
+    // taper constraint) or RACE_ACTIVITY (e.g. IXS_3DAY's T-1 official
+    // trackwalk/practice) does not — these are hard regardless of priority.
+    const hard = recommended.kind === "REST" || recommended.kind === "RACE_ACTIVITY";
 
     return {
       recommended_session: recommended,
@@ -84,6 +102,7 @@ export function computeRaceProtocolRecommendation(
           weight: priorityWeight(race.priority),
         },
       ],
+      hard,
     };
   }
 

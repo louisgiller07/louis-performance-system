@@ -34,7 +34,7 @@ describe("planningRepo.loadPlannedSessions", () => {
 
     expect(result).toEqual([]);
     expect(mockedFrom).toHaveBeenCalledWith("planned_sessions");
-    expect(select).toHaveBeenCalledWith("planned_date, session_type, intervention, planned_intent");
+    expect(select).toHaveBeenCalledWith("planned_date, session_type, intervention, planned_intent, is_committed");
     expect(eq).toHaveBeenCalledWith("athlete_id", "athlete-1");
     expect(gte).toHaveBeenCalledWith("planned_date", "2026-08-01");
     expect(lte).toHaveBeenCalledWith("planned_date", "2026-08-31");
@@ -89,6 +89,7 @@ describe("planningRepo.savePlannedSession", () => {
         intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
         planned_intent: null,
         source: "manual",
+        is_committed: false,
       },
       { onConflict: "athlete_id,planned_date" }
     );
@@ -102,6 +103,24 @@ describe("planningRepo.savePlannedSession", () => {
     ]) {
       expect(Object.prototype.hasOwnProperty.call(payload, inertColumn)).toBe(false);
     }
+  });
+
+  it("saves is_committed=true when explicitly requested (V0.3_005A)", async () => {
+    const savedRow = {
+      planned_date: "2026-08-19",
+      session_type: "DH_TECHNICAL",
+      intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+      planned_intent: null,
+      is_committed: true,
+    };
+    const single = vi.fn().mockResolvedValue({ data: savedRow, error: null });
+    const upsert = vi.fn((_payload: Record<string, unknown>) => ({ select: () => ({ single }) }));
+    mockedFrom.mockReturnValue({ upsert });
+
+    await savePlannedSession("athlete-1", "2026-08-19", "DH_TECHNICAL", "MODERATE", true);
+
+    const payload = upsert.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.is_committed).toBe(true);
   });
 
   it("saves a fixed-load kind without a load_profile key in the intervention payload", async () => {

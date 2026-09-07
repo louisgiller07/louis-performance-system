@@ -14,6 +14,7 @@ import { SignalTrace } from "./signalTrace.js";
 import { evaluateSafety } from "../rules/safety.js";
 import { getModeSoftConstraints, describeStrongConstraintViolation } from "../rules/modes.js";
 import { computeRaceProtocolRecommendation } from "../rules/raceProtocol.js";
+import { preserveCommittedActivityFamily } from "../rules/committedActivityFamily.js";
 import { evaluatePainNonSafety } from "../rules/painNonSafety.js";
 
 import { applyTrainingDomainRules } from "../domains/training.js";
@@ -25,7 +26,7 @@ import { computeNutritionDomain } from "../domains/nutrition.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_004c";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_005a";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -105,12 +106,49 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
   // Arbitrage : planned_session + recommandation T-X + dimensions + contexte — voir
   // docs/04_DAILY_DECISION_ENGINE.md §3 et §5. Le protocole T-X participe à
   // l'arbitrage même quand une séance était déjà planifiée : un planned_session
-  // générique qui n'a pas anticipé la course ne prime pas automatiquement sur
-  // la recommandation T-X (celle-ci reste elle-même overridable par les
-  // dimensions/contexte via les règles de domaine ci-dessous — voir T4).
+  // générique/flexible (non engagé) qui n'a pas anticipé la course ne prime pas
+  // automatiquement sur la recommandation T-X (celle-ci reste elle-même
+  // overridable par les dimensions/contexte via les règles de domaine
+  // ci-dessous — voir T4).
+  //
+  // V0.3_005A (NAL-001) — pour une séance ENGAGÉE (planned_session_committed)
+  // face à une recommandation T-X ORDINAIRE (raceProtocol.hard === false),
+  // le protocole T-X garde l'intention de préparation (réduire la charge),
+  // mais ne substitue plus automatiquement toute la famille d'activité :
+  // voir rules/committedActivityFamily.ts. Les branches HARD (course en
+  // cours, POST_EVENT, REST/RACE_ACTIVITY explicites en T-X) restent
+  // inchangées — l'engagement ne les surclasse jamais.
   let baseline: TrainingIntervention;
   if (raceProtocol) {
-    baseline = raceProtocol.recommended_session;
+    const committedSession =
+      raceProtocol.hard === false && ctx.planned_session_committed === true ? ctx.planned_session : null;
+
+    if (committedSession) {
+      const preserved = preserveCommittedActivityFamily(committedSession);
+      if (preserved) {
+        baseline = preserved;
+        triggeredRules.push({
+          layer: "ARBITRATION",
+          rule_id: "COMMITTED_FAMILY_PRESERVED",
+          detail:
+            `Activité engagée (${committedSession.kind}) — famille d'activité préservée, adaptation appliquée ` +
+            `au lieu de la recommandation T-X (${raceProtocol.recommended_session.kind}).`,
+          signals_used: [],
+        });
+      } else {
+        baseline = raceProtocol.recommended_session;
+        triggeredRules.push({
+          layer: "ARBITRATION",
+          rule_id: "COMMITTED_FAMILY_NO_ADAPTATION",
+          detail:
+            `Activité engagée (${committedSession.kind}) — aucune adaptation de même famille disponible pour ` +
+            `cette activité, recommandation T-X (${raceProtocol.recommended_session.kind}) utilisée.`,
+          signals_used: [],
+        });
+      }
+    } else {
+      baseline = raceProtocol.recommended_session;
+    }
   } else if (ctx.planned_session) {
     baseline = ctx.planned_session;
   } else {

@@ -29,6 +29,15 @@ export interface RawContext {
   checkin: DailyCheckin;
   planned_session: TrainingIntervention | null;
   planned_intent?: string;
+  /**
+   * V0.3_005A (NAL-001) — whether the athlete genuinely intends to perform
+   * `planned_session` today (as opposed to a loosely-held/flexible plan).
+   * Deliberately separate from `TrainingIntervention`: commitment is
+   * planning metadata, not intervention semantics. Absent/false when no
+   * planned session exists, or for legacy rows predating this field —
+   * matches `planned_sessions.is_committed`'s `NOT NULL DEFAULT FALSE`.
+   */
+  planned_session_committed?: boolean;
   active_mode: TrainingMode;
   current_block?: TrainingBlockRef;
   upcoming_races: UpcomingRace[];
