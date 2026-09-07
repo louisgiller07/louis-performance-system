@@ -148,6 +148,8 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
           value={form.sleep_quality}
           onChange={(value) => updateField("sleep_quality", value)}
           error={errors.sleep_quality}
+          lowLabel="Très mauvaise"
+          highLabel="Excellente"
         />
         <label className="flex flex-col gap-1 text-sm text-gray-700">
           Réveils nocturnes
@@ -171,18 +173,29 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
 
       <fieldset className="flex flex-col gap-3">
         <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">État général</legend>
-        <RatingSlider label="Énergie" value={form.energy} onChange={(value) => updateField("energy", value)} error={errors.energy} />
+        <RatingSlider
+          label="Énergie"
+          value={form.energy}
+          onChange={(value) => updateField("energy", value)}
+          error={errors.energy}
+          lowLabel="Épuisé"
+          highLabel="Plein d'énergie"
+        />
         <RatingSlider
           label="Stress professionnel"
           value={form.work_stress}
           onChange={(value) => updateField("work_stress", value)}
           error={errors.work_stress}
+          lowLabel="Aucun stress"
+          highLabel="Stress maximal"
         />
         <RatingSlider
           label="Motivation"
           value={form.motivation}
           onChange={(value) => updateField("motivation", value)}
           error={errors.motivation}
+          lowLabel="Aucune"
+          highLabel="Très motivé"
         />
       </fieldset>
 
@@ -193,12 +206,16 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
           value={form.leg_fatigue}
           onChange={(value) => updateField("leg_fatigue", value)}
           error={errors.leg_fatigue}
+          lowLabel="Fraîches"
+          highLabel="Très lourdes"
         />
         <RatingSlider
           label="Avant-bras / grip"
           value={form.grip_fatigue}
           onChange={(value) => updateField("grip_fatigue", value)}
           error={errors.grip_fatigue}
+          lowLabel="Frais"
+          highLabel="Très fatigué"
         />
       </fieldset>
 
@@ -213,6 +230,8 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
               value={form.pain_intensity}
               onChange={(value) => updateField("pain_intensity", value)}
               error={errors.pain_intensity}
+              lowLabel="Aucune douleur"
+              highLabel="Douleur maximale"
             />
             <YesNoChoice
               label="Douleur nouvelle"

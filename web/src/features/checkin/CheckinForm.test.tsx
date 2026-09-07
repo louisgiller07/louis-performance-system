@@ -205,6 +205,117 @@ describe("CheckinForm", () => {
     await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(2));
     expect(mockedSave).toHaveBeenLastCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ motivation: 3 }));
   });
+
+  // --- NAL-004: check-in scale clarity ---
+  // Endpoint wording verified against head-coach-engine/src/engine/computeDimensions.ts
+  // and types/checkin.ts's own "plus haut = ..." doc comments before being
+  // written here — never assumed from the field name alone. Numeric
+  // contract (min/max/step/submitted value) must stay byte-identical.
+
+  const ALWAYS_VISIBLE_SCALES: Array<{
+    sliderLabel: string;
+    fieldKey: keyof typeof EXISTING_ROW;
+    lowLabel: string;
+    highLabel: string;
+  }> = [
+    { sliderLabel: "Qualité du sommeil", fieldKey: "sleep_quality", lowLabel: "Très mauvaise", highLabel: "Excellente" },
+    { sliderLabel: "Énergie", fieldKey: "energy", lowLabel: "Épuisé", highLabel: "Plein d'énergie" },
+    { sliderLabel: "Stress professionnel", fieldKey: "work_stress", lowLabel: "Aucun stress", highLabel: "Stress maximal" },
+    { sliderLabel: "Motivation", fieldKey: "motivation", lowLabel: "Aucune", highLabel: "Très motivé" },
+    { sliderLabel: "Jambes", fieldKey: "leg_fatigue", lowLabel: "Fraîches", highLabel: "Très lourdes" },
+    { sliderLabel: "Avant-bras / grip", fieldKey: "grip_fatigue", lowLabel: "Frais", highLabel: "Très fatigué" },
+  ];
+
+  describe.each(ALWAYS_VISIBLE_SCALES)("$sliderLabel scale", ({ sliderLabel, fieldKey, lowLabel, highLabel }) => {
+    it("A, B: shows the correct low-end and high-end semantic labels", async () => {
+      mockedLoad.mockResolvedValue(EXISTING_ROW);
+      render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+      await waitFor(() => expect(screen.getByDisplayValue("6.5")).toBeInTheDocument());
+
+      const slider = screen.getByRole("slider", { name: new RegExp(sliderLabel) });
+      expect(within(slider.closest("label")!).getByText(new RegExp(lowLabel))).toBeInTheDocument();
+      expect(within(slider.closest("label")!).getByText(new RegExp(highLabel))).toBeInTheDocument();
+    });
+
+    it("C: selecting 0 submits exactly 0", async () => {
+      mockedLoad.mockResolvedValue(EXISTING_ROW);
+      mockedSave.mockResolvedValue(EXISTING_ROW);
+      const user = userEvent.setup();
+
+      render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+      await waitFor(() => expect(screen.getByDisplayValue("6.5")).toBeInTheDocument());
+
+      fireSlider(sliderLabel, 0);
+      await user.click(screen.getByRole("button", { name: /Enregistrer le check-in/ }));
+
+      await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+      expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ [fieldKey]: 0 }));
+    });
+
+    it("D: selecting 10 submits exactly 10", async () => {
+      mockedLoad.mockResolvedValue(EXISTING_ROW);
+      mockedSave.mockResolvedValue(EXISTING_ROW);
+      const user = userEvent.setup();
+
+      render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+      await waitFor(() => expect(screen.getByDisplayValue("6.5")).toBeInTheDocument());
+
+      fireSlider(sliderLabel, 10);
+      await user.click(screen.getByRole("button", { name: /Enregistrer le check-in/ }));
+
+      await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+      expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ [fieldKey]: 10 }));
+    });
+
+    it("E: an intermediate value is submitted unchanged", async () => {
+      mockedLoad.mockResolvedValue(EXISTING_ROW);
+      mockedSave.mockResolvedValue(EXISTING_ROW);
+      const user = userEvent.setup();
+
+      render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+      await waitFor(() => expect(screen.getByDisplayValue("6.5")).toBeInTheDocument());
+
+      fireSlider(sliderLabel, 6);
+      await user.click(screen.getByRole("button", { name: /Enregistrer le check-in/ }));
+
+      await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+      expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ [fieldKey]: 6 }));
+    });
+  });
+
+  describe("Intensité de la douleur scale (conditional on pain=true)", () => {
+    const painRow = { ...EXISTING_ROW, pain: true, pain_intensity: 4, pain_new: false, pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false };
+
+    it("A, B: shows the correct low-end and high-end semantic labels", async () => {
+      mockedLoad.mockResolvedValue(painRow);
+      render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+      await waitFor(() => expect(screen.getByDisplayValue("6.5")).toBeInTheDocument());
+
+      const slider = screen.getByRole("slider", { name: /Intensité de la douleur/ });
+      expect(within(slider.closest("label")!).getByText(/Aucune douleur/)).toBeInTheDocument();
+      expect(within(slider.closest("label")!).getByText(/Douleur maximale/)).toBeInTheDocument();
+    });
+
+    it("C, D: selecting 0 and 10 submit exactly 0 and 10", async () => {
+      mockedLoad.mockResolvedValue(painRow);
+      mockedSave.mockResolvedValue(painRow);
+      const user = userEvent.setup();
+
+      render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+      await waitFor(() => expect(screen.getByDisplayValue("6.5")).toBeInTheDocument());
+
+      fireSlider("Intensité de la douleur", 0);
+      await user.click(screen.getByRole("button", { name: /Enregistrer le check-in/ }));
+      await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+      expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ pain_intensity: 0 }));
+
+      mockedSave.mockClear();
+      fireSlider("Intensité de la douleur", 10);
+      await user.click(screen.getByRole("button", { name: /Enregistrer le check-in/ }));
+      await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+      expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ pain_intensity: 10 }));
+    });
+  });
 });
 
 function fireSlider(label: string, value: number): void {
