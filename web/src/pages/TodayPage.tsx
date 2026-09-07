@@ -96,6 +96,7 @@ export function TodayPage() {
           <p className="mb-4 mt-1 text-sm text-gray-500">Généré à partir de ton check-in du jour</p>
           {athleteId && (
             <DailyPlanPanel
+              athleteId={athleteId}
               date={canonicalDate}
               hasCheckin={hasCheckin}
               checkinRevision={checkinRevision}

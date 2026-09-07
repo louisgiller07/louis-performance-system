@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { runDailyRun } from "./runDailyRun";
 import { DailyPlanResult } from "./DailyPlanResult";
 import { mapTrainingInterventionToSessionType, type CoarseSessionType } from "./trainingInterventionToSessionType";
+import { isValidDailyPlan } from "./dailyPlanValidation";
+import { loadLatestDecisionForDate } from "../history/historyRepo";
 import type { DailyRunError } from "./dailyRunErrors";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 
 type RequestState = "idle" | "running" | "success" | "error";
+/** NAL-003 — the persisted-decision restore lookup, independent of the generation RequestState above. */
+type RestorePhase = "loading" | "ready" | "error";
 
 export interface LiveDailyPlanContext {
   decisionId: string;
@@ -14,6 +18,8 @@ export interface LiveDailyPlanContext {
 }
 
 interface DailyPlanPanelProps {
+  /** NAL-003 — the caller's own resolved athleteId, used only to restore today's already-persisted decision (RLS-scoped, same read path as /history). */
+  athleteId: string;
   date: string;
   hasCheckin: boolean;
   /**
@@ -33,9 +39,11 @@ interface DailyPlanPanelProps {
    * decisions.final_session — never a guess, never RECOVERY as a fallback.
    * M5_003's post-session card uses this — and only this — to preselect a
    * decision link + session type on a brand-new session log; it must never
-   * fall back to a "latest decision" lookup once this goes null. Not fired
-   * on mount with an initial value — there is no daily-run result until the
-   * user actually generates one.
+   * fall back to a "latest decision" lookup once this goes null. Can now
+   * fire on mount (NAL-003): once the persisted-decision restore finds a
+   * valid decision for today, it becomes `result` exactly like a live
+   * generation would, and this fires the same way — there is still no
+   * daily-run call, only a read of what already happened today.
    */
   onLiveContextChange?: (context: LiveDailyPlanContext | null) => void;
 }
@@ -45,12 +53,43 @@ interface DailyPlanPanelProps {
 // a successful result lives in DailyPlanResult.tsx (M4_005). No history,
 // no coaching/safety logic here — the decision and any safety signal come
 // only from the server response.
-export function DailyPlanPanel({ date, hasCheckin, checkinRevision, onLiveContextChange }: DailyPlanPanelProps) {
+export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision, onLiveContextChange }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
   const [error, setError] = useState<DailyRunError | null>(null);
   const [showInvalidatedNotice, setShowInvalidatedNotice] = useState(false);
+
+  // NAL-003 — persisted-decision restore, entirely separate from the
+  // generation RequestState above: reading what already happened today is
+  // never itself a daily-run call, and a read failure must never collapse
+  // into "no decision, generate one" (that would hide a real error behind
+  // an apparently-normal empty state).
+  const [restorePhase, setRestorePhase] = useState<RestorePhase>("loading");
+
+  const restoreTodayDecision = useCallback(async () => {
+    setRestorePhase("loading");
+    try {
+      const row = await loadLatestDecisionForDate(athleteId, date);
+      if (row && isValidDailyPlan(row.dailyPlan)) {
+        setResult({ dailyPlan: row.dailyPlan, decisionId: row.id, healthFlagId: null, warnings: [] });
+        setState("success");
+      }
+      // No row, or a malformed/legacy row that fails validation: nothing to
+      // restore — leaves `state` at its default "idle" so the normal
+      // generation flow (existing behavior) is what the athlete sees.
+      setRestorePhase("ready");
+    } catch {
+      setRestorePhase("error");
+    }
+  }, [athleteId, date]);
+
+  useEffect(() => {
+    void restoreTodayDecision();
+    // restoreTodayDecision is stable per (athleteId, date) via useCallback's
+    // own deps — safe to depend on directly, runs exactly once per mount
+    // for a given day, never re-triggered by checkinRevision.
+  }, [restoreTodayDecision]);
 
   // A ref, not `state`, guards against concurrent submits: `state` is only
   // updated on the next render, so several rapid clicks fired before that
@@ -140,6 +179,31 @@ export function DailyPlanPanel({ date, hasCheckin, checkinRevision, onLiveContex
     } finally {
       inFlightRef.current = false;
     }
+  }
+
+  // NAL-003 — the restore lookup gates everything below it: never briefly
+  // show "Générer mon plan" while it's still possible a persisted decision
+  // is about to replace that state seconds later, and never treat a read
+  // failure as "no decision, please generate one".
+  if (restorePhase === "loading") {
+    return <p className="text-sm text-gray-400">Chargement de ton plan…</p>;
+  }
+
+  if (restorePhase === "error") {
+    return (
+      <div className="flex flex-col gap-2">
+        <p role="alert" className="text-sm text-red-600">
+          Impossible de charger ton plan du jour. Réessaie.
+        </p>
+        <button
+          type="button"
+          onClick={() => void restoreTodayDecision()}
+          className="self-start rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
+        >
+          Réessayer
+        </button>
+      </div>
+    );
   }
 
   return (

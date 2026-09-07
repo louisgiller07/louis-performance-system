@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { loadDecisionHistory, loadDecisionById, HistoryLoadError } from "./historyRepo";
+import { loadDecisionHistory, loadDecisionById, loadLatestDecisionForDate, HistoryLoadError, TodayDecisionLoadError } from "./historyRepo";
 
 vi.mock("../../lib/supabase", () => ({
   supabase: { from: vi.fn() },
@@ -186,5 +186,128 @@ describe("historyRepo.loadDecisionById", () => {
   it("throws a clean HistoryLoadError on failure", async () => {
     mockDetailChain({ data: null, error: { code: "500", message: "internal error" } });
     await expect(loadDecisionById("athlete-1", "d-1")).rejects.toThrow(HistoryLoadError);
+  });
+});
+
+describe("historyRepo.loadLatestDecisionForDate (NAL-003)", () => {
+  // A minimal but fully isValidDailyPlan-passing shape — every field the
+  // real validator (dailyPlanValidation.ts) actually checks.
+  function validDailyPlan(reasoning: string) {
+    return {
+      decision: "KEEP",
+      confidence: "MEDIUM",
+      reasoning,
+      active_mode: "IN_SEASON",
+      training: { active: true },
+      dh_or_technical: { active: false },
+      mental: { active: false },
+      recovery: { active: true, actions: [] },
+      nutrition: { active: false },
+      sleep: { active: false },
+      protection: { do_not_do: [] },
+      monitoring: { observe: [] },
+      triggered_rules: [],
+      planned_session_before: null,
+      final_session: { kind: "REST" },
+      overrode_race_protocol: false,
+      engine_version: "test",
+    };
+  }
+
+  function dbRow(id: string, createdAt: string, dailyPlan: unknown) {
+    return {
+      id,
+      decision_date: "2026-08-19",
+      created_at: createdAt,
+      final_session: "REST",
+      active_mode: "IN_SEASON",
+      confidence_level: "MEDIUM",
+      daily_plan: dailyPlan,
+    };
+  }
+
+  function mockLatestChain(result: { data: unknown; error: unknown }) {
+    const order = vi.fn().mockResolvedValue(result);
+    const eq2 = vi.fn(() => ({ order }));
+    const eq1 = vi.fn(() => ({ eq: eq2 }));
+    const select = vi.fn(() => ({ eq: eq1 }));
+    mockedFrom.mockReturnValue({ select });
+    return { eq1, eq2, order };
+  }
+
+  it("F: filters by athlete_id and exactly decision_date — a previous day's decision is never returned for today", async () => {
+    const { eq1, eq2 } = mockLatestChain({ data: [], error: null });
+    await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+    expect(eq1).toHaveBeenCalledWith("athlete_id", "athlete-1");
+    expect(eq2).toHaveBeenCalledWith("decision_date", "2026-08-19");
+  });
+
+  it("orders by created_at descending, with no server-side LIMIT — every same-day row must be considered for validity", async () => {
+    const { order } = mockLatestChain({ data: [], error: null });
+    await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+    expect(order).toHaveBeenCalledWith("created_at", { ascending: false });
+  });
+
+  it("A: returns null when no decision exists for that date (RLS-filtered absence, not an error)", async () => {
+    mockLatestChain({ data: [], error: null });
+    const result = await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+    expect(result).toBeNull();
+  });
+
+  it("B: a single valid decision is returned, mapped", async () => {
+    const row = dbRow("d-1", "2026-08-19T18:42:00Z", validDailyPlan("Plan du jour."));
+    mockLatestChain({ data: [row], error: null });
+
+    const result = await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+
+    expect(result).toEqual({
+      id: "d-1",
+      decisionDate: "2026-08-19",
+      createdAt: "2026-08-19T18:42:00Z",
+      finalSessionDb: "REST",
+      activeModeDb: "IN_SEASON",
+      confidenceLevelDb: "MEDIUM",
+      dailyPlan: validDailyPlan("Plan du jour."),
+    });
+  });
+
+  // --- Latest VALID decision selection (the fix) ---
+
+  it("newest row invalid + older row valid -> the older valid decision is restored, never the newer invalid one", async () => {
+    const newerInvalid = dbRow("d-newer-invalid", "2026-08-19T18:05:00Z", { decision: "NOT_A_REAL_SHAPE" });
+    const olderValid = dbRow("d-older-valid", "2026-08-19T18:00:00Z", validDailyPlan("18:00 plan."));
+    // Server returns newest-first, exactly as the real ORDER BY created_at DESC would.
+    mockLatestChain({ data: [newerInvalid, olderValid], error: null });
+
+    const result = await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+
+    expect(result?.id).toBe("d-older-valid");
+    expect(result?.dailyPlan).toEqual(validDailyPlan("18:00 plan."));
+  });
+
+  it("newest row valid + older row also valid -> the newest valid decision wins", async () => {
+    const newerValid = dbRow("d-newer-valid", "2026-08-19T18:05:00Z", validDailyPlan("18:05 plan."));
+    const olderValid = dbRow("d-older-valid", "2026-08-19T18:00:00Z", validDailyPlan("18:00 plan."));
+    mockLatestChain({ data: [newerValid, olderValid], error: null });
+
+    const result = await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+
+    expect(result?.id).toBe("d-newer-valid");
+  });
+
+  it("every same-day row invalid -> null (normal generation state), never a malformed row surfaced", async () => {
+    const invalidA = dbRow("d-invalid-a", "2026-08-19T18:05:00Z", { decision: "NOT_A_REAL_SHAPE" });
+    const invalidB = dbRow("d-invalid-b", "2026-08-19T08:00:00Z", null);
+    mockLatestChain({ data: [invalidA, invalidB], error: null });
+
+    const result = await loadLatestDecisionForDate("athlete-1", "2026-08-19");
+
+    expect(result).toBeNull();
+  });
+
+  it("H: throws a clean TodayDecisionLoadError (never HistoryLoadError, never the raw PostgREST message) on failure", async () => {
+    mockLatestChain({ data: null, error: { code: "500", message: "internal error" } });
+    await expect(loadLatestDecisionForDate("athlete-1", "2026-08-19")).rejects.toThrow(TodayDecisionLoadError);
+    await expect(loadLatestDecisionForDate("athlete-1", "2026-08-19")).rejects.not.toThrow(/internal error/);
   });
 });

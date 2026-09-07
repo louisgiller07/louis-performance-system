@@ -13,6 +13,14 @@ vi.mock("./runDailyRun", () => ({
   runDailyRun: vi.fn(),
 }));
 
+// NAL-003 — the persisted-decision restore lookup. Defaults to "no decision
+// found yet" (null) so every pre-existing test below, which exercises the
+// generation flow, keeps seeing exactly the same "idle -> Générer mon plan"
+// starting state as before — only the dedicated restore tests further down
+// override this per-case.
+const { loadLatestDecisionForDate } = vi.hoisted(() => ({ loadLatestDecisionForDate: vi.fn() }));
+vi.mock("../history/historyRepo", () => ({ loadLatestDecisionForDate }));
+
 import { runDailyRun } from "./runDailyRun";
 
 const mockedRun = runDailyRun as unknown as ReturnType<typeof vi.fn>;
@@ -50,18 +58,19 @@ const SUCCESS_RESPONSE_2 = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  loadLatestDecisionForDate.mockResolvedValue(null);
 });
 
 describe("DailyPlanPanel", () => {
-  it("disables the button when there is no checkin", () => {
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={false} checkinRevision={0} />);
-    expect(screen.getByRole("button", { name: /Générer mon plan/ })).toBeDisabled();
+  it("disables the button when there is no checkin", async () => {
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={false} checkinRevision={0} />);
+    expect(await screen.findByRole("button", { name: /Générer mon plan/ })).toBeDisabled();
     expect(screen.getByText(/Enregistre d'abord ton check-in/)).toBeInTheDocument();
   });
 
-  it("enables the button when an existing checkin is loaded", () => {
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    expect(screen.getByRole("button", { name: /Générer mon plan/ })).toBeEnabled();
+  it("enables the button when an existing checkin is loaded", async () => {
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    expect(await screen.findByRole("button", { name: /Générer mon plan/ })).toBeEnabled();
   });
 
   it("disables the button while the request is pending", async () => {
@@ -73,8 +82,8 @@ describe("DailyPlanPanel", () => {
     );
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     expect(screen.getByRole("button", { name: /Analyse en cours/ })).toBeDisabled();
     resolveRun({ ok: true, data: SUCCESS_RESPONSE });
@@ -84,8 +93,8 @@ describe("DailyPlanPanel", () => {
     mockedRun.mockResolvedValue({ ok: true, data: SUCCESS_RESPONSE });
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
     expect(screen.getByText(/Confiance moyenne/)).toBeInTheDocument();
@@ -101,8 +110,8 @@ describe("DailyPlanPanel", () => {
       })
     );
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    const button = screen.getByRole("button", { name: /Générer mon plan/ });
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    const button = await screen.findByRole("button", { name: /Générer mon plan/ });
 
     // Fired synchronously, back-to-back, before the first call's promise
     // ever resolves — this is what a real rapid double/triple-click looks
@@ -126,8 +135,8 @@ describe("DailyPlanPanel", () => {
     });
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
   });
@@ -139,8 +148,8 @@ describe("DailyPlanPanel", () => {
     });
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(signOut).not.toHaveBeenCalled();
@@ -152,11 +161,11 @@ describe("DailyPlanPanel", () => {
     mockedRun.mockResolvedValue({ ok: true, data: SUCCESS_RESPONSE });
     const user = userEvent.setup();
 
-    const { rerender } = render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    const { rerender } = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
     await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
 
-    rerender(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={1} />);
+    rerender(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={1} />);
 
     expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
     expect(screen.getByText(/Ton check-in a changé/)).toBeInTheDocument();
@@ -166,8 +175,8 @@ describe("DailyPlanPanel", () => {
     mockedRun.mockResolvedValueOnce({ ok: true, data: SUCCESS_RESPONSE });
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
     await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
 
     let resolveSecond!: (value: unknown) => void;
@@ -190,8 +199,8 @@ describe("DailyPlanPanel", () => {
     mockedRun.mockResolvedValueOnce({ ok: true, data: SUCCESS_RESPONSE });
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
     await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
 
     mockedRun.mockResolvedValueOnce({
@@ -212,11 +221,11 @@ describe("DailyPlanPanel", () => {
       })
     );
 
-    const { rerender } = render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    fireEvent.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    const { rerender } = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     // Checkin gets saved again while the request for revision 0 is still in flight.
-    rerender(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={1} />);
+    rerender(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={1} />);
 
     // Now the stale request finally resolves.
     resolveFirst({ ok: true, data: SUCCESS_RESPONSE });
@@ -234,8 +243,8 @@ describe("DailyPlanPanel", () => {
     const onLiveContextChange = vi.fn();
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     // BASE_DAILY_PLAN.final_session.kind === "AEROBIC_BASE", which maps 1:1
     // to the coarse SessionType "AEROBIC_BASE" (see trainingInterventionToSessionType.ts).
@@ -250,14 +259,14 @@ describe("DailyPlanPanel", () => {
     const user = userEvent.setup();
 
     const { rerender } = render(
-      <DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />
+      <DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />
     );
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
     await waitFor(() =>
       expect(onLiveContextChange).toHaveBeenCalledWith({ decisionId: SUCCESS_RESPONSE.decisionId, sessionType: "AEROBIC_BASE" })
     );
 
-    rerender(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={1} onLiveContextChange={onLiveContextChange} />);
+    rerender(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={1} onLiveContextChange={onLiveContextChange} />);
 
     await waitFor(() => expect(onLiveContextChange).toHaveBeenLastCalledWith(null));
   });
@@ -270,8 +279,8 @@ describe("DailyPlanPanel", () => {
     const onLiveContextChange = vi.fn();
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     expect(onLiveContextChange).not.toHaveBeenCalledWith(expect.objectContaining({ decisionId: expect.any(String) }));
@@ -288,10 +297,132 @@ describe("DailyPlanPanel", () => {
     });
     const user = userEvent.setup();
 
-    render(<DailyPlanPanel date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await user.click(screen.getByRole("button", { name: /Générer mon plan/ }));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/invalide/));
     expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+  });
+});
+
+// --- NAL-003: persisted decision restore ---
+
+const RESTORED_ROW = {
+  id: "33333333-3333-3333-3333-333333333333",
+  decisionDate: "2026-08-19",
+  createdAt: "2026-08-19T18:42:00Z",
+  finalSessionDb: "AEROBIC_BASE",
+  activeModeDb: "IN_SEASON",
+  confidenceLevelDb: "MEDIUM",
+  dailyPlan: { ...BASE_DAILY_PLAN, decision: "KEEP", confidence: "MEDIUM", reasoning: "Plan déjà généré aujourd'hui." },
+};
+
+describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
+  it("A: no persisted decision -> normal generation state, exactly as before", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(null);
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByRole("button", { name: /Générer mon plan/ })).toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  it("B: a valid persisted decision for today is displayed automatically, without any click", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(screen.getByText("Plan déjà généré aujourd'hui.")).toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  it("does not show a 'Générer mon plan' flicker before the restore lookup resolves", async () => {
+    let resolveRestore!: (value: unknown) => void;
+    loadLatestDecisionForDate.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRestore = resolve;
+      })
+    );
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(screen.queryByRole("button", { name: /Générer mon plan/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Chargement de ton plan/)).toBeInTheDocument();
+
+    resolveRestore(RESTORED_ROW);
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+  });
+
+  it("C, D: remounting (navigate away/back, or a reload) restores the same persisted plan without ever calling daily-run", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+
+    const first = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    first.unmount();
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(screen.getByText("Plan déjà généré aujourd'hui.")).toBeInTheDocument();
+
+    expect(mockedRun).not.toHaveBeenCalled();
+    expect(loadLatestDecisionForDate).toHaveBeenCalledTimes(2);
+  });
+
+  it("H: a decision-read failure shows a retryable error state, never 'no plan, generate one'", async () => {
+    loadLatestDecisionForDate.mockRejectedValueOnce(new Error("boom"));
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger ton plan du jour. Réessaie.");
+    expect(screen.queryByRole("button", { name: /Générer mon plan/ })).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+
+    loadLatestDecisionForDate.mockResolvedValueOnce(null);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Réessayer" }));
+
+    expect(await screen.findByRole("button", { name: /Générer mon plan/ })).toBeInTheDocument();
+  });
+
+  it("I: a malformed/legacy persisted row (invalid daily_plan) falls back safely to the generation state, no crash", async () => {
+    loadLatestDecisionForDate.mockResolvedValue({
+      id: "legacy-1",
+      decisionDate: "2026-08-19",
+      createdAt: "2026-08-19T08:00:00Z",
+      finalSessionDb: "STRENGTH_A",
+      activeModeDb: null,
+      confidenceLevelDb: null,
+      dailyPlan: null,
+    });
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByRole("button", { name: /Générer mon plan/ })).toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  it("J: a freshly-generated plan renders identically to a restored one (same DailyPlanResult path)", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(null);
+    mockedRun.mockResolvedValueOnce({ ok: true, data: SUCCESS_RESPONSE });
+    const user = userEvent.setup();
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
+    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    const generatedText = screen.getByText("Tout va bien.");
+    expect(generatedText).toBeInTheDocument();
+  });
+
+  it("fires onLiveContextChange after restoring a persisted plan, same as a live generation", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    const onLiveContextChange = vi.fn();
+
+    render(
+      <DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} onLiveContextChange={onLiveContextChange} />
+    );
+
+    await waitFor(() =>
+      expect(onLiveContextChange).toHaveBeenCalledWith({ decisionId: RESTORED_ROW.id, sessionType: "AEROBIC_BASE" })
+    );
   });
 });
