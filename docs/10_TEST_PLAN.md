@@ -635,3 +635,29 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 - **Contrat d'exécution final** : chaque assertion du canary production PASS (aucune reprise nécessaire) ; migration parity 28/28 et `daily-run ACTIVE`/version 3 reconfirmés stables après le canary. Voir `docs/06_ARCHITECTURE.md` §V0.3_004D et `docs/11_DECISION_LOG.md` (2026-09-04 — V0.3_004D).
 
 **V0.3_004 — contrat de test complet.**
+
+---
+
+## Scénarios V0.3_005 — Dogfood Round 1 Corrections (NAL-001/002/003/004/005/006/007/007A tous CLOSED / PROD — 2026-09-08)
+
+**Statut : V0.3_005 dans son ensemble COMPLETE (2026-09-08).** Suites moteur T1-T18 inchangées et toujours vertes ; aucune régression.
+
+### T23. Activité engagée (NAL-001, CLOSED / PROD)
+- 13/13 tests pure logique (`committedActivityFamily.test.ts`) + 16/16 matrice `t4_raceProtocol.test.ts` (flexible vs engagé, T-5/T-7 dogfood exacts, Safety/course en cours/T-X REST explicite surclassent toujours, aucune adaptation disponible → fallback tracé) + preuve DB→engine réelle (`committedActivityFamily.integration.test.ts`, 2/2)
+- Régression production : commit `AEROBIC_BASE`/T-5 → `DH_LIGHT` jamais `AEROBIC_BASE`, `COMMITTED_FAMILY_PRESERVED` tracé, `planned_session_before` intact
+
+### T24. Restauration de la décision persistée (NAL-003, CLOSED / PROD)
+- `historyRepo.test.ts` (sélection "dernière valide", pas simplement "dernière" — newest-invalid/older-valid, all-invalid → null) + `DailyPlanPanel.test.tsx` (aucun flicker "Générer", aucun second `daily-run`, remount restaure le même plan, erreur de lecture ≠ absence de décision)
+- Production : lecture authentifiée du chemin réel confirme la décision restaurée = la décision du `daily-run` déjà exécuté, aucune seconde décision créée par la lecture
+
+### T25. Race Calendar × Planning overlay + contrat de statut (NAL-007/NAL-007A, CLOSED / PROD)
+- `raceOverlayRepo.test.ts` (13/13, dont A-E multi-jour/horizon partiel) + `PlanningDayCard.test.tsx`/`PlanPage.test.tsx` (coexistence séance+course, zéro écriture race-derived, RLS réelle A/B) + `raceCalendarStatus.test.ts` (12/12 table de vérité pure) + `buildRawContext.integration.test.ts` §V0.3_005B (26/26 réel, incluant l'interaction NAL-001 × statut de course)
+- Production : course `confirmed` T-5 coaching-pertinente et visible en Planning ; course `cancelled` (même contexte T-5) exclue du Planning **et** sans aucun effet race-protocol (`COMMITTED_FAMILY_PRESERVED` absent, aucune règle `RACE_*` déclenchée)
+
+### T26. Polish UI/wording (NAL-002/004/005/006, CLOSED / PROD)
+- `DailyPlanResult.test.tsx` (notes internes jamais rendues, avertissements internes jamais rendus, donnée engine inchangée) + `RatingSlider.test.tsx`/`CheckinForm.test.tsx` (labels 0–10 vérifiés contre `computeDimensions.ts`) + `CompletedSessionCard.test.tsx`/`RatingSlider.test.tsx` (libellé/aide RPE, plage 0–10 confirmée depuis la contrainte DB) + `LoginPage.test.tsx` (erreur provider jamais rendue brute)
+- Production : bundle réellement servi confirmé contenir les 9 marqueurs de contenu attendus (Activité engagée, Aucune séance ajoutée, Effort global ressenti, etc.)
+
+**Contrat d'exécution final V0.3_005** : web full suite **604 passed / 6 skipped** (610 total, avant le fix guard auth) puis stable après ; engine unitaire 233/233 + edge 8/8 + intégration locale réelle (incluant les 26 nouveaux tests V0.3_005B) ; builds engine/web PASS. Canary production à deux athlètes scratch distincts : chaque assertion PASS, résidu zéro. Voir `docs/06_ARCHITECTURE.md` §V0.3_005 et `docs/11_DECISION_LOG.md` (V0.3_005D).
+
+**V0.3_005 — contrat de test complet.**

@@ -291,6 +291,28 @@ Si `race_phase` est connu (renseigné dans la DB ou via horaires officiels), il 
 - **A+** : soft constraints appliquées avec poids `strong`. Dérogation nécessite justification forte.
 - **A** : soft constraints appliquées avec poids `moderate`. Dérogation plus facile.
 
+### Statut de la course — pertinence coaching (V0.3_005 / NAL-007A)
+
+`race_calendar.status` (`planned`/`registered`/`confirmed`/`completed`/`cancelled`/`skipped`) est une métadonnée d'adaptateur, filtrée **avant** qu'une ligne n'atteigne `UpcomingRace`/`EventContext` — le moteur M1 (frozen) reste strictement sans connaissance du statut, exactement comme avant.
+
+Table de vérité canonique :
+
+| status | PRE_EVENT | IN_PROGRESS | POST_EVENT |
+|---|---|---|---|
+| planned / registered / confirmed | INCLUS | INCLUS | INCLUS |
+| completed | EXCLU | EXCLU | INCLUS |
+| cancelled / skipped | EXCLU | EXCLU | EXCLU |
+
+`cancelled`/`skipped` sont exclus sans condition : aucun taper, aucun `RACE_ACTIVITY`, aucune récupération post-event pour un événement qui n'a pas eu lieu. `completed` n'est PAS requis pour POST_EVENT — aucun chemin applicatif ne transitionne jamais une ligne vers `completed` automatiquement ; l'exiger désactiverait silencieusement la récupération post-course. Voir `docs/11_DECISION_LOG.md` (V0.3_005B/NAL-007A) et `head-coach-engine/src/supabase/repositories/raceCalendarRepo.ts` (`isRaceCoachingRelevant`).
+
+### Activité engagée — préservation de famille (V0.3_005 / NAL-001)
+
+Une séance planifiée (`planned_sessions.is_committed`, `boolean NOT NULL DEFAULT false`) peut être marquée **engagée** par l'athlète — signifie qu'elle fait réellement partie de sa journée, pas seulement une intention envisagée. `is_committed` est une métadonnée de planification, jamais fusionnée dans `TrainingIntervention`.
+
+Face à une recommandation T-X **ordinaire** (taper pré-event usuel, pas un override hard), une séance engagée conserve sa famille d'activité — le protocole T-X garde l'intention de préparation (réduire la charge) mais ne substitue plus toute la famille. Exemple : `DH_PERFORMANCE` engagé + T-5 (`AEROBIC_BASE` léger) → `DH_LIGHT`, jamais `AEROBIC_BASE`.
+
+L'engagement reste subordonné aux branches **hard** : Safety, événement réellement en cours, POST_EVENT réel, et toute recommandation T-X explicitement `REST` ou `RACE_ACTIVITY` (taper à charge nulle ou activité officielle) surclassent toujours l'engagement. Si aucune adaptation de même famille n'existe (kinds à charge fixe), le moteur retombe sur la recommandation T-X brute, tracé explicitement (`COMMITTED_FAMILY_NO_ADAPTATION`). Voir `docs/11_DECISION_LOG.md` (V0.3_005A/NAL-001) et `head-coach-engine/src/rules/committedActivityFamily.ts`.
+
 ---
 
 ## 4. Couche C — DOMAIN DECISIONS

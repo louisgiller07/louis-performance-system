@@ -759,3 +759,37 @@ Détail complet des 15 points de preuve : `11_DECISION_LOG.md` (2026-09-04 — V
 ### Hors périmètre explicite V0.3_004
 
 Session complétée dans le canary (SKIP délibéré — les suites locales A/B/C déjà vertes couvrent ce chemin, aucune preuve supplémentaire pertinente pour la fermeture de l'invariant). UI d'édition du profil de coaching (la population reste manuelle/serveur pour l'instant). Onboarding complet au-delà du nom (`AthleteBootstrap` reste minimal). Toute activation automatique de la Couche D (V0.3_001) pour un second athlète. `ActiveExperiment` (reste le candidat suivant, différé mais non annulé).
+
+---
+
+## V0.3_005 — Dogfood Round 1 Corrections : COMPLETE — 2026-09-08 (NAL-001/002/003/004/005/006/007/007A tous CLOSED / PROD — 2026-09-08)
+
+### Objectif produit
+
+Premier cycle de dogfood réel (Louis utilisant le produit en conditions réelles) a révélé sept défauts concrets, corrigés dans cette série (NAL-001 à NAL-007) puis un défaut d'architecture découvert pendant NAL-007 (NAL-007A). Aucune nouvelle fonctionnalité — uniquement des corrections directement motivées par l'usage réel. Détail complet de chaque jalon (implémentation, tests, revue, production) dans `docs/11_DECISION_LOG.md`.
+
+### NAL-001 — Activité engagée (Planned Activity Commitment)
+
+Voir `docs/04_DAILY_DECISION_ENGINE.md` §Activité engagée et `docs/05_DATA_MODEL.md` §planned_sessions pour le contrat complet. Résumé architecture : nouveau champ purement additif `planned_sessions.is_committed`, jamais fusionné dans `TrainingIntervention` (métadonnée de planification distincte) ; nouvelle fonction pure `rules/committedActivityFamily.ts` réutilisant exclusivement des destinations déjà établies ailleurs dans le moteur (aucun nouveau `kind`) ; `computeEventContext`/`raceProtocol.ts`/`UpcomingRace` restent inchangés — le nouveau `hard: boolean` sur `RaceProtocolRecommendation` est la seule extension de surface, calculée à la source des trois branches existantes (`in_progress`, `POST_EVENT`, PRE_EVENT dont le `kind` recommandé est `REST`/`RACE_ACTIVITY`).
+
+### NAL-003 — Restauration de la décision persistée (Persisted Daily Decision Restore)
+
+`/today` lit la décision déjà persistée pour l'athlète/date courants au lieu de toujours proposer "Générer mon plan" après chaque navigation. Aucun nouveau modèle de persistance (append-only inchangé) : `historyRepo.ts#loadLatestDecisionForDate` réutilise la policy RLS `decisions_own_select` existante, sélectionne la **plus récente décision valide** du jour (`created_at DESC`, premier `daily_plan` passant `isValidDailyPlan` — la même garde déjà utilisée par `/history`) plutôt que simplement la plus récente au sens strict, pour qu'une row plus récente mais malformée ne masque jamais une décision valide plus ancienne le même jour. `daily-run` n'est jamais invoqué par ce chemin de lecture. Une erreur de lecture (`TodayDecisionLoadError`) reste un état distinct de "aucune décision" — jamais confondue avec l'état "génère un plan".
+
+### NAL-007 / NAL-007A — Race Calendar × Planning overlay + contrat de statut
+
+`race_calendar` reste l'unique source de vérité — l'overlay Planning (`web/src/features/planning/raceOverlayRepo.ts`) est strictement lecture seule, n'écrit jamais dans `planned_sessions`, ne rend jamais `RACE_ACTIVITY` plannable. Affichage sur chaque jour de l'horizon `/plan` (aujourd'hui→J+6) intersectant `[start_date, end_date]`.
+
+NAL-007A (défaut découvert pendant la revue de NAL-007, corrigé avant tout commit) : `race_calendar.status` n'avait aucun consommateur applicatif — le moteur n'en avait jamais eu connaissance et l'overlay Planning filtrait déjà `planned`/`registered`/`confirmed`, créant une incohérence potentielle (un événement annulé/skippé pouvait rester visible du moteur mais invisible de Planning, ou l'inverse). Table de vérité canonique verrouillée et documentée dans `docs/04_DAILY_DECISION_ENGINE.md` §Statut de la course ; implémentée exclusivement dans la couche adaptateur (`raceCalendarRepo.ts#isRaceCoachingRelevant`), `UpcomingRace`/`computeEventContext`/M1 restent status-unaware. `ENGINE_VERSION` bump associé (`..._005a` → `..._005b`) — seul bump de provenance de tout V0.3_005 (NAL-002/003/004/005/006/007 sont des changements web-only, sans effet sur `DailyPlan`).
+
+### NAL-002 / NAL-004 / NAL-005 / NAL-006 — Polish UI/wording
+
+Regroupés (V0.3_005C) car strictement présentation/wording, sans changement de contrat de données ni de logique de coaching : suppression de la fuite de texte interne (`docs/`, `PROVISIONAL`) côté présentation uniquement — la donnée engine reste inchangée et jamais supprimée ; clarification des bornes 0–10 du check-in (labels seulement, min/max/step/valeurs inchangés) ; nettoyage des chaînes anglaises résiduelles (UI athlète uniquement, aucun framework i18n introduit) ; clarification du libellé RPE (`completed_sessions.rpe`, plage 0–10 déjà correcte côté validation, seul le libellé/l'aide changent).
+
+### Production V0.3_005
+
+Migration unique déployée : `20260904100000_v0_3_005a_planned_sessions_is_committed.sql`. `daily-run` redéployé (seule Edge Function affectée — NAL-001/NAL-007A sont les deux seuls changements engine-side). Web redéployé (`nalynt`/`louis-performance-system`). Preuve de production : canary à deux athlètes scratch distincts (jamais Louis), race confirmée vs race annulée sur le même contexte T-5, isolation croisée, résidu zéro. Détail complet des preuves : `docs/11_DECISION_LOG.md` (V0.3_005D).
+
+### Hors périmètre explicite V0.3_005
+
+Weekly Planner, Session Prescription, Daily Feasibility complet, `ActiveExperiment`, Couche D, onboarding commercial, nouvelle architecture SaaS, refonte UI. Toute évolution future de ces sujets reste un jalon séparé et explicitement autorisé.
