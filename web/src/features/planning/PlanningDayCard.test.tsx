@@ -6,6 +6,7 @@ import { PlanningDayCard } from "./PlanningDayCard";
 import { PlanningDeleteError, PlanningSaveError } from "./planningRepo";
 import { PLANNABLE_FIXED_LOAD_KINDS, PLANNABLE_LOAD_VARIABLE_KINDS } from "./planningTypes";
 import type { PlannedSessionRow } from "./planningTypes";
+import type { RaceOverlayEvent } from "./raceOverlayRepo";
 
 const { savePlannedSession, deletePlannedSession } = vi.hoisted(() => ({
   savePlannedSession: vi.fn(),
@@ -50,10 +51,12 @@ function strengthHeavyRow(): PlannedSessionRow {
 function Harness({
   initialRow = null,
   initialExpanded = false,
+  races = [],
   onRowChangeSpy,
 }: {
   initialRow?: PlannedSessionRow | null;
   initialExpanded?: boolean;
+  races?: RaceOverlayEvent[];
   onRowChangeSpy?: (date: string, row: PlannedSessionRow | null) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
@@ -64,6 +67,7 @@ function Harness({
       date="2026-09-01"
       isToday={false}
       row={row}
+      races={races}
       isExpanded={expanded}
       onToggleExpand={() => setExpanded((e) => !e)}
       onRowChange={(date, newRow) => {
@@ -364,6 +368,82 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false));
+  });
+});
+
+// --- NAL-007: race calendar overlay ---
+
+const A_PLUS_RACE: RaceOverlayEvent = { eventName: "EDC Verbier", startDate: "2026-09-01", endDate: "2026-09-03", priority: "A_PLUS" };
+const C_RACE: RaceOverlayEvent = { eventName: "Sortie club local", startDate: "2026-09-01", endDate: "2026-09-01", priority: "C" };
+
+describe("PlanningDayCard — NAL-007 race calendar overlay", () => {
+  it("shows the race name and 'Course / événement' context when a race overlaps this date", () => {
+    render(<Harness races={[A_PLUS_RACE]} />);
+    expect(screen.getByText("EDC Verbier")).toBeInTheDocument();
+    expect(screen.getByText(/Course \/ événement/)).toBeInTheDocument();
+  });
+
+  it("shows a priority badge for A_PLUS/A, but not for lower priorities", () => {
+    const { rerender } = render(<Harness races={[A_PLUS_RACE]} />);
+    expect(screen.getByText("A+")).toBeInTheDocument();
+
+    rerender(<Harness races={[C_RACE]} />);
+    expect(screen.queryByText("A+")).not.toBeInTheDocument();
+    expect(screen.getByText("Sortie club local")).toBeInTheDocument();
+  });
+
+  it("renders no race banner at all when races is empty (default, unchanged behavior)", () => {
+    render(<Harness races={[]} />);
+    expect(screen.queryByText(/Course \/ événement/)).not.toBeInTheDocument();
+  });
+
+  it("no row + a race present: shows 'Aucune séance ajoutée', never plain 'Non planifié' (never implies nothing is known)", () => {
+    render(<Harness initialRow={null} races={[A_PLUS_RACE]} />);
+    expect(screen.getByText("Aucune séance ajoutée")).toBeInTheDocument();
+    expect(screen.queryByText("Non planifié")).not.toBeInTheDocument();
+  });
+
+  it("no row + no race: still shows plain 'Non planifié', unchanged from before NAL-007", () => {
+    render(<Harness initialRow={null} races={[]} />);
+    expect(screen.getByText("Non planifié")).toBeInTheDocument();
+  });
+
+  it("F: planned_session + race coexist — both the race banner and the planned session are visible", () => {
+    render(<Harness initialRow={strengthHeavyRow()} races={[A_PLUS_RACE]} />);
+    expect(screen.getByText("EDC Verbier")).toBeInTheDocument();
+    expect(screen.getByText(/Renfo bas du corps/)).toBeInTheDocument();
+  });
+
+  it("G: Planning CRUD (save) still works exactly as before on a day with a race overlay", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(strengthHeavyRow());
+    render(<Harness initialExpanded races={[A_PLUS_RACE]} />);
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    await user.click(screen.getByRole("button", { name: "charge lourde" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false)
+    );
+  });
+
+  it("H: merely rendering a day with a race overlay creates/mutates no planned_sessions row", () => {
+    render(<Harness races={[A_PLUS_RACE]} />);
+    expect(savePlannedSession).not.toHaveBeenCalled();
+    expect(deletePlannedSession).not.toHaveBeenCalled();
+  });
+
+  it("I: RACE_ACTIVITY is still never offered in the session picker on a race day (unchanged)", () => {
+    render(<Harness initialExpanded races={[A_PLUS_RACE]} />);
+    const select = screen.getByLabelText("Séance");
+    expect(within(select).queryByText("Activité course")).not.toBeInTheDocument();
+  });
+
+  it("multiple races the same day are all displayed", () => {
+    render(<Harness races={[A_PLUS_RACE, C_RACE]} />);
+    expect(screen.getByText("EDC Verbier")).toBeInTheDocument();
+    expect(screen.getByText("Sortie club local")).toBeInTheDocument();
   });
 });
 

@@ -4,9 +4,16 @@ import { AppNav } from "../components/AppNav";
 import { addDays, todayLocal } from "../lib/date";
 import { PlanningDayCard } from "../features/planning/PlanningDayCard";
 import { loadPlannedSessions } from "../features/planning/planningRepo";
+import { loadRacesInRange, groupRacesByDate } from "../features/planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../features/planning/planningTypes";
+import type { RaceOverlayEvent } from "../features/planning/raceOverlayRepo";
 
 type LoadState = "loading" | "loaded" | "error";
+// NAL-007 — entirely separate from LoadState above: a race-read failure
+// must never block planned_sessions from loading/being usable, and vice
+// versa. "error" here only ever suppresses the race overlay, never the
+// planning editor itself.
+type RaceLoadState = "loading" | "loaded" | "error";
 
 const HORIZON_DAYS = 7;
 
@@ -30,6 +37,11 @@ export function PlanPage() {
   const [rows, setRows] = useState<Record<string, PlannedSessionRow | null>>({});
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
+  // NAL-007 — race/event overlay state, loaded and errored independently of
+  // planned_sessions above. Read-only: race_calendar is never written here.
+  const [raceLoadState, setRaceLoadState] = useState<RaceLoadState>("loading");
+  const [racesByDate, setRacesByDate] = useState<Record<string, RaceOverlayEvent[]>>({});
+
   const load = useCallback(async () => {
     if (!athleteId) return;
     setLoadState("loading");
@@ -49,9 +61,29 @@ export function PlanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId]);
 
+  const loadRaces = useCallback(async () => {
+    if (!athleteId) return;
+    setRaceLoadState("loading");
+    try {
+      const races = await loadRacesInRange(athleteId, dates[0], dates[dates.length - 1]);
+      setRacesByDate(groupRacesByDate(races, dates));
+      setRaceLoadState("loaded");
+    } catch {
+      // Deliberately no rows cleared/kept from a prior successful load —
+      // the day cards simply stop showing race context on this failure;
+      // planned_sessions (loadState above) is entirely unaffected.
+      setRaceLoadState("error");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [athleteId]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadRaces();
+  }, [loadRaces]);
 
   function handleToggleExpand(date: string) {
     setExpandedDate((current) => (current === date ? null : date));
@@ -105,6 +137,10 @@ export function PlanPage() {
           </div>
         )}
 
+        {athleteId && loadState === "loaded" && raceLoadState === "error" && (
+          <p className="text-xs text-gray-400">Événements du calendrier de courses indisponibles pour l'instant.</p>
+        )}
+
         {athleteId && loadState === "loaded" && (
           <div className="flex flex-col gap-2">
             {dates.map((date, index) => (
@@ -113,6 +149,7 @@ export function PlanPage() {
                 athleteId={athleteId}
                 date={date}
                 row={rows[date] ?? null}
+                races={racesByDate[date] ?? []}
                 isToday={index === 0}
                 isExpanded={expandedDate === date}
                 onToggleExpand={() => handleToggleExpand(date)}

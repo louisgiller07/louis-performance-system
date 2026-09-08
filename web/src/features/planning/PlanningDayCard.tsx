@@ -10,6 +10,15 @@ import { deletePlannedSession, InvalidPlannedInterventionError, PlanningDeleteEr
 import { PLANNING_KIND_GROUPS } from "./planningKindGroups";
 import { isPlannableFixedLoadKind, isPlannableLoadVariableKind } from "./planningTypes";
 import type { LoadProfile, PlannedSessionRow, TrainingInterventionKind } from "./planningTypes";
+import type { RaceOverlayEvent, RacePriority } from "./raceOverlayRepo";
+
+// NAL-007 — compact, French, only for the two priorities worth flagging at
+// a glance (A_PLUS/A) — B/C races still show their name, just no badge, to
+// avoid cluttering every lower-priority local ride with a chip.
+const RACE_PRIORITY_BADGE: Partial<Record<RacePriority, string>> = {
+  A_PLUS: "A+",
+  A: "A",
+};
 
 const GENERIC_ERROR_MESSAGE = "Une erreur est survenue. Réessaie dans un instant.";
 
@@ -38,6 +47,14 @@ interface PlanningDayCardProps {
   date: string;
   /** Canonical persisted row for this date, owned by PlanPage — this component never keeps its own copy of "what's persisted". */
   row: PlannedSessionRow | null;
+  /**
+   * NAL-007 — read-only race/event context for this date, from
+   * race_calendar (the canonical source, never duplicated into
+   * planned_sessions). Empty array when no race overlaps this date, or
+   * when the race overlay failed to load — this component never treats
+   * the two differently, and never writes anything derived from this prop.
+   */
+  races: RaceOverlayEvent[];
   isToday: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -52,7 +69,7 @@ interface PlanningDayCardProps {
  * just another selectable kind, saved through the normal savePlannedSession
  * path, and formatIntervention already renders it as "Repos".
  */
-export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onToggleExpand, onRowChange }: PlanningDayCardProps) {
+export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpanded, onToggleExpand, onRowChange }: PlanningDayCardProps) {
   const [draftKind, setDraftKind] = useState<TrainingInterventionKind | "">("");
   const [draftLoad, setDraftLoad] = useState<LoadProfile | null>(null);
   const [draftCommitted, setDraftCommitted] = useState(false);
@@ -126,10 +143,31 @@ export function PlanningDayCard({ athleteId, date, row, isToday, isExpanded, onT
   // legacy row whose coarse type somehow isn't in SESSION_TYPE_LABELS
   // despite the typed contract (same discipline as TodayPlanningSummary.tsx).
   const legacyLabel = row ? (SESSION_TYPE_LABELS[row.session_type] ?? "Séance planifiée (ancienne)") : null;
-  const displayLabel = row ? (row.intervention ? formatIntervention(row.intervention) : legacyLabel) : "Non planifié";
+  // NAL-007 — "Non planifié" would misleadingly suggest nothing is known
+  // about this day when a race actually is; "Aucune séance ajoutée" is used
+  // instead specifically when a race overlay is present but no
+  // planned_session exists — the ordinary empty-day copy is unchanged.
+  const noPlanLabel = races.length > 0 ? "Aucune séance ajoutée" : "Non planifié";
+  const displayLabel = row ? (row.intervention ? formatIntervention(row.intervention) : legacyLabel) : noPlanLabel;
 
   return (
     <div className={`rounded-lg border bg-white ${isToday ? "border-gray-900" : "border-gray-200"}`}>
+      {races.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-t-lg border-b border-amber-100 bg-amber-50 px-3 py-2">
+          {races.map((race) => (
+            <p key={`${race.eventName}-${race.startDate}`} className="flex items-center gap-1.5 text-xs text-amber-900">
+              <span aria-hidden="true">🏁</span>
+              <span className="font-medium">{race.eventName}</span>
+              {RACE_PRIORITY_BADGE[race.priority] && (
+                <span className="rounded bg-amber-200 px-1 text-[10px] font-semibold text-amber-900">
+                  {RACE_PRIORITY_BADGE[race.priority]}
+                </span>
+              )}
+              <span className="text-amber-700">· Course / événement</span>
+            </p>
+          ))}
+        </div>
+      )}
       <button type="button" onClick={onToggleExpand} className="min-h-11 w-full p-3 text-left active:bg-gray-50">
         <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
           {isToday && <span className="text-gray-900">Aujourd'hui · </span>}

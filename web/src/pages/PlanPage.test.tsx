@@ -17,8 +17,17 @@ const { loadPlannedSessions, savePlannedSession, deletePlannedSession } = vi.hoi
 }));
 vi.mock("../features/planning/planningRepo", () => ({ loadPlannedSessions, savePlannedSession, deletePlannedSession }));
 
+// NAL-007 — only the I/O function is mocked; groupRacesByDate is real, pure
+// logic already covered by raceOverlayRepo.test.ts, and reused as-is here.
+const { loadRacesInRange } = vi.hoisted(() => ({ loadRacesInRange: vi.fn() }));
+vi.mock("../features/planning/raceOverlayRepo", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../features/planning/raceOverlayRepo")>();
+  return { ...actual, loadRacesInRange };
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
+  loadRacesInRange.mockResolvedValue([]);
 });
 
 function horizonDates(): string[] {
@@ -175,5 +184,82 @@ describe("PlanPage — loading/error", () => {
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger le planning");
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();
+  });
+});
+
+describe("PlanPage — NAL-007 race calendar overlay", () => {
+  it("A, C: fetches races for the exact today->J+6 horizon and displays a multi-day race on every day it covers", async () => {
+    const dates = horizonDates();
+    loadPlannedSessions.mockResolvedValue([]);
+    loadRacesInRange.mockResolvedValue([{ eventName: "EDC Verbier", startDate: dates[1], endDate: dates[3], priority: "A_PLUS" }]);
+    renderPage();
+
+    expect(await screen.findAllByText("EDC Verbier")).toHaveLength(3);
+    expect(loadRacesInRange).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
+  });
+
+  it("B: a race outside the horizon is not displayed", async () => {
+    loadPlannedSessions.mockResolvedValue([]);
+    loadRacesInRange.mockResolvedValue([{ eventName: "Course lointaine", startDate: "2099-01-01", endDate: "2099-01-01", priority: "B" }]);
+    renderPage();
+
+    await waitFor(() => expect(loadRacesInRange).toHaveBeenCalled());
+    expect(screen.queryByText("Course lointaine")).not.toBeInTheDocument();
+  });
+
+  it("F: a race and a planned session coexist on the same day without one overwriting the other", async () => {
+    const dates = horizonDates();
+    loadPlannedSessions.mockResolvedValue([
+      { planned_date: dates[0], session_type: "REST", intervention: { kind: "REST" }, planned_intent: null, is_committed: false },
+    ]);
+    loadRacesInRange.mockResolvedValue([{ eventName: "EDC Verbier", startDate: dates[0], endDate: dates[0], priority: "A_PLUS" }]);
+    renderPage();
+
+    expect(await screen.findByText("EDC Verbier")).toBeInTheDocument();
+    expect(screen.getByText("Repos")).toBeInTheDocument();
+  });
+
+  it("H: opening /plan with race data creates no planned_sessions writes", async () => {
+    loadPlannedSessions.mockResolvedValue([]);
+    loadRacesInRange.mockResolvedValue([{ eventName: "EDC Verbier", startDate: horizonDates()[0], endDate: horizonDates()[0], priority: "A_PLUS" }]);
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("EDC Verbier")).toBeInTheDocument());
+    expect(savePlannedSession).not.toHaveBeenCalled();
+    expect(deletePlannedSession).not.toHaveBeenCalled();
+  });
+
+  it("K: no events -> Planning behaves exactly as before (all seven days Non planifié)", async () => {
+    loadPlannedSessions.mockResolvedValue([]);
+    loadRacesInRange.mockResolvedValue([]);
+    renderPage();
+
+    expect(await screen.findAllByText("Non planifié")).toHaveLength(7);
+  });
+
+  it("L: a race-read failure shows a small non-blocking note but never breaks planned-session usage", async () => {
+    const dates = horizonDates();
+    loadPlannedSessions.mockResolvedValue([]);
+    loadRacesInRange.mockRejectedValue(new Error("boom"));
+    const user = userEvent.setup();
+    renderPage();
+
+    // Planned sessions loaded fine — no alert, normal empty state.
+    expect(await screen.findAllByText("Non planifié")).toHaveLength(7);
+    expect(screen.getByText(/Événements du calendrier de courses indisponibles/)).toBeInTheDocument();
+
+    // Planning CRUD is entirely unaffected by the race-read failure.
+    savePlannedSession.mockResolvedValue({
+      planned_date: dates[0],
+      session_type: "REST",
+      intervention: { kind: "REST" },
+      planned_intent: null,
+      is_committed: false,
+    });
+    const todayCard = screen.getByRole("button", { name: /Aujourd'hui/ });
+    await user.click(todayCard);
+    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+    expect(await screen.findByText("Repos")).toBeInTheDocument();
   });
 });

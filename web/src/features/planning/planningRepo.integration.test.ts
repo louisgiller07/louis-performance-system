@@ -189,6 +189,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
   let athleteA: SignedInTestAthlete;
   let athleteB: SignedInTestAthlete;
   let repo: typeof import("./planningRepo");
+  let raceOverlayRepo: typeof import("./raceOverlayRepo");
   let userClient: SupabaseClient;
 
   beforeAll(async () => {
@@ -205,6 +206,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
     vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", LOCAL_ANON_KEY);
     vi.resetModules();
     repo = await import("./planningRepo");
+    raceOverlayRepo = await import("./raceOverlayRepo");
     ({ supabase: userClient } = await import("../../lib/supabase"));
   });
 
@@ -425,6 +427,48 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
       expect(after?.notes).toBe("Pre-existing note — must survive");
 
       await admin.from("training_blocks").delete().eq("id", block.id);
+    });
+  });
+
+  describe("raceOverlayRepo — NAL-007 real local Supabase RLS isolation", () => {
+    it("J: athlete A never sees athlete B's race, even for an overlapping date", async () => {
+      const { error: insertError } = await admin.from("race_calendar").insert({
+        athlete_id: athleteB.athleteId,
+        event_name: "NAL-007 RLS test race (athlete B)",
+        start_date: "2026-09-20",
+        end_date: "2026-09-20",
+        priority: "A_PLUS",
+        status: "planned",
+      });
+      if (insertError) throw new Error(`race_calendar fixture insert failed: ${insertError.message}`);
+
+      await signInAs(athleteA);
+      const races = await raceOverlayRepo.loadRacesInRange(athleteA.athleteId, "2026-09-20", "2026-09-20");
+      expect(races).toEqual([]);
+
+      await signInAs(athleteB);
+      const ownRaces = await raceOverlayRepo.loadRacesInRange(athleteB.athleteId, "2026-09-20", "2026-09-20");
+      expect(ownRaces).toEqual([{ eventName: "NAL-007 RLS test race (athlete B)", startDate: "2026-09-20", endDate: "2026-09-20", priority: "A_PLUS" }]);
+
+      await admin.from("race_calendar").delete().eq("athlete_id", athleteB.athleteId).eq("start_date", "2026-09-20");
+    });
+
+    it("a cancelled race is never returned, even though it overlaps the requested range", async () => {
+      const { error: insertError } = await admin.from("race_calendar").insert({
+        athlete_id: athleteA.athleteId,
+        event_name: "NAL-007 cancelled race",
+        start_date: "2026-09-21",
+        end_date: "2026-09-21",
+        priority: "B",
+        status: "cancelled",
+      });
+      if (insertError) throw new Error(`race_calendar fixture insert failed: ${insertError.message}`);
+
+      await signInAs(athleteA);
+      const races = await raceOverlayRepo.loadRacesInRange(athleteA.athleteId, "2026-09-21", "2026-09-21");
+      expect(races).toEqual([]);
+
+      await admin.from("race_calendar").delete().eq("athlete_id", athleteA.athleteId).eq("start_date", "2026-09-21");
     });
   });
 });
