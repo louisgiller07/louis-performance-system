@@ -131,13 +131,13 @@ export function CompletedSessionCard({ date, liveContext }: CompletedSessionCard
     if (record === null) {
       return (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-gray-500">How did today go?</p>
+          <p className="text-sm text-gray-500">Comment s'est passée ta séance ?</p>
           <button
             type="button"
             onClick={startEdit}
             className="min-h-11 rounded bg-gray-900 px-4 py-3 text-sm font-medium text-white"
           >
-            Log session
+            Enregistrer la séance
           </button>
         </div>
       );
@@ -208,7 +208,7 @@ export function CompletedSessionCard({ date, liveContext }: CompletedSessionCard
           onClick={startEdit}
           className="min-h-11 self-start rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
         >
-          Edit
+          Modifier
         </button>
       </div>
     );
@@ -291,7 +291,13 @@ export function CompletedSessionCard({ date, liveContext }: CompletedSessionCard
       )}
 
       {!hideDurationRpe && (
-        <RatingSlider label="RPE" value={form.rpe} onChange={(value) => updateField("rpe", value)} error={fieldErrors.rpe} />
+        <RatingSlider
+          label="Effort global ressenti"
+          value={form.rpe}
+          onChange={(value) => updateField("rpe", value)}
+          error={fieldErrors.rpe}
+          helper="À quel point cette séance t'a sollicité globalement ?"
+        />
       )}
 
       <RatingSlider
@@ -308,7 +314,7 @@ export function CompletedSessionCard({ date, liveContext }: CompletedSessionCard
       />
 
       <YesNoChoice
-        label={isSkipped || isRest ? "Any new pain today?" : "New pain during or after the session?"}
+        label={isSkipped || isRest ? "Une nouvelle douleur aujourd'hui ?" : "Une nouvelle douleur pendant ou après la séance ?"}
         value={form.new_pain}
         onChange={(value) => updateField("new_pain", value)}
         error={fieldErrors.new_pain}
@@ -344,7 +350,7 @@ export function CompletedSessionCard({ date, liveContext }: CompletedSessionCard
           disabled={!canSave}
           className="min-h-11 flex-1 rounded bg-gray-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
         >
-          {saveState === "saving" ? "Enregistrement…" : "Save"}
+          {saveState === "saving" ? "Enregistrement…" : "Enregistrer"}
         </button>
         <button
           type="button"

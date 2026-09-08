@@ -60,7 +60,7 @@ export function TodayPage() {
               onClick={() => void signOut()}
               className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
             >
-              Logout
+              Déconnexion
             </button>
           </div>
         </div>
@@ -77,7 +77,7 @@ export function TodayPage() {
         {athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900">Daily Check-in</h2>
+          <h2 className="text-sm font-semibold text-gray-900">Check-in du jour</h2>
           <p className="mb-4 mt-1 text-sm text-gray-500">Ton état du jour</p>
           {athleteId ? (
             <CheckinForm
@@ -87,12 +87,12 @@ export function TodayPage() {
               onSaved={() => setCheckinRevision((revision) => revision + 1)}
             />
           ) : (
-            <p className="text-sm text-red-600">Configuration error: no athlete resolved.</p>
+            <p className="text-sm text-red-600">Erreur de configuration : aucun athlète résolu.</p>
           )}
         </section>
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900">Daily Plan</h2>
+          <h2 className="text-sm font-semibold text-gray-900">Plan du jour</h2>
           <p className="mb-4 mt-1 text-sm text-gray-500">Généré à partir de ton check-in du jour</p>
           {athleteId && (
             <DailyPlanPanel

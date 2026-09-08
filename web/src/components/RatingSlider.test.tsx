@@ -49,6 +49,23 @@ describe("RatingSlider", () => {
     expect(slider.step).toBe("1");
   });
 
+  it("NAL-006: renders the optional helper sentence when provided", () => {
+    render(
+      <RatingSlider
+        label="Effort global ressenti"
+        value={5}
+        onChange={vi.fn()}
+        helper="À quel point cette séance t'a sollicité globalement ?"
+      />
+    );
+    expect(screen.getByText("À quel point cette séance t'a sollicité globalement ?")).toBeInTheDocument();
+  });
+
+  it("renders no helper line at all when not provided (no regression for existing callers)", () => {
+    render(<RatingSlider label="Motivation" value={5} onChange={vi.fn()} />);
+    expect(screen.queryByText(/À quel point/)).not.toBeInTheDocument();
+  });
+
   it("endpoint label text is inside the accessible label — readable by assistive tech, not color/position-only", () => {
     render(<RatingSlider label="Jambes" value={5} onChange={vi.fn()} lowLabel="Fraîches" highLabel="Très lourdes" />);
     // The slider's accessible name is computed from the full wrapping

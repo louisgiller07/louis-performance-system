@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DailyPlanResult } from "./DailyPlanResult";
+import { DailyPlanView } from "./DailyPlanView";
 import type { DailyPlan, DailyRunResponse } from "./dailyPlanTypes";
 
 const BASE_PLAN: DailyPlan = {
@@ -85,6 +86,34 @@ describe("DailyPlanResult", () => {
     expect(screen.getByText(/9 h/)).toBeInTheDocument();
   });
 
+  // V0.3_005C (NAL-002) — the exact dogfood-observed leak: sleep.notes
+  // currently always carries an internal placeholder/doc-reference string
+  // from the engine, never athlete copy. The presentation boundary must
+  // replace it with clean French, never render the raw field. Rendered via
+  // DailyPlanView directly (no technicalMetadata) so this proves the
+  // athlete-facing rendering path specifically, not the dev-only debug
+  // panel (which legitimately still dumps the raw DailyPlan for
+  // developers — import.meta.env.DEV only, never in a production build).
+  it("never renders the raw internal sleep.notes string (PROVISIONAL / docs path)", () => {
+    render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          sleep: {
+            active: true,
+            target_hours: 8,
+            notes: "Cible sommeil PROVISIONAL — à individualiser (docs/03_COACHING_MODEL.md C4.1)",
+          },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/PROVISIONAL/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/docs\//)).not.toBeInTheDocument();
+    expect(screen.queryByText(/03_COACHING_MODEL/)).not.toBeInTheDocument();
+    expect(screen.getByText("Repère générique, pas encore individualisé pour toi.")).toBeInTheDocument();
+  });
+
   it("renders protection entries only when present", () => {
     const { rerender } = render(<DailyPlanResult result={makeResult({ protection: { do_not_do: ["Pas de squats lourds"] } })} />);
     expect(screen.getByText("À éviter")).toBeInTheDocument();
@@ -103,10 +132,28 @@ describe("DailyPlanResult", () => {
     expect(screen.queryByText("À surveiller")).not.toBeInTheDocument();
   });
 
-  it("renders warnings", () => {
+  // V0.3_005C (NAL-002) — warnings are internal adapter diagnostics, never
+  // athlete copy (every current producer is a data-reconciliation note,
+  // e.g. an ambiguous legacy row) — never rendered to the athlete, even
+  // though the underlying data is still fully present in DailyRunResponse.
+  it("never renders warnings to the athlete, regardless of content", () => {
     render(<DailyPlanResult result={makeResult({}, { warnings: ["Le check-in date d'hier"] })} />);
-    expect(screen.getByText("Avertissements")).toBeInTheDocument();
-    expect(screen.getByText("Le check-in date d'hier")).toBeInTheDocument();
+    expect(screen.queryByText("Avertissements")).not.toBeInTheDocument();
+    expect(screen.queryByText("Le check-in date d'hier")).not.toBeInTheDocument();
+  });
+
+  it("never renders an internal doc-provenance warning, even if one is present in the response", () => {
+    render(
+      <DailyPlanView
+        dailyPlan={BASE_PLAN}
+        warnings={[
+          'race_calendar row "X" has race_format = NULL — mapped to "OTHER". See docs/05_DATA_MODEL.md §race_calendar and docs/11_DECISION_LOG.md.',
+        ]}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/docs\//)).not.toBeInTheDocument();
+    expect(screen.queryByText("Avertissements")).not.toBeInTheDocument();
   });
 
   it("renders an explicit health signal banner when the server reports one", () => {

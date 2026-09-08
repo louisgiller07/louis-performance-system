@@ -5,7 +5,16 @@ import type { DailyPlan } from "./dailyPlanTypes";
 
 export interface DailyPlanViewProps {
   dailyPlan: DailyPlan;
-  /** Optional — a live daily-run response has warnings, a stored historical decision does not. */
+  /**
+   * Optional — a live daily-run response has warnings, a stored historical
+   * decision does not. Never rendered to the athlete (V0.3_005C/NAL-002):
+   * every current producer of this array is an internal adapter-boundary
+   * diagnostic (e.g. an ambiguous legacy row that couldn't be perfectly
+   * reconstructed), never athlete-authored copy — see
+   * head-coach-engine/src/supabase/mapping/{plannedSessionIntervention,raceCalendarRow}.ts.
+   * Kept on the type only so existing callers (DailyPlanResult) don't need
+   * to change; still fully present in DailyRunResponse for logs/debugging.
+   */
   warnings?: string[];
   /**
    * Whether to show the health banner. Computed by the caller from data it
@@ -25,7 +34,7 @@ export interface DailyPlanViewProps {
 // for /history). Every value shown comes from the data passed in — this
 // file only decides layout and French labels (dailyPlanLabels.ts) — it
 // never classifies, diagnoses, or invents a coaching/safety recommendation.
-export function DailyPlanView({ dailyPlan, warnings = [], hasHealthSignal, healthSignalReason, technicalMetadata }: DailyPlanViewProps) {
+export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, technicalMetadata }: DailyPlanViewProps) {
   // Only worth comparing when there was an actual prior planned session —
   // planned_session_before === null (e.g. a fresh RACE_ACTIVITY day, no
   // prior training block session) must never render as "Prévu: —", which
@@ -42,16 +51,6 @@ export function DailyPlanView({ dailyPlan, warnings = [], hasHealthSignal, healt
           <p className="text-sm font-semibold text-red-700">Attention santé</p>
           <p className="mt-0.5 text-xs text-red-600">{healthSignalReason ?? "Le coach a généré un signal de santé pour cette décision."}</p>
         </div>
-      )}
-
-      {warnings.length > 0 && (
-        <PlanSection title="Avertissements">
-          <ul className="list-disc pl-4 text-amber-700">
-            {warnings.map((warning, index) => (
-              <li key={index}>{warning}</li>
-            ))}
-          </ul>
-        </PlanSection>
       )}
 
       {sessionChanged && (
@@ -108,7 +107,18 @@ export function DailyPlanView({ dailyPlan, warnings = [], hasHealthSignal, healt
             <p className="font-medium text-gray-900">Objectif : {dailyPlan.sleep.target_hours} h</p>
           )}
           {dailyPlan.sleep.bedtime_hint && <p className="text-gray-600">{dailyPlan.sleep.bedtime_hint}</p>}
-          {dailyPlan.sleep.notes && <p className="text-gray-600">{dailyPlan.sleep.notes}</p>}
+          {/*
+           * V0.3_005C (NAL-002) — dailyPlan.sleep.notes currently always
+           * carries an internal-provenance string (implementation
+           * placeholder + doc reference), never athlete copy — see
+           * head-coach-engine/src/engine/buildDailyPlan.ts. The underlying
+           * field is untouched (still fully present for debugging/audit,
+           * e.g. in decisions.daily_plan); only the presentation boundary
+           * changes: a fixed, athlete-appropriate line replaces it,
+           * preserving the same meaning (this target is generic, not yet
+           * personalized) without the internal wording.
+           */}
+          {dailyPlan.sleep.notes && <p className="text-gray-600">Repère générique, pas encore individualisé pour toi.</p>}
         </PlanSection>
       )}
 

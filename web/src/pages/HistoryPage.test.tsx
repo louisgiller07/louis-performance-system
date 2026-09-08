@@ -105,7 +105,7 @@ describe("HistoryPage", () => {
   it("logout button calls signOut", () => {
     mockedLoad.mockReturnValue(new Promise(() => {}));
     renderHistoryPage();
-    screen.getByText("Logout").click();
+    screen.getByText("Déconnexion").click();
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

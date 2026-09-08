@@ -45,11 +45,11 @@ beforeEach(() => {
 });
 
 describe("CompletedSessionCard", () => {
-  it("shows the empty state (\"How did today go?\" + \"Log session\") when no row exists", async () => {
+  it("shows the empty state (\"Comment s'est passée ta séance ?\" + \"Enregistrer la séance\") when no row exists", async () => {
     render(<CompletedSessionCard date={DATE} liveContext={null} />);
 
-    expect(await screen.findByText("How did today go?")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Log session" })).toBeInTheDocument();
+    expect(await screen.findByText("Comment s'est passée ta séance ?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Enregistrer la séance" })).toBeInTheDocument();
   });
 
   it("shows a filled summary when a row exists", async () => {
@@ -60,7 +60,7 @@ describe("CompletedSessionCard", () => {
     expect(screen.getByText("Récupération")).toBeInTheDocument();
     expect(screen.getByText("42 min")).toBeInTheDocument();
     expect(screen.getByText("7/10")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Modifier" })).toBeInTheDocument();
   });
 
   describe("pain reminder — neutral, informational only (never a Safety-processed warning)", () => {
@@ -101,12 +101,12 @@ describe("CompletedSessionCard", () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
 
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       expect(screen.getByRole("combobox", { name: /Type de séance/ })).toHaveValue("");
       await pickSessionType(user, "RECOVERY");
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: null, session_type: "RECOVERY" });
@@ -115,13 +115,13 @@ describe("CompletedSessionCard", () => {
     it("B. no live plan -> Save is disabled until a session type is explicitly chosen", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       await fillRestOfValidDoneForm(user); // everything except session_type
-      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
 
       await pickSessionType(user, "RECOVERY");
-      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
     });
 
     it("C. live plan -> exact decisionId preselected", async () => {
@@ -129,9 +129,9 @@ describe("CompletedSessionCard", () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
 
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: "decision-live-1" });
@@ -142,11 +142,11 @@ describe("CompletedSessionCard", () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
 
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       expect(screen.getByRole("combobox", { name: /Type de séance/ })).toHaveValue("AEROBIC_BASE");
 
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ session_type: "AEROBIC_BASE" });
@@ -158,10 +158,10 @@ describe("CompletedSessionCard", () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
 
-      await user.click(await screen.findByRole("button", { name: "Edit" }));
+      await user.click(await screen.findByRole("button", { name: "Modifier" }));
       expect(screen.getByRole("combobox", { name: /Type de séance/ })).toHaveValue("REST");
 
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: "decision-from-row", session_type: "REST" });
@@ -172,41 +172,41 @@ describe("CompletedSessionCard", () => {
     it("hides duration/RPE for skipped, shows them for done", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       expect(screen.getByText("Durée (minutes)")).toBeInTheDocument();
-      expect(screen.getByText("RPE")).toBeInTheDocument();
+      expect(screen.getByText("Effort global ressenti")).toBeInTheDocument();
 
       await user.selectOptions(screen.getByDisplayValue("Faite"), "skipped");
 
       expect(screen.queryByText("Durée (minutes)")).not.toBeInTheDocument();
-      expect(screen.queryByText("RPE")).not.toBeInTheDocument();
+      expect(screen.queryByText("Effort global ressenti")).not.toBeInTheDocument();
     });
 
     it("hides duration/RPE for REST — never an invented training load", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       await pickSessionType(user, "REST");
 
       expect(screen.queryByText("Durée (minutes)")).not.toBeInTheDocument();
-      expect(screen.queryByText("RPE")).not.toBeInTheDocument();
+      expect(screen.queryByText("Effort global ressenti")).not.toBeInTheDocument();
     });
 
     it("Save becomes valid for REST without any duration/RPE — just status, session type, pain answered", async () => {
       mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       await pickSessionType(user, "REST");
-      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
 
       await user.click(screen.getByRole("button", { name: "Non" })); // new_pain = false
-      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
 
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({
         session_type: "REST",
@@ -219,14 +219,14 @@ describe("CompletedSessionCard", () => {
       mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={{ decisionId: "decision-live-1", sessionType: "REST" }} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       expect(screen.getByRole("combobox", { name: /Type de séance/ })).toHaveValue("REST");
       expect(screen.queryByText("Durée (minutes)")).not.toBeInTheDocument();
-      expect(screen.queryByText("RPE")).not.toBeInTheDocument();
+      expect(screen.queryByText("Effort global ressenti")).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: "Non" }));
-      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
     });
   });
 
@@ -234,35 +234,35 @@ describe("CompletedSessionCard", () => {
     it("uses session-context wording for done/partial/replaced", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
-      expect(screen.getByText("New pain during or after the session?")).toBeInTheDocument();
+      expect(screen.getByText("Une nouvelle douleur pendant ou après la séance ?")).toBeInTheDocument();
     });
 
     it("uses day-context wording for skipped", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       await user.selectOptions(screen.getByDisplayValue("Faite"), "skipped");
 
-      expect(screen.getByText("Any new pain today?")).toBeInTheDocument();
+      expect(screen.getByText("Une nouvelle douleur aujourd'hui ?")).toBeInTheDocument();
     });
 
     it("uses day-context wording for REST too", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       await pickSessionType(user, "REST");
 
-      expect(screen.getByText("Any new pain today?")).toBeInTheDocument();
+      expect(screen.getByText("Une nouvelle douleur aujourd'hui ?")).toBeInTheDocument();
     });
 
     it("shows the note textarea only when new_pain is answered Oui", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       expect(screen.queryByLabelText("Décris la douleur")).not.toBeInTheDocument();
 
@@ -275,13 +275,13 @@ describe("CompletedSessionCard", () => {
     it("Save is disabled until the form is fully valid", async () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
 
       // session_type is preselected (live context), but duration/RPE/fatigues/new_pain are still empty.
-      expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
 
       await fillRestOfValidDoneForm(user);
-      expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
     });
   });
 
@@ -290,12 +290,12 @@ describe("CompletedSessionCard", () => {
       mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(screen.getByText("Faite")).toBeInTheDocument());
-      expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Enregistrer" })).not.toBeInTheDocument();
     });
 
     it("a 422 decision_link_invalid error is shown and the form is preserved", async () => {
@@ -310,12 +310,12 @@ describe("CompletedSessionCard", () => {
       });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/décision liée/));
-      expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeInTheDocument();
       expect(signOut).not.toHaveBeenCalled();
     });
 
@@ -331,14 +331,14 @@ describe("CompletedSessionCard", () => {
       });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() =>
         expect(screen.getByRole("alert")).toHaveTextContent("Le statut et le type de séance ne correspondent pas à la séance liée.")
       );
-      expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Enregistrer" })).toBeInTheDocument();
       expect(signOut).not.toHaveBeenCalled();
     });
 
@@ -349,15 +349,15 @@ describe("CompletedSessionCard", () => {
       });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Erreur d'enregistrement/));
       expect(screen.getByDisplayValue("42")).toBeInTheDocument();
 
       mockedPut.mockResolvedValueOnce({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
       await waitFor(() => expect(screen.getByText("Faite")).toBeInTheDocument());
     });
 
@@ -368,9 +368,9 @@ describe("CompletedSessionCard", () => {
       });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
     });
@@ -391,12 +391,52 @@ describe("CompletedSessionCard", () => {
       mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
-      await user.click(await screen.findByRole("button", { name: "Log session" }));
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       await fillRestOfValidDoneForm(user);
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ intervention: null, main_content: null });
+    });
+
+    // V0.3_005C (NAL-006) — new label/helper text, same persisted field
+    // name, same 0-10 range (completed_sessions_rpe_check CHECK constraint
+    // + inRange0to10 validation, both unchanged). Boundary values must
+    // still submit exactly.
+    it("NAL-006: minimum RPE (0) submits exactly 0", async () => {
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new", rpe: 0 }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+      await fillRestOfValidDoneForm(user);
+      fireSlider("Effort global ressenti", 0);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ rpe: 0 });
+    });
+
+    it("NAL-006: maximum RPE (10) submits exactly 10", async () => {
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new", rpe: 10 }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+      await fillRestOfValidDoneForm(user);
+      fireSlider("Effort global ressenti", 10);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ rpe: 10 });
+    });
+
+    it("NAL-006: the RPE slider shows the new label and helper text, never the bare 'RPE' label", async () => {
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} liveContext={LIVE_CONTEXT} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      expect(screen.getByText("Effort global ressenti")).toBeInTheDocument();
+      expect(screen.getByText("À quel point cette séance t'a sollicité globalement ?")).toBeInTheDocument();
+      expect(screen.queryByText("RPE")).not.toBeInTheDocument();
     });
 
     it("editing an existing row round-trips intervention/main_content unchanged, without any editor for them", async () => {
@@ -405,8 +445,8 @@ describe("CompletedSessionCard", () => {
       const user = userEvent.setup();
       render(<CompletedSessionCard date={DATE} liveContext={null} />);
 
-      await user.click(await screen.findByRole("button", { name: "Edit" }));
-      await user.click(screen.getByRole("button", { name: "Save" }));
+      await user.click(await screen.findByRole("button", { name: "Modifier" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({
@@ -419,7 +459,7 @@ describe("CompletedSessionCard", () => {
   it("reloading (GET) after a save shows the persisted state", async () => {
     mockedGet.mockResolvedValueOnce({ ok: true, data: null });
     const { unmount } = render(<CompletedSessionCard date={DATE} liveContext={null} />);
-    await screen.findByText("How did today go?");
+    await screen.findByText("Comment s'est passée ta séance ?");
     unmount();
 
     mockedGet.mockResolvedValueOnce({ ok: true, data: EXISTING_RECORD });
@@ -444,7 +484,7 @@ async function fillRestOfValidDoneForm(user: ReturnType<typeof userEvent.setup>)
   await user.clear(durationInput);
   await user.type(durationInput, "42");
 
-  fireSlider("RPE", 7);
+  fireSlider("Effort global ressenti", 7);
   fireSlider("Fatigue jambes", 4);
   fireSlider("Fatigue grip", 3);
 

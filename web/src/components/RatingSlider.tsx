@@ -17,15 +17,25 @@ interface RatingSliderProps {
    */
   lowLabel?: string;
   highLabel?: string;
+  /**
+   * V0.3_005C (NAL-006) — a short clarifying sentence shown under the
+   * label, e.g. "À quel point cette séance t'a sollicité globalement ?"
+   * for RPE. Distinct from lowLabel/highLabel (endpoint semantics): this
+   * is for a field whose overall meaning needs a one-line clarification,
+   * not just what 0/10 mean. Purely descriptive — never affects the
+   * numeric value submitted.
+   */
+  helper?: string;
 }
 
-export function RatingSlider({ label, value, min = 0, max = 10, onChange, error, lowLabel, highLabel }: RatingSliderProps) {
+export function RatingSlider({ label, value, min = 0, max = 10, onChange, error, lowLabel, highLabel, helper }: RatingSliderProps) {
   return (
     <label className="flex flex-col gap-1">
       <span className="flex items-center justify-between text-sm text-gray-700">
         <span>{label}</span>
         <span className="font-mono text-xs text-gray-400">{value === "" ? "—" : value}</span>
       </span>
+      {helper && <span className="text-xs text-gray-500">{helper}</span>}
       <input
         type="range"
         min={min}

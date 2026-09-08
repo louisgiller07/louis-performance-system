@@ -20,7 +20,17 @@ export function LoginPage() {
     setError(null);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
-    if (signInError) setError(signInError.message);
+    if (signInError) {
+      // V0.3_005C (NAL-005) — never render the raw Supabase Auth provider
+      // message (e.g. "Invalid login credentials") verbatim: it's English,
+      // provider-authored, and not ours to guarantee the wording of. The
+      // app doesn't currently distinguish auth failure reasons (no
+      // existing branch to preserve), so one curated French message covers
+      // every case. Name only in the log — never the message, same
+      // discipline as historyRepo.ts/HistoryPage.tsx's console.error calls.
+      console.error("LoginPage: sign-in failed", signInError.name);
+      setError("Impossible de se connecter. Vérifie tes identifiants et réessaie.");
+    }
   }
 
   return (
@@ -39,7 +49,7 @@ export function LoginPage() {
           />
         </label>
         <label className="flex flex-col gap-1 text-sm text-gray-700">
-          Password
+          Mot de passe
           <input
             type="password"
             required
@@ -59,7 +69,7 @@ export function LoginPage() {
           disabled={submitting}
           className="rounded bg-gray-900 px-3 py-3 text-sm font-medium text-white disabled:opacity-50"
         >
-          {submitting ? "Signing in…" : "Sign in"}
+          {submitting ? "Connexion…" : "Se connecter"}
         </button>
       </form>
     </div>

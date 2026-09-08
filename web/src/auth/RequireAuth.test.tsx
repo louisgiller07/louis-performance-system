@@ -73,12 +73,12 @@ describe("RequireAuth", () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, []);
     await waitFor(() => expect(screen.getByText("Configurer ton profil")).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
-    expect(screen.queryByText(/contact support/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/contacte le support/i)).not.toBeInTheDocument();
   });
 
   it("V0.3_004B — more than one athlete resolved: still the existing config-error message, bootstrap is NOT shown", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [{ id: "athlete-1" }, { id: "athlete-2" }]);
-    await waitFor(() => expect(screen.getByText(/configuration error/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/erreur de configuration/i)).toBeInTheDocument());
     expect(screen.queryByText("Configurer ton profil")).not.toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
