@@ -422,3 +422,249 @@ describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => 
     });
   });
 });
+
+describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real Supabase)", () => {
+  let client: SupabaseClient;
+  let athlete: TestAthlete;
+
+  beforeEach(async () => {
+    client = createTestClient();
+    athlete = await createTestAthlete(client, "V0.3_005B race status filter test athlete");
+  });
+
+  afterEach(async () => {
+    await deleteTestAthlete(client, athlete);
+  });
+
+  it.each(["planned", "registered", "confirmed"] as const)(
+    "A/B/C — a %s race 5 days out still produces PRE_EVENT, unchanged",
+    async (status) => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertRace(client, athlete.athleteId, {
+        event_name: `${status} T-5 fixture race`,
+        start_date: "2026-08-21",
+        end_date: "2026-08-21",
+        priority: "A_PLUS",
+        race_format: "HOT_TRAIL_2DAY",
+        status,
+      });
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.upcoming_races).toHaveLength(1);
+
+      const plan = buildDailyPlan(rawContext);
+      expect(plan.event_context?.phase).toBe("PRE_EVENT");
+    }
+  );
+
+  it.each(["cancelled", "skipped"] as const)(
+    "D/E — a %s race 5 days out is excluded entirely — no PRE_EVENT, no taper",
+    async (status) => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertRace(client, athlete.athleteId, {
+        event_name: `${status} T-5 fixture race`,
+        start_date: "2026-08-21",
+        end_date: "2026-08-21",
+        priority: "A_PLUS",
+        race_format: "HOT_TRAIL_2DAY",
+        status,
+      });
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.upcoming_races).toEqual([]);
+
+      const plan = buildDailyPlan(rawContext);
+      expect(plan.event_context).toBeUndefined();
+    }
+  );
+
+  it.each(["cancelled", "skipped"] as const)(
+    "F/G — a %s race spanning today produces no IN_PROGRESS / RACE_ACTIVITY",
+    async (status) => {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertRace(client, athlete.athleteId, {
+        event_name: `${status} in-progress fixture race`,
+        start_date: "2026-08-15",
+        end_date: "2026-08-17",
+        priority: "A_PLUS",
+        status,
+      });
+
+      const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+      expect(rawContext.upcoming_races).toEqual([]);
+
+      const plan = buildDailyPlan(rawContext);
+      expect(plan.event_context?.in_progress).not.toBe(true);
+      expect(plan.final_session.kind).not.toBe("RACE_ACTIVITY");
+    }
+  );
+
+  it("H — a completed race that is still 5 days in the future is excluded (no PRE_EVENT)", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "completed-but-future fixture race",
+      start_date: "2026-08-21",
+      end_date: "2026-08-21",
+      priority: "A_PLUS",
+      status: "completed",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toEqual([]);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context).toBeUndefined();
+  });
+
+  it("I — a completed race spanning today is excluded (no IN_PROGRESS / RACE_ACTIVITY)", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "completed in-progress fixture race",
+      start_date: "2026-08-15",
+      end_date: "2026-08-17",
+      priority: "A_PLUS",
+      status: "completed",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toEqual([]);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context?.in_progress).not.toBe(true);
+    expect(plan.final_session.kind).not.toBe("RACE_ACTIVITY");
+  });
+
+  it("J — a completed race that ended yesterday is INCLUDED, and POST_EVENT recovery still triggers", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "completed past fixture race",
+      start_date: "2026-08-14",
+      end_date: "2026-08-15", // ended yesterday relative to TODAY=2026-08-16
+      priority: "A",
+      race_format: "HOT_TRAIL_2DAY",
+      status: "completed",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toHaveLength(1);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context?.phase).toBe("POST_EVENT");
+    expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+  });
+
+  it("K — an active (planned) race that ended yesterday still produces POST_EVENT exactly as before this change", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "planned past fixture race",
+      start_date: "2026-08-14",
+      end_date: "2026-08-15",
+      priority: "A",
+      race_format: "HOT_TRAIL_2DAY",
+      status: "planned",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toHaveLength(1);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context?.phase).toBe("POST_EVENT");
+    expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+  });
+
+  it.each(["cancelled", "skipped"] as const)("L/M — a %s race that ended yesterday produces no POST_EVENT", async (status) => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: `${status} past fixture race`,
+      start_date: "2026-08-14",
+      end_date: "2026-08-15",
+      priority: "A",
+      status,
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toEqual([]);
+
+    const plan = buildDailyPlan(rawContext);
+    expect(plan.event_context).toBeUndefined();
+  });
+
+  it("N — race priority behavior is unaffected by this filter (A_PLUS still produces a strong soft constraint via raceProtocol)", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "priority fixture race",
+      start_date: "2026-08-21",
+      end_date: "2026-08-21",
+      priority: "A_PLUS",
+      race_format: "HOT_TRAIL_2DAY",
+      status: "confirmed",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races[0]?.priority).toBe("A_PLUS");
+  });
+
+  it("O — NAL-001 committed activity vs a legitimate active (confirmed) race is unaffected: still reaches race-protocol arbitration", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "NAL-001 committed vs active race",
+      start_date: "2026-08-21", // T-5
+      end_date: "2026-08-21",
+      priority: "A_PLUS",
+      race_format: "HOT_TRAIL_2DAY",
+      status: "confirmed",
+    });
+    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+      session_type: "DH_PERFORMANCE",
+      intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      is_committed: true,
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    const plan = buildDailyPlan(rawContext);
+
+    // T-5 ordinary recommendation is AEROBIC_BASE/LIGHT/30min — committed
+    // family preservation must still fire exactly as in the pure-engine
+    // NAL-001 tests.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(true);
+  });
+
+  it("P — NAL-001 committed activity vs a cancelled race: the race never reaches race-protocol arbitration at all", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertRace(client, athlete.athleteId, {
+      event_name: "NAL-001 committed vs cancelled race",
+      start_date: "2026-08-21",
+      end_date: "2026-08-21",
+      priority: "A_PLUS",
+      race_format: "HOT_TRAIL_2DAY",
+      status: "cancelled",
+    });
+    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+      session_type: "DH_PERFORMANCE",
+      intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      is_committed: true,
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    expect(rawContext.upcoming_races).toEqual([]);
+
+    const plan = buildDailyPlan(rawContext);
+    // No race at all -> the committed DH_PERFORMANCE session survives
+    // completely untouched (no race protocol involvement whatsoever).
+    expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY" });
+    expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(false);
+    expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_NO_ADAPTATION")).toBe(false);
+  });
+});

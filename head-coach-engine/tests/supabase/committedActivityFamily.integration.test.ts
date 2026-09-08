@@ -19,6 +19,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { ENGINE_VERSION } from "../../src/engine/buildDailyPlan.js";
 import {
   createTestClient,
   createTestAthlete,
@@ -81,14 +82,21 @@ describe("V0.3_005A (NAL-001) — DB->engine wiring: planned_sessions.is_committ
     expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
     expect(plan.final_session.kind).not.toBe("AEROBIC_BASE");
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(true);
-    expect(plan.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_005a");
+    // ENGINE_VERSION's exact value is engineVersion.test.ts's sole
+    // responsibility — this only proves runDailyFor's live result matches
+    // the real source constant, never a second hardcoded copy of the
+    // literal that would go stale on every future provenance bump.
+    expect(plan.engine_version).toBe(ENGINE_VERSION);
 
     const { data: decisionRow } = await client
       .from("decisions")
       .select("id, daily_plan, engine_version, final_session")
       .eq("id", result.persistence.decision_id)
       .single();
-    expect(decisionRow?.engine_version).toBe("head-coach-engine@0.2.0-m1-v0.3_005a");
+    // Self-consistency with the live result, not a second hardcoded
+    // literal — proves the persistence round-trip is faithful regardless
+    // of the current version string.
+    expect(decisionRow?.engine_version).toBe(plan.engine_version);
     // Denormalized coarse column: DH_LIGHT has no dedicated DbSessionType — it
     // maps to RECOVERY (trainingInterventionToDbSessionType.ts), exactly like
     // MOBILITY/RECOVERY_ACTIVE. The rich kind survives only in daily_plan

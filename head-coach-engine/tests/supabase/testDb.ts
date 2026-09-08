@@ -292,11 +292,20 @@ export async function insertCoachingProfile(
 export async function insertRace(
   client: SupabaseClient,
   athleteId: string,
-  fields: { event_name: string; start_date: string; end_date: string; priority?: string; race_format?: string }
+  fields: {
+    event_name: string;
+    start_date: string;
+    end_date: string;
+    priority?: string;
+    race_format?: string;
+    /** V0.3_005B (NAL-007A) — omitted means the DB's own `DEFAULT 'planned'` applies, never a value fabricated here. */
+    status?: string;
+  }
 ): Promise<void> {
   const { error } = await client.from("race_calendar").insert({
     athlete_id: athleteId,
     event_name: fields.event_name,
+    ...(fields.status !== undefined ? { status: fields.status } : {}),
     start_date: fields.start_date,
     end_date: fields.end_date,
     priority: fields.priority ?? "B",

@@ -26,7 +26,7 @@ import { computeNutritionDomain } from "../domains/nutrition.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_005a";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_005b";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
