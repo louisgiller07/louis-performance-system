@@ -2366,3 +2366,39 @@ V0.3_006C2 (investigation + implémentation + rollout production) = CLOSED / PRO
 ENGINE_VERSION = head-coach-engine@0.2.0-m1-v0.3_006c1 (inchangé)
 Dette différée = sémantique de durée pour les kinds non-DH (aucune table provisoire générique n'existe, hors périmètre) ; concept de disponibilité pure distinct de la durée prévue (produit différent, non créé) ; affichage de la durée prévue dans `TodayPlanningSummary.tsx` (lecture seule, non demandé) ; nombre de runs/dénivelé (faisabilité absente) ; mapping RPE (aucune correspondance canonique) ; refonte vocabulaire Planning/completed-session (REV-003) ; toute évolution de `planned_duration_min` (reste dormante) ; V0.3_006A2 (reste bloqué séparément)
 Prochain jalon = aucun sélectionné/architecturé à ce stade — décision de priorisation Louis restant à prendre, conformément à la convention déjà établie de ne pas enchaîner automatiquement sur un nouveau jalon.
+
+## 2026-09-09 — Post-006C DH re-review : REV2-001/REV2-002 CLOSED, quatre lacunes enregistrées (GAP-001 à 004), aucun code
+
+**Contexte** : une re-review de production a été menée après la clôture de V0.3_006C1 (DH Execution Guidance) et V0.3_006C2 (Planned DH Duration) — le troisième cycle d'un dialogue de revue externe initié en V0.3_006 (V0.3_006B/006C répondant à GPT6-001 à 005). Scénarios testés en production : frais, 2h frais, fatigue, mental, douleur poignet, adaptation de durée, édition/effacement, historique — tous PASS (voir clôtures V0.3_006C1/V0.3_006C2 ci-dessus pour le détail de chaque preuve).
+
+**Décision — Clôture REV2-001** : la session DH n'est plus seulement une catégorie. L'athlète reçoit désormais : type de session finale, comportement de charge traduit en conduite, fenêtre totale de session, terrain contextuel, focus technique, tâche d'exécution répétable, guidance de réduction/interruption fatigue/douleur, et action mentale pré-run quand pertinente. Le reviewer conclut que le rider peut exécuter le cœur de la séance sans devoir reconstruire lui-même la logique de coaching importante. **Cette clôture n'exige pas une programmation run-par-run** — non requise et non ajoutée.
+
+**Décision — Clôture REV2-002** : Technique inclut désormais une tâche exécutable ; Mental RED inclut désormais une action pré-run concrète et une seule cible attentionnelle pendant le run. Le défaut précédent ("priorité nommée mais action laissée à l'invention de l'athlète") n'est plus présent.
+
+**Classification de maturité produit** : **B — aide à la décision + remplacement partiel significatif du coaching quotidien**. NALYNT remplace désormais une part réelle du travail de coaching quotidien, mais n'est pas encore un coach quotidien complet — la boucle prescription → séance réelle → debrief → adaptation longitudinale reste incomplète. **Conséquence de priorisation : la Session Prescription DH ne reste plus la priorité de développement immédiate.**
+
+**Quatre nouvelles lacunes enregistrées** (aucune implémentée, aucun code touché par cette clôture — détail complet dans `docs/12_BACKLOG.md` §Gaps de revue externe post-V0.3_006C) :
+- **GAP-001** (P1, MISSING PRESCRIPTION) — contrôle de départ manquant en fatigue extrême (énergie 2/10, jambes 9/10, grip 9/10) : l'athlète décide encore seul s'il est raisonnable de commencer le premier run DH. Piste future non conçue : run de contrôle initial, poursuite conditionnelle. **Jamais un nouveau seuil Safety sans décision de conception séparée.**
+- **GAP-002** (P2, MISSING PRESCRIPTION) — 2h et longues séances DH partagent la même structure d'exécution ; aucune structure de phase minimale pour une longue journée. **Aucun nombre de runs.**
+- **GAP-003** (P2, MISSING PRESCRIPTION / PRESENTATION) — le raisonnement fatigue athlete-facing peut se concaténer de façon fragmentée/contradictoire (ex. mention d'un pivot haut du corps alors que la prescription finale est DH Light). Direction future : un résumé unique basé sur le résultat d'arbitrage FINAL uniquement. **Jamais d'altération de la provenance technique persistée.**
+- **GAP-004** (P3, SAFETY / MEDICAL POLICY) — le monitoring douleur non-SAFETY 24–48h n'a aucune conséquence déterministe définie si la douleur persiste/s'aggrave/cause une perte de fonction. Nécessite une décision de politique Safety/médicale explicite, distincte de ce cycle de review. Se connecte potentiellement au travail différé de lifecycle des Health Flags (V0.3_006A2).
+
+**Éléments forts confirmés à préserver** (contrainte de conception pour tout futur jalon, ne pas re-abstraire en nouvelle machinerie runtime) : charge → comportement de conduite observable ; tâche technique générique mais exécutable (section connue → repères → répétition propre → vitesse seulement si l'exécution reste bonne) ; adaptation fatigue (DH Light + pas de recherche de vitesse + terrain familier + critères réduction/arrêt) ; Mental (action pré-run courte et déterministe + une seule cible attentionnelle) ; séparation immuable intention planifiée / prescription finale / Historique persisté.
+
+**Prochain axe produit recommandé** : boucle **planifié → prescrit → réalisé → debrief → décision suivante**, se connectant à REV-003 (vocabulaire Planning vs activité complétée, déjà différé) et REV-005 (échelles/RPE/clarté de charge de `completed_sessions`). **Non implémenté par cette clôture** — l'action suivante recommandée est une investigation d'architecture (lecture seule) du modèle `completed_sessions`/feedback existant, pas encore un jalon défini.
+
+**Alternatives considérées** : traiter la revue comme exigeant une programmation détaillée run-par-run — rejeté explicitement par le reviewer lui-même, hors du modèle de coaching NALYNT (pas de fausse précision, pas de donnée de faisabilité) ; enchaîner immédiatement sur l'implémentation d'un des quatre GAPs — rejeté, cette clôture est documentaire uniquement, aucune décision de conception n'a encore été prise pour aucun des quatre ; convertir GAP-001 en nouveau seuil Safety directement — explicitement rejeté, nécessiterait une décision de politique séparée comme V0.3_006A2.
+
+**Impact** : `docs/00_PROJECT_STATUS.md`, `docs/12_BACKLOG.md` (§Gaps de revue externe post-V0.3_006C), `docs/11_DECISION_LOG.md` (cette entrée). Aucun fichier de code produit, aucun changement engine/web/DB, aucune action de production/déploiement.
+
+**Statut** :
+REV2-001 = CLOSED
+REV2-002 = CLOSED
+GAP-001 = RECORDED, P1, MISSING PRESCRIPTION, non implémenté
+GAP-002 = RECORDED, P2, MISSING PRESCRIPTION, non implémenté
+GAP-003 = RECORDED, P2, MISSING PRESCRIPTION / PRESENTATION, non implémenté
+GAP-004 = RECORDED, P3, SAFETY / MEDICAL POLICY, non implémenté
+Maturité produit = B (aide à la décision + remplacement partiel significatif)
+Session Prescription = ne reste plus la priorité de développement immédiate
+Prochain axe = boucle Performed Session / Debrief / Longitudinal (investigation d'architecture à venir, non planifiée par cette clôture)
+ENGINE_VERSION = head-coach-engine@0.2.0-m1-v0.3_006c1 (inchangé)

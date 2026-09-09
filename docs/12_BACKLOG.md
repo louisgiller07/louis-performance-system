@@ -510,6 +510,30 @@ Le build web de production utilise désormais un typecheck TypeScript dédié (`
 
 ---
 
+## Gaps de revue externe post-V0.3_006C (re-review 2026-09-09)
+
+Une re-review de production a été menée après la clôture de V0.3_006C1 (DH Execution Guidance) et V0.3_006C2 (Planned DH Duration). Elle a fermé REV2-001 et REV2-002 (voir `docs/11_DECISION_LOG.md`, entrée "Post-006C DH re-review") et classé NALYNT en maturité **B — aide à la décision + remplacement partiel significatif du coaching quotidien**, pas encore un coach quotidien complet (la boucle prescription → séance réelle → debrief → adaptation longitudinale reste incomplète). **La Session Prescription DH ne reste plus la priorité de développement immédiate.** Quatre lacunes concrètes identifiées, aucune implémentée par cette clôture :
+
+### GAP-001 — Contrôle de départ en fatigue extrême (P1, MISSING PRESCRIPTION)
+Scénario observé : énergie 2/10, fatigue jambes 9/10, fatigue grip 9/10. La guidance actuelle réagit si la précision/fatigue se dégrade PENDANT la session ; l'athlète décide encore seul si commencer le premier run est raisonnable. Piste future potentielle (non conçue, non implémentée) : un run de contrôle initial très facile, poursuite seulement si précision/freinage/grip restent normaux, sinon pivot hors DH. **Ne pas convertir en nouveau seuil Safety sans décision de conception séparée.**
+
+### GAP-002 — Structure des séances longues (P2, MISSING PRESCRIPTION)
+`execution_task` fonctionne bien pour une séance courte mais ne fournit aucune structure de phase minimale pour une longue journée (2h vs 6h partagent la même tâche). Piste future potentielle : échauffement contrôlé → bloc de répétition technique → conduite performance tant que précision/contrôle restent stables. **Aucun nombre de runs.**
+
+### GAP-003 — Copie d'explication fatigue fragmentée (P2, MISSING PRESCRIPTION / PRESENTATION)
+Le raisonnement athlete-facing peut concaténer plusieurs causes (pivot fatigue grip, pivot fatigue jambes, adaptation sommeil), y compris une formulation évoquant un pivot haut du corps alors que la prescription finale est DH Light. Direction future préférée : un résumé athlete-facing unique et cohérent basé sur le résultat d'arbitrage FINAL (ex. "Sommeil insuffisant et fatigue jambes/grip élevée : passage à une DH légère, sans recherche de vitesse, sur terrain familier et lisible."). **Ne jamais altérer la provenance technique persistée.**
+
+### GAP-004 — Conséquence de suivi douleur 24–48h non définie (P3, SAFETY / MEDICAL POLICY)
+Le monitoring douleur non-SAFETY existant demande à l'athlète de surveiller sur 24–48h mais ne définit aucune conséquence déterministe si la douleur persiste, s'aggrave, ou cause une perte de fonction. Nécessite une décision explicite de politique Safety/médicale — **ne pas inventer de politique, ne pas implémenter sous un ticket de coaching normal.** Pourrait se connecter au travail différé de lifecycle des Health Flags (V0.3_006A2).
+
+### Éléments forts à préserver (contrainte de conception, ne pas re-abstraire)
+Charge traduite en comportement de conduite observable ; tâche technique générique mais exécutable (section connue → repères → répéter proprement → augmenter la vitesse seulement si l'exécution reste bonne) ; adaptation fatigue (DH Light + pas de recherche de vitesse + terrain familier + critères réduction/arrêt) ; Mental (action pré-run courte et déterministe + une seule cible attentionnelle) ; séparation immuable intention planifiée / prescription finale / Historique persisté.
+
+### Prochain axe produit recommandé
+Boucle **planifié → prescrit → réalisé → debrief → décision suivante**. Se connecte à REV-003 (vocabulaire Planning vs activité complétée) et REV-005 (échelles/RPE/clarté de charge de `completed_sessions`) — voir aussi "Debrief course post-mortem structuré" déjà listé en P2 ci-dessous, item apparenté mais distinct (post-mortem course spécifique vs boucle debrief générique séance-par-séance). **Action suivante après cette clôture : une investigation d'architecture (lecture seule) du modèle `completed_sessions`/feedback existant — pas encore un jalon défini.**
+
+---
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)
