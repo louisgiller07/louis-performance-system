@@ -1,19 +1,19 @@
-// V0.3_006A1 — presentation-boundary sanitization for Safety-layer (A)
-// triggered rules. head-coach-engine/src/rules/safety.ts is never touched by
-// this file: `triggered_rules`/`reasoning` on the underlying DailyPlan stay
-// byte-for-byte what the engine emitted (still fully present for
-// technicalMetadata/debug/history audit) — only what gets rendered as
-// athlete copy changes.
+// V0.3_006A1 — presentation-boundary sanitization for triggered rules.
+// head-coach-engine/src/rules/**/domains/**/**.ts are never touched by this
+// file: `triggered_rules`/`reasoning`/`monitoring`/`protection` on the
+// underlying DailyPlan stay byte-for-byte what the engine emitted (still
+// fully present for technicalMetadata/debug/history audit) — only what
+// gets rendered as athlete copy changes. An explicit ALLOWLISTED mapping of
+// known technical terms/rule_ids only — never an uncontrolled generic
+// string-replacement engine.
 //
-// Exactly one current triggered_rule needs this: A5's `detail` ("Flag
-// concussion_suspect actif non résolu — DH interdit tant que non validé
-// médicalement") embeds the internal HealthFlagType slug. A1-A4's own
-// `detail` strings are already clean athlete-appropriate French — verified
-// by inspection of rules/safety.ts — so they pass through unchanged here.
-// If a future Safety rule's `detail` needs the same treatment, add it here,
-// not by rewriting engine wording (see docs/11_DECISION_LOG.md V0.3_006A:
-// this is presentation sanitization, not a clinical/product wording
-// decision, which A5's own text explicitly avoided touching).
+// Known cases needing this (V0.3_006A1 A5, V0.3_006C1 PAIN_NON_SAFETY/
+// MENTAL_RED/raw pain-location codes) are documented at each override
+// below. If a future rule's `detail`/monitoring/protection text needs the
+// same treatment, add it here, not by rewriting engine wording (see
+// docs/11_DECISION_LOG.md V0.3_006A: this is presentation sanitization, not
+// a clinical/product wording decision).
+import { PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, type PainLocationCode } from "../checkin/checkinTypes";
 import type { DailyPlan, TriggeredRule } from "./dailyPlanTypes";
 
 // Factual system-state statement only — never a claim about which activity
@@ -22,13 +22,48 @@ import type { DailyPlan, TriggeredRule } from "./dailyPlanTypes";
 const A5_ATHLETE_SAFE_DETAIL =
   "Un signal de suspicion de commotion déclaré précédemment est toujours actif. Les restrictions de sécurité associées restent appliquées.";
 
-const SAFETY_RULE_OVERRIDES: Readonly<Record<string, string>> = {
+// V0.3_006C1 — "Mental RED — réduction..." (domains/training.ts's
+// MENTAL_RED rule, layer C) exposed the internal dimension-level jargon
+// verbatim. Fixed replacement: MENTAL_RED's detail is a single static
+// template (no dynamic interpolation), so a plain string override is
+// sufficient — same mechanism as A5.
+const MENTAL_RED_ATHLETE_SAFE_DETAIL = "Charge mentale élevée — séance adaptée pour réduire la charge cognitive.";
+
+/** rule_id -> fixed athlete-safe replacement, for rules whose `detail` is a single static template (never for a rule whose detail is dynamically interpolated — those need their own function, see PAIN_NON_SAFETY below). */
+const FIXED_RULE_OVERRIDES: Readonly<Record<string, string>> = {
   A5: A5_ATHLETE_SAFE_DETAIL,
+  MENTAL_RED: MENTAL_RED_ATHLETE_SAFE_DETAIL,
 };
+
+/**
+ * V0.3_006C1 — PAIN_NON_SAFETY's `detail` (rules/painNonSafety.ts) is
+ * dynamically interpolated with the raw `pain_location_code` and varies by
+ * whether the session was solicited ("... adaptation de la séance" vs "...
+ * séance non concernée"), so it cannot use a single fixed override string.
+ * Extracts the raw code from the parenthesized segment, maps it through the
+ * canonical PAIN_LOCATION_LABELS, and rebuilds an athlete-safe sentence —
+ * never exposing "non-SAFETY" or the raw code. Falls back to "une zone"
+ * only if the code is somehow not a known value (defensive, never expected
+ * given the code always comes from the canonical enum).
+ */
+function sanitizePainNonSafetyDetail(detail: string): string {
+  const match = detail.match(/\(([^)]+)\)/);
+  const rawZone = match?.[1];
+  const zoneLabel = rawZone !== undefined && rawZone in PAIN_LOCATION_LABELS ? PAIN_LOCATION_LABELS[rawZone as PainLocationCode] : "une zone";
+  const solicited = !detail.includes("séance non concernée");
+  return solicited
+    ? `Douleur signalée — ${zoneLabel} — séance adaptée et surveillance renforcée.`
+    : `Douleur signalée — ${zoneLabel} — surveillance renforcée, séance non concernée par cette zone.`;
+}
+
+function resolveOverrideFor(rule: TriggeredRule): string | undefined {
+  if (rule.rule_id === "PAIN_NON_SAFETY") return sanitizePainNonSafetyDetail(rule.detail);
+  return FIXED_RULE_OVERRIDES[rule.rule_id];
+}
 
 /** The athlete-safe text for one triggered rule — `rule.detail` unchanged unless this specific rule_id is known to need sanitization. */
 export function athleteSafeRuleDetail(rule: TriggeredRule): string {
-  return SAFETY_RULE_OVERRIDES[rule.rule_id] ?? rule.detail;
+  return resolveOverrideFor(rule) ?? rule.detail;
 }
 
 /**
@@ -44,10 +79,42 @@ export function athleteSafeRuleDetail(rule: TriggeredRule): string {
 export function athleteSafeReasoning(dailyPlan: DailyPlan): string {
   let reasoning = dailyPlan.reasoning;
   for (const rule of dailyPlan.triggered_rules) {
-    const safe = SAFETY_RULE_OVERRIDES[rule.rule_id];
+    const safe = resolveOverrideFor(rule);
     if (safe) reasoning = reasoning.split(rule.detail).join(safe);
   }
   return reasoning;
+}
+
+/**
+ * V0.3_006C1 — word-boundary-safe replacement of any of the 33 known,
+ * canonical `pain_location_code` values wherever they appear in a string —
+ * an explicit allowlist (never a blind/uncontrolled find-and-replace).
+ * `\b` correctly avoids matching a code as a substring of an unrelated
+ * word (e.g. "other" never matches inside "another").
+ */
+function replaceKnownPainLocationCodes(text: string): string {
+  let result = text;
+  for (const code of PAIN_LOCATION_CODES) {
+    result = result.replace(new RegExp(`\\b${code}\\b`, "g"), PAIN_LOCATION_LABELS[code]);
+  }
+  return result;
+}
+
+/**
+ * Athlete-safe `monitoring.observe` — `PAIN_NON_SAFETY`'s monitoring entry
+ * embeds the raw `pain_location_code` directly (e.g. "... (wrist_L,
+ * intensité 4/10) ..."), never sanitized by `athleteSafeRuleDetail` (that
+ * only covers `triggered_rules`/`reasoning`). The underlying
+ * `dailyPlan.monitoring.observe` array is never mutated — only the
+ * rendered copy.
+ */
+export function athleteSafeMonitoring(dailyPlan: DailyPlan): string[] {
+  return dailyPlan.monitoring.observe.map(replaceKnownPainLocationCodes);
+}
+
+/** Athlete-safe `protection.do_not_do` — same raw-code leak as monitoring, same fix. */
+export function athleteSafeProtection(dailyPlan: DailyPlan): string[] {
+  return dailyPlan.protection.do_not_do.map(replaceKnownPainLocationCodes);
 }
 
 /** Whether an active Safety-layer (A) rule is present — used to give Safety-driven restrictions visual/textual priority over generic Recovery content. Presentation ordering only; never changes which activities are considered allowed. */

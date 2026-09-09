@@ -31,6 +31,19 @@ export interface TrainingPlanSection {
 export interface DhTechnicalSection {
   active: boolean;
   focus?: string;
+  /** V0.3_006C1 — how to work on `focus` today. Populated only when `focus` came from the generic fallback (never derived from arbitrary personal `technique_primary_focus` free text). */
+  execution_task?: string;
+  /**
+   * V0.3_006C1 (final correction) — deterministic riding-behavior guidance
+   * for the FINAL `load_profile`, distinct from `execution_task` (how to
+   * work the technical `focus`) and from `spot_hint` (terrain). This is
+   * substantive coaching prescription, not a UI label — it must be
+   * engine-emitted and persisted, never synthesized by the web layer, so a
+   * historical DailyPlan predating this field never retroactively gains
+   * this instruction merely because the web bundle changed. Populated only
+   * for a DH-family final session with a resolved `load_profile`.
+   */
+  load_guidance?: string;
   spot_hint?: string;
 }
 

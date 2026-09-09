@@ -125,6 +125,41 @@ describe("CheckinForm", () => {
     expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ sleep_hours: 8 }));
   });
 
+  // V0.3_006C1 — the location <select> must display friendly French labels,
+  // never the raw pain_location_code, while the submitted value stays the
+  // canonical raw code (payload semantics unchanged).
+  it("displays friendly French labels for pain location, but keeps the raw code as the submitted value", async () => {
+    const rowWithPain = {
+      ...EXISTING_ROW,
+      pain: true,
+      pain_intensity: 4,
+      pain_new: false,
+      pain_location_code: "wrist_L",
+      pain_traumatic: false,
+      pain_function_loss: false,
+      pain_getting_worse: false,
+    };
+    mockedLoad.mockResolvedValue(rowWithPain);
+    mockedSave.mockResolvedValue(EXISTING_ROW);
+    const user = userEvent.setup();
+
+    render(<CheckinForm athleteId="athlete-1" date="2026-08-19" />);
+    const select = (await screen.findByRole("combobox", { name: "Localisation" })) as HTMLSelectElement;
+
+    // Prefilled to the raw code internally, but the visible option text is the friendly label.
+    expect(select.value).toBe("wrist_L");
+    expect(within(select).getByText("Poignet gauche")).toBeInTheDocument();
+    expect(within(select).queryByText("wrist_L")).not.toBeInTheDocument();
+
+    await user.selectOptions(select, "knee_R");
+    expect(select.value).toBe("knee_R");
+
+    await user.click(screen.getByRole("button", { name: /Enregistrer le check-in/ }));
+    await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+    // Submitted payload uses the canonical raw code, never the French label.
+    expect(mockedSave).toHaveBeenCalledWith("athlete-1", "2026-08-19", expect.objectContaining({ pain_location_code: "knee_R" }));
+  });
+
   it("regression: pain=true complete then switched back to pain=false saves successfully with a fully normalized payload", async () => {
     const rowWithPain = {
       ...EXISTING_ROW,

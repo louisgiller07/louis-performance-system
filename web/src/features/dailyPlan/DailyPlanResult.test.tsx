@@ -346,19 +346,32 @@ describe("DailyPlanResult", () => {
     dh_or_technical: {
       active: true,
       focus: "Précision des lignes et vitesse maîtrisée",
+      // V0.3_006C1 (final correction) — engine-persisted, not recomputed by the web layer.
+      load_guidance:
+        "Séance orientée performance : fais monter l'engagement progressivement et travaille la vitesse sans sacrifier la précision ni le contrôle.",
       spot_hint: "Terrain adapté au focus technique du jour.",
     },
     planned_session_before: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
     final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 },
   };
 
+  // Rendered via DailyPlanView directly (no technicalMetadata) — DH_PLAN now
+  // carries a real dh_or_technical.load_guidance value, which the dev-only
+  // debug <pre> would otherwise dump a second time verbatim, causing a
+  // multiple-match error on getByText for that exact string — same
+  // precedent as the pain-location/non-SAFETY/Mental-RED sanitization tests
+  // below.
   it("renders one consolidated 'Séance DH' card with kind, clarified load, hour-formatted session window, focus, and terrain — never a raw '360 min'", () => {
-    render(<DailyPlanResult result={makeResult(DH_PLAN)} />);
+    render(<DailyPlanView dailyPlan={{ ...BASE_PLAN, ...DH_PLAN }} hasHealthSignal={false} />);
 
     expect(screen.getByText("Séance DH")).toBeInTheDocument();
     expect(screen.getByText(/DH performance/)).toBeInTheDocument();
-    expect(screen.getByText(/Charge lourde — séance exigeante/)).toBeInTheDocument();
+    // V0.3_006C1 (final correction) — rendered exactly as persisted in dh_or_technical.load_guidance.
+    expect(
+      screen.getByText(/Séance orientée performance.*fais monter l'engagement progressivement/)
+    ).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
+    expect(screen.getByText(/Inclut les remontées, pauses et temps d'attente/)).toBeInTheDocument();
     expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
     expect(screen.getByText("Terrain adapté au focus technique du jour.")).toBeInTheDocument();
     expect(screen.queryByText("360 min")).not.toBeInTheDocument();
@@ -424,5 +437,172 @@ describe("DailyPlanResult", () => {
     // Rendered both in the Mental card and (import.meta.env.DEV) the raw
     // debug JSON dump — assert at least one real render, not the debug dump.
     expect(screen.getAllByText(/Ta priorité aujourd'hui : Précision des lignes et vitesse maîtrisée\./).length).toBeGreaterThan(0);
+  });
+
+  // --- V0.3_006C1: DH Execution Guidance ---
+
+  it("renders execution_task in the Séance DH card when present (generic-fallback path)", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          ...DH_PLAN,
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            execution_task:
+              "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse.",
+          },
+        })}
+      />
+    );
+    expect(
+      screen.getByText(
+        "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("renders no execution_task line when the field is absent (personal focus path)", () => {
+    render(<DailyPlanResult result={makeResult(DH_PLAN)} />); // DH_PLAN.dh_or_technical has no execution_task
+    // Only the two known DH strings should appear — nothing extra between focus and terrain.
+    expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
+    expect(screen.getByText("Terrain adapté au focus technique du jour.")).toBeInTheDocument();
+  });
+
+  // Rendered via DailyPlanView directly (no technicalMetadata) — with a real
+  // persisted load_guidance value, the dev-only debug <pre> would otherwise
+  // dump the exact same string a second time (unlike the old short web-only
+  // label, this text is now genuinely present in the DailyPlan JSON itself),
+  // causing a multiple-match error on getByText — same precedent as the
+  // pain-location/non-SAFETY/Mental-RED sanitization tests below.
+  it("renders the persisted dh_or_technical.load_guidance for LIGHT and MODERATE, never a browser-recomputed value", () => {
+    const { rerender } = render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          ...DH_PLAN,
+          final_session: { kind: "DH_PERFORMANCE", load_profile: "LIGHT", duration_min: 180 },
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            load_guidance: "Privilégie la fluidité et l'exécution propre. Ne cherche pas la vitesse et garde de la marge pendant toute la session.",
+          },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.getByText(/Privilégie la fluidité et l'exécution propre/)).toBeInTheDocument();
+    expect(screen.queryByText("Charge légère — garde de la marge")).not.toBeInTheDocument();
+
+    rerender(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          ...DH_PLAN,
+          final_session: { kind: "DH_PERFORMANCE", load_profile: "MODERATE", duration_min: 270 },
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            load_guidance:
+              "Priorise la qualité d'exécution. Engage davantage seulement quand tes lignes restent propres et ton contrôle bon ; ne cherche pas à pousser tous les runs.",
+          },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.getByText(/Priorise la qualité d'exécution/)).toBeInTheDocument();
+  });
+
+  // V0.3_006C1 (final correction) — CANONICAL HISTORY INVARIANT: a legacy
+  // DailyPlan generated before this correction never carried
+  // dh_or_technical.load_guidance. History/Today must never synthesize the
+  // new substantive riding-behavior instruction for such a plan merely
+  // because the web bundle changed — only the neutral load label is shown.
+  it("a legacy DH plan without persisted load_guidance shows only the neutral load label, never the new behavioral coaching copy", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          ...DH_PLAN,
+          dh_or_technical: {
+            active: true,
+            focus: "Précision des lignes et vitesse maîtrisée",
+            spot_hint: "Terrain adapté au focus technique du jour.",
+            // no load_guidance — legacy V0.3_006B shape.
+          },
+        })}
+      />
+    );
+    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText(/charge lourde/i)).toBeInTheDocument();
+    expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Séance orientée performance/)).not.toBeInTheDocument();
+  });
+
+  // Rendered via DailyPlanView directly (no technicalMetadata) — the
+  // dev-only debug <pre> legitimately still dumps the raw, unsanitized
+  // strings (e.g. "wrist_L" appears twice in the raw JSON: once in
+  // monitoring, once in protection), which would make a queryByText/getByText
+  // for the RAW text throw a multiple-match error even though the actual
+  // rendered (sanitized) UI never shows it — same precedent as the
+  // concussion_suspect/A5 tests above.
+  it("never renders a raw pain_location_code (e.g. wrist_L) in monitoring/protection — shows the French label instead", () => {
+    render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          ...DH_PLAN,
+          monitoring: { observe: ["Surveiller l'évolution de la douleur (wrist_L, intensité 4/10) sur 24-48h"] },
+          protection: { do_not_do: ["Éviter toute charge sollicitant fortement wrist_L"] },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/wrist_L/)).not.toBeInTheDocument();
+    // Both the monitoring and protection entries got sanitized.
+    expect(screen.getAllByText(/Poignet gauche/).length).toBe(2);
+  });
+
+  it("never renders the raw 'non-SAFETY' or a raw pain location code from a PAIN_NON_SAFETY triggered_rule, in hero or collapsible", () => {
+    const detail = "Douleur non-SAFETY (wrist_R) — monitoring + protection + adaptation de la séance";
+    render(
+      <DailyPlanView
+        dailyPlan={{ ...BASE_PLAN, ...DH_PLAN, reasoning: detail, triggered_rules: [{ layer: "C", rule_id: "PAIN_NON_SAFETY", detail }] }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/non-SAFETY/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/wrist_R/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Poignet droit/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/séance adaptée et surveillance renforcée/).length).toBeGreaterThan(0);
+  });
+
+  it("never renders the raw 'Mental RED' internal label from a MENTAL_RED triggered_rule, in hero or collapsible", () => {
+    const detail = "Mental RED — réduction de la charge cognitive/structurelle, nature physique préservée";
+    render(
+      <DailyPlanView
+        dailyPlan={{ ...BASE_PLAN, ...DH_PLAN, reasoning: detail, triggered_rules: [{ layer: "C", rule_id: "MENTAL_RED", detail }] }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/Mental RED/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Charge mentale élevée/).length).toBeGreaterThan(0);
+  });
+
+  it("renders the immediate in-session pain interruption note alongside the existing 24-48h monitoring, no medical clearance language", () => {
+    render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          ...DH_PLAN,
+          monitoring: {
+            observe: [
+              "Surveiller l'évolution de la douleur (poignet, intensité 4/10) sur 24-48h",
+              "Pendant la séance, arrête la partie DH si la douleur augmente clairement ou si ton contrôle se dégrade.",
+            ],
+          },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.getByText(/Pendant la séance, arrête la partie DH/)).toBeInTheDocument();
+    expect(screen.getByText(/sur 24-48h/)).toBeInTheDocument();
+    expect(screen.queryByText(/tu peux rouler|séance est sûre|commence prudemment/i)).not.toBeInTheDocument();
   });
 });

@@ -23,11 +23,16 @@ import { inferFallbackSession } from "../domains/fallbackInference.js";
 import { computeTechniqueDomain } from "../domains/technique.js";
 import { computeMentalDomain } from "../domains/mental.js";
 import { computeNutritionDomain } from "../domains/nutrition.js";
-import { withDhDuration, resolveDhFocus, resolveDhFatigueMonitoringNote } from "../domains/dhPrescription.js";
+import {
+  withDhDuration,
+  resolveDhFocus,
+  resolveDhFatigueMonitoringNote,
+  resolveDhImmediatePainMonitoringNote,
+} from "../domains/dhPrescription.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_006b";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_006c1";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -256,6 +261,10 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
   session = withDhDuration(session, ctx.planned_session);
   const dhFatigueMonitoringNote = resolveDhFatigueMonitoringNote(session.kind, triggeredRules);
   if (dhFatigueMonitoringNote) monitoring.push(dhFatigueMonitoringNote);
+  // V0.3_006C1 — additive to (never a replacement for) the existing 24-48h
+  // post-session monitoring already pushed above from pain.monitoring.
+  const dhImmediatePainNote = resolveDhImmediatePainMonitoringNote(session.kind, pain !== null);
+  if (dhImmediatePainNote) monitoring.push(dhImmediatePainNote);
 
   // Le "plan réel" pour l'étiquetage KEEP/MODIFY/REPLACE est planned_session
   // s'il existait, sinon la baseline effectivement utilisée (recommandation
@@ -325,6 +334,8 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
       legsLevel: dimensions.legs.level,
       armsGripLevel: dimensions.arms_grip.level,
       personalFocus: ctx.coaching_profile?.technique_primary_focus,
+      painZoneCategory: pain?.zone_category,
+      mentalRed: dimensions.mental.level === "RED",
     }),
     mental: mentalResult.mental,
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),

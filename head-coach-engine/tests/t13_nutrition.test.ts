@@ -340,7 +340,9 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
       const plan = buildDailyPlan(ctx);
       expect(plan.dh_or_technical.active).toBe(true);
       expect(plan.dh_or_technical.focus).toBe("Fixe ta ligne, dose le freinage, laisse rouler.");
-      expect(plan.dh_or_technical.spot_hint).toBe("Terrain adapté au focus technique du jour.");
+      expect(plan.dh_or_technical.spot_hint).toBe(
+        "Choisis un terrain connu ou représentatif où tu maîtrises déjà les lignes et peux travailler la vitesse avec précision."
+      );
       // And Nutrition's own DH branch fires independently, without disturbing Technique.
       expect(plan.nutrition).toEqual({ active: true, notes: DH_DAY_NOTES });
     });

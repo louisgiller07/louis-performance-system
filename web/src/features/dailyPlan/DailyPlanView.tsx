@@ -1,8 +1,8 @@
 import { PlanSection } from "../../components/PlanSection";
 import { DecisionHero } from "./DecisionHero";
-import { formatIntervention, isSameIntervention, TRAINING_KIND_LABELS } from "./dailyPlanLabels";
-import { athleteSafeRuleDetail, hasActiveSafetyRule } from "./safetyPresentation";
-import { formatDhSessionWindow, DH_LOAD_DESCRIPTION } from "./dhPrescriptionLabels";
+import { formatIntervention, isSameIntervention, TRAINING_KIND_LABELS, LOAD_PROFILE_LABELS } from "./dailyPlanLabels";
+import { athleteSafeRuleDetail, athleteSafeMonitoring, athleteSafeProtection, hasActiveSafetyRule } from "./safetyPresentation";
+import { formatDhSessionWindow, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
 import type { DailyPlan } from "./dailyPlanTypes";
 
 export interface DailyPlanViewProps {
@@ -60,10 +60,15 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
   // card + a separate "Technique" card, to avoid rendering the same
   // recommendation twice.
   const isDhPrescription = dailyPlan.dh_or_technical.active;
-  const protectionSection = dailyPlan.protection.do_not_do.length > 0 && (
+  // V0.3_006C1 — sanitized (raw pain_location_code replaced by its French
+  // label) rather than the raw arrays — see safetyPresentation.ts. The
+  // underlying dailyPlan.protection/monitoring are never mutated.
+  const safeProtection = athleteSafeProtection(dailyPlan);
+  const safeMonitoring = athleteSafeMonitoring(dailyPlan);
+  const protectionSection = safeProtection.length > 0 && (
     <PlanSection title="À éviter">
       <ul className="list-disc pl-4 text-red-700">
-        {dailyPlan.protection.do_not_do.map((item, index) => (
+        {safeProtection.map((item, index) => (
           <li key={index}>{item}</li>
         ))}
       </ul>
@@ -111,16 +116,36 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
        * clarified), how long (total session window — uplift/pauses/recon
        * included, never continuous riding time), what to focus on, and
        * terrain guidance. All values come from already-authoritative fields
-       * (final_session, dh_or_technical) — no new DailyPlan field.
+       * (final_session, dh_or_technical).
+       *
+       * V0.3_006C1 (final correction) — the riding-behavior copy for a given
+       * load_profile is substantive coaching prescription, so it is rendered
+       * ONLY from the persisted `dh_or_technical.load_guidance` (engine-
+       * emitted), never recomputed here from `load_profile` alone — a
+       * historical DailyPlan predating this field falls back to the neutral
+       * load label instead, so it never retroactively gains a coaching
+       * instruction the engine never actually prescribed at generation time
+       * (docs/03_COACHING_MODEL.md §DH Execution Guidance — invariant
+       * d'historique).
        */}
       {isDhPrescription && (
         <PlanSection title="Séance DH">
           <p className="font-medium text-gray-900">{TRAINING_KIND_LABELS[dailyPlan.final_session.kind] ?? dailyPlan.final_session.kind}</p>
-          {dailyPlan.final_session.load_profile && <p className="text-gray-600">{DH_LOAD_DESCRIPTION[dailyPlan.final_session.load_profile]}</p>}
+          {dailyPlan.dh_or_technical.load_guidance ? (
+            <p className="text-gray-600">{dailyPlan.dh_or_technical.load_guidance}</p>
+          ) : (
+            dailyPlan.final_session.load_profile && (
+              <p className="text-gray-600 capitalize">{LOAD_PROFILE_LABELS[dailyPlan.final_session.load_profile]}</p>
+            )
+          )}
           {dailyPlan.final_session.duration_min !== undefined && (
-            <p className="text-gray-600">Fenêtre de session : {formatDhSessionWindow(dailyPlan.final_session.duration_min)}</p>
+            <>
+              <p className="text-gray-600">Fenêtre de session : {formatDhSessionWindow(dailyPlan.final_session.duration_min)}</p>
+              <p className="text-xs text-gray-400">{DH_SESSION_WINDOW_CAPTION}</p>
+            </>
           )}
           {dailyPlan.dh_or_technical.focus && <p className="mt-1 font-medium text-gray-900">{dailyPlan.dh_or_technical.focus}</p>}
+          {dailyPlan.dh_or_technical.execution_task && <p className="text-gray-600">{dailyPlan.dh_or_technical.execution_task}</p>}
           {dailyPlan.dh_or_technical.spot_hint && <p className="text-gray-600">{dailyPlan.dh_or_technical.spot_hint}</p>}
         </PlanSection>
       )}
@@ -175,10 +200,10 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
 
       {!safetyActive && protectionSection}
 
-      {dailyPlan.monitoring.observe.length > 0 && (
+      {safeMonitoring.length > 0 && (
         <PlanSection title="À surveiller">
           <ul className="list-disc pl-4">
-            {dailyPlan.monitoring.observe.map((item, index) => (
+            {safeMonitoring.map((item, index) => (
               <li key={index}>{item}</li>
             ))}
           </ul>

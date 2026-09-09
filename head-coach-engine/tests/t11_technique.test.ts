@@ -7,11 +7,24 @@ import type { DimensionLevel } from "../src/types/dimensions.js";
 import type { UpcomingRace } from "../src/types/context.js";
 
 const FOCUS = "Fixe ta ligne, dose le freinage, laisse rouler.";
-const SPOT_HINT_DEFAULT = "Terrain adapté au focus technique du jour.";
-const SPOT_HINT_FATIGUE = "Terrain proche, à faible coût logistique.";
+// V0.3_006C1 — precedence-based terrain guidance (pain > fatigue > Mental
+// RED > race-proximity > fresh/default), one winner, never concatenated —
+// see domains/technique.ts#selectSpotHint.
+const SPOT_HINT_DEFAULT =
+  "Choisis un terrain connu ou représentatif où tu maîtrises déjà les lignes et peux travailler la vitesse avec précision.";
+const SPOT_HINT_FATIGUE = "Choisis un terrain familier et lisible où tu peux garder de la marge et une exécution propre.";
 const SPOT_HINT_RACE = "Terrain représentatif de la prochaine course.";
-const SPOT_HINT_RACE_FATIGUE = "Terrain représentatif de la prochaine course, à faible coût logistique.";
-const ALLOWED_SPOT_HINTS = new Set([SPOT_HINT_DEFAULT, SPOT_HINT_FATIGUE, SPOT_HINT_RACE, SPOT_HINT_RACE_FATIGUE]);
+const SPOT_HINT_MENTAL_RED = "Privilégie un terrain familier et lisible pour réduire le nombre de décisions à prendre pendant le run.";
+const SPOT_HINT_PAIN_UPPER_GRIP = "Privilégie un terrain familier, moins cassant et moins exigeant en freinage et en grip.";
+const SPOT_HINT_PAIN_LOWER = "Privilégie un terrain familier et moins exigeant physiquement.";
+const ALLOWED_SPOT_HINTS = new Set([
+  SPOT_HINT_DEFAULT,
+  SPOT_HINT_FATIGUE,
+  SPOT_HINT_RACE,
+  SPOT_HINT_MENTAL_RED,
+  SPOT_HINT_PAIN_UPPER_GRIP,
+  SPOT_HINT_PAIN_LOWER,
+]);
 
 const TODAY = "2026-01-01";
 const GREEN: DimensionLevel = "GREEN";
@@ -25,6 +38,8 @@ function baseParams(overrides: {
   legsLevel?: DimensionLevel;
   armsGripLevel?: DimensionLevel;
   personalFocus?: string;
+  painZoneCategory?: "upper_grip" | "lower" | "other";
+  mentalRed?: boolean;
 } = {}) {
   return {
     finalSession: overrides.finalSession ?? { kind: "DH_TECHNICAL" as const, load_profile: "MODERATE" as const },
@@ -39,6 +54,8 @@ function baseParams(overrides: {
     // file keeps its exact prior behavior unless a test explicitly probes
     // a different/absent value.
     personalFocus: "personalFocus" in overrides ? overrides.personalFocus : FOCUS,
+    painZoneCategory: overrides.painZoneCategory,
+    mentalRed: overrides.mentalRed,
   };
 }
 
@@ -140,7 +157,75 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
     });
   });
 
-  describe("Fatigue (C1.6)", () => {
+  describe("V0.3_006C1 — execution_task", () => {
+    it("present, matching the generic task for the kind, when personalFocus is absent", () => {
+      const result = computeTechniqueDomain(baseParams({ personalFocus: undefined, finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } }));
+      expect(result.execution_task).toBe(
+        "Choisis une section technique courte et travaille un seul point à la fois ; répète jusqu'à obtenir une exécution propre avant de changer."
+      );
+    });
+
+    it("absent when a personal focus is configured — never derived from arbitrary free text", () => {
+      const result = computeTechniqueDomain(baseParams()); // default personalFocus = FOCUS
+      expect(result.execution_task).toBeUndefined();
+      expect(result.focus).toBe(FOCUS);
+    });
+
+    it("one deterministic generic task per DH kind, all four covered", () => {
+      const expected: Record<string, string> = {
+        DH_PERFORMANCE:
+          "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse.",
+        DH_TECHNICAL:
+          "Choisis une section technique courte et travaille un seul point à la fois ; répète jusqu'à obtenir une exécution propre avant de changer.",
+        DH_LIGHT: "Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.",
+        PUMPTRACK: "Travaille la conservation de vitesse avec les appuis et le pompage, sans faire de la vitesse maximale l'objectif.",
+      };
+      for (const session of ACTIVE_KINDS) {
+        const result = computeTechniqueDomain(baseParams({ finalSession: session, personalFocus: undefined }));
+        expect(result.execution_task).toBe(expected[session.kind]);
+      }
+    });
+  });
+
+  describe("V0.3_006C1 (final correction) — load_guidance", () => {
+    const HEAVY_GUIDANCE =
+      "Séance orientée performance : fais monter l'engagement progressivement et travaille la vitesse sans sacrifier la précision ni le contrôle.";
+    const MODERATE_GUIDANCE =
+      "Priorise la qualité d'exécution. Engage davantage seulement quand tes lignes restent propres et ton contrôle bon ; ne cherche pas à pousser tous les runs.";
+    const LIGHT_GUIDANCE =
+      "Privilégie la fluidité et l'exécution propre. Ne cherche pas la vitesse et garde de la marge pendant toute la session.";
+
+    it("HEAVY final load → HEAVY guidance", () => {
+      const result = computeTechniqueDomain(baseParams({ finalSession: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } }));
+      expect(result.load_guidance).toBe(HEAVY_GUIDANCE);
+    });
+
+    it("MODERATE final load → MODERATE guidance", () => {
+      const result = computeTechniqueDomain(baseParams({ finalSession: { kind: "DH_PERFORMANCE", load_profile: "MODERATE" } }));
+      expect(result.load_guidance).toBe(MODERATE_GUIDANCE);
+    });
+
+    it("LIGHT final load → LIGHT guidance", () => {
+      const result = computeTechniqueDomain(baseParams({ finalSession: { kind: "DH_LIGHT", load_profile: "LIGHT" } }));
+      expect(result.load_guidance).toBe(LIGHT_GUIDANCE);
+    });
+
+    it("follows the FINAL load, not any prior/planned one — present regardless of personalFocus/pain/fatigue/Mental RED context", () => {
+      const result = computeTechniqueDomain(
+        baseParams({ finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, painZoneCategory: "upper_grip", mentalRed: true, legsLevel: AMBER })
+      );
+      expect(result.load_guidance).toBe(MODERATE_GUIDANCE);
+    });
+
+    it("absent for a non-DH-family kind (inactive dh_or_technical carries no load_guidance)", () => {
+      for (const session of INACTIVE_KINDS) {
+        const result = computeTechniqueDomain(baseParams({ finalSession: session }));
+        expect(result).toEqual({ active: false });
+      }
+    });
+  });
+
+  describe("Fatigue (C1.6) — meaningful fatigue covers AMBER and RED (V0.3_006C1 final fatigue-terrain check)", () => {
     it("systemic AMBER alone → fatigue spot_hint", () => {
       const result = computeTechniqueDomain(baseParams({ systemicLevel: AMBER }));
       expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
@@ -156,24 +241,35 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
     });
 
-    it("systemic RED alone → does NOT trigger C1.6 (default spot_hint)", () => {
+    // Corrected (was: "does NOT trigger C1.6, default spot_hint") — a
+    // severe RED fatigue must NOT fall through to fresh/race/default terrain
+    // merely because it exceeded AMBER. See external-review RED scenario
+    // (legs=9/grip=9 → DH_LIGHT/LIGHT, still DH-family, still deserves
+    // reduced-demand terrain) proved end-to-end in
+    // t15_dhSessionPrescription.test.ts.
+    it("systemic RED alone → fatigue spot_hint (corrected: RED is meaningful fatigue too)", () => {
       const result = computeTechniqueDomain(baseParams({ systemicLevel: RED }));
-      expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
     });
 
-    it("legs RED alone → does NOT trigger C1.6 (default spot_hint)", () => {
+    it("legs RED alone → fatigue spot_hint (corrected: RED is meaningful fatigue too)", () => {
       const result = computeTechniqueDomain(baseParams({ legsLevel: RED }));
-      expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
     });
 
-    it("arms_grip RED alone → does NOT trigger C1.6 (default spot_hint)", () => {
+    it("arms_grip RED alone → fatigue spot_hint (corrected: RED is meaningful fatigue too)", () => {
       const result = computeTechniqueDomain(baseParams({ armsGripLevel: RED }));
-      expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
     });
 
-    it("mixed RED + AMBER → C1.6 applies because an AMBER dimension exists", () => {
+    it("mixed RED + AMBER → fatigue spot_hint (either level alone is already sufficient)", () => {
       const result = computeTechniqueDomain(baseParams({ systemicLevel: RED, legsLevel: AMBER }));
       expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
+    });
+
+    it("GREEN on all three fatigue-relevant dimensions → no fatigue override (falls through to the next rank)", () => {
+      const result = computeTechniqueDomain(baseParams({ systemicLevel: GREEN, legsLevel: GREEN, armsGripLevel: GREEN }));
+      expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
     });
   });
 
@@ -219,10 +315,98 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
     });
   });
 
-  describe("Combined race + fatigue", () => {
-    it("race in window + AMBER fatigue → exact combined spot_hint, both constraints preserved", () => {
+  describe("V0.3_006C1 — terrain precedence (pain > fatigue > Mental RED > race-proximity > default)", () => {
+    it("race in window + AMBER fatigue → fatigue wins (higher precedence), never a concatenated combined message", () => {
       const result = computeTechniqueDomain(baseParams({ upcomingRaces: [raceAt(7)], legsLevel: AMBER }));
-      expect(result.spot_hint).toBe(SPOT_HINT_RACE_FATIGUE);
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
+    });
+
+    // V0.3_006C1 (final correction) — isolated race+pain regression: proves
+    // pain still wins over race-proximity on its own (not only combined with
+    // fatigue/Mental RED as the broader test below already does), making the
+    // retirement of the old combined "race+fatigue" concatenated message an
+    // explicit architectural decision rather than an accidental regression.
+    it("race-proximate + pain (no fatigue, no Mental RED) → pain terrain guidance", () => {
+      const result = computeTechniqueDomain(baseParams({ painZoneCategory: "upper_grip", upcomingRaces: [raceAt(7)] }));
+      expect(result.spot_hint).toBe(SPOT_HINT_PAIN_UPPER_GRIP);
+    });
+
+    it("upper_grip pain constraint beats fatigue, Mental RED, and race-proximity all at once", () => {
+      const result = computeTechniqueDomain(
+        baseParams({ painZoneCategory: "upper_grip", legsLevel: AMBER, mentalRed: true, upcomingRaces: [raceAt(7)] })
+      );
+      expect(result.spot_hint).toBe(SPOT_HINT_PAIN_UPPER_GRIP);
+    });
+
+    it("lower-limb pain constraint beats fatigue, Mental RED, and race-proximity all at once", () => {
+      const result = computeTechniqueDomain(
+        baseParams({ painZoneCategory: "lower", legsLevel: AMBER, mentalRed: true, upcomingRaces: [raceAt(7)] })
+      );
+      expect(result.spot_hint).toBe(SPOT_HINT_PAIN_LOWER);
+    });
+
+    it("painZoneCategory 'other' never triggers pain-specific terrain guidance (falls through to the next rank)", () => {
+      const result = computeTechniqueDomain(baseParams({ painZoneCategory: "other", mentalRed: true }));
+      expect(result.spot_hint).toBe(SPOT_HINT_MENTAL_RED);
+    });
+
+    it("fatigue beats Mental RED and race-proximity", () => {
+      const result = computeTechniqueDomain(baseParams({ legsLevel: AMBER, mentalRed: true, upcomingRaces: [raceAt(7)] }));
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
+    });
+
+    it("Mental RED alone (no pain, no fatigue) produces the Mental RED terrain guidance", () => {
+      const result = computeTechniqueDomain(baseParams({ mentalRed: true }));
+      expect(result.spot_hint).toBe(SPOT_HINT_MENTAL_RED);
+    });
+
+    it("Mental RED beats race-proximity", () => {
+      const result = computeTechniqueDomain(baseParams({ mentalRed: true, upcomingRaces: [raceAt(7)] }));
+      expect(result.spot_hint).toBe(SPOT_HINT_MENTAL_RED);
+    });
+
+    it("race-proximity alone (nothing higher-precedence) still produces the race guidance, unchanged", () => {
+      const result = computeTechniqueDomain(baseParams({ upcomingRaces: [raceAt(7)] }));
+      expect(result.spot_hint).toBe(SPOT_HINT_RACE);
+    });
+  });
+
+  // V0.3_006C1 (final fatigue-terrain check) — the exact A-F regression
+  // matrix required after the external-review RED-fatigue scenario
+  // (legs=9/grip=9): proves RED is treated identically to AMBER for terrain
+  // purposes, including combined with race-proximity and losing to pain,
+  // while GREEN never triggers a fatigue override.
+  describe("V0.3_006C1 — required fatigue-terrain regression matrix (A-F)", () => {
+    it("A. GREEN fatigue, no other constraint → fresh/default terrain", () => {
+      const result = computeTechniqueDomain(baseParams({ systemicLevel: GREEN, legsLevel: GREEN, armsGripLevel: GREEN }));
+      expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
+    });
+
+    it("B. AMBER fatigue → fatigue terrain", () => {
+      const result = computeTechniqueDomain(baseParams({ legsLevel: AMBER }));
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
+    });
+
+    it("C. RED fatigue → fatigue terrain", () => {
+      const result = computeTechniqueDomain(baseParams({ legsLevel: RED }));
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
+    });
+
+    it("D. race-proximate + RED fatigue → fatigue terrain wins", () => {
+      const result = computeTechniqueDomain(baseParams({ legsLevel: RED, upcomingRaces: [raceAt(7)] }));
+      expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
+    });
+
+    it("E. pain + RED fatigue → pain terrain wins", () => {
+      const result = computeTechniqueDomain(baseParams({ painZoneCategory: "upper_grip", legsLevel: RED }));
+      expect(result.spot_hint).toBe(SPOT_HINT_PAIN_UPPER_GRIP);
+    });
+
+    it("F. Mental RED + physical fatigue GREEN → mental terrain", () => {
+      const result = computeTechniqueDomain(
+        baseParams({ mentalRed: true, systemicLevel: GREEN, legsLevel: GREEN, armsGripLevel: GREEN })
+      );
+      expect(result.spot_hint).toBe(SPOT_HINT_MENTAL_RED);
     });
   });
 

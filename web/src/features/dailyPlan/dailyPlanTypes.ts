@@ -72,6 +72,10 @@ export interface TrainingPlanSection {
 export interface DhTechnicalSection {
   active: boolean;
   focus?: string;
+  /** V0.3_006C1 — how to work on `focus` today. Present only when `focus` came from the generic fallback (never derived from arbitrary personal technique_primary_focus free text). */
+  execution_task?: string;
+  /** V0.3_006C1 (final correction) — riding-behavior guidance for the final load_profile, engine-emitted/persisted. Render exactly as-is; never recompute from load_profile — a legacy plan predating this field must never gain it retroactively. */
+  load_guidance?: string;
   spot_hint?: string;
 }
 

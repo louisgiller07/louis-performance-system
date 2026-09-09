@@ -9,6 +9,11 @@ const AMBER_MOTIVATION_ACTION_HINT = "Choisis une seule action simple et commenc
 const RED_SUPPORTIVE_ACTION_HINT =
   "Le plan du jour tient déjà compte de la charge mentale. Garde une seule priorité d'exécution.";
 
+/** V0.3_006C1 — one concrete pre-run regulation action + the already-resolved technical priority, unified regardless of which AMBER/RED sub-case triggered it. No new breathing count, no additional/alternate cue. */
+function dhPreRunActionHint(resolvedDhFocus: string): string {
+  return `Avant de partir, fais quelques respirations lentes puis rappelle-toi ta priorité : ${resolvedDhFocus.replace(/\.+$/, "")}. Pendant le run, reviens uniquement à ce focus.`;
+}
+
 export interface MentalDomainResult {
   mental: MentalSection;
   triggeredRule?: TriggeredRule;
@@ -53,10 +58,17 @@ function buildMentalSection(focus: string | undefined, actionHint: string | unde
 // (personal or generic fallback — see dhPrescription.ts#resolveDhFocus),
 // passed in by the caller rather than recomputed here. `undefined` unless
 // the final session is DH-family (Safety REST/RECOVERY_ACTIVE, or a
-// non-DH kind, always pass undefined). When an AMBER/RED action_hint is
-// triggered AND a resolved DH focus is available, the existing regulation
-// sentence is extended with the concrete priority — never a new/alternate
-// cue, never an LLM, never more than the one existing action_hint string.
+// non-DH kind, always pass undefined).
+//
+// V0.3_006C1 — when an AMBER/RED action_hint is triggered AND a resolved DH
+// focus is available, action_hint becomes the single unified pre-run-action
+// template (DH_PRE_RUN_ACTION_TEMPLATE below) REPLACING the base
+// AMBER_STRESS/AMBER_MOTIVATION/RED_SUPPORTIVE text for this case — never
+// appended after it (that would risk a duplicate breathing mention, since
+// AMBER_STRESS_ACTION_HINT already says "fais quelques respirations
+// lentes"). The base texts remain exactly as before for any non-DH-family
+// final session (no focus resolved). Still never an LLM, still never more
+// than one action_hint string, still never more than one priority named.
 export function computeMentalDomain(params: {
   mentalDimension: DimensionState;
   eventContext?: EventContext;
@@ -105,11 +117,7 @@ export function computeMentalDomain(params: {
   }
 
   if (actionHint !== undefined && resolvedDhFocus !== undefined) {
-    // Strip any trailing period(s) from resolvedDhFocus before appending
-    // exactly one — the athlete's own configured focus (e.g. "Fixe ta
-    // ligne, dose le freinage, laisse rouler.") already ends with one, and
-    // this must never produce "..".
-    actionHint = `${actionHint} Ta priorité aujourd'hui : ${resolvedDhFocus.replace(/\.+$/, "")}.`;
+    actionHint = dhPreRunActionHint(resolvedDhFocus);
   }
 
   return { mental: buildMentalSection(focus, actionHint), triggeredRule };

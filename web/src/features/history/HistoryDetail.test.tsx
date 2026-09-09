@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { HistoryDetail } from "./HistoryDetail";
 import type { DecisionHistoryRow } from "./historyTypes";
 
@@ -133,7 +133,13 @@ describe("HistoryDetail", () => {
   // A row persisted before V0.3_006B never had duration_min on a DH
   // final_session at all — must remain a fully valid, richly-rendered
   // History row, simply without a session-window line.
-  it("a legacy DH row (persisted before V0.3_006B, no duration_min) still renders the rich path, no crash", () => {
+  //
+  // V0.3_006C1 (final correction) — this same row also never had
+  // dh_or_technical.load_guidance (persisted before that correction too):
+  // it doubles as the CANONICAL HISTORY INVARIANT regression — History must
+  // never synthesize the new riding-behavior coaching copy for a plan that
+  // never actually carried it, only the neutral load label.
+  it("a legacy DH row (persisted before V0.3_006B/V0.3_006C1, no duration_min, no load_guidance) still renders the rich path with only the neutral load label, no crash, never the new behavioral coaching copy", () => {
     render(
       <HistoryDetail
         row={makeRow({
@@ -149,5 +155,84 @@ describe("HistoryDetail", () => {
     expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
     expect(screen.getByText("Séance DH")).toBeInTheDocument();
     expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
+    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    expect(within(dhCard).getByText(/charge modérée/i)).toBeInTheDocument();
+    expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Priorise la qualité d'exécution/)).not.toBeInTheDocument();
+  });
+
+  // V0.3_006C1 (final correction) — the flip side: a row persisted AFTER the
+  // correction carries dh_or_technical.load_guidance, and History must
+  // restore it byte-for-byte, no browser-side recomputation from
+  // final_session.load_profile.
+  it("a row with persisted load_guidance restores it exactly, never the neutral label", () => {
+    const loadGuidance =
+      "Séance orientée performance : fais monter l'engagement progressivement et travaille la vitesse sans sacrifier la précision ni le contrôle.";
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            training: { active: true, session_type: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, objective: "Séance DH" },
+            dh_or_technical: {
+              active: true,
+              focus: "Précision des lignes et vitesse maîtrisée",
+              load_guidance: loadGuidance,
+              spot_hint: "Terrain adapté au focus technique du jour.",
+            },
+            final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 },
+          },
+        })}
+      />
+    );
+    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    expect(within(dhCard).getByText(loadGuidance)).toBeInTheDocument();
+    expect(within(dhCard).queryByText(/^charge lourde$/i)).not.toBeInTheDocument();
+  });
+
+  // V0.3_006C1 — History renders execution_task/terrain/Mental pre-run
+  // action/pain monitoring exactly as persisted, no recomputation, and
+  // sanitizes the same raw pain_location_code the same way Today does.
+  it("renders execution_task, terrain, Mental pre-run action, and sanitized pain monitoring exactly as persisted", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            training: { active: true, session_type: { kind: "DH_LIGHT", load_profile: "LIGHT" }, objective: "Séance DH" },
+            dh_or_technical: {
+              active: true,
+              focus: "Fluidité, relâchement et marge",
+              execution_task: "Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.",
+              spot_hint: "Privilégie un terrain familier et lisible où tu peux garder de la marge et une exécution propre.",
+            },
+            mental: {
+              active: true,
+              action_hint:
+                "Avant de partir, fais quelques respirations lentes puis rappelle-toi ta priorité : Fluidité, relâchement et marge. Pendant le run, reviens uniquement à ce focus.",
+            },
+            monitoring: { observe: ["Surveiller l'évolution de la douleur (wrist_L, intensité 4/10) sur 24-48h"] },
+            final_session: { kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 },
+          },
+        })}
+      />
+    );
+    // HistoryDetail always passes technicalMetadata (dev-only debug <pre>
+    // legitimately dumps the raw persisted JSON too) — scope queries to the
+    // specific rendered card, not the whole document, to avoid the debug
+    // dump entirely (same content, different concern than the "getAllByText"
+    // precedent used elsewhere in this file).
+    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    expect(within(dhCard).getByText("Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")).toBeInTheDocument();
+    expect(
+      within(dhCard).getByText("Privilégie un terrain familier et lisible où tu peux garder de la marge et une exécution propre.")
+    ).toBeInTheDocument();
+
+    const mentalCard = screen.getByText("Mental").closest("div")!;
+    expect(within(mentalCard).getByText(/rappelle-toi ta priorité : Fluidité, relâchement et marge/)).toBeInTheDocument();
+
+    const monitoringCard = screen.getByText("À surveiller").closest("div")!;
+    expect(within(monitoringCard).getByText(/Poignet gauche/)).toBeInTheDocument();
+    expect(within(monitoringCard).queryByText(/wrist_L/)).not.toBeInTheDocument();
   });
 });

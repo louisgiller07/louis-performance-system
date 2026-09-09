@@ -1,5 +1,3 @@
-import type { LoadProfile } from "./dailyPlanTypes";
-
 /**
  * V0.3_006B — Session Prescription V1 (DH-first), web presentation only.
  * `duration_min` on a DH-family `TrainingIntervention` represents the
@@ -14,12 +12,5 @@ export function formatDhSessionWindow(durationMin: number): string {
   return minutes === 0 ? `environ ${hours} h` : `environ ${hours} h ${minutes}`;
 }
 
-/**
- * Athlete-facing clarification of the existing qualitative LoadProfile —
- * never a claim these are RPE bands or a redefinition of load as duration.
- */
-export const DH_LOAD_DESCRIPTION: Record<LoadProfile, string> = {
-  LIGHT: "Charge légère — garde de la marge",
-  MODERATE: "Charge modérée — soutenue mais maîtrisée",
-  HEAVY: "Charge lourde — séance exigeante",
-};
+/** V0.3_006C1 — clarifies that the session window includes uplifts/pauses/waiting, never just descent time. Shown under the session-window line in the "Séance DH" card. */
+export const DH_SESSION_WINDOW_CAPTION = "Inclut les remontées, pauses et temps d'attente — pas seulement le temps de descente.";

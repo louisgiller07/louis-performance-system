@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DailyPlanPanel } from "./DailyPlanPanel";
 
@@ -481,6 +481,89 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
 
     expect(await screen.findByText("Séance DH")).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
+    // V0.3_006C1 (final correction) — CANONICAL HISTORY INVARIANT: this
+    // fixture's dh_or_technical never carried load_guidance (legacy shape),
+    // so only the neutral load label may appear, never the new behavioral
+    // coaching copy synthesized from load_profile.
+    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    expect(within(dhCard).getByText(/charge lourde/i)).toBeInTheDocument();
+    expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  // V0.3_006C1 — execution_task/Mental pre-run action/sanitized pain
+  // monitoring must restore identically to a live generation, verbatim
+  // from the persisted plan, no recomputation.
+  it("M (V0.3_006C1): a restored DH decision renders execution_task, Mental pre-run action, and sanitized pain monitoring, no daily-run call", async () => {
+    loadLatestDecisionForDate.mockResolvedValue({
+      ...RESTORED_ROW,
+      finalSessionDb: "RECOVERY",
+      dailyPlan: {
+        ...BASE_DAILY_PLAN,
+        decision: "KEEP",
+        confidence: "MEDIUM",
+        reasoning: "Plan déjà généré aujourd'hui.",
+        training: { active: true, session_type: { kind: "DH_LIGHT", load_profile: "LIGHT" }, objective: "Séance DH" },
+        dh_or_technical: {
+          active: true,
+          focus: "Fluidité, relâchement et marge",
+          execution_task: "Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.",
+          spot_hint: "Choisis un terrain connu ou représentatif où tu maîtrises déjà les lignes et peux travailler la vitesse avec précision.",
+        },
+        mental: {
+          active: true,
+          action_hint:
+            "Avant de partir, fais quelques respirations lentes puis rappelle-toi ta priorité : Fluidité, relâchement et marge. Pendant le run, reviens uniquement à ce focus.",
+        },
+        monitoring: { observe: ["Surveiller l'évolution de la douleur (wrist_L, intensité 4/10) sur 24-48h"] },
+        planned_session_before: { kind: "DH_LIGHT", load_profile: "LIGHT" },
+        final_session: { kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 },
+      },
+    });
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")).toBeInTheDocument();
+    // Dev-only debug panel legitimately dumps the raw persisted JSON too —
+    // scope remaining queries to their specific card, same precedent as
+    // HistoryDetail.test.tsx.
+    const mentalCard = screen.getByText("Mental").closest("div")!;
+    expect(within(mentalCard).getByText(/rappelle-toi ta priorité : Fluidité, relâchement et marge/)).toBeInTheDocument();
+    const monitoringCard = screen.getByText("À surveiller").closest("div")!;
+    expect(within(monitoringCard).getByText(/Poignet gauche/)).toBeInTheDocument();
+    expect(within(monitoringCard).queryByText(/wrist_L/)).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  // N (V0.3_006C1, final correction): the flip side of L — a restored DH
+  // decision that DOES carry a persisted load_guidance must restore it
+  // exactly, no daily-run call, no browser-side recomputation.
+  it("N (V0.3_006C1 correction): a restored DH decision renders its persisted load_guidance exactly, never the neutral label", async () => {
+    const loadGuidance =
+      "Priorise la qualité d'exécution. Engage davantage seulement quand tes lignes restent propres et ton contrôle bon ; ne cherche pas à pousser tous les runs.";
+    loadLatestDecisionForDate.mockResolvedValue({
+      ...RESTORED_ROW,
+      finalSessionDb: "DH_TECHNICAL",
+      dailyPlan: {
+        ...BASE_DAILY_PLAN,
+        decision: "KEEP",
+        confidence: "MEDIUM",
+        reasoning: "Plan déjà généré aujourd'hui.",
+        training: { active: true, session_type: { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, objective: "Séance DH" },
+        dh_or_technical: {
+          active: true,
+          focus: "Précision et qualité d'exécution",
+          load_guidance: loadGuidance,
+          spot_hint: "Terrain adapté au focus technique du jour.",
+        },
+        planned_session_before: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+        final_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 240 },
+      },
+    });
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText(loadGuidance)).toBeInTheDocument();
+    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    expect(within(dhCard).queryByText(/^charge modérée$/i)).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });
 });

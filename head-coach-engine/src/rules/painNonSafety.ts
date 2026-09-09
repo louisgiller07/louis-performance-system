@@ -10,11 +10,16 @@ import type { SignalTrace } from "../engine/signalTrace.js";
  * N'est appelé QUE si rules/safety.ts n'a rien déclenché pour ce checkin
  * (la douleur SAFETY est gérée séparément et prioritaire).
  */
+/** V0.3_006C1 — exported so buildDailyPlan.ts can pass it into computeTechniqueDomain's terrain precedence without recomputing zone classification a second time. */
+export type ZoneCategory = "upper_grip" | "lower" | "other";
+
 export interface PainNonSafetyResult {
   triggered_rule: TriggeredRule;
   monitoring: string[];
   protection: string[];
   adapted_session?: TrainingIntervention;
+  /** V0.3_006C1 — always present alongside a real result; "other" when the location is unspecified or not in a mapped category. */
+  zone_category: ZoneCategory;
 }
 
 const UPPER_GRIP_SOLICITING_KINDS = new Set([
@@ -39,8 +44,6 @@ const LOWER_SOLICITING_KINDS = new Set([
   "AEROBIC_INTERVALS",
   "RACE_ACTIVITY",
 ]);
-
-type ZoneCategory = "upper_grip" | "lower" | "other";
 
 function zoneCategory(location: string | undefined): ZoneCategory {
   if (!location) return "other";
@@ -89,5 +92,5 @@ export function evaluatePainNonSafety(
     signals_used: [signal],
   };
 
-  return { triggered_rule, monitoring, protection, adapted_session };
+  return { triggered_rule, monitoring, protection, adapted_session, zone_category: zoneCategory(location) };
 }

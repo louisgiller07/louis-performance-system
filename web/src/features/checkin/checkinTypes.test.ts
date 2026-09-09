@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rowToFormState, EMPTY_CHECKIN_FORM_STATE, type CheckinRow } from "./checkinTypes";
+import { rowToFormState, EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, type CheckinRow } from "./checkinTypes";
 
 function baseRow(overrides: Partial<CheckinRow> = {}): CheckinRow {
   return {
@@ -53,5 +53,33 @@ describe("rowToFormState", () => {
     expect(state.pain_traumatic).toBeNull();
     expect(state.pain_function_loss).toBeNull();
     expect(state.pain_getting_worse).toBeNull();
+  });
+});
+
+// V0.3_006C1 — canonical French label map for every current pain_location_code.
+describe("PAIN_LOCATION_LABELS", () => {
+  it("covers every current PAIN_LOCATION_CODES value, with a non-empty French label for each", () => {
+    for (const code of PAIN_LOCATION_CODES) {
+      expect(PAIN_LOCATION_LABELS[code]).toBeDefined();
+      expect(typeof PAIN_LOCATION_LABELS[code]).toBe("string");
+      expect(PAIN_LOCATION_LABELS[code].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("has exactly one label per code, no missing/extra keys", () => {
+    expect(Object.keys(PAIN_LOCATION_LABELS).sort()).toEqual([...PAIN_LOCATION_CODES].sort());
+  });
+
+  it("every label is distinct from its raw code (never displays the code verbatim as its own label)", () => {
+    for (const code of PAIN_LOCATION_CODES) {
+      expect(PAIN_LOCATION_LABELS[code]).not.toBe(code);
+    }
+  });
+
+  it("a few specific labels match the exact approved French wording", () => {
+    expect(PAIN_LOCATION_LABELS.wrist_L).toBe("Poignet gauche");
+    expect(PAIN_LOCATION_LABELS.wrist_R).toBe("Poignet droit");
+    expect(PAIN_LOCATION_LABELS.lower_back).toBe("Bas du dos");
+    expect(PAIN_LOCATION_LABELS.other).toBe("Autre zone");
   });
 });

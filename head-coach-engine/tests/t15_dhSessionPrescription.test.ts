@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { buildDailyPlan } from "../src/engine/buildDailyPlan.js";
 import { baseRawContext } from "../fixtures/louis.js";
-import { resolveDhDuration, resolveDhFocus, resolveDhFatigueMonitoringNote, isDhFamilyKind } from "../src/domains/dhPrescription.js";
-import { DH_DURATION_MIN, DH_GENERIC_FOCUS } from "../src/config/sessionPrescriptionPolicy.js";
+import { resolveDhDuration, resolveDhFocus, resolveDhLoadGuidance, resolveDhFatigueMonitoringNote, isDhFamilyKind } from "../src/domains/dhPrescription.js";
+import { DH_DURATION_MIN, DH_GENERIC_FOCUS, DH_LOAD_GUIDANCE } from "../src/config/sessionPrescriptionPolicy.js";
 import type { TriggeredRule } from "../src/types/triggeredRule.js";
 
 /**
@@ -13,6 +13,11 @@ import type { TriggeredRule } from "../src/types/triggeredRule.js";
  * pipeline, never a hand-built DailyPlan. No new DailyPlan field: everything
  * asserted here lives in the already-authoritative `final_session`,
  * `training`, `dh_or_technical`, `mental`, `monitoring` sections.
+ *
+ * V0.3_006C1 (final correction) — `dh_or_technical.load_guidance` (riding
+ * behavior per FINAL load_profile) was initially web-only; corrected to be
+ * engine-emitted/persisted here (see dhPrescription.ts#resolveDhLoadGuidance)
+ * so History never retroactively synthesizes it for a legacy plan.
  */
 
 const PERSONAL_FOCUS = "Fixe ta ligne, dose le freinage, laisse rouler."; // Louis's fixture value
@@ -234,6 +239,37 @@ describe("T15 — DH technical focus resolution", () => {
   });
 });
 
+describe("T15 (final correction) — DH load guidance resolution", () => {
+  it("returns the exact approved guidance for each of the 3 load profiles", () => {
+    expect(resolveDhLoadGuidance("DH_PERFORMANCE", "LIGHT")).toBe(DH_LOAD_GUIDANCE.LIGHT);
+    expect(resolveDhLoadGuidance("DH_PERFORMANCE", "MODERATE")).toBe(DH_LOAD_GUIDANCE.MODERATE);
+    expect(resolveDhLoadGuidance("DH_PERFORMANCE", "HEAVY")).toBe(DH_LOAD_GUIDANCE.HEAVY);
+  });
+
+  it("consistent across all 4 DH-family kinds for a given load", () => {
+    for (const kind of ["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT", "PUMPTRACK"] as const) {
+      expect(resolveDhLoadGuidance(kind, "HEAVY")).toBe(DH_LOAD_GUIDANCE.HEAVY);
+    }
+  });
+
+  it("returns undefined for a non-DH-family kind regardless of load_profile", () => {
+    expect(resolveDhLoadGuidance("RECOVERY_ACTIVE", undefined)).toBeUndefined();
+    expect(resolveDhLoadGuidance("REST", undefined)).toBeUndefined();
+  });
+
+  it("returns undefined when load_profile is absent, even for a DH-family kind", () => {
+    expect(resolveDhLoadGuidance("DH_PERFORMANCE", undefined)).toBeUndefined();
+  });
+
+  it("no numeric RPE/run%/run-count/speed% anywhere in the 3 approved strings", () => {
+    for (const text of Object.values(DH_LOAD_GUIDANCE)) {
+      expect(text).not.toMatch(/RPE\s*\d/i);
+      expect(text).not.toMatch(/\d+\s*%/);
+      expect(text).not.toMatch(/\d+\s*(runs?|descentes?)/i);
+    }
+  });
+});
+
 describe("T15 — DH fatigue monitoring note", () => {
   const dhRule: TriggeredRule = { layer: "C", rule_id: "C3.6", detail: "Fatigue jambes élevée." };
   const otherRule: TriggeredRule = { layer: "C", rule_id: "C3.7", detail: "Charge élevée." };
@@ -270,7 +306,12 @@ describe("T15 — Acceptance P1: fresh athlete, DH_PERFORMANCE/HEAVY, no Safety"
     expect(plan.decision).toBe("KEEP");
     expect(plan.dh_or_technical.active).toBe(true);
     expect(plan.dh_or_technical.focus).toBe(PERSONAL_FOCUS); // Louis's fixture profile is configured
+    expect(plan.dh_or_technical.execution_task).toBeUndefined(); // personal focus present -> no generic task
     expect(plan.dh_or_technical.spot_hint).toBeDefined();
+    expect(plan.monitoring.observe.some((m) => m.includes("Pendant la séance, arrête la partie DH"))).toBe(false);
+    // V0.3_006C1 (final correction) — engine-persisted riding-behavior
+    // guidance for the FINAL load (HEAVY here, no adaptation this run).
+    expect(plan.dh_or_technical.load_guidance).toBe(DH_LOAD_GUIDANCE.HEAVY);
   });
 });
 
@@ -287,8 +328,21 @@ describe("T15 — Acceptance P2: fatigue (legs/grip RED), planned DH_PERFORMANCE
 
     expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.dh_or_technical.focus).toBe(DH_GENERIC_FOCUS.DH_LIGHT);
+    expect(plan.dh_or_technical.execution_task).toBe(
+      "Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse."
+    );
+    // leg_fatigue=8 is RED (>=7). Corrected (final fatigue-terrain check):
+    // technique.ts's meaningful-fatigue check now covers AMBER AND RED, so
+    // this severe fatigue still selects the reduced-demand fatigue terrain,
+    // never the fresh/default guidance.
+    expect(plan.dh_or_technical.spot_hint).toBe(
+      "Choisis un terrain familier et lisible où tu peux garder de la marge et une exécution propre."
+    );
     expect(plan.monitoring.observe.some((m) => m.includes("Réduis encore la séance ou arrête la partie DH"))).toBe(true);
     expect(plan.reasoning).not.toMatch(/RPE\s*\d/); // no invented numeric RPE
+    // V0.3_006C1 (final correction) — the fatigue pivot to DH_LIGHT/LIGHT
+    // must carry the LIGHT guidance, never a stale HEAVY one.
+    expect(plan.dh_or_technical.load_guidance).toBe(DH_LOAD_GUIDANCE.LIGHT);
   });
 });
 
@@ -304,7 +358,14 @@ describe("T15 — Acceptance P3: mental RED, physically fresh, planned DH_PERFOR
 
     expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "MODERATE", duration_min: 270 });
     expect(plan.mental.active).toBe(true);
-    expect(plan.mental.action_hint).toContain(`Ta priorité aujourd'hui : ${PERSONAL_FOCUS.replace(/\.+$/, "")}.`);
+    // V0.3_006C1 — unified pre-run-action template: one concrete pre-run
+    // regulation action + the already-resolved technical priority.
+    expect(plan.mental.action_hint).toContain(`rappelle-toi ta priorité : ${PERSONAL_FOCUS.replace(/\.+$/, "")}.`);
+    expect(plan.mental.action_hint).toMatch(/^Avant de partir, fais quelques respirations lentes/);
+    expect(plan.mental.action_hint).toContain("Pendant le run, reviens uniquement à ce focus.");
+    // V0.3_006C1 (final correction) — the mental-RED downgrade to MODERATE
+    // must carry the MODERATE guidance, never a stale HEAVY one.
+    expect(plan.dh_or_technical.load_guidance).toBe(DH_LOAD_GUIDANCE.MODERATE);
   });
 });
 
@@ -322,6 +383,74 @@ describe("T15 — Acceptance P4: non-Safety wrist pain, planned DH_PERFORMANCE/H
     expect(plan.protection.do_not_do.some((p) => p.includes("wrist_R"))).toBe(true);
     expect(plan.monitoring.observe.some((m) => m.includes("wrist_R"))).toBe(true);
     expect(plan.reasoning).not.toMatch(/sans danger|sûr médicalement|medically safe/i);
+  });
+
+  // V0.3_006C1 — immediate in-session interruption criterion, additive to
+  // (never replacing) the existing 24-48h post-session follow-up.
+  it("adds the immediate in-session interruption note, in addition to the existing 24-48h monitoring — never a 'safe to ride' claim", () => {
+    const ctx = baseRawContext({
+      today: "2026-01-01",
+      upcoming_races: [],
+      planned_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      checkin: { pain: true, pain_intensity: 4, pain_location_code: "wrist_L" },
+    });
+    const plan = buildDailyPlan(ctx);
+
+    expect(
+      plan.monitoring.observe.some((m) => m === "Pendant la séance, arrête la partie DH si la douleur augmente clairement ou si ton contrôle se dégrade.")
+    ).toBe(true);
+    expect(plan.monitoring.observe.some((m) => m.includes("sur 24-48h"))).toBe(true);
+    expect(plan.reasoning).not.toMatch(/tu peux rouler|la séance est sûre|douleur acceptable|commence prudemment/i);
+  });
+
+  // V0.3_006C1 — terrain precedence: upper_grip pain wins over everything else.
+  it("upper_grip pain (wrist) selects the reduced grip/braking terrain guidance", () => {
+    const ctx = baseRawContext({
+      today: "2026-01-01",
+      upcoming_races: [],
+      planned_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      checkin: { pain: true, pain_intensity: 3, pain_location_code: "wrist_R" },
+    });
+    const plan = buildDailyPlan(ctx);
+    expect(plan.dh_or_technical.spot_hint).toBe("Privilégie un terrain familier, moins cassant et moins exigeant en freinage et en grip.");
+  });
+
+  // V0.3_006C1 — lower-limb non-Safety pain shares the same generic
+  // reduced-demand terrain guidance, without inventing location-specific
+  // biomechanics unsupported by the existing zone model.
+  it("lower-limb pain (knee) selects the generic reduced-physical-demand terrain guidance", () => {
+    const ctx = baseRawContext({
+      today: "2026-01-01",
+      upcoming_races: [],
+      planned_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      checkin: { pain: true, pain_intensity: 3, pain_location_code: "knee_L" },
+    });
+    const plan = buildDailyPlan(ctx);
+    expect(plan.dh_or_technical.spot_hint).toBe("Privilégie un terrain familier et moins exigeant physiquement.");
+  });
+});
+
+describe("T15 (final fatigue-terrain check) — severe RED fatigue scenario, external-review equivalent (sleep 4h/poor, energy low, legs=RED, grip=RED)", () => {
+  it("existing DH_LIGHT/LIGHT pivot unchanged, duration 150, LIGHT load_guidance, fatigue terrain (never fresh/default), fatigue monitoring", () => {
+    const ctx = baseRawContext({
+      today: "2026-01-01",
+      upcoming_races: [],
+      planned_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      checkin: { sleep_hours: 4, sleep_quality: 2, energy: 2, leg_fatigue: 9, grip_fatigue: 9 },
+    });
+    const plan = buildDailyPlan(ctx);
+
+    // Training-domain arbitration is unchanged by this ticket — same pivot
+    // already proven in Acceptance P2, reconfirmed here at the more severe
+    // RED level the external review actually used.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
+    expect(plan.dh_or_technical.load_guidance).toBe(DH_LOAD_GUIDANCE.LIGHT);
+    // The fix under test: RED-level fatigue must not fall through to
+    // fresh/race/default terrain merely because it exceeded AMBER.
+    expect(plan.dh_or_technical.spot_hint).toBe(
+      "Choisis un terrain familier et lisible où tu peux garder de la marge et une exécution propre."
+    );
+    expect(plan.monitoring.observe.some((m) => m.includes("Réduis encore la séance ou arrête la partie DH"))).toBe(true);
   });
 });
 
@@ -361,7 +490,10 @@ describe("T15 — Acceptance P6: Safety precedence — no stale DH prescription"
     expect(plan.final_session).toEqual({ kind: "REST" });
     expect((plan.final_session as { duration_min?: number }).duration_min).toBeUndefined();
     expect(plan.dh_or_technical).toEqual({ active: false });
-    expect(plan.mental.action_hint ?? "").not.toContain("Ta priorité aujourd'hui");
+    // V0.3_006C1 (final correction) — explicit: no stale HEAVY load_guidance
+    // survives a Safety A1 pivot (already implied by the toEqual above).
+    expect((plan.dh_or_technical as { load_guidance?: string }).load_guidance).toBeUndefined();
+    expect(plan.mental.action_hint ?? "").not.toContain("rappelle-toi ta priorité");
   });
 
   it("A5 (unresolved concussion flag, DH baseline forced to RECOVERY_ACTIVE): duration/focus/terrain/mental priority all absent", () => {
@@ -376,7 +508,10 @@ describe("T15 — Acceptance P6: Safety precedence — no stale DH prescription"
     expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
     expect((plan.final_session as { duration_min?: number }).duration_min).toBeUndefined();
     expect(plan.dh_or_technical).toEqual({ active: false });
-    expect(plan.mental.action_hint ?? "").not.toContain("Ta priorité aujourd'hui");
+    // V0.3_006C1 (final correction) — explicit: no stale HEAVY load_guidance
+    // survives a Safety A5 pivot (already implied by the toEqual above).
+    expect((plan.dh_or_technical as { load_guidance?: string }).load_guidance).toBeUndefined();
+    expect(plan.mental.action_hint ?? "").not.toContain("rappelle-toi ta priorité");
   });
 });
 

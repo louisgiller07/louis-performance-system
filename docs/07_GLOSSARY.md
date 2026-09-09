@@ -84,6 +84,12 @@ Le mapping `TrainingIntervention → DbSessionType` est **une fonction pure dét
 **duration_min (session DH)** (V0.3_006B, PROVISIONAL)
 Champ existant de `TrainingIntervention`, en minutes. Pour une session DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`), représente la **fenêtre totale de session / temps sur site** — descente, remontée mécanique, pauses, attente, reconnaissance, récupération entre runs inclus conceptuellement. **N'est jamais** le temps de pédalage/descente continu ni le temps physiologique effectif. Ne pas confondre avec un temps d'effort. Voir `docs/03_COACHING_MODEL.md` §Session Prescription V1.
 
+**execution_task** (V0.3_006C1)
+Champ optionnel de `DhTechnicalSection` (à côté de `focus`/`load_guidance`/`spot_hint`). `focus` = ce qui est travaillé ; `execution_task` = comment le travailler aujourd'hui, une tâche concrète et observable. Peuplé **uniquement** quand le `focus` résolu vient du repli générique par kind (`DH_GENERIC_FOCUS`) — jamais dérivé du texte libre personnel `technique_primary_focus` (pas de tentative déterministe de "comprendre" un texte libre, aucun LLM). Voir `docs/03_COACHING_MODEL.md` §DH Execution Guidance.
+
+**load_guidance** (V0.3_006C1, correction avant commit)
+Champ optionnel de `DhTechnicalSection`, distinct de `focus`/`execution_task` : comment rouler selon la charge (`load_profile`) du jour, résolu depuis la session finale entièrement arbitrée. Engine-emitted et **persisté** dans `decisions.daily_plan` — jamais recalculé côté web depuis `load_profile` seul, pour qu'un `DailyPlan` legacy sans ce champ ne gagne jamais rétroactivement une instruction de coaching qu'il n'a jamais réellement portée (invariant canonique d'historique). Voir `docs/03_COACHING_MODEL.md` §DH Execution Guidance.
+
 ## Règles et couches
 
 **Couche A — Safety Rules**

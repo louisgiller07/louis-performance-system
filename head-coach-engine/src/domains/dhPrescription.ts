@@ -1,6 +1,13 @@
-import type { TrainingIntervention, TrainingInterventionKind } from "../types/trainingIntervention.js";
+import type { TrainingIntervention, TrainingInterventionKind, LoadProfile } from "../types/trainingIntervention.js";
 import type { TriggeredRule } from "../types/triggeredRule.js";
-import { DH_DURATION_MIN, DH_GENERIC_FOCUS, DH_FATIGUE_MONITORING_NOTE } from "../config/sessionPrescriptionPolicy.js";
+import {
+  DH_DURATION_MIN,
+  DH_GENERIC_FOCUS,
+  DH_GENERIC_EXECUTION_TASK,
+  DH_LOAD_GUIDANCE,
+  DH_FATIGUE_MONITORING_NOTE,
+  DH_IMMEDIATE_PAIN_MONITORING_NOTE,
+} from "../config/sessionPrescriptionPolicy.js";
 
 /**
  * Session Prescription V1 — DH-first (V0.3_006B). Pure helpers deriving an
@@ -32,6 +39,33 @@ export function isDhFamilyKind(kind: TrainingInterventionKind): kind is DhKind {
 export function resolveDhFocus(kind: TrainingInterventionKind, personalFocus: string | undefined): string | undefined {
   if (!isDhFamilyKind(kind)) return undefined;
   return personalFocus ?? DH_GENERIC_FOCUS[kind];
+}
+
+/**
+ * V0.3_006C1 — the paired "how to work on it today" for `resolveDhFocus`.
+ * Populated ONLY when the generic fallback path was taken (`personalFocus`
+ * absent) — never derived from an athlete's arbitrary personal
+ * `technique_primary_focus` free text, which cannot be turned into a
+ * concrete observable task deterministically without an LLM. `focus` =
+ * what is being worked on; `execution_task` = how. `undefined` for a
+ * non-DH-family kind or whenever a personal focus is configured.
+ */
+export function resolveDhExecutionTask(kind: TrainingInterventionKind, personalFocus: string | undefined): string | undefined {
+  if (!isDhFamilyKind(kind) || personalFocus !== undefined) return undefined;
+  return DH_GENERIC_EXECUTION_TASK[kind];
+}
+
+/**
+ * V0.3_006C1 (final correction) — deterministic riding-behavior guidance for
+ * the FINAL `load_profile`. Substantive coaching prescription, so it must be
+ * derived from the fully arbitrated final session (never the planned/
+ * pre-adaptation one) exactly like `resolveDhFocus`/`resolveDhExecutionTask`.
+ * `undefined` for a non-DH-family kind (e.g. after a Safety A5 swap to
+ * `RECOVERY_ACTIVE`, or A1's REST) or when `loadProfile` is absent.
+ */
+export function resolveDhLoadGuidance(kind: TrainingInterventionKind, loadProfile: LoadProfile | undefined): string | undefined {
+  if (!isDhFamilyKind(kind) || loadProfile === undefined) return undefined;
+  return DH_LOAD_GUIDANCE[loadProfile];
 }
 
 /**
@@ -92,4 +126,19 @@ export function resolveDhFatigueMonitoringNote(finalSessionKind: TrainingInterve
   if (!isDhFamilyKind(finalSessionKind)) return undefined;
   const fatigueRuleFired = triggeredRules.some((rule) => FATIGUE_RULE_IDS.has(rule.rule_id));
   return fatigueRuleFired ? DH_FATIGUE_MONITORING_NOTE : undefined;
+}
+
+/**
+ * V0.3_006C1 — `DH_IMMEDIATE_PAIN_MONITORING_NOTE` when non-Safety pain
+ * (PAIN_NON_SAFETY) applied this run AND the final session remains
+ * DH-family — `undefined` otherwise. Deliberately gated on "pain applied"
+ * rather than "pain solicited this exact session": a declared pain while
+ * riding DH deserves an interruption criterion even for an unclassified
+ * ("other") location, which is the conservative choice. Additive to, never
+ * a replacement for, the existing 24-48h post-session monitoring already
+ * produced by evaluatePainNonSafety.
+ */
+export function resolveDhImmediatePainMonitoringNote(finalSessionKind: TrainingInterventionKind, painApplies: boolean): string | undefined {
+  if (!isDhFamilyKind(finalSessionKind) || !painApplies) return undefined;
+  return DH_IMMEDIATE_PAIN_MONITORING_NOTE;
 }

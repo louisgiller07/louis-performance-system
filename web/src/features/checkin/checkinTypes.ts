@@ -64,6 +64,49 @@ export const PAIN_LOCATION_CODES = [
 
 export type PainLocationCode = (typeof PAIN_LOCATION_CODES)[number];
 
+/**
+ * V0.3_006C1 — canonical French label for every current `pain_location_code`
+ * value. Never changes the stored/submitted enum value (still the raw
+ * code) — display only. Used by CheckinForm's own select AND by
+ * dailyPlan/safetyPresentation.ts to sanitize the raw code out of
+ * engine-generated athlete-facing coaching text (monitoring/protection/
+ * reasoning) — one canonical source, never a second copy of this map.
+ */
+export const PAIN_LOCATION_LABELS: Record<PainLocationCode, string> = {
+  lower_back: "Bas du dos",
+  upper_back: "Haut du dos",
+  neck: "Nuque",
+  shoulder_L: "Épaule gauche",
+  shoulder_R: "Épaule droite",
+  elbow_L: "Coude gauche",
+  elbow_R: "Coude droit",
+  wrist_L: "Poignet gauche",
+  wrist_R: "Poignet droit",
+  hand_L: "Main gauche",
+  hand_R: "Main droite",
+  thumb_L: "Pouce gauche",
+  thumb_R: "Pouce droit",
+  forearm_L: "Avant-bras gauche",
+  forearm_R: "Avant-bras droit",
+  hip_L: "Hanche gauche",
+  hip_R: "Hanche droite",
+  knee_L: "Genou gauche",
+  knee_R: "Genou droit",
+  ankle_L: "Cheville gauche",
+  ankle_R: "Cheville droite",
+  quad_L: "Quadriceps gauche",
+  quad_R: "Quadriceps droit",
+  hamstring_L: "Ischio-jambiers gauche",
+  hamstring_R: "Ischio-jambiers droit",
+  calf_L: "Mollet gauche",
+  calf_R: "Mollet droit",
+  groin: "Aine",
+  chest: "Poitrine",
+  abs: "Abdominaux",
+  head: "Tête",
+  other: "Autre zone",
+};
+
 /** Row shape as read from `daily_checkins` — reflects real DB nullability. */
 export interface CheckinRow {
   checkin_date: string;

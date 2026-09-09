@@ -3,7 +3,7 @@ import { RatingSlider } from "../../components/RatingSlider";
 import { YesNoChoice } from "../../components/YesNoChoice";
 import { loadCheckin, saveCheckin } from "./checkinRepo";
 import { validateCheckin, type CheckinFieldErrors } from "./checkinValidation";
-import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, rowToFormState, type CheckinFormState } from "./checkinTypes";
+import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, rowToFormState, type CheckinFormState } from "./checkinTypes";
 
 type LoadState = "loading" | "loaded" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -249,7 +249,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
                 <option value="">—</option>
                 {PAIN_LOCATION_CODES.map((code) => (
                   <option key={code} value={code}>
-                    {code}
+                    {PAIN_LOCATION_LABELS[code]}
                   </option>
                 ))}
               </select>

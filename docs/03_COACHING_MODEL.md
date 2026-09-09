@@ -192,6 +192,8 @@ Une douleur légère ou modérée qui ne remplit pas les critères SAFETY doit q
 
 Elle ne doit pas être ignorée simplement parce qu'elle n'atteint pas les critères SAFETY. Elle ne doit pas non plus annuler automatiquement l'entraînement.
 
+**Monitoring immédiat vs. suivi 24–48h (V0.3_006C1)** : le monitoring 24–48h ci-dessus reste inchangé (suivi post-séance). Pour une session DH-family, un **critère d'interruption immédiat** s'ajoute (jamais ne le remplace) : *"Pendant la séance, arrête la partie DH si la douleur augmente clairement ou si ton contrôle se dégrade."* — un critère d'arrêt opérationnel uniquement, jamais une autorisation de rouler, jamais une déclaration que la séance est sûre, jamais un seuil numérique de douleur nouveau (SAFETY A2/A4 restent l'unique seuil numérique dur). Voir §Session Prescription V1 ci-dessous et `head-coach-engine/src/domains/dhPrescription.ts#resolveDhImmediatePainMonitoringNote`.
+
 ### 6. SAFETY limitée aux vraies règles médicales
 
 - Suspicion de commotion
@@ -314,7 +316,7 @@ Toutes les heuristiques ci-dessous sont **PROVISIONAL** et révisables. Elles vi
 | C1.3 | Session DH intense max 1 par weekend en RACE_CLUSTER |
 | C1.4 | Choix du spot par priorité contextuelle (voir `02_ATHLETE_PROFILE.md` §9) |
 | C1.5 | Si course dans ≤ 2 semaines : favoriser le spot de la course |
-| C1.6 | Si fatigue AMBER : préférer spot proche |
+| C1.6 | Si fatigue AMBER **ou RED** (systemic/legs/arms_grip) : préférer spot proche/terrain à demande réduite (corrigé V0.3_006C1 — une fatigue RED aboutit souvent à une session déjà réduite par Training, ex. pivot DH_LIGHT/LIGHT, mais reste DH-family et doit donc aussi recevoir un terrain à demande réduite, jamais retomber sur le terrain frais/course par défaut) |
 | C1.7 | Si Bullit disponible : sessions courtes semaine possibles aux Pléiades |
 
 *Portée V0.3_002B verrouillée (`docs/06_ARCHITECTURE.md` §V0.3_002) : `focus` = une seule chaîne de cue technique actionnable (pas de champ "priorité" séparé) ; `spot_hint` = catégorie terrain/logistique uniquement, jamais un nom de spot réel affirmé comme actuellement disponible ; la proximité course (C1.5) influence `spot_hint`, jamais `focus`.*
@@ -358,13 +360,38 @@ Ne jamais interpréter la table provisoire comme une autorisation d'étendre une
 | DH_LIGHT | Fluidité, relâchement et marge |
 | PUMPTRACK | Pompage, trajectoires et conservation de vitesse |
 
-**Priorité d'exécution mentale** : quand une action mentale AMBER/RED existante se déclenche et que la session finale reste DH-family, le focus technique résolu (personnel ou générique ci-dessus) est ajouté comme priorité concrète ("Ta priorité aujourd'hui : [focus]."), remplaçant l'ancien texte générique sans nom ("Garde une seule priorité d'exécution.") qui ne nommait jamais la priorité. Aucun LLM, aucune cue supplémentaire inventée.
-
 **Monitoring fatigue DH** : quand une adaptation fatigue (C3.3/C3.5/C3.6) s'applique et que la session finale reste DH-family, une instruction opérationnelle concise est ajoutée à `monitoring.observe` ("Réduis encore la séance ou arrête la partie DH si ta précision se dégrade nettement ou si la fatigue jambes/grip augmente pendant la session.") — aucun seuil numérique non validé.
 
 **Précédence Safety absolue** : la prescription est calculée sur la session finale entièrement arbitrée (après Training/douleur/contraintes soft/A5) — un A1 (REST) ne produit jamais de durée/focus/terrain DH ; un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse subsister aucune prescription DH périmée.
 
-Voir `docs/06_ARCHITECTURE.md` §V0.3_006B et `docs/11_DECISION_LOG.md` pour l'architecture complète.
+Voir `docs/06_ARCHITECTURE.md` §V0.3_006B pour l'architecture V1 complète.
+
+#### DH Execution Guidance (V0.3_006C1)
+
+Corrige le constat du deuxième cycle de revue externe : la prescription V1 indique quoi faire (kind/charge/durée/focus) mais l'athlète devait encore traduire lui-même la recommandation en comportement de conduite concret. Toujours aucun `DailyPlan.prescription` séparé — enrichissement exclusif des structures déjà authoritatives.
+
+**Comportement d'exécution par charge** (`dh_or_technical.load_guidance`, champ optionnel — engine-emitted et **persisté**, résolu depuis `final_session.load_profile` par `head-coach-engine/src/domains/dhPrescription.ts#resolveDhLoadGuidance` sur la session finale entièrement arbitrée ; copie approuvée dans `sessionPrescriptionPolicy.ts#DH_LOAD_GUIDANCE`, purement qualitatif, aucun RPE/pourcentage de runs/vitesse inventé) :
+- **LIGHT** : aucune recherche de vitesse/performance, priorité fluidité/exécution propre, marge maintenue sur toute la session.
+- **MODERATE** : qualité d'exécution avant vitesse maximale ; engagement accru uniquement quand lignes/contrôle restent propres, jamais tous les runs poussés.
+- **HEAVY** : séance orientée performance, engagement progressif, vitesse travaillée sans jamais sacrifier précision/contrôle (HEAVY ne signifie jamais une conduite délibérément imprudente).
+
+*Correction d'architecture (V0.3_006C1, avant tout commit)* : cette copie était initialement web-only (recalculée dans `web/src/features/dailyPlan/dhPrescriptionLabels.ts#DH_LOAD_DESCRIPTION` à partir de `final_session.load_profile`). C'est une prescription de coaching substantielle, pas un simple libellé d'UI — elle doit donc rester ce que le moteur a réellement prescrit au moment de la génération, jamais recalculée a posteriori par le bundle web. Corrigée pour être engine-emitted/persistée avant tout commit de ce jalon.
+
+**Invariant canonique d'historique** : un `DailyPlan` persisté fait foi de ce que le coach a réellement prescrit au moment de sa génération. L'historique (`/history` comme la restauration `/today`) peut appliquer traductions, libellés, mise en forme et sanitization de termes techniques, mais ne doit **jamais** ajouter une instruction de coaching substantielle absente du plan persisté d'origine. Concrètement : un `DailyPlan` V0.3_006B (antérieur à cette correction) qui n'a jamais porté `load_guidance` ne doit **jamais** gagner rétroactivement le texte de comportement HEAVY/MODERATE/LIGHT simplement parce que le bundle web a changé — seul le libellé neutre de charge (`web/src/features/dailyPlan/dailyPlanLabels.ts#LOAD_PROFILE_LABELS`, ex. "charge lourde") est affiché pour un tel plan legacy. Voir `web/src/features/dailyPlan/DailyPlanView.tsx` (rendu conditionnel sur la présence de `load_guidance`) et le test de régression dédié dans `web/src/features/{dailyPlan/DailyPlanResult,history/HistoryDetail,dailyPlan/DailyPlanPanel}.test.tsx`.
+
+**Terrain — précédence déterministe** (`head-coach-engine/src/domains/technique.ts#selectSpotHint`, une seule recommandation gagnante, jamais concaténée) : douleur non-SAFETY constrainante (upper_grip ou membre inférieur) > fatigue significative (**AMBER ou RED**, systemic/legs/arms_grip — corrigé V0.3_006C1, voir C1.6 ci-dessus : une fatigue RED ne doit jamais retomber sur le terrain frais/course par défaut) > Mental RED > proximité course > frais/défaut. Toujours une caractéristique de terrain descriptive (jamais un nom de spot réel, jamais GPS/base de données). Les deux variantes douleur restent un langage générique de réduction de sollicitation mécanique ("terrain moins cassant/moins exigeant en freinage et en grip", "terrain moins exigeant physiquement") — **jamais** une affirmation de sécurité médicale pour une zone donnée. Voir `head-coach-engine/src/config/sessionPrescriptionPolicy.ts#DH_SPOT_HINT`.
+
+**`execution_task` — nouveau champ optionnel de `dh_or_technical`** : `focus` = ce qui est travaillé, `execution_task` = comment le travailler aujourd'hui, `load_guidance` = comment rouler selon la charge du jour — trois champs distincts, jamais fusionnés. Peuplé **uniquement** quand le focus résolu vient du repli générique (jamais dérivé du texte libre `technique_primary_focus` personnel — aucune tentative déterministe de "comprendre" un texte libre arbitraire, aucun LLM). Une tâche fixe par kind DH, voir `sessionPrescriptionPolicy.ts#DH_GENERIC_EXECUTION_TASK`.
+
+**Priorité d'exécution mentale — action pré-run unifiée** : quand une action mentale AMBER/RED existante se déclenche et que la session finale reste DH-family, `mental.action_hint` devient un template unique remplaçant (jamais en complément, pour ne jamais dupliquer la mention de respiration) le texte de base AMBER/RED : *"Avant de partir, fais quelques respirations lentes puis rappelle-toi ta priorité : [focus]. Pendant le run, reviens uniquement à ce focus."* — une action concrète avant le run + le focus technique déjà résolu comme priorité attentionnelle pendant l'exécution. Aucune nouvelle cue, aucun compte de respiration inventé, aucun LLM.
+
+**Monitoring immédiat douleur non-SAFETY** : voir §5 ci-dessus — additif au monitoring 24–48h existant, jamais un remplacement, jamais une déclaration de sécurité.
+
+**Nettoyage de présentation (aucun changement de provenance technique)** : `web/src/features/dailyPlan/safetyPresentation.ts` sanitize désormais, en plus du cas A5 (V0.3_006A1), le rule_id `MENTAL_RED` (texte fixe substitué) et `PAIN_NON_SAFETY` (texte dynamique reconstruit à partir du code de localisation de douleur, jamais "non-SAFETY" ni le code brut exposés à l'athlète), ainsi que tout code `pain_location_code` brut apparaissant dans `monitoring.observe`/`protection.do_not_do`. Le libellé français canonique de chaque code (`web/src/features/checkin/checkinTypes.ts#PAIN_LOCATION_LABELS`) est la même source utilisée par le sélecteur de check-in — jamais une seconde copie. `triggered_rules`/`decisions.daily_plan` restent byte-for-byte ce que le moteur a émis ; seule la présentation change.
+
+**Limite clinique explicite** : aucune des additions ci-dessus n'affirme qu'une activité est médicalement sûre, n'autorise une auto-clôture de suivi, ni n'invente un seuil de douleur numérique — SAFETY A2/A4 restent l'unique seuil dur. Toute évolution vers une affirmation de sécurité clinique spécifique à une zone/un terrain nécessiterait une décision de politique Safety/médicale séparée, non prise par ce jalon.
+
+Voir `docs/06_ARCHITECTURE.md` §V0.3_006C1 et `docs/11_DECISION_LOG.md` pour l'architecture complète.
 
 ### Domaine 2 — Mental
 

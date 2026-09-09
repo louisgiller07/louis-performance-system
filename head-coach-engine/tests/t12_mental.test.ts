@@ -519,7 +519,9 @@ describe("T12 — Mental (V0.3_002C)", () => {
       const plan = buildDailyPlan(ctx);
       expect(plan.dh_or_technical.active).toBe(true);
       expect(plan.dh_or_technical.focus).toBe("Fixe ta ligne, dose le freinage, laisse rouler.");
-      expect(plan.dh_or_technical.spot_hint).toBe("Terrain adapté au focus technique du jour.");
+      expect(plan.dh_or_technical.spot_hint).toBe(
+        "Choisis un terrain connu ou représentatif où tu maîtrises déjà les lignes et peux travailler la vitesse avec précision."
+      );
     });
   });
 });

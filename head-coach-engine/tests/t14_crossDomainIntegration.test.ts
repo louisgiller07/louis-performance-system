@@ -15,6 +15,12 @@ import type { UpcomingRace } from "../src/types/context.js";
  * genuinely derived from check-in values, reusing the exact thresholds
  * already established by T11/T12/T13 (grip/leg_fatigue: 8 → RED;
  * work_stress: 6 → AMBER, 9 → RED).
+ *
+ * V0.3_006C1 (final correction) — `dh_or_technical.load_guidance` is now
+ * engine-emitted (see t11_technique/t15_dhSessionPrescription for its own
+ * dedicated coverage); the exact-shape `toEqual` assertions here are kept in
+ * sync with it, purely for deep-equality correctness — this file adds no new
+ * coaching content of its own.
  */
 
 const PRE_EVENT_FOCUS = "Comme à Wiriehorn.";
@@ -22,15 +28,20 @@ const AMBER_STRESS_HINT = "Fais quelques respirations lentes, puis reviens à un
 const RED_SUPPORTIVE_HINT = "Le plan du jour tient déjà compte de la charge mentale. Garde une seule priorité d'exécution.";
 
 const TECHNIQUE_FOCUS = "Fixe ta ligne, dose le freinage, laisse rouler.";
-const TECHNIQUE_DEFAULT_SPOT_HINT = "Terrain adapté au focus technique du jour.";
+const TECHNIQUE_DEFAULT_SPOT_HINT =
+  "Choisis un terrain connu ou représentatif où tu maîtrises déjà les lignes et peux travailler la vitesse avec précision.";
 
-// V0.3_006B — when the final session is DH-family and an AMBER/RED mental
-// action fires, the resolved DH focus is appended as the concrete
-// execution priority (dhPrescription.ts#resolveDhFocus via
-// domains/mental.ts). Louis's fixture personal focus already ends with a
-// period — never doubled.
-const AMBER_STRESS_HINT_WITH_DH_PRIORITY = `${AMBER_STRESS_HINT} Ta priorité aujourd'hui : ${TECHNIQUE_FOCUS.replace(/\.+$/, "")}.`;
-const RED_SUPPORTIVE_HINT_WITH_DH_PRIORITY = `${RED_SUPPORTIVE_HINT} Ta priorité aujourd'hui : ${TECHNIQUE_FOCUS.replace(/\.+$/, "")}.`;
+// V0.3_006C1 — when the final session is DH-family and an AMBER/RED mental
+// action fires, action_hint becomes the single unified pre-run-action
+// template (REPLACING the base AMBER_STRESS_HINT/RED_SUPPORTIVE_HINT text
+// for this case — domains/mental.ts#dhPreRunActionHint). Louis's fixture
+// personal focus already ends with a period — never doubled.
+const DH_PRE_RUN_ACTION_HINT = `Avant de partir, fais quelques respirations lentes puis rappelle-toi ta priorité : ${TECHNIQUE_FOCUS.replace(/\.+$/, "")}. Pendant le run, reviens uniquement à ce focus.`;
+
+// V0.3_006C1 (final correction) — engine-emitted riding-behavior guidance
+// for DH_TECHNICAL/MODERATE (this describe block's fixture load).
+const DH_TECHNICAL_MODERATE_LOAD_GUIDANCE =
+  "Priorise la qualité d'exécution. Engage davantage seulement quand tes lignes restent propres et ton contrôle bon ; ne cherche pas à pousser tous les runs.";
 
 const RACE_WEEK_FOCUS = "En race week : pense à augmenter légèrement l'apport énergétique.";
 const RACE_DAY_NOTES = "Jour de course : petit-déjeuner consistant au moins 2 h avant le premier run.";
@@ -125,9 +136,10 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       expect(plan.dh_or_technical).toEqual({
         active: true,
         focus: TECHNIQUE_FOCUS,
+        load_guidance: DH_TECHNICAL_MODERATE_LOAD_GUIDANCE,
         spot_hint: TECHNIQUE_DEFAULT_SPOT_HINT,
       });
-      expect(plan.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT_WITH_DH_PRIORITY });
+      expect(plan.mental).toEqual({ active: true, action_hint: DH_PRE_RUN_ACTION_HINT });
       expect(plan.nutrition).toEqual({ active: true, notes: DH_DAY_NOTES });
 
       const mentalAmberRules = plan.triggered_rules.filter((r) => r.rule_id === "MENTAL_AMBER_STRESS");
@@ -161,7 +173,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
 
       // Expected, isolated differences.
       expect(baseline.mental).toEqual({ active: false });
-      expect(enriched.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT_WITH_DH_PRIORITY });
+      expect(enriched.mental).toEqual({ active: true, action_hint: DH_PRE_RUN_ACTION_HINT });
       expect(baseline.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
       expect(enriched.triggered_rules.filter((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toHaveLength(1);
     });
@@ -203,7 +215,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       // V0.3_006B: final session is still DH-family (MODERATE, kind
       // preserved), so the resolved DH focus is appended as the concrete
       // execution priority.
-      expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT_WITH_DH_PRIORITY });
+      expect(plan.mental).toEqual({ active: true, action_hint: DH_PRE_RUN_ACTION_HINT });
     });
   });
 
@@ -357,7 +369,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
 
       // Not a trivial pair — the enriched plan genuinely activates
       // independent Mental/Technique/Nutrition contributions.
-      expect(enriched.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS, action_hint: AMBER_STRESS_HINT_WITH_DH_PRIORITY });
+      expect(enriched.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS, action_hint: DH_PRE_RUN_ACTION_HINT });
       expect(enriched.dh_or_technical.active).toBe(true);
       expect(enriched.nutrition.active).toBe(true);
       expect(baseline.mental).toEqual({ active: false });
