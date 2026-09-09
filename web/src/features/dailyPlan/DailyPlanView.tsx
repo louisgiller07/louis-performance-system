@@ -1,6 +1,7 @@
 import { PlanSection } from "../../components/PlanSection";
 import { DecisionHero } from "./DecisionHero";
 import { formatIntervention, isSameIntervention } from "./dailyPlanLabels";
+import { athleteSafeRuleDetail, hasActiveSafetyRule } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
 
 export interface DailyPlanViewProps {
@@ -41,6 +42,23 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
   // reads as a discrepancy even for a plain KEEP.
   const sessionChanged =
     dailyPlan.planned_session_before !== null && !isSameIntervention(dailyPlan.planned_session_before, dailyPlan.final_session);
+
+  // V0.3_006A1 — presentation precedence only: when an active Safety-layer
+  // (A) rule is present, "À éviter" (the Safety-driven restriction) must
+  // read as primary and must not appear to be overridden by the
+  // domain-generic "Récupération" suggestions below it — so it renders
+  // first. Never changes which activities are considered allowed, and never
+  // hides/alters Récupération's own content.
+  const safetyActive = hasActiveSafetyRule(dailyPlan);
+  const protectionSection = dailyPlan.protection.do_not_do.length > 0 && (
+    <PlanSection title="À éviter">
+      <ul className="list-disc pl-4 text-red-700">
+        {dailyPlan.protection.do_not_do.map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ul>
+    </PlanSection>
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -91,6 +109,8 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
         </PlanSection>
       )}
 
+      {safetyActive && protectionSection}
+
       {dailyPlan.recovery.active && dailyPlan.recovery.actions.length > 0 && (
         <PlanSection title="Récupération">
           <ul className="list-disc pl-4">
@@ -130,15 +150,7 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
         </PlanSection>
       )}
 
-      {dailyPlan.protection.do_not_do.length > 0 && (
-        <PlanSection title="À éviter">
-          <ul className="list-disc pl-4 text-red-700">
-            {dailyPlan.protection.do_not_do.map((item, index) => (
-              <li key={index}>{item}</li>
-            ))}
-          </ul>
-        </PlanSection>
-      )}
+      {!safetyActive && protectionSection}
 
       {dailyPlan.monitoring.observe.length > 0 && (
         <PlanSection title="À surveiller">
@@ -160,13 +172,19 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
       {dailyPlan.triggered_rules.length > 0 && (
         <details className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
           <summary className="cursor-pointer font-medium text-gray-900">Pourquoi cette décision ?</summary>
+          {/*
+           * V0.3_006A1 — athlete-facing "why" must never render raw
+           * internal identifiers (rule.layer/rule.rule_id, e.g. "A · A5")
+           * or an internal HealthFlagType slug embedded in rule.detail
+           * (e.g. "concussion_suspect"). Both remain fully present in
+           * technicalMetadata's raw JSON dump below (dev-only) and in the
+           * persisted decisions.daily_plan for audit — only this athlete
+           * copy is sanitized. See safetyPresentation.ts.
+           */}
           <ul className="mt-2 flex flex-col gap-2">
             {dailyPlan.triggered_rules.map((rule, index) => (
               <li key={index} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
-                <p>{rule.detail}</p>
-                <p className="mt-0.5 text-xs text-gray-400">
-                  {rule.layer} · {rule.rule_id}
-                </p>
+                <p>{athleteSafeRuleDetail(rule)}</p>
               </li>
             ))}
           </ul>

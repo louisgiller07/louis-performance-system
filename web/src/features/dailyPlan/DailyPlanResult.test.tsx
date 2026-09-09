@@ -174,17 +174,116 @@ describe("DailyPlanResult", () => {
     expect(screen.queryByText("Attention santé")).not.toBeInTheDocument();
   });
 
-  it("renders triggered_rules verbatim without interpreting rule_id", () => {
+  // V0.3_006A1 — corrects the prior expectation: rule.detail is shown, but
+  // rule.layer/rule.rule_id (e.g. "A · A1") must never be rendered as
+  // athlete copy (see safetyPresentation.ts). The underlying triggered_rules
+  // array itself is untouched — only what's rendered changes.
+  // Rendered via DailyPlanView directly (no technicalMetadata) — the
+  // dev-only debug <pre> legitimately still dumps the raw rule_id, exactly
+  // like the sleep.notes/concussion_suspect precedents above.
+  it("renders triggered_rules' detail text, but never the raw layer/rule_id", () => {
     render(
-      <DailyPlanResult
-        result={makeResult({
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
           triggered_rules: [{ layer: "A", rule_id: "A1", detail: "Sommeil insuffisant détecté sur 3 nuits." }],
-        })}
+        }}
+        hasHealthSignal={false}
       />
     );
     expect(screen.getByText("Pourquoi cette décision ?")).toBeInTheDocument();
     expect(screen.getByText("Sommeil insuffisant détecté sur 3 nuits.")).toBeInTheDocument();
-    expect(screen.getByText("A · A1")).toBeInTheDocument();
+    expect(screen.queryByText("A · A1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/A1/)).not.toBeInTheDocument();
+  });
+
+  // V0.3_006A1 (REV2-003) — the exact reviewer-observed leak: A5's own
+  // triggered_rule.detail embeds the raw HealthFlagType slug
+  // "concussion_suspect". Must never reach the athlete, in either the
+  // always-visible hero reasoning or the "Pourquoi cette décision ?"
+  // collapsible — while the underlying DailyPlan (triggered_rules, dailyPlan
+  // itself) stays byte-for-byte what the engine emitted. Rendered via
+  // DailyPlanView directly (no technicalMetadata), same as the sleep.notes
+  // precedent above — the dev-only debug <pre> legitimately still dumps the
+  // raw DailyPlan (import.meta.env.DEV only), which is exactly where
+  // "technical provenance persisted" is expected to remain.
+  it("never renders the raw concussion_suspect slug or A · A5, in hero or collapsible, for an A5 plan", () => {
+    const a5Detail = "Flag concussion_suspect actif non résolu — DH interdit tant que non validé médicalement";
+    render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          reasoning: a5Detail,
+          triggered_rules: [{ layer: "A", rule_id: "A5", detail: a5Detail }],
+          protection: { do_not_do: ["Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue"] },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/concussion_suspect/)).not.toBeInTheDocument();
+    expect(screen.queryByText("A · A5")).not.toBeInTheDocument();
+    expect(screen.queryByText(/A5/)).not.toBeInTheDocument();
+    // Factual, athlete-safe replacement text is shown instead (appears both
+    // in the hero and the collapsible, since both derive from the same
+    // sanitized rule).
+    expect(screen.getAllByText(/toujours actif/).length).toBeGreaterThan(0);
+  });
+
+  // V0.3_006A1 — the flip side of the test above: technical provenance
+  // (the raw A5 rule_id and the concussion_suspect slug) must still be
+  // fully present in the persisted DailyPlan / dev-only debug panel — this
+  // is a presentation sanitization, not data deletion.
+  it("still carries the raw A5 rule_id and concussion_suspect slug in the underlying DailyPlan / dev debug panel", () => {
+    const a5Detail = "Flag concussion_suspect actif non résolu — DH interdit tant que non validé médicalement";
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          reasoning: a5Detail,
+          triggered_rules: [{ layer: "A", rule_id: "A5", detail: a5Detail }],
+        })}
+      />
+    );
+    // import.meta.env.DEV is true under vitest, so the raw JSON dump is present.
+    expect(screen.getByText("Détails techniques")).toBeInTheDocument();
+    expect(screen.getAllByText(/concussion_suspect/).length).toBeGreaterThan(0);
+  });
+
+  // V0.3_006A1 (REV2-003) — presentation precedence: when a Safety-layer (A)
+  // rule is active, "À éviter" must render before "Récupération" so a
+  // generic Recovery suggestion never visually reads as overriding an active
+  // Safety restriction. Pure DOM order — content of either section is
+  // unchanged.
+  it("renders À éviter before Récupération when a Safety-layer rule is active", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          triggered_rules: [{ layer: "A", rule_id: "A5", detail: "Flag concussion_suspect actif non résolu." }],
+          protection: { do_not_do: ["Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue"] },
+          recovery: { active: true, actions: ["Journée orientée récupération : mobilité douce, marche, pas de charge structurée"] },
+        })}
+      />
+    );
+    const headings = screen.getAllByRole("heading").map((h) => h.textContent);
+    expect(headings.indexOf("À éviter")).toBeGreaterThanOrEqual(0);
+    expect(headings.indexOf("Récupération")).toBeGreaterThanOrEqual(0);
+    expect(headings.indexOf("À éviter")).toBeLessThan(headings.indexOf("Récupération"));
+  });
+
+  // V0.3_006A1 — regression: without any Safety-layer rule, ordering stays
+  // exactly as before (Récupération, then À éviter further down) — the
+  // precedence swap is conditional, not a global reorder.
+  it("keeps the original Récupération-before-À éviter order when no Safety-layer rule is active", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          triggered_rules: [],
+          protection: { do_not_do: ["Pas de squats lourds"] },
+          recovery: { active: true, actions: ["Étirements 10 min"] },
+        })}
+      />
+    );
+    const headings = screen.getAllByRole("heading").map((h) => h.textContent);
+    expect(headings.indexOf("Récupération")).toBeLessThan(headings.indexOf("À éviter"));
   });
 
   it("shows a planned-vs-final comparison when the sessions materially differ", () => {

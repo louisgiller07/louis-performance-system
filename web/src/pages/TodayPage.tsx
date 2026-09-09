@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
 import { CheckinForm } from "../features/checkin/CheckinForm";
@@ -7,6 +7,8 @@ import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
 import { CompletedSessionCard } from "../features/completedSession/CompletedSessionCard";
 import type { LiveDailyPlanContext } from "../features/dailyPlan/DailyPlanPanel";
 import { AppNav } from "../components/AppNav";
+import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
+import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -33,6 +35,26 @@ export function TodayPage() {
   // onLiveContextChange effect.
   const [liveContext, setLiveContext] = useState<LiveDailyPlanContext | null>(null);
   const handleLiveContextChange = useCallback((context: LiveDailyPlanContext | null) => setLiveContext(context), []);
+
+  // V0.3_006A1 — read-only, independent of check-in/plan generation state:
+  // a load failure here must never block the check-in/plan flow, and vice
+  // versa. Silently shows nothing on error (best-effort transparency, not a
+  // Safety-critical read) rather than surfacing a second error banner.
+  const [openHealthFlags, setOpenHealthFlags] = useState<OpenHealthFlag[]>([]);
+  useEffect(() => {
+    if (!athleteId) return;
+    let cancelled = false;
+    loadOpenHealthFlags(athleteId)
+      .then((flags) => {
+        if (!cancelled) setOpenHealthFlags(flags);
+      })
+      .catch(() => {
+        // Best-effort — see comment above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [athleteId]);
 
   // Canonical YYYY-MM-DD in the user's own local timezone (see
   // src/lib/date.ts) — kept for the future check-in/daily-run calls, not
@@ -73,6 +95,8 @@ export function TodayPage() {
           <p className="mt-1 text-lg font-semibold capitalize text-gray-900">{friendlyDate}</p>
           <p className="mt-0.5 font-mono text-xs text-gray-400">{canonicalDate}</p>
         </section>
+
+        <HealthFlagBanner flags={openHealthFlags} />
 
         {athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
 

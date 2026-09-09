@@ -1,4 +1,5 @@
 import { CONFIDENCE_LABELS, DECISION_LABELS, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
+import { athleteSafeReasoning } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
 
 // The one thing that must be understood in a few seconds: what to do
@@ -8,6 +9,10 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   const decisionLabel = DECISION_LABELS[dailyPlan.decision] ?? dailyPlan.decision;
   const confidenceLabel = CONFIDENCE_LABELS[dailyPlan.confidence] ?? dailyPlan.confidence;
   const modeLabel = TRAINING_MODE_LABELS[dailyPlan.active_mode] ?? dailyPlan.active_mode;
+  // V0.3_006A1 — the always-visible hero reasoning must never leak internal
+  // Safety provenance (e.g. the raw HealthFlagType slug inside A5's
+  // triggered_rule.detail); see safetyPresentation.ts.
+  const reasoning = athleteSafeReasoning(dailyPlan);
 
   return (
     <div className="rounded-xl bg-gray-900 p-4 text-white">
@@ -15,7 +20,7 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
       <p className="mt-1 text-sm text-gray-300">
         Confiance {confidenceLabel.toLowerCase()} · {modeLabel}
       </p>
-      <p className="mt-3 text-sm leading-relaxed text-gray-100">{dailyPlan.reasoning}</p>
+      <p className="mt-3 text-sm leading-relaxed text-gray-100">{reasoning}</p>
     </div>
   );
 }
