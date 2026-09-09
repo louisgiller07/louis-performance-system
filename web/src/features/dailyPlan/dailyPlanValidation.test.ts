@@ -143,3 +143,37 @@ describe("isValidDailyPlan", () => {
     expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, health_flag_to_create: { type: "illness" } })).toBe(false);
   });
 });
+
+// REV-001 — active_mode: "UNSPECIFIED" has been a legitimate engine output
+// since V0.3_004C (head-coach-engine/src/types/context.ts, "no current
+// training_blocks configured" — never a fabricated phase). This mirror was
+// never updated in lockstep, so every fresh-athlete DailyPlan was silently
+// rejected by both Today and History despite persisting successfully
+// server-side. FRESH_ATHLETE_PLAN mirrors the real shape buildDailyPlan()
+// produces for this case (head-coach-engine/tests/t6_fallback.test.ts,
+// scenario E): no planned session, no active domains beyond recovery,
+// final_session RECOVERY_ACTIVE.
+const FRESH_ATHLETE_PLAN = {
+  ...VALID_DAILY_PLAN,
+  active_mode: "UNSPECIFIED",
+  training: { active: false },
+  planned_session_before: null,
+  final_session: { kind: "RECOVERY_ACTIVE" },
+};
+
+describe("REV-001 — active_mode UNSPECIFIED (unconfigured training context)", () => {
+  it("isValidDailyPlan accepts a real fresh-athlete DailyPlan with active_mode: UNSPECIFIED", () => {
+    expect(isValidDailyPlan(FRESH_ATHLETE_PLAN)).toBe(true);
+  });
+
+  it("isValidDailyRunResponse accepts the same plan inside a full daily-run response envelope", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, dailyPlan: FRESH_ATHLETE_PLAN })).toBe(true);
+  });
+
+  it("a genuinely unknown/invented active_mode is still rejected — UNSPECIFIED is one canonical enum member, not a validation bypass", () => {
+    expect(isValidDailyPlan({ ...FRESH_ATHLETE_PLAN, active_mode: "TOTALLY_UNKNOWN_MODE" })).toBe(false);
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, dailyPlan: { ...FRESH_ATHLETE_PLAN, active_mode: "TOTALLY_UNKNOWN_MODE" } })).toBe(
+      false
+    );
+  });
+});

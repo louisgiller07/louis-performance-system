@@ -17,7 +17,8 @@ export type TrainingMode =
   | "PRE_SEASON"
   | "IN_SEASON"
   | "INJURY_RECOVERY"
-  | "OTHER";
+  | "OTHER"
+  | "UNSPECIFIED";
 
 export type HealthFlagType = "concussion_suspect" | "injury_suspect" | "illness" | "pain_persistent";
 

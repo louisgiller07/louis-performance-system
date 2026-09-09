@@ -26,6 +26,7 @@ export const TRAINING_MODE_LABELS: Record<TrainingMode, string> = {
   IN_SEASON: "En saison",
   INJURY_RECOVERY: "Retour de blessure",
   OTHER: "Autre",
+  UNSPECIFIED: "Phase non configurée",
 };
 
 export const LOAD_PROFILE_LABELS: Record<LoadProfile, string> = {

@@ -413,6 +413,33 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     expect(generatedText).toBeInTheDocument();
   });
 
+  // REV-001 — a fresh athlete's already-persisted decision (active_mode:
+  // "UNSPECIFIED") must restore exactly like any other valid decision: the
+  // generation button must never appear as though no decision exists, and
+  // no daily-run call must occur merely during restore. Locks the exact
+  // production failure observed by the external reviewer.
+  it("K (REV-001): a persisted fresh-athlete decision (active_mode: UNSPECIFIED) restores normally, no daily-run call", async () => {
+    loadLatestDecisionForDate.mockResolvedValue({
+      ...RESTORED_ROW,
+      activeModeDb: "UNSPECIFIED",
+      dailyPlan: {
+        ...BASE_DAILY_PLAN,
+        active_mode: "UNSPECIFIED",
+        planned_session_before: null,
+        final_session: { kind: "RECOVERY_ACTIVE" },
+        decision: "KEEP",
+        confidence: "MEDIUM",
+        reasoning: "Plan déjà généré aujourd'hui.",
+      },
+    });
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(screen.getByText("Plan déjà généré aujourd'hui.")).toBeInTheDocument();
+    expect(screen.queryByText(/Réponse du serveur invalide/)).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
   it("fires onLiveContextChange after restoring a persisted plan, same as a live generation", async () => {
     loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
     const onLiveContextChange = vi.fn();

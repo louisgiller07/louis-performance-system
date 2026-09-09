@@ -18,6 +18,7 @@ const ALLOWED_TRAINING_MODES: readonly TrainingMode[] = [
   "IN_SEASON",
   "INJURY_RECOVERY",
   "OTHER",
+  "UNSPECIFIED",
 ];
 const ALLOWED_HEALTH_FLAG_TYPES: readonly HealthFlagType[] = ["concussion_suspect", "injury_suspect", "illness", "pain_persistent"];
 

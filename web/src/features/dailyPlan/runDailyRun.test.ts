@@ -90,4 +90,22 @@ describe("runDailyRun", () => {
       expect(result.error.retryable).toBe(true);
     }
   });
+
+  // REV-001 — a genuine fresh-athlete daily-run response (active_mode:
+  // "UNSPECIFIED", a legitimate engine output since V0.3_004C for "no
+  // current training_blocks configured") must be accepted, not rejected as
+  // invalid_response. This exercises the real isValidDailyRunResponse (not
+  // mocked in this file) — the exact same call runDailyRun makes in
+  // production.
+  it("accepts a real fresh-athlete success response with active_mode: UNSPECIFIED — never invalid_response", async () => {
+    const freshAthleteResponse = {
+      ...SUCCESS_RESPONSE,
+      dailyPlan: { ...SUCCESS_RESPONSE.dailyPlan, active_mode: "UNSPECIFIED", planned_session_before: null, final_session: { kind: "RECOVERY_ACTIVE" } },
+    };
+    mockedInvoke.mockResolvedValue({ data: freshAthleteResponse, error: null });
+
+    const result = await runDailyRun("2026-08-19");
+
+    expect(result).toEqual({ ok: true, data: freshAthleteResponse });
+  });
 });

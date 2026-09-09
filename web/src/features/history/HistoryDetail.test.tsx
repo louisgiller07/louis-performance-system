@@ -90,4 +90,22 @@ describe("HistoryDetail", () => {
     expect(screen.queryByText(/Mode :/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Confiance :/)).not.toBeInTheDocument();
   });
+
+  // REV-001 — a fresh athlete's persisted decision (active_mode: UNSPECIFIED,
+  // legitimate engine output since V0.3_004C) must render via the normal
+  // rich DailyPlanView path, exactly like any other modern valid decision —
+  // never the degraded fallback, and never the raw "UNSPECIFIED" string.
+  it("renders a fresh-athlete row (active_mode: UNSPECIFIED) via the normal rich path, never the degraded fallback", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: { ...VALID_DAILY_PLAN, active_mode: "UNSPECIFIED", final_session: { kind: "RECOVERY_ACTIVE" } },
+          activeModeDb: "UNSPECIFIED",
+        })}
+      />
+    );
+    expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Phase non configurée/)).toBeInTheDocument();
+    expect(screen.queryByText("UNSPECIFIED")).not.toBeInTheDocument();
+  });
 });
