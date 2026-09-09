@@ -47,13 +47,24 @@ function buildMentalSection(focus: string | undefined, actionHint: string | unde
 // the caller from RawContext.coaching_profile.mental_pre_race_cue — never
 // looked up here from a global config. Absent -> focus stays undefined,
 // never a fabricated generic cue; existing action_hint behavior unaffected.
+//
+// resolvedDhFocus (V0.3_006B, Session Prescription V1) — the SAME resolved
+// DH technical focus domains/technique.ts uses for dh_or_technical.focus
+// (personal or generic fallback — see dhPrescription.ts#resolveDhFocus),
+// passed in by the caller rather than recomputed here. `undefined` unless
+// the final session is DH-family (Safety REST/RECOVERY_ACTIVE, or a
+// non-DH kind, always pass undefined). When an AMBER/RED action_hint is
+// triggered AND a resolved DH focus is available, the existing regulation
+// sentence is extended with the concrete priority — never a new/alternate
+// cue, never an LLM, never more than the one existing action_hint string.
 export function computeMentalDomain(params: {
   mentalDimension: DimensionState;
   eventContext?: EventContext;
   signalTrace: SignalTrace;
   personalPreRaceCue?: string;
+  resolvedDhFocus?: string;
 }): MentalDomainResult {
-  const { mentalDimension, eventContext, signalTrace, personalPreRaceCue } = params;
+  const { mentalDimension, eventContext, signalTrace, personalPreRaceCue, resolvedDhFocus } = params;
 
   const focus = eventContext?.phase === "PRE_EVENT" ? personalPreRaceCue : undefined;
 
@@ -91,6 +102,14 @@ export function computeMentalDomain(params: {
         };
       }
     }
+  }
+
+  if (actionHint !== undefined && resolvedDhFocus !== undefined) {
+    // Strip any trailing period(s) from resolvedDhFocus before appending
+    // exactly one — the athlete's own configured focus (e.g. "Fixe ta
+    // ligne, dose le freinage, laisse rouler.") already ends with one, and
+    // this must never produce "..".
+    actionHint = `${actionHint} Ta priorité aujourd'hui : ${resolvedDhFocus.replace(/\.+$/, "")}.`;
   }
 
   return { mental: buildMentalSection(focus, actionHint), triggeredRule };

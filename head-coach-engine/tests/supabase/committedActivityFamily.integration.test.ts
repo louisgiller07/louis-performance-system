@@ -79,7 +79,8 @@ describe("V0.3_005A (NAL-001) — DB->engine wiring: planned_sessions.is_committ
     const plan = result.dailyPlan;
 
     expect(plan.planned_session_before).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY" });
-    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    // duration_min: 150 — V0.3_006B provisional DH_LIGHT/LIGHT session window.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.final_session.kind).not.toBe("AEROBIC_BASE");
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(true);
     // ENGINE_VERSION's exact value is engineVersion.test.ts's sole

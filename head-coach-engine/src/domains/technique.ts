@@ -4,6 +4,7 @@ import type { DimensionLevel } from "../types/dimensions.js";
 import type { DhTechnicalSection } from "../types/dailyPlan.js";
 import { daysBetween } from "../engine/dateUtils.js";
 import { TECHNIQUE_POLICY } from "../config/techniquePolicy.js";
+import { resolveDhFocus } from "./dhPrescription.js";
 
 const TECHNIQUE_ACTIVE_KINDS: ReadonlySet<TrainingInterventionKind> = new Set([
   "DH_TECHNICAL",
@@ -60,9 +61,12 @@ function selectSpotHint(fatigueAmber: boolean, raceProximate: boolean): string {
  * personnel de l'athlète, lu par l'appelant depuis
  * `RawContext.coaching_profile.technique_primary_focus`, jamais consulté
  * ici depuis une config globale. Absent (athlète sans focus configuré) :
- * `focus` est simplement omis du résultat — jamais de valeur générique
- * fabriquée à sa place. `DhTechnicalSection.focus` est déjà optionnel,
- * aucun changement de schéma requis.
+ * V0.3_006B (Session Prescription V1) — `resolveDhFocus` (dhPrescription.ts)
+ * retombe sur un focus générique par kind (`DH_GENERIC_FOCUS`), jamais
+ * présenté comme une personnalisation apprise. `focus` est donc désormais
+ * toujours présent pour un kind DH-family. `DhTechnicalSection.focus` reste
+ * optionnel côté type (inchangé), simplement toujours renseigné en
+ * pratique pour ce chemin.
  */
 export function computeTechniqueDomain(params: {
   finalSession: TrainingIntervention;
@@ -81,10 +85,11 @@ export function computeTechniqueDomain(params: {
 
   const fatigueAmber = systemicLevel === "AMBER" || legsLevel === "AMBER" || armsGripLevel === "AMBER";
   const raceProximate = isRaceProximate(today, upcomingRaces);
+  const focus = resolveDhFocus(finalSession.kind, personalFocus);
 
   return {
     active: true,
-    ...(personalFocus !== undefined ? { focus: personalFocus } : {}),
+    ...(focus !== undefined ? { focus } : {}),
     spot_hint: selectSpotHint(fatigueAmber, raceProximate),
   };
 }

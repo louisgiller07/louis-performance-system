@@ -822,3 +822,38 @@ Migration unique déployée sur `uvolpldwwyvadlamulvr` (parité 30/30). Web red�
 ### Hors périmètre explicite V0.3_006A1 — V0.3_006A2 intentionnellement bloqué
 
 Aucun writer de résolution, aucune UI de clôture ("Résoudre", "Marquer comme guéri", checkbox de validation médicale), aucun modèle de retour-au-jeu. La politique de qui peut clôturer un suivi Safety persistant, et sous quelles conditions, reste une **décision de politique Safety/médicale séparée**, non prise par ce jalon. La dette de lifecycle illness/injury_suspect/pain_persistent (aucun consommateur Safety persistant équivalent à A5, aucune résolution) reste explicitement enregistrée, non traitée.
+
+## V0.3_006B — Session Prescription V1, DH-first (implémentation locale, non déployée)
+
+### Objectif produit
+
+L'investigation V0.3_006B a établi que le dogfood externe ne bute plus sur "quelle catégorie de séance ?" mais sur "quoi faire exactement ?" — une recommandation comme "DH performance · charge lourde" reste une direction, pas une séance exécutable. Ce jalon rend la recommandation DH exécutable sans construire un générateur de séance run-par-run, sans redéfinir la charge, et sans franchir la limite explicite de l'investigation (aucune donnée de faisabilité — accès remontée, longueur de piste — n'est ajoutée).
+
+### Architecture — pas de nouvelle source de vérité
+
+Aucun `DailyPlan.prescription` ni objet de prescription séparé. Enrichissement des structures déjà authoritatives : `final_session.duration_min` (champ `TrainingIntervention` déjà existant, déjà plumbé jusqu'à `training.duration_min` mais jamais peuplé pour un kind DH avant ce jalon), `dh_or_technical.focus`/`spot_hint` (déjà existants), `mental.action_hint` (existant, étendu), `monitoring.observe` (existant, étendu). Nouveau module pur `head-coach-engine/src/domains/dhPrescription.ts` (aucune interaction `SignalTrace` — dérivation, pas un signal causal) + nouvelle config `head-coach-engine/src/config/sessionPrescriptionPolicy.ts` (même précédent que `nutritionPolicy.ts`/`techniquePolicy.ts` : constantes PROVISIONAL centralisées, source de vérité runtime unique).
+
+1. **Durée DH** (`resolveDhDuration`) : table PROVISIONAL par (kind, load_profile) — voir `docs/03_COACHING_MODEL.md` §Session Prescription V1 pour les valeurs exactes et la sémantique "fenêtre totale de session" (jamais temps de pédalage continu). Précédence corrigée (revue post-implémentation) : sans durée explicite → valeur provisoire pour la combinaison finale ; avec durée explicite ET kind/charge inchangés par l'arbitrage (vrai KEEP) → la valeur explicite exactement ; avec durée explicite ET kind/charge modifiés par l'arbitrage → `MIN(explicite, provisoire pour la combinaison finale)` — la durée explicite devient une **borne supérieure**, jamais un plancher, pour qu'une adaptation réductrice ne puisse jamais silencieusement allonger une séance athlète plus courte jusqu'à une valeur générique plus longue. Appliquée à `session` immédiatement après le swap A5 dans `buildDailyPlan.ts` (dernier point de mutation possible), donc toujours calculée sur la session **entièrement** arbitrée.
+2. **Focus technique** (`resolveDhFocus`, partagé par `domains/technique.ts` et `buildDailyPlan.ts`) : le focus personnel (`athlete_coaching_profiles.technique_primary_focus`) reste prioritaire ; en son absence, un repli générique fixe par kind (`DH_GENERIC_FOCUS`) est utilisé — `dh_or_technical.focus` n'est donc plus jamais omis pour un kind DH-family (durcissement de contrat, tests T11 mis à jour en conséquence).
+3. **Priorité mentale** (`domains/mental.ts`, nouveau paramètre `resolvedDhFocus`) : quand une action AMBER/RED existante se déclenche et que la session finale reste DH-family, le focus résolu est ajouté au texte existant ("... Ta priorité aujourd'hui : [focus]."), jamais un second cue, jamais un LLM. Un trailing period du focus personnel (ex. le profil réel de Louis) est strippé avant concaténation pour ne jamais produire "..".
+4. **Monitoring fatigue DH** (`resolveDhFatigueMonitoringNote`) : une phrase fixe ajoutée à `monitoring.observe` quand une règle fatigue (C3.3/C3.5/C3.6) a réellement déclenché ET que la session finale reste DH-family — jamais dupliquée, aucun seuil numérique inventé.
+
+### Précédence Safety — aucune prescription périmée
+
+`withDhDuration`/`resolveDhFocus` sont appliqués strictement après le swap A5 (`session = {kind:"RECOVERY_ACTIVE"}`) — `RECOVERY_ACTIVE`/`REST` ne sont jamais des kinds DH-family, donc `duration_min`/`focus` en résultent naturellement absents sans code défensif supplémentaire. A1 emprunte toujours le chemin `buildSafetyPlan` séparé, qui n'invoque jamais ces fonctions.
+
+### Web — une carte consolidée, pas de duplication
+
+`web/src/features/dailyPlan/DailyPlanView.tsx` : quand `dh_or_technical.active` (déjà exactement vrai ssi la session finale est DH-family, même garde que `computeTechniqueDomain`), les cartes "Entraînement" et "Technique" génériques sont remplacées par une carte unique "Séance DH" (kind, charge qualitative clarifiée, fenêtre de session en heures naturelles, focus, terrain) — jamais les deux recommandations affichées séparément. Pour toute session non-DH, le rendu "Entraînement" existant reste strictement inchangé. Nouveau `web/src/features/dailyPlan/dhPrescriptionLabels.ts` : `formatDhSessionWindow` (minutes → "environ X h Y", jamais "X min" pour une séance DH) et `DH_LOAD_DESCRIPTION` (clarification qualitative de la charge, jamais présentée comme une bande RPE) — strictement scopés à la nouvelle carte DH, `LOAD_PROFILE_LABELS`/`formatIntervention` généralistes restent inchangés pour tout le reste de l'app (comparaison Prévu/Aujourd'hui notamment).
+
+### Contrat engine/web — pas de nouveau risque de dérive REV-001
+
+`duration_min` n'est pas un nouveau champ (déjà présent des deux côtés depuis M4/M4_005, jamais peuplé pour DH avant ce jalon) et n'est pas enum-shaped — `isValidIntervention`/`isValidDailyPlan` ne l'ont jamais validé et ne le valident toujours pas, donc aucune divergence de type engine/web n'est possible pour cette valeur. Tests permanents verrouillant la chaîne complète (émission moteur → acceptation web → rendu Today → persistance/restauration → rendu History → compatibilité legacy sans `duration_min`) dans `head-coach-engine/tests/t15_dhSessionPrescription.test.ts` et `web/src/features/dailyPlan/{dailyPlanValidation,DailyPlanResult}.test.tsx` / `web/src/features/history/HistoryDetail.test.tsx`.
+
+### `ENGINE_VERSION`
+
+`head-coach-engine@0.2.0-m1-v0.3_006b` — bump requis car le contenu réellement émis par `buildDailyPlan` change pour tout kind DH-family (nouveau `duration_min` peuplé, `dh_or_technical.focus` désormais toujours présent, `mental.action_hint` étendu).
+
+### Hors périmètre explicite V0.3_006B
+
+Nombre de runs, dénivelé, temps de descente cumulé, structure travail/repos (nécessiteraient une donnée de faisabilité non collectée) ; mapping RPE numérique par charge (aucune correspondance canonique) ; prescription pour force/aérobie/récupération générique ; prescription de jour de course (`RACE_ACTIVITY` reste compatibilité uniquement) ; planificateur hebdomadaire ; LLM ; GPS/base de données de spots ; V0.3_006A2 (reste bloqué, décision de politique Safety/médicale séparée). Aucune action de production, aucun commit — implémentation locale en attente de revue.

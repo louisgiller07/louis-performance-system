@@ -86,7 +86,8 @@ describe("Soft constraints `strong` — participent à l'arbitrage sans être ha
     const plan = buildDailyPlan(ctx);
 
     expect(plan.final_session).not.toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE" });
-    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    // duration_min: 150 — V0.3_006B provisional DH_LIGHT/LIGHT session window.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.decision).toBe("REPLACE");
     expect(plan.confidence).toBe("MEDIUM"); // pas une contradiction, un arbitrage normal
     expect(plan.triggered_rules.some((r) => r.rule_id === "SOFT_CONSTRAINT_STRONG_APPLIED")).toBe(true);
@@ -103,7 +104,8 @@ describe("Soft constraints `strong` — participent à l'arbitrage sans être ha
 
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE" });
+    // duration_min: 240 — V0.3_006B provisional DH_TECHNICAL/MODERATE session window.
+    expect(plan.final_session).toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 240 });
     expect(plan.decision).toBe("KEEP");
     expect(plan.confidence).toBe("MEDIUM");
     expect(plan.triggered_rules.some((r) => r.rule_id === "SOFT_CONSTRAINT_STRONG_OVERRIDDEN")).toBe(true);

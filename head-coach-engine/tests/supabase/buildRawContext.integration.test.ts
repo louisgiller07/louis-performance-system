@@ -636,7 +636,8 @@ describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real S
     // T-5 ordinary recommendation is AEROBIC_BASE/LIGHT/30min — committed
     // family preservation must still fire exactly as in the pure-engine
     // NAL-001 tests.
-    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    // duration_min: 150 — V0.3_006B provisional DH_LIGHT/LIGHT session window.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(true);
   });
 
@@ -663,7 +664,10 @@ describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real S
     const plan = buildDailyPlan(rawContext);
     // No race at all -> the committed DH_PERFORMANCE session survives
     // completely untouched (no race protocol involvement whatsoever).
-    expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY" });
+    // duration_min: 360 — V0.3_006B provisional DH_PERFORMANCE/HEAVY session
+    // window (the athlete's own planned_session never carries an explicit
+    // duration today, so the provisional default applies even on a true KEEP).
+    expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 });
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(false);
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_NO_ADAPTATION")).toBe(false);
   });

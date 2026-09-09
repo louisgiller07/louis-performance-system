@@ -23,10 +23,11 @@ import { inferFallbackSession } from "../domains/fallbackInference.js";
 import { computeTechniqueDomain } from "../domains/technique.js";
 import { computeMentalDomain } from "../domains/mental.js";
 import { computeNutritionDomain } from "../domains/nutrition.js";
+import { withDhDuration, resolveDhFocus, resolveDhFatigueMonitoringNote } from "../domains/dhPrescription.js";
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_005b";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_006b";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -245,6 +246,17 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     }
   }
 
+  // V0.3_006B — Session Prescription V1 (DH-first). Applied to the FULLY
+  // arbitrated `session` (after training-domain rules, pain, soft
+  // constraints, and the A5 swap above) so a Safety override or any
+  // adaptation is always reflected — never a stale prescription computed
+  // from an earlier baseline. `RACE_ACTIVITY`/non-DH-family kinds are
+  // untouched (resolveDhDuration/resolveDhFatigueMonitoringNote both return
+  // undefined for them). See domains/dhPrescription.ts.
+  session = withDhDuration(session, ctx.planned_session);
+  const dhFatigueMonitoringNote = resolveDhFatigueMonitoringNote(session.kind, triggeredRules);
+  if (dhFatigueMonitoringNote) monitoring.push(dhFatigueMonitoringNote);
+
   // Le "plan réel" pour l'étiquetage KEEP/MODIFY/REPLACE est planned_session
   // s'il existait, sinon la baseline effectivement utilisée (recommandation
   // T-X ou fallback d'inférence).
@@ -291,6 +303,7 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     eventContext,
     signalTrace: trace,
     personalPreRaceCue: ctx.coaching_profile?.mental_pre_race_cue,
+    resolvedDhFocus: resolveDhFocus(session.kind, ctx.coaching_profile?.technique_primary_focus),
   });
 
   const plan: DailyPlan = {

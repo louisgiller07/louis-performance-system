@@ -452,4 +452,35 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
       expect(onLiveContextChange).toHaveBeenCalledWith({ decisionId: RESTORED_ROW.id, sessionType: "AEROBIC_BASE" })
     );
   });
+
+  // V0.3_006B — Session Prescription V1: a restored DH decision (NAL-003
+  // read path, no daily-run call) must render the same consolidated
+  // "Séance DH" card as a live generation would — no browser-side
+  // recomputation of the coaching policy, the persisted plan is rendered
+  // verbatim.
+  it("L (V0.3_006B): a restored DH decision renders the consolidated 'Séance DH' card with its persisted duration, no daily-run call", async () => {
+    loadLatestDecisionForDate.mockResolvedValue({
+      ...RESTORED_ROW,
+      finalSessionDb: "RECOVERY",
+      dailyPlan: {
+        ...BASE_DAILY_PLAN,
+        decision: "KEEP",
+        confidence: "MEDIUM",
+        reasoning: "Plan déjà généré aujourd'hui.",
+        training: { active: true, session_type: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, objective: "Séance DH" },
+        dh_or_technical: {
+          active: true,
+          focus: "Précision des lignes et vitesse maîtrisée",
+          spot_hint: "Terrain adapté au focus technique du jour.",
+        },
+        planned_session_before: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+        final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 },
+      },
+    });
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
 });

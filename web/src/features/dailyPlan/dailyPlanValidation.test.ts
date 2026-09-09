@@ -177,3 +177,33 @@ describe("REV-001 — active_mode UNSPECIFIED (unconfigured training context)", 
     );
   });
 });
+
+// V0.3_006B — Session Prescription V1 (DH-first). `duration_min` is not a
+// new field (TrainingIntervention already carried it, plumbed but unused
+// for DH before this milestone) and not enum-shaped, so it carries no
+// REV-001-style drift risk — isValidIntervention never validated it and
+// still doesn't. These tests lock that contract in permanently: a DH plan
+// with the new engine-populated duration_min must validate exactly like
+// one without it (a pre-V0.3_006B/legacy row).
+const DH_PLAN_WITH_DURATION = {
+  ...VALID_DAILY_PLAN,
+  training: { active: true, session_type: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, objective: "Séance DH" },
+  dh_or_technical: { active: true, focus: "Précision des lignes et vitesse maîtrisée", spot_hint: "Terrain adapté au focus technique du jour." },
+  planned_session_before: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+  final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 },
+};
+
+describe("V0.3_006B — DH duration_min contract parity", () => {
+  it("a DH plan with engine-populated duration_min is accepted", () => {
+    expect(isValidDailyPlan(DH_PLAN_WITH_DURATION)).toBe(true);
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, dailyPlan: DH_PLAN_WITH_DURATION })).toBe(true);
+  });
+
+  it("a legacy DH plan predating V0.3_006B (no duration_min at all) remains valid — the field is optional, never required", () => {
+    const legacy = {
+      ...DH_PLAN_WITH_DURATION,
+      final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+    };
+    expect(isValidDailyPlan(legacy)).toBe(true);
+  });
+});

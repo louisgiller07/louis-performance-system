@@ -1,7 +1,8 @@
 import { PlanSection } from "../../components/PlanSection";
 import { DecisionHero } from "./DecisionHero";
-import { formatIntervention, isSameIntervention } from "./dailyPlanLabels";
+import { formatIntervention, isSameIntervention, TRAINING_KIND_LABELS } from "./dailyPlanLabels";
 import { athleteSafeRuleDetail, hasActiveSafetyRule } from "./safetyPresentation";
+import { formatDhSessionWindow, DH_LOAD_DESCRIPTION } from "./dhPrescriptionLabels";
 import type { DailyPlan } from "./dailyPlanTypes";
 
 export interface DailyPlanViewProps {
@@ -50,6 +51,15 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
   // first. Never changes which activities are considered allowed, and never
   // hides/alters Récupération's own content.
   const safetyActive = hasActiveSafetyRule(dailyPlan);
+
+  // V0.3_006B — Session Prescription V1 (DH-first). `dh_or_technical.active`
+  // is already exactly true iff the final session is DH-family (same gate
+  // computeTechniqueDomain itself uses) — reused here rather than a second
+  // kind check. When true, session/load/duration/focus/terrain are
+  // consolidated into ONE card below instead of the generic "Entraînement"
+  // card + a separate "Technique" card, to avoid rendering the same
+  // recommendation twice.
+  const isDhPrescription = dailyPlan.dh_or_technical.active;
   const protectionSection = dailyPlan.protection.do_not_do.length > 0 && (
     <PlanSection title="À éviter">
       <ul className="list-disc pl-4 text-red-700">
@@ -88,16 +98,29 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
         </PlanSection>
       )}
 
-      {dailyPlan.training.active && (
+      {dailyPlan.training.active && !isDhPrescription && (
         <PlanSection title="Entraînement">
           {dailyPlan.training.session_type && <p className="font-medium text-gray-900">{formatIntervention(dailyPlan.training.session_type)}</p>}
           {dailyPlan.training.objective && <p className="text-gray-600">{dailyPlan.training.objective}</p>}
         </PlanSection>
       )}
 
-      {dailyPlan.dh_or_technical.active && (
-        <PlanSection title="Technique">
-          {dailyPlan.dh_or_technical.focus && <p className="font-medium text-gray-900">{dailyPlan.dh_or_technical.focus}</p>}
+      {/*
+       * V0.3_006B — Session Prescription V1. One consolidated card for a
+       * DH-family session: what (kind), how hard (qualitative load,
+       * clarified), how long (total session window — uplift/pauses/recon
+       * included, never continuous riding time), what to focus on, and
+       * terrain guidance. All values come from already-authoritative fields
+       * (final_session, dh_or_technical) — no new DailyPlan field.
+       */}
+      {isDhPrescription && (
+        <PlanSection title="Séance DH">
+          <p className="font-medium text-gray-900">{TRAINING_KIND_LABELS[dailyPlan.final_session.kind] ?? dailyPlan.final_session.kind}</p>
+          {dailyPlan.final_session.load_profile && <p className="text-gray-600">{DH_LOAD_DESCRIPTION[dailyPlan.final_session.load_profile]}</p>}
+          {dailyPlan.final_session.duration_min !== undefined && (
+            <p className="text-gray-600">Fenêtre de session : {formatDhSessionWindow(dailyPlan.final_session.duration_min)}</p>
+          )}
+          {dailyPlan.dh_or_technical.focus && <p className="mt-1 font-medium text-gray-900">{dailyPlan.dh_or_technical.focus}</p>}
           {dailyPlan.dh_or_technical.spot_hint && <p className="text-gray-600">{dailyPlan.dh_or_technical.spot_hint}</p>}
         </PlanSection>
       )}

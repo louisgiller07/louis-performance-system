@@ -108,4 +108,46 @@ describe("HistoryDetail", () => {
     expect(screen.getByText(/Phase non configurée/)).toBeInTheDocument();
     expect(screen.queryByText("UNSPECIFIED")).not.toBeInTheDocument();
   });
+
+  // V0.3_006B — Session Prescription V1 (DH-first): History reuses the same
+  // DailyPlanView as Today, from the persisted decisions.daily_plan JSONB
+  // only — no recomputation, same consolidated "Séance DH" card.
+  it("renders the consolidated 'Séance DH' card, hour-formatted, from a persisted decision", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            training: { active: true, session_type: { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, objective: "Séance DH" },
+            dh_or_technical: { active: true, focus: "Précision et qualité d'exécution", spot_hint: "Terrain adapté au focus technique du jour." },
+            final_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 240 },
+          },
+        })}
+      />
+    );
+    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText(/Fenêtre de session\s*:\s*environ 4 h/)).toBeInTheDocument();
+    expect(screen.queryByText("240 min")).not.toBeInTheDocument();
+  });
+
+  // A row persisted before V0.3_006B never had duration_min on a DH
+  // final_session at all — must remain a fully valid, richly-rendered
+  // History row, simply without a session-window line.
+  it("a legacy DH row (persisted before V0.3_006B, no duration_min) still renders the rich path, no crash", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            training: { active: true, session_type: { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, objective: "Séance DH" },
+            dh_or_technical: { active: true, focus: "Précision et qualité d'exécution", spot_hint: "Terrain adapté au focus technique du jour." },
+            final_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+          },
+        })}
+      />
+    );
+    expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
+    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
+  });
 });

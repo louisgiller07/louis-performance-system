@@ -56,7 +56,8 @@ describe("T4 — T-X adaptable (default framework, pas rail)", () => {
 
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    // duration_min: 150 — V0.3_006B provisional DH_LIGHT/LIGHT session window.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.overrode_race_protocol).toBe(true);
     expect(plan.override_reason).toBeTruthy();
     expect(plan.override_reason?.length).toBeGreaterThan(0);
@@ -98,7 +99,8 @@ describe("V0.3_005A (NAL-001) — Planned Activity Commitment vs raceProtocol", 
 
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    // duration_min: 150 — V0.3_006B provisional DH_LIGHT/LIGHT session window.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.final_session.kind).not.toBe("AEROBIC_BASE");
     expect(plan.planned_session_before).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY" });
     const trace = plan.triggered_rules.find((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED");
@@ -118,7 +120,8 @@ describe("V0.3_005A (NAL-001) — Planned Activity Commitment vs raceProtocol", 
 
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+    // duration_min: 150 — V0.3_006B provisional DH_LIGHT/LIGHT session window.
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 150 });
     expect(plan.final_session.kind).not.toBe("STRENGTH_UPPER");
     expect(plan.planned_session_before).toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE" });
   });

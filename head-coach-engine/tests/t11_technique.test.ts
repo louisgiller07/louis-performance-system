@@ -120,17 +120,22 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       expect(result.focus).not.toBe(FOCUS);
     });
 
-    it("personalFocus absent (athlete with no configured focus): Technique stays active, focus is omitted, spot_hint remains the existing generic value — no fabricated focus", () => {
+    // V0.3_006B (Session Prescription V1) — corrects the prior expectation:
+    // an absent personal focus no longer leaves `focus` omitted. A fixed,
+    // deterministic generic fallback (keyed by DH kind, DH_GENERIC_FOCUS in
+    // sessionPrescriptionPolicy.ts) is used instead, never presented as
+    // learned personalization — see dhPrescription.ts#resolveDhFocus.
+    it("personalFocus absent (athlete with no configured focus): Technique stays active, focus falls back to the fixed generic value for the kind, spot_hint remains the existing generic value", () => {
       const result = computeTechniqueDomain(baseParams({ personalFocus: undefined }));
       expect(result.active).toBe(true);
-      expect(result.focus).toBeUndefined();
-      expect(result).not.toHaveProperty("focus");
+      expect(result.focus).toBe("Précision et qualité d'exécution");
+      expect(result.focus).not.toBe(FOCUS);
       expect(result.spot_hint).toBe(SPOT_HINT_DEFAULT);
     });
 
-    it("personalFocus absent still respects the existing fatigue/race spot_hint contract unchanged", () => {
+    it("personalFocus absent still respects the existing fatigue/race spot_hint contract unchanged, using the generic focus fallback", () => {
       const result = computeTechniqueDomain(baseParams({ personalFocus: undefined, legsLevel: AMBER }));
-      expect(result.focus).toBeUndefined();
+      expect(result.focus).toBe("Précision et qualité d'exécution");
       expect(result.spot_hint).toBe(SPOT_HINT_FATIGUE);
     });
   });
@@ -286,14 +291,18 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       expect(plan.dh_or_technical.focus).not.toBe(FOCUS);
     });
 
-    it("V0.3_004A — coaching_profile entirely absent (new athlete, never configured): Technique stays active, focus omitted, never Louis's fixture value", () => {
+    // V0.3_006B — corrects the prior expectation: absent coaching_profile no
+    // longer leaves focus omitted; the fixed generic DH_TECHNICAL fallback
+    // is used, never Louis's (or any other athlete's) personal value.
+    it("V0.3_004A — coaching_profile entirely absent (new athlete, never configured): Technique stays active, focus falls back to the fixed generic value, never Louis's fixture value", () => {
       const ctx = baseRawContext({
         planned_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
         coaching_profile: undefined,
       });
       const plan = buildDailyPlan(ctx);
       expect(plan.dh_or_technical.active).toBe(true);
-      expect(plan.dh_or_technical.focus).toBeUndefined();
+      expect(plan.dh_or_technical.focus).toBe("Précision et qualité d'exécution");
+      expect(plan.dh_or_technical.focus).not.toBe(FOCUS);
       expect(plan.dh_or_technical.spot_hint).toBe(SPOT_HINT_DEFAULT);
     });
   });

@@ -24,6 +24,14 @@ const RED_SUPPORTIVE_HINT = "Le plan du jour tient déjà compte de la charge me
 const TECHNIQUE_FOCUS = "Fixe ta ligne, dose le freinage, laisse rouler.";
 const TECHNIQUE_DEFAULT_SPOT_HINT = "Terrain adapté au focus technique du jour.";
 
+// V0.3_006B — when the final session is DH-family and an AMBER/RED mental
+// action fires, the resolved DH focus is appended as the concrete
+// execution priority (dhPrescription.ts#resolveDhFocus via
+// domains/mental.ts). Louis's fixture personal focus already ends with a
+// period — never doubled.
+const AMBER_STRESS_HINT_WITH_DH_PRIORITY = `${AMBER_STRESS_HINT} Ta priorité aujourd'hui : ${TECHNIQUE_FOCUS.replace(/\.+$/, "")}.`;
+const RED_SUPPORTIVE_HINT_WITH_DH_PRIORITY = `${RED_SUPPORTIVE_HINT} Ta priorité aujourd'hui : ${TECHNIQUE_FOCUS.replace(/\.+$/, "")}.`;
+
 const RACE_WEEK_FOCUS = "En race week : pense à augmenter légèrement l'apport énergétique.";
 const RACE_DAY_NOTES = "Jour de course : petit-déjeuner consistant au moins 2 h avant le premier run.";
 const DH_DAY_NOTES = "Jour DH : vise environ 3 à 3,5 L sur la journée.";
@@ -111,14 +119,15 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       const plan = buildDailyPlan(fixture(true));
 
       expect(plan.decision).toBe("KEEP");
-      expect(plan.final_session).toEqual(DH_SESSION);
+      // duration_min: 240 — V0.3_006B provisional DH_TECHNICAL/MODERATE session window.
+      expect(plan.final_session).toEqual({ ...DH_SESSION, duration_min: 240 });
 
       expect(plan.dh_or_technical).toEqual({
         active: true,
         focus: TECHNIQUE_FOCUS,
         spot_hint: TECHNIQUE_DEFAULT_SPOT_HINT,
       });
-      expect(plan.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT });
+      expect(plan.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT_WITH_DH_PRIORITY });
       expect(plan.nutrition).toEqual({ active: true, notes: DH_DAY_NOTES });
 
       const mentalAmberRules = plan.triggered_rules.filter((r) => r.rule_id === "MENTAL_AMBER_STRESS");
@@ -152,7 +161,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
 
       // Expected, isolated differences.
       expect(baseline.mental).toEqual({ active: false });
-      expect(enriched.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT });
+      expect(enriched.mental).toEqual({ active: true, action_hint: AMBER_STRESS_HINT_WITH_DH_PRIORITY });
       expect(baseline.triggered_rules.some((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toBe(false);
       expect(enriched.triggered_rules.filter((r) => r.rule_id === "MENTAL_AMBER_STRESS")).toHaveLength(1);
     });
@@ -171,7 +180,10 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       // downgrades load_profile for DH kinds (training.ts's mental-RED
       // branch never reassigns `kind` except for the AEROBIC_INTERVALS
       // special case), so DH survives with load stepped HEAVY→MODERATE.
-      expect(plan.final_session).toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE" });
+      // duration_min: 240 — V0.3_006B provisional DH_TECHNICAL/MODERATE session window
+      // (load changed HEAVY→MODERATE from the planned session, so the provisional
+      // default applies rather than any explicit planned duration).
+      expect(plan.final_session).toEqual({ kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 240 });
       expect(plan.decision).toBe("MODIFY");
 
       const mentalRedRules = plan.triggered_rules.filter((r) => r.rule_id === "MENTAL_RED");
@@ -188,7 +200,10 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       expect(plan.nutrition).toEqual({ active: true, notes: DH_DAY_NOTES });
 
       // Mental supports Training's ownership, no second consume, no new rule.
-      expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT });
+      // V0.3_006B: final session is still DH-family (MODERATE, kind
+      // preserved), so the resolved DH focus is appended as the concrete
+      // execution priority.
+      expect(plan.mental).toEqual({ active: true, action_hint: RED_SUPPORTIVE_HINT_WITH_DH_PRIORITY });
     });
   });
 
@@ -342,7 +357,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
 
       // Not a trivial pair — the enriched plan genuinely activates
       // independent Mental/Technique/Nutrition contributions.
-      expect(enriched.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS, action_hint: AMBER_STRESS_HINT });
+      expect(enriched.mental).toEqual({ active: true, focus: PRE_EVENT_FOCUS, action_hint: AMBER_STRESS_HINT_WITH_DH_PRIORITY });
       expect(enriched.dh_or_technical.active).toBe(true);
       expect(enriched.nutrition.active).toBe(true);
       expect(baseline.mental).toEqual({ active: false });

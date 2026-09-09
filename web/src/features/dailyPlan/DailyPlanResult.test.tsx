@@ -338,4 +338,91 @@ describe("DailyPlanResult", () => {
     expect(screen.getByText("Détails techniques")).toBeInTheDocument();
     expect(screen.getAllByText(/2\.3\.1/).length).toBeGreaterThan(0);
   });
+
+  // --- V0.3_006B: Session Prescription V1 (DH-first), Today render ---
+
+  const DH_PLAN: Partial<DailyPlan> = {
+    training: { active: true, session_type: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, objective: "Séance DH" },
+    dh_or_technical: {
+      active: true,
+      focus: "Précision des lignes et vitesse maîtrisée",
+      spot_hint: "Terrain adapté au focus technique du jour.",
+    },
+    planned_session_before: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+    final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 },
+  };
+
+  it("renders one consolidated 'Séance DH' card with kind, clarified load, hour-formatted session window, focus, and terrain — never a raw '360 min'", () => {
+    render(<DailyPlanResult result={makeResult(DH_PLAN)} />);
+
+    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText(/DH performance/)).toBeInTheDocument();
+    expect(screen.getByText(/Charge lourde — séance exigeante/)).toBeInTheDocument();
+    expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
+    expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
+    expect(screen.getByText("Terrain adapté au focus technique du jour.")).toBeInTheDocument();
+    expect(screen.queryByText("360 min")).not.toBeInTheDocument();
+  });
+
+  it("does not render a separate 'Entraînement' or 'Technique' card for a DH-family session — no duplicate recommendation", () => {
+    render(<DailyPlanResult result={makeResult(DH_PLAN)} />);
+    expect(screen.queryByText("Entraînement")).not.toBeInTheDocument();
+    expect(screen.queryByText("Technique")).not.toBeInTheDocument();
+  });
+
+  it("a non-DH session keeps the existing 'Entraînement' card unchanged, and never shows 'Séance DH'", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          training: { active: true, session_type: { kind: "AEROBIC_BASE", load_profile: "LIGHT" }, objective: "Base aérobie" },
+          dh_or_technical: { active: false },
+        })}
+      />
+    );
+    expect(screen.getByText("Entraînement")).toBeInTheDocument();
+    expect(screen.queryByText("Séance DH")).not.toBeInTheDocument();
+  });
+
+  it("formats every provisional DH duration as natural hours (V0.3_006B examples)", () => {
+    const cases: Array<[number, string]> = [
+      [60, "environ 1 h"],
+      [105, "environ 1 h 45"],
+      [150, "environ 2 h 30"],
+      [270, "environ 4 h 30"],
+      [330, "environ 5 h 30"],
+    ];
+    for (const [duration_min, expectedText] of cases) {
+      const { unmount } = render(
+        <DailyPlanResult
+          result={makeResult({ ...DH_PLAN, final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min } })}
+        />
+      );
+      expect(screen.getByText(new RegExp(expectedText.replace(/\s/g, "\\s*")))).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("a DH plan missing duration_min entirely (legacy, predating V0.3_006B) still renders the card without a session-window line, no crash", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({ ...DH_PLAN, final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } })}
+      />
+    );
+    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
+  });
+
+  it("mental action_hint names the resolved DH focus as the concrete priority when both are present", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          ...DH_PLAN,
+          mental: { active: true, action_hint: "Fais quelques respirations lentes, puis reviens à une seule priorité. Ta priorité aujourd'hui : Précision des lignes et vitesse maîtrisée." },
+        })}
+      />
+    );
+    // Rendered both in the Mental card and (import.meta.env.DEV) the raw
+    // debug JSON dump — assert at least one real render, not the debug dump.
+    expect(screen.getAllByText(/Ta priorité aujourd'hui : Précision des lignes et vitesse maîtrisée\./).length).toBeGreaterThan(0);
+  });
 });

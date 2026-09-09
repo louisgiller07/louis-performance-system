@@ -81,6 +81,9 @@ L'implémentation TypeScript exacte (interface, record, class) est laissée à C
 
 Le mapping `TrainingIntervention → DbSessionType` est **une fonction pure déterministe** : pour un couple `(kind, load_profile)` donné, la sortie est unique. Voir `05_DATA_MODEL.md`.
 
+**duration_min (session DH)** (V0.3_006B, PROVISIONAL)
+Champ existant de `TrainingIntervention`, en minutes. Pour une session DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`), représente la **fenêtre totale de session / temps sur site** — descente, remontée mécanique, pauses, attente, reconnaissance, récupération entre runs inclus conceptuellement. **N'est jamais** le temps de pédalage/descente continu ni le temps physiologique effectif. Ne pas confondre avec un temps d'effort. Voir `docs/03_COACHING_MODEL.md` §Session Prescription V1.
+
 ## Règles et couches
 
 **Couche A — Safety Rules**

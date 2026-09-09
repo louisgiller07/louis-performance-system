@@ -319,6 +319,53 @@ Toutes les heuristiques ci-dessous sont **PROVISIONAL** et révisables. Elles vi
 
 *Portée V0.3_002B verrouillée (`docs/06_ARCHITECTURE.md` §V0.3_002) : `focus` = une seule chaîne de cue technique actionnable (pas de champ "priorité" séparé) ; `spot_hint` = catégorie terrain/logistique uniquement, jamais un nom de spot réel affirmé comme actuellement disponible ; la proximité course (C1.5) influence `spot_hint`, jamais `focus`.*
 
+#### Session Prescription V1 — DH-first (V0.3_006B, PROVISIONAL)
+
+Corrige le constat du deuxième cycle de dogfood externe : une recommandation DH ("DH performance · charge lourde") indiquait une catégorie de séance mais jamais une fenêtre exécutable — l'athlète devait reconstruire lui-même combien de temps prévoir, avec quel focus, sur quel terrain. Périmètre strictement DH-first : `DH_PERFORMANCE`, `DH_TECHNICAL`, `DH_LIGHT`, `PUMPTRACK` (même modèle utile, `RACE_ACTIVITY` explicitement exclu — compatibilité uniquement, aucune prescription de jour de course).
+
+**Sémantique critique de `duration_min` pour une session DH** : représente la **fenêtre totale de session / temps passé sur le site de pratique**, jamais le temps de pédalage/descente continu, le temps physiologique effectif, ni le temps de descente cumulé. Inclut conceptuellement : descente, remontée mécanique/tire-fesses/navette, pauses, attente, reconnaissance, récupération normale entre les runs. Une journée DH d'environ 09h30 à 16h00 représente une fenêtre d'environ 6 à 6h30, même si le temps de descente réel est largement inférieur. Ne jamais interpréter `duration_min = 360` comme "6 heures d'effort physique continu".
+
+**Table PROVISIONAL de fenêtre de session** (cibles génériques de coaching, jamais une limite physiologique individualisée — voir `head-coach-engine/src/config/sessionPrescriptionPolicy.ts`, source de vérité runtime unique) :
+
+| Kind | LIGHT | MODERATE | HEAVY |
+|---|---|---|---|
+| DH_PERFORMANCE | 180 min (~3 h) | 270 min (~4 h 30) | 360 min (~6 h) |
+| DH_TECHNICAL | 180 min (~3 h) | 240 min (~4 h) | 330 min (~5 h 30) |
+| DH_LIGHT | 150 min (~2 h 30) | 210 min (~3 h 30) | 270 min (~4 h 30) |
+| PUMPTRACK | 60 min (~1 h) | 105 min (~1 h 45) | 150 min (~2 h 30) |
+
+`DH_LIGHT`/HEAVY est une combinaison atypique (le kind "léger" avec une charge lourde) mais réellement atteignable aujourd'hui (planification athlète directe sans qu'aucune règle d'adaptation ne l'interdise) — une valeur provisoire cohérente (270 min) est définie plutôt que de rendre silencieusement la combinaison impossible.
+
+**LoadProfile ≠ duration** : HEAVY/MODERATE/LIGHT reste le concept qualitatif existant de charge globale d'entraînement, jamais redéfini comme une durée. La table choisit simplement une fenêtre de session typique pour une combinaison kind/charge finale donnée — une longue journée DH peut contenir une part importante de remontées/attente/récupération.
+
+**Aucun mapping RPE** : aucune correspondance canonique LoadProfile → RPE cible n'existe (ni dans ce document, ni dans le code) — V1 n'en invente aucune. `completed_sessions.rpe` reste exclusivement l'effort ressenti réel post-séance (NAL-006).
+
+**Aucun modèle de nombre de runs / dénivelé** : NALYNT ne connaît aujourd'hui ni la longueur de piste, ni la vitesse de remontée, ni l'affluence — un nombre de runs ou un dénivelé cible créerait une fausse précision. Différé.
+
+**Précédence de durée explicite (corrigée)** : la durée `planned_session.duration_min` explicitement fournie par l'athlète (aujourd'hui non exposée par l'interface Planning) reste une **information de confiance**, jamais silencieusement écrasée par la table provisoire :
+- **Aucune durée explicite** → valeur provisoire générique pour la combinaison kind/charge **finale**.
+- **Durée explicite ET arbitrage n'a strictement rien changé** (kind + charge identiques au planifié, un vrai KEEP) → la durée explicite exactement, quelle que soit sa position par rapport à la table provisoire.
+- **Durée explicite ET l'arbitrage a changé le kind et/ou la charge** (fatigue, douleur, mental, préservation de famille engagée, protocole de course) → **MIN(durée explicite, valeur provisoire pour la combinaison finale)**. La durée explicite devient une **borne supérieure**, jamais un plancher : une adaptation censée réduire la charge d'entraînement ne doit jamais silencieusement allonger une séance plus courte voulue par l'athlète jusqu'à une valeur générique plus longue. Exemple : `DH_PERFORMANCE`/`HEAVY`/120 min rétrogradé en `MODERATE` (mental RED) reste 120 min, jamais 270 min (la valeur provisoire `MODERATE`) ; à l'inverse, `DH_PERFORMANCE`/`HEAVY`/360 min rétrogradé en `MODERATE` devient 270 min (la durée explicite dépassait la valeur provisoire, plafonnée).
+
+Ne jamais interpréter la table provisoire comme une autorisation d'étendre une disponibilité contrainte par l'athlète.
+
+**Focus technique — repli générique** : `athlete_coaching_profiles.technique_primary_focus` reste prioritaire. En son absence, un repli générique fixe par kind est utilisé (jamais présenté comme une personnalisation apprise) :
+
+| Kind | Focus générique |
+|---|---|
+| DH_PERFORMANCE | Précision des lignes et vitesse maîtrisée |
+| DH_TECHNICAL | Précision et qualité d'exécution |
+| DH_LIGHT | Fluidité, relâchement et marge |
+| PUMPTRACK | Pompage, trajectoires et conservation de vitesse |
+
+**Priorité d'exécution mentale** : quand une action mentale AMBER/RED existante se déclenche et que la session finale reste DH-family, le focus technique résolu (personnel ou générique ci-dessus) est ajouté comme priorité concrète ("Ta priorité aujourd'hui : [focus]."), remplaçant l'ancien texte générique sans nom ("Garde une seule priorité d'exécution.") qui ne nommait jamais la priorité. Aucun LLM, aucune cue supplémentaire inventée.
+
+**Monitoring fatigue DH** : quand une adaptation fatigue (C3.3/C3.5/C3.6) s'applique et que la session finale reste DH-family, une instruction opérationnelle concise est ajoutée à `monitoring.observe` ("Réduis encore la séance ou arrête la partie DH si ta précision se dégrade nettement ou si la fatigue jambes/grip augmente pendant la session.") — aucun seuil numérique non validé.
+
+**Précédence Safety absolue** : la prescription est calculée sur la session finale entièrement arbitrée (après Training/douleur/contraintes soft/A5) — un A1 (REST) ne produit jamais de durée/focus/terrain DH ; un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse subsister aucune prescription DH périmée.
+
+Voir `docs/06_ARCHITECTURE.md` §V0.3_006B et `docs/11_DECISION_LOG.md` pour l'architecture complète.
+
 ### Domaine 2 — Mental
 
 | ID | Heuristique |

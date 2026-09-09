@@ -313,6 +313,10 @@ Face à une recommandation T-X **ordinaire** (taper pré-event usuel, pas un ove
 
 L'engagement reste subordonné aux branches **hard** : Safety, événement réellement en cours, POST_EVENT réel, et toute recommandation T-X explicitement `REST` ou `RACE_ACTIVITY` (taper à charge nulle ou activité officielle) surclassent toujours l'engagement. Si aucune adaptation de même famille n'existe (kinds à charge fixe), le moteur retombe sur la recommandation T-X brute, tracé explicitement (`COMMITTED_FAMILY_NO_ADAPTATION`). Voir `docs/11_DECISION_LOG.md` (V0.3_005A/NAL-001) et `head-coach-engine/src/rules/committedActivityFamily.ts`.
 
+### Session Prescription V1 — DH-first (V0.3_006B, PROVISIONAL)
+
+Appliquée à la session finale **entièrement arbitrée** (après Training/douleur non-SAFETY/contraintes soft/A5 — jamais une baseline/planifiée/pré-adaptation), pour les kinds DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`, jamais `RACE_ACTIVITY`) : `duration_min` (fenêtre totale de session, PROVISIONAL, voir `docs/03_COACHING_MODEL.md` §Session Prescription V1 et `docs/07_GLOSSARY.md`) et le focus technique résolu (personnel ou repli générique) sont ajoutés aux champs déjà existants `final_session`/`dh_or_technical` — aucun nouveau champ `DailyPlan`. Un A1 (REST) ou un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse jamais subsister de prescription DH périmée. Voir `head-coach-engine/src/domains/dhPrescription.ts` et `docs/11_DECISION_LOG.md`.
+
 ---
 
 ## 4. Couche C — DOMAIN DECISIONS
