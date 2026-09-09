@@ -344,7 +344,7 @@ Corrige le constat du deuxième cycle de dogfood externe : une recommandation DH
 
 **Aucun modèle de nombre de runs / dénivelé** : NALYNT ne connaît aujourd'hui ni la longueur de piste, ni la vitesse de remontée, ni l'affluence — un nombre de runs ou un dénivelé cible créerait une fausse précision. Différé.
 
-**Précédence de durée explicite (corrigée)** : la durée `planned_session.duration_min` explicitement fournie par l'athlète (aujourd'hui non exposée par l'interface Planning) reste une **information de confiance**, jamais silencieusement écrasée par la table provisoire :
+**Précédence de durée explicite (corrigée)** : la durée `planned_session.duration_min` explicitement fournie par l'athlète (exposée par l'interface Planning depuis V0.3_006C2, DH-family uniquement — voir ci-dessous) reste une **information de confiance**, jamais silencieusement écrasée par la table provisoire :
 - **Aucune durée explicite** → valeur provisoire générique pour la combinaison kind/charge **finale**.
 - **Durée explicite ET arbitrage n'a strictement rien changé** (kind + charge identiques au planifié, un vrai KEEP) → la durée explicite exactement, quelle que soit sa position par rapport à la table provisoire.
 - **Durée explicite ET l'arbitrage a changé le kind et/ou la charge** (fatigue, douleur, mental, préservation de famille engagée, protocole de course) → **MIN(durée explicite, valeur provisoire pour la combinaison finale)**. La durée explicite devient une **borne supérieure**, jamais un plancher : une adaptation censée réduire la charge d'entraînement ne doit jamais silencieusement allonger une séance plus courte voulue par l'athlète jusqu'à une valeur générique plus longue. Exemple : `DH_PERFORMANCE`/`HEAVY`/120 min rétrogradé en `MODERATE` (mental RED) reste 120 min, jamais 270 min (la valeur provisoire `MODERATE`) ; à l'inverse, `DH_PERFORMANCE`/`HEAVY`/360 min rétrogradé en `MODERATE` devient 270 min (la durée explicite dépassait la valeur provisoire, plafonnée).
@@ -364,7 +364,9 @@ Ne jamais interpréter la table provisoire comme une autorisation d'étendre une
 
 **Précédence Safety absolue** : la prescription est calculée sur la session finale entièrement arbitrée (après Training/douleur/contraintes soft/A5) — un A1 (REST) ne produit jamais de durée/focus/terrain DH ; un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse subsister aucune prescription DH périmée.
 
-Voir `docs/06_ARCHITECTURE.md` §V0.3_006B pour l'architecture V1 complète.
+**Wiring Planning (V0.3_006C2, implémentation locale)** : l'UNIQUE source de vérité pour la durée prévue par l'athlète est `planned_sessions.intervention.duration_min` — `planned_sessions.planned_duration_min` (colonne relationnelle séparée) reste délibérément dormante, aucune duplication. Champ athlète-facing "Durée prévue" (`web/src/features/planning/PlanningDayCard.tsx`), sélecteur fermé de 15 valeurs (1h à 8h par pas de 30 min, jamais de saisie numérique libre), exposé **uniquement** pour les 4 kinds DH-family — l'arbitrage moteur pour tout autre kind reste aujourd'hui non défini/accidentel, hors périmètre de ce jalon (voir `docs/06_ARCHITECTURE.md` §V0.3_006C2). Sémantique athlète explicite, jamais présentée comme une pure contrainte de disponibilité : "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. Le coach peut la réduire si ton état demande une adaptation." — exacte sur un vrai KEEP, borne supérieure après adaptation (précédence ci-dessus, inchangée). Aucun changement moteur : `resolveDhDuration` consommait déjà ce champ depuis V0.3_006B.
+
+Voir `docs/06_ARCHITECTURE.md` §V0.3_006B et §V0.3_006C2 pour l'architecture complète.
 
 #### DH Execution Guidance (V0.3_006C1)
 

@@ -911,3 +911,49 @@ Cette copie était initialement conçue web-only (`dhPrescriptionLabels.ts#DH_LO
 ### Hors périmètre explicite V0.3_006C1
 
 Wiring de `planned_duration_min`/disponibilité athlète (différé à un futur V0.3_006C2 — architecture propre déjà identifiée : `resolveDhDuration` implémente déjà la précédence correcte, seul le câblage UI/adapter manque, aucune migration nécessaire) ; nombre de runs/dénivelé/structure travail-repos (toujours aucune donnée de faisabilité) ; mapping RPE numérique ; refonte vocabulaire Planning/completed-session (REV-003, hors périmètre) ; tout workflow de résolution/clôture de suivi Safety (V0.3_006A2, reste bloqué séparément) ; toute affirmation de sécurité clinique spécifique à une zone/un terrain (nécessiterait une décision de politique Safety/médicale séparée). Aucune action de production, aucun commit — implémentation locale en attente de revue.
+
+## V0.3_006C2 — Planned DH Duration Wiring (implémentation locale, non déployée)
+
+### Objectif produit et décision d'architecture
+
+Wiring athlète-facing du seul morceau manquant de la Session Prescription V1 : l'athlète peut désormais exprimer une durée prévue pour une séance DH via Planning ("J'ai seulement 2 h aujourd'hui" se traduit en planifiant une séance de 2 h). Investigation (lecture seule) comparant deux emplacements possibles — `planned_sessions.intervention.duration_min` (JSONB, déjà consommé sans aucun changement moteur par `resolveDhDuration` depuis V0.3_006B) vs `planned_sessions.planned_duration_min` (colonne relationnelle séparée, réservée et délibérément dormante depuis V0.3_003A). **Décision retenue : `intervention.duration_min` est l'UNIQUE source de vérité.** `planned_duration_min` reste dormante, jamais activée, jamais dupliquée. Aucune migration : les deux colonnes existent déjà.
+
+### Correction sémantique — pas une pure disponibilité
+
+Le premier passage d'investigation avait qualifié le champ de "Temps disponible" (plafond pur). Corrigé en revue : la précédence V0.3_006B est déjà canonique — exacte sur un vrai KEEP, borne supérieure seulement après adaptation. Le champ athlète-facing est donc "**Durée prévue**" (`web/src/features/planning/plannedDurationPolicy.ts#PLANNED_DURATION_LABEL`), avec un texte d'aide qui ne prétend jamais que c'est une pure contrainte de disponibilité : "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. Le coach peut la réduire si ton état demande une adaptation." Un futur concept de disponibilité pure serait un produit distinct, non créé par ce jalon.
+
+### DH-only V1
+
+Le contrôle n'est exposé que pour les 4 kinds DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`, `web/src/features/planning/plannedDurationPolicy.ts#isDhFamilyPlannableKind`). Raison, confirmée par investigation : `domains/training.ts` ne lit ni n'écrit jamais `duration_min` — un pivot de kind y remplace `session` par un littéral neuf qui perd silencieusement toute durée préexistante, un downgrade de charge (`withDowngradedLoad`) la préserve par spread. Comportement non défini/accidentel pour les kinds non-DH, aucune table de durée provisoire générique n'existe pour eux — élargir le scope aurait exigé de concevoir cette sémantique manquante, explicitement hors périmètre de ce jalon.
+
+### Contrôle UI — presets fermés, jamais de saisie libre
+
+`PlanningDayCard.tsx` : sélecteur natif `<select>` (cohérent avec les sélecteurs Séance/Intensité déjà existants), "Pas de durée prévue" puis 15 valeurs par pas de 30 minutes de 1h à 8h (`plannedDurationPolicy.ts#PLANNED_DURATION_PRESETS_MIN`). Jamais de saisie numérique libre — évite la confusion d'unité et les valeurs absurdes, granularité suffisante pour une intention de planification (jamais une précision physiologique). Le libellé du champ n'est PAS imbriqué dans le même `<label>` que son texte d'aide (`<span>` frère, pas enfant) — nécessaire pour que l'association implicite label↔contrôle reste exacte pour les tests/l'accessibilité (le texte d'un `<label>` inclut tout texte descendant non-contrôle).
+
+### Invariant du planning stale — reset sur tout changement de kind
+
+`handleKindChange` reset désormais `draftDurationMin` à `null` sur **tout** changement de kind (même invariant que le reset déjà existant de `draftLoad` — "stale-load invariant" étendu en "stale-duration invariant"). C'est ce qui garantit qu'un changement DH → non-DH ne persiste jamais de durée périmée : au moment où `handleSave` s'exécute, le brouillon est déjà `null` pour tout kind différent de celui où la durée a été choisie. Un changement non-DH → DH démarre toujours sur "Pas de durée prévue", jamais une valeur fabriquée depuis la table provisoire du moteur (Planning exprime l'intention de l'athlète, jamais la prescription du coach).
+
+### Validation — défense en profondeur, web-side uniquement
+
+`planningValidation.ts#validatePlannedIntervention` gagne un troisième paramètre optionnel `rawDurationMin`, résolu par `resolvePlannedDurationMinFields` : `null` (aucune sélection, ou effacement explicite) réussit toujours sans ajouter de clé `duration_min` — jamais une représentation `duration_min: null` (non supportée par `parseTrainingIntervention`) ; une valeur non-null doit être un preset fermé ET le kind doit être DH-family, sinon rejet explicite (`{ok:false, error}`), jamais une troncature/correction silencieuse — même philosophie de garde de niveau code que les vérifications kind/load_profile existantes, bien que l'UI elle-même (reset sur changement de kind) empêche déjà ce cas en usage normal. Validation strictement web-side : le JSONB n'a aucune contrainte DB équivalente au `CHECK (planned_duration_min > 0)` de la colonne réservée — aucune migration ajoutée pour ce jalon, la garde applicative suffit et reste cohérente avec le principe "aucune contrainte DB pour une valeur qui vit dans une JSONB déjà flexible".
+
+### Clear — remplacement JSONB complet, jamais une préservation implicite
+
+`savePlannedSession` écrit `intervention` en une seule fois (remplacement JSONB complet à chaque sauvegarde, jamais une fusion) — contrairement à l'omission de colonne (`OMIT AND PRESERVE`, V0.3_003B), effacer la durée exige de reconstruire `intervention` sans la clé, ce qui est exactement ce que fait `validatePlannedIntervention` quand `rawDurationMin === null`. Prouvé par un test RLS réel local (créer 120 min → effacer → `duration_min` absent de la ligne relue en base, jamais `null`).
+
+### Lecture — aucun changement moteur/adapter, confirmé par investigation
+
+`intervention` JSONB → `parseTrainingIntervention` → `RawContext.planned_session` → `resolveDhDuration`/`withDhDuration` → `final_session.duration_min` → persistance : chaîne déjà entièrement câblée depuis V0.3_006B, confirmée inchangée par relecture de source pendant cette implémentation. `planned_session_before = ctx.planned_session` toujours l'intervention brute athlète-authored, sans fusion synthétique — `planned_session_before.duration_min` apparaît donc automatiquement dès que Planning l'écrit, sans aucun changement de mapping. `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_006c1`) : aucun fichier `head-coach-engine/src/**` modifié par ce jalon, seul un test permanent supplémentaire prouve le cas exact 120 min + pivot fatigue (`t15_dhSessionPrescription.test.ts`, précédemment implicite via la formule déjà prouvée mais jamais testé littéralement à cette valeur).
+
+### Contrat engine/web
+
+Aucun changement de type engine (`TrainingIntervention.duration_min` existait déjà). Web : `plannedDurationPolicy.ts` (nouveau — presets, garde DH-family, copie athlète-facing, formatteur exact sans qualificatif d'approximation, distinct de `dhPrescriptionLabels.ts#formatDhSessionWindow` qui reste réservé à l'affichage de la durée calculée/adaptée par le moteur) ; `planningValidation.ts`/`planningRepo.ts` (troisième paramètre optionnel, rétrocompatible — tous les appels existants sans ce paramètre restent inchangés, comportement par défaut `null`) ; `PlanningDayCard.tsx` (contrôle conditionnel + invariant stale). Aucun changement à `TodayPlanningSummary.tsx` (résumé lecture seule, hors périmètre — n'affiche pas encore la durée, non requis par ce jalon) ni à `DailyPlanView.tsx` (le rendu de `final_session.duration_min` était déjà générique depuis V0.3_006B, indifférent à l'origine de la valeur).
+
+### Sécurité / DB
+
+Aucune migration — les deux colonnes existent déjà depuis la baseline V0.2/V0.3_003A. Aucun changement RLS/GRANT — `intervention` reste un sous-champ de `planned_sessions`, déjà entièrement couvert par la policy `planned_sessions_own_data` (`FOR ALL`, athlète propre) exactement comme `kind`/`load_profile`/`focus`/`cue` le sont déjà. Aucun `service_role`, aucune RPC, aucune Edge Function. Isolation cross-athlète prouvée par un test RLS réel local supplémentaire (écriture athlète A, tentative de lecture/écrasement par athlète B toutes deux rejetées/vides, valeur d'athlète A inchangée) — aucune nouvelle architecture de sécurité, réutilisation stricte du pattern déjà établi (V0.3_003B).
+
+### Hors périmètre explicite V0.3_006C2
+
+Sémantique de durée pour les kinds non-DH (nécessiterait de concevoir une table de durée provisoire générique et une précédence équivalente à `resolveDhDuration` pour force/aérobie/récupération — non existante aujourd'hui) ; concept de disponibilité pure distinct de la durée prévue (produit différent, non créé) ; affichage de la durée prévue dans `TodayPlanningSummary.tsx` (lecture seule, non demandé) ; nombre de runs/dénivelé (toujours aucune donnée de faisabilité) ; mapping RPE numérique ; toute évolution de `planned_duration_min` (reste dormante, aucun projet de nettoyage de schéma). Aucune action de production, aucun commit — implémentation locale en attente de revue.

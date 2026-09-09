@@ -148,7 +148,7 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
-      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false)
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false, null)
     );
   });
 
@@ -160,7 +160,7 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false, null));
   });
 
   it("L, M: delete calls deletePlannedSession and returns the card to Non planifié, never Repos", async () => {
@@ -202,7 +202,7 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
-      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", true)
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", true, null)
     );
   });
 
@@ -220,7 +220,7 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     expect(committedToggle).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, true));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, true, null));
   });
 
   it("does not show the delete action when no row exists yet", () => {
@@ -256,7 +256,160 @@ describe("PlanningDayCard — stale load invariant (R, S, T)", () => {
     expect(screen.queryByRole("group", { name: "Intensité" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "MOBILITY", null, false));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "MOBILITY", null, false, null));
+  });
+});
+
+function dhHeavyRow(durationMin?: number): PlannedSessionRow {
+  return {
+    planned_date: "2026-09-01",
+    session_type: "DH_PERFORMANCE",
+    intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", ...(durationMin !== undefined ? { duration_min: durationMin } : {}) },
+    planned_intent: null,
+    is_committed: false,
+  };
+}
+
+// V0.3_006C2 — planned DH duration. DH-only in this slice; the ONE
+// authoritative source is intervention.duration_min.
+describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
+  it("shows the Durée prévue control for a DH kind", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialExpanded />);
+    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    expect(screen.getByLabelText("Durée prévue")).toBeInTheDocument();
+  });
+
+  it("hides the Durée prévue control for a non-DH kind", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialExpanded />);
+    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    expect(screen.queryByLabelText("Durée prévue")).not.toBeInTheDocument();
+  });
+
+  it("hides the Durée prévue control for every non-DH kind, shows it only for the 4 DH-family kinds", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialExpanded />);
+    for (const kind of PLANNABLE_LOAD_VARIABLE_KINDS) {
+      await user.selectOptions(screen.getByLabelText("Séance"), kind);
+      const isDh = (["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT", "PUMPTRACK"] as string[]).includes(kind);
+      if (isDh) {
+        expect(screen.getByLabelText("Durée prévue")).toBeInTheDocument();
+      } else {
+        expect(screen.queryByLabelText("Durée prévue")).not.toBeInTheDocument();
+      }
+    }
+  });
+
+  it("offers 'Pas de durée prévue' plus exactly the 15 presets from 1h to 8h", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialExpanded />);
+    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    const select = screen.getByLabelText("Durée prévue");
+    expect(within(select).getAllByRole("option")).toHaveLength(16);
+    expect(within(select).getByText("Pas de durée prévue")).toBeInTheDocument();
+    expect(within(select).getByText("1 h")).toBeInTheDocument();
+    expect(within(select).getByText("1 h 30")).toBeInTheDocument();
+    expect(within(select).getByText("8 h")).toBeInTheDocument();
+  });
+
+  it("create: selecting a duration passes the exact minute value to savePlannedSession", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(dhHeavyRow(120));
+    render(<Harness initialExpanded />);
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    await user.click(screen.getByRole("button", { name: "charge lourde" }));
+    await user.selectOptions(screen.getByLabelText("Durée prévue"), "120");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "DH_PERFORMANCE", "HEAVY", false, "120")
+    );
+  });
+
+  it("create: no duration selected passes null, exactly like before this ticket", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(dhHeavyRow());
+    render(<Harness initialExpanded />);
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    await user.click(screen.getByRole("button", { name: "charge lourde" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "DH_PERFORMANCE", "HEAVY", false, null)
+    );
+  });
+
+  it("edit: prefills the exact persisted duration when reopening", () => {
+    render(<Harness initialRow={dhHeavyRow(150)} initialExpanded />);
+    expect(screen.getByLabelText("Durée prévue")).toHaveValue("150");
+  });
+
+  it("edit: changing 2h to 3h persists 180, not 120", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(dhHeavyRow(180));
+    render(<Harness initialRow={dhHeavyRow(120)} initialExpanded />);
+
+    expect(screen.getByLabelText("Durée prévue")).toHaveValue("120");
+    await user.selectOptions(screen.getByLabelText("Durée prévue"), "180");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "DH_PERFORMANCE", "HEAVY", false, "180")
+    );
+  });
+
+  // Critical JSONB clear semantics (§11 of the ticket): selecting "Pas de
+  // durée prévue" on a row that already has a persisted duration must pass
+  // null through the whole chain, never silently resend the old value.
+  it("clear: selecting 'Pas de durée prévue' on a row with a persisted duration passes null, not the stale value", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(dhHeavyRow());
+    render(<Harness initialRow={dhHeavyRow(120)} initialExpanded />);
+
+    expect(screen.getByLabelText("Durée prévue")).toHaveValue("120");
+    await user.selectOptions(screen.getByLabelText("Durée prévue"), "Pas de durée prévue");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "DH_PERFORMANCE", "HEAVY", false, null)
+    );
+  });
+
+  // §12 — the hidden DH-only control must never leave stale duration data
+  // behind when the kind changes away from DH.
+  it("DH → non-DH: hides the control and saves without any duration, even though a DH duration was persisted", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue({
+      planned_date: "2026-09-01",
+      session_type: "STRENGTH_A",
+      intervention: { kind: "STRENGTH_LOWER", load_profile: "HEAVY" },
+      planned_intent: null,
+      is_committed: false,
+    });
+    render(<Harness initialRow={dhHeavyRow(120)} initialExpanded />);
+
+    expect(screen.getByLabelText("Durée prévue")).toHaveValue("120");
+    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    expect(screen.queryByLabelText("Durée prévue")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "charge lourde" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false, null)
+    );
+  });
+
+  // §13 — non-DH → DH must never fabricate the engine's own generic
+  // duration; the athlete starts from "no duration" and chooses explicitly.
+  it("non-DH → DH: starts from 'Pas de durée prévue', never a fabricated default", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialRow={strengthHeavyRow()} initialExpanded />);
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    expect(screen.getByLabelText("Durée prévue")).toHaveValue("");
   });
 });
 
@@ -367,7 +520,7 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false, null));
   });
 });
 
@@ -424,7 +577,7 @@ describe("PlanningDayCard — NAL-007 race calendar overlay", () => {
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
-      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false)
+      expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "STRENGTH_LOWER", "HEAVY", false, null)
     );
   });
 
@@ -476,6 +629,6 @@ describe.each(PLANNABLE_FIXED_LOAD_KINDS)("PlanningDayCard — fixed kind %s (F,
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", kind, null, false));
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", kind, null, false, null));
   });
 });

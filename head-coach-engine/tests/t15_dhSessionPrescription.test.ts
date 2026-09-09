@@ -103,6 +103,20 @@ describe("T15 — DH Session Prescription V1 duration policy", () => {
     it("CASE C — no explicit duration at all -> the provisional default for the final kind/load", () => {
       expect(resolveDhDuration({ kind: "DH_TECHNICAL", load_profile: "LIGHT" }, null)).toBe(DH_DURATION_MIN.DH_TECHNICAL.LIGHT);
     });
+
+    // V0.3_006C2 — the exact 120min fatigue-pivot case the investigation
+    // flagged as implied-but-not-yet-literally-proven (only 90 and 360 were
+    // previously exact-tested at this pivot). No new engine logic: this is
+    // the same already-proven CASE B formula, MIN(120, 150) = 120, since
+    // 120 < the DH_LIGHT/LIGHT provisional of 150.
+    it("CASE B — explicit duration (120) is preserved as an upper bound on a fatigue kind pivot to DH_LIGHT/LIGHT (120 < 150)", () => {
+      expect(
+        resolveDhDuration(
+          { kind: "DH_LIGHT", load_profile: "LIGHT" },
+          { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 }
+        )
+      ).toBe(120);
+    });
   });
 });
 
@@ -149,6 +163,35 @@ describe("T15 — corrected precedence, proved end-to-end via real buildDailyPla
     });
     const plan = buildDailyPlan(ctx);
     expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 90 });
+  });
+
+  // V0.3_006C2 Acceptance D — the exact scenario this ticket asked to be
+  // literally proven end-to-end (planned_session_before must ALSO carry the
+  // raw explicit duration, no synthetic merge, exactly the raw athlete-
+  // authored intervention).
+  it("V0.3_006C2 Acceptance D — planned 120 + severe fatigue pivot to DH_LIGHT/LIGHT -> final duration 120, planned_session_before.duration_min 120", () => {
+    const ctx = baseRawContext({
+      today: "2026-01-01",
+      upcoming_races: [],
+      planned_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 },
+      checkin: { leg_fatigue: 8 },
+    });
+    const plan = buildDailyPlan(ctx);
+    expect(plan.planned_session_before).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 });
+    expect(plan.final_session).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT", duration_min: 120 });
+  });
+
+  // V0.3_006C2 Acceptance B — the exact "2h fresh" scenario, literally.
+  it("V0.3_006C2 Acceptance B — planned 120, fresh (no adaptation) -> final duration 120 exactly, planned_session_before.duration_min 120", () => {
+    const ctx = baseRawContext({
+      today: "2026-01-01",
+      upcoming_races: [],
+      planned_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 },
+    });
+    const plan = buildDailyPlan(ctx);
+    expect(plan.decision).toBe("KEEP");
+    expect(plan.planned_session_before).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 });
+    expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 });
   });
 
   it("unchanged planned DH with an explicit duration (195, no adaptation) -> final duration 195 exactly, full trust on a true KEEP", () => {

@@ -566,4 +566,39 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     expect(within(dhCard).queryByText(/^charge modérée$/i)).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });
+
+  // O (V0.3_006C2): restoring a persisted decision must show its original
+  // planned duration (120min/2h), never any later Planning value (240min/4h)
+  // — same structural guarantee as the History regression: DailyPlanPanel's
+  // restore path (loadLatestDecisionForDate) never imports/calls
+  // planningRepo.ts, so there is no code path for a later Planning edit to
+  // reach this render at all. No daily-run call — restore only.
+  it("O (V0.3_006C2): a restored DH decision keeps its original planned duration (120min/2h) even if Planning was later changed to 240min/4h, no daily-run call", async () => {
+    loadLatestDecisionForDate.mockResolvedValue({
+      ...RESTORED_ROW,
+      finalSessionDb: "DH_PERFORMANCE",
+      dailyPlan: {
+        ...BASE_DAILY_PLAN,
+        decision: "KEEP",
+        confidence: "MEDIUM",
+        reasoning: "Plan déjà généré aujourd'hui.",
+        training: { active: true, session_type: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, objective: "Séance DH" },
+        dh_or_technical: {
+          active: true,
+          focus: "Précision des lignes et vitesse maîtrisée",
+          load_guidance:
+            "Séance orientée performance : fais monter l'engagement progressivement et travaille la vitesse sans sacrifier la précision ni le contrôle.",
+          spot_hint: "Terrain adapté au focus technique du jour.",
+        },
+        planned_session_before: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 },
+        final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 },
+      },
+    });
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText(/Fenêtre de session\s*:\s*environ 2 h/)).toBeInTheDocument();
+    expect(screen.queryByText(/environ 4 h/)).not.toBeInTheDocument();
+    expect(screen.queryByText("240 min")).not.toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
 });

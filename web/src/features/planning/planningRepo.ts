@@ -68,16 +68,27 @@ export async function loadPlannedSessions(
 /**
  * Upserts a planned session on the real unique constraint
  * (unique_planned_per_day, `UNIQUE (athlete_id, planned_date)` — already
- * present since the baseline migration). Validates (kind, load_profile)
- * before touching the network — RACE_ACTIVITY and any malformed pair are
- * rejected deterministically in code, not only by UI restriction.
+ * present since the baseline migration). Validates (kind, load_profile,
+ * duration_min) before touching the network — RACE_ACTIVITY, any malformed
+ * pair, and any duration outside the closed DH-only preset are rejected
+ * deterministically in code, not only by UI restriction.
  *
  * `planned_intent` is always saved as `null` and `source` always as
  * `"manual"` (docs/11_DECISION_LOG.md V0.3_003A — planned_intent deferred,
  * athlete-authored rows are never `"rule"`/`"template"`). The five
- * engine-inert columns are omitted entirely from the payload (never set to
- * null) so a pre-existing value on any of them survives untouched — proven
- * OMIT AND PRESERVE upsert semantics, see planningRepo.integration.test.ts.
+ * engine-inert columns (primary_objective, planned_duration_min,
+ * planned_time_of_day, training_block_id, notes) are omitted entirely from
+ * the payload (never set to null) so a pre-existing value on any of them
+ * survives untouched — proven OMIT AND PRESERVE upsert semantics, see
+ * planningRepo.integration.test.ts. `planned_duration_min` stays
+ * deliberately dormant: V0.3_006C2's authoritative duration lives in
+ * `intervention.duration_min` instead (see plannedDurationPolicy.ts),
+ * never this column. `intervention` itself is
+ * always a full, freshly-constructed value (never merged with the previous
+ * row's `intervention`) — the JSONB column itself is fully replaced on every
+ * save, which is exactly why `rawDurationMin === null` (V0.3_006C2 clear)
+ * must be passed explicitly rather than merely omitted by the caller: a
+ * caller that wants to preserve an existing duration_min must pass it again.
  *
  * `isCommitted` (V0.3_005A, NAL-001) defaults to `false` — a session is
  * only ever committed by an explicit athlete choice, never silently.
@@ -87,9 +98,10 @@ export async function savePlannedSession(
   date: string,
   rawKind: string,
   rawLoadProfile: string | null,
-  isCommitted = false
+  isCommitted = false,
+  rawDurationMin: string | null = null
 ): Promise<PlannedSessionRow> {
-  const validated = validatePlannedIntervention(rawKind, rawLoadProfile);
+  const validated = validatePlannedIntervention(rawKind, rawLoadProfile, rawDurationMin);
   if (!validated.ok) {
     throw new InvalidPlannedInterventionError(validated.error);
   }

@@ -11,6 +11,14 @@ import { PLANNING_KIND_GROUPS } from "./planningKindGroups";
 import { isPlannableFixedLoadKind, isPlannableLoadVariableKind } from "./planningTypes";
 import type { LoadProfile, PlannedSessionRow, TrainingInterventionKind } from "./planningTypes";
 import type { RaceOverlayEvent, RacePriority } from "./raceOverlayRepo";
+import {
+  formatPlannedDuration,
+  isDhFamilyPlannableKind,
+  PLANNED_DURATION_HELPER,
+  PLANNED_DURATION_LABEL,
+  PLANNED_DURATION_NONE_LABEL,
+  PLANNED_DURATION_PRESETS_MIN,
+} from "./plannedDurationPolicy";
 
 // NAL-007 — compact, French, only for the two priorities worth flagging at
 // a glance (A_PLUS/A) — B/C races still show their name, just no badge, to
@@ -72,6 +80,8 @@ interface PlanningDayCardProps {
 export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpanded, onToggleExpand, onRowChange }: PlanningDayCardProps) {
   const [draftKind, setDraftKind] = useState<TrainingInterventionKind | "">("");
   const [draftLoad, setDraftLoad] = useState<LoadProfile | null>(null);
+  // V0.3_006C2 — DH-only planned duration, source of truth intervention.duration_min.
+  const [draftDurationMin, setDraftDurationMin] = useState<number | null>(null);
   const [draftCommitted, setDraftCommitted] = useState(false);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -84,6 +94,11 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
     if (!isExpanded) return;
     setDraftKind(row?.intervention?.kind ?? "");
     setDraftLoad(row?.intervention?.load_profile ?? null);
+    // V0.3_006C2 — prefills the exact persisted value (§10 EDIT), never a
+    // fabricated/generic value (§14 — Planning expresses athlete intent
+    // only, the Head Coach's own generic session window is never mirrored
+    // back here).
+    setDraftDurationMin(row?.intervention?.duration_min ?? null);
     // Preserved across unrelated edits (kind/load changes) within the same
     // editing session — only an explicit toggle by the athlete changes it.
     setDraftCommitted(row?.is_committed ?? false);
@@ -101,9 +116,18 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
     // Stale-load invariant: any kind change clears a previously chosen
     // load — never silently carried over to a different intervention.
     setDraftLoad(null);
+    // V0.3_006C2 — stale-duration invariant, same reasoning: a duration
+    // chosen for a DH kind must never survive a change to a different kind
+    // (DH or not) — the athlete re-selects it explicitly if still relevant.
+    // This is also what guarantees a DH → non-DH change never persists a
+    // stale duration_min (§12): by the time handleSave runs, the draft is
+    // already null for any kind other than the one it was set for.
+    setDraftDurationMin(null);
     setSaveState("idle");
     setSaveError(null);
   }
+
+  const showDuration = isDhFamilyPlannableKind(draftKind);
 
   async function handleSave() {
     // canSave already encodes draftKind !== "" (see its definition above).
@@ -111,7 +135,14 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
     setSaveState("saving");
     setSaveError(null);
     try {
-      const saved = await savePlannedSession(athleteId, date, draftKind, isVariableKind ? draftLoad : null, draftCommitted);
+      const saved = await savePlannedSession(
+        athleteId,
+        date,
+        draftKind,
+        isVariableKind ? draftLoad : null,
+        draftCommitted,
+        showDuration && draftDurationMin !== null ? String(draftDurationMin) : null
+      );
       onRowChange(date, saved);
     } catch (error) {
       setSaveState("error");
@@ -221,6 +252,41 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
                   {LOAD_PROFILE_LABELS[load]}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/*
+           * V0.3_006C2 — DH-only planned duration. Athlete-authored session
+           * window, exact on KEEP, an upper bound after Head Coach
+           * adaptation (V0.3_006B semantics, unchanged) — never presented as
+           * a pure availability ceiling. Hidden entirely for non-DH kinds
+           * (§4 — non-DH duration arbitration is undefined in the engine
+           * today) and reset to "no duration" on every kind change
+           * (handleKindChange), so it can never leak a stale value into a
+           * different/non-DH kind.
+           */}
+          {showDuration && (
+            <div className="flex flex-col gap-1">
+              <label className="flex flex-col gap-1 text-sm text-gray-700">
+                {PLANNED_DURATION_LABEL}
+                <select
+                  value={draftDurationMin ?? ""}
+                  onChange={(event) => setDraftDurationMin(event.target.value === "" ? null : Number(event.target.value))}
+                  className="rounded border border-gray-300 px-3 py-3 text-base"
+                >
+                  <option value="">{PLANNED_DURATION_NONE_LABEL}</option>
+                  {PLANNED_DURATION_PRESETS_MIN.map((min) => (
+                    <option key={min} value={min}>
+                      {formatPlannedDuration(min)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {/* Sibling of the label, not nested inside it — an implicit
+                  <label> match resolves by the label's own accessible text
+                  (with the nested control's content stripped), so extra
+                  descendant text here would otherwise corrupt that match. */}
+              <span className="text-xs text-gray-500">{PLANNED_DURATION_HELPER}</span>
             </div>
           )}
 

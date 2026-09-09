@@ -430,6 +430,100 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
     });
   });
 
+  // V0.3_006C2 — planned DH duration. The ONE authoritative source is
+  // intervention.duration_min; planned_duration_min (the separate reserved
+  // column) must stay dormant through every one of these real writes.
+  describe("planned duration — real local Supabase RLS integration (V0.3_006C2)", () => {
+    it("K. saves a DH duration into intervention.duration_min, planned_duration_min stays NULL", async () => {
+      await signInAs(athleteA);
+      const saved = await repo.savePlannedSession(athleteA.athleteId, "2026-09-10", "DH_PERFORMANCE", "HEAVY", false, "120");
+
+      expect(saved.intervention).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 });
+
+      const { data: adminRow } = await admin
+        .from("planned_sessions")
+        .select("intervention, planned_duration_min")
+        .eq("athlete_id", athleteA.athleteId)
+        .eq("planned_date", "2026-09-10")
+        .single();
+      expect(adminRow?.intervention).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 });
+      expect(adminRow?.planned_duration_min).toBeNull();
+    });
+
+    it("L. editing 2h to 3h replaces duration_min, never leaves the old value behind", async () => {
+      await signInAs(athleteA);
+      await repo.savePlannedSession(athleteA.athleteId, "2026-09-11", "DH_PERFORMANCE", "HEAVY", false, "120");
+      const replaced = await repo.savePlannedSession(athleteA.athleteId, "2026-09-11", "DH_PERFORMANCE", "HEAVY", false, "180");
+
+      expect(replaced.intervention).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 180 });
+    });
+
+    it("M. clearing the duration (re-saving with no duration) removes the duration_min key entirely, never duration_min: null", async () => {
+      await signInAs(athleteA);
+      await repo.savePlannedSession(athleteA.athleteId, "2026-09-12", "DH_PERFORMANCE", "HEAVY", false, "120");
+      const cleared = await repo.savePlannedSession(athleteA.athleteId, "2026-09-12", "DH_PERFORMANCE", "HEAVY", false, null);
+
+      expect(cleared.intervention).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY" });
+      expect(Object.prototype.hasOwnProperty.call(cleared.intervention as object, "duration_min")).toBe(false);
+
+      const { data: adminRow } = await admin
+        .from("planned_sessions")
+        .select("intervention")
+        .eq("athlete_id", athleteA.athleteId)
+        .eq("planned_date", "2026-09-12")
+        .single();
+      expect(Object.prototype.hasOwnProperty.call(adminRow?.intervention as object, "duration_min")).toBe(false);
+    });
+
+    it("N. changing a DH session with a duration to a non-DH kind leaves no stale duration_min behind", async () => {
+      await signInAs(athleteA);
+      await repo.savePlannedSession(athleteA.athleteId, "2026-09-13", "DH_PERFORMANCE", "HEAVY", false, "120");
+      const changed = await repo.savePlannedSession(athleteA.athleteId, "2026-09-13", "STRENGTH_LOWER", "HEAVY");
+
+      expect(changed.intervention).toEqual({ kind: "STRENGTH_LOWER", load_profile: "HEAVY" });
+      expect(Object.prototype.hasOwnProperty.call(changed.intervention as object, "duration_min")).toBe(false);
+    });
+
+    it("O. rejects a duration for a non-DH kind under real RLS too (validated before the network call, but reconfirmed end-to-end)", async () => {
+      await signInAs(athleteA);
+      await expect(
+        repo.savePlannedSession(athleteA.athleteId, "2026-09-14", "STRENGTH_LOWER", "HEAVY", false, "120")
+      ).rejects.toThrow(repo.InvalidPlannedInterventionError);
+
+      const { data: adminRow } = await admin
+        .from("planned_sessions")
+        .select("id")
+        .eq("athlete_id", athleteA.athleteId)
+        .eq("planned_date", "2026-09-14")
+        .maybeSingle();
+      expect(adminRow).toBeNull();
+    });
+
+    it("P. cross-athlete: athlete B never sees athlete A's planned duration (same existing per-athlete RLS, no new policy)", async () => {
+      await signInAs(athleteA);
+      await repo.savePlannedSession(athleteA.athleteId, "2026-09-15", "DH_PERFORMANCE", "HEAVY", false, "240");
+
+      await signInAs(athleteB);
+      const rowsForB = await repo.loadPlannedSessions(athleteB.athleteId, "2026-09-15", "2026-09-15");
+      expect(rowsForB).toEqual([]);
+
+      // Athlete B cannot even overwrite athlete A's row by attempting to
+      // save under athlete A's id while authenticated as B — RLS rejects
+      // the write, athlete A's duration survives untouched.
+      await expect(
+        repo.savePlannedSession(athleteA.athleteId, "2026-09-15", "DH_LIGHT", "LIGHT", false, "60")
+      ).rejects.toThrow(repo.PlanningSaveError);
+
+      const { data: adminRow } = await admin
+        .from("planned_sessions")
+        .select("intervention")
+        .eq("athlete_id", athleteA.athleteId)
+        .eq("planned_date", "2026-09-15")
+        .single();
+      expect(adminRow?.intervention).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 240 });
+    });
+  });
+
   describe("raceOverlayRepo — NAL-007 real local Supabase RLS isolation", () => {
     it("J: athlete A never sees athlete B's race, even for an overlapping date", async () => {
       const { error: insertError } = await admin.from("race_calendar").insert({

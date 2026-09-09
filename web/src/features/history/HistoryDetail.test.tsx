@@ -130,6 +130,41 @@ describe("HistoryDetail", () => {
     expect(screen.queryByText("240 min")).not.toBeInTheDocument();
   });
 
+  // V0.3_006C2 — REQUIRED HISTORY IMMUTABILITY REGRESSION. Scenario: Planning
+  // held DH_PERFORMANCE/HEAVY/120min (2h) when this decision was generated
+  // (a true KEEP, so planned_session_before and final_session share the same
+  // kind/load — resolveDhDuration's CASE A preserves the explicit 120min
+  // exactly). Planning is later changed to 240min (4h) — this decision must
+  // still render its ORIGINAL 120min/2h, never the later 240min/4h, and the
+  // underlying persisted data (planned_session_before.duration_min) must
+  // still read exactly 120. Proof is structural, not just behavioral:
+  // HistoryDetail/HistoryDetailPage never import or call planningRepo.ts
+  // (confirmed by source inspection) — there is no code path by which a
+  // later Planning edit could reach this render at all, "no browser
+  // recomputation" is therefore an architectural guarantee, not a lucky
+  // coincidence of this test's inputs.
+  it("V0.3_006C2 — a persisted decision keeps its original planned duration (120min/2h) even after Planning is later changed to 240min/4h, never recomputed", () => {
+    const persistedDailyPlan = {
+      ...VALID_DAILY_PLAN,
+      training: { active: true, session_type: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, objective: "Séance DH" },
+      dh_or_technical: { active: true, focus: "Précision des lignes et vitesse maîtrisée", spot_hint: "Terrain adapté au focus technique du jour." },
+      planned_session_before: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 },
+      final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 120 },
+    };
+    // Data-level proof: the persisted athlete-authored intent itself is
+    // frozen at 120 in this fixture, wholly independent of whatever
+    // Planning might say by the time a human opens this History row.
+    expect(persistedDailyPlan.planned_session_before.duration_min).toBe(120);
+
+    render(<HistoryDetail row={makeRow({ dailyPlan: persistedDailyPlan })} />);
+
+    // Render-level proof: only the original 2h ever appears...
+    expect(screen.getByText(/Fenêtre de session\s*:\s*environ 2 h/)).toBeInTheDocument();
+    // ...the later Planning value (4h) never leaks into this render.
+    expect(screen.queryByText(/environ 4 h/)).not.toBeInTheDocument();
+    expect(screen.queryByText("240 min")).not.toBeInTheDocument();
+  });
+
   // A row persisted before V0.3_006B never had duration_min on a DH
   // final_session at all — must remain a fully valid, richly-rendered
   // History row, simply without a session-window line.
