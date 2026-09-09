@@ -235,4 +235,31 @@ describe("HistoryDetail", () => {
     expect(within(monitoringCard).getByText(/Poignet gauche/)).toBeInTheDocument();
     expect(within(monitoringCard).queryByText(/wrist_L/)).not.toBeInTheDocument();
   });
+
+  // V0.3_006C1 (A5 copy-leak hotfix) — the exact production-canary-observed
+  // leak, reproduced against a persisted (restored) A5-shaped row: the
+  // Entraînement card must never show the raw training.objective copy from
+  // the engine ("Flag concussion_suspect actif non résolu..."), only the
+  // athlete-safe sentence — scoped to the Entraînement card specifically
+  // since technicalMetadata's debug dump legitimately still contains the
+  // raw string.
+  it("renders the athlete-safe A5 sentence in the Entraînement card, never the raw concussion_suspect slug, for a persisted A5-shaped decision", () => {
+    const a5Detail = "Flag concussion_suspect actif non résolu — DH interdit tant que non validé médicalement";
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            training: { active: true, session_type: { kind: "RECOVERY_ACTIVE" }, objective: a5Detail },
+            final_session: { kind: "RECOVERY_ACTIVE" },
+            triggered_rules: [{ layer: "A", rule_id: "A5", detail: a5Detail }],
+          },
+        })}
+      />
+    );
+    const trainingCard = screen.getByText("Entraînement").closest("div")!;
+    expect(within(trainingCard).queryByText(/concussion_suspect/)).not.toBeInTheDocument();
+    expect(within(trainingCard).queryByText(/Flag/)).not.toBeInTheDocument();
+    expect(within(trainingCard).getByText(/toujours actif/)).toBeInTheDocument();
+  });
 });

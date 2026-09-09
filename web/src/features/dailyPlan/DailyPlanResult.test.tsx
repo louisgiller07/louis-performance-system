@@ -248,6 +248,32 @@ describe("DailyPlanResult", () => {
     expect(screen.getAllByText(/concussion_suspect/).length).toBeGreaterThan(0);
   });
 
+  // V0.3_006C1 (A5 copy-leak hotfix) — the exact production-canary-observed
+  // leak: buildDailyPlan.ts sets training.objective to the last triggered
+  // rule's raw detail, which for a real A5 plan (final_session pivoted to
+  // RECOVERY_ACTIVE, training.active=true since RECOVERY_ACTIVE !== REST,
+  // dh_or_technical inactive so the generic "Entraînement" card renders)
+  // leaked "Flag concussion_suspect actif non résolu..." verbatim — a field
+  // the tests above never exercised (they never set training.objective).
+  it("never renders the raw concussion_suspect slug or 'Flag' in the Entraînement card for a real A5-shaped plan (training.objective leak)", () => {
+    const a5Detail = "Flag concussion_suspect actif non résolu — DH interdit tant que non validé médicalement";
+    render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          training: { active: true, session_type: { kind: "RECOVERY_ACTIVE" }, objective: a5Detail },
+          final_session: { kind: "RECOVERY_ACTIVE" },
+          triggered_rules: [{ layer: "A", rule_id: "A5", detail: a5Detail }],
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.getByText("Entraînement")).toBeInTheDocument();
+    expect(screen.queryByText(/concussion_suspect/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Flag/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/toujours actif/).length).toBeGreaterThan(0);
+  });
+
   // V0.3_006A1 (REV2-003) — presentation precedence: when a Safety-layer (A)
   // rule is active, "À éviter" must render before "Récupération" so a
   // generic Recovery suggestion never visually reads as overriding an active

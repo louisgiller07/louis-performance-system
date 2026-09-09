@@ -1,7 +1,13 @@
 import { PlanSection } from "../../components/PlanSection";
 import { DecisionHero } from "./DecisionHero";
 import { formatIntervention, isSameIntervention, TRAINING_KIND_LABELS, LOAD_PROFILE_LABELS } from "./dailyPlanLabels";
-import { athleteSafeRuleDetail, athleteSafeMonitoring, athleteSafeProtection, hasActiveSafetyRule } from "./safetyPresentation";
+import {
+  athleteSafeRuleDetail,
+  athleteSafeMonitoring,
+  athleteSafeProtection,
+  athleteSafeTrainingObjective,
+  hasActiveSafetyRule,
+} from "./safetyPresentation";
 import { formatDhSessionWindow, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
 import type { DailyPlan } from "./dailyPlanTypes";
 
@@ -106,7 +112,14 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
       {dailyPlan.training.active && !isDhPrescription && (
         <PlanSection title="Entraînement">
           {dailyPlan.training.session_type && <p className="font-medium text-gray-900">{formatIntervention(dailyPlan.training.session_type)}</p>}
-          {dailyPlan.training.objective && <p className="text-gray-600">{dailyPlan.training.objective}</p>}
+          {/*
+           * V0.3_006C1 (A5 copy-leak hotfix) — the engine sets this field to
+           * the last triggered rule's raw detail, which for A5 leaked "Flag
+           * concussion_suspect actif non résolu..." verbatim (never covered
+           * by the existing triggered_rules/reasoning sanitization). See
+           * safetyPresentation.ts#athleteSafeTrainingObjective.
+           */}
+          {dailyPlan.training.objective && <p className="text-gray-600">{athleteSafeTrainingObjective(dailyPlan)}</p>}
         </PlanSection>
       )}
 
