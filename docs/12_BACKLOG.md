@@ -534,6 +534,17 @@ Boucle **planifié → prescrit → réalisé → debrief → décision suivante
 
 ---
 
+## V0.3_007B — Performed Session Correctness Foundation (IMPLEMENTED localement, en attente de revue — pas encore CLOSED)
+
+Suite directe de l'investigation V0.3_007A/V0.3_007A2 ci-dessus. Corrige trois problèmes concrets sans construire un nouveau système : `intervention` (le vocabulaire `TrainingIntervention` riche, REV-003) devient le fait authoritative pour `done`/`partial`/`replaced` (résout la collision `STRENGTH_LOWER`/`STRENGTH_UPPER`/`POWER`/`GRIP_WORK` sur `STRENGTH_A`/`STRENGTH_B`) ; `recentLoad` exclut désormais correctement les séances `skipped` du calcul de charge 7 jours ; la liaison décision↔session ambiguë même-jour a désormais un mécanisme explicite (`loadValidDecisionsForDate`, sélecteur 0/1/2+), remplaçant l'ancien `onLiveContextChange` jugé sémantiquement dangereux. Détail complet : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_007B). **Aucun commit/push/déploiement — en attente de revue avant toute action de production.**
+
+Dette explicitement reportée à une tranche future (non résolue par V0.3_007B, ne pas la considérer implicitement couverte) :
+- **Collision de correspondance coarse du détecteur longitudinal** `recommendationVsActualExecution` — deux `TrainingIntervention` riches distincts (planifié vs réalisé) peuvent coarsen vers le même `DbSessionType`, ce qui limite la précision "supporting/neutral/contradicting" même maintenant que `completed_sessions.intervention` est riche. Un futur matching rich-vs-rich (planifié riche vs réalisé riche, plutôt que coarse-vs-coarse) est la piste, non conçue.
+- **`technical_outcome`/`change_reason`** — hors périmètre de V0.3_007B, tranche suivante distincte (pas de carte « Réalisé » en History non plus).
+- **Absence de snapshot des inputs de génération de décision** — limitation pré-existante (pas de protection des inputs au moment de la génération dans `decision_outcomes`), acceptée telle quelle ; un futur consommateur d'un nouveau champ basé sur ces inputs devra considérer le snapshotting.
+
+---
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)

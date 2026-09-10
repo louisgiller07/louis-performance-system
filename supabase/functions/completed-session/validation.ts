@@ -28,6 +28,39 @@ export type SessionType = (typeof SESSION_TYPES)[number];
 export const COMPLETION_STATUSES = ["done", "partial", "skipped", "replaced"] as const;
 export type CompletionStatus = (typeof COMPLETION_STATUSES)[number];
 
+// V0.3_007B — the rich, athlete-facing "what did you actually do" vocabulary
+// for a performed session (done/partial/replaced). Mirrors
+// web/src/features/completedSession/performedInterventionTypes.ts and
+// head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts EXACTLY
+// (duplicated, not imported — this file is deliberately portable plain
+// TypeScript with zero build-boundary dependency on either, same discipline
+// already used for that same mapping between the engine and web). The one
+// deliberate difference from Planning's own plannable vocabulary is
+// RACE_ACTIVITY — never a valid *plan*, but a valid *performed reality*.
+export const PERFORMED_FIXED_LOAD_KINDS = ["MOBILITY", "RECOVERY_ACTIVE", "REST", "BIKE_MAINTENANCE", "RACE_ACTIVITY"] as const;
+export const PERFORMED_LOAD_VARIABLE_KINDS = [
+  "STRENGTH_LOWER",
+  "STRENGTH_UPPER",
+  "STRENGTH_FULL_LIGHT",
+  "POWER",
+  "GRIP_WORK",
+  "AEROBIC_BASE",
+  "AEROBIC_INTERVALS",
+  "DH_TECHNICAL",
+  "DH_PERFORMANCE",
+  "DH_LIGHT",
+  "PUMPTRACK",
+] as const;
+export type TrainingInterventionKind = (typeof PERFORMED_FIXED_LOAD_KINDS)[number] | (typeof PERFORMED_LOAD_VARIABLE_KINDS)[number];
+
+export const LOAD_PROFILES = ["HEAVY", "MODERATE", "LIGHT"] as const;
+export type LoadProfile = (typeof LOAD_PROFILES)[number];
+
+export interface TrainingIntervention {
+  kind: TrainingInterventionKind;
+  load_profile?: LoadProfile;
+}
+
 export interface ValidatedCompletedSessionBody {
   session_date: string;
   decision_id: string | null;
@@ -39,7 +72,7 @@ export interface ValidatedCompletedSessionBody {
   post_grip_fatigue: number | null;
   new_pain: boolean;
   new_pain_note: string | null;
-  intervention: Record<string, unknown> | null;
+  intervention: TrainingIntervention | null;
   main_content: Record<string, unknown> | null;
 }
 
@@ -99,6 +132,101 @@ function isPositiveInteger(value: unknown): value is number {
 
 function isIntegerInRange(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
+}
+
+/**
+ * V0.3_007B §8/§9 — the server-side coherence gate: `intervention` is the
+ * ONE athlete-authored fact for a performed session (done/partial/replaced),
+ * and `session_type` must always be exactly its derived coarse projection
+ * (mapTrainingInterventionToSessionType below), never an independently
+ * client-supplied value trusted at face value. This is the authoritative
+ * enforcement — the web client already derives and sends the correct value
+ * (see completedSessionValidation.ts), but a client is never trusted alone.
+ * `skipped` is untouched by any of this: it has no performed intervention
+ * concept at all (see completedSessionTypes.ts), and its session_type keeps
+ * its pre-existing meaning (the coarse type of the session that was
+ * skipped, freely chosen by the athlete).
+ */
+function validateTrainingIntervention(raw: unknown): ValidationResult<TrainingIntervention> {
+  if (!isPlainObject(raw)) {
+    return err("invalid_intervention", "intervention must be a JSON object.");
+  }
+
+  const extraKeys = Object.keys(raw).filter((k) => k !== "kind" && k !== "load_profile");
+  if (extraKeys.length > 0) {
+    return err("invalid_intervention", `intervention has unknown field(s): ${extraKeys.join(", ")}.`);
+  }
+
+  const kindRaw = raw.kind;
+  if (typeof kindRaw !== "string") {
+    return err("invalid_intervention", "intervention.kind is required and must be a string.");
+  }
+
+  const loadProfileRaw = raw.load_profile;
+  const hasLoadProfile = loadProfileRaw !== undefined && loadProfileRaw !== null;
+  if (hasLoadProfile && !(typeof loadProfileRaw === "string" && (LOAD_PROFILES as readonly string[]).includes(loadProfileRaw))) {
+    return err("invalid_intervention", `intervention.load_profile must be one of: ${LOAD_PROFILES.join(", ")}.`);
+  }
+
+  if ((PERFORMED_FIXED_LOAD_KINDS as readonly string[]).includes(kindRaw)) {
+    if (hasLoadProfile) {
+      return err("invalid_intervention", `${kindRaw} does not accept a load_profile.`);
+    }
+    return { ok: true, value: { kind: kindRaw as TrainingInterventionKind } };
+  }
+
+  if ((PERFORMED_LOAD_VARIABLE_KINDS as readonly string[]).includes(kindRaw)) {
+    if (!hasLoadProfile) {
+      return err("invalid_intervention", `${kindRaw} requires a load_profile.`);
+    }
+    return { ok: true, value: { kind: kindRaw as TrainingInterventionKind, load_profile: loadProfileRaw as LoadProfile } };
+  }
+
+  return err("invalid_intervention", `intervention.kind is not a recognized performed activity: ${kindRaw}.`);
+}
+
+/**
+ * Mirrors web/src/features/dailyPlan/trainingInterventionToSessionType.ts
+ * and head-coach-engine/src/mapping/trainingInterventionToDbSessionType.ts
+ * EXACTLY — the real, canonical, deterministic coarse projection. A third
+ * deliberate duplication (not a build-boundary import), same discipline as
+ * those two.
+ */
+function mapTrainingInterventionToSessionType(intervention: TrainingIntervention): SessionType {
+  switch (intervention.kind) {
+    case "STRENGTH_LOWER":
+      return intervention.load_profile === "LIGHT" ? "STRENGTH_B" : "STRENGTH_A";
+    case "STRENGTH_UPPER":
+      return intervention.load_profile === "HEAVY" ? "STRENGTH_A" : "STRENGTH_B";
+    case "POWER":
+      return intervention.load_profile === "HEAVY" ? "STRENGTH_A" : "STRENGTH_B";
+    case "GRIP_WORK":
+      return intervention.load_profile === "HEAVY" ? "STRENGTH_A" : "STRENGTH_B";
+    case "STRENGTH_FULL_LIGHT":
+      return "STRENGTH_B";
+    case "AEROBIC_BASE":
+      return "AEROBIC_BASE";
+    case "AEROBIC_INTERVALS":
+      return "AEROBIC_INTERVALS";
+    case "DH_TECHNICAL":
+      return "DH_TECHNICAL";
+    case "PUMPTRACK":
+      return "DH_TECHNICAL";
+    case "DH_PERFORMANCE":
+      return "DH_PERFORMANCE";
+    case "DH_LIGHT":
+      return "RECOVERY";
+    case "MOBILITY":
+      return "RECOVERY";
+    case "RECOVERY_ACTIVE":
+      return "RECOVERY";
+    case "REST":
+      return "REST";
+    case "BIKE_MAINTENANCE":
+      return "BIKE_MAINTENANCE";
+    case "RACE_ACTIVITY":
+      return "RACE_PREP";
+  }
 }
 
 interface NumericFields {
@@ -284,11 +412,34 @@ export function validateCompletedSessionBody(rawBody: unknown): ValidationResult
   }
   const completionStatus = statusRaw as CompletionStatus;
 
-  if (body.intervention !== null && !isPlainObject(body.intervention)) {
-    return err("invalid_body", "intervention must be a JSON object or null.");
-  }
   if (body.main_content !== null && !isPlainObject(body.main_content)) {
     return err("invalid_body", "main_content must be a JSON object or null.");
+  }
+
+  // V0.3_007B — intervention/session_type coherence (see
+  // validateTrainingIntervention's own doc above). Resolved before the
+  // numeric matrix below so `sessionTypeRaw` is already known-coherent by
+  // the time REST-vs-other-session_type branching runs.
+  let intervention: TrainingIntervention | null = null;
+  if (completionStatus === "skipped") {
+    if (body.intervention !== null) {
+      return err("invalid_body_for_status", "intervention must be null when completion_status is skipped.");
+    }
+  } else {
+    if (body.intervention === null) {
+      return err("invalid_body_for_status", "intervention is required (must not be null) for this completion_status.");
+    }
+    const interventionResult = validateTrainingIntervention(body.intervention);
+    if (!interventionResult.ok) return interventionResult;
+    intervention = interventionResult.value;
+
+    const derivedSessionType = mapTrainingInterventionToSessionType(intervention);
+    if (sessionTypeRaw !== derivedSessionType) {
+      return err(
+        "session_type_mismatch",
+        `session_type must match the performed intervention's derived coarse type (expected ${derivedSessionType}, got ${sessionTypeRaw}).`
+      );
+    }
   }
 
   const numericResult = validateStatusDependentNumbers(completionStatus, sessionTypeRaw as SessionType, body);
@@ -310,7 +461,7 @@ export function validateCompletedSessionBody(rawBody: unknown): ValidationResult
       post_grip_fatigue: numericResult.value.post_grip_fatigue,
       new_pain: painResult.value.new_pain,
       new_pain_note: painResult.value.new_pain_note,
-      intervention: (body.intervention as Record<string, unknown> | null) ?? null,
+      intervention,
       main_content: (body.main_content as Record<string, unknown> | null) ?? null,
     },
   };

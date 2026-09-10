@@ -130,3 +130,32 @@ export async function loadLatestDecisionForDate(athleteId: string, date: string)
   const rows = ((data ?? []) as DecisionRow[]).map(toHistoryRow);
   return rows.find((row) => isValidDailyPlan(row.dailyPlan)) ?? null;
 }
+
+/**
+ * V0.3_007B — every VALID persisted decision for `athleteId` on exactly
+ * `date`, oldest first (chronological, matches how a "which plan did you
+ * follow" list should read). Used by CompletedSessionCard to disambiguate
+ * which decision a performed session actually corresponds to when several
+ * exist the same day (e.g. the athlete regenerated a plan after already
+ * riding) — see docs/11_DECISION_LOG.md V0.3_007B. An invalid/malformed row
+ * is silently excluded, same discipline as loadLatestDecisionForDate —
+ * never surfaced as a selectable-but-broken option. Same RLS
+ * (decisions_own_data), same columns, no new security surface: this is the
+ * exact same query as loadLatestDecisionForDate without the "keep only the
+ * first valid one" collapse.
+ */
+export async function loadValidDecisionsForDate(athleteId: string, date: string): Promise<DecisionHistoryRow[]> {
+  const { data, error } = await supabase
+    .from("decisions")
+    .select(DECISION_COLUMNS)
+    .eq("athlete_id", athleteId)
+    .eq("decision_date", date)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("historyRepo.loadValidDecisionsForDate failed", error.code);
+    throw new TodayDecisionLoadError();
+  }
+
+  return ((data ?? []) as DecisionRow[]).map(toHistoryRow).filter((row) => isValidDailyPlan(row.dailyPlan));
+}

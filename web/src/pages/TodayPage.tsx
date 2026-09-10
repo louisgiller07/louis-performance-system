@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "../lib/date";
 import { CheckinForm } from "../features/checkin/CheckinForm";
 import { TodayPlanningSummary } from "../features/planning/TodayPlanningSummary";
 import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
 import { CompletedSessionCard } from "../features/completedSession/CompletedSessionCard";
-import type { LiveDailyPlanContext } from "../features/dailyPlan/DailyPlanPanel";
 import { AppNav } from "../components/AppNav";
 import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
 import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
@@ -26,15 +25,6 @@ export function TodayPage() {
   // initial load of an existing row — see DailyPlanPanel's checkinRevision
   // prop doc for why that distinction matters.
   const [checkinRevision, setCheckinRevision] = useState(0);
-  // The exact decisionId + coarse session_type of the DailyPlan currently
-  // displayed by DailyPlanPanel, or null — see DailyPlanPanel's
-  // onLiveContextChange doc. CompletedSessionCard uses this, and only this,
-  // to preselect a decision link + session type on a brand-new session log
-  // — never RECOVERY or any other invented default. useCallback keeps a
-  // stable identity so it doesn't re-trigger DailyPlanPanel's
-  // onLiveContextChange effect.
-  const [liveContext, setLiveContext] = useState<LiveDailyPlanContext | null>(null);
-  const handleLiveContextChange = useCallback((context: LiveDailyPlanContext | null) => setLiveContext(context), []);
 
   // V0.3_006A1 — read-only, independent of check-in/plan generation state:
   // a load failure here must never block the check-in/plan flow, and vice
@@ -119,19 +109,13 @@ export function TodayPage() {
           <h2 className="text-sm font-semibold text-gray-900">Plan du jour</h2>
           <p className="mb-4 mt-1 text-sm text-gray-500">Généré à partir de ton check-in du jour</p>
           {athleteId && (
-            <DailyPlanPanel
-              athleteId={athleteId}
-              date={canonicalDate}
-              hasCheckin={hasCheckin}
-              checkinRevision={checkinRevision}
-              onLiveContextChange={handleLiveContextChange}
-            />
+            <DailyPlanPanel athleteId={athleteId} date={canonicalDate} hasCheckin={hasCheckin} checkinRevision={checkinRevision} />
           )}
         </section>
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-900">Séance du jour</h2>
-          {athleteId && <CompletedSessionCard date={canonicalDate} liveContext={liveContext} />}
+          {athleteId && <CompletedSessionCard date={canonicalDate} athleteId={athleteId} />}
         </section>
       </main>
     </div>

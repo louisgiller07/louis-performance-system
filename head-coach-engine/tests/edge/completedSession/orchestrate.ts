@@ -208,6 +208,13 @@ async function cleanupBareUser(admin: SupabaseClient, userId: string, label: str
 
 // --- request body builder -------------------------------------------------------
 
+// V0.3_007B — the default intervention (RECOVERY_ACTIVE, a fixed-load kind)
+// is deliberately coherent with the default session_type (RECOVERY): any
+// scenario below that overrides session_type/completion_status away from
+// this default must also override intervention to match (or set it to null
+// for skipped), or the new server-side coherence check rejects the body
+// before the scenario's own intended rule is ever reached. See
+// docs/11_DECISION_LOG.md V0.3_007B.
 function doneBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     session_date: "2026-08-12",
@@ -220,7 +227,7 @@ function doneBody(overrides: Record<string, unknown> = {}): Record<string, unkno
     post_grip_fatigue: 3,
     new_pain: false,
     new_pain_note: null,
-    intervention: null,
+    intervention: { kind: "RECOVERY_ACTIVE" },
     main_content: null,
     ...overrides,
   };
@@ -314,7 +321,7 @@ async function main(): Promise<void> {
     await expectPut(
       "matrix. skipped -> 200 (duration/rpe null)",
       userA.token,
-      doneBody({ session_date: "2026-08-15", completion_status: "skipped", actual_duration_min: null, rpe: null }),
+      doneBody({ session_date: "2026-08-15", completion_status: "skipped", actual_duration_min: null, rpe: null, intervention: null }),
       200
     );
     await expectPut(
@@ -326,7 +333,7 @@ async function main(): Promise<void> {
     await expectPut(
       "matrix. skipped rejects non-null actual_duration_min -> 400 invalid_body_for_status",
       userA.token,
-      doneBody({ session_date: "2026-08-15", completion_status: "skipped", actual_duration_min: 10, rpe: null }),
+      doneBody({ session_date: "2026-08-15", completion_status: "skipped", actual_duration_min: 10, rpe: null, intervention: null }),
       400,
       "invalid_body_for_status"
     );
@@ -336,7 +343,14 @@ async function main(): Promise<void> {
       const r = await expectPut(
         "REST. done + null duration/rpe -> 200",
         userA.token,
-        doneBody({ session_date: "2026-09-01", session_type: "REST", completion_status: "done", actual_duration_min: null, rpe: null }),
+        doneBody({
+          session_date: "2026-09-01",
+          session_type: "REST",
+          completion_status: "done",
+          intervention: { kind: "REST" },
+          actual_duration_min: null,
+          rpe: null,
+        }),
         200
       );
       record(
@@ -344,24 +358,56 @@ async function main(): Promise<void> {
         r.json?.completedSession?.session_load === null,
         String(r.json?.completedSession?.session_load)
       );
+      // V0.3_007B final review, Issue C/§12 — full chain proof (web
+      // validation -> Edge validation -> RPC -> DB), re-read preserves the
+      // canonical fixed-load shape: `{kind:"REST"}`, load_profile ABSENT
+      // (never fabricated as null/LIGHT/MODERATE/HEAVY).
+      const getR = await get(userA.token, "2026-09-01");
+      record(
+        "REST. re-read preserves canonical shape ({kind:\"REST\"}, no load_profile key)",
+        deepEqual(getR.json?.completedSession?.intervention, { kind: "REST" }) &&
+          !Object.prototype.hasOwnProperty.call(getR.json?.completedSession?.intervention ?? {}, "load_profile"),
+        JSON.stringify(getR.json?.completedSession?.intervention)
+      );
     }
     await expectPut(
       "REST. done + non-null duration -> 400 invalid_body_for_status",
       userA.token,
-      doneBody({ session_date: "2026-09-01", session_type: "REST", completion_status: "done", actual_duration_min: 20, rpe: null }),
+      doneBody({
+        session_date: "2026-09-01",
+        session_type: "REST",
+        completion_status: "done",
+        intervention: { kind: "REST" },
+        actual_duration_min: 20,
+        rpe: null,
+      }),
       400,
       "invalid_body_for_status"
     );
     await expectPut(
       "REST. replaced + null duration/rpe -> 200",
       userA.token,
-      doneBody({ session_date: "2026-09-02", session_type: "REST", completion_status: "replaced", actual_duration_min: null, rpe: null }),
+      doneBody({
+        session_date: "2026-09-02",
+        session_type: "REST",
+        completion_status: "replaced",
+        intervention: { kind: "REST" },
+        actual_duration_min: null,
+        rpe: null,
+      }),
       200
     );
     await expectPut(
       "REST. partial -> 400 invalid_body_for_status",
       userA.token,
-      doneBody({ session_date: "2026-09-03", session_type: "REST", completion_status: "partial", actual_duration_min: null, rpe: null }),
+      doneBody({
+        session_date: "2026-09-03",
+        session_type: "REST",
+        completion_status: "partial",
+        intervention: { kind: "REST" },
+        actual_duration_min: null,
+        rpe: null,
+      }),
       400,
       "invalid_body_for_status"
     );
@@ -449,6 +495,17 @@ async function main(): Promise<void> {
     // these 8 scenarios are 200, only the 3 real done/partial/skipped
     // mismatches are 422.
     {
+      // V0.3_007B — a performed intervention that derives to the given
+      // coarse sessionType, so the new server-side coherence check (in
+      // validation.ts, upstream of this scenario's own intended
+      // decision_session_mismatch check) passes and the scenario actually
+      // exercises what it names. skipped has no performed intervention at
+      // all (null, regardless of sessionType — see completedSessionTypes.ts).
+      const INTERVENTION_FOR_SESSION_TYPE: Record<string, Record<string, unknown>> = {
+        STRENGTH_A: { kind: "STRENGTH_LOWER", load_profile: "HEAVY" },
+        RECOVERY: { kind: "RECOVERY_ACTIVE" },
+      };
+
       async function coherenceScenario(
         label: string,
         date: string,
@@ -461,11 +518,13 @@ async function main(): Promise<void> {
         // session_type — independent of the REST-specific null-training-load
         // rule, but both null out the same two fields here.
         const needsNullLoad = sessionType === "REST" || completionStatus === "skipped";
+        const intervention = completionStatus === "skipped" ? null : (INTERVENTION_FOR_SESSION_TYPE[sessionType] ?? null);
         const body = doneBody({
           session_date: date,
           decision_id: decisionId,
           completion_status: completionStatus,
           session_type: sessionType,
+          intervention,
           ...(needsNullLoad ? { actual_duration_min: null, rpe: null } : {}),
         });
 
@@ -532,7 +591,7 @@ async function main(): Promise<void> {
       const r = await expectPut(
         "crud. update to skipped resets session_load to null",
         userA.token,
-        doneBody({ session_date: "2026-08-12", completion_status: "skipped", actual_duration_min: null, rpe: null }),
+        doneBody({ session_date: "2026-08-12", completion_status: "skipped", actual_duration_min: null, rpe: null, intervention: null }),
         200
       );
       record("crud. session_load null after switching to skipped", r.json?.completedSession?.session_load === null, String(r.json?.completedSession?.session_load));
@@ -576,32 +635,87 @@ async function main(): Promise<void> {
       record("get. missing date -> 400 missing_date", r.status === 400 && r.json?.error?.code === "missing_date", `status=${r.status} body=${r.text}`);
     }
 
-    // ================= opaque intervention/main_content preservation =================
+    // ================= intervention (strict, V0.3_007B) / main_content (still opaque) =================
+    // `intervention` is no longer opaque — it is the ONE athlete-authored
+    // fact for a performed session, strictly validated against the rich
+    // TrainingIntervention vocabulary (see validation.ts). `main_content`
+    // remains genuinely opaque/dormant (never inspected beyond "is a plain
+    // object or null" — see completedSessionTypes.ts).
     {
-      const richIntervention = { kind: "RECOVERY_ACTIVE", load_profile: "LIGHT", nested: { a: [1, 2, 3], b: "x" } };
+      const richIntervention = { kind: "STRENGTH_UPPER", load_profile: "MODERATE" }; // derives STRENGTH_B
       const richMainContent = { free_text: "notes", numbers: [1, 2, 3] };
       await expectPut(
-        "opaque. create with rich intervention/main_content -> 200",
+        "intervention. create with a valid rich intervention + opaque main_content -> 200",
         userA.token,
-        doneBody({ session_date: "2026-08-22", intervention: richIntervention, main_content: richMainContent }),
+        doneBody({ session_date: "2026-08-22", session_type: "STRENGTH_B", intervention: richIntervention, main_content: richMainContent }),
         200
       );
       const r = await get(userA.token, "2026-08-22");
-      record("opaque. intervention round-trips verbatim via GET", deepEqual(r.json?.completedSession?.intervention, richIntervention), JSON.stringify(r.json?.completedSession?.intervention));
-      record("opaque. main_content round-trips verbatim via GET", deepEqual(r.json?.completedSession?.main_content, richMainContent), JSON.stringify(r.json?.completedSession?.main_content));
+      record("intervention. round-trips verbatim via GET", deepEqual(r.json?.completedSession?.intervention, richIntervention), JSON.stringify(r.json?.completedSession?.intervention));
+      record("main_content. round-trips verbatim via GET (still opaque)", deepEqual(r.json?.completedSession?.main_content, richMainContent), JSON.stringify(r.json?.completedSession?.main_content));
 
-      // Editing RPE only must not erase the opaque fields — full replacement
-      // means the caller must resend them, which is exactly what a real
-      // "edit" flow does (GET then PUT back the same values, see web/).
+      // Editing RPE only must not erase intervention/main_content — full
+      // replacement means the caller must resend them, which is exactly
+      // what a real "edit" flow does (GET then PUT back the same values,
+      // see web/).
       await expectPut(
-        "opaque. editing rpe while resending opaque fields preserves them",
+        "intervention. editing rpe while resending intervention/main_content preserves them",
         userA.token,
-        doneBody({ session_date: "2026-08-22", rpe: 9, intervention: richIntervention, main_content: richMainContent }),
+        doneBody({ session_date: "2026-08-22", session_type: "STRENGTH_B", rpe: 9, intervention: richIntervention, main_content: richMainContent }),
         200
       );
       const r2 = await get(userA.token, "2026-08-22");
-      record("opaque. still intact after an edit", deepEqual(r2.json?.completedSession?.intervention, richIntervention), "");
+      record("intervention. still intact after an edit", deepEqual(r2.json?.completedSession?.intervention, richIntervention), "");
     }
+
+    // ================= intervention strict rejection (server-side coherence gate) =================
+    await expectPut(
+      "intervention. null rejected for done -> 400 invalid_body_for_status",
+      userA.token,
+      doneBody({ session_date: "2026-08-27", intervention: null }),
+      400,
+      "invalid_body_for_status"
+    );
+    await expectPut(
+      "intervention. non-null rejected for skipped -> 400 invalid_body_for_status",
+      userA.token,
+      doneBody({
+        session_date: "2026-08-28",
+        completion_status: "skipped",
+        actual_duration_min: null,
+        rpe: null,
+        intervention: { kind: "RECOVERY_ACTIVE" },
+      }),
+      400,
+      "invalid_body_for_status"
+    );
+    await expectPut(
+      "intervention. extra unknown field rejected -> 400 invalid_intervention",
+      userA.token,
+      doneBody({ session_date: "2026-08-29", intervention: { kind: "RECOVERY_ACTIVE", nested: { a: 1 } } }),
+      400,
+      "invalid_intervention"
+    );
+    await expectPut(
+      "intervention. unrecognized kind rejected -> 400 invalid_intervention",
+      userA.token,
+      doneBody({ session_date: "2026-09-12", intervention: { kind: "YOGA" } }),
+      400,
+      "invalid_intervention"
+    );
+    await expectPut(
+      "intervention. session_type mismatch rejected -> 400 session_type_mismatch",
+      userA.token,
+      doneBody({ session_date: "2026-09-13", session_type: "DH_TECHNICAL", intervention: { kind: "RECOVERY_ACTIVE" } }),
+      400,
+      "session_type_mismatch"
+    );
+    await expectPut(
+      "intervention. RACE_ACTIVITY accepted — never a valid plan, but a valid performed reality -> 200",
+      userA.token,
+      doneBody({ session_date: "2026-09-14", session_type: "RACE_PREP", intervention: { kind: "RACE_ACTIVITY" } }),
+      200
+    );
 
     // ================= free_notes server-side preservation (never client-controllable) =================
     {

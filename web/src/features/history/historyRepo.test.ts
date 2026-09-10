@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { loadDecisionHistory, loadDecisionById, loadLatestDecisionForDate, HistoryLoadError, TodayDecisionLoadError } from "./historyRepo";
+import {
+  loadDecisionHistory,
+  loadDecisionById,
+  loadLatestDecisionForDate,
+  loadValidDecisionsForDate,
+  HistoryLoadError,
+  TodayDecisionLoadError,
+} from "./historyRepo";
 
 vi.mock("../../lib/supabase", () => ({
   supabase: { from: vi.fn() },
@@ -309,5 +316,115 @@ describe("historyRepo.loadLatestDecisionForDate (NAL-003)", () => {
     mockLatestChain({ data: null, error: { code: "500", message: "internal error" } });
     await expect(loadLatestDecisionForDate("athlete-1", "2026-08-19")).rejects.toThrow(TodayDecisionLoadError);
     await expect(loadLatestDecisionForDate("athlete-1", "2026-08-19")).rejects.not.toThrow(/internal error/);
+  });
+});
+
+// V0.3_007B — decision-linkage disambiguation for completed sessions.
+describe("historyRepo.loadValidDecisionsForDate (V0.3_007B)", () => {
+  function validDailyPlan(reasoning: string) {
+    return {
+      decision: "KEEP",
+      confidence: "MEDIUM",
+      reasoning,
+      active_mode: "IN_SEASON",
+      training: { active: true },
+      dh_or_technical: { active: false },
+      mental: { active: false },
+      recovery: { active: true, actions: [] },
+      nutrition: { active: false },
+      sleep: { active: false },
+      protection: { do_not_do: [] },
+      monitoring: { observe: [] },
+      triggered_rules: [],
+      planned_session_before: null,
+      final_session: { kind: "REST" },
+      overrode_race_protocol: false,
+      engine_version: "test",
+    };
+  }
+
+  function dbRow(id: string, createdAt: string, dailyPlan: unknown) {
+    return {
+      id,
+      decision_date: "2026-08-19",
+      created_at: createdAt,
+      final_session: "REST",
+      active_mode: "IN_SEASON",
+      confidence_level: "MEDIUM",
+      daily_plan: dailyPlan,
+    };
+  }
+
+  function mockChain(result: { data: unknown; error: unknown }) {
+    const order = vi.fn().mockResolvedValue(result);
+    const eq2 = vi.fn(() => ({ order }));
+    const eq1 = vi.fn(() => ({ eq: eq2 }));
+    const select = vi.fn(() => ({ eq: eq1 }));
+    mockedFrom.mockReturnValue({ select });
+    return { eq1, eq2, order };
+  }
+
+  it("filters by athlete_id and exactly decision_date", async () => {
+    const { eq1, eq2 } = mockChain({ data: [], error: null });
+    await loadValidDecisionsForDate("athlete-1", "2026-08-19");
+    expect(eq1).toHaveBeenCalledWith("athlete_id", "athlete-1");
+    expect(eq2).toHaveBeenCalledWith("decision_date", "2026-08-19");
+  });
+
+  it("orders by created_at ascending (chronological, earliest first)", async () => {
+    const { order } = mockChain({ data: [], error: null });
+    await loadValidDecisionsForDate("athlete-1", "2026-08-19");
+    expect(order).toHaveBeenCalledWith("created_at", { ascending: true });
+  });
+
+  it("0 valid decisions -> empty array, never null, never an error", async () => {
+    mockChain({ data: [], error: null });
+    const result = await loadValidDecisionsForDate("athlete-1", "2026-08-19");
+    expect(result).toEqual([]);
+  });
+
+  it("1 valid decision -> array of exactly that one, mapped", async () => {
+    const row = dbRow("d-1", "2026-08-19T10:05:00Z", validDailyPlan("Plan A."));
+    mockChain({ data: [row], error: null });
+
+    const result = await loadValidDecisionsForDate("athlete-1", "2026-08-19");
+
+    expect(result).toEqual([
+      {
+        id: "d-1",
+        decisionDate: "2026-08-19",
+        createdAt: "2026-08-19T10:05:00Z",
+        finalSessionDb: "REST",
+        activeModeDb: "IN_SEASON",
+        confidenceLevelDb: "MEDIUM",
+        dailyPlan: validDailyPlan("Plan A."),
+      },
+    ]);
+  });
+
+  it("2+ valid decisions -> all returned, in the server's (ascending) order, never collapsed to one", async () => {
+    const first = dbRow("d-a", "2026-08-19T10:05:00Z", validDailyPlan("Plan A."));
+    const second = dbRow("d-b", "2026-08-19T14:30:00Z", validDailyPlan("Plan B."));
+    mockChain({ data: [first, second], error: null });
+
+    const result = await loadValidDecisionsForDate("athlete-1", "2026-08-19");
+
+    expect(result.map((r) => r.id)).toEqual(["d-a", "d-b"]);
+  });
+
+  it("an invalid/malformed same-day row is silently excluded, never surfaced as a selectable option", async () => {
+    const valid = dbRow("d-valid", "2026-08-19T10:05:00Z", validDailyPlan("Plan A."));
+    const invalid = dbRow("d-invalid", "2026-08-19T14:30:00Z", { decision: "NOT_A_REAL_SHAPE" });
+    mockChain({ data: [valid, invalid], error: null });
+
+    const result = await loadValidDecisionsForDate("athlete-1", "2026-08-19");
+
+    expect(result.map((r) => r.id)).toEqual(["d-valid"]);
+  });
+
+  it("throws a clean TodayDecisionLoadError (never the raw PostgREST message) on failure", async () => {
+    mockChain({ data: null, error: { code: "500", message: "internal error" } });
+    await expect(loadValidDecisionsForDate("athlete-1", "2026-08-19")).rejects.toThrow(TodayDecisionLoadError);
+    await expect(loadValidDecisionsForDate("athlete-1", "2026-08-19")).rejects.not.toThrow(/internal error/);
   });
 });

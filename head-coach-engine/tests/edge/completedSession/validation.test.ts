@@ -6,8 +6,18 @@
  * supabase/functions/**.
  */
 import { describe, expect, it } from "vitest";
-import { validateCompletedSessionBody, validateDateParam } from "../../../../supabase/functions/completed-session/validation.js";
+import {
+  validateCompletedSessionBody,
+  validateDateParam,
+  PERFORMED_FIXED_LOAD_KINDS,
+} from "../../../../supabase/functions/completed-session/validation.js";
 
+// V0.3_007B — `intervention` is now the ONE athlete-authored fact for a
+// performed session: required (non-null) for done/partial/replaced, and
+// `session_type` must always be exactly its derived coarse projection (see
+// validation.ts's own mapTrainingInterventionToSessionType). RECOVERY_ACTIVE
+// is a fixed-load kind (no load_profile), deriving to RECOVERY — matches
+// this fixture's session_type.
 const VALID_DONE = {
   session_date: "2026-08-12",
   decision_id: null,
@@ -19,7 +29,7 @@ const VALID_DONE = {
   post_grip_fatigue: 3,
   new_pain: false,
   new_pain_note: null,
-  intervention: null,
+  intervention: { kind: "RECOVERY_ACTIVE" },
   main_content: null,
 };
 
@@ -118,12 +128,7 @@ describe("validateCompletedSessionBody — session_date / decision_id / enums", 
   it("rejects a non-object intervention", () => {
     const result = validateCompletedSessionBody({ ...VALID_DONE, intervention: "not an object" });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.code).toBe("invalid_body");
-  });
-
-  it("accepts an opaque intervention object without inspecting its shape", () => {
-    const result = validateCompletedSessionBody({ ...VALID_DONE, intervention: { kind: "ANYTHING", nested: { a: 1 } } });
-    expect(result.ok).toBe(true);
+    if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
   });
 });
 
@@ -174,7 +179,8 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
   }
 
   describe("completion_status = skipped", () => {
-    const SKIPPED_BASE = { ...VALID_DONE, completion_status: "skipped" as const, actual_duration_min: null, rpe: null };
+    // skipped has no performed intervention at all (see completedSessionTypes.ts) — intervention must be null.
+    const SKIPPED_BASE = { ...VALID_DONE, completion_status: "skipped" as const, actual_duration_min: null, rpe: null, intervention: null };
 
     it("accepts actual_duration_min/rpe null and fatigue fields null", () => {
       const result = validateCompletedSessionBody({ ...SKIPPED_BASE, post_leg_fatigue: null, post_grip_fatigue: null });
@@ -207,13 +213,17 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
 
   // M5_003 final review: session_type REST must never force an invented
   // duration/RPE — the frozen M5_001A DB/RPC contract already allows these
-  // null. Deliberately NOT generalized to any other session_type.
+  // null. Deliberately NOT generalized to any other session_type. V0.3_007B:
+  // every non-skipped case here now carries a matching intervention
+  // ({ kind: "REST" }) so the new session_type/intervention coherence check
+  // passes and each test actually exercises the numeric rule it names.
   describe("session_type = REST (never invented training load)", () => {
     it("REST + done + null duration/rpe -> valid, session_load will be null via the DB trigger", () => {
       const result = validateCompletedSessionBody({
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "done",
+        intervention: { kind: "REST" },
         actual_duration_min: null,
         rpe: null,
       });
@@ -229,6 +239,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "done",
+        intervention: { kind: "REST" },
         actual_duration_min: 30,
         rpe: null,
       });
@@ -241,6 +252,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "done",
+        intervention: { kind: "REST" },
         actual_duration_min: null,
         rpe: 5,
       });
@@ -253,6 +265,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "done",
+        intervention: { kind: "REST" },
         actual_duration_min: null,
         rpe: null,
         post_leg_fatigue: null,
@@ -264,6 +277,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "done",
+        intervention: { kind: "REST" },
         actual_duration_min: null,
         rpe: null,
       });
@@ -275,6 +289,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "replaced",
+        intervention: { kind: "REST" },
         actual_duration_min: null,
         rpe: null,
       });
@@ -286,6 +301,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "replaced",
+        intervention: { kind: "REST" },
         actual_duration_min: 20,
         rpe: null,
       });
@@ -298,6 +314,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "partial",
+        intervention: { kind: "REST" },
         actual_duration_min: null,
         rpe: null,
       });
@@ -310,6 +327,7 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "REST",
         completion_status: "skipped",
+        intervention: null,
         actual_duration_min: null,
         rpe: null,
       });
@@ -321,12 +339,204 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         ...VALID_DONE,
         session_type: "BIKE_MAINTENANCE",
         completion_status: "done",
+        intervention: { kind: "BIKE_MAINTENANCE" },
         actual_duration_min: null,
         rpe: null,
       });
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
     });
+  });
+});
+
+// V0.3_007B — server-side enforcement of the performed-intervention contract:
+// `intervention` is the ONE athlete-authored fact for done/partial/replaced,
+// `session_type` is always its derived coarse projection (never an
+// independent client-supplied value trusted at face value), and `skipped`
+// has no performed intervention concept at all. This is the authoritative
+// layer — the web client (completedSessionValidation.ts) already enforces
+// the same rules, but a client is never trusted alone.
+describe("validateCompletedSessionBody — performed intervention (V0.3_007B)", () => {
+  it("rejects intervention = null for done", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "done", intervention: null });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
+  });
+
+  it("rejects intervention = null for partial", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "partial", intervention: null });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
+  });
+
+  it("rejects intervention = null for replaced", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "replaced", intervention: null });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
+  });
+
+  it("rejects a non-null intervention for skipped", () => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      completion_status: "skipped",
+      session_type: "RECOVERY",
+      intervention: { kind: "RECOVERY_ACTIVE" },
+      actual_duration_min: null,
+      rpe: null,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
+  });
+
+  it("rejects an intervention with an unrecognized kind", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, intervention: { kind: "YOGA" } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
+  });
+
+  it("rejects an intervention with an extra unknown field — never accepted opaquely", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, intervention: { kind: "RECOVERY_ACTIVE", nested: { a: 1 } } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
+  });
+
+  it("rejects a fixed-load kind carrying a load_profile", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, intervention: { kind: "RECOVERY_ACTIVE", load_profile: "LIGHT" } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
+  });
+
+  it("rejects a load-variable kind with no load_profile", () => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      session_type: "AEROBIC_BASE",
+      intervention: { kind: "AEROBIC_BASE" },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
+  });
+
+  it("rejects a load-variable kind with an invalid load_profile value", () => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      session_type: "AEROBIC_BASE",
+      intervention: { kind: "AEROBIC_BASE", load_profile: "EXTREME" },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
+  });
+
+  it("rejects session_type that doesn't match the intervention's derived coarse type", () => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      session_type: "DH_TECHNICAL",
+      intervention: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("session_type_mismatch");
+  });
+
+  it("accepts RACE_ACTIVITY — never a valid plan, but a valid performed reality", () => {
+    const result = validateCompletedSessionBody({ ...VALID_DONE, session_type: "RACE_PREP", intervention: { kind: "RACE_ACTIVITY" } });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.intervention).toEqual({ kind: "RACE_ACTIVITY" });
+  });
+
+  // REV-003 proof at the authoritative layer: two rich kinds that collide
+  // onto the SAME coarse bucket by load_profile alone must still round-trip
+  // distinctly through `intervention`, never collapsed to a shared identity.
+  it.each([
+    ["STRENGTH_LOWER", "HEAVY", "STRENGTH_A"],
+    ["STRENGTH_LOWER", "LIGHT", "STRENGTH_B"],
+    ["STRENGTH_UPPER", "HEAVY", "STRENGTH_A"],
+    ["STRENGTH_UPPER", "MODERATE", "STRENGTH_B"],
+    ["POWER", "HEAVY", "STRENGTH_A"],
+    ["GRIP_WORK", "MODERATE", "STRENGTH_B"],
+    ["PUMPTRACK", "LIGHT", "DH_TECHNICAL"],
+    ["DH_LIGHT", "LIGHT", "RECOVERY"],
+  ] as const)("kind=%s load_profile=%s derives session_type=%s", (kind, loadProfile, expectedSessionType) => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      session_type: expectedSessionType,
+      intervention: { kind, load_profile: loadProfile },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.intervention).toEqual({ kind, load_profile: loadProfile });
+  });
+
+  // V0.3_007B final review, Issue C — clarifying which performed kinds
+  // structurally carry a load_profile. Only PERFORMED_LOAD_VARIABLE_KINDS
+  // do (covered by the it.each above); the fixed-load group below
+  // structurally never does — a load_profile there is ALWAYS rejected, and
+  // its absence is ALWAYS required. No second load-policy map: this table
+  // exercises the exact same PERFORMED_FIXED_LOAD_KINDS/
+  // mapTrainingInterventionToSessionType this module already uses.
+  const DERIVED_SESSION_TYPE_FOR_FIXED_KIND: Record<(typeof PERFORMED_FIXED_LOAD_KINDS)[number], string> = {
+    MOBILITY: "RECOVERY",
+    RECOVERY_ACTIVE: "RECOVERY",
+    REST: "REST",
+    BIKE_MAINTENANCE: "BIKE_MAINTENANCE",
+    RACE_ACTIVITY: "RACE_PREP",
+  };
+
+  describe.each(PERFORMED_FIXED_LOAD_KINDS)("fixed-load kind = %s (never carries load_profile)", (kind) => {
+    const sessionType = DERIVED_SESSION_TYPE_FOR_FIXED_KIND[kind];
+    const needsNullLoad = sessionType === "REST";
+
+    it("accepted with no load_profile, derives the correct coarse session_type, round-trips verbatim", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        session_type: sessionType,
+        intervention: { kind },
+        ...(needsNullLoad ? { actual_duration_min: null, rpe: null } : {}),
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.intervention).toEqual({ kind }); // load_profile ABSENT, never fabricated as null/LIGHT/MODERATE/HEAVY
+        expect(result.value.session_type).toBe(sessionType);
+      }
+    });
+
+    for (const loadProfile of ["HEAVY", "MODERATE", "LIGHT"] as const) {
+      it(`rejected when a load_profile (${loadProfile}) is supplied — structurally absent, never fabricated`, () => {
+        const result = validateCompletedSessionBody({
+          ...VALID_DONE,
+          session_type: sessionType,
+          intervention: { kind, load_profile: loadProfile },
+          ...(needsNullLoad ? { actual_duration_min: null, rpe: null } : {}),
+        });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.code).toBe("invalid_intervention");
+      });
+    }
+  });
+
+  it("REST + done round-trips through the full contract with no duration/RPE and no load_profile key at all", () => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      session_type: "REST",
+      completion_status: "done",
+      intervention: { kind: "REST" },
+      actual_duration_min: null,
+      rpe: null,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.intervention).toEqual({ kind: "REST" });
+      expect(Object.prototype.hasOwnProperty.call(result.value.intervention, "load_profile")).toBe(false);
+      expect(result.value.actual_duration_min).toBeNull();
+      expect(result.value.rpe).toBeNull();
+    }
+  });
+
+  it("intervention round-trips verbatim (kind + load_profile), never re-derived or altered", () => {
+    const result = validateCompletedSessionBody({
+      ...VALID_DONE,
+      session_type: "AEROBIC_INTERVALS",
+      intervention: { kind: "AEROBIC_INTERVALS", load_profile: "HEAVY" },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.intervention).toEqual({ kind: "AEROBIC_INTERVALS", load_profile: "HEAVY" });
   });
 });
 

@@ -71,6 +71,34 @@ describe("getCompletedSession — response guard", () => {
       expect(result.ok).toBe(true);
     });
 
+    // V0.3_007B — intervention is now an actively-read field (prefills the
+    // rich picker, shown in view mode), so its discriminant shape is checked.
+    it("accepts a rich intervention with a valid load_profile", async () => {
+      invoke.mockResolvedValue({
+        data: { completedSession: { ...VALID_RECORD, intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } } },
+        error: null,
+      });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects an intervention with an invalid load_profile value", async () => {
+      invoke.mockResolvedValue({
+        data: { completedSession: { ...VALID_RECORD, intervention: { kind: "DH_PERFORMANCE", load_profile: "EXTREME" } } },
+        error: null,
+      });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_response");
+    });
+
+    it("rejects an intervention with no kind at all", async () => {
+      invoke.mockResolvedValue({ data: { completedSession: { ...VALID_RECORD, intervention: { load_profile: "HEAVY" } } }, error: null });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_response");
+    });
+
     it("rejects intervention as an array — an invalid_response, never trusted as-is", async () => {
       invoke.mockResolvedValue({ data: { completedSession: { ...VALID_RECORD, intervention: [1, 2, 3] } }, error: null });
       const result = await getCompletedSession("2026-08-12");

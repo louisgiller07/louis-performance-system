@@ -11,10 +11,19 @@ import type {
 import type { ActiveExperiment } from "./experiment.js";
 import type { HealthFlag } from "./healthFlag.js";
 
+/**
+ * V0.3_007B — miroir de `public.completion_status` (DB enum). `done`/
+ * `partial`/`replaced` représentent une charge d'entraînement réellement
+ * survenue (au moins en partie) ; `skipped` signifie qu'aucune activité n'a
+ * eu lieu et ne doit jamais compter comme charge — voir recentLoad.ts.
+ */
+export type CompletionStatus = "done" | "partial" | "skipped" | "replaced";
+
 /** Résumé d'une séance complétée, utilisé pour calculer recent_load (7 derniers jours). */
 export interface CompletedSessionSummary {
   date: string; // ISO date
   intervention: TrainingIntervention;
+  completion_status: CompletionStatus;
 }
 
 /**

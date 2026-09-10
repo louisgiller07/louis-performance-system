@@ -17,6 +17,7 @@ import { supabase } from "../../lib/supabase";
 import { mapCompletedSessionError, type CompletedSessionError } from "./completedSessionErrors";
 import type { CompletedSessionInput, CompletedSessionRecord } from "./completedSessionTypes";
 import { COMPLETION_STATUSES, SESSION_TYPES } from "./completedSessionTypes";
+import { isLoadProfile } from "./performedInterventionTypes";
 
 export type GetCompletedSessionResult =
   | { ok: true; data: CompletedSessionRecord | null }
@@ -43,14 +44,30 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * V0.3_007B — `intervention` is now read (it prefills the rich performed
+ * picker on edit and is displayed in view mode), so this checks its
+ * discriminant shape (`kind` a string, `load_profile` absent or a known
+ * LoadProfile) rather than just "some plain object" — still a structural
+ * guard, not a full re-run of validatePerformedIntervention's kind/load
+ * consistency rules (that's the Edge Function/RPC's job, authoritatively).
+ */
+function isPerformedInterventionShape(value: unknown): boolean {
+  if (value === null) return true;
+  if (!isPlainObject(value)) return false;
+  if (typeof value.kind !== "string") return false;
+  return value.load_profile === undefined || (typeof value.load_profile === "string" && isLoadProfile(value.load_profile));
+}
+
+/**
  * Structural guard, not a full schema validator — only what this UI
  * actually reads is checked, matching the project's established "mirror
- * only what's consumed" discipline. `intervention`/`main_content` ARE
- * checked (object-or-null, arrays rejected) even though this UI never
- * displays their contents: the edit flow blindly round-trips them in a
- * full-replacement PUT, so malformed opaque data here could otherwise
- * either produce an invalid PUT or silently erase state that was actually
- * fine — see docs/11_DECISION_LOG.md (M5_003, final review).
+ * only what's consumed" discipline. `main_content` is checked
+ * (object-or-null, arrays rejected) even though this UI never displays its
+ * contents: the edit flow blindly round-trips it in a full-replacement PUT,
+ * so malformed opaque data here could otherwise either produce an invalid
+ * PUT or silently erase state that was actually fine — see
+ * docs/11_DECISION_LOG.md (M5_003, final review; V0.3_007B for
+ * `intervention` becoming an actively-read field).
  */
 function isCompletedSessionRecord(value: unknown): value is CompletedSessionRecord {
   if (!isRecord(value)) return false;
@@ -68,7 +85,7 @@ function isCompletedSessionRecord(value: unknown): value is CompletedSessionReco
     (value.post_grip_fatigue === null || typeof value.post_grip_fatigue === "number") &&
     typeof value.new_pain === "boolean" &&
     (value.new_pain_note === null || typeof value.new_pain_note === "string") &&
-    (value.intervention === null || isPlainObject(value.intervention)) &&
+    isPerformedInterventionShape(value.intervention) &&
     (value.main_content === null || isPlainObject(value.main_content)) &&
     (value.session_load === null || typeof value.session_load === "number") &&
     typeof value.updated_at === "string"

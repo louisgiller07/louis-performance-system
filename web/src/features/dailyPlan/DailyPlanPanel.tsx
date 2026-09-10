@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { runDailyRun } from "./runDailyRun";
 import { DailyPlanResult } from "./DailyPlanResult";
-import { mapTrainingInterventionToSessionType, type CoarseSessionType } from "./trainingInterventionToSessionType";
 import { isValidDailyPlan } from "./dailyPlanValidation";
 import { loadLatestDecisionForDate } from "../history/historyRepo";
 import type { DailyRunError } from "./dailyRunErrors";
@@ -11,11 +10,6 @@ import type { DailyRunResponse } from "./dailyPlanTypes";
 type RequestState = "idle" | "running" | "success" | "error";
 /** NAL-003 — the persisted-decision restore lookup, independent of the generation RequestState above. */
 type RestorePhase = "loading" | "ready" | "error";
-
-export interface LiveDailyPlanContext {
-  decisionId: string;
-  sessionType: CoarseSessionType;
-}
 
 interface DailyPlanPanelProps {
   /** NAL-003 — the caller's own resolved athleteId, used only to restore today's already-persisted decision (RLS-scoped, same read path as /history). */
@@ -29,23 +23,6 @@ interface DailyPlanPanelProps {
    * never keep being shown as if it were still current.
    */
   checkinRevision: number;
-  /**
-   * Reports the exact decisionId AND coarse session_type of the
-   * currently-displayed DailyPlan, or null the instant it's no longer
-   * current (a new generation started, the checkin was invalidated, or the
-   * request errored). `sessionType` is derived via
-   * trainingInterventionToSessionType.ts's canonical mapping — the same
-   * deterministic projection the backend itself uses to persist
-   * decisions.final_session — never a guess, never RECOVERY as a fallback.
-   * M5_003's post-session card uses this — and only this — to preselect a
-   * decision link + session type on a brand-new session log; it must never
-   * fall back to a "latest decision" lookup once this goes null. Can now
-   * fire on mount (NAL-003): once the persisted-decision restore finds a
-   * valid decision for today, it becomes `result` exactly like a live
-   * generation would, and this fires the same way — there is still no
-   * daily-run call, only a read of what already happened today.
-   */
-  onLiveContextChange?: (context: LiveDailyPlanContext | null) => void;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -53,7 +30,17 @@ interface DailyPlanPanelProps {
 // a successful result lives in DailyPlanResult.tsx (M4_005). No history,
 // no coaching/safety logic here — the decision and any safety signal come
 // only from the server response.
-export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision, onLiveContextChange }: DailyPlanPanelProps) {
+//
+// V0.3_007B — this component no longer reports its currently-displayed
+// decisionId/sessionType to its parent (the removed onLiveContextChange/
+// LiveDailyPlanContext): CompletedSessionCard now resolves which decision a
+// performed session corresponds to via its own explicit, athlete-scoped
+// lookup of every valid same-day decision (loadValidDecisionsForDate) —
+// deliberately never "whatever Today currently shows", which could
+// silently point to a DIFFERENT decision than the one the athlete actually
+// rode with if a new plan was generated after the fact. See
+// docs/11_DECISION_LOG.md V0.3_007B.
+export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
@@ -110,19 +97,6 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision, o
   useEffect(() => {
     if (result !== null || error !== null) hadVisibleResultRef.current = true;
   }, [result, error]);
-
-  // A ref (not a direct dependency-array entry) so a new inline function
-  // passed by the parent on every render never re-fires this effect —
-  // only an actual `result` change should notify the caller.
-  const onLiveContextChangeRef = useRef(onLiveContextChange);
-  onLiveContextChangeRef.current = onLiveContextChange;
-  useEffect(() => {
-    onLiveContextChangeRef.current?.(
-      result
-        ? { decisionId: result.decisionId, sessionType: mapTrainingInterventionToSessionType(result.dailyPlan.final_session) }
-        : null
-    );
-  }, [result]);
 
   useEffect(() => {
     if (previousRevisionRef.current === checkinRevision) return;

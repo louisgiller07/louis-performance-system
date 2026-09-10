@@ -18,10 +18,25 @@ import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
  * Cette fonction est le SEUL endroit du moteur qui fait cette conversion —
  * centralisée pour éviter toute divergence ailleurs dans le code.
  */
+/**
+ * V0.3_007B — `completion_status = "skipped"` never counts: no activity
+ * actually occurred, regardless of what was prescribed/logged. `done`/
+ * `partial`/`replaced` all count using the ACTUAL performed
+ * `intervention.load_profile` (never the prescribed one — for `replaced`
+ * this is exactly what makes the count reflect reality) — deliberately no
+ * fractional/partial weighting: intentionally conservative until a
+ * validated duration/RPE-based load model exists (see
+ * docs/11_DECISION_LOG.md V0.3_007B). This filter is belt-and-suspenders:
+ * a `skipped` row should already have `intervention = null` and therefore
+ * never reach this array at all (mapCompletedSessionRow excludes it
+ * upstream) — this check guards against that invariant ever being violated,
+ * never relies on it alone.
+ */
 export function computeRecentLoad(recentSessions: CompletedSessionSummary[], today: string): DimensionState {
   const t = PROVISIONAL_THRESHOLDS.recentLoad;
 
   const heavyOrModerateCount = recentSessions.filter((s) => {
+    if (s.completion_status === "skipped") return false;
     const ageDays = daysBetween(s.date, today);
     if (ageDays < 0 || ageDays > t.windowDays) return false;
     if (isFixedLoadKind(s.intervention.kind)) return false;

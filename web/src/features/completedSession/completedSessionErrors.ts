@@ -54,6 +54,8 @@ function mapHttpBody(status: number, code: string | undefined): CompletedSession
     case "invalid_enum":
     case "invalid_range":
     case "invalid_body_for_status":
+    case "invalid_intervention":
+    case "session_type_mismatch":
     case "invalid_pain_shape":
     case "missing_date":
     case "invalid_date_format":

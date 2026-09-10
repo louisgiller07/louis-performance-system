@@ -3,9 +3,10 @@ import { validateCompletedSessionForm } from "./completedSessionValidation";
 import { emptyCompletedSessionForm, type CompletedSessionFormState } from "./completedSessionTypes";
 
 const VALID_DONE: CompletedSessionFormState = {
-  ...emptyCompletedSessionForm(null),
+  ...emptyCompletedSessionForm(),
   completion_status: "done",
-  session_type: "RECOVERY",
+  performed_kind: "AEROBIC_BASE",
+  performed_load: "MODERATE",
   actual_duration_min: 42,
   rpe: 7,
   post_leg_fatigue: 4,
@@ -20,6 +21,77 @@ describe("validateCompletedSessionForm", () => {
   it("accepts a fully valid 'done' form", () => {
     const result = validateCompletedSessionForm(VALID_DONE, DATE);
     expect(result.ok).toBe(true);
+  });
+
+  // V0.3_007B — the one athlete-authored fact, session_type is always derived.
+  describe("rich performed intervention (V0.3_007B)", () => {
+    it("requires performed_kind for done/partial/replaced", () => {
+      for (const status of ["done", "partial", "replaced"] as const) {
+        const result = validateCompletedSessionForm({ ...VALID_DONE, completion_status: status, performed_kind: "" }, DATE);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.errors.performed_kind).toBeDefined();
+      }
+    });
+
+    it("derives session_type from performed_kind/performed_load, never independently supplied", () => {
+      const result = validateCompletedSessionForm(
+        { ...VALID_DONE, performed_kind: "DH_LIGHT", performed_load: "LIGHT" },
+        DATE
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.values.session_type).toBe("RECOVERY"); // DH_LIGHT coarsens to RECOVERY
+        expect(result.values.intervention).toEqual({ kind: "DH_LIGHT", load_profile: "LIGHT" });
+      }
+    });
+
+    // REV-003 — the whole point: a rich kind now round-trips exactly, never
+    // collapsed to a vague coarse guess.
+    it("STRENGTH_LOWER and STRENGTH_UPPER both round-trip their real rich kind, even though both may coarsen to the same DB bucket", () => {
+      const lower = validateCompletedSessionForm({ ...VALID_DONE, performed_kind: "STRENGTH_LOWER", performed_load: "HEAVY" }, DATE);
+      const upper = validateCompletedSessionForm({ ...VALID_DONE, performed_kind: "STRENGTH_UPPER", performed_load: "HEAVY" }, DATE);
+      expect(lower.ok && lower.values.intervention).toEqual({ kind: "STRENGTH_LOWER", load_profile: "HEAVY" });
+      expect(upper.ok && upper.values.intervention).toEqual({ kind: "STRENGTH_UPPER", load_profile: "HEAVY" });
+    });
+
+    it("rejects a load_profile on a fixed-load performed kind", () => {
+      const result = validateCompletedSessionForm({ ...VALID_DONE, performed_kind: "REST", performed_load: "HEAVY" }, DATE);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.performed_load).toBeDefined();
+    });
+
+    it("rejects a missing load_profile on a load-variable performed kind", () => {
+      const result = validateCompletedSessionForm({ ...VALID_DONE, performed_kind: "STRENGTH_LOWER", performed_load: null }, DATE);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.performed_load).toBeDefined();
+    });
+
+    it("accepts RACE_ACTIVITY (never plannable, but a valid performed reality)", () => {
+      const result = validateCompletedSessionForm({ ...VALID_DONE, performed_kind: "RACE_ACTIVITY", performed_load: null }, DATE);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.values.intervention).toEqual({ kind: "RACE_ACTIVITY" });
+        expect(result.values.session_type).toBe("RACE_PREP");
+      }
+    });
+
+    it("intervention is always null for skipped, regardless of any stale performed_kind left in the draft", () => {
+      const result = validateCompletedSessionForm(
+        { ...VALID_DONE, completion_status: "skipped", skipped_session_type: "DH_PERFORMANCE", performed_kind: "DH_LIGHT" },
+        DATE
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.values.intervention).toBeNull();
+        expect(result.values.session_type).toBe("DH_PERFORMANCE");
+      }
+    });
+
+    it("skipped requires skipped_session_type", () => {
+      const result = validateCompletedSessionForm({ ...VALID_DONE, completion_status: "skipped", skipped_session_type: "" }, DATE);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.skipped_session_type).toBeDefined();
+    });
   });
 
   for (const status of ["done", "partial", "replaced"] as const) {
@@ -63,7 +135,15 @@ describe("validateCompletedSessionForm", () => {
   }
 
   describe("completion_status = skipped", () => {
-    const SKIPPED: CompletedSessionFormState = { ...VALID_DONE, completion_status: "skipped", actual_duration_min: "", rpe: "" };
+    const SKIPPED: CompletedSessionFormState = {
+      ...VALID_DONE,
+      completion_status: "skipped",
+      performed_kind: "",
+      performed_load: null,
+      skipped_session_type: "RECOVERY",
+      actual_duration_min: "",
+      rpe: "",
+    };
 
     it("accepts with duration/rpe empty and fatigue fields empty", () => {
       const result = validateCompletedSessionForm({ ...SKIPPED, post_leg_fatigue: "", post_grip_fatigue: "" }, DATE);
@@ -91,12 +171,15 @@ describe("validateCompletedSessionForm", () => {
     });
   });
 
-  // M5_003 final review: session_type REST never requires an invented
-  // duration/RPE — deliberately not generalized to any other session_type.
-  describe("session_type = REST", () => {
+  // M5_003 final review: a REST performed/skipped activity never requires an
+  // invented duration/RPE — deliberately not generalized to any other kind.
+  // V0.3_007B: "REST" here is the DERIVED effective session type, from
+  // performed_kind="REST" (done/replaced) — no independent session_type field anymore.
+  describe("REST performed activity", () => {
     const REST_DONE: CompletedSessionFormState = {
       ...VALID_DONE,
-      session_type: "REST",
+      performed_kind: "REST",
+      performed_load: null,
       completion_status: "done",
       actual_duration_min: "",
       rpe: "",
@@ -108,6 +191,8 @@ describe("validateCompletedSessionForm", () => {
       if (result.ok) {
         expect(result.values.actual_duration_min).toBeNull();
         expect(result.values.rpe).toBeNull();
+        expect(result.values.intervention).toEqual({ kind: "REST" });
+        expect(result.values.session_type).toBe("REST");
       }
     });
 
@@ -131,10 +216,21 @@ describe("validateCompletedSessionForm", () => {
       }
     });
 
-    it("a non-REST session_type still requires duration/rpe", () => {
-      const result = validateCompletedSessionForm({ ...REST_DONE, session_type: "BIKE_MAINTENANCE" }, DATE);
+    it("a non-REST performed kind still requires duration/rpe", () => {
+      const result = validateCompletedSessionForm({ ...REST_DONE, performed_kind: "BIKE_MAINTENANCE" }, DATE);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.errors.actual_duration_min).toBeDefined();
+    });
+  });
+
+  describe("REST as the skipped session type", () => {
+    it("skipped + REST also never requires duration/rpe (skipped already implies null, same as before)", () => {
+      const result = validateCompletedSessionForm(
+        { ...VALID_DONE, completion_status: "skipped", skipped_session_type: "REST", performed_kind: "", performed_load: null, actual_duration_min: "", rpe: "" },
+        DATE
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.values.session_type).toBe("REST");
     });
   });
 
@@ -170,16 +266,12 @@ describe("validateCompletedSessionForm", () => {
     });
   });
 
-  it("carries session_date, decision_id, and opaque fields straight through", () => {
-    const result = validateCompletedSessionForm(
-      { ...VALID_DONE, decision_id: "d1", intervention: { a: 1 }, main_content: { b: 2 } },
-      DATE
-    );
+  it("carries session_date, decision_id, and main_content straight through", () => {
+    const result = validateCompletedSessionForm({ ...VALID_DONE, decision_id: "d1", main_content: { b: 2 } }, DATE);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.values.session_date).toBe(DATE);
       expect(result.values.decision_id).toBe("d1");
-      expect(result.values.intervention).toEqual({ a: 1 });
       expect(result.values.main_content).toEqual({ b: 2 });
     }
   });

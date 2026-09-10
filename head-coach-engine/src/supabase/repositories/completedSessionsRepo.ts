@@ -32,7 +32,7 @@ export async function getRecentSessions(
 
   const { data, error } = await client
     .from("completed_sessions")
-    .select("session_date, session_type, intervention")
+    .select("session_date, session_type, intervention, completion_status")
     .eq("athlete_id", athleteId)
     .gte("session_date", windowStart)
     .lte("session_date", today);

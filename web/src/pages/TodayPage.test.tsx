@@ -66,38 +66,25 @@ vi.mock("../features/planning/TodayPlanningSummary", () => ({
 
 // DailyPlanPanel's own behavior is covered by
 // src/features/dailyPlan/DailyPlanPanel.test.tsx — TodayPage only needs to
-// prove it's wired in with the right date/hasCheckin/checkinRevision, and
-// that it correctly forwards onLiveContextChange into liveContext.
+// prove it's wired in with the right date/hasCheckin/checkinRevision.
+// V0.3_007B removed onLiveContextChange entirely — CompletedSessionCard now
+// resolves its own decision link via loadValidDecisionsForDate, never via
+// "whatever DailyPlanPanel currently shows".
 vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
-  DailyPlanPanel: ({
-    date,
-    hasCheckin,
-    checkinRevision,
-    onLiveContextChange,
-  }: {
-    date: string;
-    hasCheckin: boolean;
-    checkinRevision: number;
-    onLiveContextChange?: (context: { decisionId: string; sessionType: string } | null) => void;
-  }) => (
+  DailyPlanPanel: ({ date, hasCheckin, checkinRevision }: { date: string; hasCheckin: boolean; checkinRevision: number }) => (
     <div data-testid="daily-plan-panel-stub">
       daily-plan-panel date={date} hasCheckin={String(hasCheckin)} checkinRevision={checkinRevision}
-      <button onClick={() => onLiveContextChange?.({ decisionId: "decision-live-1", sessionType: "AEROBIC_BASE" })}>
-        simulate daily-run success
-      </button>
-      <button onClick={() => onLiveContextChange?.(null)}>simulate daily-run invalidated</button>
     </div>
   ),
 }));
 
 // CompletedSessionCard's own behavior is covered by
 // src/features/completedSession/CompletedSessionCard.test.tsx — TodayPage
-// only needs to prove it's wired in with the right date/liveContext (never
-// a "latest decision" lookup of its own).
+// only needs to prove it's wired in with the right athleteId/date.
 vi.mock("../features/completedSession/CompletedSessionCard", () => ({
-  CompletedSessionCard: ({ date, liveContext }: { date: string; liveContext: { decisionId: string; sessionType: string } | null }) => (
+  CompletedSessionCard: ({ date, athleteId }: { date: string; athleteId: string }) => (
     <div data-testid="completed-session-card-stub">
-      completed-session-card date={date} liveContext={JSON.stringify(liveContext)}
+      completed-session-card date={date} athleteId={athleteId}
     </div>
   ),
 }));
@@ -189,35 +176,13 @@ describe("TodayPage", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("renders CompletedSessionCard wired with the canonical date and liveContext=null initially", () => {
+  it("renders CompletedSessionCard wired with the canonical date and athleteId — no live decision context is threaded through anymore (V0.3_007B)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
     const expectedDate = todayLocal();
 
     renderTodayPage();
 
-    expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent(`completed-session-card date=${expectedDate} liveContext=null`);
-  });
-
-  it("passes the exact decisionId + sessionType to CompletedSessionCard once DailyPlanPanel reports them", async () => {
-    renderTodayPage();
-
-    screen.getByText("simulate daily-run success").click();
-
-    expect(await screen.findByTestId("completed-session-card-stub")).toHaveTextContent(
-      JSON.stringify({ decisionId: "decision-live-1", sessionType: "AEROBIC_BASE" })
-    );
-  });
-
-  it("resets liveContext to null when DailyPlanPanel reports the plan is no longer current — never keeps a stale decision/session-type", async () => {
-    renderTodayPage();
-
-    screen.getByText("simulate daily-run success").click();
-    expect(await screen.findByTestId("completed-session-card-stub")).toHaveTextContent(
-      JSON.stringify({ decisionId: "decision-live-1", sessionType: "AEROBIC_BASE" })
-    );
-
-    screen.getByText("simulate daily-run invalidated").click();
-    expect(await screen.findByTestId("completed-session-card-stub")).toHaveTextContent("liveContext=null");
+    expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent(`completed-session-card date=${expectedDate} athleteId=athlete-1`);
   });
 });
