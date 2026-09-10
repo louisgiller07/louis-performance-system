@@ -246,7 +246,7 @@ describe("CompletedSessionCard", () => {
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: null });
     });
 
-    it("selecting a decision (2+ case) prefills the performed activity from ITS prescription, not a stale one", async () => {
+    it("selecting a decision prefills the performed activity ONLY while it's still empty — a later plan switch never overwrites it (V0.3_007B hotfix)", async () => {
       mockedLoadDecisions.mockResolvedValue([
         decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }),
         decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "AEROBIC_BASE", load_profile: "LIGHT" }),
@@ -257,11 +257,143 @@ describe("CompletedSessionCard", () => {
       await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
       const selector = await screen.findByRole("combobox", { name: "Quel plan as-tu suivi ?" });
 
+      // §11: empty performed activity -> convenience prefill from the selected decision.
       await user.selectOptions(selector, "d-a");
       expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("DH_PERFORMANCE");
 
+      // §12/hotfix: performed activity is now non-empty (even though it only
+      // got there via a prior prefill, not manual typing) -> switching to a
+      // DIFFERENT decision must NOT overwrite it. Prefill is a convenience
+      // for an empty field only, never authoritative over what's displayed.
       await user.selectOptions(selector, "d-b");
-      expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("AEROBIC_BASE");
+      expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("DH_PERFORMANCE");
+    });
+
+    it("hotfix §10 (confirmed production bug): entering a performed activity THEN selecting a decision never overwrites or clears it", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }),
+        decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "DH_LIGHT", load_profile: "LIGHT" }),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "replaced");
+      await pickPerformedKind(user, "PUMPTRACK");
+      await pickLoad(user, "charge modérée");
+      const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+      expect(performedSelect).toHaveValue("PUMPTRACK"); // BEFORE
+
+      const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+      await user.selectOptions(selector, "d-a");
+      expect(performedSelect).toHaveValue("PUMPTRACK"); // AFTER — no overwrite, this was the confirmed prod bug
+
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({
+        decision_id: "d-a",
+        completion_status: "replaced",
+        intervention: { kind: "PUMPTRACK", load_profile: "MODERATE" },
+      });
+    });
+
+    it("hotfix §12: switching from decision A to decision B preserves an already-entered performed activity", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }),
+        decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "DH_LIGHT", load_profile: "LIGHT" }),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "replaced");
+      await pickPerformedKind(user, "PUMPTRACK");
+      await pickLoad(user, "charge modérée");
+      const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+
+      const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+      await user.selectOptions(selector, "d-a");
+      expect(performedSelect).toHaveValue("PUMPTRACK");
+
+      await user.selectOptions(selector, "d-b");
+      expect(performedSelect).toHaveValue("PUMPTRACK"); // only the prescription association changes
+
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: "d-b", intervention: { kind: "PUMPTRACK", load_profile: "MODERATE" } });
+    });
+
+    it("hotfix §13: clearing the link to 'Aucun plan / séance libre' preserves an already-entered performed activity", async () => {
+      mockedLoadDecisions.mockResolvedValue([decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" })]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      // Single decision auto-links and prefills DH_PERFORMANCE; athlete overrides to what actually happened.
+      const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+      expect(performedSelect).toHaveValue("DH_PERFORMANCE");
+      await pickPerformedKind(user, "PUMPTRACK");
+      await pickLoad(user, "charge modérée");
+
+      const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+      await user.selectOptions(selector, "Aucun de ces plans / séance libre");
+      expect(performedSelect).toHaveValue("PUMPTRACK");
+
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: null, intervention: { kind: "PUMPTRACK", load_profile: "MODERATE" } });
+    });
+
+    it("hotfix §14: a DONE/plan mismatch is still rejected by the server; switching to REPLACED (which still requires explicit re-entry, unchanged) then saves the real performed truth", async () => {
+      mockedLoadDecisions.mockResolvedValue([decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" })]);
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      // done prefilled DH_PERFORMANCE from the link; athlete corrects it to what actually happened.
+      await pickPerformedKind(user, "PUMPTRACK");
+      await pickLoad(user, "charge modérée");
+      await fillRestOfValidDoneForm(user);
+
+      mockedPut.mockResolvedValueOnce({
+        ok: false,
+        error: {
+          code: "decision_session_mismatch",
+          message: "Le statut et le type de séance ne correspondent pas à la séance liée.",
+          retryable: false,
+          action: "user_fixable",
+        },
+      });
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+      await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/ne correspondent pas/));
+      // Rejected — never silently accepted, and the performed truth stays exactly as entered.
+      expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("PUMPTRACK");
+
+      // Switching to REPLACED still never prefills (pre-existing, unchanged
+      // behavior — "replaced" always requires an explicit fresh record of
+      // what actually happened, proven already by test G above). The
+      // athlete re-enters the same real truth.
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "replaced");
+      expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("");
+      await pickPerformedKind(user, "PUMPTRACK");
+      await pickLoad(user, "charge modérée");
+
+      mockedPut.mockResolvedValueOnce({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(2));
+      expect(mockedPut.mock.calls[1]![0]).toMatchObject({
+        completion_status: "replaced",
+        decision_id: "d-a",
+        intervention: { kind: "PUMPTRACK", load_profile: "MODERATE" },
+      });
     });
 
     it("D (§38 edit existing link): editing preserves the persisted decision_id by default, correcting it never re-prefills the already-recorded activity", async () => {

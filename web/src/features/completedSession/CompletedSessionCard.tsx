@@ -194,14 +194,18 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       }
       // Performed intervention (done/partial/replaced) IS independent
       // athlete-observed truth — correcting an EXISTING row's link must
-      // never retroactively alter it (§21) — prefill only applies when
-      // creating a brand-new row. And within a new row, clearing TO "Aucun
-      // de ces plans / séance libre" must never erase whatever the athlete
-      // already entered (Issue A: a free session logged after the fact is
-      // not "no data", it's "no plan followed") — prefill only fires when
-      // actively selecting an actual decision to follow, never when
-      // explicitly unlinking.
-      const prefill = record || newDecisionId === null ? {} : prefillFromPrescription(prev.completion_status, resolvedFinalSession(newDecisionId));
+      // never retroactively alter it (§21), regardless of status or
+      // emptiness. And within a NEW row, prefill-from-prescription is only
+      // ever a convenience for an EMPTY performed activity (V0.3_007B
+      // production hotfix, confirmed bug: entering a performed activity
+      // FIRST, then selecting/changing a plan, was silently overwriting or
+      // clearing it — decision_id records which prescription a session
+      // relates to, it must never overwrite an already-entered
+      // athlete-authored fact about what actually happened). Also covers
+      // clearing TO "Aucun de ces plans / séance libre", which must never
+      // erase whatever the athlete already entered either (Issue A).
+      const shouldPrefillPerformed = !record && newDecisionId !== null && prev.performed_kind === "";
+      const prefill = shouldPrefillPerformed ? prefillFromPrescription(prev.completion_status, resolvedFinalSession(newDecisionId)) : {};
       return { ...prev, decision_id: newDecisionId, ...prefill };
     });
   }
