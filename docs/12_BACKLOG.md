@@ -551,11 +551,22 @@ Suite directe de V0.3_007B. Ajoute la plus petite couche de debrief athlète uti
 
 Dette explicitement reportée à une tranche future (non résolue par V0.3_007C) :
 - **Collision de correspondance coarse du détecteur longitudinal** `recommendationVsActualExecution` — inchangée par cette tranche, toujours non résolue (voir V0.3_007B ci-dessus).
-- **Pas de carte « Réalisé » en History, pas de consommation moteur/longitudinal de `technical_outcome`/`change_reason`** — délibérément hors périmètre, réservé à une tranche future une fois le dogfood réel ayant validé leur utilité.
+- **Pas de carte « Réalisé » en History** — livré par **V0.3_007D**, voir ci-dessous. **Consommation moteur/longitudinal de `technical_outcome`/`change_reason`** reste délibérément hors périmètre, réservée à une tranche future une fois le dogfood réel ayant validé leur utilité — toujours non résolu après V0.3_007D également.
 - **GAP-004** (conséquence de suivi douleur 24–48h) reste non résolu — voir ci-dessus, nécessite une décision de politique Safety/médicale séparée.
 
-### Prochaine tranche retenue : V0.3_007D — History : Prescribed vs Performed
-Rendre la boucle prescription persistée ↔ vérité performée visible à l'athlète : afficher en History la prescription du Head Coach (`decisions.daily_plan`) à côté de la séance réellement performée (`completed_sessions`, désormais enrichie du debrief V0.3_007C) pour le même jour. Non démarrée, non architecturée en détail. Ne consomme **pas** la comparaison côté moteur — reste une surface de lecture athlete-facing uniquement, comme le reste de History. La dette de correspondance riche-vs-riche du détecteur longitudinal (ci-dessus) reste une piste séparée, non résolue par cette tranche non plus.
+---
+
+## V0.3_007D — History : Prescribed vs Performed (CLOSED / PRODUCTION ROLLOUT COMPLETE, 2026-09-10)
+
+Suite directe de V0.3_007C. Rend la boucle quotidienne visible à l'athlète dans `/history` : « Prescrit » (`decisions.daily_plan`, immuable, `DailyPlanView` partagé inchangé) à côté de « Réalisé » (`completed_sessions`, correctable, enrichie du debrief V0.3_007C). History reste strictement **decision-oriented** — association exacte via `completed_sessions.decision_id`, jamais une heuristique de proximité/dernière-décision-du-jour. Trois vérités de relation distinctes : lien exact, séance même-jour non associée (copie neutre, jamais les détails de l'autre séance exposés), aucune séance ce jour-là (jamais assimilé à `skipped`). Indicateur compact sur la liste uniquement pour un lien exact. Un défaut réel de présentation trouvé et corrigé avant rollout : le repli coarse `session_type` s'affichait à tort pour une séance `skipped`, pouvant se lire comme une activité fabriquée — supprimé pour `skipped`, conservé pour une row legacy non-`skipped` réellement performée. Requête : 1 query `decisions` + 1 query batch `completed_sessions` par chargement de page, aucune migration/RPC/vue/Edge, aucun `service_role`. Déployé web uniquement. Canary production sur données athlète réelles confirme la vérité de relation exacte de bout en bout. Moteur et longitudinal totalement inertes. Détail complet : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_007D).
+
+Dette explicitement reportée, non résolue par V0.3_007D :
+- **Séances libres/non liées sur un jour sans décision** (`completed_sessions.decision_id = NULL`, aucune row `decisions` ce jour-là) n'ont aucune surface History autonome — History reste strictement decision-oriented. Question produit future non tranchée : une surface History dédiée aux séances performées seules (day-oriented secondaire, ou autre) est-elle souhaitable ? Non construite ici.
+- **Collision de correspondance coarse du détecteur longitudinal** `recommendationVsActualExecution` — inchangée, History ne fait que juxtaposer visuellement les deux records riches, ne consomme rien côté moteur/longitudinal.
+- **Consommation moteur/longitudinal de `technical_outcome`/`change_reason`** — toujours hors périmètre.
+
+### Prochaine direction retenue : revue dogfood sérieuse / boucle longitudinale (pas encore un jalon numéroté)
+La boucle **planifié → prescrit → réalisé → debrief → History** est désormais matériellement complète. Avant tout nouveau code sur ce fil : utiliser la boucle sur de vraies séances, inspecter si le debrief capturé (V0.3_007C) est réellement utile, identifier des patterns répétés, décider explicitement si `technical_outcome`/`change_reason` mérite une consommation longitudinale, revisiter le matching riche-vs-riche `recommendationVsActualExecution` avec de vraies preuves plutôt que spéculer. Ne pas inventer de règle déterministe avant que le dogfood ne la justifie.
 
 ---
 
