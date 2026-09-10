@@ -985,6 +985,29 @@ describe("CompletedSessionCard", () => {
       expect(screen.queryByText(/remontées/)).not.toBeInTheDocument();
     });
 
+    it("§43 duration copy hotfix (V0.3_007C UI canary): only lift-served DH kinds (DH_PERFORMANCE/DH_TECHNICAL/DH_LIGHT) claim uplifts — PUMPTRACK and RACE_ACTIVITY are DH-family/performable but never lift-served, so they must keep the generic copy", async () => {
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await pickPerformedKind(user, "DH_TECHNICAL");
+      await pickLoad(user, "charge modérée");
+      expect(screen.getByText(/temps total de la session, remontées, pauses et attente comprises/)).toBeInTheDocument();
+
+      await pickPerformedKind(user, "DH_LIGHT");
+      await pickLoad(user, "charge légère");
+      expect(screen.getByText(/temps total de la session, remontées, pauses et attente comprises/)).toBeInTheDocument();
+
+      await pickPerformedKind(user, "PUMPTRACK");
+      await pickLoad(user, "charge modérée");
+      expect(screen.getByText("Durée réelle de la séance.")).toBeInTheDocument();
+      expect(screen.queryByText(/remontées/)).not.toBeInTheDocument();
+
+      await pickPerformedKind(user, "RACE_ACTIVITY");
+      expect(screen.getByText("Durée réelle de la séance.")).toBeInTheDocument();
+      expect(screen.queryByText(/remontées/)).not.toBeInTheDocument();
+    });
+
     // Final semantic review round.
     describe("final semantic review", () => {
       it("Issue A: switching change_reason to a different value clears change_reason_note", async () => {

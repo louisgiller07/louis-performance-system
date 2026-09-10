@@ -14,3 +14,19 @@ const DH_FAMILY_KINDS: ReadonlySet<TrainingInterventionKind> = new Set(["DH_PERF
 export function isDhFamilyKind(kind: TrainingInterventionKind | ""): boolean {
   return kind !== "" && DH_FAMILY_KINDS.has(kind);
 }
+
+// V0.3_007C UI canary hotfix — a strictly NARROWER predicate than
+// isDhFamilyKind above, for ONE purpose only: deciding whether the actual-
+// duration helper text may claim "remontées/pauses/attente comprises".
+// PUMPTRACK is DH-family for technical_outcome/coaching purposes (a real
+// technical riding discipline) but is never lift-served — claiming uplifts
+// for a Pumptrack lap session is simply false. RACE_ACTIVITY is excluded
+// too: it's never athlete-plannable and its actual venue isn't guaranteed
+// to be lift-served either. Do NOT use this for technical_outcome
+// applicability, server validation, or any DH/technical coaching gate —
+// isDhFamilyKind remains the sole authority there, unchanged.
+const UPLIFT_SERVED_DH_DURATION_KINDS: ReadonlySet<TrainingInterventionKind> = new Set(["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT"]);
+
+export function isUpliftServedDhDurationKind(kind: TrainingInterventionKind | ""): boolean {
+  return kind !== "" && UPLIFT_SERVED_DH_DURATION_KINDS.has(kind);
+}

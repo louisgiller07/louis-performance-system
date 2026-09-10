@@ -24,7 +24,7 @@ import {
 } from "./completedSessionTypes";
 import { PERFORMED_KIND_GROUPS } from "./performedKindGroups";
 import { isPerformedLoadVariableKind } from "./performedInterventionTypes";
-import { isDhFamilyKind } from "./dhFamilyKind";
+import { isDhFamilyKind, isUpliftServedDhDurationKind } from "./dhFamilyKind";
 import { TRAINING_KIND_LABELS, LOAD_PROFILE_LABELS } from "../dailyPlan/dailyPlanLabels";
 import type { LoadProfile, TrainingInterventionKind } from "../dailyPlan/dailyPlanTypes";
 import { loadValidDecisionsForDate } from "../history/historyRepo";
@@ -657,9 +657,9 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       {!hideDurationRpe && (
         <label className="flex flex-col gap-1 text-sm text-gray-700">
           Durée (minutes)
-          {/* V0.3_007A/§21 — the actual-duration ambiguity fix: for a DH-family performed activity this is the TOTAL session window (uplifts/pauses/waiting included), matching the same convention Planning's own prescribed-duration control already uses — never just continuous riding time. Purely a UI clarification: still stored in minutes, no schema change. */}
+          {/* V0.3_007A/§21 — the actual-duration ambiguity fix: for a lift-served DH performed activity (DH_PERFORMANCE/DH_TECHNICAL/DH_LIGHT) this is the TOTAL session window (uplifts/pauses/waiting included), matching the same convention Planning's own prescribed-duration control already uses — never just continuous riding time. Purely a UI clarification: still stored in minutes, no schema change. V0.3_007C UI canary hotfix — PUMPTRACK and RACE_ACTIVITY deliberately use the generic copy: isUpliftServedDhDurationKind is narrower than isDhFamilyKind on purpose (Pumptrack is never lift-served, so claiming uplifts for it is false). */}
           <span className="text-xs text-gray-500">
-            {isDhFamilyKind(form.performed_kind)
+            {isUpliftServedDhDurationKind(form.performed_kind)
               ? "Pour la DH : temps total de la session, remontées, pauses et attente comprises."
               : "Durée réelle de la séance."}
           </span>
