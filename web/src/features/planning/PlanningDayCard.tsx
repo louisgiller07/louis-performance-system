@@ -13,8 +13,8 @@ import type { LoadProfile, PlannedSessionRow, TrainingInterventionKind } from ".
 import type { RaceOverlayEvent, RacePriority } from "./raceOverlayRepo";
 import {
   formatPlannedDuration,
+  getPlannedDurationHelper,
   isDhFamilyPlannableKind,
-  PLANNED_DURATION_HELPER,
   PLANNED_DURATION_LABEL,
   PLANNED_DURATION_NONE_LABEL,
   PLANNED_DURATION_PRESETS_MIN,
@@ -286,7 +286,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
                   <label> match resolves by the label's own accessible text
                   (with the nested control's content stripped), so extra
                   descendant text here would otherwise corrupt that match. */}
-              <span className="text-xs text-gray-500">{PLANNED_DURATION_HELPER}</span>
+              <span className="text-xs text-gray-500">{getPlannedDurationHelper(draftKind)}</span>
             </div>
           )}
 

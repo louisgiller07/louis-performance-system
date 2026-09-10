@@ -301,6 +301,24 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
     }
   });
 
+  // V0.3_007C UI canary follow-up hotfix — PUMPTRACK shows the Durée prévue
+  // control (unchanged eligibility, §above) but must never claim uplifts:
+  // it is DH-family-plannable but not lift-served, unlike the other 3.
+  it("duration copy: only lift-served DH kinds (DH_PERFORMANCE/DH_TECHNICAL/DH_LIGHT) claim remontées/pauses — PUMPTRACK keeps the generic copy", async () => {
+    const user = userEvent.setup();
+    render(<Harness initialExpanded />);
+
+    for (const kind of ["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT"]) {
+      await user.selectOptions(screen.getByLabelText("Séance"), kind);
+      expect(screen.getByText(/Pour la DH, remontées et pauses comprises/)).toBeInTheDocument();
+    }
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "PUMPTRACK");
+    expect(screen.getByLabelText("Durée prévue")).toBeInTheDocument();
+    expect(screen.queryByText(/remontées/)).not.toBeInTheDocument();
+    expect(screen.getByText("Temps que tu prévois de consacrer à cette séance. Le coach peut la réduire si ton état demande une adaptation.")).toBeInTheDocument();
+  });
+
   it("offers 'Pas de durée prévue' plus exactly the 15 presets from 1h to 8h", async () => {
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
