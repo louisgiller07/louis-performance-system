@@ -4,6 +4,7 @@ import {
   loadDecisionById,
   loadLatestDecisionForDate,
   loadValidDecisionsForDate,
+  loadCompletedSessionsForDates,
   HistoryLoadError,
   TodayDecisionLoadError,
 } from "./historyRepo";
@@ -426,5 +427,96 @@ describe("historyRepo.loadValidDecisionsForDate (V0.3_007B)", () => {
     mockChain({ data: null, error: { code: "500", message: "internal error" } });
     await expect(loadValidDecisionsForDate("athlete-1", "2026-08-19")).rejects.toThrow(TodayDecisionLoadError);
     await expect(loadValidDecisionsForDate("athlete-1", "2026-08-19")).rejects.not.toThrow(/internal error/);
+  });
+});
+
+// V0.3_007D — History: Prescribed vs Performed. Direct RLS SELECT on
+// completed_sessions, never the completed-session Edge Function (single-
+// date only, not batch-shaped) and never service_role — the exact same
+// direct-table-read convention as decisions above.
+describe("historyRepo.loadCompletedSessionsForDates (V0.3_007D)", () => {
+  function mockCompletedChain(result: { data: unknown; error: unknown }) {
+    const inFn = vi.fn().mockResolvedValue(result);
+    const eq = vi.fn(() => ({ in: inFn }));
+    const select = vi.fn(() => ({ eq }));
+    mockedFrom.mockReturnValue({ select });
+    return { select, eq, in: inFn };
+  }
+
+  function completedSessionRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "cs-1",
+      session_date: "2026-08-19",
+      decision_id: "d-1",
+      session_type: "DH_TECHNICAL",
+      completion_status: "done",
+      actual_duration_min: 120,
+      rpe: 7,
+      post_leg_fatigue: 5,
+      post_grip_fatigue: 4,
+      new_pain: false,
+      new_pain_note: null,
+      intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+      main_content: null,
+      session_load: 84,
+      updated_at: "2026-08-19T20:00:00Z",
+      technical_outcome: "yes",
+      change_reason: null,
+      change_reason_note: null,
+      ...overrides,
+    };
+  }
+
+  it("reads completed_sessions directly (never the completed-session Edge Function)", async () => {
+    mockCompletedChain({ data: [], error: null });
+    await loadCompletedSessionsForDates("athlete-1", ["2026-08-19"]);
+    expect(mockedFrom).toHaveBeenCalledWith("completed_sessions");
+  });
+
+  it("filters by athlete_id", async () => {
+    const { eq } = mockCompletedChain({ data: [], error: null });
+    await loadCompletedSessionsForDates("athlete-1", ["2026-08-19"]);
+    expect(eq).toHaveBeenCalledWith("athlete_id", "athlete-1");
+  });
+
+  it("filters session_date via .in() against the exact requested dates — never a continuous min/max range", async () => {
+    const { in: inFn } = mockCompletedChain({ data: [], error: null });
+    await loadCompletedSessionsForDates("athlete-1", ["2026-08-19", "2026-08-20"]);
+    expect(inFn).toHaveBeenCalledWith("session_date", ["2026-08-19", "2026-08-20"]);
+  });
+
+  it("deduplicates the requested dates before querying — several same-day decisions never inflate the .in() list", async () => {
+    const { in: inFn } = mockCompletedChain({ data: [], error: null });
+    await loadCompletedSessionsForDates("athlete-1", ["2026-08-19", "2026-08-19", "2026-08-20", "2026-08-19"]);
+    expect(inFn).toHaveBeenCalledWith("session_date", ["2026-08-19", "2026-08-20"]);
+  });
+
+  it("empty dates array -> [] with NO query issued at all (no wasted round-trip)", async () => {
+    const result = await loadCompletedSessionsForDates("athlete-1", []);
+    expect(result).toEqual([]);
+    expect(mockedFrom).not.toHaveBeenCalled();
+  });
+
+  it("issues exactly ONE query regardless of how many dates are requested — no N+1", async () => {
+    mockCompletedChain({ data: [], error: null });
+    await loadCompletedSessionsForDates("athlete-1", ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05"]);
+    expect(mockedFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns every matching row, including a free/unlinked one (decision_id null) and one belonging to a different decision — no filtering by decision_id at this layer", async () => {
+    const linked = completedSessionRow({ id: "cs-linked", session_date: "2026-08-19", decision_id: "d-1" });
+    const free = completedSessionRow({ id: "cs-free", session_date: "2026-08-20", decision_id: null });
+    const otherDecision = completedSessionRow({ id: "cs-other", session_date: "2026-08-21", decision_id: "d-999" });
+    mockCompletedChain({ data: [linked, free, otherDecision], error: null });
+
+    const result = await loadCompletedSessionsForDates("athlete-1", ["2026-08-19", "2026-08-20", "2026-08-21"]);
+
+    expect(result.map((r) => r.id)).toEqual(["cs-linked", "cs-free", "cs-other"]);
+  });
+
+  it("throws a clean HistoryLoadError (never the raw PostgREST message) on failure", async () => {
+    mockCompletedChain({ data: null, error: { code: "42501", message: "permission denied for table completed_sessions" } });
+    await expect(loadCompletedSessionsForDates("athlete-1", ["2026-08-19"])).rejects.toThrow(HistoryLoadError);
+    await expect(loadCompletedSessionsForDates("athlete-1", ["2026-08-19"])).rejects.not.toThrow(/permission denied/);
   });
 });

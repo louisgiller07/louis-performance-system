@@ -5,6 +5,7 @@
 // recomputes a plan, and never writes to decisions.
 import { supabase } from "../../lib/supabase";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
+import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import type { DecisionHistoryRow } from "./historyTypes";
 
 // Single string literal — see checkinRepo.ts's CHECKIN_COLUMNS for why a
@@ -158,4 +159,41 @@ export async function loadValidDecisionsForDate(athleteId: string, date: string)
   }
 
   return ((data ?? []) as DecisionRow[]).map(toHistoryRow).filter((row) => isValidDailyPlan(row.dailyPlan));
+}
+
+// Single string literal, full canonical CompletedSessionRecord column set —
+// see completedSessionTypes.ts. History reads the same columns the
+// completed-session Edge Function's own readback exposes, direct RLS
+// SELECT (completed_sessions_own_select, SELECT-only for authenticated),
+// never the Edge Function itself: that endpoint is single-date GET/PUT
+// only, not shaped for a batched historical read, and going through it per
+// decision would be N+1. This mirrors decisions' own direct-table-read
+// convention in this same file — not a new pattern.
+const COMPLETED_SESSION_COLUMNS =
+  "id, session_date, decision_id, session_type, completion_status, actual_duration_min, rpe, post_leg_fatigue, post_grip_fatigue, new_pain, new_pain_note, intervention, main_content, session_load, updated_at, technical_outcome, change_reason, change_reason_note";
+
+/**
+ * V0.3_007D — every `completed_sessions` row for `athleteId` whose
+ * `session_date` is one of `dates` (deduplicated first). ONE query
+ * regardless of how many dates are requested (`.in("session_date", ...)`,
+ * never a per-date/per-decision query — no N+1). `completed_sessions` has
+ * `UNIQUE (athlete_id, session_date)`, so at most one row comes back per
+ * requested date. This intentionally does NOT filter by `decision_id`: a
+ * row with `decision_id = NULL` or pointing at a *different* same-day
+ * decision is still returned, so the caller can distinguish "no session
+ * that day" from "a session exists that day but isn't this decision's" —
+ * see historyPerformedMatch.ts. Empty input returns `[]` without a query.
+ */
+export async function loadCompletedSessionsForDates(athleteId: string, dates: string[]): Promise<CompletedSessionRecord[]> {
+  const uniqueDates = Array.from(new Set(dates));
+  if (uniqueDates.length === 0) return [];
+
+  const { data, error } = await supabase.from("completed_sessions").select(COMPLETED_SESSION_COLUMNS).eq("athlete_id", athleteId).in("session_date", uniqueDates);
+
+  if (error) {
+    console.error("historyRepo.loadCompletedSessionsForDates failed", error.code);
+    throw new HistoryLoadError();
+  }
+
+  return (data ?? []) as unknown as CompletedSessionRecord[];
 }

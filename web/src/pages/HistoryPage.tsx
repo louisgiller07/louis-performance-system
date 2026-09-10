@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { AppNav } from "../components/AppNav";
 import { HistoryList } from "../features/history/HistoryList";
-import { loadDecisionHistory } from "../features/history/historyRepo";
+import { loadDecisionHistory, loadCompletedSessionsForDates } from "../features/history/historyRepo";
 import type { DecisionHistoryRow } from "../features/history/historyTypes";
+import { buildLinkedSessionsByDecisionId } from "../features/history/historyPerformedMatch";
+import type { CompletedSessionRecord } from "../features/completedSession/completedSessionTypes";
 
 type LoadState = "loading" | "success" | "error";
 
@@ -21,6 +23,7 @@ export function HistoryPage() {
   const { user, athleteId, signOut } = useAuth();
   const [state, setState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<DecisionHistoryRow[]>([]);
+  const [linkedSessions, setLinkedSessions] = useState<Map<string, CompletedSessionRecord>>(new Map());
 
   useEffect(() => {
     if (!athleteId) return;
@@ -28,8 +31,17 @@ export function HistoryPage() {
     setState("loading");
 
     loadDecisionHistory(athleteId)
-      .then((result) => {
+      .then(async (result) => {
         if (!active) return;
+        // V0.3_007D — ONE additional batched query for every unique date
+        // among the currently-loaded decisions (never per-decision/per-date
+        // — no N+1), direct RLS SELECT, never the completed-session Edge
+        // Function (single-date only). Failure here is treated the same as
+        // a decisions-load failure — no partial/degraded success state.
+        const dates = result.map((row) => row.decisionDate);
+        const sessions = await loadCompletedSessionsForDates(athleteId, dates);
+        if (!active) return;
+        setLinkedSessions(buildLinkedSessionsByDecisionId(sessions));
         setRows(result);
         setState("success");
       })
@@ -78,7 +90,7 @@ export function HistoryPage() {
 
         {state === "success" && rows.length === 0 && <p className="text-sm text-gray-500">Aucune décision enregistrée pour le moment.</p>}
 
-        {state === "success" && rows.length > 0 && <HistoryList rows={rows} />}
+        {state === "success" && rows.length > 0 && <HistoryList rows={rows} linkedSessions={linkedSessions} />}
       </main>
     </div>
   );

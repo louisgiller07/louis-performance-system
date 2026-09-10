@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { HistoryList } from "./HistoryList";
 import { formatLocalTime } from "../../lib/date";
 import type { DecisionHistoryRow } from "./historyTypes";
+import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 
 const VALID_DAILY_PLAN = {
   active_mode: "IN_SEASON",
@@ -38,10 +39,10 @@ function makeRow(overrides: Partial<DecisionHistoryRow> = {}): DecisionHistoryRo
   };
 }
 
-function renderList(rows: DecisionHistoryRow[]) {
+function renderList(rows: DecisionHistoryRow[], linkedSessions: Map<string, CompletedSessionRecord> = new Map()) {
   return render(
     <MemoryRouter>
-      <HistoryList rows={rows} />
+      <HistoryList rows={rows} linkedSessions={linkedSessions} />
     </MemoryRouter>
   );
 }
@@ -81,6 +82,7 @@ describe("HistoryList", () => {
             makeRow({ id: "d-1", createdAt: "2026-08-19T08:00:00Z" }),
             makeRow({ id: "d-2", createdAt: "2026-08-19T18:42:00Z" }),
           ]}
+          linkedSessions={new Map()}
         />
       </MemoryRouter>
     );
@@ -96,5 +98,61 @@ describe("HistoryList", () => {
   it("links each row to /history/:decisionId", () => {
     renderList([makeRow({ id: "abc-123" })]);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/history/abc-123");
+  });
+});
+
+function makeSession(overrides: Partial<CompletedSessionRecord> = {}): CompletedSessionRecord {
+  return {
+    id: "cs-1",
+    session_date: "2026-08-19",
+    decision_id: "d-1",
+    session_type: "DH_TECHNICAL",
+    completion_status: "done",
+    actual_duration_min: 120,
+    rpe: 7,
+    post_leg_fatigue: 5,
+    post_grip_fatigue: 4,
+    new_pain: false,
+    new_pain_note: null,
+    intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+    main_content: null,
+    session_load: 84,
+    updated_at: "2026-08-19T20:00:00Z",
+    technical_outcome: null,
+    change_reason: null,
+    change_reason_note: null,
+    ...overrides,
+  };
+}
+
+// V0.3_007D — §15 list indicator: only an exact decision_id match gets a
+// badge, reusing COMPLETION_STATUS_LABELS; a same-day-but-unrelated session
+// must never mark the wrong card.
+describe("HistoryList — completed-session indicator (V0.3_007D §15)", () => {
+  it("shows a compact status badge only on the decision with an exact linked completed session", () => {
+    const linked = makeSession({ decision_id: "d-1", completion_status: "done" });
+    renderList([makeRow({ id: "d-1" })], new Map([["d-1", linked]]));
+    expect(screen.getByText("Faite")).toBeInTheDocument();
+  });
+
+  it("shows no badge at all when no session is linked to this decision", () => {
+    renderList([makeRow({ id: "d-1" })], new Map());
+    expect(screen.queryByText("Faite")).not.toBeInTheDocument();
+    expect(screen.queryByText("Non faite")).not.toBeInTheDocument();
+  });
+
+  // §26.F — two decisions same day, completed session linked to A only: A's
+  // card gets the badge, B's card gets none, even though both share a date.
+  it("two decisions same day, completed linked to A only -> A's card gets the badge, B's card gets none", () => {
+    const linkedToA = makeSession({ decision_id: "decision-A", completion_status: "replaced" });
+    renderList(
+      [
+        makeRow({ id: "decision-A", createdAt: "2026-08-19T09:00:00Z" }),
+        makeRow({ id: "decision-B", createdAt: "2026-08-19T12:00:00Z" }),
+      ],
+      new Map([["decision-A", linkedToA]])
+    );
+
+    expect(screen.getAllByText("Remplacée")).toHaveLength(1);
   });
 });

@@ -3,8 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { formatCalendarDate, formatLocalTime } from "../lib/date";
 import { HistoryDetail } from "../features/history/HistoryDetail";
-import { loadDecisionById } from "../features/history/historyRepo";
+import { loadDecisionById, loadCompletedSessionsForDates } from "../features/history/historyRepo";
 import type { DecisionHistoryRow } from "../features/history/historyTypes";
+import { matchPerformedSession, type PerformedMatch } from "../features/history/historyPerformedMatch";
 
 type LoadState = "loading" | "success" | "not_found" | "error";
 
@@ -21,6 +22,7 @@ export function HistoryDetailPage() {
   const { athleteId } = useAuth();
   const [state, setState] = useState<LoadState>("loading");
   const [row, setRow] = useState<DecisionHistoryRow | null>(null);
+  const [performedMatch, setPerformedMatch] = useState<PerformedMatch>({ kind: "none" });
 
   useEffect(() => {
     if (!athleteId || !decisionId) return;
@@ -28,12 +30,20 @@ export function HistoryDetailPage() {
     setState("loading");
 
     loadDecisionById(athleteId, decisionId)
-      .then((result) => {
+      .then(async (result) => {
         if (!active) return;
         if (!result) {
           setState("not_found");
           return;
         }
+        // V0.3_007D — a second, RLS-scoped read for the exact same date,
+        // never the completed-session Edge Function (single-date only, not
+        // meant for a batched/historical read). Failure here is treated the
+        // same as a decisions-load failure — no partial/degraded success
+        // state, matching the page's existing all-or-nothing convention.
+        const sessions = await loadCompletedSessionsForDates(athleteId, [result.decisionDate]);
+        if (!active) return;
+        setPerformedMatch(matchPerformedSession(result.id, result.decisionDate, sessions));
         setRow(result);
         setState("success");
       })
@@ -75,7 +85,7 @@ export function HistoryDetailPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
               {formatCalendarDate(row.decisionDate)} · {formatLocalTime(row.createdAt)}
             </p>
-            <HistoryDetail row={row} />
+            <HistoryDetail row={row} performedMatch={performedMatch} />
           </>
         )}
       </main>

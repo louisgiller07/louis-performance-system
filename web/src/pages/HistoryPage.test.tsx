@@ -11,6 +11,7 @@ vi.mock("../auth/AuthContext", () => ({
 
 vi.mock("../features/history/historyRepo", () => ({
   loadDecisionHistory: vi.fn(),
+  loadCompletedSessionsForDates: vi.fn(),
   HistoryLoadError: class HistoryLoadError extends Error {
     constructor() {
       super("Impossible de charger l'historique. Réessaie.");
@@ -18,9 +19,10 @@ vi.mock("../features/history/historyRepo", () => ({
   },
 }));
 
-import { loadDecisionHistory } from "../features/history/historyRepo";
+import { loadDecisionHistory, loadCompletedSessionsForDates } from "../features/history/historyRepo";
 
 const mockedLoad = loadDecisionHistory as unknown as ReturnType<typeof vi.fn>;
+const mockedLoadCompleted = loadCompletedSessionsForDates as unknown as ReturnType<typeof vi.fn>;
 
 function renderHistoryPage() {
   return render(
@@ -32,6 +34,10 @@ function renderHistoryPage() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // V0.3_007D — every existing test in this file predates the completed-
+  // sessions batch query; default it to an empty result so those tests stay
+  // focused on their own concern, exactly like before this ticket.
+  mockedLoadCompleted.mockResolvedValue([]);
 });
 
 describe("HistoryPage", () => {
@@ -107,5 +113,30 @@ describe("HistoryPage", () => {
     renderHistoryPage();
     screen.getByText("Déconnexion").click();
     expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  // V0.3_007D — one batched completed-session query for the whole page load.
+  describe("completed-session batching (V0.3_007D)", () => {
+    it("issues exactly ONE completed-session query, for the unique decision dates on the loaded page — no N+1", async () => {
+      mockedLoad.mockResolvedValue([
+        { id: "d-1", decisionDate: "2026-08-19", createdAt: "2026-08-19T08:00:00Z", finalSessionDb: "REST", activeModeDb: null, confidenceLevelDb: null, dailyPlan: null },
+        { id: "d-2", decisionDate: "2026-08-19", createdAt: "2026-08-19T18:00:00Z", finalSessionDb: "REST", activeModeDb: null, confidenceLevelDb: null, dailyPlan: null },
+        { id: "d-3", decisionDate: "2026-08-18", createdAt: "2026-08-18T08:00:00Z", finalSessionDb: "REST", activeModeDb: null, confidenceLevelDb: null, dailyPlan: null },
+      ]);
+      renderHistoryPage();
+      await waitFor(() => expect(mockedLoadCompleted).toHaveBeenCalledTimes(1));
+      expect(mockedLoadCompleted).toHaveBeenCalledWith("athlete-1", ["2026-08-19", "2026-08-19", "2026-08-18"]);
+    });
+
+    it("treats a completed-session load failure the same as a decisions load failure — the same generic error, never a partial/degraded success", async () => {
+      mockedLoad.mockResolvedValue([
+        { id: "d-1", decisionDate: "2026-08-19", createdAt: "2026-08-19T08:00:00Z", finalSessionDb: "REST", activeModeDb: null, confidenceLevelDb: null, dailyPlan: null },
+      ]);
+      mockedLoadCompleted.mockRejectedValue(new Error("permission denied for table completed_sessions"));
+      renderHistoryPage();
+      await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+      expect(screen.getByRole("alert")).toHaveTextContent("Impossible de charger l'historique. Réessaie.");
+      expect(screen.queryByText(/permission denied/)).not.toBeInTheDocument();
+    });
   });
 });

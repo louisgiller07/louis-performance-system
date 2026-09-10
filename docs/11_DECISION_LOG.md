@@ -2491,3 +2491,33 @@ Nettoyage scratch = application data zéro (5 tables, cascade RLS) ; résidu `au
 Hors périmètre (réaffirmé) = aucune consommation moteur/longitudinal, pas de carte « Réalisé » en History, pas de scoring d'adhérence, dette de correspondance riche-vs-riche `recommendationVsActualExecution` non résolue, GAP-004 (politique Safety/médicale douleur) non résolu, aucune interprétation LLM
 Prochaine tranche retenue = V0.3_007D — History : Prescribed vs Performed (non démarrée, non architecturée)
 ENGINE_VERSION = head-coach-engine@0.2.0-m1-v0.3_007b
+
+---
+
+## 2026-09-10 — V0.3_007D : History — Prescribed vs Performed — IMPLÉMENTÉ LOCALEMENT, en attente de revue (pas encore CLOSED)
+
+**Contexte** : rend la boucle quotidienne visible côté athlète dans `/history` : la prescription persistée (`decisions.daily_plan`) à côté de la vérité performée (`completed_sessions`, enrichie par V0.3_007B/007C). Présentation/auditabilité historique uniquement — aucun changement de comportement Head Coach, `recentLoad`, preuve longitudinale, scoring d'adhérence, ni inférence d'obéissance/compliance.
+
+**Décision — History reste DECISION-ORIENTED, inchangé** : toujours une carte/page par row `decisions` (jamais day-oriented). L'association exacte reste `completed_sessions.decision_id === decisions.id` — jamais « dernière décision du jour », jamais proximité `created_at`, jamais heuristique. Trois vérités distinctes désormais rendues explicitement : lien exact (Réalisé affiché), séance même-jour mais non associée (copie neutre dédiée, jamais les détails de cette séance exposés sous la mauvaise décision), aucune séance ce jour-là (« Pas de séance enregistrée. », jamais assimilé à `skipped`).
+
+**Décision — requête, aucune migration/RPC/vue nouvelle** : nouvelle fonction `historyRepo.ts#loadCompletedSessionsForDates(athleteId, dates)` — lecture directe RLS (`completed_sessions_own_select`, déjà existante), jamais l'Edge Function `completed-session` (mono-date, non adaptée à une lecture historique batch — l'utiliser aurait créé du N+1), jamais `service_role`. Une seule requête `.in("session_date", uniqueDates)` par chargement de page (liste : dates uniques des décisions chargées ; détail : la seule date de la décision), jamais un range continu min/max (capturerait des jours sans décision inutilement) et jamais une requête par décision. `completed_sessions` a `UNIQUE(athlete_id, session_date)` : au plus une row par date demandée.
+
+**Décision — Prescrit reste `DailyPlanView` inchangé** : aucune recomputation, aucun nouveau prop ajouté à `DailyPlanView` (éviter de coupler un composant partagé avec `/today`/`/plan` à un concept History-only). `HistoryDetail.tsx` ajoute deux titres de groupe minces (« Prescrit » / « Réalisé ») autour du contenu existant et d'un nouveau bloc — le plus petit wrapper propre, pas une re-conception de `DailyPlanView`.
+
+**Décision — Réalisé, réutilisation stricte du vocabulaire existant** : nouveau composant `HistoryPerformedSummary.tsx`, miroir exact de la vue lecture-seule déjà existante de `CompletedSessionCard.tsx` (mêmes labels : `TRAINING_KIND_LABELS`, `LOAD_PROFILE_LABELS`, `COMPLETION_STATUS_LABELS`, `SESSION_TYPE_LABELS` en repli legacy, `TECHNICAL_OUTCOME_LABELS`, `CHANGE_REASON_LABELS` — aucune duplication de label). Import cross-feature `history → completedSession` (types + labels uniquement, jamais l'inverse au niveau des types) confirmé sans cycle : `completedSessionTypes.ts` n'importe rien de `history/`. Indicateur compact sur la liste (§15) : badge de statut affiché **uniquement** pour un lien `decision_id` exact — jamais pour toute décision partageant simplement la même date.
+
+**Dette explicitement différée, pas résolue par cette tranche** :
+- **Séances libres/non liées sur un jour sans décision** (`completed_sessions.decision_id = NULL`, aucune row `decisions` ce jour-là) n'ont aucune surface History autonome — History reste strictement decision-oriented. Une telle séance reste visible uniquement sur `/today` ce jour-là. Une future tranche devra décider explicitement si une surface dédiée (liste day-oriented secondaire, ou autre) est souhaitable — non construite ici (`/history/session/:id`, deuxième liste, cartes de décision synthétiques : explicitement exclus de cette tranche).
+- **Dette de correspondance riche-vs-riche du détecteur longitudinal** `recommendationVsActualExecution` — inchangée, History ne fait que juxtaposer visuellement les deux records riches, ne consomme rien côté moteur/longitudinal.
+
+**Preuve empirique (locale)** : suite `web` complète 888 passed / 33 skipped (up from 850, +38 nouveaux tests dédiés History), build web clean. Suite `head-coach-engine` complète 557 passed / 13 skipped, build engine clean — aucun fichier `head-coach-engine/src/**` touché, `ENGINE_VERSION` inchangé (`head-coach-engine@0.2.0-m1-v0.3_007b`). Nouveaux tests couvrant explicitement : DONE/PARTIAL/REPLACED/SKIPPED liés, REST DONE, ligne legacy `intervention=NULL`, séance libre même-jour, deux décisions même-jour (association exacte prouvée dans les deux sens), aucune row `completed_sessions`, immutabilité Prescrit après édition Planning (régression déjà existante, toujours verte), requête batch = 1 (aucun N+1 prouvé par comptage d'appels mock).
+
+**Impact** : `web/src/features/history/{historyRepo.ts,historyPerformedMatch.ts,HistoryPerformedSummary.tsx,HistoryDetail.tsx,HistoryList.tsx}` (+ leurs tests), `web/src/pages/{HistoryPage.tsx,HistoryDetailPage.tsx}` (+ leurs tests), `docs/11_DECISION_LOG.md` (cette entrée). Aucun changement `head-coach-engine/src/**`, `supabase/migrations/**`, `supabase/functions/**`, RLS. **Aucun commit/push/déploiement à ce stade** — implémentation locale complète, en attente de revue avant toute action de production.
+
+**Statut** :
+V0.3_007D = IMPLEMENTED LOCALLY, awaiting review, PAS ENCORE CLOSED
+History = toujours DECISION-ORIENTED, association exacte via `completed_sessions.decision_id`
+Séances libres sans décision associée = dette différée, aucune surface History autonome
+Requête = 1 query batch par chargement de page (liste et détail), aucune migration/RPC/vue, aucun `service_role`
+Moteur/longitudinal = totalement inertes, ENGINE_VERSION inchangé (head-coach-engine@0.2.0-m1-v0.3_007b)
+ENGINE_VERSION = head-coach-engine@0.2.0-m1-v0.3_007b
