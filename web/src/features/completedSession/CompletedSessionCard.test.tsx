@@ -396,6 +396,104 @@ describe("CompletedSessionCard", () => {
       });
     });
 
+    // V0.3_007B second hotfix — full matrix for the specific "unresolved
+    // link -> first explicit decision selection" transition on a NEW row
+    // with 2+ same-day decisions, across every status/emptiness
+    // combination. Exhaustive by design: the production report attributed
+    // a clearing/overwrite to this exact transition, so every status this
+    // transition can occur under gets its own direct proof rather than
+    // relying on inference from the single-status test above.
+    describe("initial link resolution matrix (unresolved -> first selection)", () => {
+      function twoDecisions() {
+        mockedLoadDecisions.mockResolvedValue([
+          decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }),
+          decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "DH_LIGHT", load_profile: "LIGHT" }),
+        ]);
+      }
+
+      it("B — REPLACED + empty performed: selecting A leaves it empty (no prescription prefill for replaced, ever)", async () => {
+        twoDecisions();
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "replaced");
+        const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+        expect(performedSelect).toHaveValue("");
+
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        await user.selectOptions(selector, "d-a");
+
+        expect(performedSelect).toHaveValue("");
+      });
+
+      it("C — DONE + empty performed: selecting A allows the convenience prescription prefill", async () => {
+        twoDecisions();
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+        const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+        expect(performedSelect).toHaveValue(""); // default status is "done"
+
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        await user.selectOptions(selector, "d-a");
+
+        expect(performedSelect).toHaveValue("DH_PERFORMANCE");
+      });
+
+      it("D — DONE + non-empty performed: selecting A preserves the manually-entered activity", async () => {
+        twoDecisions();
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+        await pickPerformedKind(user, "PUMPTRACK");
+        await pickLoad(user, "charge modérée");
+        const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+        expect(performedSelect).toHaveValue("PUMPTRACK");
+
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        await user.selectOptions(selector, "d-a");
+
+        expect(performedSelect).toHaveValue("PUMPTRACK");
+      });
+
+      it("E — PARTIAL + empty performed: selecting A allows the convenience prescription prefill (same as DONE)", async () => {
+        twoDecisions();
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+        const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+        expect(performedSelect).toHaveValue("");
+
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        await user.selectOptions(selector, "d-a");
+
+        expect(performedSelect).toHaveValue("DH_PERFORMANCE");
+      });
+
+      it("F — PARTIAL + non-empty performed: selecting A preserves the manually-entered activity", async () => {
+        twoDecisions();
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+        await pickPerformedKind(user, "PUMPTRACK");
+        await pickLoad(user, "charge modérée");
+        const performedSelect = screen.getByRole("combobox", { name: /Activité réellement effectuée/ });
+        expect(performedSelect).toHaveValue("PUMPTRACK");
+
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        await user.selectOptions(selector, "d-a");
+
+        expect(performedSelect).toHaveValue("PUMPTRACK");
+      });
+    });
+
     it("D (§38 edit existing link): editing preserves the persisted decision_id by default, correcting it never re-prefills the already-recorded activity", async () => {
       mockedGet.mockResolvedValue({ ok: true, data: { ...EXISTING_RECORD, decision_id: "d-a", intervention: { kind: "STRENGTH_LOWER", load_profile: "HEAVY" } } });
       mockedLoadDecisions.mockResolvedValue([
