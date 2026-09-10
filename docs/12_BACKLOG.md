@@ -540,8 +540,22 @@ Suite directe de l'investigation V0.3_007A/V0.3_007A2 ci-dessus. Corrige trois p
 
 Dette explicitement reportée à une tranche future (non résolue par V0.3_007B, ne pas la considérer implicitement couverte) :
 - **Collision de correspondance coarse du détecteur longitudinal** `recommendationVsActualExecution` — deux `TrainingIntervention` riches distincts (planifié vs réalisé) peuvent coarsen vers le même `DbSessionType`, ce qui limite la précision "supporting/neutral/contradicting" même maintenant que `completed_sessions.intervention` est riche. Un futur matching rich-vs-rich (planifié riche vs réalisé riche, plutôt que coarse-vs-coarse) est la piste, non conçue. **REV-003 reste donc ouvert côté détecteur longitudinal, même si fermé côté athlete-facing.**
-- **`technical_outcome`/`change_reason`** — hors périmètre de V0.3_007B, réservé à **V0.3_007C — Athlete Debrief Fields / UI** (pas de carte « Réalisé » en History non plus, pas de progressive disclosure conçue). Fondation posée : la réalité performée est désormais fiable.
+- **`technical_outcome`/`change_reason`** — livrés par **V0.3_007C — Athlete Debrief Fields** (CLOSED / PRODUCTION ROLLOUT COMPLETE, 2026-09-10, voir ci-dessous). Fondation posée : la réalité performée est désormais fiable.
 - **Absence de snapshot des inputs de génération de décision** — limitation pré-existante (pas de protection des inputs au moment de la génération dans `decision_outcomes`), acceptée telle quelle ; un futur consommateur d'un nouveau champ basé sur ces inputs devra considérer le snapshotting.
+
+---
+
+## V0.3_007C — Athlete Debrief Fields (CLOSED / PRODUCTION ROLLOUT COMPLETE, 2026-09-10)
+
+Suite directe de V0.3_007B. Ajoute la plus petite couche de debrief athlète utile à `completed_sessions` : `technical_outcome` (l'athlète a-t-il exécuté la tâche technique SPÉCIFIQUE prescrite par la décision liée — relation-dependent, jamais une note générale de technique, DH-family vérifié web ET serveur) et `change_reason`/`change_reason_note` (pourquoi la séance n'a pas été un DONE ordinaire — 9 catégories structurées, `'other'` exige une note, `coach_criterion` relation-dependent, `'pain'` délibérément indépendant de `new_pain`). Migration additive sans backfill, RPC `persist_completed_session` étendue avec une exception rollout-safe unique (ces trois clés, seules, optionnelles au niveau RPC — un blocage réel de rollout production a été découvert et corrigé empiriquement avant tout déploiement). Déployé en production dans l'ordre sûr (migration/RPC → Edge Function → web), canary backend puis canary UI athlete-facing tous PASS. Le canary UI a révélé et fait corriger deux défauts de copie (PUMPTRACK réclamait à tort des remontées/pauses DH côté durée performée puis planifiée — `isDhFamilyKind`/`isDhFamilyPlannableKind` eux-mêmes inchangés). Moteur et longitudinal restent totalement inertes (`ENGINE_VERSION` inchangé). Détail complet : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_007C).
+
+Dette explicitement reportée à une tranche future (non résolue par V0.3_007C) :
+- **Collision de correspondance coarse du détecteur longitudinal** `recommendationVsActualExecution` — inchangée par cette tranche, toujours non résolue (voir V0.3_007B ci-dessus).
+- **Pas de carte « Réalisé » en History, pas de consommation moteur/longitudinal de `technical_outcome`/`change_reason`** — délibérément hors périmètre, réservé à une tranche future une fois le dogfood réel ayant validé leur utilité.
+- **GAP-004** (conséquence de suivi douleur 24–48h) reste non résolu — voir ci-dessus, nécessite une décision de politique Safety/médicale séparée.
+
+### Prochaine tranche retenue : V0.3_007D — History : Prescribed vs Performed
+Rendre la boucle prescription persistée ↔ vérité performée visible à l'athlète : afficher en History la prescription du Head Coach (`decisions.daily_plan`) à côté de la séance réellement performée (`completed_sessions`, désormais enrichie du debrief V0.3_007C) pour le même jour. Non démarrée, non architecturée en détail. Ne consomme **pas** la comparaison côté moteur — reste une surface de lecture athlete-facing uniquement, comme le reste de History. La dette de correspondance riche-vs-riche du détecteur longitudinal (ci-dessus) reste une piste séparée, non résolue par cette tranche non plus.
 
 ---
 
