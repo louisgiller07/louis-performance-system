@@ -10,6 +10,7 @@ import {
   validateCompletedSessionBody,
   validateDateParam,
   PERFORMED_FIXED_LOAD_KINDS,
+  CHANGE_REASONS,
 } from "../../../../supabase/functions/completed-session/validation.js";
 
 // V0.3_007B — `intervention` is now the ONE athlete-authored fact for a
@@ -587,6 +588,267 @@ describe("validateCompletedSessionBody — pain shape", () => {
   it("accepts new_pain=false with new_pain_note=null", () => {
     const result = validateCompletedSessionBody({ ...VALID_DONE, new_pain: false, new_pain_note: null });
     expect(result.ok).toBe(true);
+  });
+});
+
+// V0.3_007C — athlete debrief fields. `technical_outcome` and
+// `change_reason`/`change_reason_note` are deliberately OPTIONAL in the
+// request body (unlike every other field validated above) — a pre-007C
+// client never sends them, and VALID_DONE itself has never included them
+// (every test above this block is, incidentally, already proof that
+// omitting them entirely still validates cleanly). This block covers the
+// coherence rules that DO apply once a value is actually present.
+describe("validateCompletedSessionBody — athlete debrief fields (V0.3_007C)", () => {
+  it("old-client compatibility: a body with no debrief keys at all resolves all three to null", () => {
+    const result = validateCompletedSessionBody(VALID_DONE);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.technical_outcome).toBeNull();
+      expect(result.value.change_reason).toBeNull();
+      expect(result.value.change_reason_note).toBeNull();
+    }
+  });
+
+  describe("technical_outcome", () => {
+    // DH-family intervention required (final review, Issue C) — VALID_DONE's
+    // own default (RECOVERY_ACTIVE) is deliberately NOT DH-family, so every
+    // acceptance case here overrides session_type/intervention to a real
+    // DH-family pairing.
+    const DH_FAMILY_OVERRIDE = { session_type: "DH_PERFORMANCE" as const, intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } };
+
+    it.each(["yes", "partial", "no"] as const)("accepts '%s' for done with a linked decision and a DH-family performed activity", (outcome) => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        ...DH_FAMILY_OVERRIDE,
+        decision_id: "11111111-1111-1111-1111-111111111111",
+        technical_outcome: outcome,
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.technical_outcome).toBe(outcome);
+    });
+
+    it("accepts a value for partial with a linked decision and a DH-family performed activity", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        ...DH_FAMILY_OVERRIDE,
+        completion_status: "partial",
+        decision_id: "11111111-1111-1111-1111-111111111111",
+        technical_outcome: "yes",
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects a value for a non-DH-family performed activity", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        decision_id: "11111111-1111-1111-1111-111111111111",
+        technical_outcome: "yes",
+        // intervention/session_type stay VALID_DONE's default (RECOVERY_ACTIVE / RECOVERY) — not DH-family.
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("technical_outcome_not_applicable");
+    });
+
+    it("rejects an unknown technical_outcome value", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, decision_id: "11111111-1111-1111-1111-111111111111", technical_outcome: "excellent" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_enum");
+    });
+
+    it("rejects a non-null value for skipped", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "skipped",
+        intervention: null,
+        actual_duration_min: null,
+        rpe: null,
+        decision_id: "11111111-1111-1111-1111-111111111111",
+        technical_outcome: "yes",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("technical_outcome_not_applicable");
+    });
+
+    it("rejects a non-null value for replaced", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "replaced",
+        decision_id: "11111111-1111-1111-1111-111111111111",
+        technical_outcome: "yes",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("technical_outcome_not_applicable");
+    });
+
+    it("rejects a non-null value with decision_id null — no linked task to evaluate", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, decision_id: null, technical_outcome: "yes" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("technical_outcome_not_applicable");
+    });
+  });
+
+  describe("change_reason", () => {
+    it("rejects a non-null value for done", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, change_reason: "fatigue_control" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
+    });
+
+    it.each(["partial", "skipped", "replaced"] as const)("accepts a non-null value for %s", (status) => {
+      const base =
+        status === "skipped"
+          ? { ...VALID_DONE, completion_status: status, intervention: null, actual_duration_min: null, rpe: null }
+          : { ...VALID_DONE, completion_status: status };
+      const result = validateCompletedSessionBody({ ...base, change_reason: "weather_terrain" });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason).toBe("weather_terrain");
+    });
+
+    it.each(["partial", "skipped", "replaced"] as const)("accepts change_reason = null for %s — never server-required (UI-only, old-client compatible)", (status) => {
+      const base =
+        status === "skipped"
+          ? { ...VALID_DONE, completion_status: status, intervention: null, actual_duration_min: null, rpe: null }
+          : { ...VALID_DONE, completion_status: status };
+      const result = validateCompletedSessionBody({ ...base, change_reason: null });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason).toBeNull();
+    });
+
+    it("rejects an unknown change_reason value", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "partial", change_reason: "aliens" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_enum");
+    });
+
+    it("rejects 'coach_criterion' with decision_id null", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "partial", decision_id: null, change_reason: "coach_criterion" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("coach_criterion_requires_decision");
+    });
+
+    it("accepts 'coach_criterion' with a linked decision", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        decision_id: "11111111-1111-1111-1111-111111111111",
+        change_reason: "coach_criterion",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason).toBe("coach_criterion");
+    });
+  });
+
+  describe("change_reason_note", () => {
+    it("accepts and trims a note when change_reason is set", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        change_reason: "mechanical",
+        change_reason_note: "  Crevaison arrière  ",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason_note).toBe("Crevaison arrière");
+    });
+
+    it("rejects a non-empty note when change_reason is null", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "partial", change_reason_note: "Précision sans motif" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_change_reason_note");
+    });
+
+    it("rejects a note over 500 characters", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        change_reason: "other",
+        change_reason_note: "a".repeat(501),
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_change_reason_note");
+    });
+
+    it("an empty/whitespace-only note normalizes to null without requiring change_reason", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, change_reason_note: "   " });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason_note).toBeNull();
+    });
+  });
+
+  // V0.3_007C final review, Issue #3 — "other" alone carries almost no
+  // usable information; requiring a short note is the chosen V1 behavior.
+  // Never breaks an old client: this only fires when change_reason="other"
+  // is explicitly present, which no pre-007C client ever sends.
+  describe("change_reason = 'other' requires a note", () => {
+    it("rejects change_reason='other' with no note", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "partial", change_reason: "other" });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("change_reason_note_required");
+    });
+
+    it("rejects change_reason='other' with an empty/whitespace-only note", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        change_reason: "other",
+        change_reason_note: "   ",
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("change_reason_note_required");
+    });
+
+    it("accepts change_reason='other' with a real note", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        change_reason: "other",
+        change_reason_note: "Navette arrêtée à 15h",
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason_note).toBe("Navette arrêtée à 15h");
+    });
+
+    it("no other change_reason category requires a note", () => {
+      for (const reason of CHANGE_REASONS.filter((r) => r !== "other" && r !== "coach_criterion")) {
+        const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: "partial", change_reason: reason });
+        expect(result.ok).toBe(true);
+      }
+    });
+  });
+
+  // V0.3_007C final review, Issue B — change_reason="pain" and new_pain are
+  // deliberately independent facts, never cross-validated: "did pain affect
+  // execution" vs "did NEW pain appear". No hidden coupling, no Safety
+  // policy, no health_flags write from this endpoint (persist_completed_session
+  // only ever writes completed_sessions — unlike persist_daily_run, it has
+  // no health_flag_to_create concept at all).
+  describe("change_reason='pain' vs new_pain — deliberately independent", () => {
+    it("accepts change_reason='pain' with new_pain=false — an existing/worsening pain, not a NEW one", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        change_reason: "pain",
+        new_pain: false,
+        new_pain_note: null,
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts a non-pain change_reason with new_pain=true — a new pain noticed, unrelated to why the session changed", () => {
+      const result = validateCompletedSessionBody({
+        ...VALID_DONE,
+        completion_status: "partial",
+        change_reason: "fatigue_control",
+        new_pain: true,
+        new_pain_note: "Douleur au genou",
+      });
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts new_pain=true for an ordinary done session with change_reason staying null", () => {
+      const result = validateCompletedSessionBody({ ...VALID_DONE, new_pain: true, new_pain_note: "Douleur au poignet" });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.change_reason).toBeNull();
+    });
   });
 });
 

@@ -24,6 +24,9 @@ const VALID_RECORD = {
   main_content: null,
   session_load: 29.4,
   updated_at: "2026-08-12T20:00:00.000Z",
+  technical_outcome: null,
+  change_reason: null,
+  change_reason_note: null,
 };
 
 const PUT_BODY: CompletedSessionInput = {
@@ -39,6 +42,9 @@ const PUT_BODY: CompletedSessionInput = {
   new_pain_note: null,
   intervention: null,
   main_content: null,
+  technical_outcome: null,
+  change_reason: null,
+  change_reason_note: null,
 };
 
 beforeEach(() => {
@@ -152,6 +158,48 @@ describe("getCompletedSession — response guard", () => {
     it("rejects a completedSession missing the main_content key entirely", async () => {
       const { main_content: _drop, ...withoutMainContent } = VALID_RECORD;
       invoke.mockResolvedValue({ data: { completedSession: withoutMainContent }, error: null });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_response");
+    });
+  });
+
+  // V0.3_007C
+  describe("debrief fields guard", () => {
+    it("accepts all three null (the common case)", async () => {
+      invoke.mockResolvedValue({ data: { completedSession: VALID_RECORD }, error: null });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(true);
+    });
+
+    it("accepts a valid technical_outcome/change_reason/change_reason_note combination", async () => {
+      invoke.mockResolvedValue({
+        data: {
+          completedSession: { ...VALID_RECORD, technical_outcome: "partial", change_reason: "fatigue_control", change_reason_note: "Jambes lourdes" },
+        },
+        error: null,
+      });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(true);
+    });
+
+    it("rejects an unknown technical_outcome value", async () => {
+      invoke.mockResolvedValue({ data: { completedSession: { ...VALID_RECORD, technical_outcome: "excellent" } }, error: null });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_response");
+    });
+
+    it("rejects an unknown change_reason value", async () => {
+      invoke.mockResolvedValue({ data: { completedSession: { ...VALID_RECORD, change_reason: "aliens" } }, error: null });
+      const result = await getCompletedSession("2026-08-12");
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe("invalid_response");
+    });
+
+    it("rejects a completedSession missing the technical_outcome key entirely", async () => {
+      const { technical_outcome: _drop, ...withoutOutcome } = VALID_RECORD;
+      invoke.mockResolvedValue({ data: { completedSession: withoutOutcome }, error: null });
       const result = await getCompletedSession("2026-08-12");
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.code).toBe("invalid_response");

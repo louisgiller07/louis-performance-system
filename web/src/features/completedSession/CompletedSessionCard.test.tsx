@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CompletedSessionCard } from "./CompletedSessionCard";
 
@@ -46,14 +46,14 @@ const EXISTING_RECORD = {
 };
 
 /** A minimal DailyPlan shape that passes isValidDailyPlan, matching historyRepo.test.ts's own fixture pattern. */
-function validDailyPlan(finalSession: { kind: string; load_profile?: string; duration_min?: number }) {
+function validDailyPlan(finalSession: { kind: string; load_profile?: string; duration_min?: number }, executionTask?: string) {
   return {
     decision: "KEEP",
     confidence: "MEDIUM",
     reasoning: "Plan.",
     active_mode: "IN_SEASON",
     training: { active: true },
-    dh_or_technical: { active: false },
+    dh_or_technical: executionTask !== undefined ? { active: true, execution_task: executionTask } : { active: false },
     mental: { active: false },
     recovery: { active: true, actions: [] },
     nutrition: { active: false },
@@ -68,8 +68,17 @@ function validDailyPlan(finalSession: { kind: string; load_profile?: string; dur
   };
 }
 
-function decisionRow(id: string, createdAt: string, finalSession: { kind: string; load_profile?: string }) {
-  return { id, decisionDate: DATE, createdAt, finalSessionDb: "AEROBIC_BASE", activeModeDb: "IN_SEASON", confidenceLevelDb: "MEDIUM", dailyPlan: validDailyPlan(finalSession) };
+/** V0.3_007C — `executionTask` omitted (default) matches the vast majority of existing fixtures/tests, which never involve technical_outcome at all. */
+function decisionRow(id: string, createdAt: string, finalSession: { kind: string; load_profile?: string }, executionTask?: string) {
+  return {
+    id,
+    decisionDate: DATE,
+    createdAt,
+    finalSessionDb: "AEROBIC_BASE",
+    activeModeDb: "IN_SEASON",
+    confidenceLevelDb: "MEDIUM",
+    dailyPlan: validDailyPlan(finalSession, executionTask),
+  };
 }
 
 beforeEach(() => {
@@ -290,6 +299,7 @@ describe("CompletedSessionCard", () => {
       expect(performedSelect).toHaveValue("PUMPTRACK"); // AFTER — no overwrite, this was the confirmed prod bug
 
       await fillRestOfValidDoneForm(user);
+      await pickChangeReason(user, "Changement d'activité");
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
@@ -323,6 +333,7 @@ describe("CompletedSessionCard", () => {
       expect(performedSelect).toHaveValue("PUMPTRACK"); // only the prescription association changes
 
       await fillRestOfValidDoneForm(user);
+      await pickChangeReason(user, "Changement d'activité");
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: "d-b", intervention: { kind: "PUMPTRACK", load_profile: "MODERATE" } });
@@ -384,6 +395,7 @@ describe("CompletedSessionCard", () => {
       expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("");
       await pickPerformedKind(user, "PUMPTRACK");
       await pickLoad(user, "charge modérée");
+      await pickChangeReason(user, "Changement d'activité");
 
       mockedPut.mockResolvedValueOnce({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
@@ -606,6 +618,7 @@ describe("CompletedSessionCard", () => {
       expect(skippedTypeSelect).toBeDisabled();
       expect(screen.getByText(/Dérivé du plan lié/)).toBeInTheDocument();
 
+      await pickChangeReason(user, "Fatigue ou perte de contrôle");
       await user.click(screen.getByRole("button", { name: "Non" }));
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -638,6 +651,7 @@ describe("CompletedSessionCard", () => {
       expect(screen.queryByText(/Dérivé du plan lié/)).not.toBeInTheDocument();
 
       await user.selectOptions(skippedTypeSelect, "AEROBIC_BASE");
+      await pickChangeReason(user, "Manque de temps / contrainte perso");
       await user.click(screen.getByRole("button", { name: "Non" }));
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -654,6 +668,7 @@ describe("CompletedSessionCard", () => {
       await user.selectOptions(screen.getByDisplayValue("Faite"), "skipped");
       expect(screen.getByRole("combobox", { name: /Type de séance non faite/ })).toHaveValue("");
       await user.selectOptions(screen.getByRole("combobox", { name: /Type de séance non faite/ }), "DH_PERFORMANCE");
+      await pickChangeReason(user, "Manque de temps / contrainte perso");
       await user.click(screen.getByRole("button", { name: "Non" }));
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -676,6 +691,7 @@ describe("CompletedSessionCard", () => {
       await pickPerformedKind(user, "AEROBIC_BASE");
       await pickLoad(user, "charge modérée");
       await fillRestOfValidDoneForm(user);
+      await pickChangeReason(user, "Changement d'activité");
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
@@ -693,10 +709,457 @@ describe("CompletedSessionCard", () => {
       expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("DH_PERFORMANCE");
 
       await fillRestOfValidDoneForm(user);
+      await pickChangeReason(user, "Fatigue ou perte de contrôle");
       await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
       await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
       expect(mockedPut.mock.calls[0]![0]).toMatchObject({ completion_status: "partial", intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } });
+    });
+  });
+
+  // V0.3_007C — athlete debrief: technical_outcome ("did you execute the
+  // SPECIFIC technical task prescribed by the LINKED decision") and
+  // change_reason ("why wasn't this an ordinary done session").
+  describe("athlete debrief (V0.3_007C)", () => {
+    it("§31 normal DONE acceptance: technical task visible, answered Oui, no change_reason shown, persists YES with null reason fields", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Regarde loin, freine avant le virage"),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      expect(screen.getByText("Tâche technique du plan")).toBeInTheDocument();
+      expect(screen.getByText("« Regarde loin, freine avant le virage »")).toBeInTheDocument();
+      expect(screen.queryByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).not.toBeInTheDocument();
+
+      // "Oui" also exists on the (always-present) pain question below — scope to the outcome group.
+      const outcomeGroup = screen.getByRole("group", { name: "As-tu réussi à exécuter cette tâche ?" });
+      await user.click(within(outcomeGroup).getByRole("button", { name: "Oui" }));
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({
+        technical_outcome: "yes",
+        change_reason: null,
+        change_reason_note: null,
+      });
+    });
+
+    it("§32 technical PARTIAL acceptance: both technical outcome and change_reason visible and required for PARTIAL", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Regarde loin, freine avant le virage"),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+      expect(screen.getByText("Tâche technique du plan")).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "En partie" }));
+      await pickChangeReason(user, "Fatigue ou perte de contrôle");
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({
+        technical_outcome: "partial",
+        change_reason: "fatigue_control",
+      });
+    });
+
+    it("§33 technical NO acceptance: persists exactly, never translated into a numeric score", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Regarde loin, freine avant le virage"),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      const outcomeGroup = screen.getByRole("group", { name: "As-tu réussi à exécuter cette tâche ?" });
+      await user.click(within(outcomeGroup).getByRole("button", { name: "Non" }));
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ technical_outcome: "no" });
+    });
+
+    it("§34 no task acceptance: linked plan has no execution_task -> technical outcome control hidden, persisted NULL", async () => {
+      mockedLoadDecisions.mockResolvedValue([decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" })]); // no executionTask arg
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ technical_outcome: null });
+    });
+
+    it("§35 REPLACED acceptance: technical outcome hidden/null, change reason required, performed + prescription preserved", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Regarde loin, freine avant le virage"),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "replaced");
+      expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+
+      await pickPerformedKind(user, "AEROBIC_BASE");
+      await pickLoad(user, "charge modérée");
+      await pickChangeReason(user, "Météo / terrain");
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({
+        decision_id: "d-a",
+        technical_outcome: null,
+        change_reason: "weather_terrain",
+        intervention: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+      });
+    });
+
+    it("§36 SKIPPED acceptance: intervention NULL, technical outcome hidden/null, change reason required", async () => {
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "skipped");
+      expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+      await user.selectOptions(screen.getByRole("combobox", { name: /Type de séance non faite/ }), "DH_PERFORMANCE");
+      await pickChangeReason(user, "Manque de temps / contrainte perso");
+      await user.click(screen.getByRole("button", { name: "Non" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({
+        intervention: null,
+        technical_outcome: null,
+        change_reason: "time_life",
+      });
+    });
+
+    it("§37 REST DONE acceptance: technical outcome and change_reason hidden, duration/RPE behavior unchanged from 007B", async () => {
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await pickPerformedKind(user, "REST");
+      expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+      expect(screen.queryByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Durée (minutes)")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Non" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ technical_outcome: null, change_reason: null });
+    });
+
+    it("§38 plan switch clears technical_outcome, showing B's own task and requiring a fresh answer", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Tâche A : virages serrés"),
+        decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "DH_LIGHT", load_profile: "LIGHT" }, "Tâche B : sauts"),
+      ]);
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      const selector = await screen.findByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+      await user.selectOptions(selector, "d-a");
+      expect(screen.getByText("« Tâche A : virages serrés »")).toBeInTheDocument();
+      await user.click(within(screen.getByRole("group", { name: "As-tu réussi à exécuter cette tâche ?" })).getByRole("button", { name: "Oui" }));
+
+      await user.selectOptions(selector, "d-b");
+      expect(screen.getByText("« Tâche B : sauts »")).toBeInTheDocument();
+      // Cleared — never resurrected as a stale answer to A's task.
+      const outcomeGroup = screen.getByRole("group", { name: "As-tu réussi à exécuter cette tâche ?" });
+      expect(within(outcomeGroup).getAllByRole("button").every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+    });
+
+    it("§39 clearing the plan link clears technical_outcome and hides the control", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Tâche A : virages serrés"),
+      ]);
+      mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+      expect(screen.getByText("Tâche technique du plan")).toBeInTheDocument();
+      await user.click(within(screen.getByRole("group", { name: "As-tu réussi à exécuter cette tâche ?" })).getByRole("button", { name: "Oui" }));
+
+      await user.selectOptions(selector, "Aucun de ces plans / séance libre");
+      expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+
+      // Performed intervention (auto-prefilled from d-a) stays intact (V0.3_007B contract, unaffected).
+      expect(screen.getByRole("combobox", { name: /Activité réellement effectuée/ })).toHaveValue("DH_PERFORMANCE");
+
+      await fillRestOfValidDoneForm(user);
+      await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+      await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+      expect(mockedPut.mock.calls[0]![0]).toMatchObject({ decision_id: null, technical_outcome: null });
+    });
+
+    it("§40 plan switch preserves a non-coach_criterion change_reason; unlinking clears coach_criterion specifically", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }),
+        decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "DH_LIGHT", load_profile: "LIGHT" }),
+      ]);
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+
+      const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+      const reasonSelect = screen.getByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" });
+      await user.selectOptions(selector, "d-a");
+      await pickChangeReason(user, "Problème mécanique");
+
+      await user.selectOptions(selector, "d-b");
+      expect(reasonSelect).toHaveValue("mechanical"); // describes the real event, not the link
+
+      await pickChangeReason(user, "Critère de réduction / arrêt atteint");
+      expect(reasonSelect).toHaveValue("coach_criterion");
+
+      await user.selectOptions(selector, "Aucun de ces plans / séance libre");
+      // No longer semantically possible without a linked plan.
+      expect(reasonSelect).toHaveValue("");
+      expect(within(reasonSelect).queryByText("Critère de réduction / arrêt atteint")).not.toBeInTheDocument();
+    });
+
+    it("§41 status transitions clear stale debrief values: PARTIAL(answered) -> DONE clears reason; DONE -> REPLACED clears both", async () => {
+      mockedLoadDecisions.mockResolvedValue([
+        decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Tâche A"),
+      ]);
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+      await user.click(screen.getByRole("button", { name: "En partie" }));
+      await pickChangeReason(user, "Fatigue ou perte de contrôle");
+
+      await user.selectOptions(screen.getByDisplayValue("Partielle"), "done");
+      expect(screen.queryByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).not.toBeInTheDocument();
+      // No stale hidden technical_outcome either — a fresh answer is required.
+      const outcomeGroupDone = screen.getByRole("group", { name: "As-tu réussi à exécuter cette tâche ?" });
+      expect(within(outcomeGroupDone).getAllByRole("button").every((b) => b.getAttribute("aria-pressed") === "false")).toBe(true);
+
+      await user.click(within(outcomeGroupDone).getByRole("button", { name: "Oui" }));
+      await user.selectOptions(screen.getByDisplayValue("Faite"), "replaced");
+      expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+      const reasonSelectReplaced = screen.getByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" });
+      expect(reasonSelectReplaced).toHaveValue("");
+    });
+
+    it("§42 duration copy: DH-family performed activity shows the total-session-window helper, non-DH shows the generic one", async () => {
+      const user = userEvent.setup();
+      render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+      await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+      await pickPerformedKind(user, "DH_PERFORMANCE");
+      await pickLoad(user, "charge lourde");
+      expect(screen.getByText(/temps total de la session, remontées, pauses et attente comprises/)).toBeInTheDocument();
+
+      await pickPerformedKind(user, "AEROBIC_BASE");
+      await pickLoad(user, "charge modérée");
+      expect(screen.getByText("Durée réelle de la séance.")).toBeInTheDocument();
+      expect(screen.queryByText(/remontées/)).not.toBeInTheDocument();
+    });
+
+    // Final semantic review round.
+    describe("final semantic review", () => {
+      it("Issue A: switching change_reason to a different value clears change_reason_note", async () => {
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+
+        await pickChangeReason(user, "Autre");
+        const noteField = screen.getByRole("textbox", { name: /Précision/ });
+        await user.type(noteField, "Navette arrêtée à 15h");
+        expect(noteField).toHaveValue("Navette arrêtée à 15h");
+
+        await pickChangeReason(user, "Problème mécanique");
+        expect(screen.getByRole("textbox", { name: /Précision/ })).toHaveValue("");
+      });
+
+      it("Issue A: an unrelated plan-link change preserves change_reason_note when the reason itself is unchanged", async () => {
+        mockedLoadDecisions.mockResolvedValue([
+          decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }),
+          decisionRow("d-b", "2026-08-12T14:30:00Z", { kind: "DH_LIGHT", load_profile: "LIGHT" }),
+        ]);
+        mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        await user.selectOptions(selector, "d-a");
+        await pickChangeReason(user, "Problème mécanique");
+        const noteField = screen.getByRole("textbox", { name: /Précision/ });
+        await user.type(noteField, "Crevaison arrière");
+
+        await user.selectOptions(selector, "d-b");
+        expect(screen.getByRole("textbox", { name: /Précision/ })).toHaveValue("Crevaison arrière");
+
+        await fillRestOfValidDoneForm(user);
+        await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+        await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+        expect(mockedPut.mock.calls[0]![0]).toMatchObject({ change_reason: "mechanical", change_reason_note: "Crevaison arrière" });
+      });
+
+      it("Issue 2: reason -> DONE clears both reason and note; COACH_CRITERION -> unlink clears both", async () => {
+        mockedLoadDecisions.mockResolvedValue([decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" })]);
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+        await pickChangeReason(user, "Critère de réduction / arrêt atteint");
+        await user.type(screen.getByRole("textbox", { name: /Précision/ }), "Genou signalé");
+
+        await user.selectOptions(screen.getByDisplayValue("Partielle"), "done");
+        expect(screen.queryByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).not.toBeInTheDocument();
+
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+        expect(screen.getByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).toHaveValue("");
+        expect(screen.queryByRole("textbox", { name: /Précision/ })).not.toBeInTheDocument();
+
+        // COACH_CRITERION -> unlink clears both. Single decision was already auto-linked from the start.
+        const selector = screen.getByRole("combobox", { name: "Quel plan as-tu suivi ?" });
+        expect(selector).toHaveValue("d-a");
+        await pickChangeReason(user, "Critère de réduction / arrêt atteint");
+        await user.type(screen.getByRole("textbox", { name: /Précision/ }), "Critère X atteint");
+        await user.selectOptions(selector, "Aucun de ces plans / séance libre");
+        expect(screen.getByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).toHaveValue("");
+        expect(screen.queryByRole("textbox", { name: /Précision/ })).not.toBeInTheDocument();
+      });
+
+      it("Issue 3: change_reason='Autre' requires a note before Save is enabled", async () => {
+        mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "skipped");
+        await user.selectOptions(screen.getByRole("combobox", { name: /Type de séance non faite/ }), "AEROBIC_BASE");
+        await pickChangeReason(user, "Autre");
+
+        const noteField = screen.getByRole("textbox", { name: "Précision (obligatoire pour « Autre »)" });
+        const painGroup = screen.getByRole("group", { name: "Une nouvelle douleur aujourd'hui ?" });
+        await user.click(within(painGroup).getByRole("button", { name: "Non" }));
+        expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
+
+        await user.type(noteField, "Navette arrêtée à 15h");
+        expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
+
+        await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+        await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+        expect(mockedPut.mock.calls[0]![0]).toMatchObject({ change_reason: "other", change_reason_note: "Navette arrêtée à 15h" });
+      });
+
+      it("Issue B: PARTIAL + change_reason=PAIN + new_pain=false is valid — an existing pain, not a new one", async () => {
+        mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+        await pickPerformedKind(user, "AEROBIC_BASE");
+        await pickLoad(user, "charge modérée");
+        await pickChangeReason(user, "Douleur");
+        await fillRestOfValidDoneForm(user); // answers new_pain = false via the shared helper
+
+        await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+        await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+        expect(mockedPut.mock.calls[0]![0]).toMatchObject({ change_reason: "pain", new_pain: false });
+      });
+
+      it("Issue B: PARTIAL + change_reason=FATIGUE_CONTROL + new_pain=true is valid — independent facts", async () => {
+        mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        await user.selectOptions(screen.getByDisplayValue("Faite"), "partial");
+        await pickPerformedKind(user, "AEROBIC_BASE");
+        await pickLoad(user, "charge modérée");
+        await pickChangeReason(user, "Fatigue ou perte de contrôle");
+
+        const durationInput = screen.getByRole("spinbutton");
+        await user.clear(durationInput);
+        await user.type(durationInput, "42");
+        fireSlider("Effort global ressenti", 7);
+        fireSlider("Fatigue jambes", 4);
+        fireSlider("Fatigue grip", 3);
+        const painGroup = screen.getByRole("group", { name: "Une nouvelle douleur pendant ou après la séance ?" });
+        await user.click(within(painGroup).getByRole("button", { name: "Oui" }));
+        await user.type(screen.getByLabelText("Décris la douleur"), "Douleur au genou");
+
+        await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+        await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+        expect(mockedPut.mock.calls[0]![0]).toMatchObject({ change_reason: "fatigue_control", new_pain: true, new_pain_note: "Douleur au genou" });
+      });
+
+      it("Issue B: DONE + new_pain=true persists with change_reason staying null — no health_flags-adjacent coupling", async () => {
+        mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+
+        await pickPerformedKind(user, "AEROBIC_BASE");
+        await pickLoad(user, "charge modérée");
+        const durationInput = screen.getByRole("spinbutton");
+        await user.clear(durationInput);
+        await user.type(durationInput, "42");
+        fireSlider("Effort global ressenti", 7);
+        fireSlider("Fatigue jambes", 4);
+        fireSlider("Fatigue grip", 3);
+        const painGroup = screen.getByRole("group", { name: "Une nouvelle douleur pendant ou après la séance ?" });
+        await user.click(within(painGroup).getByRole("button", { name: "Oui" }));
+        await user.type(screen.getByLabelText("Décris la douleur"), "Poignet");
+        expect(screen.queryByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" })).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+        await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+        expect(mockedPut.mock.calls[0]![0]).toMatchObject({ completion_status: "done", new_pain: true, change_reason: null });
+      });
+
+      it("Issue C: technical_outcome hidden and never sent for a non-DH performed activity, even with a linked decision that has a task", async () => {
+        mockedLoadDecisions.mockResolvedValue([
+          decisionRow("d-a", "2026-08-12T10:05:00Z", { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, "Regarde loin, freine avant le virage"),
+        ]);
+        mockedPut.mockResolvedValue({ ok: true, data: { completedSession: { ...EXISTING_RECORD, id: "cs-new" }, warnings: [] } });
+        const user = userEvent.setup();
+        render(<CompletedSessionCard date={DATE} athleteId={ATHLETE_ID} />);
+        await user.click(await screen.findByRole("button", { name: "Enregistrer la séance" }));
+        // d-a auto-links, prefilling DH_PERFORMANCE — deliberately override to a non-DH activity.
+        expect(screen.getByText("Tâche technique du plan")).toBeInTheDocument();
+        await pickPerformedKind(user, "AEROBIC_BASE");
+        await pickLoad(user, "charge modérée");
+        expect(screen.queryByText("Tâche technique du plan")).not.toBeInTheDocument();
+
+        await fillRestOfValidDoneForm(user);
+        await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+        await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+        expect(mockedPut.mock.calls[0]![0]).toMatchObject({ technical_outcome: null });
+      });
     });
   });
 
@@ -952,6 +1415,11 @@ async function pickLoad(user: ReturnType<typeof userEvent.setup>, loadLabel: str
   await user.click(screen.getByRole("button", { name: loadLabel }));
 }
 
+/** V0.3_007C — required for any non-done status before Save is enabled. */
+async function pickChangeReason(user: ReturnType<typeof userEvent.setup>, reasonLabel: string): Promise<void> {
+  await user.selectOptions(screen.getByRole("combobox", { name: "Pourquoi la séance a-t-elle changé ?" }), reasonLabel);
+}
+
 /** Fills every "done" field except performed_kind/load — callers that need a fully valid form must pick an activity separately. */
 async function fillRestOfValidDoneForm(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   const durationInput = screen.getByRole("spinbutton");
@@ -962,5 +1430,8 @@ async function fillRestOfValidDoneForm(user: ReturnType<typeof userEvent.setup>)
   fireSlider("Fatigue jambes", 4);
   fireSlider("Fatigue grip", 3);
 
-  await user.click(screen.getByRole("button", { name: "Non" })); // new_pain = false
+  // Scoped to the pain question's own group — V0.3_007C's technical-outcome
+  // control (when shown) also has an "Oui"/"Non" pair with the same labels.
+  const painGroup = screen.getByRole("group", { name: "Une nouvelle douleur pendant ou après la séance ?" });
+  await user.click(within(painGroup).getByRole("button", { name: "Non" })); // new_pain = false
 }

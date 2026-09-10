@@ -42,6 +42,50 @@ export const COMPLETION_STATUS_LABELS: Record<CompletionStatus, string> = {
   replaced: "Remplacée",
 };
 
+// V0.3_007C — athlete debrief. `technical_outcome` answers "did you execute
+// the SPECIFIC technical task prescribed by the LINKED decision" — never a
+// general technique quality score. `change_reason` answers "why wasn't this
+// an ordinary done session" via a small structured taxonomy — never a
+// free-text essay. Both mirror supabase/functions/completed-session/
+// validation.ts's `TECHNICAL_OUTCOMES`/`CHANGE_REASONS` exactly (duplicated,
+// not imported — same discipline as every other cross-layer vocabulary in
+// this codebase).
+export const TECHNICAL_OUTCOMES = ["yes", "partial", "no"] as const;
+export type TechnicalOutcome = (typeof TECHNICAL_OUTCOMES)[number];
+
+export const TECHNICAL_OUTCOME_LABELS: Record<TechnicalOutcome, string> = {
+  yes: "Oui",
+  partial: "En partie",
+  no: "Non",
+};
+
+export const CHANGE_REASONS = [
+  "coach_criterion",
+  "fatigue_control",
+  "pain",
+  "mechanical",
+  "weather_terrain",
+  "time_life",
+  "motivation",
+  "activity_change",
+  "other",
+] as const;
+export type ChangeReason = (typeof CHANGE_REASONS)[number];
+
+// Neutral, non-blaming wording throughout — never "why didn't you follow
+// the coach", always a factual description of what happened.
+export const CHANGE_REASON_LABELS: Record<ChangeReason, string> = {
+  coach_criterion: "Critère de réduction / arrêt atteint",
+  fatigue_control: "Fatigue ou perte de contrôle",
+  pain: "Douleur",
+  mechanical: "Problème mécanique",
+  weather_terrain: "Météo / terrain",
+  time_life: "Manque de temps / contrainte perso",
+  motivation: "Motivation",
+  activity_change: "Changement d'activité",
+  other: "Autre",
+};
+
 /**
  * Exact response shape of GET/PUT's `completedSession` field — see
  * supabase/functions/completed-session/index.ts's CANONICAL_READBACK_COLUMNS.
@@ -72,9 +116,21 @@ export interface CompletedSessionRecord {
   main_content: Record<string, unknown> | null;
   session_load: number | null;
   updated_at: string;
+  /** V0.3_007C. Null whenever not applicable — see completedSessionValidation.ts. */
+  technical_outcome: TechnicalOutcome | null;
+  change_reason: ChangeReason | null;
+  change_reason_note: string | null;
 }
 
-/** Exact PUT request body — every key required-present, matching the Edge Function's strict full-replacement contract. */
+/**
+ * Exact PUT request body. Unlike every other field here, `technical_outcome`/
+ * `change_reason`/`change_reason_note` are the ONE part of this contract the
+ * Edge Function accepts as OPTIONAL (absent = null) — for a pre-V0.3_007C
+ * client that has never heard of them. This app is always current, so it
+ * always sends all three explicitly (present, possibly null) — the
+ * optionality exists purely for old-client backward compatibility at the
+ * Edge boundary, not because this type ever omits them.
+ */
 export interface CompletedSessionInput {
   session_date: string;
   decision_id: string | null;
@@ -88,6 +144,9 @@ export interface CompletedSessionInput {
   new_pain_note: string | null;
   intervention: TrainingIntervention | null;
   main_content: Record<string, unknown> | null;
+  technical_outcome: TechnicalOutcome | null;
+  change_reason: ChangeReason | null;
+  change_reason_note: string | null;
 }
 
 /**
@@ -103,6 +162,14 @@ export interface LinkableDecision {
   decisionId: string;
   createdAt: string;
   finalSession: TrainingIntervention;
+  /**
+   * V0.3_007C — the linked decision's prescribed technical task
+   * (`dailyPlan.dh_or_technical.execution_task`), if any. Null whenever no
+   * real task was prescribed — never fabricated from `focus`/personal
+   * technique free text (same invariant V0.3_006C1 already established for
+   * the engine itself).
+   */
+  executionTask: string | null;
 }
 
 /**
@@ -126,6 +193,10 @@ export interface CompletedSessionFormState {
   new_pain: boolean | null;
   new_pain_note: string;
   main_content: Record<string, unknown> | null;
+  /** V0.3_007C. `""` means "not yet answered" — never auto-prefilled from a prescription (there is nothing to prefill it from; it's the athlete's own assessment). */
+  technical_outcome: TechnicalOutcome | "";
+  change_reason: ChangeReason | "";
+  change_reason_note: string;
 }
 
 export function emptyCompletedSessionForm(): CompletedSessionFormState {
@@ -142,6 +213,9 @@ export function emptyCompletedSessionForm(): CompletedSessionFormState {
     new_pain: null,
     new_pain_note: "",
     main_content: null,
+    technical_outcome: "",
+    change_reason: "",
+    change_reason_note: "",
   };
 }
 
@@ -159,6 +233,9 @@ export function recordToFormState(record: CompletedSessionRecord): CompletedSess
     new_pain: record.new_pain,
     new_pain_note: record.new_pain_note ?? "",
     main_content: record.main_content,
+    technical_outcome: record.technical_outcome ?? "",
+    change_reason: record.change_reason ?? "",
+    change_reason_note: record.change_reason_note ?? "",
   };
 }
 

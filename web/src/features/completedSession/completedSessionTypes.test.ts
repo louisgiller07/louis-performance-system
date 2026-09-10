@@ -17,6 +17,9 @@ describe("emptyCompletedSessionForm (V0.3_007B)", () => {
       new_pain: null,
       new_pain_note: "",
       main_content: null,
+      technical_outcome: "",
+      change_reason: "",
+      change_reason_note: "",
     });
   });
 });
@@ -38,12 +41,33 @@ describe("recordToFormState (V0.3_007B)", () => {
     main_content: null,
     session_load: 84,
     updated_at: "2026-09-01T20:00:00Z",
+    technical_outcome: null,
+    change_reason: null,
+    change_reason_note: null,
   };
 
   it("extracts performed_kind/performed_load from the rich intervention", () => {
     const form = recordToFormState(baseRecord);
     expect(form.performed_kind).toBe("DH_PERFORMANCE");
     expect(form.performed_load).toBe("HEAVY");
+  });
+
+  // V0.3_007C
+  it("extracts technical_outcome/change_reason/change_reason_note, defaulting null to empty string", () => {
+    const empty = recordToFormState(baseRecord);
+    expect(empty.technical_outcome).toBe("");
+    expect(empty.change_reason).toBe("");
+    expect(empty.change_reason_note).toBe("");
+
+    const filled = recordToFormState({
+      ...baseRecord,
+      technical_outcome: "partial",
+      change_reason: "fatigue_control",
+      change_reason_note: "Jambes lourdes",
+    });
+    expect(filled.technical_outcome).toBe("partial");
+    expect(filled.change_reason).toBe("fatigue_control");
+    expect(filled.change_reason_note).toBe("Jambes lourdes");
   });
 
   it("skipped_session_type always reflects the persisted coarse session_type, regardless of status", () => {
@@ -131,6 +155,7 @@ describe("formatLinkableDecisionOption (V0.3_007B)", () => {
       decisionId: "11111111-1111-1111-1111-111111111111",
       createdAt: "2026-09-01T10:05:00Z",
       finalSession: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+      executionTask: null,
     };
     const label = formatLinkableDecisionOption(decision);
     expect(label).toContain("DH performance");
@@ -144,6 +169,7 @@ describe("formatLinkableDecisionOption (V0.3_007B)", () => {
       decisionId: "11111111-1111-1111-1111-111111111111",
       createdAt: "2026-09-01T08:00:00Z",
       finalSession: { kind: "REST" },
+      executionTask: null,
     };
     const label = formatLinkableDecisionOption(decision);
     expect(label).toContain("Repos");

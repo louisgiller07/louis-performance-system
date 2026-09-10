@@ -9,6 +9,10 @@ import {
   COMPLETION_STATUS_LABELS,
   SESSION_TYPES,
   SESSION_TYPE_LABELS,
+  TECHNICAL_OUTCOMES,
+  TECHNICAL_OUTCOME_LABELS,
+  CHANGE_REASONS,
+  CHANGE_REASON_LABELS,
   emptyCompletedSessionForm,
   formatLinkableDecisionOption,
   prefillFromPrescription,
@@ -20,6 +24,7 @@ import {
 } from "./completedSessionTypes";
 import { PERFORMED_KIND_GROUPS } from "./performedKindGroups";
 import { isPerformedLoadVariableKind } from "./performedInterventionTypes";
+import { isDhFamilyKind } from "./dhFamilyKind";
 import { TRAINING_KIND_LABELS, LOAD_PROFILE_LABELS } from "../dailyPlan/dailyPlanLabels";
 import type { LoadProfile, TrainingInterventionKind } from "../dailyPlan/dailyPlanTypes";
 import { loadValidDecisionsForDate } from "../history/historyRepo";
@@ -56,6 +61,16 @@ interface CompletedSessionCardProps {
 // not proof it was actually followed (V0.3_007B final review, Issue A —
 // docs/11_DECISION_LOG.md V0.3_007B). No JSON editor: main_content is
 // carried opaquely through the form and never displayed/edited here.
+//
+// V0.3_007C — the athlete debrief layer, deliberately inert for both the
+// engine and the longitudinal pipeline (docs/11_DECISION_LOG.md V0.3_007C).
+// `technical_outcome` ("did you execute the SPECIFIC technical task
+// prescribed by the LINKED decision") is RELATION-DEPENDENT — always
+// cleared whenever the link itself changes (handleDecisionChange) or the
+// status changes (handleStatusChange), never resurrected as a stale hidden
+// value. `change_reason` describes the real execution event, not the link
+// — preserved across a relink except for "coach_criterion" specifically,
+// which becomes semantically impossible the moment the link is cleared.
 export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardProps) {
   const { signOut } = useAuth();
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -110,7 +125,14 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       linkable = rows
         .map((row) => {
           const summary = summarizeDecision(row);
-          return summary.valid ? { decisionId: row.id, createdAt: row.createdAt, finalSession: summary.dailyPlan.final_session } : null;
+          if (!summary.valid) return null;
+          // V0.3_007C — the exact prescribed technical task, straight from
+          // the persisted DailyPlan, never re-derived/guessed. Absent (not
+          // an empty string) whenever the engine never populated it — see
+          // execution_task's own doc (V0.3_006C1: generic-fallback only,
+          // never from personal free text).
+          const executionTask = summary.dailyPlan.dh_or_technical.execution_task ?? null;
+          return { decisionId: row.id, createdAt: row.createdAt, finalSession: summary.dailyPlan.final_session, executionTask };
         })
         .filter((d): d is LinkableDecision => d !== null);
       setLinkableDecisions(linkable);
@@ -162,6 +184,10 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
     return linkableDecisions.find((d) => d.decisionId === decisionId)?.finalSession ?? null;
   }
 
+  function resolvedExecutionTask(decisionId: string | null) {
+    return linkableDecisions.find((d) => d.decisionId === decisionId)?.executionTask ?? null;
+  }
+
   function handleStatusChange(status: CompletionStatus) {
     setForm((prev) => {
       if (!prev) return prev;
@@ -170,7 +196,22 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       // always clears any prior selection rather than silently keeping it
       // (§6): prefillFromPrescription itself returns unselected for `replaced`.
       const prefill = prefillFromPrescription(status, resolvedFinalSession(prev.decision_id));
-      return { ...prev, completion_status: status, ...prefill };
+      // V0.3_007C — technical_outcome is always cleared on any status
+      // change: it's never resurrected as a stale hidden value, a fresh
+      // answer is always required whenever it becomes applicable again.
+      // change_reason/change_reason_note are cleared only when the NEW or
+      // the OLD status is "done" (an ordinary done session never carries a
+      // reason) — preserved across any other non-done <-> non-done
+      // transition (e.g. partial -> skipped), since they describe the real
+      // execution event, not the status label itself.
+      const clearReason = status === "done" || prev.completion_status === "done";
+      return {
+        ...prev,
+        completion_status: status,
+        ...prefill,
+        technical_outcome: "",
+        ...(clearReason ? { change_reason: "", change_reason_note: "" } : {}),
+      };
     });
   }
 
@@ -179,6 +220,18 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
     setDecisionLinkResolved(rawValue !== "");
     setForm((prev) => {
       if (!prev) return prev;
+      // V0.3_007C — technical_outcome answers a question about the SPECIFIC
+      // linked decision's task; it is always cleared when the link itself
+      // changes, in either direction, for both a new AND an existing row —
+      // there is no independent fact to protect, unlike performed
+      // intervention. change_reason/change_reason_note describe the real
+      // execution event, not the link — preserved across a relink UNLESS
+      // the value "coach_criterion" becomes semantically impossible because
+      // the link is being cleared to none (a free/unlinked session cannot
+      // truthfully claim it followed a specific NALYNT stop criterion).
+      const clearCoachCriterion = newDecisionId === null && prev.change_reason === "coach_criterion";
+      const reasonClear = clearCoachCriterion ? { change_reason: "" as const, change_reason_note: "" } : {};
+
       // A linked SKIPPED's coarse session_type is NOT independent
       // athlete-observed truth — it is a pure derived projection of the
       // link itself (V0.3_007B final semantic proof, Issue B: "I did not
@@ -190,7 +243,13 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       // fresh manual choice) rather than silently keeping a stale derived
       // value.
       if (prev.completion_status === "skipped") {
-        return { ...prev, decision_id: newDecisionId, ...prefillFromPrescription("skipped", resolvedFinalSession(newDecisionId)) };
+        return {
+          ...prev,
+          decision_id: newDecisionId,
+          ...prefillFromPrescription("skipped", resolvedFinalSession(newDecisionId)),
+          technical_outcome: "",
+          ...reasonClear,
+        };
       }
       // Performed intervention (done/partial/replaced) IS independent
       // athlete-observed truth — correcting an EXISTING row's link must
@@ -206,7 +265,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       // erase whatever the athlete already entered either (Issue A).
       const shouldPrefillPerformed = !record && newDecisionId !== null && prev.performed_kind === "";
       const prefill = shouldPrefillPerformed ? prefillFromPrescription(prev.completion_status, resolvedFinalSession(newDecisionId)) : {};
-      return { ...prev, decision_id: newDecisionId, ...prefill };
+      return { ...prev, decision_id: newDecisionId, ...prefill, technical_outcome: "", ...reasonClear };
     });
   }
 
@@ -215,6 +274,17 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
     // Stale-load invariant, same reasoning as Planning's own picker: any
     // kind change clears a previously chosen load.
     updateField("performed_load", null);
+  }
+
+  function handleChangeReasonChange(rawValue: string) {
+    updateField("change_reason", rawValue as CompletedSessionFormState["change_reason"]);
+    // Final review, Issue A — change_reason_note is contextual detail about
+    // the SPECIFIC reason currently selected; it must never silently
+    // survive attached to a different reason (e.g. a note explaining
+    // "other" left dangling after switching to "mechanical"). Unrelated
+    // plan-link changes that preserve the reason itself never touch the
+    // note (see handleDecisionChange's own reasonClear, unaffected here).
+    updateField("change_reason_note", "");
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -238,8 +308,38 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
     setMode("view");
   }
 
+  // V0.3_007C — `technical_outcome` ("did you execute the SPECIFIC
+  // technical task prescribed by the linked decision") is visible only
+  // when ALL of: done/partial, a decision is linked, that decision's
+  // persisted DailyPlan actually carries a real execution_task (never
+  // fabricated from focus/cue), and the performed activity is itself
+  // DH-family (a task about DH riding cannot be answered by e.g. a
+  // strength session). `change_reason` ("why wasn't this an ordinary done
+  // session") is visible for every non-done status. Both are required
+  // before save ONLY when visible — this UI-only gate mirrors
+  // decisionLinkResolved's own established pattern; the server explicitly
+  // never hard-requires them (old-client compatibility, see
+  // validation.ts's own doc).
+  const linkedExecutionTask = form ? resolvedExecutionTask(form.decision_id) : null;
+  const showTechnicalOutcome =
+    form !== null &&
+    (form.completion_status === "done" || form.completion_status === "partial") &&
+    form.decision_id !== null &&
+    linkedExecutionTask !== null &&
+    form.performed_kind !== "" &&
+    isDhFamilyKind(form.performed_kind);
+  const showChangeReason = form !== null && form.completion_status !== "done";
+  const technicalOutcomeAnswered = !showTechnicalOutcome || form?.technical_outcome !== "";
+  const changeReasonAnswered = !showChangeReason || form?.change_reason !== "";
+
   const validation = form ? validateCompletedSessionForm(form, date) : null;
-  const canSave = validation !== null && validation.ok && saveState !== "saving" && decisionLinkResolved;
+  const canSave =
+    validation !== null &&
+    validation.ok &&
+    saveState !== "saving" &&
+    decisionLinkResolved &&
+    technicalOutcomeAnswered &&
+    changeReasonAnswered;
   const fieldErrors = validation && !validation.ok ? validation.errors : {};
 
   if (loadState === "loading") {
@@ -313,7 +413,23 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
               <dd className="text-gray-900">{record.session_load}</dd>
             </>
           )}
+
+          {record.technical_outcome !== null && (
+            <>
+              <dt className="text-gray-400">Tâche technique</dt>
+              <dd className="text-gray-900">{TECHNICAL_OUTCOME_LABELS[record.technical_outcome]}</dd>
+            </>
+          )}
+
+          {record.change_reason !== null && (
+            <>
+              <dt className="text-gray-400">Motif</dt>
+              <dd className="text-gray-900">{CHANGE_REASON_LABELS[record.change_reason]}</dd>
+            </>
+          )}
         </dl>
+
+        {record.change_reason_note && <p className="text-sm text-gray-700">{record.change_reason_note}</p>}
 
         {record.new_pain && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -503,9 +619,50 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
         </>
       )}
 
+      {/*
+       * V0.3_007C — "did you execute the SPECIFIC technical task
+       * prescribed by the LINKED decision" — never a general technique
+       * quality score. Shows the actual persisted task text so the athlete
+       * knows exactly what they're answering; never exposes the internal
+       * `execution_task` field name.
+       */}
+      {showTechnicalOutcome && (
+        <div className="flex flex-col gap-1 text-sm text-gray-700">
+          <span>Tâche technique du plan</span>
+          <p className="italic text-gray-600">« {linkedExecutionTask} »</p>
+          <span>As-tu réussi à exécuter cette tâche ?</span>
+          <div role="group" aria-label="As-tu réussi à exécuter cette tâche ?" className="flex gap-2">
+            {TECHNICAL_OUTCOMES.map((outcome) => (
+              <button
+                key={outcome}
+                type="button"
+                aria-pressed={form.technical_outcome === outcome}
+                onClick={() => updateField("technical_outcome", outcome)}
+                className={`min-h-11 flex-1 rounded border px-2 py-2 text-xs font-medium ${
+                  form.technical_outcome === outcome ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-700"
+                }`}
+              >
+                {TECHNICAL_OUTCOME_LABELS[outcome]}
+              </button>
+            ))}
+          </div>
+          {fieldErrors.technical_outcome && (
+            <span role="alert" className="text-xs text-red-600">
+              {fieldErrors.technical_outcome}
+            </span>
+          )}
+        </div>
+      )}
+
       {!hideDurationRpe && (
         <label className="flex flex-col gap-1 text-sm text-gray-700">
           Durée (minutes)
+          {/* V0.3_007A/§21 — the actual-duration ambiguity fix: for a DH-family performed activity this is the TOTAL session window (uplifts/pauses/waiting included), matching the same convention Planning's own prescribed-duration control already uses — never just continuous riding time. Purely a UI clarification: still stored in minutes, no schema change. */}
+          <span className="text-xs text-gray-500">
+            {isDhFamilyKind(form.performed_kind)
+              ? "Pour la DH : temps total de la session, remontées, pauses et attente comprises."
+              : "Durée réelle de la séance."}
+          </span>
           <input
             type="number"
             inputMode="numeric"
@@ -545,6 +702,58 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
         onChange={(value) => updateField("post_grip_fatigue", value)}
         error={fieldErrors.post_grip_fatigue}
       />
+
+      {/*
+       * V0.3_007C — "why wasn't this an ordinary done session" — a small
+       * structured taxonomy, never a free-text essay. "Critère de
+       * réduction / arrêt atteint" (coach_criterion) is only ever offered
+       * when a plan is actually linked — a free/unlinked session can never
+       * truthfully claim it followed a specific NALYNT stop criterion.
+       */}
+      {showChangeReason && (
+        <>
+          <label className="flex flex-col gap-1 text-sm text-gray-700">
+            Pourquoi la séance a-t-elle changé ?
+            <select
+              value={form.change_reason}
+              onChange={(event) => handleChangeReasonChange(event.target.value)}
+              className="rounded border border-gray-300 px-3 py-3 text-base"
+            >
+              <option value="" disabled>
+                — Choisir —
+              </option>
+              {CHANGE_REASONS.filter((reason) => reason !== "coach_criterion" || form.decision_id !== null).map((reason) => (
+                <option key={reason} value={reason}>
+                  {CHANGE_REASON_LABELS[reason]}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.change_reason && (
+              <span role="alert" className="text-xs text-red-600">
+                {fieldErrors.change_reason}
+              </span>
+            )}
+          </label>
+          {form.change_reason !== "" && (
+            <label className="flex flex-col gap-1 text-sm text-gray-700">
+              {/* Final review, Issue #3 — "other" alone carries almost no usable information, so a short note is required only for that one category. */}
+              {form.change_reason === "other" ? "Précision (obligatoire pour « Autre »)" : "Précision (optionnel)"}
+              <textarea
+                aria-label={form.change_reason === "other" ? "Précision (obligatoire pour « Autre »)" : "Précision (optionnel)"}
+                value={form.change_reason_note}
+                onChange={(event) => updateField("change_reason_note", event.target.value)}
+                rows={2}
+                className="rounded border border-gray-300 px-3 py-3 text-base"
+              />
+              {fieldErrors.change_reason_note && (
+                <span role="alert" className="text-xs text-red-600">
+                  {fieldErrors.change_reason_note}
+                </span>
+              )}
+            </label>
+          )}
+        </>
+      )}
 
       <YesNoChoice
         label={isSkipped ? "Une nouvelle douleur aujourd'hui ?" : "Une nouvelle douleur pendant ou après la séance ?"}

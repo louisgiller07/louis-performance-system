@@ -61,6 +61,46 @@ export interface TrainingIntervention {
   load_profile?: LoadProfile;
 }
 
+// V0.3_007C — athlete debrief fields. `technical_outcome` answers "did you
+// successfully execute the SPECIFIC technical task prescribed by the linked
+// decision" (never a general technique quality score); `change_reason`
+// answers "why wasn't this an ordinary done session" (structured taxonomy,
+// never free text alone). Both are deliberately optional in the REQUEST
+// BODY (see OPTIONAL_KEYS below) — unlike every other field in this
+// contract — so a pre-007C client that has never heard of them keeps
+// working unmodified; when a value IS present it is validated strictly.
+export const TECHNICAL_OUTCOMES = ["yes", "partial", "no"] as const;
+export type TechnicalOutcome = (typeof TECHNICAL_OUTCOMES)[number];
+
+export const CHANGE_REASONS = [
+  "coach_criterion",
+  "fatigue_control",
+  "pain",
+  "mechanical",
+  "weather_terrain",
+  "time_life",
+  "motivation",
+  "activity_change",
+  "other",
+] as const;
+export type ChangeReason = (typeof CHANGE_REASONS)[number];
+
+const CHANGE_REASON_NOTE_MAX_LENGTH = 500;
+
+// V0.3_007C final review, Issue C — mirrors
+// web/src/features/completedSession/dhFamilyKind.ts and
+// web/src/features/planning/plannedDurationPolicy.ts's
+// DH_FAMILY_PLANNABLE_KINDS exactly (a third small duplication of the same
+// 4-kind list, not a second engine — same discipline as every other tiny
+// vocabulary mirror in this file). `technical_outcome` answers a question
+// about a DH riding task; it can only be truthfully evaluated when the
+// PERFORMED activity is itself DH-family.
+const DH_FAMILY_KINDS = ["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT", "PUMPTRACK"] as const;
+
+function isDhFamilyKind(kind: TrainingInterventionKind): boolean {
+  return (DH_FAMILY_KINDS as readonly string[]).includes(kind);
+}
+
 export interface ValidatedCompletedSessionBody {
   session_date: string;
   decision_id: string | null;
@@ -74,6 +114,9 @@ export interface ValidatedCompletedSessionBody {
   new_pain_note: string | null;
   intervention: TrainingIntervention | null;
   main_content: Record<string, unknown> | null;
+  technical_outcome: TechnicalOutcome | null;
+  change_reason: ChangeReason | null;
+  change_reason_note: string | null;
 }
 
 export interface ValidationError {
@@ -101,6 +144,13 @@ const CANONICAL_KEYS = [
   "intervention",
   "main_content",
 ] as const;
+
+// V0.3_007C — deliberately OPTIONAL, unlike CANONICAL_KEYS: a pre-007C
+// client never sends these and must never be rejected for their absence
+// (missing-required-field detection below only ever checks CANONICAL_KEYS).
+// A present key (even explicit null) is still validated strictly by
+// validateDebriefFields.
+const OPTIONAL_KEYS = ["technical_outcome", "change_reason", "change_reason_note"] as const;
 
 // Checked BEFORE the generic unknown-field classification, so these get
 // the intentional forbidden_field code and message rather than being
@@ -227,6 +277,109 @@ function mapTrainingInterventionToSessionType(intervention: TrainingIntervention
     case "RACE_ACTIVITY":
       return "RACE_PREP";
   }
+}
+
+interface DebriefFields {
+  technical_outcome: TechnicalOutcome | null;
+  change_reason: ChangeReason | null;
+  change_reason_note: string | null;
+}
+
+/**
+ * V0.3_007C — the athlete debrief fields. Deliberately asymmetric from the
+ * rest of this module's validation style: the server never REQUIRES these
+ * fields for any status (that requirement is UI-only, in the web client —
+ * "Do NOT make non-DONE change_reason server-required in a way that breaks
+ * old clients", per the V0.3_007C spec). The server only REJECTS a present
+ * value that is incoherent:
+ *   - `technical_outcome` non-null requires completion_status in
+ *     (done, partial), decision_id non-null, AND the performed
+ *     `intervention` itself being DH-family (final review, Issue C — a
+ *     question about a DH riding task cannot be truthfully answered by a
+ *     strength/aerobic/recovery session). Whether that linked decision's
+ *     DailyPlan actually contains a prescribed task at all is a DB-level
+ *     check the caller (index.ts) performs separately — this pure function
+ *     has no DB access.
+ *   - `change_reason` non-null is rejected outright for `done` (an ordinary
+ *     completed session never needs one); `change_reason = "coach_criterion"`
+ *     requires decision_id non-null (a free/unlinked session cannot
+ *     truthfully claim it followed a specific NALYNT stop criterion).
+ *   - `change_reason_note` is optional whenever `change_reason` is
+ *     non-null; a non-empty note with a null `change_reason` is rejected
+ *     (never silently normalized — same discipline as new_pain/new_pain_note).
+ *     `change_reason = "other"` is the one exception: a note is REQUIRED
+ *     (final review, Issue #3 — "other" alone carries almost no usable
+ *     information; this rule only ever fires for a client that explicitly
+ *     sends "other", so it can never break an old client, which never sends
+ *     change_reason at all).
+ *   - PAIN independence (final review, Issue B): `change_reason = "pain"`
+ *     and `new_pain` are deliberately never cross-validated against each
+ *     other here — they answer different questions ("did pain affect
+ *     execution" vs "did NEW pain appear") and every combination of the two
+ *     is valid. No coupling is intentional, not an oversight.
+ */
+function validateDebriefFields(
+  body: Record<string, unknown>,
+  completionStatus: CompletionStatus,
+  decisionId: string | null,
+  intervention: TrainingIntervention | null
+): ValidationResult<DebriefFields> {
+  const rawOutcome = Object.prototype.hasOwnProperty.call(body, "technical_outcome") ? body.technical_outcome : null;
+  let technicalOutcome: TechnicalOutcome | null = null;
+  if (rawOutcome !== null) {
+    if (typeof rawOutcome !== "string" || !(TECHNICAL_OUTCOMES as readonly string[]).includes(rawOutcome)) {
+      return err("invalid_enum", `technical_outcome must be one of: ${TECHNICAL_OUTCOMES.join(", ")}, or null.`);
+    }
+    if (completionStatus !== "done" && completionStatus !== "partial") {
+      return err("technical_outcome_not_applicable", "technical_outcome is only applicable when completion_status is done or partial.");
+    }
+    if (decisionId === null) {
+      return err("technical_outcome_not_applicable", "technical_outcome requires a linked decision_id.");
+    }
+    if (intervention === null || !isDhFamilyKind(intervention.kind)) {
+      return err("technical_outcome_not_applicable", "technical_outcome requires a DH-family performed activity.");
+    }
+    technicalOutcome = rawOutcome as TechnicalOutcome;
+  }
+
+  const rawReason = Object.prototype.hasOwnProperty.call(body, "change_reason") ? body.change_reason : null;
+  let changeReason: ChangeReason | null = null;
+  if (rawReason !== null) {
+    if (typeof rawReason !== "string" || !(CHANGE_REASONS as readonly string[]).includes(rawReason)) {
+      return err("invalid_enum", `change_reason must be one of: ${CHANGE_REASONS.join(", ")}, or null.`);
+    }
+    changeReason = rawReason as ChangeReason;
+  }
+  if (completionStatus === "done" && changeReason !== null) {
+    return err("invalid_body_for_status", "change_reason must be null when completion_status is done.");
+  }
+  if (changeReason === "coach_criterion" && decisionId === null) {
+    return err("coach_criterion_requires_decision", "change_reason 'coach_criterion' requires a linked decision_id.");
+  }
+
+  const rawNote = Object.prototype.hasOwnProperty.call(body, "change_reason_note") ? body.change_reason_note : null;
+  let changeReasonNote: string | null = null;
+  if (rawNote !== null) {
+    if (typeof rawNote !== "string") {
+      return err("invalid_change_reason_note", "change_reason_note must be a string or null.");
+    }
+    const trimmed = rawNote.trim();
+    if (trimmed.length > CHANGE_REASON_NOTE_MAX_LENGTH) {
+      return err("invalid_change_reason_note", `change_reason_note must be at most ${CHANGE_REASON_NOTE_MAX_LENGTH} characters.`);
+    }
+    if (trimmed.length > 0) {
+      if (changeReason === null) {
+        return err("invalid_change_reason_note", "change_reason_note requires a non-null change_reason.");
+      }
+      changeReasonNote = trimmed;
+    }
+  }
+
+  if (changeReason === "other" && changeReasonNote === null) {
+    return err("change_reason_note_required", "change_reason_note is required when change_reason is 'other'.");
+  }
+
+  return { ok: true, value: { technical_outcome: technicalOutcome, change_reason: changeReason, change_reason_note: changeReasonNote } };
 }
 
 interface NumericFields {
@@ -381,7 +534,9 @@ export function validateCompletedSessionBody(rawBody: unknown): ValidationResult
     return err("forbidden_field", `Field${forbiddenPresent.length === 1 ? "" : "s"} not accepted: ${forbiddenPresent.join(", ")}.`);
   }
 
-  const unknown = bodyKeys.filter((k) => !(CANONICAL_KEYS as readonly string[]).includes(k));
+  const unknown = bodyKeys.filter(
+    (k) => !(CANONICAL_KEYS as readonly string[]).includes(k) && !(OPTIONAL_KEYS as readonly string[]).includes(k)
+  );
   if (unknown.length > 0) {
     return err("unknown_field", `Unknown field${unknown.length === 1 ? "" : "s"}: ${unknown.join(", ")}.`);
   }
@@ -448,6 +603,9 @@ export function validateCompletedSessionBody(rawBody: unknown): ValidationResult
   const painResult = validatePainShape(body);
   if (!painResult.ok) return painResult;
 
+  const debriefResult = validateDebriefFields(body, completionStatus, decisionIdRaw as string | null, intervention);
+  if (!debriefResult.ok) return debriefResult;
+
   return {
     ok: true,
     value: {
@@ -463,6 +621,9 @@ export function validateCompletedSessionBody(rawBody: unknown): ValidationResult
       new_pain_note: painResult.value.new_pain_note,
       intervention,
       main_content: (body.main_content as Record<string, unknown> | null) ?? null,
+      technical_outcome: debriefResult.value.technical_outcome,
+      change_reason: debriefResult.value.change_reason,
+      change_reason_note: debriefResult.value.change_reason_note,
     },
   };
 }

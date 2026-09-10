@@ -608,6 +608,7 @@ async function main(): Promise<void> {
         "id", "session_date", "decision_id", "session_type", "completion_status",
         "actual_duration_min", "rpe", "post_leg_fatigue", "post_grip_fatigue",
         "new_pain", "new_pain_note", "intervention", "main_content", "session_load", "updated_at",
+        "technical_outcome", "change_reason", "change_reason_note",
       ];
       const actualKeys = Object.keys(cs).sort();
       record("crud. readback keys match canonical set exactly", deepEqual(actualKeys, [...expectedKeys].sort()), actualKeys.join(","));
@@ -716,6 +717,283 @@ async function main(): Promise<void> {
       doneBody({ session_date: "2026-09-14", session_type: "RACE_PREP", intervention: { kind: "RACE_ACTIVITY" } }),
       200
     );
+
+    // ================= athlete debrief fields (V0.3_007C) =================
+    {
+      // Old-client compatibility: doneBody() never includes the 3 new keys
+      // at all — exactly what a pre-007C client sends. Every scenario
+      // above this point already proves this doesn't break; this makes it
+      // explicit and checks the readback shape.
+      const r = await expectPut("debrief. old-client body (no debrief keys) -> 200", userA.token, doneBody({ session_date: "2026-09-15" }), 200);
+      record(
+        "debrief. old-client body resolves all three fields to null",
+        r.json?.completedSession?.technical_outcome === null &&
+          r.json?.completedSession?.change_reason === null &&
+          r.json?.completedSession?.change_reason_note === null,
+        JSON.stringify({
+          technical_outcome: r.json?.completedSession?.technical_outcome,
+          change_reason: r.json?.completedSession?.change_reason,
+          change_reason_note: r.json?.completedSession?.change_reason_note,
+        })
+      );
+
+      // A decision with a REAL prescribed technical task — inserted
+      // directly (admin), since insertDecision (testDb.ts) never sets
+      // daily_plan. Only index.ts's DB-dependent check (hasExecutionTask)
+      // can be proven against a real row like this.
+      const { data: taskDecision, error: taskDecisionError } = await admin
+        .from("decisions")
+        .insert({
+          athlete_id: userA.athleteId,
+          decision_date: "2026-09-16",
+          final_session: "DH_PERFORMANCE",
+          reason: "test fixture",
+          engine_version: "test",
+          daily_plan: { dh_or_technical: { active: true, execution_task: "Regarde loin, freine avant le virage" } },
+        })
+        .select("id")
+        .single();
+      if (taskDecisionError || !taskDecision) throw new Error(`debrief task-decision insert failed: ${taskDecisionError?.message}`);
+      const taskDecisionId = taskDecision.id as string;
+
+      // Full round-trip: technical_outcome + change_reason + note all persist and re-read verbatim.
+      // session_type/intervention must match the linked decision's own
+      // final_session (DH_PERFORMANCE) — the decision/session coherence
+      // check (M5_003 final review) still applies for `partial`.
+      await expectPut(
+        "debrief. full round-trip (technical_outcome + change_reason + note) -> 200",
+        userA.token,
+        doneBody({
+          session_date: "2026-09-16",
+          decision_id: taskDecisionId,
+          session_type: "DH_PERFORMANCE",
+          intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+          completion_status: "partial",
+          technical_outcome: "partial",
+          change_reason: "fatigue_control",
+          change_reason_note: "Jambes lourdes en fin de session",
+        }),
+        200
+      );
+      const rDebrief = await get(userA.token, "2026-09-16");
+      record(
+        "debrief. round-trips verbatim via GET",
+        rDebrief.json?.completedSession?.technical_outcome === "partial" &&
+          rDebrief.json?.completedSession?.change_reason === "fatigue_control" &&
+          rDebrief.json?.completedSession?.change_reason_note === "Jambes lourdes en fin de session",
+        JSON.stringify(rDebrief.json?.completedSession)
+      );
+
+      // A decision with NO prescribed task (insertDecision never sets
+      // daily_plan) — technical_outcome must be rejected against it. Uses a
+      // DH-family session_type/intervention (matching the decision's own
+      // final_session) so every earlier stateless check (DH-family,
+      // decision_session_mismatch) passes and this DB-dependent check is
+      // what actually fires.
+      const noTaskDecisionId = await insertDecision(admin, userA.athleteId, "2026-09-17", { final_session: "DH_PERFORMANCE" });
+      await expectPut(
+        "debrief. technical_outcome rejected when the linked decision has no execution_task -> 422 technical_outcome_no_task",
+        userA.token,
+        doneBody({
+          session_date: "2026-09-17",
+          decision_id: noTaskDecisionId,
+          session_type: "DH_PERFORMANCE",
+          intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
+          technical_outcome: "yes",
+        }),
+        422,
+        "technical_outcome_no_task"
+      );
+      {
+        const { data } = await admin.from("completed_sessions").select("id").eq("athlete_id", userA.athleteId).eq("session_date", "2026-09-17");
+        record("debrief. technical_outcome_no_task rejection wrote zero rows", (data ?? []).length === 0, `rows=${(data ?? []).length}`);
+      }
+
+      // coach_criterion without a linked decision — stateless rejection (400, from validation.ts, before any DB read).
+      await expectPut(
+        "debrief. coach_criterion rejected without a linked decision -> 400 coach_criterion_requires_decision",
+        userA.token,
+        doneBody({
+          session_date: "2026-09-18",
+          completion_status: "partial",
+          decision_id: null,
+          change_reason: "coach_criterion",
+        }),
+        400,
+        "coach_criterion_requires_decision"
+      );
+
+      // change_reason rejected outright for done.
+      await expectPut(
+        "debrief. change_reason rejected for done -> 400 invalid_body_for_status",
+        userA.token,
+        doneBody({ session_date: "2026-09-19", change_reason: "mechanical" }),
+        400,
+        "invalid_body_for_status"
+      );
+
+      // change_reason is NEVER server-required for a non-done status — old-client/UI-degraded compatibility.
+      await expectPut(
+        "debrief. change_reason = null accepted for skipped — never server-required -> 200",
+        userA.token,
+        doneBody({
+          session_date: "2026-09-20",
+          completion_status: "skipped",
+          intervention: null,
+          actual_duration_min: null,
+          rpe: null,
+          change_reason: null,
+        }),
+        200
+      );
+
+      // Final semantic review, Issue C — technical_outcome requires the
+      // PERFORMED activity to itself be DH-family, even against a real
+      // decision (taskDecisionId) that does carry a prescribed task. This
+      // is the stateless half of the rule (validation.ts), so 400 not 422.
+      await expectPut(
+        "debrief. technical_outcome rejected for a non-DH performed activity (even with a real task-having decision) -> 400 technical_outcome_not_applicable",
+        userA.token,
+        doneBody({
+          session_date: "2026-09-16",
+          decision_id: taskDecisionId,
+          session_type: "AEROBIC_BASE",
+          intervention: { kind: "AEROBIC_BASE", load_profile: "MODERATE" },
+          technical_outcome: "yes",
+        }),
+        400,
+        "technical_outcome_not_applicable"
+      );
+
+      // Final semantic review, Issue #3 — change_reason='other' requires a note.
+      await expectPut(
+        "debrief. change_reason='other' rejected with no note -> 400 change_reason_note_required",
+        userA.token,
+        doneBody({ session_date: "2026-09-21", completion_status: "partial", change_reason: "other" }),
+        400,
+        "change_reason_note_required"
+      );
+      await expectPut(
+        "debrief. change_reason='other' accepted with a real note -> 200",
+        userA.token,
+        doneBody({
+          session_date: "2026-09-22",
+          completion_status: "partial",
+          change_reason: "other",
+          change_reason_note: "Navette arrêtée à 15h",
+        }),
+        200
+      );
+    }
+
+    // ================= rollout compatibility (V0.3_007C) — direct RPC =================
+    {
+      // These scenarios call persist_completed_session directly (bypassing
+      // the Edge Function entirely) because the Edge Function's own
+      // OPTIONAL_KEYS handling ALWAYS sends explicit values (including
+      // null) for the 3 debrief keys — it can never itself produce an
+      // "old-shaped" p_row. Only a client that talks to the RPC directly
+      // (like the currently-deployed pre-007C Edge Function still in
+      // production during the rollout window) can exercise the
+      // presence/absence distinction this section proves. See
+      // docs/11_DECISION_LOG.md, V0.3_007C rollout-compatibility finding.
+      const oldShapedPRow = (overrides: Record<string, unknown> = {}) => ({
+        session_date: "2026-09-23",
+        decision_id: null,
+        session_type: "RECOVERY",
+        completion_status: "done",
+        actual_duration_min: 42,
+        rpe: 7,
+        main_content: null,
+        intervention: { kind: "RECOVERY_ACTIVE" },
+        free_notes: null,
+        post_leg_fatigue: 4,
+        post_grip_fatigue: 3,
+        new_pain: false,
+        new_pain_note: null,
+        ...overrides,
+      });
+
+      async function expectRpc(name: string, pRow: Record<string, unknown>, expectSuccess: boolean, expectedErrorSubstring?: string): Promise<void> {
+        const { data, error } = await admin.rpc("persist_completed_session", { p_athlete_id: userA.athleteId, p_row: pRow });
+        if (expectSuccess) {
+          record(name, !error && !!data, error ? `error=${error.message}` : `data=${JSON.stringify(data)}`);
+        } else {
+          const matches = !!error && (expectedErrorSubstring === undefined || error.message.includes(expectedErrorSubstring));
+          record(name, matches, error ? `error=${error.message}` : "no error raised");
+        }
+      }
+
+      // (a) old 007B payload shape, no debrief keys at all -> accepted, fields resolve to null.
+      await expectRpc("rollout. post-migration RPC + old 007B payload (no debrief keys) -> accepted", oldShapedPRow({ session_date: "2026-09-23" }), true);
+      {
+        const { data: row } = await admin
+          .from("completed_sessions")
+          .select("technical_outcome, change_reason, change_reason_note")
+          .eq("athlete_id", userA.athleteId)
+          .eq("session_date", "2026-09-23")
+          .single();
+        record(
+          "rollout. old-shaped payload resolves all 3 debrief keys to null",
+          row?.technical_outcome === null && row?.change_reason === null && row?.change_reason_note === null,
+          JSON.stringify(row)
+        );
+      }
+
+      // (b) new payload with the 3 keys explicitly null -> accepted.
+      await expectRpc(
+        "rollout. post-migration RPC + new payload with debrief keys explicitly null -> accepted",
+        oldShapedPRow({ session_date: "2026-09-24", technical_outcome: null, change_reason: null, change_reason_note: null }),
+        true
+      );
+
+      // (c) new payload with valid non-null values -> accepted, and persists verbatim.
+      await expectRpc(
+        "rollout. post-migration RPC + new valid debrief values -> accepted",
+        oldShapedPRow({
+          session_date: "2026-09-25",
+          completion_status: "partial",
+          technical_outcome: "yes",
+          change_reason: "mechanical",
+          change_reason_note: "Dérailleur cassé",
+        }),
+        true
+      );
+      {
+        const { data: row } = await admin
+          .from("completed_sessions")
+          .select("technical_outcome, change_reason, change_reason_note")
+          .eq("athlete_id", userA.athleteId)
+          .eq("session_date", "2026-09-25")
+          .single();
+        record(
+          "rollout. new valid debrief values persist verbatim",
+          row?.technical_outcome === "yes" && row?.change_reason === "mechanical" && row?.change_reason_note === "Dérailleur cassé",
+          JSON.stringify(row)
+        );
+      }
+
+      // (d) unknown random key -> rejected (unchanged unknown-key rejection loop).
+      await expectRpc(
+        "rollout. post-migration RPC + unknown random key -> rejected",
+        oldShapedPRow({ session_date: "2026-09-26", totally_unknown_key: "x" }),
+        false
+      );
+
+      // (e) invalid technical_outcome enum value -> rejected (Postgres enum cast failure).
+      await expectRpc(
+        "rollout. post-migration RPC + invalid technical_outcome value -> rejected",
+        oldShapedPRow({ session_date: "2026-09-27", technical_outcome: "maybe" }),
+        false
+      );
+
+      // (f) invalid change_reason enum value -> rejected (Postgres enum cast failure).
+      await expectRpc(
+        "rollout. post-migration RPC + invalid change_reason value -> rejected",
+        oldShapedPRow({ session_date: "2026-09-28", change_reason: "bad_reason" }),
+        false
+      );
+    }
 
     // ================= free_notes server-side preservation (never client-controllable) =================
     {

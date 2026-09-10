@@ -31,10 +31,19 @@ const ALLOWED_METHODS = "GET, PUT";
 // established supabase-js convention (see e.g. web/src/features/checkin/checkinRepo.ts)
 // so the typed query builder can shape .select()'s return type.
 const CANONICAL_READBACK_COLUMNS =
-  "id, session_date, decision_id, session_type, completion_status, actual_duration_min, rpe, post_leg_fatigue, post_grip_fatigue, new_pain, new_pain_note, intervention, main_content, session_load, updated_at";
+  "id, session_date, decision_id, session_type, completion_status, actual_duration_min, rpe, post_leg_fatigue, post_grip_fatigue, new_pain, new_pain_note, intervention, main_content, session_load, updated_at, technical_outcome, change_reason, change_reason_note";
 
 function errorResponse(status: number, code: string, message: string): Response {
   return Response.json({ error: { code, message } }, { status });
+}
+
+/** V0.3_007C — narrow presence check only (never full DailyPlan validation, no engine-logic duplication): is a real, non-empty `dh_or_technical.execution_task` present on this persisted decision's daily_plan jsonb? */
+function hasExecutionTask(dailyPlan: unknown): boolean {
+  if (typeof dailyPlan !== "object" || dailyPlan === null) return false;
+  const dh = (dailyPlan as Record<string, unknown>).dh_or_technical;
+  if (typeof dh !== "object" || dh === null) return false;
+  const task = (dh as Record<string, unknown>).execution_task;
+  return typeof task === "string" && task.trim().length > 0;
 }
 
 export default {
@@ -173,7 +182,7 @@ export default {
     if (body.decision_id !== null) {
       const { data: decisionRow, error: decisionError } = await ctx.supabase
         .from("decisions")
-        .select("id, final_session")
+        .select("id, final_session, daily_plan")
         .eq("id", body.decision_id)
         .eq("decision_date", body.session_date)
         .maybeSingle();
@@ -196,6 +205,24 @@ export default {
           );
         }
       }
+
+      // V0.3_007C — `technical_outcome` answers "did you execute the
+      // SPECIFIC technical task prescribed by the linked decision"; that
+      // task only exists when the linked DailyPlan actually carries a real
+      // `dh_or_technical.execution_task` (populated only on the engine's
+      // generic-fallback path, per V0.3_006C1 — never inferred here from
+      // focus/cue/personal free text, a narrow presence check only, no
+      // duplication of engine logic). validateCompletedSessionBody already
+      // guarantees technical_outcome is non-null only when decision_id is
+      // non-null, so this DB-dependent half of the check belongs here, not
+      // in the portable validator.
+      if (body.technical_outcome !== null && !hasExecutionTask(decisionRow.daily_plan)) {
+        return errorResponse(
+          422,
+          "technical_outcome_no_task",
+          "technical_outcome requires the linked decision to carry a prescribed technical execution task."
+        );
+      }
     }
 
     const { data: rpcResult, error: rpcError } = await ctx.supabaseAdmin.rpc("persist_completed_session", {
@@ -217,6 +244,9 @@ export default {
         post_grip_fatigue: body.post_grip_fatigue,
         new_pain: body.new_pain,
         new_pain_note: body.new_pain_note,
+        technical_outcome: body.technical_outcome,
+        change_reason: body.change_reason,
+        change_reason_note: body.change_reason_note,
       },
     });
 

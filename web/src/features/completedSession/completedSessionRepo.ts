@@ -16,7 +16,7 @@
 import { supabase } from "../../lib/supabase";
 import { mapCompletedSessionError, type CompletedSessionError } from "./completedSessionErrors";
 import type { CompletedSessionInput, CompletedSessionRecord } from "./completedSessionTypes";
-import { COMPLETION_STATUSES, SESSION_TYPES } from "./completedSessionTypes";
+import { COMPLETION_STATUSES, SESSION_TYPES, TECHNICAL_OUTCOMES, CHANGE_REASONS } from "./completedSessionTypes";
 import { isLoadProfile } from "./performedInterventionTypes";
 
 export type GetCompletedSessionResult =
@@ -88,7 +88,10 @@ function isCompletedSessionRecord(value: unknown): value is CompletedSessionReco
     isPerformedInterventionShape(value.intervention) &&
     (value.main_content === null || isPlainObject(value.main_content)) &&
     (value.session_load === null || typeof value.session_load === "number") &&
-    typeof value.updated_at === "string"
+    typeof value.updated_at === "string" &&
+    (value.technical_outcome === null || (typeof value.technical_outcome === "string" && (TECHNICAL_OUTCOMES as readonly string[]).includes(value.technical_outcome))) &&
+    (value.change_reason === null || (typeof value.change_reason === "string" && (CHANGE_REASONS as readonly string[]).includes(value.change_reason))) &&
+    (value.change_reason_note === null || typeof value.change_reason_note === "string")
   );
 }
 

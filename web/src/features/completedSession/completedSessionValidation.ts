@@ -6,9 +6,10 @@
 // error into one object (never short-circuits on the first failure) — same
 // discipline as the pre-007B version, so e.g. both fatigue fields can be
 // reported missing in the same pass.
-import type { CompletedSessionFormState, CompletedSessionInput, SessionType } from "./completedSessionTypes";
+import type { CompletedSessionFormState, CompletedSessionInput, SessionType, TechnicalOutcome, ChangeReason } from "./completedSessionTypes";
 import { validatePerformedIntervention, type TrainingIntervention } from "./performedInterventionTypes";
 import { mapTrainingInterventionToSessionType } from "../dailyPlan/trainingInterventionToSessionType";
+import { isDhFamilyKind } from "./dhFamilyKind";
 
 export type CompletedSessionFieldErrors = Partial<Record<keyof CompletedSessionFormState, string>>;
 export type ValidateCompletedSessionResult =
@@ -128,6 +129,59 @@ export function validateCompletedSessionForm(state: CompletedSessionFormState, s
     }
   }
 
+  // V0.3_007C — debrief fields. Mirrors validation.ts's
+  // validateDebriefFields coherence rules exactly (client-side mirror, not
+  // authoritative). Deliberately does NOT enforce "required when
+  // applicable" here — that's a UI-only gate in CompletedSessionCard's own
+  // canSave (only the component knows whether the linked decision actually
+  // carries an execution_task). This only rejects a PRESENT value that is
+  // incoherent, exactly like the server.
+  let technicalOutcome: TechnicalOutcome | null = null;
+  if (state.technical_outcome !== "") {
+    if (state.completion_status !== "done" && state.completion_status !== "partial") {
+      errors.technical_outcome = "Non applicable pour ce statut.";
+    } else if (state.decision_id === null) {
+      errors.technical_outcome = "Nécessite un plan lié.";
+    } else if (state.performed_kind === "" || !isDhFamilyKind(state.performed_kind)) {
+      // Final review, Issue C — a DH riding task cannot be truthfully
+      // evaluated by a non-DH performed activity. Mirrors validation.ts.
+      errors.technical_outcome = "Nécessite une activité DH.";
+    } else {
+      technicalOutcome = state.technical_outcome;
+    }
+  }
+
+  let changeReason: ChangeReason | null = null;
+  if (state.change_reason !== "") {
+    if (state.completion_status === "done") {
+      errors.change_reason = "Doit être vide pour une séance faite normalement.";
+    } else if (state.change_reason === "coach_criterion" && state.decision_id === null) {
+      errors.change_reason = "Nécessite un plan lié.";
+    } else {
+      changeReason = state.change_reason;
+    }
+  }
+
+  let changeReasonNote: string | null = null;
+  const trimmedReasonNote = state.change_reason_note.trim();
+  if (trimmedReasonNote.length > 0) {
+    if (trimmedReasonNote.length > 500) {
+      errors.change_reason_note = "500 caractères maximum.";
+    } else if (changeReason === null) {
+      errors.change_reason_note = "Nécessite un motif sélectionné.";
+    } else {
+      changeReasonNote = trimmedReasonNote;
+    }
+  }
+
+  // Final review, Issue #3 — "other" alone carries almost no usable
+  // information; a short note is required. Never affects any other
+  // category, and never server-required for old clients (this rule only
+  // ever fires when change_reason="other" is explicitly chosen).
+  if (changeReason === "other" && changeReasonNote === null && !errors.change_reason_note) {
+    errors.change_reason_note = "Précise brièvement (obligatoire pour « Autre »).";
+  }
+
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors };
   }
@@ -149,6 +203,9 @@ export function validateCompletedSessionForm(state: CompletedSessionFormState, s
       new_pain_note: painNote,
       intervention,
       main_content: state.main_content,
+      technical_outcome: technicalOutcome,
+      change_reason: changeReason,
+      change_reason_note: changeReasonNote,
     },
   };
 }
