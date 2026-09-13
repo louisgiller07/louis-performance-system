@@ -144,6 +144,69 @@ describe("isValidDailyPlan", () => {
   });
 });
 
+// V0.3_008A — Previous-Day Recovery Continuity.
+describe("isValidDailyPlan — recent_recovery_context (V0.3_008A)", () => {
+  const VALID_RECENT_RECOVERY_CONTEXT = {
+    session_date: "2026-08-23",
+    completion_status: "partial",
+    change_reason: "fatigue_control",
+    post_leg_fatigue: 7,
+    post_grip_fatigue: 7,
+  };
+
+  it("accepts a well-formed recent_recovery_context (PARTIAL)", () => {
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: VALID_RECENT_RECOVERY_CONTEXT })).toBe(true);
+  });
+
+  it.each(["replaced", "skipped"])("accepts a well-formed recent_recovery_context (%s)", (status) => {
+    expect(
+      isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: { ...VALID_RECENT_RECOVERY_CONTEXT, completion_status: status } })
+    ).toBe(true);
+  });
+
+  it("accepts null post_leg_fatigue/post_grip_fatigue (the SKIPPED, no-post-data case)", () => {
+    expect(
+      isValidDailyPlan({
+        ...VALID_DAILY_PLAN,
+        recent_recovery_context: { ...VALID_RECENT_RECOVERY_CONTEXT, completion_status: "skipped", post_leg_fatigue: null, post_grip_fatigue: null },
+      })
+    ).toBe(true);
+  });
+
+  it("accepts an absent recent_recovery_context (undefined — the normal no-context case)", () => {
+    expect(isValidDailyPlan(VALID_DAILY_PLAN)).toBe(true);
+  });
+
+  it("rejects recent_recovery_context: null — never silently treated as 'no context' by staying undefined-shaped", () => {
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: null })).toBe(false);
+  });
+
+  it("rejects an invalid completion_status (e.g. 'done', structurally impossible for a real row but must still be rejected defensively)", () => {
+    expect(
+      isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: { ...VALID_RECENT_RECOVERY_CONTEXT, completion_status: "done" } })
+    ).toBe(false);
+  });
+
+  it("rejects any change_reason other than the locked 'fatigue_control'", () => {
+    expect(
+      isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: { ...VALID_RECENT_RECOVERY_CONTEXT, change_reason: "pain" } })
+    ).toBe(false);
+  });
+
+  it("rejects a non-number, non-null post_leg_fatigue/post_grip_fatigue", () => {
+    expect(
+      isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: { ...VALID_RECENT_RECOVERY_CONTEXT, post_leg_fatigue: "7" } })
+    ).toBe(false);
+    expect(
+      isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: { ...VALID_RECENT_RECOVERY_CONTEXT, post_grip_fatigue: "7" } })
+    ).toBe(false);
+  });
+
+  it("rejects recent_recovery_context as a bare string", () => {
+    expect(isValidDailyPlan({ ...VALID_DAILY_PLAN, recent_recovery_context: "fatigue_control" })).toBe(false);
+  });
+});
+
 // REV-001 — active_mode: "UNSPECIFIED" has been a legitimate engine output
 // since V0.3_004C (head-coach-engine/src/types/context.ts, "no current
 // training_blocks configured" — never a fabricated phase). This mirror was

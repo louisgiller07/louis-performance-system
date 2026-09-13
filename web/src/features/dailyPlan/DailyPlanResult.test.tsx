@@ -295,6 +295,56 @@ describe("DailyPlanResult", () => {
     expect(headings.indexOf("À éviter")).toBeLessThan(headings.indexOf("Récupération"));
   });
 
+  // V0.3_008A final semantic gate — Safety-relevant guidance must retain
+  // visual precedence over "Contexte récent" (purely factual J-1 recovery
+  // context), exactly the same DOM-order discipline as the À éviter/
+  // Récupération precedent above. Pure ordering — content unchanged.
+  it("renders À éviter before Contexte récent when a Safety-layer rule is active", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          triggered_rules: [{ layer: "A", rule_id: "A5", detail: "Flag concussion_suspect actif non résolu." }],
+          protection: { do_not_do: ["Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue"] },
+          recent_recovery_context: {
+            session_date: "2026-08-18",
+            completion_status: "partial",
+            change_reason: "fatigue_control",
+            post_leg_fatigue: 7,
+            post_grip_fatigue: 7,
+          },
+        })}
+      />
+    );
+    const headings = screen.getAllByRole("heading").map((h) => h.textContent);
+    expect(headings.indexOf("À éviter")).toBeGreaterThanOrEqual(0);
+    expect(headings.indexOf("Contexte récent")).toBeGreaterThanOrEqual(0);
+    expect(headings.indexOf("À éviter")).toBeLessThan(headings.indexOf("Contexte récent"));
+  });
+
+  it("renders the Attention santé banner before Contexte récent when a health flag was created", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult(
+          {
+            health_flag_to_create: { type: "concussion_suspect", reason: "Suspicion de commotion déclarée." },
+            recent_recovery_context: {
+              session_date: "2026-08-18",
+              completion_status: "partial",
+              change_reason: "fatigue_control",
+              post_leg_fatigue: 7,
+              post_grip_fatigue: 7,
+            },
+          },
+          { healthFlagId: "flag-1" }
+        )}
+      />
+    );
+    expect(screen.getByText("Attention santé")).toBeInTheDocument();
+    const contexteHeading = screen.getByRole("heading", { name: "Contexte récent" });
+    const attentionBanner = screen.getByText("Attention santé");
+    expect(attentionBanner.compareDocumentPosition(contexteHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   // V0.3_006A1 — regression: without any Safety-layer rule, ordering stays
   // exactly as before (Récupération, then À éviter further down) — the
   // precedence swap is conditional, not a global reorder.

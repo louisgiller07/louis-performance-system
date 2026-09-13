@@ -6,6 +6,12 @@
  * (read-only import from the frozen engine) — `computeRecentLoad`
  * (src/engine/recentLoad.ts) re-filters by age itself, so this is a
  * query-efficiency superset, not a re-decided business rule.
+ *
+ * V0.3_008A — `post_leg_fatigue`/`post_grip_fatigue`/`change_reason` added
+ * to the select for `mapRecentRecoveryContext` (src/supabase/mapping/
+ * recentRecoveryContext.ts), which reuses these SAME rows (D-1 is always
+ * inside a 7-day window) — deliberately NOT a second query. `recentLoad`'s
+ * own consumer (`mapCompletedSessionRow`) simply ignores the extra columns.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROVISIONAL_THRESHOLDS } from "../../engine/provisionalThresholds.js";
@@ -32,7 +38,7 @@ export async function getRecentSessions(
 
   const { data, error } = await client
     .from("completed_sessions")
-    .select("session_date, session_type, intervention, completion_status")
+    .select("session_date, session_type, intervention, completion_status, post_leg_fatigue, post_grip_fatigue, change_reason")
     .eq("athlete_id", athleteId)
     .gte("session_date", windowStart)
     .lte("session_date", today);

@@ -57,3 +57,49 @@ describe("DailyPlanView — real enriched engine output", () => {
     expect(screen.getByText(plan.nutrition.notes!)).toBeInTheDocument();
   });
 });
+
+// V0.3_008A — Previous-Day Recovery Continuity, real end-to-end proof: real
+// RawContext.recent_recovery_context → real buildDailyPlan (pure
+// passthrough) → real isValidDailyPlan → real DailyPlanView render. Fails
+// naturally if a future engine change ever breaks this field's shape.
+describe("DailyPlanView — real engine output with recent_recovery_context (V0.3_008A)", () => {
+  it("a real RawContext carrying a D-1 recovery context produces a plan whose Contexte récent section renders correctly", () => {
+    const ctx = baseRawContext({
+      recent_recovery_context: {
+        session_date: "2026-08-23",
+        completion_status: "partial",
+        change_reason: "fatigue_control",
+        post_leg_fatigue: 7,
+        post_grip_fatigue: 7,
+      },
+    });
+
+    const plan = buildDailyPlan(ctx);
+
+    expect(plan.recent_recovery_context).toEqual(ctx.recent_recovery_context);
+    expect(isValidDailyPlan(plan)).toBe(true);
+    if (!isValidDailyPlan(plan)) {
+      throw new Error("unreachable — asserted above; narrows `plan` for the render call below");
+    }
+
+    render(<DailyPlanView dailyPlan={plan} hasHealthSignal={false} />);
+
+    expect(screen.getByText("Contexte récent")).toBeInTheDocument();
+    expect(screen.getByText("Hier, ta séance a été écourtée pour fatigue ou perte de contrôle.")).toBeInTheDocument();
+    expect(screen.getByText("Fatigue déclarée après la séance : jambes 7/10 · grip 7/10.")).toBeInTheDocument();
+  });
+
+  it("a real RawContext with no recent_recovery_context produces a plan with no Contexte récent section", () => {
+    const ctx = baseRawContext();
+    const plan = buildDailyPlan(ctx);
+
+    expect(plan.recent_recovery_context).toBeUndefined();
+    expect(isValidDailyPlan(plan)).toBe(true);
+    if (!isValidDailyPlan(plan)) {
+      throw new Error("unreachable — asserted above; narrows `plan` for the render call below");
+    }
+
+    render(<DailyPlanView dailyPlan={plan} hasHealthSignal={false} />);
+    expect(screen.queryByText("Contexte récent")).not.toBeInTheDocument();
+  });
+});

@@ -9,7 +9,45 @@ import {
   hasActiveSafetyRule,
 } from "./safetyPresentation";
 import { formatDhSessionWindow, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
-import type { DailyPlan } from "./dailyPlanTypes";
+import type { DailyPlan, RecentRecoveryContext } from "./dailyPlanTypes";
+
+// V0.3_008A — Previous-Day Recovery Continuity. A dedicated, purely factual
+// read-only section — deliberately NEVER folded into `reasoning` (that
+// string is a flat concatenation of independently-generated rule text,
+// already documented as capable of self-contradiction — GAP-003, deferred
+// separately). `change_reason` is locked to exactly "fatigue_control" in
+// this slice (server/engine contract), so no broad label map is needed or
+// imported here — one neutral French sentence per completion_status is
+// enough. Never claims "tu es encore fatigué" or "tu as récupéré" — the
+// heading/tense alone establishes this describes YESTERDAY, and today's
+// own current-state sections (already rendered elsewhere on this page)
+// remain the only source of truth about today.
+const RECENT_RECOVERY_STATUS_COPY: Record<RecentRecoveryContext["completion_status"], string> = {
+  partial: "Hier, ta séance a été écourtée pour fatigue ou perte de contrôle.",
+  replaced: "Hier, ta séance a été remplacée pour fatigue ou perte de contrôle.",
+  skipped: "Hier, la séance n'a pas été effectuée pour fatigue ou perte de contrôle.",
+};
+
+function RecentRecoveryContextSection({ context }: { context: RecentRecoveryContext }) {
+  // V0.3_008A final presentation gate — SKIPPED means no session was
+  // performed, so no post-session fact can exist to report. Gated on
+  // completion_status alone (never merely "are the values non-null"): a
+  // legacy/malformed historical row must never have stray non-null
+  // post_leg_fatigue/post_grip_fatigue misread as post-session facts for a
+  // session that structurally never happened.
+  const fatigueParts: string[] = [];
+  if (context.completion_status !== "skipped") {
+    if (context.post_leg_fatigue !== null) fatigueParts.push(`jambes ${context.post_leg_fatigue}/10`);
+    if (context.post_grip_fatigue !== null) fatigueParts.push(`grip ${context.post_grip_fatigue}/10`);
+  }
+
+  return (
+    <PlanSection title="Contexte récent">
+      <p>{RECENT_RECOVERY_STATUS_COPY[context.completion_status]}</p>
+      {fatigueParts.length > 0 && <p className="text-gray-500">Fatigue déclarée après la séance : {fatigueParts.join(" · ")}.</p>}
+    </PlanSection>
+  );
+}
 
 export interface DailyPlanViewProps {
   dailyPlan: DailyPlan;
@@ -171,6 +209,16 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
       )}
 
       {safetyActive && protectionSection}
+
+      {/*
+       * V0.3_008A presentation gate — placed strictly AFTER both Safety-
+       * relevant elements above (the "Attention santé" banner and, when
+       * active, the Safety-driven "À éviter" card): Safety-relevant
+       * guidance must always retain visual precedence over ordinary
+       * recovery/context information, never compete with or appear above
+       * it. Purely a DOM-order decision — no Safety behavior/logic touched.
+       */}
+      {dailyPlan.recent_recovery_context && <RecentRecoveryContextSection context={dailyPlan.recent_recovery_context} />}
 
       {dailyPlan.recovery.active && dailyPlan.recovery.actions.length > 0 && (
         <PlanSection title="Récupération">

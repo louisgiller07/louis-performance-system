@@ -1,4 +1,12 @@
-import type { ArbitrationDecision, Confidence, DailyPlan, DailyRunResponse, HealthFlagType, TrainingMode } from "./dailyPlanTypes";
+import type {
+  ArbitrationDecision,
+  Confidence,
+  DailyPlan,
+  DailyRunResponse,
+  HealthFlagType,
+  RecentRecoveryCompletionStatus,
+  TrainingMode,
+} from "./dailyPlanTypes";
 
 // supabase.functions.invoke<DailyRunResponse>() only gives compile-time
 // typing — the actual JSON on the wire is unchecked `unknown` until this
@@ -21,6 +29,7 @@ const ALLOWED_TRAINING_MODES: readonly TrainingMode[] = [
   "UNSPECIFIED",
 ];
 const ALLOWED_HEALTH_FLAG_TYPES: readonly HealthFlagType[] = ["concussion_suspect", "injury_suspect", "illness", "pain_persistent"];
+const ALLOWED_RECENT_RECOVERY_STATUSES: readonly RecentRecoveryCompletionStatus[] = ["partial", "replaced", "skipped"];
 
 function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value);
@@ -67,6 +76,25 @@ function isValidHealthFlagToCreate(value: unknown): boolean {
 }
 
 /**
+ * V0.3_008A — same "never survive as present just because it's not
+ * undefined" discipline as isValidHealthFlagToCreate above: this is what
+ * gates DailyPlanView rendering a factual recovery-context card, so a
+ * malformed value must degrade the whole plan to the legacy fallback, never
+ * be rendered half-trusted.
+ */
+function isValidRecentRecoveryContext(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isObject(value)) return false;
+  return (
+    typeof value.session_date === "string" &&
+    isOneOf(value.completion_status, ALLOWED_RECENT_RECOVERY_STATUSES) &&
+    value.change_reason === "fatigue_control" &&
+    (value.post_leg_fatigue === null || typeof value.post_leg_fatigue === "number") &&
+    (value.post_grip_fatigue === null || typeof value.post_grip_fatigue === "number")
+  );
+}
+
+/**
  * Validates a bare DailyPlan object — the same shape whether it just came
  * back from daily-run (nested in a DailyRunResponse) or was read back from
  * decisions.daily_plan for /history (M4_006). A historical row's JSON may
@@ -96,6 +124,7 @@ export function isValidDailyPlan(plan: unknown): plan is DailyPlan {
 
   if (!isValidTriggeredRules(plan.triggered_rules)) return false;
   if (!isValidHealthFlagToCreate(plan.health_flag_to_create)) return false;
+  if (!isValidRecentRecoveryContext(plan.recent_recovery_context)) return false;
 
   if (plan.planned_session_before !== null && !isValidIntervention(plan.planned_session_before)) return false;
   if (!isValidIntervention(plan.final_session)) return false;

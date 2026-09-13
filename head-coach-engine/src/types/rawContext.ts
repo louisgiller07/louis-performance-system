@@ -27,6 +27,30 @@ export interface CompletedSessionSummary {
 }
 
 /**
+ * V0.3_008A — contexte factuel de récupération J-1, jamais une dimension
+ * notée ni un signal d'arbitrage. Présent uniquement quand la session
+ * complétée de la veille EXACTE (jamais "la plus récente") porte
+ * `change_reason = "fatigue_control"` et `completion_status` ∈
+ * `{partial, replaced, skipped}` — `done` ne peut structurellement pas
+ * porter de `change_reason` (contrat V0.3_007C). Toute autre raison
+ * (`pain`, `weather_terrain`, etc.) reste inerte en V0.3_008A : ce champ
+ * est alors absent (`undefined`), jamais `null` fabriqué. `post_leg_fatigue`/
+ * `post_grip_fatigue` sont les valeurs brutes déclarées par l'athlète,
+ * jamais agrégées/moyennées/converties en charge — voir recentLoad.ts pour
+ * la charge, un concept strictement séparé. Ce type est aussi utilisé tel
+ * quel comme instantané persisté dans `DailyPlan.recent_recovery_context`
+ * (voir dailyPlan.ts) — les deux usages partagent la même forme par
+ * construction, jamais deux structures qui pourraient diverger.
+ */
+export interface RecentRecoveryContext {
+  session_date: string; // ISO date — toujours today - 1 jour calendaire exact
+  completion_status: "partial" | "replaced" | "skipped";
+  change_reason: "fatigue_control";
+  post_leg_fatigue: number | null;
+  post_grip_fatigue: number | null;
+}
+
+/**
  * RawContext — entrée du moteur. Voir docs/04_DAILY_DECISION_ENGINE.md §1.
  *
  * `n_total_checkins` / `n_total_completed_sessions` sont des indicateurs
@@ -51,6 +75,8 @@ export interface RawContext {
   current_block?: TrainingBlockRef;
   upcoming_races: UpcomingRace[];
   recent_sessions: CompletedSessionSummary[];
+  /** V0.3_008A. Absent when no eligible J-1 fatigue_control session exists — see RecentRecoveryContext's own doc. */
+  recent_recovery_context?: RecentRecoveryContext;
   active_experiments: ActiveExperiment[];
   active_health_flags: HealthFlag[];
   availability?: WeeklyAvailability;

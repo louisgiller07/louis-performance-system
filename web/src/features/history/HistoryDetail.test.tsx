@@ -516,3 +516,118 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     expect(within(card).getByText("Changement d'activité")).toBeInTheDocument();
   });
 });
+
+// V0.3_008A — Previous-Day Recovery Continuity. Lives on the persisted
+// DailyPlan (Prescrit side, rendered by the shared DailyPlanView) — History
+// never re-derives it from live completed_sessions, it only restores
+// exactly what was persisted, same as every other DailyPlan field.
+describe("HistoryDetail — Contexte récent J-1 (V0.3_008A)", () => {
+  it("renders the PARTIAL copy and post-session fatigue when persisted", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            recent_recovery_context: {
+              session_date: "2026-08-18",
+              completion_status: "partial",
+              change_reason: "fatigue_control",
+              post_leg_fatigue: 7,
+              post_grip_fatigue: 7,
+            },
+          },
+        })}
+        performedMatch={{ kind: "none" }}
+      />
+    );
+    expect(screen.getByText("Contexte récent")).toBeInTheDocument();
+    expect(screen.getByText("Hier, ta séance a été écourtée pour fatigue ou perte de contrôle.")).toBeInTheDocument();
+    expect(screen.getByText("Fatigue déclarée après la séance : jambes 7/10 · grip 7/10.")).toBeInTheDocument();
+    // Never a raw enum.
+    expect(screen.queryByText("fatigue_control")).not.toBeInTheDocument();
+    expect(screen.queryByText("partial")).not.toBeInTheDocument();
+  });
+
+  it("renders the REPLACED copy", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            recent_recovery_context: {
+              session_date: "2026-08-18",
+              completion_status: "replaced",
+              change_reason: "fatigue_control",
+              post_leg_fatigue: 6,
+              post_grip_fatigue: 5,
+            },
+          },
+        })}
+        performedMatch={{ kind: "none" }}
+      />
+    );
+    expect(screen.getByText("Hier, ta séance a été remplacée pour fatigue ou perte de contrôle.")).toBeInTheDocument();
+  });
+
+  it("renders the SKIPPED copy WITHOUT a post-session-fatigue line when the values are absent — never fabricated", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            recent_recovery_context: {
+              session_date: "2026-08-18",
+              completion_status: "skipped",
+              change_reason: "fatigue_control",
+              post_leg_fatigue: null,
+              post_grip_fatigue: null,
+            },
+          },
+        })}
+        performedMatch={{ kind: "none" }}
+      />
+    );
+    expect(screen.getByText("Hier, la séance n'a pas été effectuée pour fatigue ou perte de contrôle.")).toBeInTheDocument();
+    expect(screen.queryByText(/Fatigue déclarée après la séance/)).not.toBeInTheDocument();
+  });
+
+  // Final semantic gate — defensive: even a legacy/malformed historical row
+  // with stray non-null post-fatigue values on a SKIPPED record must never
+  // have them misread as post-session facts for a session that structurally
+  // never happened. Gated on completion_status alone, never "are the values
+  // present".
+  it("SKIPPED never shows the post-session-fatigue line even if a legacy/malformed row carries non-null values", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: {
+            ...VALID_DAILY_PLAN,
+            recent_recovery_context: {
+              session_date: "2026-08-18",
+              completion_status: "skipped",
+              change_reason: "fatigue_control",
+              post_leg_fatigue: 7,
+              post_grip_fatigue: 7,
+            },
+          },
+        })}
+        performedMatch={{ kind: "none" }}
+      />
+    );
+    expect(screen.getByText("Hier, la séance n'a pas été effectuée pour fatigue ou perte de contrôle.")).toBeInTheDocument();
+    expect(screen.queryByText(/Fatigue déclarée après la séance/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/7\/10/)).not.toBeInTheDocument();
+  });
+
+  it("renders no 'Contexte récent' section at all when absent (normal case for most decisions)", () => {
+    render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
+    expect(screen.queryByText("Contexte récent")).not.toBeInTheDocument();
+  });
+
+  it("a legacy decision predating V0.3_008A (no recent_recovery_context key at all) renders exactly as before, no crash", () => {
+    // VALID_DAILY_PLAN never carries recent_recovery_context — this IS the legacy shape.
+    render(<HistoryDetail row={makeRow({ dailyPlan: VALID_DAILY_PLAN })} performedMatch={{ kind: "none" }} />);
+    expect(screen.queryByText("Contexte récent")).not.toBeInTheDocument();
+    expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
+  });
+});

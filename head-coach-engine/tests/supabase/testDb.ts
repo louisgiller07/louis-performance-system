@@ -258,19 +258,31 @@ export async function insertHealthFlag(
   if (error) throw new Error(`insertHealthFlag failed: ${error.message}`);
 }
 
+/** V0.3_008A — extra fields are all optional and additive; the pre-existing 4-arg call shape (completion_status="done", no change_reason/fatigue) is unchanged. */
+export interface InsertCompletedSessionOptions {
+  completionStatus?: "done" | "partial" | "skipped" | "replaced";
+  changeReason?: string;
+  postLegFatigue?: number;
+  postGripFatigue?: number;
+}
+
 export async function insertCompletedSession(
   client: SupabaseClient,
   athleteId: string,
   date: string,
   sessionType: string,
-  intervention: unknown
+  intervention: unknown,
+  options: InsertCompletedSessionOptions = {}
 ): Promise<void> {
   const { error } = await client.from("completed_sessions").insert({
     athlete_id: athleteId,
     session_date: date,
     session_type: sessionType,
-    completion_status: "done",
+    completion_status: options.completionStatus ?? "done",
     intervention,
+    ...(options.changeReason !== undefined ? { change_reason: options.changeReason } : {}),
+    ...(options.postLegFatigue !== undefined ? { post_leg_fatigue: options.postLegFatigue } : {}),
+    ...(options.postGripFatigue !== undefined ? { post_grip_fatigue: options.postGripFatigue } : {}),
   });
   if (error) throw new Error(`insertCompletedSession failed: ${error.message}`);
 }

@@ -33,6 +33,7 @@ import { parseTrainingMode } from "./mapping/trainingMode.js";
 import { mapPlannedSessionRow } from "./mapping/plannedSessionIntervention.js";
 import { mapRaceCalendarRow } from "./mapping/raceCalendarRow.js";
 import { mapCompletedSessionRow } from "./mapping/completedSessionRow.js";
+import { mapRecentRecoveryContext } from "./mapping/recentRecoveryContext.js";
 import { mapHealthFlagRow } from "./mapping/healthFlagRow.js";
 import { mapCoachingProfileRow } from "./mapping/coachingProfileRow.js";
 
@@ -121,6 +122,11 @@ export async function buildRawContext(
     const mapped = mapCompletedSessionRow(row);
     if (mapped) recent_sessions.push(mapped);
   }
+  // V0.3_008A — same raw rows, a fully independent mapper (never reuses
+  // mapCompletedSessionRow, which would silently drop a `skipped` D-1 row —
+  // see recentRecoveryContext.ts's own doc). recentLoad's own pipeline
+  // above is untouched.
+  const recent_recovery_context = mapRecentRecoveryContext(sessionRows, today);
 
   const flagRows = await getOpenHealthFlags(client, athleteId);
   const active_health_flags = flagRows.map(mapHealthFlagRow);
@@ -140,6 +146,7 @@ export async function buildRawContext(
     active_mode,
     upcoming_races,
     recent_sessions,
+    ...(recent_recovery_context !== undefined ? { recent_recovery_context } : {}),
     active_experiments: [],
     active_health_flags,
     ...(coaching_profile !== undefined ? { coaching_profile } : {}),

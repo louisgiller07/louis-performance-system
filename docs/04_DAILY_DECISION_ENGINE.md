@@ -40,6 +40,7 @@ Le `RawContext` contient au minimum :
 - `active_mode` (TrainingMode courant)
 - `upcoming_races` (liste, incluant fenêtre post-event utile)
 - `recent_sessions` (7 derniers jours de sessions complétées)
+- `recent_recovery_context` (V0.3_008A, IMPLÉMENTÉ LOCALEMENT, pas encore CLOSED — optionnel, `RecentRecoveryContext | undefined`, voir `07_GLOSSARY.md`) : contexte factuel J-1 uniquement, jamais consommé par `SignalTrace`, jamais un signal d'arbitrage — pur passthrough vers `DailyPlan.recent_recovery_context`, instantané immuable persisté tel quel
 - `active_experiments` (liste des ActiveExperiment en cours, cf. `03_COACHING_MODEL.md`)
 - `active_health_flags` : liste structurée `HealthFlag[]`, **pas un simple nombre**. Chaque flag contient au minimum `type` (concussion_suspect, injury_suspect, illness, pain_persistent) et `status` (active, monitoring, resolved). Nécessaire pour évaluer la règle "retour post-commotion sans validation médicale".
 - `n_total_checkins`, `n_total_completed_sessions` (indicateurs contextuels, non utilisés comme seuils de confidence en M1)

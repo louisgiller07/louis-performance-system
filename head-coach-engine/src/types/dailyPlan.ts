@@ -2,6 +2,7 @@ import type { TrainingMode, EventContext } from "./context.js";
 import type { TrainingIntervention } from "./trainingIntervention.js";
 import type { TriggeredRule } from "./triggeredRule.js";
 import type { HealthFlagToCreate } from "./healthFlag.js";
+import type { RecentRecoveryContext } from "./rawContext.js";
 
 // Confidence qualitative — voir docs/04_DAILY_DECISION_ENGINE.md §6 et
 // docs/11_DECISION_LOG.md (2026-08-11 — Confidence qualitative en V0.2).
@@ -110,6 +111,18 @@ export interface DailyPlan {
 
   overrode_race_protocol: boolean;
   override_reason?: string;
+
+  /**
+   * V0.3_008A — instantané immuable du contexte de récupération J-1
+   * réellement consommé au moment de la génération de CETTE décision.
+   * Jamais recalculé/reconstruit en aval (History/Today restaurent ce
+   * champ tel quel) : si la session complétée source est corrigée plus
+   * tard, cette décision déjà persistée continue de refléter ce que le
+   * moteur a réellement vu — voir docs/11_DECISION_LOG.md V0.3_008A.
+   * Absent pour toute décision antérieure à ce jalon, ou quand aucun
+   * contexte J-1 éligible n'existait.
+   */
+  recent_recovery_context?: RecentRecoveryContext;
 
   engine_version: string;
 }

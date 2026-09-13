@@ -568,6 +568,22 @@ Dette explicitement reportée, non résolue par V0.3_007D :
 ### Prochaine direction retenue : revue dogfood sérieuse / boucle longitudinale (pas encore un jalon numéroté)
 La boucle **planifié → prescrit → réalisé → debrief → History** est désormais matériellement complète. Avant tout nouveau code sur ce fil : utiliser la boucle sur de vraies séances, inspecter si le debrief capturé (V0.3_007C) est réellement utile, identifier des patterns répétés, décider explicitement si `technical_outcome`/`change_reason` mérite une consommation longitudinale, revisiter le matching riche-vs-riche `recommendationVsActualExecution` avec de vraies preuves plutôt que spéculer. Ne pas inventer de règle déterministe avant que le dogfood ne la justifie.
 
+Cette revue a produit une première investigation d'architecture concrète — voir ci-dessous.
+
+---
+
+## V0.3_008 — Longitudinal Coaching Context (IMPLÉMENTATION EN COURS, pas CLOSED)
+
+Investigation d'architecture (lecture seule) : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_008) — plan recommandé `RecentPerformedContext` (`recovery`/`technical`), priorité A > B > C/GAPs.
+
+**V0.3_008A — Previous-Day Recovery Continuity (IMPLÉMENTÉ LOCALEMENT, en attente de revue, pas encore CLOSED)** : première tranche (option A), déverrouillage M1 limité à elle seule. `RawContext.recent_recovery_context` / `DailyPlan.recent_recovery_context` — J-1 exact uniquement, `change_reason = fatigue_control` + `completion_status ∈ {partial, replaced, skipped}` uniquement, aucun effet d'arbitrage (prouvé empiriquement), instantané d'audit immuable via `decisions.daily_plan` (aucune nouvelle table). Détail complet : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_008A). `ENGINE_VERSION → head-coach-engine@0.2.0-m1-v0.3_008a`.
+
+Dette explicitement différée par V0.3_008A, non résolue :
+- **Continuité technique** (`technical_outcome`/`execution_task`, dernière décision DH pertinente) — nécessite la toute première lecture `decisions` par le moteur, tranche future séparée (option B de l'investigation).
+- **C3.7 (recentLoad RED)** — confirmé conseil soft intentionnel/écart de ton de copie, décision produit/copie séparée, pas une question d'architecture de contexte.
+- **GAP-001/GAP-002/GAP-003** — confirmés hors périmètre de la continuité de contexte récent (richesse de la prescription DH du jour courant, pas consommation d'historique), restent des tickets de correction/présentation séparés.
+- **GAP-004** — toujours politique Safety/médicale séparée.
+
 ---
 
 ## P1 — Après M2

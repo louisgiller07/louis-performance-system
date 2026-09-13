@@ -11,6 +11,7 @@ import {
   insertCheckin,
   insertTrainingBlock,
   insertPlannedSession,
+  insertCompletedSession,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -162,5 +163,94 @@ describe("M2 write path — runDailyFor (integration, local Supabase, real persi
       .eq("athlete_id", athlete.athleteId)
       .eq("reason", "Atomicity test — invalid confidence_level");
     expect(decisions).toEqual([]);
+  });
+});
+
+// V0.3_008A — snapshot immutability (mandatory per the architecture decision,
+// see docs/11_DECISION_LOG.md V0.3_008A). `decisions.daily_plan` already
+// persists the WHOLE DailyPlan verbatim (mapDailyPlanToDecisionRow.ts,
+// unchanged by this ticket) — this proves the new
+// `recent_recovery_context` field rides that existing, already-immutable
+// append-only mechanism correctly: no new persistence code was needed.
+describe("V0.3_008A — recent_recovery_context persisted snapshot immutability (real Supabase)", () => {
+  let client: SupabaseClient;
+  let athlete: TestAthlete;
+
+  beforeEach(async () => {
+    client = createTestClient();
+    athlete = await createTestAthlete(client, "V0.3_008A snapshot immutability test athlete");
+  });
+
+  afterEach(async () => {
+    await deleteTestAthlete(client, athlete);
+  });
+
+  it("correcting the source completed_sessions row AFTER generation does not alter the already-persisted decision's snapshot", async () => {
+    const yesterday = "2026-08-23";
+    const today = "2026-08-24";
+
+    await insertCompletedSession(client, athlete.athleteId, yesterday, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, {
+      completionStatus: "partial",
+      changeReason: "fatigue_control",
+      postLegFatigue: 7,
+      postGripFatigue: 7,
+    });
+    await insertCheckin(client, athlete.athleteId, today);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+
+    const result = await runDailyFor(client, athlete.athleteId, today);
+    expect(result.dailyPlan.recent_recovery_context).toEqual({
+      session_date: yesterday,
+      completion_status: "partial",
+      change_reason: "fatigue_control",
+      post_leg_fatigue: 7,
+      post_grip_fatigue: 7,
+    });
+
+    // Athlete later corrects yesterday's completed session (e.g. 7/7 -> 4/4).
+    const { error: correctionError } = await client
+      .from("completed_sessions")
+      .update({ post_leg_fatigue: 4, post_grip_fatigue: 4 })
+      .eq("athlete_id", athlete.athleteId)
+      .eq("session_date", yesterday);
+    if (correctionError) throw new Error(`source correction failed: ${correctionError.message}`);
+
+    // Re-read the ALREADY-PERSISTED decision — never regenerated.
+    const { data: decisions } = await client
+      .from("decisions")
+      .select("daily_plan")
+      .eq("id", result.persistence.decision_id)
+      .single();
+
+    const persistedPlan = decisions!.daily_plan as unknown as { recent_recovery_context?: { post_leg_fatigue: number | null; post_grip_fatigue: number | null } };
+    expect(persistedPlan.recent_recovery_context?.post_leg_fatigue).toBe(7);
+    expect(persistedPlan.recent_recovery_context?.post_grip_fatigue).toBe(7);
+
+    // The live source row, by contrast, now genuinely reflects the correction.
+    const { data: liveRow } = await client
+      .from("completed_sessions")
+      .select("post_leg_fatigue, post_grip_fatigue")
+      .eq("athlete_id", athlete.athleteId)
+      .eq("session_date", yesterday)
+      .single();
+    expect(liveRow?.post_leg_fatigue).toBe(4);
+    expect(liveRow?.post_grip_fatigue).toBe(4);
+  });
+
+  it("a decision generated with no eligible D-1 context persists no recent_recovery_context key at all — legacy-shaped, no crash on reread", async () => {
+    const today = "2026-08-24";
+    await insertCheckin(client, athlete.athleteId, today);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+
+    const result = await runDailyFor(client, athlete.athleteId, today);
+    expect(result.dailyPlan.recent_recovery_context).toBeUndefined();
+
+    const { data: decisions } = await client
+      .from("decisions")
+      .select("daily_plan")
+      .eq("id", result.persistence.decision_id)
+      .single();
+    const persistedPlan = decisions!.daily_plan as unknown as Record<string, unknown>;
+    expect(persistedPlan).not.toHaveProperty("recent_recovery_context");
   });
 });

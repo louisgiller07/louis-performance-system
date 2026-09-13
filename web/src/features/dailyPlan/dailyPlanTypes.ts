@@ -112,6 +112,24 @@ export interface MonitoringSection {
   observe: string[];
 }
 
+/**
+ * V0.3_008A — factual J-1 recovery context, never a dimension/score. Mirrors
+ * head-coach-engine's RecentRecoveryContext exactly. Present only when a
+ * real D-1 `completed_sessions` row was `change_reason = "fatigue_control"`
+ * with `completion_status` ∈ {partial, replaced, skipped} — every other
+ * reason stays inert, absent from a persisted DailyPlan entirely. Rendered
+ * read-only, in its own dedicated section — never merged into `reasoning`.
+ */
+export type RecentRecoveryCompletionStatus = "partial" | "replaced" | "skipped";
+
+export interface RecentRecoveryContext {
+  session_date: string;
+  completion_status: RecentRecoveryCompletionStatus;
+  change_reason: "fatigue_control";
+  post_leg_fatigue: number | null;
+  post_grip_fatigue: number | null;
+}
+
 export type RuleLayer = "A" | "B" | "C" | "ARBITRATION";
 
 export interface TriggeredRule {
@@ -145,6 +163,9 @@ export interface DailyPlan {
 
   overrode_race_protocol: boolean;
   override_reason?: string;
+
+  /** V0.3_008A — immutable snapshot as persisted at generation time; never re-derived from live completed_sessions. Absent for any plan predating this field, or when no eligible D-1 context existed. */
+  recent_recovery_context?: RecentRecoveryContext;
 
   engine_version: string;
 }

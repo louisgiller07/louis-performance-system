@@ -15,6 +15,7 @@ import {
   insertHealthFlag,
   insertRace,
   insertCoachingProfile,
+  insertCompletedSession,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -670,5 +671,143 @@ describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real S
     expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "HEAVY", duration_min: 360 });
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_PRESERVED")).toBe(false);
     expect(plan.triggered_rules.some((r) => r.rule_id === "COMMITTED_FAMILY_NO_ADAPTATION")).toBe(false);
+  });
+});
+
+// V0.3_008A — Previous-Day Recovery Continuity, real DB wiring
+// (completedSessionsRepo.ts's extended select -> mapRecentRecoveryContext
+// -> RawContext.recent_recovery_context). The exhaustive eligibility matrix
+// is already covered by the pure mapper unit tests
+// (recentRecoveryContext.test.ts) — this proves only that the real select
+// against a real completed_sessions row actually carries the new columns
+// end to end.
+describe("V0.3_008A — Previous-Day Recovery Continuity (real Supabase wiring)", () => {
+  let client: SupabaseClient;
+  let athlete: TestAthlete;
+  const TODAY = "2026-08-24";
+  const YESTERDAY = "2026-08-23";
+
+  beforeEach(async () => {
+    client = createTestClient();
+    athlete = await createTestAthlete(client, "V0.3_008A recovery context test athlete");
+  });
+
+  afterEach(async () => {
+    await deleteTestAthlete(client, athlete);
+  });
+
+  it("D-1 PARTIAL + fatigue_control + post fatigue -> RawContext.recent_recovery_context populated from the real row", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertCompletedSession(client, athlete.athleteId, YESTERDAY, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, {
+      completionStatus: "partial",
+      changeReason: "fatigue_control",
+      postLegFatigue: 7,
+      postGripFatigue: 7,
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_recovery_context).toEqual({
+      session_date: YESTERDAY,
+      completion_status: "partial",
+      change_reason: "fatigue_control",
+      post_leg_fatigue: 7,
+      post_grip_fatigue: 7,
+    });
+  });
+
+  it("D-1 SKIPPED + fatigue_control (no intervention, no post fatigue) -> still populated, nulls carried through", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertCompletedSession(client, athlete.athleteId, YESTERDAY, "DH_TECHNICAL", null, {
+      completionStatus: "skipped",
+      changeReason: "fatigue_control",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_recovery_context).toEqual({
+      session_date: YESTERDAY,
+      completion_status: "skipped",
+      change_reason: "fatigue_control",
+      post_leg_fatigue: null,
+      post_grip_fatigue: null,
+    });
+  });
+
+  it("D-1 DONE (no change_reason possible) -> RawContext.recent_recovery_context absent", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertCompletedSession(client, athlete.athleteId, YESTERDAY, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_recovery_context).toBeUndefined();
+    expect(rawContext).not.toHaveProperty("recent_recovery_context");
+  });
+
+  it("D-1 PARTIAL with a different change_reason (mechanical) -> absent, inert in V0.3_008A", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertCompletedSession(client, athlete.athleteId, YESTERDAY, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, {
+      completionStatus: "partial",
+      changeReason: "mechanical",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_recovery_context).toBeUndefined();
+  });
+
+  it("no D-1 completed session at all -> absent", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_recovery_context).toBeUndefined();
+  });
+
+  it("recentLoad regression: extending the select with the new columns does not change recentLoad's own classification", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    // 5 HEAVY/MODERATE sessions in the 7-day window -> RED, exactly as before this ticket.
+    const dates = ["2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22"];
+    for (const date of dates) {
+      await insertCompletedSession(client, athlete.athleteId, date, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "HEAVY" });
+    }
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+    const plan = buildDailyPlan(rawContext);
+
+    expect(rawContext.recent_sessions).toHaveLength(5);
+    expect(plan.monitoring.observe).toContain("Surveiller la charge cumulée sur 7 jours (très élevée)");
+  });
+
+  it("athlete A's D-1 fatigue_control never leaks into athlete B's RawContext — no global/latest lookup", async () => {
+    const athleteB = await createTestAthlete(client, "V0.3_008A recovery context cross-athlete B");
+    try {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await insertCompletedSession(client, athlete.athleteId, YESTERDAY, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, {
+        completionStatus: "partial",
+        changeReason: "fatigue_control",
+        postLegFatigue: 7,
+        postGripFatigue: 7,
+      });
+
+      await insertCheckin(client, athleteB.athleteId, TODAY);
+      await insertTrainingBlock(client, athleteB.athleteId, "IN_SEASON");
+      // athleteB deliberately gets no completed session of its own.
+
+      const { rawContext: rawA } = await buildRawContext(client, athlete.athleteId, TODAY);
+      const { rawContext: rawB } = await buildRawContext(client, athleteB.athleteId, TODAY);
+
+      expect(rawA.recent_recovery_context).toBeDefined();
+      expect(rawB.recent_recovery_context).toBeUndefined();
+    } finally {
+      await deleteTestAthlete(client, athleteB);
+    }
   });
 });

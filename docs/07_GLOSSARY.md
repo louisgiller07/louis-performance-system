@@ -10,6 +10,9 @@ Le système de décision quotidien qui combine 7 domaines de coaching. Il ne se 
 **DailyPlan**
 Sortie principale du moteur pour un jour donné. Objet structuré par domaine (`training`, `mental`, `recovery`, etc.) avec `reasoning`, `confidence`, `triggered_rules`.
 
+**RecentRecoveryContext (V0.3_008A, IMPLÉMENTÉ LOCALEMENT, pas encore CLOSED)**
+Contexte factuel de récupération J-1, jamais une dimension notée ni un signal d'arbitrage. Présent sur `RawContext` et, à l'identique, persisté tel quel dans `DailyPlan.recent_recovery_context` (instantané immuable au moment de la génération). Éligibilité stricte : session complétée de la veille EXACTE (jamais « la plus récente »), `change_reason = fatigue_control`, `completion_status` ∈ `{partial, replaced, skipped}`. Ne mute jamais `DimensionState`, `SignalTrace`, `final_session` ni la décision — voir `docs/03_COACHING_MODEL.md` §3 (lecture de support non consommante) et `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_008A).
+
 **Athlete Model**
 Ensemble des connaissances sur Louis : identité, contexte pro, historique physique, mental, calendrier, patterns. Document canonique : `02_ATHLETE_PROFILE.md`.
 

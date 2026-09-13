@@ -32,7 +32,7 @@ import {
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_007b";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008a";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -86,6 +86,12 @@ function buildSafetyPlan(
     final_session: restSession,
     decision: "REST",
     overrode_race_protocol: false,
+    // V0.3_008A — pure passthrough of an already-resolved RawContext fact,
+    // never an arbitration input: present regardless of the Safety branch,
+    // same as every other purely-descriptive field. Key entirely omitted
+    // (never `undefined`-valued) when absent, matching RawContext's own
+    // optional-field convention.
+    ...(ctx.recent_recovery_context !== undefined ? { recent_recovery_context: ctx.recent_recovery_context } : {}),
     engine_version: ENGINE_VERSION,
   };
 }
@@ -369,6 +375,14 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
 
     overrode_race_protocol: overrodeRaceProtocol,
     override_reason: overrideReason,
+
+    // V0.3_008A — pure passthrough of an already-resolved RawContext fact
+    // (see recentRecoveryContext.ts). Deliberately NOT threaded through
+    // SignalTrace/triggered_rules/reasoning: it never influences dimensions,
+    // session, or decision above — see docs/11_DECISION_LOG.md V0.3_008A
+    // for the explicit no-arbitration-effect proof. Key entirely omitted
+    // (never `undefined`-valued) when absent.
+    ...(ctx.recent_recovery_context !== undefined ? { recent_recovery_context: ctx.recent_recovery_context } : {}),
 
     engine_version: ENGINE_VERSION,
   };
