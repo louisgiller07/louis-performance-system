@@ -572,14 +572,16 @@ Cette revue a produit une première investigation d'architecture concrète — v
 
 ---
 
-## V0.3_008 — Longitudinal Coaching Context (IMPLÉMENTATION EN COURS, pas CLOSED)
+## V0.3_008 — Longitudinal Coaching Context
 
 Investigation d'architecture (lecture seule) : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_008) — plan recommandé `RecentPerformedContext` (`recovery`/`technical`), priorité A > B > C/GAPs.
 
-**V0.3_008A — Previous-Day Recovery Continuity (IMPLÉMENTÉ LOCALEMENT, en attente de revue, pas encore CLOSED)** : première tranche (option A), déverrouillage M1 limité à elle seule. `RawContext.recent_recovery_context` / `DailyPlan.recent_recovery_context` — J-1 exact uniquement, `change_reason = fatigue_control` + `completion_status ∈ {partial, replaced, skipped}` uniquement, aucun effet d'arbitrage (prouvé empiriquement), instantané d'audit immuable via `decisions.daily_plan` (aucune nouvelle table). Détail complet : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_008A). `ENGINE_VERSION → head-coach-engine@0.2.0-m1-v0.3_008a`.
+**V0.3_008A — Previous-Day Recovery Continuity (CLOSED / PRODUCTION ROLLOUT COMPLETE)** : première tranche (option A), déverrouillage M1 limité à elle seule. `RawContext.recent_recovery_context` / `DailyPlan.recent_recovery_context` — J-1 exact uniquement, `change_reason = fatigue_control` + `completion_status ∈ {partial, replaced, skipped}` uniquement, aucun effet d'arbitrage (prouvé empiriquement en local ET en production), instantané d'audit immuable via `decisions.daily_plan` (aucune nouvelle table, immuabilité prouvée en production dans les deux sens). Deux défauts de présentation trouvés et corrigés avant rollout (précédence Safety, copie SKIPPED — voir `docs/11_DECISION_LOG.md`). Canary production complet PASS, nettoyage complet vérifié. Détail complet : `docs/11_DECISION_LOG.md` (2026-09-10, V0.3_008A). `ENGINE_VERSION → head-coach-engine@0.2.0-m1-v0.3_008a`.
 
-Dette explicitement différée par V0.3_008A, non résolue :
-- **Continuité technique** (`technical_outcome`/`execution_task`, dernière décision DH pertinente) — nécessite la toute première lecture `decisions` par le moteur, tranche future séparée (option B de l'investigation).
+### V0.3_008B — Continuité technique (INVESTIGATION D'ARCHITECTURE REQUISE, non démarrée)
+Rendre une future séance DH pertinente consciente de la dernière tâche d'exécution technique persistée (`decisions.daily_plan.dh_or_technical.execution_task`) et du `technical_outcome` athlete-reported correspondant (option B de l'investigation V0.3_008). **Différent de V0.3_008A par nature, pas seulement par périmètre** : nécessite que le Head Coach lise `decisions` pour la toute première fois — aucun précédent existant dans le pipeline `daily-run`. Verrouillage d'architecture requis avant toute implémentation (matching exact sans heuristique, staleness, family-matching DH, snapshot d'audit pour la même raison qu'en V0.3_008A). Ne pas implémenter avant cette investigation.
+
+Dette confirmée hors périmètre, restant des tickets séparés :
 - **C3.7 (recentLoad RED)** — confirmé conseil soft intentionnel/écart de ton de copie, décision produit/copie séparée, pas une question d'architecture de contexte.
 - **GAP-001/GAP-002/GAP-003** — confirmés hors périmètre de la continuité de contexte récent (richesse de la prescription DH du jour courant, pas consommation d'historique), restent des tickets de correction/présentation séparés.
 - **GAP-004** — toujours politique Safety/médicale séparée.
