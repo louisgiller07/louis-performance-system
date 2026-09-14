@@ -195,8 +195,18 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
               <p className="text-xs text-gray-400">{DH_SESSION_WINDOW_CAPTION}</p>
             </>
           )}
-          {dailyPlan.dh_or_technical.focus && <p className="mt-1 font-medium text-gray-900">{dailyPlan.dh_or_technical.focus}</p>}
-          {dailyPlan.dh_or_technical.execution_task && <p className="text-gray-600">{dailyPlan.dh_or_technical.execution_task}</p>}
+          {/*
+           * V0.3_008B0 — focus (theme/attention) and execution_task (today's
+           * concrete, kind-only execution instruction) can now coexist (a
+           * personal focus no longer suppresses the generic task — see
+           * dhPrescription.ts#resolveDhExecutionTask). Explicit labels avoid
+           * the task line being misread as an interpretation/elaboration of
+           * the personal focus above it — it never is.
+           */}
+          {dailyPlan.dh_or_technical.focus && <p className="mt-1 font-medium text-gray-900">Focus : {dailyPlan.dh_or_technical.focus}</p>}
+          {dailyPlan.dh_or_technical.execution_task && (
+            <p className="text-gray-600">Tâche du jour : {dailyPlan.dh_or_technical.execution_task}</p>
+          )}
           {dailyPlan.dh_or_technical.spot_hint && <p className="text-gray-600">{dailyPlan.dh_or_technical.spot_hint}</p>}
         </PlanSection>
       )}

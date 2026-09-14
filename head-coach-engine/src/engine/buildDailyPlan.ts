@@ -32,7 +32,7 @@ import {
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008a";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008b0";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir

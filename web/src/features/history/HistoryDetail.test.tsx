@@ -292,7 +292,10 @@ describe("HistoryDetail", () => {
     // dump entirely (same content, different concern than the "getAllByText"
     // precedent used elsewhere in this file).
     const dhCard = screen.getByText("Séance DH").closest("div")!;
-    expect(within(dhCard).getByText("Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")).toBeInTheDocument();
+    // V0.3_008B0 — explicit "Tâche du jour :" label added alongside the value.
+    expect(
+      within(dhCard).getByText("Tâche du jour : Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")
+    ).toBeInTheDocument();
     expect(
       within(dhCard).getByText("Privilégie un terrain familier et lisible où tu peux garder de la marge et une exécution propre.")
     ).toBeInTheDocument();

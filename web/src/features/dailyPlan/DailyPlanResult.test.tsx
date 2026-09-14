@@ -448,7 +448,8 @@ describe("DailyPlanResult", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
     expect(screen.getByText(/Inclut les remontées, pauses et temps d'attente/)).toBeInTheDocument();
-    expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
+    // V0.3_008B0 — explicit "Focus :" label added alongside the value.
+    expect(screen.getByText("Focus : Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
     expect(screen.getByText("Terrain adapté au focus technique du jour.")).toBeInTheDocument();
     expect(screen.queryByText("360 min")).not.toBeInTheDocument();
   });
@@ -517,7 +518,7 @@ describe("DailyPlanResult", () => {
 
   // --- V0.3_006C1: DH Execution Guidance ---
 
-  it("renders execution_task in the Séance DH card when present (generic-fallback path)", () => {
+  it("renders execution_task in the Séance DH card when present, with an explicit 'Tâche du jour :' label (V0.3_008B0)", () => {
     render(
       <DailyPlanResult
         result={makeResult({
@@ -532,16 +533,25 @@ describe("DailyPlanResult", () => {
     );
     expect(
       screen.getByText(
-        "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse."
+        "Tâche du jour : Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse."
       )
     ).toBeInTheDocument();
+    // Focus and execution_task now coexist and are visibly distinguished by
+    // their own labels — the task line never claims to derive from the focus.
+    expect(screen.getByText("Focus : Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
   });
 
-  it("renders no execution_task line when the field is absent (personal focus path)", () => {
+  // V0.3_008B0 — a legacy DailyPlan predating this field (persisted shape has
+  // no `execution_task` at all) must still render fine, with no task line
+  // fabricated for it. Renamed from its prior "personal focus path" title:
+  // execution_task absence is no longer tied to focus presence, only to the
+  // field being literally absent from the persisted/historical data.
+  it("renders no execution_task line when the field is absent from the data (legacy shape)", () => {
     render(<DailyPlanResult result={makeResult(DH_PLAN)} />); // DH_PLAN.dh_or_technical has no execution_task
     // Only the two known DH strings should appear — nothing extra between focus and terrain.
-    expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
+    expect(screen.getByText("Focus : Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
     expect(screen.getByText("Terrain adapté au focus technique du jour.")).toBeInTheDocument();
+    expect(screen.queryByText(/^Tâche du jour/)).not.toBeInTheDocument();
   });
 
   // Rendered via DailyPlanView directly (no technicalMetadata) — with a real

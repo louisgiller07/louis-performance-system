@@ -157,7 +157,7 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
     });
   });
 
-  describe("V0.3_006C1 — execution_task", () => {
+  describe("V0.3_006C1, corrected V0.3_008B0 — execution_task", () => {
     it("present, matching the generic task for the kind, when personalFocus is absent", () => {
       const result = computeTechniqueDomain(baseParams({ personalFocus: undefined, finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } }));
       expect(result.execution_task).toBe(
@@ -165,13 +165,18 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       );
     });
 
-    it("absent when a personal focus is configured — never derived from arbitrary free text", () => {
-      const result = computeTechniqueDomain(baseParams()); // default personalFocus = FOCUS
-      expect(result.execution_task).toBeUndefined();
+    // V0.3_008B0 — execution_task and focus are independent. A configured
+    // personal focus no longer suppresses the generic task; it coexists
+    // with it, and the task content is unaffected by the focus text.
+    it("present (same generic task as the no-focus case) when a personal focus is configured — never derived from arbitrary free text", () => {
+      const result = computeTechniqueDomain(baseParams({ finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } })); // default personalFocus = FOCUS
+      expect(result.execution_task).toBe(
+        "Choisis une section technique courte et travaille un seul point à la fois ; répète jusqu'à obtenir une exécution propre avant de changer."
+      );
       expect(result.focus).toBe(FOCUS);
     });
 
-    it("one deterministic generic task per DH kind, all four covered", () => {
+    it("one deterministic generic task per DH kind, all four covered, with no personal focus", () => {
       const expected: Record<string, string> = {
         DH_PERFORMANCE:
           "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse.",
@@ -183,6 +188,43 @@ describe("T11 — Technique DH (V0.3_002B)", () => {
       for (const session of ACTIVE_KINDS) {
         const result = computeTechniqueDomain(baseParams({ finalSession: session, personalFocus: undefined }));
         expect(result.execution_task).toBe(expected[session.kind]);
+      }
+    });
+
+    it("architecture invariance: identical generic task per kind regardless of personalFocus (absent / focus A / arbitrary focus B) — free text has zero influence", () => {
+      const expected: Record<string, string> = {
+        DH_PERFORMANCE:
+          "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse.",
+        DH_TECHNICAL:
+          "Choisis une section technique courte et travaille un seul point à la fois ; répète jusqu'à obtenir une exécution propre avant de changer.",
+        DH_LIGHT: "Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.",
+        PUMPTRACK: "Travaille la conservation de vitesse avec les appuis et le pompage, sans faire de la vitesse maximale l'objectif.",
+      };
+      const focusVariants: (string | undefined)[] = [undefined, "Focus personnel A", "Un texte totalement différent B, sans rapport."];
+      for (const session of ACTIVE_KINDS) {
+        for (const personalFocus of focusVariants) {
+          const result = computeTechniqueDomain(baseParams({ finalSession: session, personalFocus }));
+          expect(result.execution_task).toBe(expected[session.kind]);
+        }
+      }
+    });
+
+    it("personal focus is preserved verbatim in `focus`, never mutated/concatenated with execution_task", () => {
+      const examplePersonalFocus = "Example personal focus";
+      const result = computeTechniqueDomain(
+        baseParams({ finalSession: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" }, personalFocus: examplePersonalFocus })
+      );
+      expect(result.focus).toBe(examplePersonalFocus);
+      expect(result.execution_task).toBe(
+        "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse."
+      );
+      expect(result.execution_task).not.toContain(examplePersonalFocus);
+    });
+
+    it("absent for a non-DH-family kind regardless of personalFocus", () => {
+      for (const session of INACTIVE_KINDS) {
+        const result = computeTechniqueDomain(baseParams({ finalSession: session }));
+        expect(result.execution_task).toBeUndefined();
       }
     });
   });

@@ -50,7 +50,12 @@ describe("DailyPlanView — real enriched engine output", () => {
 
     render(<DailyPlanView dailyPlan={plan} hasHealthSignal={false} />);
 
-    expect(screen.getByText(plan.dh_or_technical.focus!)).toBeInTheDocument();
+    // V0.3_008B0 — Louis's fixture has a configured personal focus, so the
+    // real engine output now also carries a generic execution_task
+    // alongside it; DailyPlanView renders both with explicit labels.
+    expect(screen.getByText(`Focus : ${plan.dh_or_technical.focus!}`)).toBeInTheDocument();
+    expect(plan.dh_or_technical.execution_task).toBeDefined();
+    expect(screen.getByText(`Tâche du jour : ${plan.dh_or_technical.execution_task!}`)).toBeInTheDocument();
     expect(screen.getByText(plan.dh_or_technical.spot_hint!)).toBeInTheDocument();
     expect(screen.getByText(plan.mental.focus!)).toBeInTheDocument();
     expect(screen.getByText(plan.mental.action_hint!)).toBeInTheDocument();

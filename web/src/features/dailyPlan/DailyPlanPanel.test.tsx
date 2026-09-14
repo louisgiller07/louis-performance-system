@@ -460,7 +460,10 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     });
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    expect(await screen.findByText("Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")).toBeInTheDocument();
+    // V0.3_008B0 — explicit "Tâche du jour :" label added alongside the value.
+    expect(
+      await screen.findByText("Tâche du jour : Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")
+    ).toBeInTheDocument();
     // Dev-only debug panel legitimately dumps the raw persisted JSON too —
     // scope remaining queries to their specific card, same precedent as
     // HistoryDetail.test.tsx.

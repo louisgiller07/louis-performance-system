@@ -31,6 +31,11 @@ const TECHNIQUE_FOCUS = "Fixe ta ligne, dose le freinage, laisse rouler.";
 const TECHNIQUE_DEFAULT_SPOT_HINT =
   "Choisis un terrain connu ou représentatif où tu maîtrises déjà les lignes et peux travailler la vitesse avec précision.";
 
+// V0.3_008B0 — execution_task is now the fixed generic kind-only task,
+// coexisting with Louis's fixture personal focus (never derived from it).
+const DH_TECHNICAL_EXECUTION_TASK =
+  "Choisis une section technique courte et travaille un seul point à la fois ; répète jusqu'à obtenir une exécution propre avant de changer.";
+
 // V0.3_006C1 — when the final session is DH-family and an AMBER/RED mental
 // action fires, action_hint becomes the single unified pre-run-action
 // template (REPLACING the base AMBER_STRESS_HINT/RED_SUPPORTIVE_HINT text
@@ -136,6 +141,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       expect(plan.dh_or_technical).toEqual({
         active: true,
         focus: TECHNIQUE_FOCUS,
+        execution_task: DH_TECHNICAL_EXECUTION_TASK,
         load_guidance: DH_TECHNICAL_MODERATE_LOAD_GUIDANCE,
         spot_hint: TECHNIQUE_DEFAULT_SPOT_HINT,
       });

@@ -42,16 +42,20 @@ export function resolveDhFocus(kind: TrainingInterventionKind, personalFocus: st
 }
 
 /**
- * V0.3_006C1 — the paired "how to work on it today" for `resolveDhFocus`.
- * Populated ONLY when the generic fallback path was taken (`personalFocus`
- * absent) — never derived from an athlete's arbitrary personal
- * `technique_primary_focus` free text, which cannot be turned into a
- * concrete observable task deterministically without an LLM. `focus` =
- * what is being worked on; `execution_task` = how. `undefined` for a
- * non-DH-family kind or whenever a personal focus is configured.
+ * V0.3_006C1, corrected V0.3_008B0 — the paired "how to work on it today"
+ * for `resolveDhFocus`. `focus` = what is being worked on (theme/attention);
+ * `execution_task` = how today's technical work is structured (a concrete,
+ * observable, kind-only drill). The two are independent: `execution_task` is
+ * always the fixed generic task for the kind, regardless of whether
+ * `personalFocus` is present — it is NEVER derived from, nor claims to
+ * interpret, an athlete's arbitrary personal `technique_primary_focus` free
+ * text (no LLM, no keyword/regex/taxonomy inference). `personalFocus` is
+ * accepted only to keep the same signature/call-site shape as
+ * `resolveDhFocus`; it has zero influence on the returned value.
+ * `undefined` for a non-DH-family kind only.
  */
 export function resolveDhExecutionTask(kind: TrainingInterventionKind, personalFocus: string | undefined): string | undefined {
-  if (!isDhFamilyKind(kind) || personalFocus !== undefined) return undefined;
+  if (!isDhFamilyKind(kind)) return undefined;
   return DH_GENERIC_EXECUTION_TASK[kind];
 }
 

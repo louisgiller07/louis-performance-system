@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildDailyPlan } from "../src/engine/buildDailyPlan.js";
 import { baseRawContext } from "../fixtures/louis.js";
 import { resolveDhDuration, resolveDhFocus, resolveDhLoadGuidance, resolveDhFatigueMonitoringNote, isDhFamilyKind } from "../src/domains/dhPrescription.js";
-import { DH_DURATION_MIN, DH_GENERIC_FOCUS, DH_LOAD_GUIDANCE } from "../src/config/sessionPrescriptionPolicy.js";
+import { DH_DURATION_MIN, DH_GENERIC_FOCUS, DH_GENERIC_EXECUTION_TASK, DH_LOAD_GUIDANCE } from "../src/config/sessionPrescriptionPolicy.js";
 import type { TriggeredRule } from "../src/types/triggeredRule.js";
 
 /**
@@ -349,7 +349,9 @@ describe("T15 — Acceptance P1: fresh athlete, DH_PERFORMANCE/HEAVY, no Safety"
     expect(plan.decision).toBe("KEEP");
     expect(plan.dh_or_technical.active).toBe(true);
     expect(plan.dh_or_technical.focus).toBe(PERSONAL_FOCUS); // Louis's fixture profile is configured
-    expect(plan.dh_or_technical.execution_task).toBeUndefined(); // personal focus present -> no generic task
+    // V0.3_008B0 — execution_task is the fixed generic kind-only task,
+    // coexisting with the personal focus above (never derived from it).
+    expect(plan.dh_or_technical.execution_task).toBe(DH_GENERIC_EXECUTION_TASK.DH_PERFORMANCE);
     expect(plan.dh_or_technical.spot_hint).toBeDefined();
     expect(plan.monitoring.observe.some((m) => m.includes("Pendant la séance, arrête la partie DH"))).toBe(false);
     // V0.3_006C1 (final correction) — engine-persisted riding-behavior
