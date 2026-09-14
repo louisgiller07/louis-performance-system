@@ -273,6 +273,16 @@ describe("HistoryDetail", () => {
               focus: "Fluidité, relâchement et marge",
               execution_task: "Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.",
               spot_hint: "Privilégie un terrain familier et lisible où tu peux garder de la marge et une exécution propre.",
+              // V0.3_008B — same "exactly as persisted" invariant: History
+              // renders the persisted snapshot verbatim, never re-fetches
+              // completed_sessions/the source decision to reconstruct it.
+              prior_task_reference: {
+                source_decision_id: "22222222-2222-2222-2222-222222222222",
+                session_date: "2026-08-31",
+                kind: "PUMPTRACK",
+                execution_task: "Travaille la conservation de vitesse avec les appuis et le pompage.",
+                technical_outcome: "partial",
+              },
             },
             mental: {
               active: true,
@@ -299,6 +309,12 @@ describe("HistoryDetail", () => {
     expect(
       within(dhCard).getByText("Privilégie un terrain familier et lisible où tu peux garder de la marge et une exécution propre.")
     ).toBeInTheDocument();
+    // V0.3_008B — historical "Tâche précédente" sub-block, kind-neutral
+    // wording even for a Pumptrack source, internal UUID never rendered.
+    expect(within(dhCard).getByText("Tâche précédente")).toBeInTheDocument();
+    expect(within(dhCard).getByText("« Travaille la conservation de vitesse avec les appuis et le pompage. »")).toBeInTheDocument();
+    expect(within(dhCard).getByText("Lors de ta dernière séance technique, cette tâche a été partiellement réussie.")).toBeInTheDocument();
+    expect(within(dhCard).queryByText(/22222222-2222-2222-2222-222222222222/)).not.toBeInTheDocument();
 
     const mentalCard = screen.getByText("Mental").closest("div")!;
     expect(within(mentalCard).getByText(/rappelle-toi ta priorité : Fluidité, relâchement et marge/)).toBeInTheDocument();

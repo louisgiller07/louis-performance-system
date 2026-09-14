@@ -30,6 +30,7 @@ const ALLOWED_TRAINING_MODES: readonly TrainingMode[] = [
 ];
 const ALLOWED_HEALTH_FLAG_TYPES: readonly HealthFlagType[] = ["concussion_suspect", "injury_suspect", "illness", "pain_persistent"];
 const ALLOWED_RECENT_RECOVERY_STATUSES: readonly RecentRecoveryCompletionStatus[] = ["partial", "replaced", "skipped"];
+const ALLOWED_TECHNICAL_OUTCOMES: readonly ("yes" | "partial" | "no")[] = ["yes", "partial", "no"];
 
 function isOneOf<T extends string>(value: unknown, allowed: readonly T[]): value is T {
   return typeof value === "string" && (allowed as readonly string[]).includes(value);
@@ -95,6 +96,32 @@ function isValidRecentRecoveryContext(value: unknown): boolean {
 }
 
 /**
+ * V0.3_008B — same "never survive as present just because it's not
+ * undefined" discipline as isValidRecentRecoveryContext above: this is what
+ * gates DailyPlanView rendering the distinct "Tâche précédente" sub-block,
+ * so a malformed value must degrade to no historical block, never be
+ * rendered half-trusted (e.g. an invalid `technical_outcome` used as a
+ * label lookup key).
+ */
+function isValidPriorTaskReference(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isObject(value)) return false;
+  return (
+    typeof value.source_decision_id === "string" &&
+    typeof value.session_date === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.execution_task === "string" &&
+    isOneOf(value.technical_outcome, ALLOWED_TECHNICAL_OUTCOMES)
+  );
+}
+
+/** V0.3_008B — dh_or_technical additionally gates its optional `prior_task_reference` sub-block, unlike focus/execution_task/load_guidance/spot_hint (plain optional leaf strings, rendered defensively in JSX). */
+function isValidDhTechnicalSection(value: unknown): boolean {
+  if (!isSectionActive(value)) return false;
+  return isValidPriorTaskReference((value as { prior_task_reference?: unknown }).prior_task_reference);
+}
+
+/**
  * Validates a bare DailyPlan object — the same shape whether it just came
  * back from daily-run (nested in a DailyRunResponse) or was read back from
  * decisions.daily_plan for /history (M4_006). A historical row's JSON may
@@ -114,7 +141,7 @@ export function isValidDailyPlan(plan: unknown): plan is DailyPlan {
   // unconditionally by the renderer — must be real objects/arrays, not
   // just "present if you're lucky".
   if (!isSectionActive(plan.training)) return false;
-  if (!isSectionActive(plan.dh_or_technical)) return false;
+  if (!isValidDhTechnicalSection(plan.dh_or_technical)) return false;
   if (!isSectionActive(plan.mental)) return false;
   if (!isRecoverySection(plan.recovery)) return false;
   if (!isSectionActive(plan.nutrition)) return false;

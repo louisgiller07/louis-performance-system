@@ -23,7 +23,8 @@ import { getCheckinFor } from "./repositories/dailyCheckinsRepo.js";
 import { getCurrentTrainingBlock } from "./repositories/trainingBlocksRepo.js";
 import { getPlannedSessionFor } from "./repositories/plannedSessionsRepo.js";
 import { getRacesInWindow } from "./repositories/raceCalendarRepo.js";
-import { getRecentSessions } from "./repositories/completedSessionsRepo.js";
+import { getRecentSessions, getRecentTechnicalCandidates } from "./repositories/completedSessionsRepo.js";
+import { getDecisionsByIds } from "./repositories/decisionsRepo.js";
 import { getOpenHealthFlags } from "./repositories/healthFlagsRepo.js";
 import { getTotalCheckinsCount, getTotalCompletedSessionsCount } from "./repositories/athleteCountsRepo.js";
 import { getCoachingProfileFor } from "./repositories/athleteCoachingProfileRepo.js";
@@ -34,6 +35,7 @@ import { mapPlannedSessionRow } from "./mapping/plannedSessionIntervention.js";
 import { mapRaceCalendarRow } from "./mapping/raceCalendarRow.js";
 import { mapCompletedSessionRow } from "./mapping/completedSessionRow.js";
 import { mapRecentRecoveryContext } from "./mapping/recentRecoveryContext.js";
+import { resolveRecentTechnicalContext } from "./mapping/recentTechnicalContext.js";
 import { mapHealthFlagRow } from "./mapping/healthFlagRow.js";
 import { mapCoachingProfileRow } from "./mapping/coachingProfileRow.js";
 
@@ -128,6 +130,19 @@ export async function buildRawContext(
   // above is untouched.
   const recent_recovery_context = mapRecentRecoveryContext(sessionRows, today);
 
+  // V0.3_008B — a SEPARATE bounded query (not the 7-day recentLoad window
+  // above: a strictly inter-day D-14..D-1 window with its own filters), the
+  // first-ever engine read of `decisions`. Max 2 extra queries; the second
+  // (decisions batch) is skipped entirely when there are zero candidate
+  // decision ids — never an empty/unnecessary query.
+  const technicalCandidateRows = await getRecentTechnicalCandidates(client, athleteId, today);
+  const candidateDecisionIds = [
+    ...new Set(technicalCandidateRows.map((r) => r.decision_id).filter((id): id is string => typeof id === "string")),
+  ];
+  const decisionRows = candidateDecisionIds.length > 0 ? await getDecisionsByIds(client, athleteId, candidateDecisionIds) : [];
+  const decisionsById = new Map(decisionRows.map((d) => [d.id, d] as const));
+  const recent_technical_context = resolveRecentTechnicalContext(technicalCandidateRows, decisionsById, today);
+
   const flagRows = await getOpenHealthFlags(client, athleteId);
   const active_health_flags = flagRows.map(mapHealthFlagRow);
 
@@ -147,6 +162,7 @@ export async function buildRawContext(
     upcoming_races,
     recent_sessions,
     ...(recent_recovery_context !== undefined ? { recent_recovery_context } : {}),
+    ...(recent_technical_context !== undefined ? { recent_technical_context } : {}),
     active_experiments: [],
     active_health_flags,
     ...(coaching_profile !== undefined ? { coaching_profile } : {}),

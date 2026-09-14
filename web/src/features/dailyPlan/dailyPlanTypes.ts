@@ -69,14 +69,25 @@ export interface TrainingPlanSection {
   objective?: string;
 }
 
+/** V0.3_008B — immutable snapshot of what today's coach actually surfaced from an earlier day. `source_decision_id` is internal provenance only, never rendered athlete-facing. No `age_days` (deliberately never persisted — see head-coach-engine/src/types/dailyPlan.ts's own doc). */
+export interface PriorTaskReference {
+  source_decision_id: string;
+  session_date: string;
+  kind: TrainingInterventionKind;
+  execution_task: string;
+  technical_outcome: "yes" | "partial" | "no";
+}
+
 export interface DhTechnicalSection {
   active: boolean;
   focus?: string;
-  /** V0.3_006C1 — how to work on `focus` today. Present only when `focus` came from the generic fallback (never derived from arbitrary personal technique_primary_focus free text). */
+  /** V0.3_006C1, corrected V0.3_008B0 — fixed generic task per DH-family kind, present whenever the final session is DH-family regardless of whether a personal technique_primary_focus is configured. Never derived from that free text. */
   execution_task?: string;
   /** V0.3_006C1 (final correction) — riding-behavior guidance for the final load_profile, engine-emitted/persisted. Render exactly as-is; never recompute from load_profile — a legacy plan predating this field must never gain it retroactively. */
   load_guidance?: string;
   spot_hint?: string;
+  /** V0.3_008B — the most recent valid prior technical fact, display-only. Present only when `active === true` AND the engine resolved a candidate — never fabricated, immutable once persisted. */
+  prior_task_reference?: PriorTaskReference;
 }
 
 export interface MentalSection {

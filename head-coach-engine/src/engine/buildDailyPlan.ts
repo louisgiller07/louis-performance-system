@@ -32,7 +32,7 @@ import {
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008b0";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008b";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -342,6 +342,7 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
       personalFocus: ctx.coaching_profile?.technique_primary_focus,
       painZoneCategory: pain?.zone_category,
       mentalRed: dimensions.mental.level === "RED",
+      recentTechnicalContext: ctx.recent_technical_context,
     }),
     mental: mentalResult.mental,
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),

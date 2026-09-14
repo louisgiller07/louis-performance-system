@@ -28,6 +28,19 @@ const RECENT_RECOVERY_STATUS_COPY: Record<RecentRecoveryContext["completion_stat
   skipped: "Hier, la séance n'a pas été effectuée pour fatigue ou perte de contrôle.",
 };
 
+// V0.3_008B — Technical Continuity V1, DISPLAY ONLY. Kind-neutral wording
+// ("séance technique", never "séance DH") — technical_outcome is valid for
+// all 4 DH-family kinds (DH_TECHNICAL/DH_PERFORMANCE/DH_LIGHT/PUMPTRACK), so
+// a Pumptrack-sourced fact must not be misdescribed as a DH session. No day
+// count (age_days is never persisted — see PriorTaskReference's own doc),
+// no claim that the prior kind is specifically relevant to today's kind (V1
+// performs no cross-kind semantic matching).
+const PRIOR_TECHNICAL_OUTCOME_COPY: Record<"yes" | "partial" | "no", string> = {
+  yes: "Lors de ta dernière séance technique, cette tâche a été réussie.",
+  partial: "Lors de ta dernière séance technique, cette tâche a été partiellement réussie.",
+  no: "Lors de ta dernière séance technique, cette tâche n'a pas été réussie.",
+};
+
 function RecentRecoveryContextSection({ context }: { context: RecentRecoveryContext }) {
   // V0.3_008A final presentation gate — SKIPPED means no session was
   // performed, so no post-session fact can exist to report. Gated on
@@ -208,6 +221,20 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
             <p className="text-gray-600">Tâche du jour : {dailyPlan.dh_or_technical.execution_task}</p>
           )}
           {dailyPlan.dh_or_technical.spot_hint && <p className="text-gray-600">{dailyPlan.dh_or_technical.spot_hint}</p>}
+          {/*
+           * V0.3_008B — historical fact from an earlier day, visually
+           * distinct from today's "Focus"/"Tâche du jour" above (its own
+           * label + italic task quote) so it never reads as today's
+           * instruction. Never mutates/replaces/suppresses execution_task
+           * above.
+           */}
+          {dailyPlan.dh_or_technical.prior_task_reference && (
+            <div className="mt-2 border-t border-gray-100 pt-2">
+              <p className="text-xs uppercase tracking-wide text-gray-400">Tâche précédente</p>
+              <p className="italic text-gray-600">« {dailyPlan.dh_or_technical.prior_task_reference.execution_task} »</p>
+              <p className="text-gray-600">{PRIOR_TECHNICAL_OUTCOME_COPY[dailyPlan.dh_or_technical.prior_task_reference.technical_outcome]}</p>
+            </div>
+          )}
         </PlanSection>
       )}
 

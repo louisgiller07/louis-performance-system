@@ -1,5 +1,5 @@
 import type { TrainingMode, EventContext } from "./context.js";
-import type { TrainingIntervention } from "./trainingIntervention.js";
+import type { TrainingIntervention, TrainingInterventionKind } from "./trainingIntervention.js";
 import type { TriggeredRule } from "./triggeredRule.js";
 import type { HealthFlagToCreate } from "./healthFlag.js";
 import type { RecentRecoveryContext } from "./rawContext.js";
@@ -29,10 +29,35 @@ export interface TrainingPlanSection {
   objective?: string;
 }
 
+/**
+ * V0.3_008B — immutable snapshot of what today's coach actually surfaced
+ * (as opposed to `RawContext.recent_technical_context`, which is merely
+ * what the engine knew — see rawContext.ts). Same fields as
+ * `RecentTechnicalContext` minus `age_days`: a frozen day-count would read
+ * wrong when the plan is viewed weeks/months later, so athlete-facing copy
+ * is deliberately non-dated (see docs/11_DECISION_LOG.md V0.3_008B).
+ * `source_decision_id` is internal provenance only, never rendered
+ * athlete-facing.
+ */
+export interface PriorTaskReference {
+  source_decision_id: string;
+  session_date: string;
+  kind: TrainingInterventionKind;
+  execution_task: string;
+  technical_outcome: "yes" | "partial" | "no";
+}
+
 export interface DhTechnicalSection {
   active: boolean;
   focus?: string;
-  /** V0.3_006C1 — how to work on `focus` today. Populated only when `focus` came from the generic fallback (never derived from arbitrary personal `technique_primary_focus` free text). */
+  /**
+   * V0.3_006C1, corrected V0.3_008B0 — how to work on `focus` today. Fixed
+   * generic task per DH-family `kind`, independent of `focus`: present
+   * whenever the final session is DH-family, regardless of whether a
+   * personal `technique_primary_focus` is configured. Never derived from
+   * that personal free text (no LLM, no keyword/regex/taxonomy inference) —
+   * see docs/11_DECISION_LOG.md V0.3_008B0.
+   */
   execution_task?: string;
   /**
    * V0.3_006C1 (final correction) — deterministic riding-behavior guidance
@@ -46,6 +71,15 @@ export interface DhTechnicalSection {
    */
   load_guidance?: string;
   spot_hint?: string;
+  /**
+   * V0.3_008B — the most recent valid technical fact (task + outcome) from
+   * an earlier day, display-only. Populated ONLY when `active === true`
+   * (today's final session is itself DH-family) AND
+   * `RawContext.recent_technical_context` resolved a candidate — never
+   * fabricated, never mutates/replaces/suppresses `execution_task` above.
+   * Immutable once persisted (see docs/11_DECISION_LOG.md V0.3_008B).
+   */
+  prior_task_reference?: PriorTaskReference;
 }
 
 export interface MentalSection {

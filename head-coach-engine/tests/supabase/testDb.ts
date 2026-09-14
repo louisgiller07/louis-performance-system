@@ -223,12 +223,13 @@ export async function insertPlannedSession(
   if (error) throw new Error(`insertPlannedSession failed: ${error.message}`);
 }
 
-/** Minimal direct insert into decisions (admin client only — decisions is append-only, no direct authenticated write path). Returns the new row's id for FK-linkage tests (e.g. M5_003's decision-link preflight). */
+/** Minimal direct insert into decisions (admin client only — decisions is append-only, no direct authenticated write path). Returns the new row's id for FK-linkage tests (e.g. M5_003's decision-link preflight, V0.3_008B's technical-continuity candidate resolution). */
 export async function insertDecision(
   client: SupabaseClient,
   athleteId: string,
   decisionDate: string,
-  fields: { final_session?: string } = {}
+  /** V0.3_008B — `daily_plan` is optional/additive, matching the file's own convention: omitted leaves the column NULL (its real DB default), only tests that need a linked decision's persisted `daily_plan.dh_or_technical.execution_task` pass it explicitly. */
+  fields: { final_session?: string; daily_plan?: unknown } = {}
 ): Promise<string> {
   const { data, error } = await client
     .from("decisions")
@@ -238,6 +239,7 @@ export async function insertDecision(
       final_session: fields.final_session ?? "REST",
       reason: "test fixture",
       engine_version: "test",
+      ...(fields.daily_plan !== undefined ? { daily_plan: fields.daily_plan } : {}),
     })
     .select("id")
     .single();
@@ -258,12 +260,15 @@ export async function insertHealthFlag(
   if (error) throw new Error(`insertHealthFlag failed: ${error.message}`);
 }
 
-/** V0.3_008A — extra fields are all optional and additive; the pre-existing 4-arg call shape (completion_status="done", no change_reason/fatigue) is unchanged. */
+/** V0.3_008A/V0.3_008B — extra fields are all optional and additive; the pre-existing 4-arg call shape (completion_status="done", no change_reason/fatigue/decision_id/technical_outcome) is unchanged. */
 export interface InsertCompletedSessionOptions {
   completionStatus?: "done" | "partial" | "skipped" | "replaced";
   changeReason?: string;
   postLegFatigue?: number;
   postGripFatigue?: number;
+  /** V0.3_008B — exact FK linkage to a `decisions.id` row, e.g. from {@link insertDecision}. */
+  decisionId?: string;
+  technicalOutcome?: "yes" | "partial" | "no";
 }
 
 export async function insertCompletedSession(
@@ -283,6 +288,8 @@ export async function insertCompletedSession(
     ...(options.changeReason !== undefined ? { change_reason: options.changeReason } : {}),
     ...(options.postLegFatigue !== undefined ? { post_leg_fatigue: options.postLegFatigue } : {}),
     ...(options.postGripFatigue !== undefined ? { post_grip_fatigue: options.postGripFatigue } : {}),
+    ...(options.decisionId !== undefined ? { decision_id: options.decisionId } : {}),
+    ...(options.technicalOutcome !== undefined ? { technical_outcome: options.technicalOutcome } : {}),
   });
   if (error) throw new Error(`insertCompletedSession failed: ${error.message}`);
 }

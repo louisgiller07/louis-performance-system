@@ -1,5 +1,5 @@
 import type { DailyCheckin } from "./checkin.js";
-import type { TrainingIntervention } from "./trainingIntervention.js";
+import type { TrainingIntervention, TrainingInterventionKind } from "./trainingIntervention.js";
 import type {
   TrainingMode,
   UpcomingRace,
@@ -51,6 +51,34 @@ export interface RecentRecoveryContext {
 }
 
 /**
+ * V0.3_008B — Technical Continuity V1. Le fait technique valide le plus
+ * récent dans une fenêtre strictement inter-jours `D-14 <= session_date <
+ * D` (jour même D et futur exclus — voir docs/11_DECISION_LOG.md
+ * V0.3_008B, PROVISIONAL PRODUCT-FRESHNESS CONSTANT, non calibré).
+ *
+ * Lien exact uniquement : `source_decision_id` trace
+ * `completed_sessions.decision_id` → `decisions.id`, jamais une inférence
+ * par date/dernière décision du jour/similarité. `kind` est le kind
+ * RÉELLEMENT PERFORMÉ (`completed_sessions.intervention.kind`), jamais
+ * celui de la prescription. `execution_task` vient de la décision liée
+ * (`decisions.daily_plan.dh_or_technical.execution_task`), jamais recalculé.
+ *
+ * `age_days` est calculé à chaque construction de `RawContext` (today −
+ * session_date) — une pure valeur d'exécution, jamais persistée (voir
+ * `DailyPlan.dh_or_technical.prior_task_reference` dans dailyPlan.ts, qui
+ * omet délibérément ce champ : un compteur de jours figé deviendrait
+ * trompeur relu des semaines plus tard).
+ */
+export interface RecentTechnicalContext {
+  source_decision_id: string;
+  session_date: string; // ISO date, D-14 <= session_date < today
+  kind: TrainingInterventionKind;
+  execution_task: string;
+  technical_outcome: "yes" | "partial" | "no";
+  age_days: number;
+}
+
+/**
  * RawContext — entrée du moteur. Voir docs/04_DAILY_DECISION_ENGINE.md §1.
  *
  * `n_total_checkins` / `n_total_completed_sessions` sont des indicateurs
@@ -77,6 +105,8 @@ export interface RawContext {
   recent_sessions: CompletedSessionSummary[];
   /** V0.3_008A. Absent when no eligible J-1 fatigue_control session exists — see RecentRecoveryContext's own doc. */
   recent_recovery_context?: RecentRecoveryContext;
+  /** V0.3_008B. Absent when no valid candidate exists in the D-14..D-1 window — see RecentTechnicalContext's own doc. */
+  recent_technical_context?: RecentTechnicalContext;
   active_experiments: ActiveExperiment[];
   active_health_flags: HealthFlag[];
   availability?: WeeklyAvailability;

@@ -2,6 +2,7 @@ import type { TrainingIntervention, TrainingInterventionKind } from "../types/tr
 import type { UpcomingRace } from "../types/context.js";
 import type { DimensionLevel } from "../types/dimensions.js";
 import type { DhTechnicalSection } from "../types/dailyPlan.js";
+import type { RecentTechnicalContext } from "../types/rawContext.js";
 import type { ZoneCategory } from "../rules/painNonSafety.js";
 import { daysBetween } from "../engine/dateUtils.js";
 import { TECHNIQUE_POLICY } from "../config/techniquePolicy.js";
@@ -118,8 +119,27 @@ export function computeTechniqueDomain(params: {
   personalFocus?: string;
   painZoneCategory?: ZoneCategory;
   mentalRed?: boolean;
+  /**
+   * V0.3_008B — what the engine currently knows (RawContext), never what
+   * today's plan will necessarily surface. Only spread into the returned
+   * `prior_task_reference` when this session is itself DH-family (`active
+   * === true` below) — a non-DH-family final session never surfaces it,
+   * even when this param is present. See rawContext.ts's own doc.
+   */
+  recentTechnicalContext?: RecentTechnicalContext;
 }): DhTechnicalSection {
-  const { finalSession, today, upcomingRaces, systemicLevel, legsLevel, armsGripLevel, personalFocus, painZoneCategory, mentalRed } = params;
+  const {
+    finalSession,
+    today,
+    upcomingRaces,
+    systemicLevel,
+    legsLevel,
+    armsGripLevel,
+    personalFocus,
+    painZoneCategory,
+    mentalRed,
+    recentTechnicalContext,
+  } = params;
 
   if (!TECHNIQUE_ACTIVE_KINDS.has(finalSession.kind)) {
     return { active: false };
@@ -140,5 +160,18 @@ export function computeTechniqueDomain(params: {
     ...(executionTask !== undefined ? { execution_task: executionTask } : {}),
     ...(loadGuidance !== undefined ? { load_guidance: loadGuidance } : {}),
     spot_hint: selectSpotHint({ painZoneCategory: relevantPainZone, meaningfulFatigue, mentalRed: mentalRed === true, raceProximate }),
+    // V0.3_008B — display-only immutable snapshot, `age_days` deliberately
+    // dropped (see PriorTaskReference's own doc in types/dailyPlan.ts).
+    ...(recentTechnicalContext !== undefined
+      ? {
+          prior_task_reference: {
+            source_decision_id: recentTechnicalContext.source_decision_id,
+            session_date: recentTechnicalContext.session_date,
+            kind: recentTechnicalContext.kind,
+            execution_task: recentTechnicalContext.execution_task,
+            technical_outcome: recentTechnicalContext.technical_outcome,
+          },
+        }
+      : {}),
   };
 }

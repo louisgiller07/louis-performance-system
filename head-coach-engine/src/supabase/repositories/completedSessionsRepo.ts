@@ -46,3 +46,45 @@ export async function getRecentSessions(
   assertNoSupabaseError(error, "completed_sessions");
   return (data ?? []) as CompletedSessionRawRow[];
 }
+
+/**
+ * V0.3_008B — bounded technical-continuity candidates: `athlete_id`,
+ * `decision_id`/`technical_outcome` both non-null, strictly inter-day
+ * window `D-14 <= session_date < D` (today D itself and any future date
+ * excluded — no same-day feedback loop, see docs/11_DECISION_LOG.md
+ * V0.3_008B). Ordered newest-first so the caller can resolve the newest
+ * VALID candidate without a second sort. `LIMIT candidateLimit` is the
+ * exact mathematical maximum possible in this window, derived from
+ * `unique_completed_per_day UNIQUE (athlete_id, session_date)` — never an
+ * arbitrary ceiling, never a truncation risk for V1's window.
+ *
+ * `completion_status` is included so the resolver can defensively re-verify
+ * DONE/PARTIAL — the normal V0.3_007C write contract already guarantees
+ * `technical_outcome` is non-null only for those two statuses, but this
+ * query reads via the privileged admin client (no RLS), so a malformed
+ * historical row (e.g. REPLACED with a stray non-null `technical_outcome`)
+ * must never be silently accepted as technical history on the strength of
+ * the DB-level filters above alone.
+ */
+export async function getRecentTechnicalCandidates(
+  client: SupabaseClient,
+  athleteId: string,
+  today: string
+): Promise<CompletedSessionRawRow[]> {
+  const { windowDays, candidateLimit } = PROVISIONAL_THRESHOLDS.recentTechnicalContext;
+  const windowStart = addDays(today, -windowDays);
+
+  const { data, error } = await client
+    .from("completed_sessions")
+    .select("session_date, decision_id, completion_status, technical_outcome, intervention")
+    .eq("athlete_id", athleteId)
+    .not("decision_id", "is", null)
+    .not("technical_outcome", "is", null)
+    .gte("session_date", windowStart)
+    .lt("session_date", today)
+    .order("session_date", { ascending: false })
+    .limit(candidateLimit);
+
+  assertNoSupabaseError(error, "completed_sessions (technical candidates)");
+  return (data ?? []) as CompletedSessionRawRow[];
+}

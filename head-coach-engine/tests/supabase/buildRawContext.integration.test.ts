@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildRawContext, NoCurrentCheckinError } from "../../src/supabase/buildRawContext.js";
 import { buildDailyPlan } from "../../src/engine/buildDailyPlan.js";
+import { getRecentTechnicalCandidates } from "../../src/supabase/repositories/completedSessionsRepo.js";
+import { getDecisionsByIds } from "../../src/supabase/repositories/decisionsRepo.js";
 import { IncompleteDailyCheckinError } from "../../src/supabase/mapping/dailyCheckinRow.js";
 import { IncompleteCheckinPainCriteriaError } from "../../src/supabase/mapping/dailyCheckinPainCriteria.js";
 import { InvalidTrainingModeError } from "../../src/supabase/mapping/trainingMode.js";
@@ -16,6 +18,7 @@ import {
   insertRace,
   insertCoachingProfile,
   insertCompletedSession,
+  insertDecision,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -809,5 +812,256 @@ describe("V0.3_008A — Previous-Day Recovery Continuity (real Supabase wiring)"
     } finally {
       await deleteTestAthlete(client, athleteB);
     }
+  });
+});
+
+// V0.3_008B — Technical Continuity, real DB wiring (completedSessionsRepo.ts's
+// getRecentTechnicalCandidates -> decisionsRepo.ts's getDecisionsByIds ->
+// resolveRecentTechnicalContext -> RawContext.recent_technical_context). The
+// exhaustive resolution matrix (newest-wins, malformed-newest-falls-back,
+// date-mismatch, invalid kind/outcome) is already covered by the pure
+// resolver unit tests (recentTechnicalContext.test.ts) — this proves the
+// real query bounds (window/limit), the real FK-linkage (decision_id ->
+// decisions.id, including multiple same-date decisions), and cross-athlete
+// isolation against the actual local Supabase stack.
+describe("V0.3_008B — Technical Continuity (real Supabase wiring)", () => {
+  let client: SupabaseClient;
+  let athlete: TestAthlete;
+  const TODAY = "2026-09-14";
+  const D1 = "2026-09-13";
+  const D14 = "2026-08-31"; // exactly today - 14 days, still eligible
+  const D15 = "2026-08-30"; // today - 15 days, ineligible
+  const TOMORROW = "2026-09-15";
+
+  const EXECUTION_TASK = "Choisis une section technique courte et travaille un seul point à la fois...";
+
+  async function linkedCandidate(
+    date: string,
+    fields: { technicalOutcome?: "yes" | "partial" | "no"; executionTask?: string | null } = {}
+  ): Promise<string> {
+    const decisionId = await insertDecision(client, athlete.athleteId, date, {
+      final_session: "DH_TECHNICAL",
+      daily_plan:
+        fields.executionTask === null
+          ? { dh_or_technical: { active: true } }
+          : { dh_or_technical: { active: true, execution_task: fields.executionTask ?? EXECUTION_TASK } },
+    });
+    await insertCompletedSession(client, athlete.athleteId, date, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" }, {
+      completionStatus: "partial",
+      decisionId,
+      technicalOutcome: fields.technicalOutcome ?? "yes",
+    });
+    return decisionId;
+  }
+
+  beforeEach(async () => {
+    client = createTestClient();
+    athlete = await createTestAthlete(client, "V0.3_008B technical continuity test athlete");
+  });
+
+  afterEach(async () => {
+    await deleteTestAthlete(client, athlete);
+  });
+
+  it("D-1 valid technical fact -> RawContext.recent_technical_context populated from the real linked decision", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    const decisionId = await linkedCandidate(D1, { technicalOutcome: "partial" });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toEqual({
+      source_decision_id: decisionId,
+      session_date: D1,
+      kind: "DH_TECHNICAL",
+      execution_task: EXECUTION_TASK,
+      technical_outcome: "partial",
+      age_days: 1,
+    });
+  });
+
+  it("D-14 (oldest eligible) valid technical fact -> still surfaces", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await linkedCandidate(D14);
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context?.session_date).toBe(D14);
+    expect(rawContext.recent_technical_context?.age_days).toBe(14);
+  });
+
+  it("D-15 (one day older than the window) -> absent, the window boundary is exact", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await linkedCandidate(D15);
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toBeUndefined();
+  });
+
+  it("same-day D technical fact -> absent, no intra-day feedback loop", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await linkedCandidate(TODAY);
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toBeUndefined();
+  });
+
+  it("a future-dated technical fact -> absent (defensive; should not occur naturally)", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await linkedCandidate(TOMORROW);
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toBeUndefined();
+  });
+
+  it("no completed session at all in the window -> absent", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toBeUndefined();
+    expect(rawContext).not.toHaveProperty("recent_technical_context");
+  });
+
+  it("a completed session with no decision_id/technical_outcome at all (ordinary DONE) never becomes a candidate", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertCompletedSession(client, athlete.athleteId, D1, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE" });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toBeUndefined();
+  });
+
+  it("exact decision_id linkage: two decisions exist on the same historical date, the candidate resolves to exactly the one it's linked to", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    // A second, UNLINKED decision on the same date — must never be picked.
+    await insertDecision(client, athlete.athleteId, D1, {
+      final_session: "DH_TECHNICAL",
+      daily_plan: { dh_or_technical: { active: true, execution_task: "Tâche d'une AUTRE décision — ne doit jamais apparaître" } },
+    });
+    const linkedDecisionId = await linkedCandidate(D1, { executionTask: "Tâche de la décision réellement liée" });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context?.source_decision_id).toBe(linkedDecisionId);
+    expect(rawContext.recent_technical_context?.execution_task).toBe("Tâche de la décision réellement liée");
+  });
+
+  it("newest candidate malformed (linked decision has no execution_task — real case for any decision predating V0.3_008B0) -> falls back to the next older valid candidate", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    const D4 = "2026-09-10";
+    await linkedCandidate(D1, { executionTask: null }); // malformed: no execution_task
+    await linkedCandidate(D4, { executionTask: "Tâche valide plus ancienne" });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context?.session_date).toBe(D4);
+    expect(rawContext.recent_technical_context?.execution_task).toBe("Tâche valide plus ancienne");
+  });
+
+  it("performed kind comes from completed_sessions.intervention.kind, never the linked decision's prescription", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    // The linked decision's own final_session is DH_PERFORMANCE (the
+    // prescription), but the athlete actually performed DH_LIGHT.
+    const decisionId = await insertDecision(client, athlete.athleteId, D1, {
+      final_session: "DH_PERFORMANCE",
+      daily_plan: { dh_or_technical: { active: true, execution_task: EXECUTION_TASK } },
+    });
+    // "DH_TECHNICAL" here is the coarse `public.session_type` DB enum value
+    // (which has no DH_LIGHT/PUMPTRACK member — see docs/05_DATA_MODEL.md) —
+    // the rich `intervention.kind` below (DH_LIGHT) is what the resolver
+    // actually reads, exactly the coarse-vs-rich split V0.3_007B fixed.
+    await insertCompletedSession(client, athlete.athleteId, D1, "DH_TECHNICAL", { kind: "DH_LIGHT", load_profile: "LIGHT" }, {
+      completionStatus: "partial",
+      decisionId,
+      technicalOutcome: "yes",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context?.kind).toBe("DH_LIGHT");
+  });
+
+  it("Pumptrack source performed kind is a valid candidate", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    const decisionId = await insertDecision(client, athlete.athleteId, D1, {
+      final_session: "DH_TECHNICAL", // coarse DB enum has no PUMPTRACK member
+      daily_plan: { dh_or_technical: { active: true, execution_task: EXECUTION_TASK } },
+    });
+    await insertCompletedSession(client, athlete.athleteId, D1, "DH_TECHNICAL", { kind: "PUMPTRACK", load_profile: "LIGHT" }, {
+      completionStatus: "partial",
+      decisionId,
+      technicalOutcome: "yes",
+    });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context?.kind).toBe("PUMPTRACK");
+  });
+
+  it("athlete A's technical fact never leaks into athlete B's RawContext — no global/latest lookup, explicit athlete_id filter on both queries", async () => {
+    const athleteB = await createTestAthlete(client, "V0.3_008B technical continuity cross-athlete B");
+    try {
+      await insertCheckin(client, athlete.athleteId, TODAY);
+      await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+      await linkedCandidate(D1);
+
+      await insertCheckin(client, athleteB.athleteId, TODAY);
+      await insertTrainingBlock(client, athleteB.athleteId, "IN_SEASON");
+      // athleteB deliberately gets no completed session/decision of its own.
+
+      const { rawContext: rawA } = await buildRawContext(client, athlete.athleteId, TODAY);
+      const { rawContext: rawB } = await buildRawContext(client, athleteB.athleteId, TODAY);
+
+      expect(rawA.recent_technical_context).toBeDefined();
+      expect(rawB.recent_technical_context).toBeUndefined();
+    } finally {
+      await deleteTestAthlete(client, athleteB);
+    }
+  });
+
+  it("zero candidate ids short-circuits: no decisions query is needed when there are no linked/outcome-bearing completed_sessions", async () => {
+    await insertCheckin(client, athlete.athleteId, TODAY);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    // A completed session exists in the window but has neither decision_id
+    // nor technical_outcome — never a candidate, and buildRawContext must
+    // not throw/fail attempting to resolve zero decision ids.
+    await insertCompletedSession(client, athlete.athleteId, D1, "AEROBIC_BASE", { kind: "AEROBIC_BASE", load_profile: "LIGHT" });
+
+    const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
+
+    expect(rawContext.recent_technical_context).toBeUndefined();
+  });
+
+  // §13/§41 — an actual repository/Supabase query failure must PROPAGATE
+  // (per assertNoSupabaseError, the same canonical error policy every other
+  // repository in this codebase already follows) — never silently
+  // reinterpreted as "no technical context". A malformed `athlete_id`
+  // (not a valid UUID) against the real local Postgres stack forces a real
+  // query-level error from PostgREST (not a JS-level exception, so this
+  // exercises the actual `{ data: null, error }` -> throw path), distinct
+  // from every other test in this file which forces `undefined`/absence
+  // through legitimate empty/ineligible data instead.
+  it("getRecentTechnicalCandidates: an actual repository query failure propagates, never silently becomes an empty candidate list", async () => {
+    await expect(getRecentTechnicalCandidates(client, "not-a-valid-uuid", TODAY)).rejects.toThrow(/Supabase read failed/);
+  });
+
+  it("getDecisionsByIds: an actual repository query failure propagates, never silently becomes an empty decision list", async () => {
+    await expect(getDecisionsByIds(client, "not-a-valid-uuid", ["11111111-1111-1111-1111-111111111111"])).rejects.toThrow(
+      /Supabase read failed/
+    );
   });
 });

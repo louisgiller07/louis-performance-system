@@ -621,6 +621,116 @@ describe("DailyPlanResult", () => {
     expect(screen.queryByText(/Séance orientée performance/)).not.toBeInTheDocument();
   });
 
+  // --- V0.3_008B: Technical Continuity ---
+
+  it("renders 'Tâche précédente' with the quoted prior task and the matching outcome sentence", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          ...DH_PLAN,
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            prior_task_reference: {
+              source_decision_id: "22222222-2222-2222-2222-222222222222",
+              session_date: "2026-08-31",
+              kind: "DH_TECHNICAL",
+              execution_task: "Choisis une section technique courte et travaille un seul point à la fois...",
+              technical_outcome: "partial",
+            },
+          },
+        })}
+      />
+    );
+    expect(screen.getByText("Tâche précédente")).toBeInTheDocument();
+    expect(screen.getByText("« Choisis une section technique courte et travaille un seul point à la fois... »")).toBeInTheDocument();
+    expect(screen.getByText("Lors de ta dernière séance technique, cette tâche a été partiellement réussie.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["yes", "Lors de ta dernière séance technique, cette tâche a été réussie."],
+    ["no", "Lors de ta dernière séance technique, cette tâche n'a pas été réussie."],
+  ] as const)("renders the exact copy for technical_outcome=%s", (outcome, expectedSentence) => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          ...DH_PLAN,
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            prior_task_reference: {
+              source_decision_id: "22222222-2222-2222-2222-222222222222",
+              session_date: "2026-08-31",
+              kind: "DH_TECHNICAL",
+              execution_task: "Tâche historique.",
+              technical_outcome: outcome,
+            },
+          },
+        })}
+      />
+    );
+    expect(screen.getByText(expectedSentence)).toBeInTheDocument();
+  });
+
+  // Kind-neutral wording ("séance technique") must remain truthful even
+  // when the historical source kind was PUMPTRACK — never "séance DH",
+  // which technical_outcome is also valid for but PUMPTRACK itself isn't.
+  it("uses kind-neutral wording for a Pumptrack-sourced prior task, never 'séance DH'", () => {
+    render(
+      <DailyPlanResult
+        result={makeResult({
+          ...DH_PLAN,
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            prior_task_reference: {
+              source_decision_id: "22222222-2222-2222-2222-222222222222",
+              session_date: "2026-08-31",
+              kind: "PUMPTRACK",
+              execution_task: "Tâche Pumptrack.",
+              technical_outcome: "yes",
+            },
+          },
+        })}
+      />
+    );
+    expect(screen.getByText(/dernière séance technique/)).toBeInTheDocument();
+    expect(screen.queryByText(/dernière séance DH/)).not.toBeInTheDocument();
+  });
+
+  // The source_decision_id is internal provenance only — never rendered
+  // athlete-facing (docs/11_DECISION_LOG.md V0.3_008B). Rendered via
+  // DailyPlanView directly (no dev-only debug <pre> raw-JSON dump, which
+  // would legitimately contain the UUID and make this assertion ambiguous
+  // — same precedent as the wrist_L test below).
+  it("never renders the internal source_decision_id UUID", () => {
+    render(
+      <DailyPlanView
+        dailyPlan={{
+          ...BASE_PLAN,
+          ...DH_PLAN,
+          dh_or_technical: {
+            ...DH_PLAN.dh_or_technical!,
+            prior_task_reference: {
+              source_decision_id: "22222222-2222-2222-2222-222222222222",
+              session_date: "2026-08-31",
+              kind: "DH_TECHNICAL",
+              execution_task: "Tâche historique.",
+              technical_outcome: "yes",
+            },
+          },
+        }}
+        hasHealthSignal={false}
+      />
+    );
+    expect(screen.queryByText(/22222222-2222-2222-2222-222222222222/)).not.toBeInTheDocument();
+  });
+
+  // Legacy/no-backfill regression (§31) — a DailyPlan predating V0.3_008B
+  // has no `prior_task_reference` key at all; must render exactly as
+  // before, no historical block fabricated.
+  it("renders no 'Tâche précédente' block when prior_task_reference is absent from the data (legacy shape)", () => {
+    render(<DailyPlanResult result={makeResult(DH_PLAN)} />); // DH_PLAN.dh_or_technical has no prior_task_reference
+    expect(screen.queryByText("Tâche précédente")).not.toBeInTheDocument();
+  });
+
   // Rendered via DailyPlanView directly (no technicalMetadata) — the
   // dev-only debug <pre> legitimately still dumps the raw, unsanitized
   // strings (e.g. "wrist_L" appears twice in the raw JSON: once in

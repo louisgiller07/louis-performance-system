@@ -207,6 +207,75 @@ describe("isValidDailyPlan — recent_recovery_context (V0.3_008A)", () => {
   });
 });
 
+// V0.3_008B — Technical Continuity V1, dh_or_technical.prior_task_reference.
+describe("isValidDailyPlan — dh_or_technical.prior_task_reference (V0.3_008B)", () => {
+  const VALID_PRIOR_TASK_REFERENCE = {
+    source_decision_id: "22222222-2222-2222-2222-222222222222",
+    session_date: "2026-08-31",
+    kind: "DH_TECHNICAL",
+    execution_task: "Choisis une section technique courte et travaille un seul point à la fois...",
+    technical_outcome: "partial",
+  };
+  const DH_PLAN = { ...VALID_DAILY_PLAN, dh_or_technical: { active: true, focus: "Fixe ta ligne." } };
+
+  it("accepts a well-formed prior_task_reference", () => {
+    expect(
+      isValidDailyPlan({ ...DH_PLAN, dh_or_technical: { ...DH_PLAN.dh_or_technical, prior_task_reference: VALID_PRIOR_TASK_REFERENCE } })
+    ).toBe(true);
+  });
+
+  it.each(["yes", "partial", "no"])("accepts every valid technical_outcome (%s)", (outcome) => {
+    expect(
+      isValidDailyPlan({
+        ...DH_PLAN,
+        dh_or_technical: {
+          ...DH_PLAN.dh_or_technical,
+          prior_task_reference: { ...VALID_PRIOR_TASK_REFERENCE, technical_outcome: outcome },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("accepts an absent prior_task_reference (undefined — the normal no-context case)", () => {
+    expect(isValidDailyPlan(DH_PLAN)).toBe(true);
+  });
+
+  it("rejects prior_task_reference: null — never silently treated as 'no context' by staying undefined-shaped", () => {
+    expect(isValidDailyPlan({ ...DH_PLAN, dh_or_technical: { ...DH_PLAN.dh_or_technical, prior_task_reference: null } })).toBe(false);
+  });
+
+  it("rejects an invalid technical_outcome enum value", () => {
+    expect(
+      isValidDailyPlan({
+        ...DH_PLAN,
+        dh_or_technical: {
+          ...DH_PLAN.dh_or_technical,
+          prior_task_reference: { ...VALID_PRIOR_TASK_REFERENCE, technical_outcome: "maybe" },
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("rejects a missing/non-string execution_task, session_date, source_decision_id, or kind", () => {
+    for (const field of ["execution_task", "session_date", "source_decision_id", "kind"] as const) {
+      const malformed = { ...VALID_PRIOR_TASK_REFERENCE, [field]: 42 };
+      expect(
+        isValidDailyPlan({ ...DH_PLAN, dh_or_technical: { ...DH_PLAN.dh_or_technical, prior_task_reference: malformed } })
+      ).toBe(false);
+    }
+  });
+
+  it("rejects prior_task_reference as a bare string", () => {
+    expect(isValidDailyPlan({ ...DH_PLAN, dh_or_technical: { ...DH_PLAN.dh_or_technical, prior_task_reference: "yes" } })).toBe(false);
+  });
+
+  it("a malformed prior_task_reference invalidates the whole DailyPlan, never rendered half-trusted", () => {
+    expect(
+      isValidDailyPlan({ ...DH_PLAN, dh_or_technical: { ...DH_PLAN.dh_or_technical, prior_task_reference: { technical_outcome: "yes" } } })
+    ).toBe(false);
+  });
+});
+
 // REV-001 — active_mode: "UNSPECIFIED" has been a legitimate engine output
 // since V0.3_004C (head-coach-engine/src/types/context.ts, "no current
 // training_blocks configured" — never a fabricated phase). This mirror was

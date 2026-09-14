@@ -59,4 +59,18 @@ export const PROVISIONAL_THRESHOLDS = {
   sleep: {
     targetHoursBaseline: 8,
   },
+
+  // V0.3_008B — Continuité technique. PROVISIONAL PRODUCT-FRESHNESS
+  // CONSTANT, pas une durée de récupération physiologique, pas une vérité
+  // spécifique à Louis, pas une loi d'entraînement Elite — voir
+  // docs/11_DECISION_LOG.md V0.3_008B. Fenêtre strictement inter-jours
+  // (D-14 <= session_date < D, jour même et futur exclus).
+  // `candidateLimit` dérive mathématiquement de la contrainte DB
+  // `unique_completed_per_day UNIQUE (athlete_id, session_date)` : au plus
+  // une ligne éligible par jour calendaire dans la fenêtre, donc au plus
+  // `windowDays` lignes possibles — jamais un plafond arbitraire.
+  recentTechnicalContext: {
+    windowDays: 14,
+    candidateLimit: 14,
+  },
 } as const;

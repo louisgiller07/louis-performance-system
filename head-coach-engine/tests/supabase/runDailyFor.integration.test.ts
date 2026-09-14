@@ -12,6 +12,7 @@ import {
   insertTrainingBlock,
   insertPlannedSession,
   insertCompletedSession,
+  insertDecision,
   type TestAthlete,
 } from "./testDb.js";
 
@@ -252,5 +253,144 @@ describe("V0.3_008A — recent_recovery_context persisted snapshot immutability 
       .single();
     const persistedPlan = decisions!.daily_plan as unknown as Record<string, unknown>;
     expect(persistedPlan).not.toHaveProperty("recent_recovery_context");
+  });
+});
+
+// V0.3_008B — snapshot immutability (mandatory per the architecture
+// decision, see docs/11_DECISION_LOG.md V0.3_008B), re-proven directly for
+// the NEW nested `dh_or_technical.prior_task_reference` snapshot using the
+// exact same mechanism V0.3_008A already proved for
+// `recent_recovery_context` (decisions.daily_plan, existing append-only
+// JSONB, unchanged by this ticket) — no new persistence code, but a
+// distinct nested field deserves its own direct real-DB proof rather than
+// inferring it from V0.3_008A's.
+describe("V0.3_008B — prior_task_reference persisted snapshot immutability (real Supabase)", () => {
+  let client: SupabaseClient;
+  let athlete: TestAthlete;
+
+  beforeEach(async () => {
+    client = createTestClient();
+    athlete = await createTestAthlete(client, "V0.3_008B snapshot immutability test athlete");
+  });
+
+  afterEach(async () => {
+    await deleteTestAthlete(client, athlete);
+  });
+
+  it("correcting the source completed_sessions.technical_outcome AFTER generation does not alter the already-persisted decision's prior_task_reference; a new decision afterward reflects the correction", async () => {
+    const today = "2026-09-14";
+    const historicalDate = "2026-09-12"; // D-2, clearly inter-day and inside the 14-day window
+    const executionTask = "Choisis une section technique courte et travaille un seul point à la fois...";
+
+    // Historical source H: valid DH-family decision + linked completed
+    // session, technical_outcome = PARTIAL.
+    const historicalDecisionId = await insertDecision(client, athlete.athleteId, historicalDate, {
+      final_session: "DH_TECHNICAL",
+      daily_plan: { dh_or_technical: { active: true, execution_task: executionTask } },
+    });
+    await insertCompletedSession(
+      client,
+      athlete.athleteId,
+      historicalDate,
+      "DH_TECHNICAL",
+      { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+      { completionStatus: "partial", decisionId: historicalDecisionId, technicalOutcome: "partial" }
+    );
+
+    // Current day D: check-in + a committed DH-family plan so the final
+    // session is itself DH-family (required for prior_task_reference to be
+    // surfaced at all — see the today-relevance gate).
+    await insertCheckin(client, athlete.athleteId, today);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    await insertPlannedSession(client, athlete.athleteId, today, {
+      session_type: "DH_TECHNICAL",
+      intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+    });
+
+    const resultB = await runDailyFor(client, athlete.athleteId, today);
+    expect(resultB.dailyPlan.dh_or_technical.prior_task_reference).toEqual({
+      source_decision_id: historicalDecisionId,
+      session_date: historicalDate,
+      kind: "DH_TECHNICAL",
+      execution_task: executionTask,
+      technical_outcome: "partial",
+    });
+
+    // Athlete later corrects H's technical_outcome (PARTIAL -> YES) through
+    // the same direct-update path V0.3_008A's own proof already uses.
+    const { error: correctionError } = await client
+      .from("completed_sessions")
+      .update({ technical_outcome: "yes" })
+      .eq("athlete_id", athlete.athleteId)
+      .eq("session_date", historicalDate);
+    if (correctionError) throw new Error(`source correction failed: ${correctionError.message}`);
+
+    // Re-read the ALREADY-PERSISTED Decision B — never regenerated.
+    const { data: decisionsAfterCorrection } = await client
+      .from("decisions")
+      .select("daily_plan")
+      .eq("id", resultB.persistence.decision_id)
+      .single();
+    const persistedPlanB = decisionsAfterCorrection!.daily_plan as unknown as {
+      dh_or_technical: { prior_task_reference?: { technical_outcome: string } };
+    };
+    expect(persistedPlanB.dh_or_technical.prior_task_reference?.technical_outcome).toBe("partial");
+
+    // A NEW decision (Decision C) generated afterward, with the exact same
+    // current-day inputs, must reflect the corrected live source.
+    const resultC = await runDailyFor(client, athlete.athleteId, today);
+    expect(resultC.persistence.decision_id).not.toBe(resultB.persistence.decision_id);
+    expect(resultC.dailyPlan.dh_or_technical.prior_task_reference?.technical_outcome).toBe("yes");
+    expect(resultC.dailyPlan.dh_or_technical.prior_task_reference?.source_decision_id).toBe(historicalDecisionId);
+
+    // Current-day arbitration/task is identical between B and C — only the
+    // historical snapshot differs (display-only, no arbitration effect).
+    expect(resultC.dailyPlan.decision).toBe(resultB.dailyPlan.decision);
+    expect(resultC.dailyPlan.final_session).toEqual(resultB.dailyPlan.final_session);
+    expect(resultC.dailyPlan.dh_or_technical.execution_task).toEqual(resultB.dailyPlan.dh_or_technical.execution_task);
+
+    // The live source row, by contrast, now genuinely reflects the correction.
+    const { data: liveRow } = await client
+      .from("completed_sessions")
+      .select("technical_outcome")
+      .eq("athlete_id", athlete.athleteId)
+      .eq("session_date", historicalDate)
+      .single();
+    expect(liveRow?.technical_outcome).toBe("yes");
+  });
+
+  it("a decision generated with no DH-family final session persists no prior_task_reference even when a valid historical fact exists — legacy-shaped, no crash on reread", async () => {
+    const today = "2026-09-14";
+    const historicalDate = "2026-09-12";
+    const historicalDecisionId = await insertDecision(client, athlete.athleteId, historicalDate, {
+      final_session: "DH_TECHNICAL",
+      daily_plan: { dh_or_technical: { active: true, execution_task: "Tâche historique." } },
+    });
+    await insertCompletedSession(
+      client,
+      athlete.athleteId,
+      historicalDate,
+      "DH_TECHNICAL",
+      { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
+      { completionStatus: "partial", decisionId: historicalDecisionId, technicalOutcome: "yes" }
+    );
+
+    await insertCheckin(client, athlete.athleteId, today);
+    await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
+    // No planned session -> inference fallback, not guaranteed DH-family;
+    // REST is the simplest deterministic non-DH case.
+    await insertPlannedSession(client, athlete.athleteId, today, { session_type: "REST" });
+
+    const result = await runDailyFor(client, athlete.athleteId, today);
+    expect(result.dailyPlan.dh_or_technical.active).toBe(false);
+    expect(result.dailyPlan.dh_or_technical).not.toHaveProperty("prior_task_reference");
+
+    const { data: decisions } = await client
+      .from("decisions")
+      .select("daily_plan")
+      .eq("id", result.persistence.decision_id)
+      .single();
+    const persistedPlan = decisions!.daily_plan as unknown as { dh_or_technical: Record<string, unknown> };
+    expect(persistedPlan.dh_or_technical).not.toHaveProperty("prior_task_reference");
   });
 });
