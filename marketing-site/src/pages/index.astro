@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Hero from "../components/Hero.astro";
 import StoryBlock from "../components/StoryBlock.astro";
+import DayWithNalynt from "../components/DayWithNalynt.astro";
 import LoopDiagram from "../components/LoopDiagram.astro";
 import DomainGrid from "../components/DomainGrid.astro";
 import CredibilityBlock from "../components/CredibilityBlock.astro";
@@ -35,6 +36,13 @@ import { domains } from "../content/domains.ts";
 
   <Section divider index={3}>
     <Container>
+      <Badge as="h2" class="mb-10">{siteCopy.dayWithNalynt.eyebrow}</Badge>
+      <DayWithNalynt content={siteCopy.dayWithNalynt} />
+    </Container>
+  </Section>
+
+  <Section divider index={4}>
+    <Container>
       <Badge as="h2">La boucle NALYNT</Badge>
       <div class="mt-6">
         <LoopDiagram loop={siteCopy.keyMessages.loop} variant="condensed" />
@@ -42,7 +50,7 @@ import { domains } from "../content/domains.ts";
     </Container>
   </Section>
 
-  <Section divider index={4}>
+  <Section divider index={5}>
     <Container>
       <Badge as="h2">Domaines de coaching</Badge>
       <div class="mt-6">
@@ -51,7 +59,7 @@ import { domains } from "../content/domains.ts";
     </Container>
   </Section>
 
-  <Section divider index={5}>
+  <Section divider index={6}>
     <Container>
       <CredibilityBlock
         athleteContext={siteCopy.about.athleteContext}
@@ -63,7 +71,7 @@ import { domains } from "../content/domains.ts";
     </Container>
   </Section>
 
-  <Section divider index={6}>
+  <Section divider index={7}>
     <Container class="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-lg text-text">{siteCopy.closingCta.text}</p>
       <Button href={siteCopy.closingCta.ctaHref} class="shrink-0">
@@ -72,7 +80,7 @@ import { domains } from "../content/domains.ts";
     </Container>
   </Section>
 
-  <Section divider index={7}>
+  <Section divider index={8}>
     <Container>
       <DisclaimerBanner text={siteCopy.disclaimer.text} />
     </Container>

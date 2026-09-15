@@ -1,0 +1,52 @@
+---
+// V1.7 — "Une journée avec NALYNT" (product proof). A distinct role from
+// LoopDiagram (abstract 4-step mechanism) and DomainGrid (7 coaching
+// domains overview): this walks a single concrete DH-technical scenario
+// through Planning → Check-in → Prescription → Performed → Feedback with
+// real-shaped values. Deliberately its own component rather than an
+// extension of LoopDiagram/DomainGrid/StoryBlock — reuses their established
+// visual vocabulary (numbered circle + connecting hairline, gold dash
+// facts, spec-sheet mono type) without repurposing those components' props
+// for a scenario they weren't designed to hold.
+//
+// No fake app screenshot, no dashboard mockup, no decorative icons — purely
+// typographic/structural, consistent with the rest of the site's "engineered
+// document" language. `content` must come from content/copy.ts
+// (siteCopy.dayWithNalynt) — this component adds no copy of its own.
+import type { DayWithNalyntCopy } from "../content/copy.ts";
+
+interface Props {
+  content: DayWithNalyntCopy;
+}
+
+const { content } = Astro.props;
+---
+
+<div>
+  <h3 class="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
+    {content.title}
+  </h3>
+  <p class="mt-6 max-w-2xl text-lg leading-relaxed text-text-muted">{content.intro}</p>
+
+  <ol class="relative mt-14 border-l border-border pl-8">
+    {
+      content.steps.map((step, i) => (
+        <li class="relative pb-14 last:pb-0">
+          <span class="absolute -left-[calc(2rem+1px)] flex h-8 w-8 items-center justify-center border border-accent bg-bg font-mono text-xs text-accent">
+            0{i + 1}
+          </span>
+          <h4 class="text-lg font-semibold tracking-wide text-text">{step.title}</h4>
+          <div class="mt-3 flex flex-col gap-1.5">
+            {step.facts.map((fact) => (
+              <div class="flex items-baseline gap-3">
+                <span class="h-px w-4 shrink-0 bg-accent" aria-hidden="true" />
+                <span class="font-mono text-sm text-text-muted">{fact}</span>
+              </div>
+            ))}
+          </div>
+          <p class="mt-4 max-w-xl text-base leading-relaxed text-text">{step.message}</p>
+        </li>
+      ))
+    }
+  </ol>
+</div>

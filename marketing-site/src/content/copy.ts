@@ -116,12 +116,41 @@ export interface ClosingCtaCopy {
   ctaHref: string;
 }
 
+/**
+ * V1.7 — "Une journée avec NALYNT" homepage section (product proof). A
+ * single fictional-but-representative DH technical session walked through
+ * Planning → Check-in → Prescription → Performed → Feedback — the same
+ * vocabulary as `keyMessages.loop`, just instantiated with concrete values
+ * instead of described abstractly. No date, no real race, no personal data.
+ *
+ * Every step's `message` is deliberately worded to avoid: "analyse
+ * biométrique avancée", "prédiction", "diagnostic" (step 2), "NALYNT
+ * optimise automatiquement", "NALYNT sait exactement ce qui est meilleur",
+ * "NALYNT remplace un coach" (step 3), "NALYNT apprend tout seul", "le
+ * système devient automatiquement meilleur" (step 5) — do not reintroduce
+ * this framing in future edits.
+ */
+export interface DayWithNalyntStep {
+  title: string;
+  /** Short spec-sheet facts — rendered as distinct lines, not a paragraph. */
+  facts: string[];
+  message: string;
+}
+
+export interface DayWithNalyntCopy {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  steps: [DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep];
+}
+
 export interface SiteCopy {
   hero: HeroCopy;
   /** Une phrase unique résumant la valeur centrale — utilisable en meta description. */
   coreValueProposition: string;
   keyMessages: KeyMessagesCopy;
   storyOrigin: StoryOriginCopy;
+  dayWithNalynt: DayWithNalyntCopy;
   about: AboutCopy;
   limits: ProductLimitsCopy;
   closingCta: ClosingCtaCopy;
@@ -201,6 +230,59 @@ export const siteCopy: SiteCopy = {
     questionOld: "Qu’est-ce qui était prévu ?",
     questionBridge: "Mais :",
     questionNew: "Quelle est la meilleure décision aujourd’hui ?",
+  },
+
+  dayWithNalynt: {
+    eyebrow: "Exemple produit",
+    title: "Une journée avec NALYNT",
+    intro:
+      "Concrètement, voici comment cette question se traduit sur une séance DH technique — du plan initial jusqu'à la mémoire qui en reste.",
+    steps: [
+      {
+        title: "La séance prévue",
+        facts: [
+          "DH technique",
+          "Durée prévue : 4 heures",
+          "Objectif : travailler les lignes, la précision et les répétitions",
+        ],
+        message: "L'athlète commence avec une intention claire : ce qu'il souhaite travailler aujourd'hui.",
+      },
+      {
+        title: "L'état du jour",
+        facts: [
+          "Sommeil : correct",
+          "Énergie : bonne",
+          "Fatigue jambes : élevée",
+          "Grip / avant-bras : moyen",
+          "Motivation : bonne",
+        ],
+        message: "NALYNT confronte l'objectif prévu avec la réalité du jour.",
+      },
+      {
+        title: "La décision NALYNT",
+        facts: [
+          "DH technique",
+          "Volume adapté",
+          "Focus : qualité des répétitions",
+          "Réduction du volume avant dégradation technique",
+        ],
+        message: "L'objectif reste le même. La manière de l'atteindre évolue selon le contexte.",
+      },
+      {
+        title: "La séance effectuée",
+        facts: ["DH technique", "2h30 réalisées", "Focus conservé : précision et lignes"],
+        message: "NALYNT distingue ce qui était prévu de ce qui a réellement été effectué.",
+      },
+      {
+        title: "L'historique",
+        facts: [
+          "Contexte conservé : fatigue jambes avant séance",
+          "Contexte conservé : adaptation réalisée",
+          "Contexte conservé : résultat enregistré",
+        ],
+        message: "Les événements importants restent visibles pour comprendre les décisions suivantes.",
+      },
+    ],
   },
 
   about: {
