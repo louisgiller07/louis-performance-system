@@ -1,12 +1,16 @@
 ---
-import Badge from "./ui/Badge.astro";
-
+// Image + text credibility block. V1.8: no longer owns its own heading
+// internally (was hardcoded "Construit et testé par") — the caller renders
+// its own Badge/h2 outside this component, exactly like every other
+// homepage section (Le problème, La boucle NALYNT, ...). This lets the same
+// block carry a different heading on /a-propos ("Louis Giller") without
+// forking the component.
 interface Props {
-  athleteContext: string;
+  text: string;
   image?: { src: string; alt: string };
 }
 
-const { athleteContext, image } = Astro.props;
+const { text, image } = Astro.props;
 ---
 
 {
@@ -21,15 +25,9 @@ const { athleteContext, image } = Astro.props;
           decoding="async"
         />
       </div>
-      <div class="border-l-2 border-accent pl-6">
-        <Badge as="h2">Construit et testé par</Badge>
-        <p class="mt-3 text-base leading-relaxed text-text-muted">{athleteContext}</p>
-      </div>
+      <p class="border-l-2 border-accent pl-6 text-base leading-relaxed text-text-muted">{text}</p>
     </div>
   ) : (
-    <div class="max-w-2xl border-l-2 border-accent pl-6">
-      <Badge as="h2">Construit et testé par</Badge>
-      <p class="mt-3 text-base leading-relaxed text-text-muted">{athleteContext}</p>
-    </div>
+    <p class="max-w-2xl border-l-2 border-accent pl-6 text-base leading-relaxed text-text-muted">{text}</p>
   )
 }

@@ -1,10 +1,13 @@
 ---
 // Editorial storytelling block — deliberately not a bordered "card", to read
 // as a human/brand moment rather than another data block. `content` must
-// come from content/copy.ts (siteCopy.storyOrigin) — this component adds no
-// copy of its own. V1.5: rewritten in place (same file, same single call
-// site on `/`) to carry the full "Pourquoi NALYNT existe" structure rather
-// than a single paragraph — no second component created alongside it.
+// come from content/copy.ts (siteCopy.storyOrigin / siteCopy.aboutPage.hero)
+// — this component adds no copy of its own. V1.5: rewritten in place (same
+// file, same original call site on `/`) to carry the full "Pourquoi NALYNT
+// existe" structure rather than a single paragraph. V1.8: props relaxed
+// (title/intro flexible, turn/origin/approach optional) so the same
+// component also carries the shorter /a-propos hero content without
+// inventing fields it doesn't have.
 //
 // `image` stays optional, ready for a future photo (not used today): no
 // structural change will be needed when one is supplied.
@@ -14,9 +17,13 @@ interface Props {
   content: StoryOriginCopy;
   image?: { src: string; alt: string };
   imagePosition?: "left" | "right";
+  /** Heading level for `content.title` — "h1" when this block opens a page (/a-propos hero), "h3" when nested under a page h2 (home). */
+  titleAs?: "h1" | "h2" | "h3";
 }
 
-const { content, image, imagePosition = "left" } = Astro.props;
+const { content, image, imagePosition = "left", titleAs = "h3" } = Astro.props;
+const titleLines = Array.isArray(content.title) ? content.title : [content.title];
+const Title = titleAs;
 ---
 
 <div class:list={["grid grid-cols-1 gap-10", image && "lg:grid-cols-2 lg:gap-16 lg:items-start"]}>
@@ -40,13 +47,18 @@ const { content, image, imagePosition = "left" } = Astro.props;
   }
 
   <div class:list={["max-w-2xl", image && imagePosition === "right" && "lg:order-1"]}>
-    <h3 class="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl lg:text-5xl">
-      {content.title[0]}
-      <br />
-      {content.title[1]}
-    </h3>
+    <Title class="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl lg:text-5xl">
+      {titleLines.map((line, i) => (
+        <>
+          {i > 0 && <br />}
+          {line}
+        </>
+      ))}
+    </Title>
 
-    <p class="mt-10 text-lg leading-relaxed text-text-muted">{content.intro}</p>
+    {content.intro.map((paragraph) => (
+      <p class="mt-10 text-lg leading-relaxed text-text-muted first:mt-10">{paragraph}</p>
+    ))}
 
     <div class="mt-8 flex flex-col gap-3">
       {
@@ -59,11 +71,9 @@ const { content, image, imagePosition = "left" } = Astro.props;
       }
     </div>
 
-    <p class="mt-8 text-lg leading-relaxed text-text">{content.turn}</p>
-
-    <p class="mt-10 text-lg leading-relaxed text-text-muted">{content.origin}</p>
-
-    <p class="mt-6 text-lg leading-relaxed text-text-muted">{content.approach}</p>
+    {content.turn && <p class="mt-8 text-lg leading-relaxed text-text">{content.turn}</p>}
+    {content.origin && <p class="mt-10 text-lg leading-relaxed text-text-muted">{content.origin}</p>}
+    {content.approach && <p class="mt-6 text-lg leading-relaxed text-text-muted">{content.approach}</p>}
 
     <div class="mt-12 border-t border-border pt-10">
       <p class="text-base leading-relaxed text-text-muted">{content.questionIntro}</p>

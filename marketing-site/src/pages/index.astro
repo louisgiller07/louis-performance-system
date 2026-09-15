@@ -61,8 +61,9 @@ import { domains } from "../content/domains.ts";
 
   <Section divider index={6}>
     <Container>
+      <Badge as="h2" class="mb-6">Construit et testé par</Badge>
       <CredibilityBlock
-        athleteContext={siteCopy.about.athleteContext}
+        text={siteCopy.about.athleteContext}
         image={{
           src: "/images/about/race-performance.webp",
           alt: "Louis Giller en course sur une piste de VTT descente (DH) rocailleuse, dossard visible, nuage de poussière.",

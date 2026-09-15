@@ -69,17 +69,25 @@ export interface KeyMessagesCopy {
  * including its original punctuation. Replaces the home-page usage of
  * `about.origin` (StoryBlock) — `about.origin` itself is unchanged and
  * still used as-is on /a-propos.
+ *
+ * V1.8 — relaxed (`title`/`intro` flexible, `turn`/`origin`/`approach`
+ * optional) so the same shape/component can also carry the shorter
+ * /a-propos hero content (no turn/origin/approach beat, single-line title,
+ * two intro paragraphs) without inventing fields that content doesn't have.
+ * `storyOrigin` (home) keeps using every optional field; `aboutPage.hero`
+ * only uses the subset it actually has.
  */
 export interface StoryOriginCopy {
   eyebrow: string;
-  /** Two-line editorial headline — exact line break preserved, not CSS wrap. */
-  title: [string, string];
-  intro: string;
+  /** Single line, or a two-line editorial headline — exact line break preserved, not CSS wrap. */
+  title: string | [string, string];
+  /** One or more paragraphs, rendered in order. */
+  intro: string[];
   /** Four short staccato fragments — rendered as distinct lines, not a paragraph. */
   contrastList: [string, string, string, string];
-  turn: string;
-  origin: string;
-  approach: string;
+  turn?: string;
+  origin?: string;
+  approach?: string;
   questionIntro: string;
   questionOld: string;
   questionBridge: string;
@@ -93,6 +101,39 @@ export interface AboutCopy {
   athleteContext: string;
   /** Pourquoi le système existe, formulé simplement. */
   whyItExists: string;
+}
+
+/**
+ * V1.8 — /a-propos as a real project-origin page. Each text section carries
+ * its own "surtitre" (small numbered kicker, non-heading) and "titre" (the
+ * real, large section heading) — content given verbatim or closely
+ * paraphrased from Louis's brief (NALYNT V1.8 — About Page / Athlete Origin
+ * & Credibility), deliberately reworded versus the homepage sections it's
+ * adjacent to in spirit (`keyMessages.problem`, `storyOrigin`) so the two
+ * pages don't repeat each other verbatim.
+ */
+export interface AboutPageTextSection {
+  eyebrow: string;
+  title: string | [string, string];
+  /** One or more paragraphs, rendered in order. */
+  body: string[];
+}
+
+export interface AboutPageLouisSection {
+  eyebrow: string;
+  title: string | [string, string];
+  text: string;
+  image: { src: string; alt: string };
+}
+
+export interface AboutPageCopy {
+  hero: StoryOriginCopy;
+  problem: AboutPageTextSection;
+  bornInDownhill: AboutPageTextSection;
+  louis: AboutPageLouisSection;
+  whyDownhill: AboutPageTextSection;
+  today: AboutPageTextSection;
+  vision: AboutPageTextSection;
 }
 
 export interface ProductLimitsCopy {
@@ -151,6 +192,7 @@ export interface SiteCopy {
   keyMessages: KeyMessagesCopy;
   storyOrigin: StoryOriginCopy;
   dayWithNalynt: DayWithNalyntCopy;
+  aboutPage: AboutPageCopy;
   about: AboutCopy;
   limits: ProductLimitsCopy;
   closingCta: ClosingCtaCopy;
@@ -213,8 +255,9 @@ export const siteCopy: SiteCopy = {
       "La performance ne se construit pas sur un plan parfait.",
       "Elle se construit dans la réalité.",
     ],
-    intro:
+    intro: [
       "Un entraînement prévu plusieurs jours à l’avance ne rencontre jamais exactement les mêmes conditions une fois arrivé sur le terrain.",
+    ],
     contrastList: [
       "Une récupération différente.",
       "Une fatigue accumulée.",
@@ -283,6 +326,87 @@ export const siteCopy: SiteCopy = {
         message: "Les événements importants restent visibles pour comprendre les décisions suivantes.",
       },
     ],
+  },
+
+  aboutPage: {
+    hero: {
+      eyebrow: "L'origine du projet",
+      title: "Construit depuis le terrain.",
+      intro: [
+        "NALYNT est né d'une idée simple : dans la réalité d'un athlète, une journée ne se déroule jamais exactement comme prévu.",
+        "Un plan d'entraînement peut être parfaitement construit sur le papier. Pourtant, lorsque vient le moment de s'entraîner, le contexte a parfois changé.",
+      ],
+      contrastList: [
+        "Une récupération différente.",
+        "Une fatigue qui s'accumule.",
+        "Une contrainte extérieure.",
+        "Un état mental qui n'est pas celui attendu.",
+      ],
+      questionIntro: "La question n'est alors plus seulement :",
+      questionOld: "Qu'est-ce qui était prévu ?",
+      questionBridge: "Mais :",
+      questionNew: "Quelle est la meilleure décision aujourd'hui ?",
+    },
+
+    problem: {
+      eyebrow: "Un problème rencontré dans la pratique",
+      title: "Les plans ne rencontrent jamais exactement la même réalité.",
+      body: [
+        "Un plan d'entraînement se construit avant la séance — sur la base de ce qui est prévu, pas de ce qui va réellement se passer.",
+        "Il ne peut pas connaître à l'avance l'état exact du jour : la récupération, la fatigue, le contexte extérieur, la disponibilité mentale.",
+        "Dans la pratique, la bonne décision ne dépend jamais uniquement du plan initial. Elle dépend de ce qui est vrai ce jour-là.",
+      ],
+    },
+
+    bornInDownhill: {
+      eyebrow: "Né dans le VTT Downhill de compétition",
+      title: "Un système pensé depuis un sport où chaque décision compte.",
+      body: [
+        "La descente (DH) est une discipline où chaque décision d'entraînement a un effet direct sur la piste : la progression technique, la préparation physique, la récupération et la confiance doivent avancer ensemble, jamais isolément.",
+        "Une séance n'est jamais seulement une séance. Elle s'inscrit dans un équilibre plus large — celui d'arriver prêt, techniquement et mentalement, au bon moment.",
+        "C'est dans cette réalité que NALYNT a été pensé : un sport où le contexte du jour peut changer ce qu'il est pertinent de faire.",
+      ],
+    },
+
+    louis: {
+      eyebrow: "Louis Giller",
+      title: ["Construit par un athlète.", "Testé dans une pratique réelle."],
+      text: "NALYNT est construit et testé à partir d'un cas réel : celui d'un pilote de VTT Downhill en compétition. En tant que pilote confronté quotidiennement à ces contraintes, Louis utilise NALYNT comme premier environnement de test réel — le système cherche à conserver le contexte autour de chaque décision qu'il traverse lui-même : ce qui était prévu, ce qui a réellement été effectué, l'état de l'athlète au moment de décider, et les informations importantes des séances précédentes.",
+      image: {
+        src: "/images/about/race-performance.webp",
+        alt: "Louis Giller en course sur une piste de VTT descente (DH) rocailleuse, dossard visible, nuage de poussière.",
+      },
+    },
+
+    whyDownhill: {
+      eyebrow: "Pourquoi le Downhill ?",
+      title: "Un environnement exigeant pour tester l'adaptation.",
+      body: [
+        "En VTT Downhill, une trajectoire imprécise ou une décision prise trop tard a des conséquences immédiates — la marge d'erreur est faible.",
+        "La fatigue y a une influence directe sur la prise de risque et la qualité d'exécution. Progresser techniquement suppose donc de savoir aussi quand freiner l'intensité pour préserver la récupération.",
+        "C'est un environnement où le contexte du jour ne peut pas être ignoré — ce qui en fait un terrain d'exigence particulièrement pertinent pour construire et tester un système d'adaptation.",
+      ],
+    },
+
+    today: {
+      eyebrow: "Aujourd'hui",
+      title: "Une phase de développement basée sur des situations réelles.",
+      body: [
+        "NALYNT est aujourd'hui dans une phase de « dogfood » : concrètement, il est utilisé et testé en conditions réelles, sur de vraies séances, avant d'être proposé plus largement.",
+        "Chaque étape suit le même principe : observer ce qui se passe réellement, valider si la décision proposée était pertinente, puis ajuster le système en conséquence.",
+        "Avant d'accompagner d'autres athlètes, NALYNT doit continuer à démontrer sa pertinence là où il est né — sur le terrain d'un pilote DH réel.",
+      ],
+    },
+
+    vision: {
+      eyebrow: "La vision",
+      title: "Relier le plan à la réalité.",
+      body: [
+        "NALYNT ne cherche pas à remplacer l'expérience d'un athlète ou d'un coach.",
+        "L'objectif est de construire un système capable de conserver les informations importantes d'une journée afin d'aider à prendre des décisions cohérentes avec la réalité.",
+        "Un bon système ne doit pas seulement connaître ce qui était prévu. Il doit comprendre ce qui s'est réellement passé.",
+      ],
+    },
   },
 
   about: {

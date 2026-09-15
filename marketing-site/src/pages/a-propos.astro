@@ -1,37 +1,93 @@
 ---
+// V1.8 — /a-propos rebuilt as the project-origin page (see NALYNT V1.8 —
+// About Page / Athlete Origin & Credibility). Reuses existing components
+// throughout: StoryBlock for the hero (relaxed in V1.8 to support a
+// single-line title / no turn-origin-approach / h1 heading level),
+// CredibilityBlock for the Louis section (relaxed in V1.8 to accept an
+// externally-supplied heading instead of a hardcoded one). No new
+// component created — the 5 plain-text sections are simple enough to
+// render inline, same pattern already used by index.astro for its own
+// sections.
 import BaseLayout from "../layouts/BaseLayout.astro";
+import StoryBlock from "../components/StoryBlock.astro";
+import CredibilityBlock from "../components/CredibilityBlock.astro";
 import Section from "../components/ui/Section.astro";
 import Container from "../components/ui/Container.astro";
 import Badge from "../components/ui/Badge.astro";
 import { siteCopy } from "../content/copy.ts";
 
-// V1.6.1: "Contexte" (siteCopy.about.athleteContext) removed from this page —
-// it was a verbatim duplicate of the homepage Credibility section (V1.6
-// review finding). That field is still used as-is on `/` (CredibilityBlock,
-// paired with the competition photo); athlete credibility on this page
-// remains carried by "Origine" and "Pourquoi" below.
-const items: Array<{ label: string; text: string }> = [
-  { label: "Origine", text: siteCopy.about.origin },
-  { label: "Pourquoi", text: siteCopy.about.whyItExists },
-];
+const { aboutPage } = siteCopy;
+
+const titleLines = (title: string | [string, string]) => (Array.isArray(title) ? title : [title]);
+
+const textSections = [aboutPage.problem, aboutPage.bornInDownhill];
+const textSectionsAfterLouis = [aboutPage.whyDownhill, aboutPage.today, aboutPage.vision];
 ---
 
-<BaseLayout title="À propos — NALYNT" description={siteCopy.about.whyItExists}>
+<BaseLayout title="À propos — NALYNT" description={aboutPage.hero.intro[0]}>
   <Section index={1}>
-    <Container class="max-w-2xl">
-      <Badge>À propos</Badge>
-      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">À propos</h1>
+    <Container>
+      <Badge class="mb-5">{aboutPage.hero.eyebrow}</Badge>
+      <StoryBlock content={aboutPage.hero} titleAs="h1" />
+    </Container>
+  </Section>
 
-      <div class="mt-12 space-y-10">
-        {
-          items.map((item) => (
-            <div>
-              <Badge as="h2">{item.label}</Badge>
-              <p class="mt-3 text-base leading-relaxed text-text-muted">{item.text}</p>
-            </div>
-          ))
-        }
+  {
+    textSections.map((section, i) => (
+      <Section divider index={i + 2}>
+        <Container class="max-w-2xl">
+          <Badge class="mb-5">{section.eyebrow}</Badge>
+          <h2 class="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
+            {titleLines(section.title).map((line, j) => (
+              <>
+                {j > 0 && <br />}
+                {line}
+              </>
+            ))}
+          </h2>
+          {section.body.map((paragraph) => (
+            <p class="mt-6 text-lg leading-relaxed text-text-muted">{paragraph}</p>
+          ))}
+        </Container>
+      </Section>
+    ))
+  }
+
+  <Section divider index={4}>
+    <Container>
+      <Badge class="mb-5">{aboutPage.louis.eyebrow}</Badge>
+      <h2 class="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
+        {titleLines(aboutPage.louis.title).map((line, i) => (
+          <>
+            {i > 0 && <br />}
+            {line}
+          </>
+        ))}
+      </h2>
+      <div class="mt-10">
+        <CredibilityBlock text={aboutPage.louis.text} image={aboutPage.louis.image} />
       </div>
     </Container>
   </Section>
+
+  {
+    textSectionsAfterLouis.map((section, i) => (
+      <Section divider index={i + 5}>
+        <Container class="max-w-2xl">
+          <Badge class="mb-5">{section.eyebrow}</Badge>
+          <h2 class="text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
+            {titleLines(section.title).map((line, j) => (
+              <>
+                {j > 0 && <br />}
+                {line}
+              </>
+            ))}
+          </h2>
+          {section.body.map((paragraph) => (
+            <p class="mt-6 text-lg leading-relaxed text-text-muted">{paragraph}</p>
+          ))}
+        </Container>
+      </Section>
+    ))
+  }
 </BaseLayout>
