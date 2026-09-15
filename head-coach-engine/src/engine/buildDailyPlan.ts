@@ -32,7 +32,7 @@ import {
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008b";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008b-dog001";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -348,7 +348,6 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     recovery: computeRecoveryDomain({ finalSession: session, modeConstraints, eventContext }),
     nutrition: computeNutritionDomain({
       finalSession: session,
-      plannedSession: ctx.planned_session,
       activeMode: ctx.active_mode,
       eventContext,
     }),

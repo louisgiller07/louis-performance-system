@@ -51,7 +51,6 @@ const DH_TECHNICAL_MODERATE_LOAD_GUIDANCE =
 const RACE_WEEK_FOCUS = "En race week : pense à augmenter légèrement l'apport énergétique.";
 const RACE_DAY_NOTES = "Jour de course : petit-déjeuner consistant au moins 2 h avant le premier run.";
 const DH_DAY_NOTES = "Jour DH : vise environ 3 à 3,5 L sur la journée.";
-const STRENGTH_NOTES = "Séance de force planifiée : protéines + glucides dans les 60 minutes après.";
 
 /** today = 2026-08-24 (baseRawContext default) — +3 days lands inside both
  * the 7-day PRE_EVENT window and Technique's 14-day proximity window.
@@ -225,8 +224,8 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
     });
   });
 
-  describe("final_session propagation + planned-strength asymmetry", () => {
-    it("planned GRIP_WORK + arms_grip RED + legs RED → Training pivots final_session to RECOVERY_ACTIVE; Technique/Nutrition-DH follow it, but Nutrition strength still follows the raw planned_session", () => {
+  describe("final_session propagation (DOG-001: no more planned-strength asymmetry)", () => {
+    it("planned GRIP_WORK + arms_grip RED + legs RED → Training pivots final_session to RECOVERY_ACTIVE; Technique/Nutrition both follow it, never the original planned_session", () => {
       const ctx = baseRawContext({
         active_mode: "IN_SEASON",
         planned_session: { kind: "GRIP_WORK", load_profile: "MODERATE" },
@@ -241,14 +240,17 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       expect(plan.decision).toBe("REPLACE");
       expect(plan.planned_session_before).toEqual({ kind: "GRIP_WORK", load_profile: "MODERATE" });
 
-      // Technique and Nutrition's DH branch both correctly follow the
-      // pivoted final_session, not the original planned GRIP_WORK.
+      // Technique and Nutrition both correctly follow the pivoted
+      // final_session, not the original planned GRIP_WORK.
       expect(plan.dh_or_technical).toEqual({ active: false });
 
-      // Nutrition's strength branch intentionally reads the raw
-      // planned_session (never final_session) — accepted asymmetry, not a
-      // defect (docs/06_ARCHITECTURE.md §V0.3_002, 002D contract).
-      expect(plan.nutrition).toEqual({ active: true, notes: STRENGTH_NOTES, hydration_target_l: 2 });
+      // DOG-001 fix — Nutrition's strength branch now reads final_session
+      // exclusively (never the raw planned_session): RECOVERY_ACTIVE is
+      // neither a DH kind nor a strength kind, so Nutrition is inactive.
+      // Before the fix this asserted the opposite (stale "Séance de force
+      // planifiée..." notes for a session that was no longer strength at
+      // all) — see docs/11_DECISION_LOG.md DOG-001.
+      expect(plan.nutrition).toEqual({ active: false });
 
       expect(plan.recovery).toEqual({
         active: true,

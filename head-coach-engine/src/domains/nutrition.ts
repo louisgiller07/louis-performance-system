@@ -32,19 +32,29 @@ const DH_DAY_NOTES = `Jour DH : vise environ ${NUTRITION_POLICY.dhHydrationRange
 const STRENGTH_NOTES = `Séance de force planifiée : protéines + glucides dans les ${NUTRITION_POLICY.strengthPostWindowMinutes} minutes après.`;
 
 /**
- * Couche C — Domaine Nutrition (V0.3_002D). Voir docs/06_ARCHITECTURE.md §V0.3_002.
+ * Couche C — Domaine Nutrition (V0.3_002D, corrigé DOG-001). Voir
+ * docs/06_ARCHITECTURE.md §V0.3_002.
  *
  * `focus` (rappel race-week) et le couple `notes`/`hydration_target_l`
  * (branche primaire) sont dérivés indépendamment — jamais l'un n'efface
  * l'autre. La branche primaire suit une précédence déterministe explicite :
- * RACE DAY > DH DAY > SÉANCE DE FORCE PLANIFIÉE > aucune.
+ * RACE DAY > DH DAY > SÉANCE DE FORCE > aucune.
  *
  * `event_context.in_progress` (pas `phase === "RACE_DAY_GENERIC"`) pour
  * rester valide même si une `race_phase` granulaire est un jour curée.
- * `finalSession` (séance déjà arbitrée) pour le jour DH — l'hydratation
- * doit suivre ce qui se passe réellement. `plannedSession` (brute, jamais
- * `finalSession`) pour la séance de force — le moteur ne connaît pas
- * l'exécution/complétion de la séance à ce stade (voir portée verrouillée).
+ * Les trois branches lisent exclusivement `finalSession` (séance déjà
+ * arbitrée, après Training/douleur non-SAFETY/contraintes soft/A5) —
+ * jamais la séance planifiée brute. La nutrition doit toujours suivre ce
+ * qui se passe réellement aujourd'hui, jamais l'intention de Planning.
+ *
+ * DOG-001 (2026-09-15) : la branche FORCE lisait auparavant
+ * `plannedSession.kind` plutôt que `finalSession.kind` — un REPLACE
+ * arbitral (ex. `STRENGTH_LOWER` → `RECOVERY_ACTIVE` via C3.5/C3.6 fatigue
+ * combinée grip+jambes, ou via la soft constraint `no_development`)
+ * laissait alors afficher « Séance de force planifiée : protéines +
+ * glucides… » pour une séance qui n'était plus du tout une séance de
+ * force. Corrigé pour lire `finalSession.kind`, exactement comme la
+ * branche DH juste au-dessus — voir docs/11_DECISION_LOG.md DOG-001.
  *
  * Aucune interaction `SignalTrace`, aucune `TriggeredRule` : aucune
  * heuristique C5.x ne consomme un signal de dimension, toutes sont
@@ -52,11 +62,10 @@ const STRENGTH_NOTES = `Séance de force planifiée : protéines + glucides dans
  */
 export function computeNutritionDomain(params: {
   finalSession: TrainingIntervention;
-  plannedSession: TrainingIntervention | null;
   activeMode: TrainingMode;
   eventContext?: EventContext;
 }): NutritionSection {
-  const { finalSession, plannedSession, activeMode, eventContext } = params;
+  const { finalSession, activeMode, eventContext } = params;
 
   const focus = activeMode === "RACE_WEEK" ? RACE_WEEK_FOCUS : undefined;
 
@@ -67,7 +76,7 @@ export function computeNutritionDomain(params: {
     notes = RACE_DAY_NOTES;
   } else if (DH_KINDS.has(finalSession.kind)) {
     notes = DH_DAY_NOTES;
-  } else if (plannedSession && STRENGTH_KINDS.has(plannedSession.kind)) {
+  } else if (STRENGTH_KINDS.has(finalSession.kind)) {
     notes = STRENGTH_NOTES;
     hydrationTargetL = NUTRITION_POLICY.baselineHydrationTargetL;
   }

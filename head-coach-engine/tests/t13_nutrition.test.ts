@@ -53,19 +53,17 @@ function eventContext(phase: RacePhase, overrides: Partial<EventContext> = {}): 
 
 function baseParams(overrides: {
   finalSession?: TrainingIntervention;
-  plannedSession?: TrainingIntervention | null;
   activeMode?: TrainingMode;
   eventContext?: EventContext;
 } = {}) {
   return {
     finalSession: overrides.finalSession ?? NEUTRAL_SESSION,
-    plannedSession: overrides.plannedSession ?? null,
     activeMode: overrides.activeMode ?? ("IN_SEASON" as TrainingMode),
     eventContext: overrides.eventContext,
   };
 }
 
-describe("T13 — Nutrition (V0.3_002D)", () => {
+describe("T13 — Nutrition (V0.3_002D, corrigé DOG-001)", () => {
   describe("NUTRITION_POLICY provenance", () => {
     it("holds exactly the approved canonical numeric constants", () => {
       expect(NUTRITION_POLICY.baselineHydrationTargetL).toBe(2);
@@ -95,9 +93,9 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
       expect(result).toEqual({ active: true, notes: DH_DAY_NOTES });
     });
 
-    it("PRE_EVENT + planned strength → exactly strength Nutrition, hydration_target_l = 2", () => {
+    it("PRE_EVENT + final strength → exactly strength Nutrition, hydration_target_l = 2", () => {
       const result = computeNutritionDomain(
-        baseParams({ eventContext: eventContext("PRE_EVENT"), plannedSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
+        baseParams({ eventContext: eventContext("PRE_EVENT"), finalSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
       );
       expect(result).toEqual({ active: true, hydration_target_l: 2, notes: STRENGTH_NOTES });
     });
@@ -127,26 +125,44 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
     }
   });
 
-  describe("Planned strength — planned_session", () => {
+  describe("Strength day — final_session (DOG-001: driven by final_session, never planned)", () => {
     for (const session of STRENGTH_KINDS) {
-      it(`planned ${session.kind} → strength notes + hydration_target_l = 2`, () => {
-        const result = computeNutritionDomain(baseParams({ plannedSession: session }));
+      it(`final ${session.kind} → strength notes + hydration_target_l = 2`, () => {
+        const result = computeNutritionDomain(baseParams({ finalSession: session }));
         expect(result).toEqual({ active: true, hydration_target_l: 2, notes: STRENGTH_NOTES });
       });
     }
 
-    it("uses PLANNED session, not final_session — planned strength survives a non-strength final session", () => {
-      const result = computeNutritionDomain(
-        baseParams({ finalSession: { kind: "RECOVERY_ACTIVE" }, plannedSession: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" } })
-      );
+    // DOG-001 — this is the exact regression this ticket fixes. The function
+    // no longer even accepts a `plannedSession` parameter: only
+    // `finalSession.kind` can ever drive the strength branch, so a REPLACE
+    // arbitration away from strength can never leak stale strength notes.
+    it("a non-strength final_session never produces strength notes, regardless of what was originally planned", () => {
+      const result = computeNutritionDomain(baseParams({ finalSession: { kind: "RECOVERY_ACTIVE" } }));
+      expect(result).toEqual({ active: false });
+      expect(result.notes).toBeUndefined();
+      expect(result.hydration_target_l).toBeUndefined();
+    });
+
+    // Mirror of the case above, proving the fix is symmetric, not just
+    // "planned strength doesn't leak" but "only final_session ever matters,
+    // in either direction". Deliberately a pure computeNutritionDomain call
+    // (function-level), not a buildDailyPlan/arbitration scenario: no
+    // Training rule in this engine ever upgrades a lighter/recovery kind
+    // into a development kind, so "planned RECOVERY_ACTIVE, final
+    // STRENGTH_LOWER" cannot occur via real arbitration — this proves the
+    // general guarantee the function itself makes, independent of whether
+    // any specific rule happens to produce it today.
+    it("a strength final_session always produces strength notes, even if a hypothetical plan had been non-strength (function depends only on finalSession)", () => {
+      const result = computeNutritionDomain(baseParams({ finalSession: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" } }));
       expect(result).toEqual({ active: true, hydration_target_l: 2, notes: STRENGTH_NOTES });
     });
   });
 
   describe("Cross-trigger composition", () => {
-    it("RACE_WEEK + strength → focus + strength notes + hydration 2", () => {
+    it("RACE_WEEK + final strength → focus + strength notes + hydration 2", () => {
       const result = computeNutritionDomain(
-        baseParams({ activeMode: "RACE_WEEK", plannedSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
+        baseParams({ activeMode: "RACE_WEEK", finalSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
       );
       expect(result).toEqual({ active: true, focus: RACE_WEEK_FOCUS, hydration_target_l: 2, notes: STRENGTH_NOTES });
     });
@@ -178,11 +194,11 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
       expect(result).toEqual({ active: true, notes: RACE_DAY_NOTES });
     });
 
-    it("race day + planned strength → race-day branch wins, hydration_target_l absent", () => {
+    it("race day + final strength → race-day branch wins, hydration_target_l absent", () => {
       const result = computeNutritionDomain(
         baseParams({
           eventContext: eventContext("RACE_DAY_GENERIC", { in_progress: true }),
-          plannedSession: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
+          finalSession: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
         })
       );
       expect(result).toEqual({ active: true, notes: RACE_DAY_NOTES });
@@ -200,28 +216,15 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
     });
   });
 
-  describe("DH vs strength precedence", () => {
-    it("final DH + planned strength (no race day) → DH branch wins, hydration_target_l absent", () => {
-      const result = computeNutritionDomain(
-        baseParams({
-          finalSession: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
-          plannedSession: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
-        })
-      );
-      expect(result).toEqual({ active: true, notes: DH_DAY_NOTES });
-      expect(result.hydration_target_l).toBeUndefined();
-    });
-  });
-
   describe("POST_EVENT — no debrief branch, but does not suppress other triggers", () => {
     it("POST_EVENT alone → inactive", () => {
       const result = computeNutritionDomain(baseParams({ eventContext: eventContext("POST_EVENT") }));
       expect(result).toEqual({ active: false });
     });
 
-    it("POST_EVENT + independently-valid planned strength → strength behavior preserved", () => {
+    it("POST_EVENT + independently-valid final strength → strength behavior preserved", () => {
       const result = computeNutritionDomain(
-        baseParams({ eventContext: eventContext("POST_EVENT"), plannedSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
+        baseParams({ eventContext: eventContext("POST_EVENT"), finalSession: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" } })
       );
       expect(result).toEqual({ active: true, hydration_target_l: 2, notes: STRENGTH_NOTES });
     });
@@ -253,6 +256,64 @@ describe("T13 — Nutrition (V0.3_002D)", () => {
       expect(plan.decision).toBe("KEEP");
       expect(plan.final_session).toEqual({ kind: "STRENGTH_UPPER", load_profile: "MODERATE" });
       expect(plan.triggered_rules.some((r) => r.rule_id.startsWith("NUTRITION"))).toBe(false);
+    });
+
+    // DOG-001 — the real production case: planned STRENGTH_LOWER/MODERATE,
+    // both legs and grip fatigue RED simultaneously fires C3.5/C3.6's
+    // combined-fatigue pivot (domains/training.ts), REPLACE → RECOVERY_ACTIVE.
+    // Nutrition must follow the arbitrated final_session, never the stale
+    // Planning intent — see docs/11_DECISION_LOG.md DOG-001.
+    it("DOG-001 regression: planned strength REPLACEd to RECOVERY_ACTIVE by combined leg+grip fatigue → nutrition reflects RECOVERY_ACTIVE, never stale strength notes", () => {
+      const ctx = baseRawContext({
+        planned_session: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
+        checkin: { leg_fatigue: 8, grip_fatigue: 8 },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+      expect(plan.decision).toBe("REPLACE");
+      expect(plan.nutrition).toEqual({ active: false });
+      expect(plan.nutrition.notes).toBeUndefined();
+    });
+
+    // Second real trigger path identified during the DOG-001 investigation:
+    // the `no_development` mode soft constraint (rules/modes.ts) replaces a
+    // HEAVY/MODERATE development-kind session (STRENGTH_LOWER included) with
+    // RECOVERY_ACTIVE — same stale-nutrition risk, different arbitration path.
+    it("DOG-001 regression (second path): planned strength REPLACEd to RECOVERY_ACTIVE by the no_development soft constraint → nutrition reflects RECOVERY_ACTIVE", () => {
+      // INJURY_RECOVERY carries `no_development` at `weight: "strong"` (see
+      // rules/modes.ts) — OFF_SEASON_RECOVERY's own no_development is only
+      // "moderate" and is never enforced by buildDailyPlan.ts's strong-only
+      // constraint loop, so it would not reproduce this path.
+      const ctx = baseRawContext({
+        active_mode: "INJURY_RECOVERY",
+        planned_session: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+      expect(plan.nutrition).toEqual({ active: false });
+    });
+
+    // Third real trigger path — a non-Safety REST outcome (T-X race taper,
+    // rules/raceProtocol.ts, hard=true at T-2/T-1, overrides even a
+    // committed planned session). Explicitly distinct from the Safety-REST
+    // early-return path above (which bypasses computeNutritionDomain
+    // entirely) — this REST comes from ordinary arbitration and must still
+    // clear stale strength notes.
+    it("DOG-001 regression (third path): planned strength REPLACEd to REST by a T-2 race taper → nutrition inactive, no stale strength notes", () => {
+      const ctx = baseRawContext({
+        today: "2026-08-24",
+        upcoming_races: [
+          // race_format must be HOT_TRAIL_2DAY or IXS_3DAY — the T-X table
+          // (rules/raceProtocol.ts) only exists for those two formats; any
+          // other format returns no recommendation at all (see PRE_EVENT_TABLES).
+          { event_name: "T-2 race", event_start: "2026-08-26", event_end: "2026-08-26", priority: "A_PLUS", race_format: "HOT_TRAIL_2DAY" },
+        ],
+        planned_session: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" },
+      });
+      const plan = buildDailyPlan(ctx);
+      expect(plan.final_session).toEqual({ kind: "REST" });
+      expect(plan.nutrition).toEqual({ active: false });
+      expect(plan.nutrition.notes).toBeUndefined();
     });
 
     it("is deterministic: identical RawContext produces identical nutrition output", () => {
