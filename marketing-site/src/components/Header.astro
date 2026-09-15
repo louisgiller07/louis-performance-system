@@ -1,0 +1,61 @@
+---
+import { siteCopy } from "../content/copy.ts";
+import Container from "./ui/Container.astro";
+
+const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
+const isActivePath = (href: string) => href.replace(/\/$/, "") === currentPath;
+---
+
+<header class="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur">
+  <Container class="flex h-16 items-center justify-between">
+    <a href="/" class="font-mono text-sm font-semibold tracking-[0.3em] text-text">
+      NALYNT
+    </a>
+
+    <nav class="hidden gap-8 md:flex">
+      {
+        siteCopy.nav.map((link) => (
+          <a
+            href={link.href}
+            class:list={[
+              "text-sm transition-colors",
+              isActivePath(link.href) ? "text-accent" : "text-text-muted hover:text-text",
+            ]}
+            aria-current={isActivePath(link.href) ? "page" : undefined}
+          >
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <details class="relative md:hidden">
+      <summary
+        class="flex h-9 w-9 cursor-pointer list-none items-center justify-center border border-border [&::-webkit-details-marker]:hidden [&::marker]:hidden"
+        aria-label="Ouvrir la navigation"
+      >
+        <span class="flex flex-col items-center gap-[5px]" aria-hidden="true">
+          <span class="h-px w-5 bg-text"></span>
+          <span class="h-px w-5 bg-text"></span>
+          <span class="h-px w-5 bg-text"></span>
+        </span>
+      </summary>
+      <nav class="absolute right-0 top-[calc(100%+0.75rem)] flex w-56 flex-col border border-border bg-surface">
+        {
+          siteCopy.nav.map((link) => (
+            <a
+              href={link.href}
+              class:list={[
+                "border-b border-border px-4 py-3 text-sm last:border-b-0",
+                isActivePath(link.href) ? "text-accent" : "text-text-muted",
+              ]}
+              aria-current={isActivePath(link.href) ? "page" : undefined}
+            >
+              {link.label}
+            </a>
+          ))
+        }
+      </nav>
+    </details>
+  </Container>
+</header>

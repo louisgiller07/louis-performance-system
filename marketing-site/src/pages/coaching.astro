@@ -1,0 +1,23 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import DomainGrid from "../components/DomainGrid.astro";
+import Section from "../components/ui/Section.astro";
+import Container from "../components/ui/Container.astro";
+import Badge from "../components/ui/Badge.astro";
+import { domains } from "../content/domains.ts";
+import { siteCopy } from "../content/copy.ts";
+---
+
+<BaseLayout title="Le modèle de coaching — NALYNT" description={siteCopy.coreValueProposition}>
+  <Section index={1}>
+    <Container>
+      <Badge>Le modèle de coaching</Badge>
+      <h1 class="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-text sm:text-5xl">
+        7 domaines de coaching
+      </h1>
+      <div class="mt-10">
+        <DomainGrid domains={domains} variant="full" headingLevel="h2" />
+      </div>
+    </Container>
+  </Section>
+</BaseLayout>

@@ -1,0 +1,26 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import LoopDiagram from "../components/LoopDiagram.astro";
+import Section from "../components/ui/Section.astro";
+import Container from "../components/ui/Container.astro";
+import Badge from "../components/ui/Badge.astro";
+import { siteCopy } from "../content/copy.ts";
+---
+
+<BaseLayout title="Comment ça marche — NALYNT" description={siteCopy.keyMessages.difference}>
+  <Section index={1}>
+    <Container class="max-w-2xl">
+      <Badge>Planifié → Prescrit → Réalisé</Badge>
+      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">
+        Comment ça marche
+      </h1>
+      <p class="mt-4 text-base leading-relaxed text-text-muted">{siteCopy.keyMessages.difference}</p>
+    </Container>
+  </Section>
+
+  <Section divider index={2}>
+    <Container class="max-w-2xl">
+      <LoopDiagram loop={siteCopy.keyMessages.loop} variant="full" headingLevel="h2" />
+    </Container>
+  </Section>
+</BaseLayout>

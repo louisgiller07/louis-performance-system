@@ -1,0 +1,37 @@
+---
+import Button from "./ui/Button.astro";
+
+// Visual only — intentionally inert (onsubmit="return false"). No backend,
+// no external form service wired at this stage.
+---
+
+<form class="max-w-lg space-y-6" onsubmit="return false">
+  <div>
+    <label for="name" class="block font-mono text-xs uppercase tracking-[0.15em] text-text-muted">Nom</label>
+    <input
+      id="name"
+      name="name"
+      type="text"
+      class="mt-2 w-full border border-border bg-surface px-4 py-3 text-sm text-text outline-none focus:border-accent"
+    />
+  </div>
+  <div>
+    <label for="email" class="block font-mono text-xs uppercase tracking-[0.15em] text-text-muted">Email</label>
+    <input
+      id="email"
+      name="email"
+      type="email"
+      class="mt-2 w-full border border-border bg-surface px-4 py-3 text-sm text-text outline-none focus:border-accent"
+    />
+  </div>
+  <div>
+    <label for="message" class="block font-mono text-xs uppercase tracking-[0.15em] text-text-muted">Message</label>
+    <textarea
+      id="message"
+      name="message"
+      rows="4"
+      class="mt-2 w-full border border-border bg-surface px-4 py-3 text-sm text-text outline-none focus:border-accent"
+    ></textarea>
+  </div>
+  <Button>Envoyer</Button>
+</form>

@@ -1,0 +1,22 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PhilosophyBlock from "../components/PhilosophyBlock.astro";
+import Section from "../components/ui/Section.astro";
+import Container from "../components/ui/Container.astro";
+import Badge from "../components/ui/Badge.astro";
+import { siteCopy } from "../content/copy.ts";
+---
+
+<BaseLayout title="Philosophie — NALYNT" description={siteCopy.keyMessages.philosophy}>
+  <Section index={1}>
+    <Container>
+      <Badge>Philosophie</Badge>
+      <h1 class="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-text sm:text-5xl">
+        Philosophie
+      </h1>
+      <div class="mt-10">
+        <PhilosophyBlock philosophy={siteCopy.keyMessages.philosophy} limits={siteCopy.limits} />
+      </div>
+    </Container>
+  </Section>
+</BaseLayout>

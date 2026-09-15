@@ -1,0 +1,33 @@
+---
+import type { KeyMessagesCopy, ProductLimitsCopy } from "../content/copy.ts";
+import Badge from "./ui/Badge.astro";
+
+interface Props {
+  philosophy: KeyMessagesCopy["philosophy"];
+  limits: ProductLimitsCopy;
+}
+
+const { philosophy, limits } = Astro.props;
+
+const limitItems: Array<{ label: string; text: string }> = [
+  { label: "Pas un système médical", text: limits.notMedical },
+  { label: "Pas une IA décisionnaire autonome", text: limits.notAutonomousAI },
+  { label: "Pas de progression automatique", text: limits.noAutomaticProgress },
+];
+---
+
+<div>
+  <p class="max-w-2xl text-2xl font-light leading-snug text-text sm:text-3xl">{philosophy}</p>
+
+  <div class="mt-12 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-3">
+    {
+      limitItems.map((item, i) => (
+        <div class="bg-surface p-6">
+          <span class="font-mono text-xs text-accent">{String(i + 1).padStart(2, "0")}</span>
+          <Badge class="mt-2">{item.label}</Badge>
+          <p class="mt-3 text-sm leading-relaxed text-text-muted">{item.text}</p>
+        </div>
+      ))
+    }
+  </div>
+</div>

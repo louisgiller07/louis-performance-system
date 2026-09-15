@@ -1,0 +1,21 @@
+---
+import { siteCopy } from "../content/copy.ts";
+import Container from "./ui/Container.astro";
+
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-border py-12">
+  <Container class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+    <span class="font-mono text-xs tracking-[0.2em] text-text-muted">NALYNT © {year}</span>
+    <nav class="flex flex-wrap gap-x-6 gap-y-2">
+      {
+        siteCopy.nav.map((link) => (
+          <a href={link.href} class="text-sm text-text-muted transition-colors hover:text-text">
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+  </Container>
+</footer>

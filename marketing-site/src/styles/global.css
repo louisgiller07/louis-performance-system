@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/*
+ * V1.4 — GOLD / FACTORY PERFORMANCE. Validated palette (do not invent new
+ * hues here) — carbon black base, race-asphalt surfaces, titanium text,
+ * factory gold as a sparingly-used premium accent, stone grey as muted text.
+ * No external font loading (system stacks only), no SaaS-generic gradients,
+ * no gloss/shine on gold — flat, matte, engineered.
+ */
+@theme {
+  --color-bg: #080909; /* Carbon Black */
+  --color-surface: #151718; /* Race Asphalt */
+  --color-surface-2: #1c1e1e; /* slightly lifted panel, derived from Race Asphalt */
+  --color-border: #26282a; /* hairline separators — derived, subtle on Carbon Black */
+  --color-text: #e7e4dd; /* Titanium */
+  --color-text-muted: #747870; /* Stone Grey */
+  --color-accent: #b89a4a; /* Factory Gold — accent only, never a large fill */
+  --color-accent-soft: #b89a4a26; /* Factory Gold at low opacity, for restrained hover/fill states */
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans);
+}

@@ -1,0 +1,31 @@
+---
+import Container from "./Container.astro";
+
+interface Props {
+  id?: string;
+  class?: string;
+  /** Adds the subtle top hairline used between stacked sections. */
+  divider?: boolean;
+  /** Small paddock/spec-sheet index marker (e.g. 2 → "02"), purely visual. */
+  index?: number;
+}
+
+const { id, class: className = "", divider = false, index } = Astro.props;
+const indexLabel = typeof index === "number" ? String(index).padStart(2, "0") : null;
+---
+
+<section
+  id={id}
+  class:list={["py-16 sm:py-24", divider && "border-t border-border", className]}
+>
+  {
+    indexLabel && (
+      <Container>
+        <span class="mb-6 block font-mono text-xs tracking-[0.2em] text-text-muted/70" aria-hidden="true">
+          {indexLabel}
+        </span>
+      </Container>
+    )
+  }
+  <slot />
+</section>

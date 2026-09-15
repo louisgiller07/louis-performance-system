@@ -1,0 +1,23 @@
+---
+// Gold-hairline "kicker" — the site's one recurring label device (paddock/
+// spec-sheet motif). Polymorphic: `as="span"` for inline/non-heading labels
+// (unchanged default, safe for existing call sites), `as="h2"`/`as="h3"` to
+// use the exact same visual style as a real, correctly-leveled heading.
+interface Props {
+  class?: string;
+  as?: "span" | "h1" | "h2" | "h3";
+}
+
+const { class: className = "", as = "span" } = Astro.props;
+const Tag = as;
+---
+
+<Tag
+  class:list={[
+    "inline-flex items-center gap-2 font-mono text-xs font-medium uppercase tracking-[0.2em] text-accent",
+    className,
+  ]}
+>
+  <span class="h-px w-6 bg-accent" aria-hidden="true"></span>
+  <slot />
+</Tag>

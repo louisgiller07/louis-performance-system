@@ -1,0 +1,17 @@
+# Node
+node_modules
+
+# Astro build output / cache
+dist
+.astro
+
+# Vercel CLI project link (deployment-machine-local, not shared config)
+.vercel
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store

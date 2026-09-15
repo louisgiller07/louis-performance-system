@@ -1,0 +1,43 @@
+---
+import type { KeyMessagesCopy } from "../content/copy.ts";
+
+interface Props {
+  loop: KeyMessagesCopy["loop"];
+  /** "condensed" — compact 4-up grid (home). "full" — stepped walkthrough (/comment-ca-marche). */
+  variant?: "condensed" | "full";
+  /** Heading level for each step title — "h3" when nested under a page h2 (home), "h2" when it's the page's only content block (/comment-ca-marche). */
+  headingLevel?: "h2" | "h3";
+}
+
+const { loop, variant = "condensed", headingLevel = "h3" } = Astro.props;
+const steps = [loop.planning, loop.prescription, loop.performed, loop.feedback];
+const StepHeading = headingLevel;
+---
+
+{
+  variant === "condensed" ? (
+    <div class="grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-4">
+      {steps.map((step, i) => (
+        <div class="bg-surface p-6">
+          <span class="font-mono text-xs text-accent">0{i + 1}</span>
+          <StepHeading class="mt-2 text-sm font-semibold tracking-wide text-text">{step.title}</StepHeading>
+          <p class="mt-2 text-sm leading-relaxed text-text-muted">{step.description}</p>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <ol class="relative border-l border-border pl-8">
+      {steps.map((step, i) => (
+        <li class="relative pb-12 last:pb-0">
+          <span class="absolute -left-[calc(2rem+1px)] flex h-8 w-8 items-center justify-center border border-accent bg-bg font-mono text-xs text-accent">
+            0{i + 1}
+          </span>
+          <StepHeading class="text-lg font-semibold tracking-wide text-text">{step.title}</StepHeading>
+          <p class="mt-2 max-w-2xl text-base leading-relaxed text-text-muted">
+            {step.description}
+          </p>
+        </li>
+      ))}
+    </ol>
+  )
+}

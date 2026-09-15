@@ -1,0 +1,47 @@
+---
+import type { HeroCopy } from "../content/copy.ts";
+import Container from "./ui/Container.astro";
+import Button from "./ui/Button.astro";
+import Badge from "./ui/Badge.astro";
+
+interface Props {
+  hero: HeroCopy;
+}
+
+const { hero } = Astro.props;
+---
+
+<section class="border-b border-border">
+  <Container class="grid grid-cols-1 items-center gap-12 py-16 sm:py-24 lg:grid-cols-2 lg:gap-16">
+    <div>
+      <Badge>{hero.eyebrow}</Badge>
+      <h1 class="mt-5 text-5xl font-semibold leading-[1.05] tracking-tight text-text sm:text-6xl lg:text-7xl">
+        {hero.headline}
+      </h1>
+      <p class="mt-6 max-w-md text-lg leading-relaxed text-text-muted">
+        {hero.subheadline}
+      </p>
+      <div class="mt-10">
+        <Button href={hero.ctaHref}>{hero.ctaLabel}</Button>
+      </div>
+    </div>
+
+    <figure class="m-0">
+      <div class="aspect-[3/2] w-full overflow-hidden border border-accent/25 bg-surface">
+        <img
+          src="/images/hero/louis-dh-jump.webp"
+          alt="Louis Giller en plein saut lors d'une descente VTT (DH), dossard de course visible, terrain de terre et poussière."
+          class="h-full w-full object-cover"
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+      <figcaption class="mt-4 flex items-center gap-3 border-t border-border pt-3">
+        <span class="h-px w-6 bg-accent" aria-hidden="true"></span>
+        <span class="font-mono text-xs uppercase tracking-[0.2em] text-text-muted">
+          Louis Giller — pilote Elite DH, construit et teste NALYNT sur ses propres séances.
+        </span>
+      </figcaption>
+    </figure>
+  </Container>
+</section>

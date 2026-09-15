@@ -1,0 +1,80 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Hero from "../components/Hero.astro";
+import StoryBlock from "../components/StoryBlock.astro";
+import LoopDiagram from "../components/LoopDiagram.astro";
+import DomainGrid from "../components/DomainGrid.astro";
+import CredibilityBlock from "../components/CredibilityBlock.astro";
+import DisclaimerBanner from "../components/DisclaimerBanner.astro";
+import Section from "../components/ui/Section.astro";
+import Container from "../components/ui/Container.astro";
+import Badge from "../components/ui/Badge.astro";
+import Button from "../components/ui/Button.astro";
+import { siteCopy } from "../content/copy.ts";
+import { domains } from "../content/domains.ts";
+---
+
+<BaseLayout title={`NALYNT — ${siteCopy.hero.eyebrow}`} description={siteCopy.coreValueProposition}>
+  <Hero hero={siteCopy.hero} />
+
+  <Section divider index={1}>
+    <Container class="max-w-3xl">
+      <Badge as="h2">Le problème</Badge>
+      <p class="mt-4 text-lg leading-relaxed text-text">{siteCopy.keyMessages.problem}</p>
+    </Container>
+  </Section>
+
+  <Section divider index={2}>
+    <Container>
+      <Badge as="h2" class="mb-10">{siteCopy.storyOrigin.eyebrow}</Badge>
+      {/* V1.5: no `image` prop for now — ready to accept one later without
+          any structural change (see StoryBlock.astro). */}
+      <StoryBlock content={siteCopy.storyOrigin} />
+    </Container>
+  </Section>
+
+  <Section divider index={3}>
+    <Container>
+      <Badge as="h2">La boucle NALYNT</Badge>
+      <div class="mt-6">
+        <LoopDiagram loop={siteCopy.keyMessages.loop} variant="condensed" />
+      </div>
+    </Container>
+  </Section>
+
+  <Section divider index={4}>
+    <Container>
+      <Badge as="h2">Domaines de coaching</Badge>
+      <div class="mt-6">
+        <DomainGrid domains={domains} variant="preview" />
+      </div>
+    </Container>
+  </Section>
+
+  <Section divider index={5}>
+    <Container>
+      <CredibilityBlock
+        athleteContext={siteCopy.about.athleteContext}
+        image={{
+          src: "/images/about/race-performance.webp",
+          alt: "Louis Giller en course sur une piste de VTT descente (DH) rocailleuse, dossard visible, nuage de poussière.",
+        }}
+      />
+    </Container>
+  </Section>
+
+  <Section divider index={6}>
+    <Container class="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+      <p class="text-lg text-text">{siteCopy.closingCta.text}</p>
+      <Button href={siteCopy.closingCta.ctaHref} class="shrink-0">
+        {siteCopy.closingCta.ctaLabel}
+      </Button>
+    </Container>
+  </Section>
+
+  <Section divider index={7}>
+    <Container>
+      <DisclaimerBanner text={siteCopy.disclaimer.text} />
+    </Container>
+  </Section>
+</BaseLayout>

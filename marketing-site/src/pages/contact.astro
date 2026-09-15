@@ -1,0 +1,21 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import ContactForm from "../components/ContactForm.astro";
+import Section from "../components/ui/Section.astro";
+import Container from "../components/ui/Container.astro";
+import Badge from "../components/ui/Badge.astro";
+import { siteCopy } from "../content/copy.ts";
+---
+
+<BaseLayout title="Contact — NALYNT" description={siteCopy.coreValueProposition}>
+  <Section index={1}>
+    <Container class="max-w-2xl">
+      <Badge>Contact</Badge>
+      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">Contact</h1>
+
+      <div class="mt-12">
+        <ContactForm />
+      </div>
+    </Container>
+  </Section>
+</BaseLayout>

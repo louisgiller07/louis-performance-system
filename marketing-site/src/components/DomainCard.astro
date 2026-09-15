@@ -1,0 +1,31 @@
+---
+import type { CoachingDomain } from "../content/domains.ts";
+
+interface Props {
+  domain: CoachingDomain;
+  /** Compact = name + description only (home preview). Full = adds the concrete example (/coaching). */
+  compact?: boolean;
+  /** 1-based position, rendered as a small paddock-style number (e.g. 1 → "01"). */
+  index: number;
+  /** "h3" when nested under a page h2 (home). "h2" when it's the page's direct content (/coaching). */
+  headingLevel?: "h2" | "h3";
+}
+
+const { domain, compact = false, index, headingLevel = "h3" } = Astro.props;
+const Heading = headingLevel;
+const indexLabel = String(index).padStart(2, "0");
+---
+
+<div class="bg-surface p-6">
+  <span class="font-mono text-xs text-accent">{indexLabel}</span>
+  <Heading class="mt-2 text-base font-semibold tracking-wide text-text">{domain.name}</Heading>
+  <p class="mt-2 text-sm leading-relaxed text-text-muted">{domain.description}</p>
+  {
+    !compact && (
+      <p class="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-text">
+        <span class="font-mono text-xs uppercase tracking-[0.2em] text-accent">En pratique — </span>
+        {domain.example}
+      </p>
+    )
+  }
+</div>
