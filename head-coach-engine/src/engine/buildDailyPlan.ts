@@ -32,7 +32,7 @@ import {
 
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3_008b-dog001";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3.010";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -302,6 +302,30 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     overrideReason = softConstraintOverrides.map((r) => r.detail).join(" ");
   }
 
+  // V0.3.010 (SIM-002/SIM-003) — `reasoning` must explain the FINAL
+  // decision, never read as a raw chronological concatenation of every
+  // rule that fired along the way. Two specific, narrowly-scoped
+  // exclusions from the join (never from `triggered_rules` itself — the
+  // full audit trail is untouched):
+  //  - C3.7 (recent_load RED) never affects the session (confirmed
+  //    intentional, see training.ts) — it stays visible in
+  //    `triggered_rules` and `monitoring` (below), never in the
+  //    decision-explaining `reasoning`, so it can never read like a
+  //    recommendation contradicted by the actual decision (SIM-002).
+  //  - C3.3/MENTAL_RED's own text explicitly claims "nature de la séance
+  //    préservée" — true of their OWN local effect (load-only downgrade),
+  //    but stale/misleading once a LATER rule in the same run (C3.5/C3.6/
+  //    pain/soft-constraint/A5) has since changed the session's actual
+  //    kind (SIM-003). Excluded from the join only in that specific case
+  //    — a real KEEP/same-nature MODIFY still shows this text normally.
+  const NATURE_PRESERVED_RULE_IDS = new Set(["C3.3", "MENTAL_RED"]);
+  const natureChanged = !isSameNature(comparisonBase.kind, session.kind);
+  const reasoningRules = triggeredRules.filter((r) => {
+    if (r.rule_id === "C3.7") return false;
+    if (natureChanged && NATURE_PRESERVED_RULE_IDS.has(r.rule_id)) return false;
+    return true;
+  });
+
   const confidence: Confidence =
     safety && safety.action === "ZERO_DH" ? "HIGH" : contradictionDetected ? "LOW" : "MEDIUM";
 
@@ -330,7 +354,13 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
       active: session.kind !== "REST",
       session_type: session,
       duration_min: session.duration_min,
-      objective: triggeredRules.length > 0 ? triggeredRules[triggeredRules.length - 1]?.detail : undefined,
+      // V0.3.010 (SIM-002) — drawn from the same filtered `reasoningRules`
+      // as `reasoning` below (never raw `triggeredRules`): this is the
+      // short athlete-facing message shown next to the decision
+      // (DailyPlanView.tsx, `athleteSafeTrainingObjective`) — it must never
+      // pick a purely-informational or since-superseded rule that the
+      // decision doesn't actually reflect.
+      objective: reasoningRules.length > 0 ? reasoningRules[reasoningRules.length - 1]?.detail : undefined,
     },
     dh_or_technical: computeTechniqueDomain({
       finalSession: session,
@@ -362,8 +392,8 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     monitoring: { observe: monitoring },
 
     reasoning:
-      triggeredRules.length > 0
-        ? triggeredRules.map((r) => r.detail).join(" ")
+      reasoningRules.length > 0
+        ? reasoningRules.map((r) => r.detail).join(" ")
         : "Aucun signal particulier — séance maintenue telle quelle.",
     confidence,
 

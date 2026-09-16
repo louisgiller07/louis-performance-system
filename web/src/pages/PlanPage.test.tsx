@@ -1,13 +1,16 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { PlanPage } from "./PlanPage";
 import { addDays, formatCalendarDate, todayLocal } from "../lib/date";
+import { writeSimulatedDate } from "../lib/simulationClock";
 import type { PlannedSessionRow } from "../features/planning/planningTypes";
 
+let mockAthleteId = "athlete-1";
+
 vi.mock("../auth/AuthContext", () => ({
-  useAuth: () => ({ user: { email: "louis@example.test" }, athleteId: "athlete-1", signOut: vi.fn() }),
+  useAuth: () => ({ user: { email: "louis@example.test" }, athleteId: mockAthleteId, signOut: vi.fn() }),
 }));
 
 const { loadPlannedSessions, savePlannedSession, deletePlannedSession } = vi.hoisted(() => ({
@@ -28,6 +31,13 @@ vi.mock("../features/planning/raceOverlayRepo", async (importOriginal) => {
 beforeEach(() => {
   vi.clearAllMocks();
   loadRacesInRange.mockResolvedValue([]);
+  mockAthleteId = "athlete-1";
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.useRealTimers();
+  sessionStorage.clear();
 });
 
 function horizonDates(): string[] {
@@ -63,6 +73,36 @@ describe("PlanPage — B, D", () => {
       expect(await screen.findByText(new RegExp(formatCalendarDate(date)))).toBeInTheDocument();
     }
     expect(screen.getAllByText("Non planifié")).toHaveLength(7);
+    expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
+  });
+});
+
+describe("PlanPage — V0.3.010 (SIM-001)", () => {
+  it("for the configured simulation athlete, the 7-day window is anchored to the simulated date, not todayLocal() — this is the fix for Planning going artificially 'non planifié' past simulated day 7", async () => {
+    vi.stubEnv("VITE_SIMULATION_ATHLETE_ID", "sim-athlete");
+    mockAthleteId = "sim-athlete";
+    writeSimulatedDate("2026-09-23"); // e.g. "day 8" of a simulation started on 2026-09-16
+
+    loadPlannedSessions.mockResolvedValue([]);
+    renderPage();
+
+    const expectedDates = Array.from({ length: 7 }, (_, i) => addDays("2026-09-23", i));
+    await screen.findByText(new RegExp(formatCalendarDate(expectedDates[0])));
+    expect(loadPlannedSessions).toHaveBeenCalledWith("sim-athlete", expectedDates[0], expectedDates[6]);
+    // Never a window anchored on the real device date instead — whatever
+    // that happens to be when the suite runs, it is not 2026-09-23.
+    expect(loadPlannedSessions).not.toHaveBeenCalledWith("sim-athlete", todayLocal(), addDays(todayLocal(), 6));
+  });
+
+  it("real Louis (not the simulation athlete) is entirely unaffected, even with a simulated date stored", async () => {
+    vi.stubEnv("VITE_SIMULATION_ATHLETE_ID", "sim-athlete");
+    writeSimulatedDate("2026-09-23"); // stored, but mockAthleteId stays "athlete-1" (Louis)
+
+    loadPlannedSessions.mockResolvedValue([]);
+    renderPage();
+
+    const dates = horizonDates();
+    await screen.findByText(new RegExp(formatCalendarDate(dates[0])));
     expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
   });
 });

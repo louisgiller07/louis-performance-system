@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { todayLocal } from "../lib/date";
+import { useEffectiveToday } from "../lib/simulationClock";
 import { CheckinForm } from "../features/checkin/CheckinForm";
 import { TodayPlanningSummary } from "../features/planning/TodayPlanningSummary";
 import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
@@ -19,16 +19,15 @@ const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
 // resolution already happened in RequireAuth/AuthContext; this page never
 // re-resolves it.
 //
-// V0.3.009 — `date` is an optional override, used exclusively by the
-// Simulation Lab to inject a simulated date instead of `todayLocal()`.
-// Every normal caller (the real `/today` route) omits it and gets the
-// exact previous behavior — this is the ONLY change this page makes for
-// simulation support; no other logic here is simulation-aware.
-interface Props {
-  date?: string;
-}
-
-export function TodayPage({ date }: Props) {
+// V0.3.010 (SIM-001) — "today" now comes from the shared
+// `useEffectiveToday()` (src/lib/simulationClock.ts) instead of an explicit
+// `date` prop threaded down from SimulationLabPage. For any real athlete
+// (including Louis) this resolves to exactly `todayLocal()`, identical to
+// the pre-V0.3.010 behavior — only the configured simulation athlete ever
+// sees a simulated date, and consistently so on every page that also calls
+// this same hook (PlanPage), not just wherever this component happens to
+// be rendered from.
+export function TodayPage() {
   const { user, athleteId, signOut } = useAuth();
   const [hasCheckin, setHasCheckin] = useState(false);
   // Bumped only on an actual save (CheckinForm's onSaved), never on the
@@ -56,10 +55,9 @@ export function TodayPage({ date }: Props) {
     };
   }, [athleteId]);
 
-  // Canonical YYYY-MM-DD in the user's own local timezone (see
-  // src/lib/date.ts) — kept for the future check-in/daily-run calls, not
-  // just display. `date` (Simulation Lab only) takes precedence when set.
-  const canonicalDate = useMemo(() => date ?? todayLocal(), [date]);
+  // Canonical YYYY-MM-DD — real date for any real athlete, simulated date
+  // only for the configured simulation athlete (see simulationClock.ts).
+  const canonicalDate = useEffectiveToday();
 
   const friendlyDate = useMemo(() => {
     // Parse the canonical date as a local calendar date (year, month, day

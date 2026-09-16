@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TodayPage } from "./TodayPage";
 import { todayLocal } from "../lib/date";
+import { writeSimulatedDate } from "../lib/simulationClock";
 
 function renderTodayPage() {
   return render(
@@ -92,6 +93,8 @@ vi.mock("../features/completedSession/CompletedSessionCard", () => ({
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  sessionStorage.clear();
 });
 
 describe("TodayPage", () => {
@@ -186,14 +189,21 @@ describe("TodayPage", () => {
     expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent(`completed-session-card date=${expectedDate} athleteId=athlete-1`);
   });
 
-  it("V0.3.009 (Simulation Lab): an explicit `date` prop overrides todayLocal() everywhere — real /today (no prop) is unaffected", () => {
+  it("V0.3.010 (SIM-001): for the configured simulation athlete, every date-dependent child uses the simulated date instead of todayLocal() — real /today (no simulation configured) is unaffected", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
     const realToday = todayLocal();
 
+    // The mocked useAuth() in this file always resolves athleteId="athlete-1"
+    // — configuring the simulation athlete to that same id, plus a stored
+    // simulated date, exercises the real simulationClock.ts logic end to
+    // end (no mocking of the hook itself needed).
+    vi.stubEnv("VITE_SIMULATION_ATHLETE_ID", "athlete-1");
+    writeSimulatedDate("2026-09-20");
+
     render(
       <MemoryRouter initialEntries={["/simulation"]}>
-        <TodayPage date="2026-09-20" />
+        <TodayPage />
       </MemoryRouter>
     );
 
@@ -203,5 +213,20 @@ describe("TodayPage", () => {
     expect(screen.getByTestId("today-planning-summary-stub")).toHaveTextContent("date=2026-09-20");
     expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("date=2026-09-20");
     expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent("date=2026-09-20");
+  });
+
+  it("real /today: an unconfigured or non-matching simulation athlete ID never affects the date, even if a simulated date happens to be stored", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
+    const realToday = todayLocal();
+
+    // No VITE_SIMULATION_ATHLETE_ID stubbed here — matches real production
+    // for every athlete except the one dedicated simulation account.
+    writeSimulatedDate("2026-09-20");
+
+    renderTodayPage();
+
+    expect(screen.getByText(realToday)).toBeInTheDocument();
+    expect(screen.queryByText("2026-09-20")).not.toBeInTheDocument();
   });
 });

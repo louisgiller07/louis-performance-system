@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { AppNav } from "../components/AppNav";
-import { addDays, todayLocal } from "../lib/date";
+import { addDays } from "../lib/date";
+import { useEffectiveToday } from "../lib/simulationClock";
 import { PlanningDayCard } from "../features/planning/PlanningDayCard";
 import { loadPlannedSessions } from "../features/planning/planningRepo";
 import { loadRacesInRange, groupRacesByDate } from "../features/planning/raceOverlayRepo";
@@ -27,11 +28,17 @@ const HORIZON_DAYS = 7;
  */
 export function PlanPage() {
   const { user, athleteId, signOut } = useAuth();
+  // V0.3.010 (SIM-001) — real date for any real athlete (identical to the
+  // pre-V0.3.010 `todayLocal()` behavior); only the configured simulation
+  // athlete gets a simulated reference date (src/lib/simulationClock.ts) —
+  // this is what previously made Planning "artificially non-planifié" past
+  // simulated day 7, since this page called `todayLocal()` directly and had
+  // no idea a simulation was running.
+  const effectiveToday = useEffectiveToday();
 
   const dates = useMemo(() => {
-    const today = todayLocal();
-    return Array.from({ length: HORIZON_DAYS }, (_, i) => addDays(today, i));
-  }, []);
+    return Array.from({ length: HORIZON_DAYS }, (_, i) => addDays(effectiveToday, i));
+  }, [effectiveToday]);
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<Record<string, PlannedSessionRow | null>>({});
@@ -57,7 +64,12 @@ export function PlanPage() {
     } catch {
       setLoadState("error");
     }
-    // dates is stable for the component's lifetime (computed once via useMemo with an empty dep array).
+    // `dates` is intentionally not a dependency: per the existing
+    // architecture (V0.3_003A), route remount is the only freshness
+    // mechanism for this page — a live date change without navigating away
+    // and back (real "today" rolling over past midnight, or the simulation
+    // clock advancing while /plan stays mounted) is not expected to
+    // re-fetch on its own, same contract as before V0.3.010.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId]);
 

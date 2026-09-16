@@ -1,28 +1,8 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal, addDays } from "../lib/date";
+import { isSimulationAthlete, readSimulatedDate, writeSimulatedDate } from "../lib/simulationClock";
 import { TodayPage } from "./TodayPage";
-
-const SIMULATION_DATE_STORAGE_KEY = "nalynt-simulation-date";
-
-function loadStoredSimulatedDate(): string | null {
-  try {
-    return sessionStorage.getItem(SIMULATION_DATE_STORAGE_KEY);
-  } catch {
-    // Private browsing / storage disabled — fall back to today, same as a
-    // fresh session would.
-    return null;
-  }
-}
-
-function storeSimulatedDate(date: string): void {
-  try {
-    sessionStorage.setItem(SIMULATION_DATE_STORAGE_KEY, date);
-  } catch {
-    // Best-effort only — losing persistence just means the clock resets to
-    // today on next reload, not a correctness issue for the engine itself.
-  }
-}
 
 /**
  * V0.3.009 — Simulation Lab. Internal validation tool: lets a reviewer
@@ -32,10 +12,12 @@ function storeSimulatedDate(date: string): void {
  * weeks. See docs/11_DECISION_LOG.md (V0.3.009) for the full architecture
  * decision.
  *
- * Deliberately NOT simulation-aware beyond this one page: the injected
- * `date` is the ONLY thing that differs from real usage (TodayPage.tsx),
- * daily-run/head-coach-engine/coaching rules are entirely unmodified and
- * have no idea a simulation is happening.
+ * V0.3.010 (SIM-001) — this page no longer passes `date` down to
+ * `TodayPage` as a prop: both this page and `TodayPage` (and `PlanPage`)
+ * now read/write the SAME shared simulated-date state
+ * (src/lib/simulationClock.ts) — the fix for Planning silently falling
+ * back to the real date past simulated day 7, since the old prop-based
+ * mechanism only ever reached `TodayPage`, never `/plan`.
  *
  * The athlete-identity check below is a UX convenience ONLY — it exists so
  * the wrong account sees a clear refusal instead of a confusing broken UI.
@@ -49,11 +31,8 @@ function storeSimulatedDate(date: string): void {
 export function SimulationLabPage() {
   const { user, athleteId } = useAuth();
 
-  const simulationAthleteId = import.meta.env.VITE_SIMULATION_ATHLETE_ID;
-  const isSimulationAthlete = Boolean(simulationAthleteId) && athleteId === simulationAthleteId;
-
   const realDate = todayLocal();
-  const [simulatedDate, setSimulatedDate] = useState(() => loadStoredSimulatedDate() ?? realDate);
+  const [simulatedDate, setSimulatedDate] = useState(() => readSimulatedDate() ?? realDate);
 
   const daysElapsed = useMemo(() => {
     // Purely for display ("Jour N") — not consumed by anything date-logic
@@ -71,10 +50,10 @@ export function SimulationLabPage() {
   function advanceOneDay() {
     const next = addDays(simulatedDate, 1);
     setSimulatedDate(next);
-    storeSimulatedDate(next);
+    writeSimulatedDate(next);
   }
 
-  if (!isSimulationAthlete) {
+  if (!isSimulationAthlete(athleteId)) {
     return (
       <div className="mx-auto mt-24 max-w-sm p-6 text-center">
         <p className="text-sm font-semibold text-red-600">Accès refusé</p>
@@ -113,7 +92,7 @@ export function SimulationLabPage() {
         </button>
       </header>
 
-      <TodayPage date={simulatedDate} />
+      <TodayPage />
     </div>
   );
 }

@@ -119,12 +119,21 @@ export function applyTrainingDomainRules(
     }
   }
 
-  // recent_load RED — C3.7 : forte recommandation soft, n'impose pas de changement.
+  // recent_load RED — C3.7 : signal informatif seul, n'impose jamais de
+  // changement de séance (confirmé décision produit intentionnelle, voir
+  // docs/12_BACKLOG.md §Gaps de revue externe post-V0.3_006C — reste tel
+  // quel, non réévalué par V0.3.010). SIM-002 (V0.3.010) : le libellé
+  // précédent ("forte recommandation de récupération") laissait croire à
+  // une recommandation d'action alors qu'aucune décision n'en découle —
+  // reformulé pour rester factuel. buildDailyPlan.ts exclut en plus ce
+  // rule_id de `reasoning` (le texte explicatif de la décision) — il ne
+  // reste visible que dans `triggered_rules` (audit) et `monitoring`
+  // (buildDailyPlan.ts, déjà existant).
   if (dimensions.recent_load.level === "RED" && trace.consume("recent_load_very_high", "C3.7")) {
     triggeredRules.push({
       layer: "C",
       rule_id: "C3.7",
-      detail: "Charge 7 jours très élevée — forte recommandation de récupération (soft, arbitrable)",
+      detail: "Charge 7 jours très élevée — point d'attention récupération, sans effet automatique sur la séance",
       signals_used: ["recent_load_very_high"],
     });
   }

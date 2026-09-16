@@ -15,10 +15,12 @@ vi.mock("../auth/AuthContext", () => ({
 }));
 
 // TodayPage's own behavior (check-in, planning, prescription, séance) is
-// covered by TodayPage.test.tsx — this page only needs to prove it's wired
-// in with the simulated date, never a live one.
+// covered by TodayPage.test.tsx — this page only needs to prove the clock
+// header itself reflects the simulated date correctly (V0.3.010: TodayPage
+// no longer receives a `date` prop from here — it reads the same shared
+// simulationClock state on its own, verified by TodayPage.test.tsx).
 vi.mock("./TodayPage", () => ({
-  TodayPage: ({ date }: { date?: string }) => <div data-testid="today-page-stub">today-page date={date}</div>,
+  TodayPage: () => <div data-testid="today-page-stub">today-page</div>,
 }));
 
 beforeEach(() => {
@@ -71,7 +73,8 @@ describe("SimulationLabPage", () => {
 
     expect(screen.getByText("Mode simulation")).toBeInTheDocument();
     expect(screen.getByText("Jour 1")).toBeInTheDocument();
-    expect(screen.getByTestId("today-page-stub")).toHaveTextContent("date=2026-09-16");
+    expect(screen.getAllByText("2026-09-16")).toHaveLength(2); // "Date réelle" + "Date simulée"
+    expect(screen.getByTestId("today-page-stub")).toBeInTheDocument();
   });
 
   it("advances the simulated date by exactly one calendar day per click, independent of the real date", () => {
@@ -83,11 +86,12 @@ describe("SimulationLabPage", () => {
 
     act(() => screen.getByText("+1 jour").click());
     expect(screen.getByText("Jour 2")).toBeInTheDocument();
-    expect(screen.getByTestId("today-page-stub")).toHaveTextContent("date=2026-09-17");
+    expect(screen.getByText("2026-09-17")).toBeInTheDocument();
+    expect(screen.getByText("2026-09-16")).toBeInTheDocument(); // "Date réelle" stays put
 
     act(() => screen.getByText("+1 jour").click());
     expect(screen.getByText("Jour 3")).toBeInTheDocument();
-    expect(screen.getByTestId("today-page-stub")).toHaveTextContent("date=2026-09-18");
+    expect(screen.getByText("2026-09-18")).toBeInTheDocument();
   });
 
   it("persists the simulated date across remounts within the same session (sessionStorage)", () => {
@@ -97,10 +101,10 @@ describe("SimulationLabPage", () => {
 
     const { unmount } = renderLab();
     act(() => screen.getByText("+1 jour").click());
-    expect(screen.getByTestId("today-page-stub")).toHaveTextContent("date=2026-09-17");
+    expect(screen.getByText("2026-09-17")).toBeInTheDocument();
     unmount();
 
     renderLab();
-    expect(screen.getByTestId("today-page-stub")).toHaveTextContent("date=2026-09-17");
+    expect(screen.getByText("2026-09-17")).toBeInTheDocument();
   });
 });
