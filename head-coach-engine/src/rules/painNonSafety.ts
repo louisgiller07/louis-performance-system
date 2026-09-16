@@ -48,7 +48,14 @@ const LOWER_SOLICITING_KINDS = new Set([
 function zoneCategory(location: string | undefined): ZoneCategory {
   if (!location) return "other";
   const l = location.toLowerCase();
-  if (/(wrist|forearm|hand|thumb|elbow)/.test(l)) return "upper_grip";
+  // V0.3.013 (PILOT-BLOCK-001) — shoulder_L/shoulder_R (canonical
+  // PAIN_LOCATION_CODES, checkinTypes.ts) were never matched by this regex,
+  // despite being clearly upper-body/grip-relevant (solicited by the same
+  // GRIP_WORK/STRENGTH_UPPER/DH kinds as wrist/forearm/elbow). Unambiguous
+  // gap in this category's own existing intent — see docs/11_DECISION_LOG.md
+  // V0.3.013. Other unclassified codes (back/neck/groin/chest/abs/head)
+  // deliberately left as "other" — no explicit product decision made here.
+  if (/(wrist|forearm|hand|thumb|elbow|shoulder)/.test(l)) return "upper_grip";
   if (/(knee|ankle|hip|quad|hamstring|calf|leg)/.test(l)) return "lower";
   return "other";
 }
@@ -76,7 +83,23 @@ export function evaluatePainNonSafety(
   const protection = [`Éviter toute charge sollicitant fortement ${zoneLabel}`];
 
   let adapted_session: TrainingIntervention | undefined;
-  const solicited = sessionSollicitsZone(effectiveSession.kind, location);
+  // V0.3.013 (PILOT-BLOCK-001) — pain reported with NO zone specified
+  // (pain_location_code is optional, checkinValidation.ts) previously
+  // always resolved to zoneCategory "other" → never solicited → the
+  // session was never adapted, while the generic protection message
+  // ("Éviter toute charge sollicitant fortement zone non précisée") was
+  // still shown next to the full, unmodified prescription — the exact
+  // "aggressive prescription + protect message" contradiction this
+  // milestone fixes. Absence of a known zone can never rule out that
+  // today's session solicits it, so default to a cautious one-notch
+  // downgrade (never REST, never a new safety action — same
+  // intensity-only adaptation as a classified zone) for any session whose
+  // intensity is actually adaptable. A location that IS provided but falls
+  // outside the known categories (see zoneCategory) is unchanged — still
+  // resolves to "not solicited" (explicit product decision left open, not
+  // decided here). See docs/11_DECISION_LOG.md V0.3.013.
+  const unspecifiedLocationAdaptable = location === undefined && !isFixedLoadKind(effectiveSession.kind);
+  const solicited = sessionSollicitsZone(effectiveSession.kind, location) || unspecifiedLocationAdaptable;
 
   if (solicited && !isFixedLoadKind(effectiveSession.kind)) {
     adapted_session = withDowngradedLoad(effectiveSession);
