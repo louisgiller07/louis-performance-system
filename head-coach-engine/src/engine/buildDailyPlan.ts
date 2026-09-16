@@ -33,7 +33,7 @@ import {
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 import { selectDecisionReasoningRules, joinDecisionReasoning } from "./reasoningBuilder.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3.011";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3.012";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -82,6 +82,9 @@ function buildSafetyPlan(
     reasoning: safety.reasoning,
     confidence: "HIGH",
     triggered_rules: [safety.triggered_rule],
+    // V0.3.012 — the safety rule IS the entire decision reasoning here (no
+    // domain arbitration runs in the SAFETY branch), so it's the same set.
+    decision_reasoning: [safety.triggered_rule],
     health_flag_to_create: safety.health_flag_to_create,
     planned_session_before: ctx.planned_session,
     final_session: restSession,
@@ -386,6 +389,11 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     confidence,
 
     triggered_rules: triggeredRules,
+    // V0.3.012 — same array reference filtering as `reasoning`/`training.objective`
+    // above (reasoningRules from reasoningBuilder.ts), exposed as a list so the
+    // "Pourquoi cette décision ?" panel can render it without duplicating the
+    // A/B selection logic client-side. See dailyPlan.ts's doc comment.
+    decision_reasoning: reasoningRules,
 
     planned_session_before: ctx.planned_session,
     final_session: session,

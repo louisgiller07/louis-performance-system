@@ -122,6 +122,15 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
   // underlying dailyPlan.protection/monitoring are never mutated.
   const safeProtection = athleteSafeProtection(dailyPlan);
   const safeMonitoring = athleteSafeMonitoring(dailyPlan);
+  // V0.3.012 — "Pourquoi cette décision ?" must show exactly the rules that
+  // explain the FINAL decision, the same set already joined into
+  // `reasoning`/`training.objective` above — never the full, unfiltered
+  // `triggered_rules` audit trail (which also carries monitoring-only rules
+  // like C3.7 and rules whose own claim was since superseded, e.g. a stale
+  // "nature préservée" after a later rule changed the kind). Falls back to
+  // `triggered_rules` only for a decision persisted before this field
+  // existed (`decision_reasoning === undefined`) — see dailyPlanTypes.ts.
+  const decisionReasoningRules = dailyPlan.decision_reasoning ?? dailyPlan.triggered_rules;
   const protectionSection = safeProtection.length > 0 && (
     <PlanSection title="À éviter">
       <ul className="list-disc pl-4 text-red-700">
@@ -315,7 +324,7 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
         </PlanSection>
       )}
 
-      {dailyPlan.triggered_rules.length > 0 && (
+      {decisionReasoningRules.length > 0 && (
         <details className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
           <summary className="cursor-pointer font-medium text-gray-900">Pourquoi cette décision ?</summary>
           {/*
@@ -326,9 +335,13 @@ export function DailyPlanView({ dailyPlan, hasHealthSignal, healthSignalReason, 
            * technicalMetadata's raw JSON dump below (dev-only) and in the
            * persisted decisions.daily_plan for audit — only this athlete
            * copy is sanitized. See safetyPresentation.ts.
+           *
+           * V0.3.012 — source is decisionReasoningRules (see above), never
+           * the raw triggered_rules audit array, so this panel can never
+           * contradict the `reasoning` summary shown in DecisionHero.
            */}
           <ul className="mt-2 flex flex-col gap-2">
-            {dailyPlan.triggered_rules.map((rule, index) => (
+            {decisionReasoningRules.map((rule, index) => (
               <li key={index} className="border-t border-gray-100 pt-2 first:border-t-0 first:pt-0">
                 <p>{athleteSafeRuleDetail(rule)}</p>
               </li>

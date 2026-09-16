@@ -64,6 +64,19 @@ function isValidTriggeredRules(value: unknown): boolean {
 }
 
 /**
+ * V0.3.012 — same "never survive as present just because it's not
+ * undefined" discipline as the other optional fields below: this is what
+ * gates DailyPlanView's "Pourquoi cette décision ?" panel reading the
+ * filtered decision-reasoning list instead of falling back to the full
+ * (unfiltered) triggered_rules, so a malformed value must fall back to
+ * legacy behavior, never be rendered half-trusted.
+ */
+function isValidDecisionReasoning(value: unknown): boolean {
+  if (value === undefined) return true;
+  return isValidTriggeredRules(value);
+}
+
+/**
  * health_flag_to_create is what both DailyPlanView (hasHealthSignal) and
  * /history's HistoryDetail treat as the one legitimate source of a health
  * banner — so an untrusted or malformed value here must never survive as
@@ -150,6 +163,7 @@ export function isValidDailyPlan(plan: unknown): plan is DailyPlan {
   if (!isObject(plan.monitoring) || !isStringArray(plan.monitoring.observe)) return false;
 
   if (!isValidTriggeredRules(plan.triggered_rules)) return false;
+  if (!isValidDecisionReasoning(plan.decision_reasoning)) return false;
   if (!isValidHealthFlagToCreate(plan.health_flag_to_create)) return false;
   if (!isValidRecentRecoveryContext(plan.recent_recovery_context)) return false;
 

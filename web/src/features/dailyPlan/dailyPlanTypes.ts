@@ -166,6 +166,10 @@ export interface DailyPlan {
   confidence: Confidence;
 
   triggered_rules: TriggeredRule[];
+
+  /** V0.3.012 — the subset of triggered_rules that explains the final decision (same rules as `reasoning`/`training.objective`). Absent for any plan predating this field; consumers fall back to triggered_rules. */
+  decision_reasoning?: TriggeredRule[];
+
   health_flag_to_create?: HealthFlagToCreate;
 
   planned_session_before: TrainingIntervention | null;

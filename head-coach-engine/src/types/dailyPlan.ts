@@ -137,6 +137,22 @@ export interface DailyPlan {
   confidence: Confidence;
 
   triggered_rules: TriggeredRule[];
+
+  /**
+   * V0.3.012 — le sous-ensemble de `triggered_rules` qui explique
+   * effectivement la décision finale (layer A dans reasoningBuilder.ts),
+   * exactement les mêmes règles que celles jointes dans `reasoning` /
+   * `training.objective` ci-dessus. Existe pour que le panneau athlète
+   * "Pourquoi cette décision ?" (et l'historique, qui réutilise le même
+   * composant) n'ait plus jamais à retomber sur `triggered_rules` brut
+   * (qui inclut aussi les règles monitoring-only comme C3.7 et les
+   * règles de domaine intermédiaires devenues obsolètes après une
+   * décision REPLACE) — voir docs/11_DECISION_LOG.md V0.3.012.
+   * Absent pour toute décision persistée avant ce jalon ; un consommateur
+   * doit alors retomber sur `triggered_rules` (fallback legacy).
+   */
+  decision_reasoning?: TriggeredRule[];
+
   health_flag_to_create?: HealthFlagToCreate;
 
   planned_session_before: TrainingIntervention | null;
