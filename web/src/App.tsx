@@ -7,6 +7,7 @@ import { PlanPage } from "./pages/PlanPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { HistoryDetailPage } from "./pages/HistoryDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
+import { SimulationLabPage } from "./pages/SimulationLabPage";
 
 export default function App() {
   return (
@@ -51,6 +52,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <InsightsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/simulation"
+            element={
+              <RequireAuth>
+                <SimulationLabPage />
               </RequireAuth>
             }
           />

@@ -18,7 +18,17 @@ const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
 // M4_002 — real skeleton, no check-in logic yet (M4_003). Athlete
 // resolution already happened in RequireAuth/AuthContext; this page never
 // re-resolves it.
-export function TodayPage() {
+//
+// V0.3.009 — `date` is an optional override, used exclusively by the
+// Simulation Lab to inject a simulated date instead of `todayLocal()`.
+// Every normal caller (the real `/today` route) omits it and gets the
+// exact previous behavior — this is the ONLY change this page makes for
+// simulation support; no other logic here is simulation-aware.
+interface Props {
+  date?: string;
+}
+
+export function TodayPage({ date }: Props) {
   const { user, athleteId, signOut } = useAuth();
   const [hasCheckin, setHasCheckin] = useState(false);
   // Bumped only on an actual save (CheckinForm's onSaved), never on the
@@ -48,8 +58,8 @@ export function TodayPage() {
 
   // Canonical YYYY-MM-DD in the user's own local timezone (see
   // src/lib/date.ts) — kept for the future check-in/daily-run calls, not
-  // just display.
-  const canonicalDate = useMemo(() => todayLocal(), []);
+  // just display. `date` (Simulation Lab only) takes precedence when set.
+  const canonicalDate = useMemo(() => date ?? todayLocal(), [date]);
 
   const friendlyDate = useMemo(() => {
     // Parse the canonical date as a local calendar date (year, month, day

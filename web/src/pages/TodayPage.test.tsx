@@ -185,4 +185,23 @@ describe("TodayPage", () => {
 
     expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent(`completed-session-card date=${expectedDate} athleteId=athlete-1`);
   });
+
+  it("V0.3.009 (Simulation Lab): an explicit `date` prop overrides todayLocal() everywhere — real /today (no prop) is unaffected", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
+    const realToday = todayLocal();
+
+    render(
+      <MemoryRouter initialEntries={["/simulation"]}>
+        <TodayPage date="2026-09-20" />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText("2026-09-20")).toBeInTheDocument();
+    expect(screen.queryByText(realToday)).not.toBeInTheDocument();
+    expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent("date=2026-09-20");
+    expect(screen.getByTestId("today-planning-summary-stub")).toHaveTextContent("date=2026-09-20");
+    expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("date=2026-09-20");
+    expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent("date=2026-09-20");
+  });
 });
