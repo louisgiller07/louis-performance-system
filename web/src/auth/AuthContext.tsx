@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabase";
 // in supabase/functions/daily-run/index.ts).
 export type AthleteResolution =
   | { status: "loading" }
-  | { status: "resolved"; athleteId: string }
+  | { status: "resolved"; athleteId: string; onboardingCompleted: boolean }
   | { status: "no_athlete" }
   | { status: "config_error"; message: string };
 
@@ -32,15 +32,37 @@ interface AuthState {
   refreshAthlete: () => Promise<AthleteResolution>;
 }
 
+/**
+ * V0.3_008A — the embedded `athlete_onboarding_profiles(onboarding_completed_at)`
+ * select is a one-to-one PostgREST embed (athlete_onboarding_profiles.athlete_id
+ * is both its PK and its FK to athletes.id) — PostgREST returns it as a single
+ * object or null, never an array, but this code tolerates either shape
+ * defensively rather than assuming the exact runtime representation.
+ */
+interface AthleteRow {
+  id: string;
+  athlete_onboarding_profiles: { onboarding_completed_at: string | null } | { onboarding_completed_at: string | null }[] | null;
+}
+
+function readOnboardingCompleted(row: AthleteRow): boolean {
+  const profile = Array.isArray(row.athlete_onboarding_profiles)
+    ? row.athlete_onboarding_profiles[0]
+    : row.athlete_onboarding_profiles;
+  return Boolean(profile?.onboarding_completed_at);
+}
+
 /** The single RLS-scoped athlete lookup — shared by the mount-time effect and refreshAthlete(), never duplicated. */
 async function resolveAthlete(): Promise<AthleteResolution> {
   // RLS (athletes_own_data) already scopes this to the caller's own row —
   // no .eq("user_id", ...) filter is added or needed here.
-  const { data, error } = await supabase.from("athletes").select("id");
+  const { data, error } = await supabase
+    .from("athletes")
+    .select("id, athlete_onboarding_profiles(onboarding_completed_at)");
   if (error) return { status: "config_error", message: error.message };
   if (!data || data.length === 0) return { status: "no_athlete" };
   if (data.length > 1) return { status: "config_error", message: "Multiple athletes resolved for this user." };
-  return { status: "resolved", athleteId: data[0].id };
+  const row = data[0] as AthleteRow;
+  return { status: "resolved", athleteId: row.id, onboardingCompleted: readOnboardingCompleted(row) };
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);

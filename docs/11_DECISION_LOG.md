@@ -2757,3 +2757,19 @@ DOG-002 = INVESTIGATION SEULE — NEEDS MORE EVIDENCE
 Classification = EXPECTED LIMITATION / POLICY QUESTION
 Aucun fichier de production modifié, aucun commit, aucun push, aucun déploiement
 Phase actuelle inchangée : **SERIOUS DOGFOOD — LONGITUDINAL COACHING LOOP** (observation continue)
+
+---
+
+## 2026-09-17 — V0.3_008A : table dédiée `athlete_onboarding_profiles` (Athlete Onboarding V1, Niveau 1)
+
+**Contexte** : nouveau parcours d'onboarding post-signup (web/) collectant 5 réponses obligatoires (discipline, niveau de compétition, objectif principal, disponibilité hebdomadaire, jours de roulage préférés) pour préparer une future personnalisation du coaching — aucune logique de coaching, aucun consommateur moteur actuel. La migration V0.3_004A (`athlete_coaching_profiles`) documente explicitement « aucun champ sans consommateur runtime actuel », un principe que ce nouveau besoin (collecte en avance de la personnalisation) contredirait s'il y était ajouté directement.
+
+**Décision** : nouvelle table dédiée `athlete_onboarding_profiles` (1 ligne/athlète, `athlete_id` PK, RLS `own_data` identique au pattern `athlete_coaching_profiles`/`weekly_availability`), plutôt qu'une extension de `athlete_coaching_profiles`. La discipline reste sur la colonne existante `athletes.discipline` (déjà documentée dans `02_ATHLETE_PROFILE.md` comme peuplée « à l'onboarding »), pas dupliquée dans la nouvelle table. Les valeurs des 3 champs à choix (`competition_level`, `primary_goal`, `weekly_training_hours`) sont des listes fermées côté frontend (`web/src/features/athleteOnboarding/onboardingOptions.ts`), la colonne DB reste `text` avec un simple CHECK non-vide (pas d'enum Postgres) pour rester libre de faire évoluer un libellé sans migration. `preferred_riding_days` est un `jsonb` (tableau), suivant le précédent déjà établi pour les champs-listes du schéma (`risk_flags`, `triggered_rules`, etc.) plutôt que d'introduire un premier `text[]` natif.
+
+**Alternatives considérées** : étendre `athlete_coaching_profiles` — rejetée, contredirait son principe déjà documenté. Réutiliser `athletes.current_stage` pour le niveau de compétition — rejetée, l'enum existant (`U19`/`U19_to_Elite`/`Elite`/`Other`) encode une catégorie d'âge, pas un niveau compétitif, sémantique différente. Réutiliser `weekly_availability` pour les jours de roulage — rejetée, cette table encode un planning daté par semaine (créneaux matin/aprèm/soir), pas une préférence générale.
+
+**Portée V1** : uniquement le Niveau 1 (5 étapes obligatoires, front `web/src/features/athleteOnboarding/`, gate ajouté à `AuthContext.AthleteResolution`/`RequireAuth`). Le Niveau 2 (profil avancé optionnel : technique, mental, courses, matériel, calendrier saison) est explicitement différé à un futur "Athlete Performance Profile" — non implémenté ici.
+
+**Impact** : nouvelle migration `supabase/migrations/20260917090000_v0_3_008a_athlete_onboarding_profiles.sql` ; `web/src/auth/{AuthContext,RequireAuth}.tsx` étendus (nouveau champ `onboardingCompleted` sur `AthleteResolution.resolved`, nouvelle branche de rendu) ; nouveau module `web/src/features/athleteOnboarding/`. `head-coach-engine/`, `supabase/functions/`, `longitudinal-engine/` non touchés — collecte de données uniquement, aucune règle de coaching/prescription/safety modifiée.
+
+**Statut** : active

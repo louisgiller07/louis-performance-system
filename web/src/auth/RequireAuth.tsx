@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { AthleteBootstrap } from "../features/athleteBootstrap/AthleteBootstrap";
+import { AthleteOnboarding } from "../features/athleteOnboarding/AthleteOnboarding";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading, athleteResolution } = useAuth();
@@ -16,6 +17,10 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (athleteResolution.status === "no_athlete") {
     return <AthleteBootstrap />;
+  }
+
+  if (athleteResolution.status === "resolved" && !athleteResolution.onboardingCompleted) {
+    return <AthleteOnboarding />;
   }
 
   if (athleteResolution.status === "config_error") {

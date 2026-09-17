@@ -23,7 +23,12 @@ const mockedAuth = supabase.auth as unknown as {
 };
 const mockedFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
 
-function renderProtected(initialSession: unknown, athleteRows: unknown[] = [{ id: "athlete-1" }]) {
+const ONBOARDING_DONE = { onboarding_completed_at: "2026-01-01T00:00:00Z" };
+
+function renderProtected(
+  initialSession: unknown,
+  athleteRows: unknown[] = [{ id: "athlete-1", athlete_onboarding_profiles: ONBOARDING_DONE }]
+) {
   mockedAuth.getSession.mockResolvedValue({ data: { session: initialSession } });
   mockedAuth.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   mockedFrom.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: athleteRows, error: null }) });
@@ -81,5 +86,22 @@ describe("RequireAuth", () => {
     await waitFor(() => expect(screen.getByText(/erreur de configuration/i)).toBeInTheDocument());
     expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
+  it("V0.3_008A — athlete resolved but onboarding not completed: renders the onboarding wizard, not the protected child", async () => {
+    renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [
+      { id: "athlete-1", athlete_onboarding_profiles: null },
+    ]);
+    await waitFor(() => expect(screen.getByText("What do you ride?")).toBeInTheDocument());
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
+  });
+
+  it("V0.3_008A — athlete resolved and onboarding completed: renders the protected child, not the onboarding wizard", async () => {
+    renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [
+      { id: "athlete-1", athlete_onboarding_profiles: ONBOARDING_DONE },
+    ]);
+    await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+    expect(screen.queryByText("What do you ride?")).not.toBeInTheDocument();
   });
 });

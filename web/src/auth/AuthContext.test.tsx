@@ -34,6 +34,9 @@ function Probe() {
       <span data-testid="session">{session ? "yes" : "no"}</span>
       <span data-testid="athlete-status">{athleteResolution.status}</span>
       <span data-testid="athlete-id">{athleteId ?? "none"}</span>
+      <span data-testid="onboarding-completed">
+        {athleteResolution.status === "resolved" ? String(athleteResolution.onboardingCompleted) : "n/a"}
+      </span>
       <button onClick={() => void signOut()}>sign out</button>
       <button onClick={() => void refreshAthlete()}>refresh athlete</button>
     </div>
@@ -52,7 +55,12 @@ beforeEach(() => {
 describe("AuthContext — athlete resolution", () => {
   it("resolves exactly one athlete for the signed-in user", async () => {
     setupSession(FAKE_SESSION);
-    mockedFrom.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [{ id: "athlete-1" }], error: null }) });
+    mockedFrom.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "athlete-1", athlete_onboarding_profiles: null }],
+        error: null,
+      }),
+    });
 
     render(
       <AuthProvider>
@@ -62,6 +70,63 @@ describe("AuthContext — athlete resolution", () => {
 
     await waitFor(() => expect(screen.getByTestId("athlete-status")).toHaveTextContent("resolved"));
     expect(screen.getByTestId("athlete-id")).toHaveTextContent("athlete-1");
+  });
+
+  it("V0.3_008A — reports onboardingCompleted: false when no onboarding row exists yet", async () => {
+    setupSession(FAKE_SESSION);
+    mockedFrom.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "athlete-1", athlete_onboarding_profiles: null }],
+        error: null,
+      }),
+    });
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("athlete-status")).toHaveTextContent("resolved"));
+    expect(screen.getByTestId("onboarding-completed")).toHaveTextContent("false");
+  });
+
+  it("V0.3_008A — reports onboardingCompleted: false when the row exists but onboarding_completed_at is still null", async () => {
+    setupSession(FAKE_SESSION);
+    mockedFrom.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "athlete-1", athlete_onboarding_profiles: { onboarding_completed_at: null } }],
+        error: null,
+      }),
+    });
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("athlete-status")).toHaveTextContent("resolved"));
+    expect(screen.getByTestId("onboarding-completed")).toHaveTextContent("false");
+  });
+
+  it("V0.3_008A — reports onboardingCompleted: true once onboarding_completed_at is set, including PostgREST's array-embed shape", async () => {
+    setupSession(FAKE_SESSION);
+    mockedFrom.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [{ id: "athlete-1", athlete_onboarding_profiles: [{ onboarding_completed_at: "2026-09-17T00:00:00Z" }] }],
+        error: null,
+      }),
+    });
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId("athlete-status")).toHaveTextContent("resolved"));
+    expect(screen.getByTestId("onboarding-completed")).toHaveTextContent("true");
   });
 
   it("reports no_athlete when the user has zero athlete rows", async () => {
@@ -121,7 +186,12 @@ describe("AuthContext — athlete resolution", () => {
     // itself, not just a mocked-into-place "ready" state.
     mockedFrom
       .mockReturnValueOnce({ select: vi.fn().mockResolvedValue({ data: [], error: null }) })
-      .mockReturnValueOnce({ select: vi.fn().mockResolvedValue({ data: [{ id: "athlete-new" }], error: null }) });
+      .mockReturnValueOnce({
+        select: vi.fn().mockResolvedValue({
+          data: [{ id: "athlete-new", athlete_onboarding_profiles: null }],
+          error: null,
+        }),
+      });
 
     render(
       <AuthProvider>
