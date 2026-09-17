@@ -66,12 +66,12 @@ describe("RequireAuth", () => {
   it("V0.3_004B — unauthenticated: bootstrap is never shown, redirects to /login instead", async () => {
     renderProtected(null);
     await waitFor(() => expect(screen.getByText("Login page")).toBeInTheDocument());
-    expect(screen.queryByText("Configurer ton profil")).not.toBeInTheDocument();
+    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
   });
 
   it("V0.3_004B — authenticated with zero athlete rows: renders the AthleteBootstrap UI, not the dead-end message or the protected child", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, []);
-    await waitFor(() => expect(screen.getByText("Configurer ton profil")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Welcome to NALYNT")).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     expect(screen.queryByText(/contacte le support/i)).not.toBeInTheDocument();
   });
@@ -79,7 +79,7 @@ describe("RequireAuth", () => {
   it("V0.3_004B — more than one athlete resolved: still the existing config-error message, bootstrap is NOT shown", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [{ id: "athlete-1" }, { id: "athlete-2" }]);
     await waitFor(() => expect(screen.getByText(/erreur de configuration/i)).toBeInTheDocument());
-    expect(screen.queryByText("Configurer ton profil")).not.toBeInTheDocument();
+    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 });

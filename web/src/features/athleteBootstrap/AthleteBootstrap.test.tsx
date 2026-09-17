@@ -36,16 +36,16 @@ async function submitName(name: string) {
   const user = userEvent.setup();
   const input = screen.getByLabelText("Nom");
   if (name) await user.type(input, name);
-  await user.click(screen.getByRole("button", { name: /continuer|création/i }));
+  await user.click(screen.getByRole("button", { name: /continue|creating/i }));
 }
 
 describe("AthleteBootstrap", () => {
   it("renders the minimal setup surface: title, supporting text, one field, one button", () => {
     renderBootstrap();
-    expect(screen.getByText("Configurer ton profil")).toBeInTheDocument();
-    expect(screen.getByText("Entre ton nom pour commencer.")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to NALYNT")).toBeInTheDocument();
+    expect(screen.getByText("Let's build your athlete profile.")).toBeInTheDocument();
     expect(screen.getByLabelText("Nom")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continuer" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
   });
 
   it("B — empty name: submit rejected, never calls createOwnAthlete", async () => {
@@ -109,7 +109,7 @@ describe("AthleteBootstrap", () => {
     renderBootstrap();
     await user.type(screen.getByLabelText("Nom"), "Louis");
 
-    const button = screen.getByRole("button", { name: "Continuer" });
+    const button = screen.getByRole("button", { name: "Continue" });
     await user.click(button);
     expect(button).toBeDisabled();
     await user.click(button); // second click while still in flight must be a no-op

@@ -16,7 +16,7 @@ import { domains } from "../content/domains.ts";
 ---
 
 <BaseLayout title={`NALYNT — ${siteCopy.hero.eyebrow}`} description={siteCopy.coreValueProposition}>
-  <Hero hero={siteCopy.hero} />
+  <Hero hero={siteCopy.hero} betaCta={siteCopy.betaCta} />
 
   <Section divider index={1}>
     <Container class="max-w-3xl">
@@ -75,9 +75,12 @@ import { domains } from "../content/domains.ts";
   <Section divider index={7}>
     <Container class="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
       <p class="text-lg text-text">{siteCopy.closingCta.text}</p>
-      <Button href={siteCopy.closingCta.ctaHref} class="shrink-0">
-        {siteCopy.closingCta.ctaLabel}
-      </Button>
+      <div class="flex shrink-0 flex-wrap items-center gap-4">
+        <Button href={siteCopy.betaCta.href}>{siteCopy.betaCta.label}</Button>
+        <Button href={siteCopy.closingCta.ctaHref} variant="secondary">
+          {siteCopy.closingCta.ctaLabel}
+        </Button>
+      </div>
     </Container>
   </Section>
 

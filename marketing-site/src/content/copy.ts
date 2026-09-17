@@ -26,6 +26,18 @@ export interface HeroCopy {
   ctaHref: string;
 }
 
+/**
+ * V1 — Marketing -> Signup -> App flow (Beta Access). The one CTA that
+ * actually leaves this static site and lands in the real app (a distinct,
+ * cross-origin absolute URL — /signup here would resolve on nalynt.ch
+ * itself, which doesn't have that route). No payment, no pricing claim —
+ * "free" refers only to the current no-payment beta state.
+ */
+export interface BetaCtaCopy {
+  label: string;
+  href: string;
+}
+
 /** All slogan candidates considered for `hero.headline`. NEEDS VALIDATION — pick one. */
 export const sloganOptions: string[] = [
   "Le coaching qui s'adapte à ta vraie journée.",
@@ -187,6 +199,7 @@ export interface DayWithNalyntCopy {
 
 export interface SiteCopy {
   hero: HeroCopy;
+  betaCta: BetaCtaCopy;
   /** Une phrase unique résumant la valeur centrale — utilisable en meta description. */
   coreValueProposition: string;
   keyMessages: KeyMessagesCopy;
@@ -208,6 +221,11 @@ export const siteCopy: SiteCopy = {
       "NALYNT est un système de coaching qui combine chaque jour ton intention d'entraînement, ton état réel du jour et l'historique de tes séances pour proposer un plan cohérent — pas une routine figée à l'avance.",
     ctaLabel: "Découvrir la démarche",
     ctaHref: "/comment-ca-marche",
+  },
+
+  betaCta: {
+    label: "Join Beta",
+    href: "https://app.nalynt.ch/signup",
   },
 
   coreValueProposition:

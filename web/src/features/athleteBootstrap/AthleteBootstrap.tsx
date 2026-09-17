@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { PrimaryButton } from "../../components/PrimaryButton";
 import { createOwnAthlete, AthleteBootstrapError } from "./athleteBootstrapRepo";
 import { validateAthleteName } from "./athleteBootstrapValidation";
 
@@ -61,34 +62,40 @@ export function AthleteBootstrap() {
   }
 
   return (
-    <div className="mx-auto mt-24 max-w-sm p-6">
-      <h1 className="mb-2 text-xl font-semibold text-gray-900">Configurer ton profil</h1>
-      <p className="mb-6 text-sm text-gray-600">Entre ton nom pour commencer.</p>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
-          Nom
-          <input
-            type="text"
-            autoComplete="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={100}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-gray-900 px-3 py-3 text-sm font-medium text-white disabled:opacity-50"
+    <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-8">
+      <div className="w-full max-w-105">
+        <p className="text-center text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
-          {submitting ? "Création…" : "Continuer"}
-        </button>
-      </form>
+          <div>
+            <h1 className="text-xl font-bold text-ink">Welcome to NALYNT</h1>
+            <p className="mt-1 text-sm text-muted">Let's build your athlete profile.</p>
+          </div>
+
+          <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            Nom
+            <input
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={100}
+              className="rounded border border-white/10 bg-bg px-3 py-3 text-base text-ink normal-case placeholder:text-muted focus:border-gold focus:outline-none"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-red-400">
+              {error}
+            </p>
+          )}
+          <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
+            {submitting ? "Creating…" : "Continue"}
+          </PrimaryButton>
+        </form>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -85,6 +85,17 @@ export function LoginPage() {
           <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
             {submitting ? "Connexion…" : "Connexion"}
           </PrimaryButton>
+
+          <Link to="/forgot-password" className="text-center text-sm text-muted hover:text-gold">
+            Forgot password?
+          </Link>
+
+          <p className="text-center text-sm text-muted">
+            Don't have an account?{" "}
+            <Link to="/signup" className="font-medium text-gold hover:underline">
+              Create one
+            </Link>
+          </p>
         </form>
 
         <div className="mt-8 flex flex-col items-center gap-1.5 text-center">

@@ -1,14 +1,15 @@
 ---
-import type { HeroCopy } from "../content/copy.ts";
+import type { HeroCopy, BetaCtaCopy } from "../content/copy.ts";
 import Container from "./ui/Container.astro";
 import Button from "./ui/Button.astro";
 import Badge from "./ui/Badge.astro";
 
 interface Props {
   hero: HeroCopy;
+  betaCta: BetaCtaCopy;
 }
 
-const { hero } = Astro.props;
+const { hero, betaCta } = Astro.props;
 ---
 
 <section class="border-b border-border">
@@ -21,8 +22,9 @@ const { hero } = Astro.props;
       <p class="mt-6 max-w-md text-lg leading-relaxed text-text-muted">
         {hero.subheadline}
       </p>
-      <div class="mt-10">
-        <Button href={hero.ctaHref}>{hero.ctaLabel}</Button>
+      <div class="mt-10 flex flex-wrap items-center gap-4">
+        <Button href={betaCta.href}>{betaCta.label}</Button>
+        <Button href={hero.ctaHref} variant="secondary">{hero.ctaLabel}</Button>
       </div>
     </div>
 
