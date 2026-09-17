@@ -4,9 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { SignupPage } from "./SignupPage";
 
-const { signUp } = vi.hoisted(() => ({ signUp: vi.fn() }));
+const { signUp, signInWithOAuth } = vi.hoisted(() => ({ signUp: vi.fn(), signInWithOAuth: vi.fn() }));
 vi.mock("../lib/supabase", () => ({
-  supabase: { auth: { signUp } },
+  supabase: { auth: { signUp, signInWithOAuth } },
 }));
 
 vi.mock("./AuthContext", () => ({
@@ -131,5 +131,43 @@ describe("SignupPage", () => {
   it("links to /login for an existing account", () => {
     renderSignupPage();
     expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login");
+  });
+
+  it("shows a 'Continue with Google' button and calls signInWithOAuth with the google provider on click", async () => {
+    signInWithOAuth.mockResolvedValue({ data: {}, error: null });
+    const user = userEvent.setup();
+    renderSignupPage();
+
+    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
+
+    expect(signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: { redirectTo: expect.stringContaining("/login") },
+    });
+  });
+
+  it("shows a curated message, never the raw provider error, when signInWithOAuth itself fails", async () => {
+    signInWithOAuth.mockResolvedValue({
+      data: null,
+      error: { code: "unexpected_failure", name: "AuthApiError", message: "boom" },
+    });
+    const user = userEvent.setup();
+    renderSignupPage();
+
+    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de se connecter avec Google. Réessaie.");
+    expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
+  });
+
+  it("does not affect the email/password flow: signUp is unaffected by the Google button existing", async () => {
+    signUp.mockResolvedValue({ data: { session: { access_token: "t" } }, error: null });
+    const user = userEvent.setup();
+    renderSignupPage();
+
+    await submit(user);
+
+    expect(signUp).toHaveBeenCalledWith({ email: "louis@example.test", password: "correct-horse" });
+    expect(signInWithOAuth).not.toHaveBeenCalled();
   });
 });

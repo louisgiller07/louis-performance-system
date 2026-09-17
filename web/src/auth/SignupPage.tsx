@@ -4,6 +4,7 @@ import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { GoogleAuthButton } from "./GoogleAuthButton";
 
 /**
  * Never the raw provider `.message` (English, provider-authored — same
@@ -104,9 +105,19 @@ export function SignupPage() {
       <div className="relative flex w-full max-w-105 flex-col items-center">
         <p className="text-3xl font-bold uppercase tracking-[0.3em] text-gold">Nalynt</p>
 
+        <div className="mt-8 flex w-full flex-col gap-4">
+          <GoogleAuthButton onError={setError} />
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted">Or</p>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+        </div>
+
         <form
           onSubmit={handleSubmit}
-          className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
+          className="mt-4 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
             <p className="text-xl font-bold text-ink">Join NALYNT</p>

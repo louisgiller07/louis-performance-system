@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { GoogleAuthButton, readOAuthCallbackError } from "./GoogleAuthButton";
 
 export function LoginPage() {
   const { session } = useAuth();
@@ -10,6 +11,17 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // GoogleAuthButton's redirectTo points back here — a cancelled/failed
+  // Google OAuth step lands on this exact URL with an error query param
+  // (never a session), so it's caught and shown here rather than lost by
+  // the app's own catch-all route redirect.
+  useEffect(() => {
+    const message = readOAuthCallbackError();
+    if (message) {
+      setError(message);
+    }
+  }, []);
 
   if (session) {
     return <Navigate to="/today" replace />;
@@ -51,9 +63,19 @@ export function LoginPage() {
           Your AI coach for training, recovery and race performance.
         </p>
 
+        <div className="mt-8 flex w-full flex-col gap-4">
+          <GoogleAuthButton onError={setError} />
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/10" />
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted">Or</p>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+        </div>
+
         <form
           onSubmit={handleSubmit}
-          className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
+          className="mt-4 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
             Email
