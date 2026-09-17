@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { AppNav } from "../components/AppNav";
+import { PageShell } from "../components/PageShell";
+import { AppHeader } from "../components/AppHeader";
+import { SectionHeader } from "../components/SectionHeader";
+import { SecondaryButton } from "../components/SecondaryButton";
 import { addDays } from "../lib/date";
 import { useEffectiveToday } from "../lib/simulationClock";
 import { PlanningDayCard } from "../features/planning/PlanningDayCard";
@@ -27,7 +30,7 @@ const HORIZON_DAYS = 7;
  * freshness mechanism (locked V0.3_003A).
  */
 export function PlanPage() {
-  const { user, athleteId, signOut } = useAuth();
+  const { athleteId } = useAuth();
   // V0.3.010 (SIM-001) — real date for any real athlete (identical to the
   // pre-V0.3.010 `todayLocal()` behavior); only the configured simulation
   // athlete gets a simulated reference date (src/lib/simulationClock.ts) —
@@ -110,67 +113,43 @@ export function PlanPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex flex-col gap-2 border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="shrink-0 text-sm font-semibold text-gray-900">Louis Performance System</span>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-xs text-gray-400">{user?.email}</span>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
-            >
-              Déconnexion
-            </button>
-          </div>
+    <PageShell header={<AppHeader />}>
+      <SectionHeader title="Planning" subtitle="7 prochains jours" />
+
+      {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}
+
+      {athleteId && loadState === "loading" && <p className="text-sm text-muted">Chargement…</p>}
+
+      {athleteId && loadState === "error" && (
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-sm text-red-400">
+            Impossible de charger le planning. Réessaie dans un instant.
+          </p>
+          <SecondaryButton onClick={() => void load()}>Réessayer</SecondaryButton>
         </div>
-        <AppNav />
-      </header>
+      )}
 
-      <main className="flex flex-1 flex-col gap-4 px-4 py-6">
-        <div>
-          <h1 className="text-lg font-semibold text-gray-900">Planning</h1>
-          <p className="text-sm text-gray-500">7 prochains jours</p>
+      {athleteId && loadState === "loaded" && raceLoadState === "error" && (
+        <p className="text-xs text-muted">Événements du calendrier de courses indisponibles pour l'instant.</p>
+      )}
+
+      {athleteId && loadState === "loaded" && (
+        <div className="flex flex-col gap-2">
+          {dates.map((date, index) => (
+            <PlanningDayCard
+              key={date}
+              athleteId={athleteId}
+              date={date}
+              row={rows[date] ?? null}
+              races={racesByDate[date] ?? []}
+              isToday={index === 0}
+              isExpanded={expandedDate === date}
+              onToggleExpand={() => handleToggleExpand(date)}
+              onRowChange={handleRowChange}
+            />
+          ))}
         </div>
-
-        {!athleteId && <p className="text-sm text-red-600">Erreur de configuration : aucun athlète résolu.</p>}
-
-        {athleteId && loadState === "loading" && <p className="text-sm text-gray-500">Chargement…</p>}
-
-        {athleteId && loadState === "error" && (
-          <div className="flex flex-col items-start gap-2">
-            <p role="alert" className="text-sm text-red-600">
-              Impossible de charger le planning. Réessaie dans un instant.
-            </p>
-            <button type="button" onClick={() => void load()} className="min-h-11 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700">
-              Réessayer
-            </button>
-          </div>
-        )}
-
-        {athleteId && loadState === "loaded" && raceLoadState === "error" && (
-          <p className="text-xs text-gray-400">Événements du calendrier de courses indisponibles pour l'instant.</p>
-        )}
-
-        {athleteId && loadState === "loaded" && (
-          <div className="flex flex-col gap-2">
-            {dates.map((date, index) => (
-              <PlanningDayCard
-                key={date}
-                athleteId={athleteId}
-                date={date}
-                row={rows[date] ?? null}
-                races={racesByDate[date] ?? []}
-                isToday={index === 0}
-                isExpanded={expandedDate === date}
-                onToggleExpand={() => handleToggleExpand(date)}
-                onRowChange={handleRowChange}
-              />
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
+      )}
+    </PageShell>
   );
 }

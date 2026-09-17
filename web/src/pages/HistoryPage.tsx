@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { AppNav } from "../components/AppNav";
+import { PageShell } from "../components/PageShell";
+import { AppHeader } from "../components/AppHeader";
+import { HistoryHero } from "../features/history/HistoryHero";
 import { HistoryList } from "../features/history/HistoryList";
 import { loadDecisionHistory, loadCompletedSessionsForDates } from "../features/history/historyRepo";
 import type { DecisionHistoryRow } from "../features/history/historyTypes";
@@ -20,7 +22,7 @@ const GENERIC_ERROR_MESSAGE = "Impossible de charger l'historique. Réessaie.";
 // recomputes a plan; loadDecisionHistory only reads decisions.daily_plan
 // as persisted, through the caller's own RLS-scoped Supabase client.
 export function HistoryPage() {
-  const { user, athleteId, signOut } = useAuth();
+  const { athleteId } = useAuth();
   const [state, setState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<DecisionHistoryRow[]>([]);
   const [linkedSessions, setLinkedSessions] = useState<Map<string, CompletedSessionRecord>>(new Map());
@@ -59,39 +61,20 @@ export function HistoryPage() {
   }, [athleteId]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex flex-col gap-2 border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="shrink-0 text-sm font-semibold text-gray-900">Louis Performance System</span>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-xs text-gray-400">{user?.email}</span>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
-            >
-              Déconnexion
-            </button>
-          </div>
-        </div>
-        <AppNav />
-      </header>
+    <PageShell header={<AppHeader />}>
+      <HistoryHero />
 
-      <main className="flex flex-1 flex-col gap-4 px-4 py-6">
-        <h1 className="text-lg font-semibold text-gray-900">Historique</h1>
+      {state === "loading" && <p className="text-sm text-muted">Chargement…</p>}
 
-        {state === "loading" && <p className="text-sm text-gray-500">Chargement…</p>}
+      {state === "error" && (
+        <p role="alert" className="text-sm text-red-400">
+          {GENERIC_ERROR_MESSAGE}
+        </p>
+      )}
 
-        {state === "error" && (
-          <p role="alert" className="text-sm text-red-600">
-            {GENERIC_ERROR_MESSAGE}
-          </p>
-        )}
+      {state === "success" && rows.length === 0 && <p className="text-sm text-muted">Aucune décision enregistrée pour le moment.</p>}
 
-        {state === "success" && rows.length === 0 && <p className="text-sm text-gray-500">Aucune décision enregistrée pour le moment.</p>}
-
-        {state === "success" && rows.length > 0 && <HistoryList rows={rows} linkedSessions={linkedSessions} />}
-      </main>
-    </div>
+      {state === "success" && rows.length > 0 && <HistoryList rows={rows} linkedSessions={linkedSessions} />}
+    </PageShell>
   );
 }

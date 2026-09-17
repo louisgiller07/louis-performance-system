@@ -51,8 +51,11 @@ describe("HistoryList", () => {
   it("renders date, French decision label, confidence, and final session for one decision", () => {
     renderList([makeRow()]);
 
-    expect(screen.getByText(/19 août/)).toBeInTheDocument();
-    expect(screen.getByText("Maintenir")).toBeInTheDocument();
+    // V0.3 UX PREMIUM — the day number and month/year now render as two
+    // separate elements (a dedicated fixed date column), not one "19 août" string.
+    expect(screen.getByText("19")).toBeInTheDocument();
+    expect(screen.getByText(/août 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Maintenir/)).toBeInTheDocument();
     expect(screen.getByText(/Confiance moyenne/)).toBeInTheDocument();
     expect(screen.getByText(/Pumptrack/)).toBeInTheDocument();
   });
@@ -63,9 +66,9 @@ describe("HistoryList", () => {
       makeRow({ id: "d-2", createdAt: "2026-08-19T18:42:00Z", dailyPlan: { ...VALID_DAILY_PLAN, decision: "MODIFY" } }),
     ]);
 
-    expect(screen.getByText("Maintenir")).toBeInTheDocument();
-    expect(screen.getByText("Adapter")).toBeInTheDocument();
-    expect(screen.getAllByText(/19 août/)).toHaveLength(2);
+    expect(screen.getByText(/Maintenir/)).toBeInTheDocument();
+    expect(screen.getByText(/Adapter/)).toBeInTheDocument();
+    expect(screen.getAllByText(/août 2026/)).toHaveLength(2);
   });
 
   it("shows the time to distinguish same-day decisions, but not for a lone decision", () => {
@@ -132,7 +135,9 @@ describe("HistoryList — completed-session indicator (V0.3_007D §15)", () => {
   it("shows a compact status badge only on the decision with an exact linked completed session", () => {
     const linked = makeSession({ decision_id: "d-1", completion_status: "done" });
     renderList([makeRow({ id: "d-1" })], new Map([["d-1", linked]]));
-    expect(screen.getByText("Faite")).toBeInTheDocument();
+    // V0.3 UX PREMIUM — the badge now combines an icon with the same
+    // COMPLETION_STATUS_LABELS text ("✓ Faite") — the label itself is unchanged.
+    expect(screen.getByText(/Faite/)).toBeInTheDocument();
   });
 
   it("shows no badge at all when no session is linked to this decision", () => {
@@ -153,6 +158,6 @@ describe("HistoryList — completed-session indicator (V0.3_007D §15)", () => {
       new Map([["decision-A", linkedToA]])
     );
 
-    expect(screen.getAllByText("Remplacée")).toHaveLength(1);
+    expect(screen.getAllByText(/Remplacée/)).toHaveLength(1);
   });
 });

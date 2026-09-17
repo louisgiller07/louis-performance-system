@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { RatingSlider } from "../../components/RatingSlider";
 import { YesNoChoice } from "../../components/YesNoChoice";
+import { PrimaryButton } from "../../components/PrimaryButton";
+import { SecondaryButton } from "../../components/SecondaryButton";
 import { getCompletedSession, putCompletedSession } from "./completedSessionRepo";
 import { validateCompletedSessionForm } from "./completedSessionValidation";
 import {
@@ -354,13 +356,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       return (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">Comment s'est passée ta séance ?</p>
-          <button
-            type="button"
-            onClick={() => void startEdit()}
-            className="min-h-11 rounded bg-gold px-4 py-3 text-sm font-semibold text-bg"
-          >
-            Enregistrer la séance
-          </button>
+          <PrimaryButton onClick={() => void startEdit()}>Enregistrer la séance</PrimaryButton>
         </div>
       );
     }
@@ -441,13 +437,9 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => void startEdit()}
-          className="min-h-11 self-start rounded border border-white/10 px-4 py-2 text-sm font-medium text-ink/80"
-        >
+        <SecondaryButton onClick={() => void startEdit()} className="self-start">
           Modifier
-        </button>
+        </SecondaryButton>
       </div>
     );
   }
@@ -787,21 +779,12 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       )}
 
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={!canSave}
-          className="min-h-11 flex-1 rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40"
-        >
+        <PrimaryButton type="submit" disabled={!canSave} className="flex-1">
           {saveState === "saving" ? "Enregistrement…" : "Enregistrer"}
-        </button>
-        <button
-          type="button"
-          onClick={cancelEdit}
-          disabled={saveState === "saving"}
-          className="min-h-11 rounded border border-white/10 px-4 py-3 text-sm font-medium text-ink/80 disabled:opacity-50"
-        >
+        </PrimaryButton>
+        <SecondaryButton onClick={cancelEdit} disabled={saveState === "saving"}>
           Annuler
-        </button>
+        </SecondaryButton>
       </div>
     </form>
   );

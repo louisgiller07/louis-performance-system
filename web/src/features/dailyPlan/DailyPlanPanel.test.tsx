@@ -424,7 +424,11 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     // so only the neutral load label may appear, never the new behavioral
     // coaching copy synthesized from load_profile.
     const dhCard = screen.getByText("Session Plan").closest("div")!;
-    expect(within(dhCard).getByText(/charge lourde/i)).toBeInTheDocument();
+    // V0.3 UX PREMIUM — "charge lourde" now legitimately appears twice here
+    // (the factual load badge + the Focus section's neutral-label
+    // fallback, since this fixture has no load_guidance) — both are
+    // expected, neither is the fabricated behavioral coaching copy.
+    expect(within(dhCard).getAllByText(/charge lourde/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });
@@ -504,7 +508,12 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
 
     expect(await screen.findByText(loadGuidance)).toBeInTheDocument();
     const dhCard = screen.getByText("Session Plan").closest("div")!;
-    expect(within(dhCard).queryByText(/^charge modérée$/i)).not.toBeInTheDocument();
+    // V0.3 UX PREMIUM — "charge modérée" legitimately appears once now (the
+    // factual load badge, always shown). The actual invariant this guards:
+    // it must never ALSO appear a second time as the Focus section's
+    // neutral-label fallback — that would mean load_guidance failed to
+    // override it.
+    expect(within(dhCard).getAllByText(/^charge modérée$/i)).toHaveLength(1);
     expect(mockedRun).not.toHaveBeenCalled();
   });
 

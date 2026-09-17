@@ -223,7 +223,10 @@ describe("HistoryDetail", () => {
     expect(screen.getByText("Session Plan")).toBeInTheDocument();
     expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
     const dhCard = screen.getByText("Session Plan").closest("div")!;
-    expect(within(dhCard).getByText(/charge modérée/i)).toBeInTheDocument();
+    // V0.3 UX PREMIUM — "charge modérée" legitimately appears twice here
+    // (the factual load badge + the Focus section's neutral-label
+    // fallback, since this fixture has no load_guidance).
+    expect(within(dhCard).getAllByText(/charge modérée/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Priorise la qualité d'exécution/)).not.toBeInTheDocument();
   });
@@ -255,7 +258,11 @@ describe("HistoryDetail", () => {
     );
     const dhCard = screen.getByText("Session Plan").closest("div")!;
     expect(within(dhCard).getByText(loadGuidance)).toBeInTheDocument();
-    expect(within(dhCard).queryByText(/^charge lourde$/i)).not.toBeInTheDocument();
+    // V0.3 UX PREMIUM — "charge lourde" now legitimately appears once, as
+    // the factual load badge (always shown). It must never ALSO appear a
+    // second time as the Focus section's neutral-label fallback — that
+    // would mean load_guidance failed to override it (the real invariant).
+    expect(within(dhCard).getAllByText(/^charge lourde$/i)).toHaveLength(1);
   });
 
   // V0.3_006C1 — History renders execution_task/terrain/Mental pre-run

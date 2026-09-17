@@ -29,16 +29,16 @@ export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Prescrit</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Prescrit</h2>
 
       {!summary.valid ? (
         // active_mode/confidence_level are real, DAL-written DB columns (M2)
         // sharing the engine's own vocabulary — unlike finalSessionDb they can
         // safely go through the same label maps as a valid daily_plan. Both
         // are null on any row predating M2, so each is only shown if present.
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-700">Cette ancienne décision ne peut pas être affichée complètement.</p>
-          <dl className="mt-3 flex flex-col gap-1 text-xs text-gray-500">
+        <div className="rounded-xl border border-white/5 bg-card p-4">
+          <p className="text-sm text-ink/80">Cette ancienne décision ne peut pas être affichée complètement.</p>
+          <dl className="mt-3 flex flex-col gap-1 text-xs text-muted">
             {row.activeModeDb && (
               <div>
                 <dt className="inline font-medium">Mode : </dt>
@@ -66,9 +66,9 @@ export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow
         />
       )}
 
-      <h2 className="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Réalisé</h2>
+      <h2 className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted">Réalisé</h2>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
+      <div className="rounded-xl border border-white/5 bg-card p-3 text-sm text-ink/80">
         {performedMatch.kind === "linked" && <HistoryPerformedSummary session={performedMatch.session} />}
         {performedMatch.kind === "same_day_unassociated" && <p>{SAME_DAY_UNASSOCIATED_COPY}</p>}
         {performedMatch.kind === "none" && <p>{NO_COMPLETED_SESSION_COPY}</p>}

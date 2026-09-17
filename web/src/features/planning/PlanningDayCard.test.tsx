@@ -93,7 +93,9 @@ describe("PlanningDayCard — collapsed states", () => {
   it("shows kind + load for an explicit variable-load row", () => {
     render(<Harness initialRow={strengthHeavyRow()} />);
     expect(screen.getByText(/Renfo bas du corps/)).toBeInTheDocument();
-    expect(screen.getByText(/charge lourde/)).toBeInTheDocument();
+    // V0.3 UX PREMIUM — load is now a separate Badge, still the French
+    // LOAD_PROFILE_LABELS text, no longer combined into one string with the kind.
+    expect(screen.getByText("charge lourde")).toBeInTheDocument();
   });
 });
 

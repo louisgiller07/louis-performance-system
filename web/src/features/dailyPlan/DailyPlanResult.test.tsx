@@ -624,7 +624,11 @@ describe("DailyPlanResult", () => {
       />
     );
     expect(screen.getByText("Session Plan")).toBeInTheDocument();
-    expect(screen.getByText(/charge lourde/i)).toBeInTheDocument();
+    // V0.3 UX PREMIUM — "charge lourde" legitimately appears twice here (the
+    // factual load badge + the Focus section's neutral-label fallback,
+    // since this fixture has no load_guidance) — neither is the fabricated
+    // behavioral coaching copy.
+    expect(screen.getAllByText(/charge lourde/i).length).toBeGreaterThan(0);
     expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Séance orientée performance/)).not.toBeInTheDocument();
   });

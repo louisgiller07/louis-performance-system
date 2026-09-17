@@ -69,7 +69,11 @@ describe("PlanPage — B, D", () => {
     renderPage();
 
     const dates = horizonDates();
-    for (const date of dates) {
+    // V0.3 UX PREMIUM — today's own card shows "Today" instead of its
+    // calendar date (see PlanningDayCard.tsx); the other six still show
+    // their literal date text.
+    expect(await screen.findByText("Today")).toBeInTheDocument();
+    for (const date of dates.slice(1)) {
       expect(await screen.findByText(new RegExp(formatCalendarDate(date)))).toBeInTheDocument();
     }
     expect(screen.getAllByText("Non planifié")).toHaveLength(7);
@@ -87,7 +91,8 @@ describe("PlanPage — V0.3.010 (SIM-001)", () => {
     renderPage();
 
     const expectedDates = Array.from({ length: 7 }, (_, i) => addDays("2026-09-23", i));
-    await screen.findByText(new RegExp(formatCalendarDate(expectedDates[0])));
+    // V0.3 UX PREMIUM — the simulated "today" card shows "Today", not its calendar date.
+    await screen.findByText("Today");
     expect(loadPlannedSessions).toHaveBeenCalledWith("sim-athlete", expectedDates[0], expectedDates[6]);
     // Never a window anchored on the real device date instead — whatever
     // that happens to be when the suite runs, it is not 2026-09-23.
@@ -102,7 +107,7 @@ describe("PlanPage — V0.3.010 (SIM-001)", () => {
     renderPage();
 
     const dates = horizonDates();
-    await screen.findByText(new RegExp(formatCalendarDate(dates[0])));
+    await screen.findByText("Today");
     expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
   });
 });
@@ -142,7 +147,7 @@ describe("PlanPage — U, V: canonical persisted state ownership", () => {
     });
     renderPage();
 
-    const todayCard = await screen.findByRole("button", { name: /Aujourd'hui/ });
+    const todayCard = await screen.findByRole("button", { name: /Today/ });
     await user.click(todayCard);
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
@@ -161,14 +166,14 @@ describe("PlanPage — U, V: canonical persisted state ownership", () => {
     deletePlannedSession.mockResolvedValue(undefined);
     renderPage();
 
-    const todayCard = await screen.findByRole("button", { name: /Aujourd'hui/ });
+    const todayCard = await screen.findByRole("button", { name: /Today/ });
     await user.click(todayCard);
     await user.click(screen.getByRole("button", { name: "Retirer du planning" }));
 
     // All seven cards (today's included) now show Non planifié — confirms
     // today's card specifically flipped, not merely that six others already did.
     expect(await screen.findAllByText("Non planifié")).toHaveLength(7);
-    expect(screen.getByRole("button", { name: /Aujourd'hui/ })).toHaveTextContent("Non planifié");
+    expect(screen.getByRole("button", { name: /Today/ })).toHaveTextContent("Non planifié");
     expect(screen.queryByRole("button", { name: "Retirer du planning" })).not.toBeInTheDocument();
     expect(loadPlannedSessions).toHaveBeenCalledTimes(1); // no refetch
   });
@@ -192,7 +197,7 @@ describe("PlanPage — cross-day async collapse race", () => {
     renderPage();
 
     // Open day A (today) and start a save that will not resolve yet.
-    const dayA = await screen.findByRole("button", { name: /Aujourd'hui/ });
+    const dayA = await screen.findByRole("button", { name: /Today/ });
     await user.click(dayA);
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
@@ -296,7 +301,7 @@ describe("PlanPage — NAL-007 race calendar overlay", () => {
       planned_intent: null,
       is_committed: false,
     });
-    const todayCard = screen.getByRole("button", { name: /Aujourd'hui/ });
+    const todayCard = screen.getByRole("button", { name: /Today/ });
     await user.click(todayCard);
     await user.selectOptions(screen.getByLabelText("Séance"), "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));

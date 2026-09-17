@@ -99,7 +99,7 @@ describe("HistoryPage", () => {
       },
     ]);
     renderHistoryPage();
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Maintenir/)).toBeInTheDocument());
   });
 
   it("calls loadDecisionHistory with the resolved athleteId, never a URL/user-supplied id", async () => {

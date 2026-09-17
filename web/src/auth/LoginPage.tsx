@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
+import { PrimaryButton } from "../components/PrimaryButton";
 
 export function LoginPage() {
   const { session } = useAuth();
@@ -34,44 +35,65 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto mt-24 max-w-sm p-6">
-      <h1 className="mb-6 text-xl font-semibold text-gray-900">Louis Performance System</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
-          Email
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
-          Mot de passe
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
-          />
-        </label>
-        {error && (
-          <p role="alert" className="text-sm text-red-600">
-            {error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-gray-900 px-3 py-3 text-sm font-medium text-white disabled:opacity-50"
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-bg px-4 py-8">
+      {/* V0.3 UX PREMIUM — decorative only, no data: a very light gold
+          radial glow behind the logo, per spec ("pas d'effet flashy"). */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-80"
+        style={{ background: "radial-gradient(ellipse at top, rgba(212,175,55,0.08), transparent 70%)" }}
+      />
+
+      <div className="relative flex w-full max-w-105 flex-col items-center">
+        <p className="text-3xl font-bold uppercase tracking-[0.3em] text-gold">Nalynt</p>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted">Your AI Performance Coach</p>
+        <p className="mt-4 max-w-70 text-center text-sm text-ink/70">
+          Your AI coach for training, recovery and race performance.
+        </p>
+
+        <form
+          onSubmit={handleSubmit}
+          className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
-          {submitting ? "Connexion…" : "Se connecter"}
-        </button>
-      </form>
+          <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            Email
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="rounded border border-white/10 bg-bg px-3 py-3 text-base text-ink normal-case placeholder:text-muted focus:border-gold focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            Mot de passe
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="rounded border border-white/10 bg-bg px-3 py-3 text-base text-ink normal-case placeholder:text-muted focus:border-gold focus:outline-none"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-red-400">
+              {error}
+            </p>
+          )}
+          <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
+            {submitting ? "Connexion…" : "Connexion"}
+          </PrimaryButton>
+        </form>
+
+        <div className="mt-8 flex flex-col items-center gap-1.5 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Designed for</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">
+            DH <span className="text-gold">•</span> Enduro <span className="text-gold">•</span> Gravity
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

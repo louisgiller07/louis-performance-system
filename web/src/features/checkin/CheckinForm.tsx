@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { RatingSlider } from "../../components/RatingSlider";
 import { YesNoChoice } from "../../components/YesNoChoice";
+import { PrimaryButton } from "../../components/PrimaryButton";
 import { loadCheckin, saveCheckin } from "./checkinRepo";
 import { validateCheckin, type CheckinFieldErrors } from "./checkinValidation";
 import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, rowToFormState, type CheckinFormState } from "./checkinTypes";
@@ -333,13 +334,9 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       )}
       {saveState === "saved" && <p className="text-sm text-gold">Check-in enregistré</p>}
 
-      <button
-        type="submit"
-        disabled={saveState === "saving"}
-        className="rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40"
-      >
+      <PrimaryButton type="submit" disabled={saveState === "saving"}>
         {saveState === "saving" ? "Enregistrement…" : "Enregistrer le check-in"}
-      </button>
+      </PrimaryButton>
     </form>
   );
 }

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { formatCalendarDate } from "../../lib/date";
-import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
+import { LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
+import { Badge } from "../../components/Badge";
+import { PrimaryButton } from "../../components/PrimaryButton";
+import { SecondaryButton } from "../../components/SecondaryButton";
 // Coarse DbSessionType → French label — the canonical existing home for
 // this mapping (already used by CompletedSessionCard). Reused here, never
 // duplicated, for the one legacy case a Planning row can be in: a pre-M2_003
@@ -179,10 +182,14 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
   // instead specifically when a race overlay is present but no
   // planned_session exists — the ordinary empty-day copy is unchanged.
   const noPlanLabel = races.length > 0 ? "Aucune séance ajoutée" : "Non planifié";
-  const displayLabel = row ? (row.intervention ? formatIntervention(row.intervention) : legacyLabel) : noPlanLabel;
+  // V0.3 UX PREMIUM — kind and load are now shown separately (headline +
+  // Badge) instead of formatIntervention's single combined "kind · charge"
+  // string — same underlying row.intervention fields, no new data.
+  const kindLabel = row ? (row.intervention ? (TRAINING_KIND_LABELS[row.intervention.kind] ?? row.intervention.kind) : legacyLabel) : noPlanLabel;
+  const loadProfile = row?.intervention?.load_profile ?? null;
 
   return (
-    <div className={`rounded-lg border bg-white ${isToday ? "border-gray-900" : "border-gray-200"}`}>
+    <div className={`rounded-lg border bg-card ${isToday ? "border-gold" : "border-white/10"}`}>
       {races.length > 0 && (
         <div className="flex flex-col gap-1 rounded-t-lg border-b border-amber-100 bg-amber-50 px-3 py-2">
           {races.map((race) => (
@@ -199,28 +206,36 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
           ))}
         </div>
       )}
-      <button type="button" onClick={onToggleExpand} className="min-h-11 w-full p-3 text-left active:bg-gray-50">
-        <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-          {isToday && <span className="text-gray-900">Aujourd'hui · </span>}
-          {weekdayLabel(date)} {formatCalendarDate(date)}
-        </p>
-        <p className={`mt-1 font-medium ${row ? "text-gray-900" : "text-gray-400"}`}>{displayLabel}</p>
+      <button type="button" onClick={onToggleExpand} className="min-h-11 w-full p-3 text-left active:bg-white/5">
+        {isToday ? (
+          <p className="text-xs font-semibold uppercase tracking-widest text-gold">Today</p>
+        ) : (
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+            {weekdayLabel(date)} {formatCalendarDate(date)}
+          </p>
+        )}
+        <p className={`mt-1.5 font-semibold uppercase tracking-tight ${row ? "text-ink" : "text-muted"}`}>{kindLabel}</p>
+        {loadProfile && (
+          <div className="mt-1.5">
+            <Badge tone="gold">{LOAD_PROFILE_LABELS[loadProfile]}</Badge>
+          </div>
+        )}
       </button>
 
       {isExpanded && (
-        <div className="flex flex-col gap-3 border-t border-gray-100 p-3">
+        <div className="flex flex-col gap-3 border-t border-white/5 p-3">
           {isLegacyRow && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted">
               Ancienne séance planifiée : {legacyLabel}. Choisis une séance pour la modifier.
             </p>
           )}
 
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-ink/80">
             Séance
             <select
               value={draftKind}
               onChange={(event) => handleKindChange(event.target.value)}
-              className="rounded border border-gray-300 px-3 py-3 text-base"
+              className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
             >
               <option value="" disabled>
                 — Choisir —
@@ -246,7 +261,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
                   aria-pressed={draftLoad === load}
                   onClick={() => setDraftLoad(load)}
                   className={`min-h-11 flex-1 rounded border px-2 py-2 text-xs font-medium ${
-                    draftLoad === load ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-700"
+                    draftLoad === load ? "border-gold bg-gold text-bg" : "border-white/10 bg-transparent text-ink/70"
                   }`}
                 >
                   {LOAD_PROFILE_LABELS[load]}
@@ -267,12 +282,12 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
            */}
           {showDuration && (
             <div className="flex flex-col gap-1">
-              <label className="flex flex-col gap-1 text-sm text-gray-700">
+              <label className="flex flex-col gap-1 text-sm text-ink/80">
                 {PLANNED_DURATION_LABEL}
                 <select
                   value={draftDurationMin ?? ""}
                   onChange={(event) => setDraftDurationMin(event.target.value === "" ? null : Number(event.target.value))}
-                  className="rounded border border-gray-300 px-3 py-3 text-base"
+                  className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
                 >
                   <option value="">{PLANNED_DURATION_NONE_LABEL}</option>
                   {PLANNED_DURATION_PRESETS_MIN.map((min) => (
@@ -286,21 +301,21 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
                   <label> match resolves by the label's own accessible text
                   (with the nested control's content stripped), so extra
                   descendant text here would otherwise corrupt that match. */}
-              <span className="text-xs text-gray-500">{getPlannedDurationHelper(draftKind)}</span>
+              <span className="text-xs text-muted">{getPlannedDurationHelper(draftKind)}</span>
             </div>
           )}
 
-          <label className="flex items-start gap-2 text-sm text-gray-700">
+          <label className="flex items-start gap-2 text-sm text-ink/80">
             <input
               type="checkbox"
               checked={draftCommitted}
               onChange={(event) => setDraftCommitted(event.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-gold"
             />
             <span>
-              <span className="font-medium text-gray-900">Activité engagée</span>
+              <span className="font-medium text-ink">Activité engagée</span>
               <br />
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-muted">
                 Je compte réellement faire cette activité. Le coach peut l'alléger ou l'adapter, mais évitera de la
                 remplacer sauf raison importante.
               </span>
@@ -308,29 +323,19 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
           </label>
 
           {saveState === "error" && saveError && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-red-400">
               {saveError}
             </p>
           )}
 
           <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={!canSave || saveState === "saving"}
-              className="min-h-11 rounded bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:flex-1"
-            >
+            <PrimaryButton onClick={() => void handleSave()} disabled={!canSave || saveState === "saving"} className="sm:flex-1">
               {saveState === "saving" ? "Enregistrement…" : "Enregistrer"}
-            </button>
+            </PrimaryButton>
             {row && (
-              <button
-                type="button"
-                onClick={() => void handleDelete()}
-                disabled={saveState === "saving"}
-                className="min-h-11 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 disabled:opacity-50"
-              >
+              <SecondaryButton onClick={() => void handleDelete()} disabled={saveState === "saving"}>
                 Retirer du planning
-              </button>
+              </SecondaryButton>
             )}
           </div>
         </div>

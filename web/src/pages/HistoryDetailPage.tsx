@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { PageShell } from "../components/PageShell";
 import { formatCalendarDate, formatLocalTime } from "../lib/date";
 import { HistoryDetail } from "../features/history/HistoryDetail";
 import { loadDecisionById, loadCompletedSessionsForDates } from "../features/history/historyRepo";
@@ -59,36 +60,36 @@ export function HistoryDetailPage() {
   }, [athleteId, decisionId]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-2 py-2">
-        <Link
-          to="/history"
-          className="inline-flex min-h-11 items-center rounded px-2 text-sm font-medium text-gray-500 active:bg-gray-100 active:text-gray-900"
-        >
-          ← Historique
-        </Link>
-      </header>
+    <PageShell
+      header={
+        <header className="flex items-center gap-3 border-b border-white/5 bg-bg px-2 py-2">
+          <Link
+            to="/history"
+            className="inline-flex min-h-11 items-center rounded px-2 text-sm font-medium text-muted active:bg-white/5 active:text-ink"
+          >
+            ← Historique
+          </Link>
+        </header>
+      }
+    >
+      {state === "loading" && <p className="text-sm text-muted">Chargement…</p>}
 
-      <main className="flex flex-1 flex-col gap-4 px-4 py-6">
-        {state === "loading" && <p className="text-sm text-gray-500">Chargement…</p>}
+      {state === "error" && (
+        <p role="alert" className="text-sm text-red-400">
+          {GENERIC_ERROR_MESSAGE}
+        </p>
+      )}
 
-        {state === "error" && (
-          <p role="alert" className="text-sm text-red-600">
-            {GENERIC_ERROR_MESSAGE}
+      {state === "not_found" && <p className="text-sm text-muted">Décision introuvable.</p>}
+
+      {state === "success" && row && (
+        <>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+            {formatCalendarDate(row.decisionDate)} · {formatLocalTime(row.createdAt)}
           </p>
-        )}
-
-        {state === "not_found" && <p className="text-sm text-gray-500">Décision introuvable.</p>}
-
-        {state === "success" && row && (
-          <>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-              {formatCalendarDate(row.decisionDate)} · {formatLocalTime(row.createdAt)}
-            </p>
-            <HistoryDetail row={row} performedMatch={performedMatch} />
-          </>
-        )}
-      </main>
-    </div>
+          <HistoryDetail row={row} performedMatch={performedMatch} />
+        </>
+      )}
+    </PageShell>
   );
 }

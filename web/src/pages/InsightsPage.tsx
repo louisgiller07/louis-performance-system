@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { AppNav } from "../components/AppNav";
+import { PageShell } from "../components/PageShell";
+import { AppHeader } from "../components/AppHeader";
+import { SectionHeader } from "../components/SectionHeader";
+import { SecondaryButton } from "../components/SecondaryButton";
 import { InsightCard, type InsightCardNotice } from "../features/insights/InsightCard";
 import { buildSubmitReviewBody, getInsights, submitReview } from "../features/insights/insightsRepo";
 import type { GetInsightsResponse, PatternInsightCandidate, PatternInsightReviewDecision } from "../features/insights/insightsTypes";
@@ -27,7 +30,7 @@ function newNoticeId(): string {
 // accepted_as_insight never triggers any daily-run/coaching action here —
 // V0.3_001 locks zero coaching influence.
 export function InsightsPage() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [state, setState] = useState<PageState>({ status: "loading" });
   const [submittingKeys, setSubmittingKeys] = useState<ReadonlySet<string>>(new Set());
   const [cardNotices, setCardNotices] = useState<Readonly<Record<string, InsightCardNotice>>>({});
@@ -115,64 +118,43 @@ export function InsightsPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex flex-col gap-2 border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="shrink-0 text-sm font-semibold text-gray-900">Louis Performance System</span>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-xs text-gray-400">{user?.email}</span>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
-            >
-              Déconnexion
-            </button>
-          </div>
+    <PageShell header={<AppHeader />}>
+      <SectionHeader title="Insights" />
+
+      {pageNotices.map((notice) => (
+        <div key={notice.id} role="status" className="flex items-center justify-between gap-2 rounded border border-white/10 bg-card px-3 py-2 text-sm text-ink/80">
+          <span>{notice.message}</span>
+          <button type="button" onClick={() => dismissPageNotice(notice.id)} className="shrink-0 text-xs font-medium text-muted">
+            Fermer
+          </button>
         </div>
-        <AppNav />
-      </header>
+      ))}
 
-      <main className="flex flex-1 flex-col gap-4 px-4 py-6">
-        <h1 className="text-lg font-semibold text-gray-900">Insights</h1>
+      {state.status === "loading" && <p className="text-sm text-muted">Chargement…</p>}
 
-        {pageNotices.map((notice) => (
-          <div key={notice.id} role="status" className="flex items-center justify-between gap-2 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700">
-            <span>{notice.message}</span>
-            <button type="button" onClick={() => dismissPageNotice(notice.id)} className="shrink-0 text-xs font-medium text-gray-500">
-              Fermer
-            </button>
-          </div>
+      {state.status === "error" && (
+        <div className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-sm text-red-400">
+            {state.error.message}
+          </p>
+          <SecondaryButton onClick={() => void load()}>Réessayer</SecondaryButton>
+        </div>
+      )}
+
+      {state.status === "loaded" && state.response.candidates.length === 0 && (
+        <p className="text-sm text-muted">Aucun insight à examiner pour le moment.</p>
+      )}
+
+      {state.status === "loaded" &&
+        state.response.candidates.map((candidate) => (
+          <InsightCard
+            key={candidate.snapshot.detectorRuleId}
+            candidate={candidate}
+            submitting={submittingKeys.has(candidate.snapshot.detectorRuleId)}
+            notice={cardNotices[candidate.snapshot.detectorRuleId] ?? null}
+            onReview={(decision, reviewerNote) => void handleReview(candidate, decision, reviewerNote)}
+          />
         ))}
-
-        {state.status === "loading" && <p className="text-sm text-gray-500">Chargement…</p>}
-
-        {state.status === "error" && (
-          <div className="flex flex-col items-start gap-2">
-            <p role="alert" className="text-sm text-red-600">
-              {state.error.message}
-            </p>
-            <button type="button" onClick={() => void load()} className="min-h-11 rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700">
-              Réessayer
-            </button>
-          </div>
-        )}
-
-        {state.status === "loaded" && state.response.candidates.length === 0 && (
-          <p className="text-sm text-gray-500">Aucun insight à examiner pour le moment.</p>
-        )}
-
-        {state.status === "loaded" &&
-          state.response.candidates.map((candidate) => (
-            <InsightCard
-              key={candidate.snapshot.detectorRuleId}
-              candidate={candidate}
-              submitting={submittingKeys.has(candidate.snapshot.detectorRuleId)}
-              notice={cardNotices[candidate.snapshot.detectorRuleId] ?? null}
-              onReview={(decision, reviewerNote) => void handleReview(candidate, decision, reviewerNote)}
-            />
-          ))}
-      </main>
-    </div>
+    </PageShell>
   );
 }

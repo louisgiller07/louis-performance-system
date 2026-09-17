@@ -295,7 +295,7 @@ export function DailyPlanView({
               )}
               {dailyPlan.final_session.load_profile && (
                 <span className="rounded bg-white/5 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-ink/80">
-                  {dailyPlan.final_session.load_profile} load
+                  {LOAD_PROFILE_LABELS[dailyPlan.final_session.load_profile]}
                 </span>
               )}
             </div>

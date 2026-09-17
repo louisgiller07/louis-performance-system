@@ -28,7 +28,7 @@ function renderLoginPage() {
 async function submit(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.type(screen.getByLabelText("Email"), "louis@example.test");
   await user.type(screen.getByLabelText("Mot de passe"), "wrong-password");
-  await user.click(screen.getByRole("button", { name: /Se connecter/ }));
+  await user.click(screen.getByRole("button", { name: /Connexion/ }));
 }
 
 // V0.3_005C (NAL-005 auth-error language guard) — a Supabase Auth provider

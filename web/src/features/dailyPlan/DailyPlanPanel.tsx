@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
+import { PrimaryButton } from "../../components/PrimaryButton";
+import { SecondaryButton } from "../../components/SecondaryButton";
 import { runDailyRun } from "./runDailyRun";
 import { DailyPlanResult } from "./DailyPlanResult";
 import { isValidDailyPlan } from "./dailyPlanValidation";
@@ -169,27 +171,18 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
         <p role="alert" className="text-sm text-red-400">
           Impossible de charger ton plan du jour. Réessaie.
         </p>
-        <button
-          type="button"
-          onClick={() => void restoreTodayDecision()}
-          className="self-start rounded border border-white/10 px-3 py-1.5 text-xs font-medium text-ink/80 active:bg-white/5"
-        >
+        <SecondaryButton onClick={() => void restoreTodayDecision()} className="self-start">
           Réessayer
-        </button>
+        </SecondaryButton>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <button
-        type="button"
-        onClick={() => void handleGenerate()}
-        disabled={!hasCheckin || state === "running"}
-        className="rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40"
-      >
+      <PrimaryButton onClick={() => void handleGenerate()} disabled={!hasCheckin || state === "running"}>
         {state === "running" ? "Analyse en cours…" : "Générer mon plan"}
-      </button>
+      </PrimaryButton>
 
       {!hasCheckin && <p className="text-xs text-muted">Enregistre d'abord ton check-in du jour.</p>}
 

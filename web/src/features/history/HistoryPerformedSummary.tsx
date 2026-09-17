@@ -22,8 +22,8 @@ export function HistoryPerformedSummary({ session }: { session: CompletedSession
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-        <dt className="text-gray-400">Statut</dt>
-        <dd className="text-gray-900">{COMPLETION_STATUS_LABELS[session.completion_status]}</dd>
+        <dt className="text-muted">Statut</dt>
+        <dd className="text-ink">{COMPLETION_STATUS_LABELS[session.completion_status]}</dd>
 
         {/* V0.3_007D presentation gate — for `skipped`, `intervention` is
             always NULL by contract (nothing was performed), so the coarse
@@ -36,36 +36,36 @@ export function HistoryPerformedSummary({ session }: { session: CompletedSession
             legitimately describes what WAS performed. */}
         {session.completion_status !== "skipped" && (
           <>
-            <dt className="text-gray-400">Activité</dt>
-            <dd className="text-gray-900">{performedLabel ?? SESSION_TYPE_LABELS[session.session_type]}</dd>
+            <dt className="text-muted">Activité</dt>
+            <dd className="text-ink">{performedLabel ?? SESSION_TYPE_LABELS[session.session_type]}</dd>
           </>
         )}
 
         {session.actual_duration_min !== null && (
           <>
-            <dt className="text-gray-400">Durée</dt>
-            <dd className="text-gray-900">{session.actual_duration_min} min</dd>
+            <dt className="text-muted">Durée</dt>
+            <dd className="text-ink">{session.actual_duration_min} min</dd>
           </>
         )}
 
         {session.rpe !== null && (
           <>
-            <dt className="text-gray-400">RPE</dt>
-            <dd className="text-gray-900">{session.rpe}/10</dd>
+            <dt className="text-muted">RPE</dt>
+            <dd className="text-ink">{session.rpe}/10</dd>
           </>
         )}
 
         {session.post_leg_fatigue !== null && (
           <>
-            <dt className="text-gray-400">Fatigue jambes</dt>
-            <dd className="text-gray-900">{session.post_leg_fatigue}/10</dd>
+            <dt className="text-muted">Fatigue jambes</dt>
+            <dd className="text-ink">{session.post_leg_fatigue}/10</dd>
           </>
         )}
 
         {session.post_grip_fatigue !== null && (
           <>
-            <dt className="text-gray-400">Fatigue grip</dt>
-            <dd className="text-gray-900">{session.post_grip_fatigue}/10</dd>
+            <dt className="text-muted">Fatigue grip</dt>
+            <dd className="text-ink">{session.post_grip_fatigue}/10</dd>
           </>
         )}
 
@@ -74,25 +74,25 @@ export function HistoryPerformedSummary({ session }: { session: CompletedSession
             persisted answer, shown as-is or not at all. */}
         {session.technical_outcome !== null && (
           <>
-            <dt className="text-gray-400">Tâche technique</dt>
-            <dd className="text-gray-900">{TECHNICAL_OUTCOME_LABELS[session.technical_outcome]}</dd>
+            <dt className="text-muted">Tâche technique</dt>
+            <dd className="text-ink">{TECHNICAL_OUTCOME_LABELS[session.technical_outcome]}</dd>
           </>
         )}
 
         {session.change_reason !== null && (
           <>
-            <dt className="text-gray-400">Motif</dt>
-            <dd className="text-gray-900">{CHANGE_REASON_LABELS[session.change_reason]}</dd>
+            <dt className="text-muted">Motif</dt>
+            <dd className="text-ink">{CHANGE_REASON_LABELS[session.change_reason]}</dd>
           </>
         )}
       </dl>
 
-      {session.change_reason_note && <p className="text-sm text-gray-700">{session.change_reason_note}</p>}
+      {session.change_reason_note && <p className="text-sm text-ink/80">{session.change_reason_note}</p>}
 
       {session.new_pain && (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <p className="text-sm font-medium text-gray-900">Une nouvelle douleur avait été indiquée ce jour-là.</p>
-          {session.new_pain_note && <p className="mt-1 text-sm text-gray-700">{session.new_pain_note}</p>}
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <p className="text-sm font-medium text-ink">Une nouvelle douleur avait été indiquée ce jour-là.</p>
+          {session.new_pain_note && <p className="mt-1 text-sm text-ink/80">{session.new_pain_note}</p>}
         </div>
       )}
     </div>
