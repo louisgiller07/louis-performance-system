@@ -10,9 +10,9 @@ interface PlanSectionProps {
 // lives here.
 export function PlanSection({ title, children }: PlanSectionProps) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</h3>
-      <div className="mt-2 flex flex-col gap-1.5 text-sm text-gray-700">{children}</div>
+    <div className="rounded-lg border border-white/5 bg-card p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{title}</h3>
+      <div className="mt-2 flex flex-col gap-1.5 text-sm text-ink/90">{children}</div>
     </div>
   );
 }

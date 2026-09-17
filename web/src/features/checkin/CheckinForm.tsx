@@ -8,6 +8,22 @@ import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, ro
 type LoadState = "loading" | "loaded" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
 
+/**
+ * V0.3 UX PREMIUM REDESIGN — dynamic status word shown next to the sleep
+ * quality slider, computed purely from the value already on screen.
+ * Presentational only: never sent to the backend, never changes
+ * `sleep_quality` itself (see RatingSlider.tsx's `valueLabel` doc). Exact
+ * thresholds as specified for this field only — not generalized to any
+ * other slider (energy/stress/motivation/fatigue semantics differ and
+ * weren't given equivalent thresholds).
+ */
+function sleepQualityLabel(value: number | ""): string | undefined {
+  if (value === "") return undefined;
+  if (value >= 8) return "Bonne récupération";
+  if (value >= 5) return "Récupération moyenne";
+  return "Dette de sommeil";
+}
+
 interface CheckinFormProps {
   athleteId: string;
   date: string;
@@ -114,18 +130,18 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
   }
 
   if (loadState === "loading") {
-    return <p className="text-sm text-gray-400">Chargement du check-in…</p>;
+    return <p className="text-sm text-muted">Chargement du check-in…</p>;
   }
 
   if (loadState === "error") {
-    return <p className="text-sm text-red-600">Impossible de charger le check-in du jour. Réessaie dans un instant.</p>;
+    return <p className="text-sm text-red-400">Impossible de charger le check-in du jour. Réessaie dans un instant.</p>;
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">Sommeil</legend>
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <legend className="text-xs font-semibold uppercase tracking-widest text-muted">Sommeil</legend>
+        <label className="flex flex-col gap-1 text-sm text-ink/80">
           Heures de sommeil
           <input
             type="number"
@@ -135,10 +151,10 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
             max={24}
             value={form.sleep_hours}
             onChange={(event) => updateField("sleep_hours", event.target.value === "" ? "" : Number(event.target.value))}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
+            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
           />
           {errors.sleep_hours && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {errors.sleep_hours}
             </span>
           )}
@@ -150,8 +166,9 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
           error={errors.sleep_quality}
           lowLabel="Très mauvaise"
           highLabel="Excellente"
+          valueLabel={sleepQualityLabel(form.sleep_quality)}
         />
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <label className="flex flex-col gap-1 text-sm text-ink/80">
           Réveils nocturnes
           <input
             type="number"
@@ -161,10 +178,10 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
             step={1}
             value={form.sleep_wake_ups}
             onChange={(event) => updateField("sleep_wake_ups", event.target.value === "" ? "" : Number(event.target.value))}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
+            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
           />
           {errors.sleep_wake_ups && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {errors.sleep_wake_ups}
             </span>
           )}
@@ -172,7 +189,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       </fieldset>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">État général</legend>
+        <legend className="text-xs font-semibold uppercase tracking-widest text-muted">État général</legend>
         <RatingSlider
           label="Énergie"
           value={form.energy}
@@ -200,7 +217,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       </fieldset>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">Fatigue</legend>
+        <legend className="text-xs font-semibold uppercase tracking-widest text-muted">Fatigue</legend>
         <RatingSlider
           label="Jambes"
           value={form.leg_fatigue}
@@ -220,11 +237,11 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       </fieldset>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">Santé / douleur</legend>
+        <legend className="text-xs font-semibold uppercase tracking-widest text-muted">Santé / douleur</legend>
         <YesNoChoice label="Douleur" value={form.pain} onChange={handlePainChange} error={errors.pain} />
 
         {form.pain === true && (
-          <div className="flex flex-col gap-3 border-l-2 border-gray-200 pl-3">
+          <div className="flex flex-col gap-3 border-l-2 border-white/10 pl-3">
             <RatingSlider
               label="Intensité de la douleur"
               value={form.pain_intensity}
@@ -239,12 +256,12 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
               onChange={(value) => updateField("pain_new", value)}
               error={errors.pain_new}
             />
-            <label className="flex flex-col gap-1 text-sm text-gray-700">
+            <label className="flex flex-col gap-1 text-sm text-ink/80">
               Localisation
               <select
                 value={form.pain_location_code}
                 onChange={(event) => updateField("pain_location_code", event.target.value as CheckinFormState["pain_location_code"])}
-                className="rounded border border-gray-300 px-3 py-3 text-base"
+                className="rounded border border-white/10 bg-card px-3 py-3 text-base text-ink"
               >
                 <option value="">—</option>
                 {PAIN_LOCATION_CODES.map((code) => (
@@ -292,34 +309,34 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">Commentaire</legend>
+        <legend className="text-xs font-semibold uppercase tracking-widest text-muted">Commentaire</legend>
         <textarea
           aria-label="Commentaire"
           value={form.free_comment}
           onChange={(event) => updateField("free_comment", event.target.value)}
           rows={3}
           placeholder="Optionnel"
-          className="rounded border border-gray-300 px-3 py-3 text-base"
+          className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink placeholder:text-muted"
         />
       </fieldset>
 
       {Object.keys(errors).length > 0 && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-400">
           Certains champs doivent encore être complétés.
         </p>
       )}
 
       {saveState === "error" && saveErrorMessage && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-400">
           {saveErrorMessage}
         </p>
       )}
-      {saveState === "saved" && <p className="text-sm text-green-600">Check-in enregistré</p>}
+      {saveState === "saved" && <p className="text-sm text-gold">Check-in enregistré</p>}
 
       <button
         type="submit"
         disabled={saveState === "saving"}
-        className="rounded bg-gray-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40"
       >
         {saveState === "saving" ? "Enregistrement…" : "Enregistrer le check-in"}
       </button>

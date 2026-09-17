@@ -1,4 +1,6 @@
 import { DailyPlanView } from "./DailyPlanView";
+import { ReadinessCard } from "./ReadinessCard";
+import { MissionCard } from "./MissionCard";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 
 // M4_005 — live daily-run result. Computes the health-signal and debug
@@ -18,6 +20,8 @@ export function DailyPlanResult({ result }: { result: DailyRunResponse }) {
       hasHealthSignal={hasHealthSignal}
       healthSignalReason={dailyPlan.health_flag_to_create?.reason}
       technicalMetadata={{ decisionId, raw: result }}
+      readinessSlot={<ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} />}
+      missionSlot={<MissionCard dailyPlan={dailyPlan} />}
     />
   );
 }

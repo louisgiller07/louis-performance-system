@@ -156,7 +156,7 @@ describe("HistoryDetail", () => {
         performedMatch={{ kind: "none" }}
       />
     );
-    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText("Session Plan")).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 4 h/)).toBeInTheDocument();
     expect(screen.queryByText("240 min")).not.toBeInTheDocument();
   });
@@ -220,9 +220,9 @@ describe("HistoryDetail", () => {
       />
     );
     expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
-    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText("Session Plan")).toBeInTheDocument();
     expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
-    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    const dhCard = screen.getByText("Session Plan").closest("div")!;
     expect(within(dhCard).getByText(/charge modérée/i)).toBeInTheDocument();
     expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Priorise la qualité d'exécution/)).not.toBeInTheDocument();
@@ -253,7 +253,7 @@ describe("HistoryDetail", () => {
         performedMatch={{ kind: "none" }}
       />
     );
-    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    const dhCard = screen.getByText("Session Plan").closest("div")!;
     expect(within(dhCard).getByText(loadGuidance)).toBeInTheDocument();
     expect(within(dhCard).queryByText(/^charge lourde$/i)).not.toBeInTheDocument();
   });
@@ -301,7 +301,7 @@ describe("HistoryDetail", () => {
     // specific rendered card, not the whole document, to avoid the debug
     // dump entirely (same content, different concern than the "getAllByText"
     // precedent used elsewhere in this file).
-    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    const dhCard = screen.getByText("Today's Mission").closest("div")!;
     // V0.3_008B0 — explicit "Tâche du jour :" label added alongside the value.
     expect(
       within(dhCard).getByText("Tâche du jour : Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")
@@ -448,7 +448,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     render(<HistoryDetail row={dhDecision} performedMatch={{ kind: "linked", session }} />);
 
     // Prescrit still shows the original DH prescription, verbatim.
-    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    const dhCard = screen.getByText("Session Plan").closest("div")!;
     expect(within(dhCard).getByText(/DH performance/)).toBeInTheDocument();
 
     const card = realiseCard();

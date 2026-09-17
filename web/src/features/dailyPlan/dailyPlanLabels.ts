@@ -4,6 +4,19 @@
 // something instead of crashing.
 import type { ArbitrationDecision, Confidence, LoadProfile, TrainingInterventionKind, TrainingMode, TrainingIntervention } from "./dailyPlanTypes";
 
+// V0.3_008B — Technical Continuity V1, DISPLAY ONLY. Kind-neutral wording
+// ("séance technique", never "séance DH") — technical_outcome is valid for
+// all 4 DH-family kinds (DH_TECHNICAL/DH_PERFORMANCE/DH_LIGHT/PUMPTRACK), so
+// a Pumptrack-sourced fact must not be misdescribed as a DH session. Shared
+// between DailyPlanView.tsx (History's "Today's Mission" card) and
+// MissionCard.tsx (Today's hoisted "Mission du jour" card) — same copy
+// either way, single source of truth.
+export const PRIOR_TECHNICAL_OUTCOME_COPY: Record<"yes" | "partial" | "no", string> = {
+  yes: "Lors de ta dernière séance technique, cette tâche a été réussie.",
+  partial: "Lors de ta dernière séance technique, cette tâche a été partiellement réussie.",
+  no: "Lors de ta dernière séance technique, cette tâche n'a pas été réussie.",
+};
+
 export const DECISION_LABELS: Record<ArbitrationDecision, string> = {
   KEEP: "Maintenir",
   MODIFY: "Adapter",

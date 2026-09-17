@@ -4,8 +4,8 @@ import { NavLink } from "react-router-dom";
 // overflow/clipping at narrow phone widths (~320px). Smaller padding/text
 // below sm: (640px), the original comfortable sizing at sm: and above.
 const LINK_BASE = "flex min-h-11 flex-1 items-center justify-center rounded px-1.5 text-xs font-medium sm:px-3 sm:text-sm";
-const LINK_ACTIVE = "bg-gray-900 text-white";
-const LINK_INACTIVE = "text-gray-500 active:bg-gray-100";
+const LINK_ACTIVE = "bg-gold text-bg";
+const LINK_INACTIVE = "text-muted active:bg-white/5";
 
 // Minimal navigation — no sidebar, no menu. Shared between TodayPage,
 // /plan (V0.3_003C), the /history pages (M4_006), and /insights (V0.3_001C-3).

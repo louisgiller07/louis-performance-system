@@ -115,7 +115,7 @@ describe("TodayPage", () => {
 
     renderTodayPage();
 
-    expect(screen.getByText("Check-in du jour")).toBeInTheDocument();
+    expect(screen.getByText("Check-in")).toBeInTheDocument();
     expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent(`checkin-form athlete=athlete-1 date=${expectedDate}`);
   });
 
@@ -129,11 +129,11 @@ describe("TodayPage", () => {
     expect(screen.getByTestId("today-planning-summary-stub")).toHaveTextContent(`today-planning-summary athlete=athlete-1 date=${expectedDate}`);
   });
 
-  it("keeps Prévu aujourd'hui (Planning) and Plan du jour (Head Coach decision) as distinct, coexisting sections (J)", () => {
+  it("keeps Prévu aujourd'hui (Planning) and the Head Coach decision panel as distinct, coexisting sections (J)", () => {
     renderTodayPage();
 
     expect(screen.getByTestId("today-planning-summary-stub")).toBeInTheDocument();
-    expect(screen.getByText("Plan du jour")).toBeInTheDocument();
+    expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
   });
 
   it("renders the real DailyPlanPanel, wired with the canonical date, hasCheckin=false and checkinRevision=0 initially", () => {
@@ -143,7 +143,6 @@ describe("TodayPage", () => {
 
     renderTodayPage();
 
-    expect(screen.getByText("Plan du jour")).toBeInTheDocument();
     expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent(
       `daily-plan-panel date=${expectedDate} hasCheckin=false checkinRevision=0`
     );

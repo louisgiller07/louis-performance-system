@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/*
+ * V0.3 UX PREMIUM REDESIGN — design tokens only. Gold replaces the app's
+ * only prior accent-color usage (3 green call sites, see git history) —
+ * red (safety) and amber (race/health-flag) are deliberately NOT tokenized
+ * here and keep using Tailwind's stock red/amber utility scales as-is.
+ */
+@theme {
+  --color-bg: #08090b;
+  --color-card: #12151a;
+  --color-gold: #d4af37;
+  --color-gold-light: #f5d76e;
+  --color-ink: #f5f5f0;
+  --color-muted: #8b9098;
+}

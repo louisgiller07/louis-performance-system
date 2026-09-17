@@ -17,13 +17,13 @@ interface InsightCardProps {
 
 const REVIEW_STATE_BADGE_CLASS: Record<string, string> = {
   unreviewed: "bg-gray-100 text-gray-600",
-  reviewed_current: "bg-green-100 text-green-800",
+  reviewed_current: "bg-gold/15 text-gold",
   reviewed_stale: "bg-amber-100 text-amber-800",
 };
 
 const NOTICE_CLASS: Record<InsightCardNotice["kind"], string> = {
   stale: "border-amber-300 bg-amber-50 text-amber-800",
-  success: "border-green-300 bg-green-50 text-green-800",
+  success: "border-gold/40 bg-gold/10 text-gold",
   error: "border-red-300 bg-red-50 text-red-700",
 };
 

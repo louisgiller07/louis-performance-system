@@ -47,7 +47,7 @@ describe("DailyPlanResult", () => {
 
   it("displays the confidence level", () => {
     render(<DailyPlanResult result={makeResult({ confidence: "HIGH" })} />);
-    expect(screen.getByText(/Confiance élevée/i)).toBeInTheDocument();
+    expect(screen.getByText(/Confidence élevée/i)).toBeInTheDocument();
   });
 
   it("displays the active_mode as a human-readable label, not the raw enum", () => {
@@ -126,7 +126,11 @@ describe("DailyPlanResult", () => {
   it("renders monitoring entries only when present", () => {
     const { rerender } = render(<DailyPlanResult result={makeResult({ monitoring: { observe: ["Douleur genou"] } })} />);
     expect(screen.getByText("À surveiller")).toBeInTheDocument();
-    expect(screen.getByText("Douleur genou")).toBeInTheDocument();
+    // V0.3 UX PREMIUM REDESIGN — the first monitoring entry is ALSO
+    // surfaced verbatim as Readiness's "Attention" line (see
+    // ReadinessCard.tsx) — an intentional, purposeful duplication (quick
+    // glance vs. full list), not a bug.
+    expect(screen.getAllByText("Douleur genou").length).toBeGreaterThan(0);
 
     rerender(<DailyPlanResult result={makeResult({ monitoring: { observe: [] } })} />);
     expect(screen.queryByText("À surveiller")).not.toBeInTheDocument();
@@ -437,10 +441,11 @@ describe("DailyPlanResult", () => {
   // multiple-match error on getByText for that exact string — same
   // precedent as the pain-location/non-SAFETY/Mental-RED sanitization tests
   // below.
-  it("renders one consolidated 'Séance DH' card with kind, clarified load, hour-formatted session window, focus, and terrain — never a raw '360 min'", () => {
+  it("renders the Today's Mission + Session Plan cards with kind, clarified load, hour-formatted session window, focus, and terrain — never a raw '360 min'", () => {
     render(<DailyPlanView dailyPlan={{ ...BASE_PLAN, ...DH_PLAN }} hasHealthSignal={false} />);
 
-    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText("Today's Mission")).toBeInTheDocument();
+    expect(screen.getByText("Session Plan")).toBeInTheDocument();
     expect(screen.getByText(/DH performance/)).toBeInTheDocument();
     // V0.3_006C1 (final correction) — rendered exactly as persisted in dh_or_technical.load_guidance.
     expect(
@@ -460,7 +465,7 @@ describe("DailyPlanResult", () => {
     expect(screen.queryByText("Technique")).not.toBeInTheDocument();
   });
 
-  it("a non-DH session keeps the existing 'Entraînement' card unchanged, and never shows 'Séance DH'", () => {
+  it("a non-DH session keeps the existing 'Entraînement' card unchanged, and never shows Today's Mission/Session Plan", () => {
     render(
       <DailyPlanResult
         result={makeResult({
@@ -470,7 +475,8 @@ describe("DailyPlanResult", () => {
       />
     );
     expect(screen.getByText("Entraînement")).toBeInTheDocument();
-    expect(screen.queryByText("Séance DH")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today's Mission")).not.toBeInTheDocument();
+    expect(screen.queryByText("Session Plan")).not.toBeInTheDocument();
   });
 
   it("formats every provisional DH duration as natural hours (V0.3_006B examples)", () => {
@@ -498,7 +504,7 @@ describe("DailyPlanResult", () => {
         result={makeResult({ ...DH_PLAN, final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } })}
       />
     );
-    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText("Session Plan")).toBeInTheDocument();
     expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
   });
 
@@ -518,7 +524,7 @@ describe("DailyPlanResult", () => {
 
   // --- V0.3_006C1: DH Execution Guidance ---
 
-  it("renders execution_task in the Séance DH card when present, with an explicit 'Tâche du jour :' label (V0.3_008B0)", () => {
+  it("renders execution_task in the Mission du jour card when present, under the 'Objectif' subheading (V0.3 UX PREMIUM)", () => {
     render(
       <DailyPlanResult
         result={makeResult({
@@ -533,12 +539,14 @@ describe("DailyPlanResult", () => {
     );
     expect(
       screen.getByText(
-        "Tâche du jour : Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse."
+        "Choisis une section que tu connais bien, fixe un ou deux repères et répète la même ligne proprement avant d'augmenter la vitesse."
       )
     ).toBeInTheDocument();
-    // Focus and execution_task now coexist and are visibly distinguished by
-    // their own labels — the task line never claims to derive from the focus.
-    expect(screen.getByText("Focus : Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
+    // Focus and execution_task now coexist under the same "Objectif"
+    // subheading, visually distinguished (headline vs. supporting text) —
+    // the task line never claims to derive from the focus.
+    expect(screen.getByText("Objectif")).toBeInTheDocument();
+    expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
   });
 
   // V0.3_008B0 — a legacy DailyPlan predating this field (persisted shape has
@@ -549,9 +557,9 @@ describe("DailyPlanResult", () => {
   it("renders no execution_task line when the field is absent from the data (legacy shape)", () => {
     render(<DailyPlanResult result={makeResult(DH_PLAN)} />); // DH_PLAN.dh_or_technical has no execution_task
     // Only the two known DH strings should appear — nothing extra between focus and terrain.
-    expect(screen.getByText("Focus : Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
+    expect(screen.getByText("Précision des lignes et vitesse maîtrisée")).toBeInTheDocument();
     expect(screen.getByText("Terrain adapté au focus technique du jour.")).toBeInTheDocument();
-    expect(screen.queryByText(/^Tâche du jour/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Choisis une section/)).not.toBeInTheDocument();
   });
 
   // Rendered via DailyPlanView directly (no technicalMetadata) — with a real
@@ -615,7 +623,7 @@ describe("DailyPlanResult", () => {
         })}
       />
     );
-    expect(screen.getByText("Séance DH")).toBeInTheDocument();
+    expect(screen.getByText("Session Plan")).toBeInTheDocument();
     expect(screen.getByText(/charge lourde/i)).toBeInTheDocument();
     expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Séance orientée performance/)).not.toBeInTheDocument();

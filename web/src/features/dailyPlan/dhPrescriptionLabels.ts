@@ -12,5 +12,18 @@ export function formatDhSessionWindow(durationMin: number): string {
   return minutes === 0 ? `environ ${hours} h` : `environ ${hours} h ${minutes}`;
 }
 
+/**
+ * V0.3 UX PREMIUM REDESIGN — compact badge form of the same duration
+ * (e.g. "4H", "4H30") for the Session Plan card's headline badge. Same
+ * source value as formatDhSessionWindow, purely a shorter rendering —
+ * formatDhSessionWindow itself is unchanged and still used for the
+ * detailed sentence elsewhere.
+ */
+export function formatDhSessionWindowCompact(durationMin: number): string {
+  const hours = Math.floor(durationMin / 60);
+  const minutes = durationMin % 60;
+  return minutes === 0 ? `${hours}H` : `${hours}H${String(minutes).padStart(2, "0")}`;
+}
+
 /** V0.3_006C1 — clarifies that the session window includes uplifts/pauses/waiting, never just descent time. Shown under the session-window line in the "Séance DH" card. */
 export const DH_SESSION_WINDOW_CAPTION = "Inclut les remontées, pauses et temps d'attente — pas seulement le temps de descente.";

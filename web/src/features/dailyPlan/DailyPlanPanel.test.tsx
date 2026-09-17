@@ -97,7 +97,7 @@ describe("DailyPlanPanel", () => {
     await user.click(await screen.findByRole("button", { name: /Générer mon plan/ }));
 
     await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
-    expect(screen.getByText(/Confiance moyenne/)).toBeInTheDocument();
+    expect(screen.getByText(/Confidence moyenne/)).toBeInTheDocument();
     expect(screen.getByText(/En saison/)).toBeInTheDocument();
     expect(screen.getByText("Tout va bien.")).toBeInTheDocument();
   });
@@ -417,13 +417,13 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     });
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    expect(await screen.findByText("Séance DH")).toBeInTheDocument();
+    expect(await screen.findByText("Session Plan")).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
     // V0.3_006C1 (final correction) — CANONICAL HISTORY INVARIANT: this
     // fixture's dh_or_technical never carried load_guidance (legacy shape),
     // so only the neutral load label may appear, never the new behavioral
     // coaching copy synthesized from load_profile.
-    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    const dhCard = screen.getByText("Session Plan").closest("div")!;
     expect(within(dhCard).getByText(/charge lourde/i)).toBeInTheDocument();
     expect(screen.queryByText(/fais monter l'engagement progressivement/)).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
@@ -460,9 +460,9 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     });
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    // V0.3_008B0 — explicit "Tâche du jour :" label added alongside the value.
+    // V0.3 UX PREMIUM REDESIGN — execution_task rendered under Mission du jour's "Objectif" subheading, no prefix label.
     expect(
-      await screen.findByText("Tâche du jour : Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")
+      await screen.findByText("Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")
     ).toBeInTheDocument();
     // Dev-only debug panel legitimately dumps the raw persisted JSON too —
     // scope remaining queries to their specific card, same precedent as
@@ -503,7 +503,7 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByText(loadGuidance)).toBeInTheDocument();
-    const dhCard = screen.getByText("Séance DH").closest("div")!;
+    const dhCard = screen.getByText("Session Plan").closest("div")!;
     expect(within(dhCard).queryByText(/^charge modérée$/i)).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });

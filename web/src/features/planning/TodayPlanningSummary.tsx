@@ -52,9 +52,9 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
 
   if (loadState === "loading") {
     return (
-      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-900">Prévu aujourd'hui</h2>
-        <p className="mt-1 text-sm text-gray-400">Chargement…</p>
+      <section className="rounded-xl border border-white/5 bg-card p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Prévu aujourd'hui</h2>
+        <p className="mt-1 text-sm text-muted">Chargement…</p>
       </section>
     );
   }
@@ -63,10 +63,10 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
   // actual Head Coach decision must never be blocked by it.
   if (loadState === "error") {
     return (
-      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-900">Prévu aujourd'hui</h2>
-        <p className="mt-1 text-sm text-gray-500">Planning indisponible.</p>
-        <Link to="/plan" className="mt-2 inline-block text-xs font-medium text-gray-500 underline">
+      <section className="rounded-xl border border-white/5 bg-card p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Prévu aujourd'hui</h2>
+        <p className="mt-1 text-sm text-muted">Planning indisponible.</p>
+        <Link to="/plan" className="mt-2 inline-block text-xs font-medium text-gold underline">
           Modifier dans Plan
         </Link>
       </section>
@@ -80,10 +80,10 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
     : "Non planifié";
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-semibold text-gray-900">Prévu aujourd'hui</h2>
-      <p className={`mt-1 text-sm font-medium ${row ? "text-gray-900" : "text-gray-400"}`}>{displayLabel}</p>
-      <Link to="/plan" className="mt-2 inline-block text-xs font-medium text-gray-500 underline">
+    <section className="rounded-xl border border-white/5 bg-card p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Prévu aujourd'hui</h2>
+      <p className={`mt-1 text-sm font-medium ${row ? "text-ink" : "text-muted"}`}>{displayLabel}</p>
+      <Link to="/plan" className="mt-2 inline-block text-xs font-medium text-gold underline">
         Modifier dans Plan
       </Link>
     </section>

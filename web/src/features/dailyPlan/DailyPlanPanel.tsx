@@ -160,19 +160,19 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
   // is about to replace that state seconds later, and never treat a read
   // failure as "no decision, please generate one".
   if (restorePhase === "loading") {
-    return <p className="text-sm text-gray-400">Chargement de ton plan…</p>;
+    return <p className="text-sm text-muted">Chargement de ton plan…</p>;
   }
 
   if (restorePhase === "error") {
     return (
       <div className="flex flex-col gap-2">
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-400">
           Impossible de charger ton plan du jour. Réessaie.
         </p>
         <button
           type="button"
           onClick={() => void restoreTodayDecision()}
-          className="self-start rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
+          className="self-start rounded border border-white/10 px-3 py-1.5 text-xs font-medium text-ink/80 active:bg-white/5"
         >
           Réessayer
         </button>
@@ -186,17 +186,17 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
         type="button"
         onClick={() => void handleGenerate()}
         disabled={!hasCheckin || state === "running"}
-        className="rounded bg-gray-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40"
       >
         {state === "running" ? "Analyse en cours…" : "Générer mon plan"}
       </button>
 
-      {!hasCheckin && <p className="text-xs text-gray-400">Enregistre d'abord ton check-in du jour.</p>}
+      {!hasCheckin && <p className="text-xs text-muted">Enregistre d'abord ton check-in du jour.</p>}
 
-      {showInvalidatedNotice && <p className="text-xs text-gray-400">Ton check-in a changé. Génère un nouveau plan.</p>}
+      {showInvalidatedNotice && <p className="text-xs text-muted">Ton check-in a changé. Génère un nouveau plan.</p>}
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-400">
           {error.message}
         </p>
       )}

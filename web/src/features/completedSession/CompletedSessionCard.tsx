@@ -343,21 +343,21 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
   const fieldErrors = validation && !validation.ok ? validation.errors : {};
 
   if (loadState === "loading") {
-    return <p className="text-sm text-gray-400">Chargement…</p>;
+    return <p className="text-sm text-muted">Chargement…</p>;
   }
   if (loadState === "error") {
-    return <p className="text-sm text-red-600">{loadError?.message ?? "Impossible de charger ta séance. Réessaie dans un instant."}</p>;
+    return <p className="text-sm text-red-400">{loadError?.message ?? "Impossible de charger ta séance. Réessaie dans un instant."}</p>;
   }
 
   if (mode === "view") {
     if (record === null) {
       return (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-gray-500">Comment s'est passée ta séance ?</p>
+          <p className="text-sm text-muted">Comment s'est passée ta séance ?</p>
           <button
             type="button"
             onClick={() => void startEdit()}
-            className="min-h-11 rounded bg-gray-900 px-4 py-3 text-sm font-medium text-white"
+            className="min-h-11 rounded bg-gold px-4 py-3 text-sm font-semibold text-bg"
           >
             Enregistrer la séance
           </button>
@@ -373,69 +373,69 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
     return (
       <div className="flex flex-col gap-3">
         <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-          <dt className="text-gray-400">Statut</dt>
-          <dd className="text-gray-900">{COMPLETION_STATUS_LABELS[record.completion_status]}</dd>
+          <dt className="text-muted">Statut</dt>
+          <dd className="text-ink">{COMPLETION_STATUS_LABELS[record.completion_status]}</dd>
 
-          <dt className="text-gray-400">Activité</dt>
-          <dd className="text-gray-900">{performedLabel ?? SESSION_TYPE_LABELS[record.session_type]}</dd>
+          <dt className="text-muted">Activité</dt>
+          <dd className="text-ink">{performedLabel ?? SESSION_TYPE_LABELS[record.session_type]}</dd>
 
           {record.actual_duration_min !== null && (
             <>
-              <dt className="text-gray-400">Durée</dt>
-              <dd className="text-gray-900">{record.actual_duration_min} min</dd>
+              <dt className="text-muted">Durée</dt>
+              <dd className="text-ink">{record.actual_duration_min} min</dd>
             </>
           )}
 
           {record.rpe !== null && (
             <>
-              <dt className="text-gray-400">RPE</dt>
-              <dd className="text-gray-900">{record.rpe}/10</dd>
+              <dt className="text-muted">RPE</dt>
+              <dd className="text-ink">{record.rpe}/10</dd>
             </>
           )}
 
           {record.post_leg_fatigue !== null && (
             <>
-              <dt className="text-gray-400">Fatigue jambes</dt>
-              <dd className="text-gray-900">{record.post_leg_fatigue}/10</dd>
+              <dt className="text-muted">Fatigue jambes</dt>
+              <dd className="text-ink">{record.post_leg_fatigue}/10</dd>
             </>
           )}
 
           {record.post_grip_fatigue !== null && (
             <>
-              <dt className="text-gray-400">Fatigue grip</dt>
-              <dd className="text-gray-900">{record.post_grip_fatigue}/10</dd>
+              <dt className="text-muted">Fatigue grip</dt>
+              <dd className="text-ink">{record.post_grip_fatigue}/10</dd>
             </>
           )}
 
           {record.session_load !== null && (
             <>
-              <dt className="text-gray-400">Charge</dt>
-              <dd className="text-gray-900">{record.session_load}</dd>
+              <dt className="text-muted">Charge</dt>
+              <dd className="text-ink">{record.session_load}</dd>
             </>
           )}
 
           {record.technical_outcome !== null && (
             <>
-              <dt className="text-gray-400">Tâche technique</dt>
-              <dd className="text-gray-900">{TECHNICAL_OUTCOME_LABELS[record.technical_outcome]}</dd>
+              <dt className="text-muted">Tâche technique</dt>
+              <dd className="text-ink">{TECHNICAL_OUTCOME_LABELS[record.technical_outcome]}</dd>
             </>
           )}
 
           {record.change_reason !== null && (
             <>
-              <dt className="text-gray-400">Motif</dt>
-              <dd className="text-gray-900">{CHANGE_REASON_LABELS[record.change_reason]}</dd>
+              <dt className="text-muted">Motif</dt>
+              <dd className="text-ink">{CHANGE_REASON_LABELS[record.change_reason]}</dd>
             </>
           )}
         </dl>
 
-        {record.change_reason_note && <p className="text-sm text-gray-700">{record.change_reason_note}</p>}
+        {record.change_reason_note && <p className="text-sm text-ink/80">{record.change_reason_note}</p>}
 
         {record.new_pain && (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-            <p className="text-sm font-medium text-gray-900">Tu as indiqué une nouvelle douleur.</p>
-            {record.new_pain_note && <p className="mt-1 text-sm text-gray-700">{record.new_pain_note}</p>}
-            <p className="mt-2 text-xs text-gray-500">
+          <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+            <p className="text-sm font-medium text-ink">Tu as indiqué une nouvelle douleur.</p>
+            {record.new_pain_note && <p className="mt-1 text-sm text-ink/80">{record.new_pain_note}</p>}
+            <p className="mt-2 text-xs text-muted">
               Pense à la mentionner dans ton prochain check-in afin qu'elle fasse partie des informations de readiness.
             </p>
           </div>
@@ -444,7 +444,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
         <button
           type="button"
           onClick={() => void startEdit()}
-          className="min-h-11 self-start rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+          className="min-h-11 self-start rounded border border-white/10 px-4 py-2 text-sm font-medium text-ink/80"
         >
           Modifier
         </button>
@@ -483,12 +483,12 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1 text-sm text-gray-700">
+      <label className="flex flex-col gap-1 text-sm text-ink/80">
         Statut
         <select
           value={form.completion_status}
           onChange={(event) => handleStatusChange(event.target.value as CompletionStatus)}
-          className="rounded border border-gray-300 px-3 py-3 text-base"
+          className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
         >
           {COMPLETION_STATUSES.map((status) => (
             <option key={status} value={status}>
@@ -497,7 +497,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
           ))}
         </select>
         {fieldErrors.completion_status && (
-          <span role="alert" className="text-xs text-red-600">
+          <span role="alert" className="text-xs text-red-400">
             {fieldErrors.completion_status}
           </span>
         )}
@@ -513,15 +513,15 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
        * required — the "regenerated after already riding" case).
        */}
       {decisionResolution === "error" && (
-        <p className="text-xs text-gray-400">Impossible de vérifier les plans du jour — la séance peut toujours être enregistrée sans lien.</p>
+        <p className="text-xs text-muted">Impossible de vérifier les plans du jour — la séance peut toujours être enregistrée sans lien.</p>
       )}
       {showDecisionSelector && (
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <label className="flex flex-col gap-1 text-sm text-ink/80">
           Quel plan as-tu suivi ?
           <select
             value={decisionLinkResolved ? (form.decision_id ?? NONE_DECISION_OPTION) : ""}
             onChange={(event) => handleDecisionChange(event.target.value)}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
+            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
           >
             <option value="" disabled>
               — Choisir —
@@ -537,13 +537,13 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       )}
 
       {isSkipped ? (
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <label className="flex flex-col gap-1 text-sm text-ink/80">
           Type de séance non faite
           <select
             value={form.skipped_session_type}
             onChange={(event) => updateField("skipped_session_type", event.target.value as CompletedSessionFormState["skipped_session_type"])}
             disabled={skippedTypeLocked}
-            className="rounded border border-gray-300 px-3 py-3 text-base disabled:bg-gray-100 disabled:text-gray-500"
+            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink disabled:bg-white/5 disabled:text-muted"
           >
             <option value="" disabled>
               — Choisir —
@@ -555,24 +555,24 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
             ))}
           </select>
           {skippedTypeLocked && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-muted">
               Dérivé du plan lié — choisis « Aucun de ces plans / séance libre » ci-dessus pour modifier.
             </span>
           )}
           {fieldErrors.skipped_session_type && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {fieldErrors.skipped_session_type}
             </span>
           )}
         </label>
       ) : (
         <>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-ink/80">
             Activité réellement effectuée
             <select
               value={form.performed_kind}
               onChange={(event) => handlePerformedKindChange(event.target.value as TrainingInterventionKind | "")}
-              className="rounded border border-gray-300 px-3 py-3 text-base"
+              className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
             >
               <option value="" disabled>
                 — Choisir —
@@ -588,7 +588,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
               ))}
             </select>
             {fieldErrors.performed_kind && (
-              <span role="alert" className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-400">
                 {fieldErrors.performed_kind}
               </span>
             )}
@@ -603,7 +603,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
                   aria-pressed={form.performed_load === load}
                   onClick={() => updateField("performed_load", load)}
                   className={`min-h-11 flex-1 rounded border px-2 py-2 text-xs font-medium ${
-                    form.performed_load === load ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-700"
+                    form.performed_load === load ? "border-gold bg-gold text-bg" : "border-white/10 bg-transparent text-ink/70"
                   }`}
                 >
                   {LOAD_PROFILE_LABELS[load]}
@@ -612,7 +612,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
             </div>
           )}
           {fieldErrors.performed_load && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {fieldErrors.performed_load}
             </span>
           )}
@@ -627,9 +627,9 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
        * `execution_task` field name.
        */}
       {showTechnicalOutcome && (
-        <div className="flex flex-col gap-1 text-sm text-gray-700">
+        <div className="flex flex-col gap-1 text-sm text-ink/80">
           <span>Tâche technique du plan</span>
-          <p className="italic text-gray-600">« {linkedExecutionTask} »</p>
+          <p className="italic text-ink/70">« {linkedExecutionTask} »</p>
           <span>As-tu réussi à exécuter cette tâche ?</span>
           <div role="group" aria-label="As-tu réussi à exécuter cette tâche ?" className="flex gap-2">
             {TECHNICAL_OUTCOMES.map((outcome) => (
@@ -639,7 +639,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
                 aria-pressed={form.technical_outcome === outcome}
                 onClick={() => updateField("technical_outcome", outcome)}
                 className={`min-h-11 flex-1 rounded border px-2 py-2 text-xs font-medium ${
-                  form.technical_outcome === outcome ? "border-gray-900 bg-gray-900 text-white" : "border-gray-300 bg-white text-gray-700"
+                  form.technical_outcome === outcome ? "border-gold bg-gold text-bg" : "border-white/10 bg-transparent text-ink/70"
                 }`}
               >
                 {TECHNICAL_OUTCOME_LABELS[outcome]}
@@ -647,7 +647,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
             ))}
           </div>
           {fieldErrors.technical_outcome && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {fieldErrors.technical_outcome}
             </span>
           )}
@@ -655,10 +655,10 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       )}
 
       {!hideDurationRpe && (
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <label className="flex flex-col gap-1 text-sm text-ink/80">
           Durée (minutes)
           {/* V0.3_007A/§21 — the actual-duration ambiguity fix: for a lift-served DH performed activity (DH_PERFORMANCE/DH_TECHNICAL/DH_LIGHT) this is the TOTAL session window (uplifts/pauses/waiting included), matching the same convention Planning's own prescribed-duration control already uses — never just continuous riding time. Purely a UI clarification: still stored in minutes, no schema change. V0.3_007C UI canary hotfix — PUMPTRACK and RACE_ACTIVITY deliberately use the generic copy: isUpliftServedDhDurationKind is narrower than isDhFamilyKind on purpose (Pumptrack is never lift-served, so claiming uplifts for it is false). */}
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted">
             {isUpliftServedDhDurationKind(form.performed_kind)
               ? "Pour la DH : temps total de la session, remontées, pauses et attente comprises."
               : "Durée réelle de la séance."}
@@ -670,10 +670,10 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
             step={1}
             value={form.actual_duration_min}
             onChange={(event) => updateField("actual_duration_min", event.target.value === "" ? "" : Number(event.target.value))}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
+            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
           />
           {fieldErrors.actual_duration_min && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {fieldErrors.actual_duration_min}
             </span>
           )}
@@ -712,12 +712,12 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
        */}
       {showChangeReason && (
         <>
-          <label className="flex flex-col gap-1 text-sm text-gray-700">
+          <label className="flex flex-col gap-1 text-sm text-ink/80">
             Pourquoi la séance a-t-elle changé ?
             <select
               value={form.change_reason}
               onChange={(event) => handleChangeReasonChange(event.target.value)}
-              className="rounded border border-gray-300 px-3 py-3 text-base"
+              className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
             >
               <option value="" disabled>
                 — Choisir —
@@ -729,13 +729,13 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
               ))}
             </select>
             {fieldErrors.change_reason && (
-              <span role="alert" className="text-xs text-red-600">
+              <span role="alert" className="text-xs text-red-400">
                 {fieldErrors.change_reason}
               </span>
             )}
           </label>
           {form.change_reason !== "" && (
-            <label className="flex flex-col gap-1 text-sm text-gray-700">
+            <label className="flex flex-col gap-1 text-sm text-ink/80">
               {/* Final review, Issue #3 — "other" alone carries almost no usable information, so a short note is required only for that one category. */}
               {form.change_reason === "other" ? "Précision (obligatoire pour « Autre »)" : "Précision (optionnel)"}
               <textarea
@@ -743,10 +743,10 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
                 value={form.change_reason_note}
                 onChange={(event) => updateField("change_reason_note", event.target.value)}
                 rows={2}
-                className="rounded border border-gray-300 px-3 py-3 text-base"
+                className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
               />
               {fieldErrors.change_reason_note && (
-                <span role="alert" className="text-xs text-red-600">
+                <span role="alert" className="text-xs text-red-400">
                   {fieldErrors.change_reason_note}
                 </span>
               )}
@@ -763,17 +763,17 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       />
 
       {form.new_pain === true && (
-        <label className="flex flex-col gap-1 text-sm text-gray-700">
+        <label className="flex flex-col gap-1 text-sm text-ink/80">
           Décris la douleur
           <textarea
             aria-label="Décris la douleur"
             value={form.new_pain_note}
             onChange={(event) => updateField("new_pain_note", event.target.value)}
             rows={2}
-            className="rounded border border-gray-300 px-3 py-3 text-base"
+            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
           />
           {fieldErrors.new_pain_note && (
-            <span role="alert" className="text-xs text-red-600">
+            <span role="alert" className="text-xs text-red-400">
               {fieldErrors.new_pain_note}
             </span>
           )}
@@ -781,7 +781,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       )}
 
       {saveState === "error" && saveError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-400">
           {saveError.message}
         </p>
       )}
@@ -790,7 +790,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
         <button
           type="submit"
           disabled={!canSave}
-          className="min-h-11 flex-1 rounded bg-gray-900 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+          className="min-h-11 flex-1 rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40"
         >
           {saveState === "saving" ? "Enregistrement…" : "Enregistrer"}
         </button>
@@ -798,7 +798,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
           type="button"
           onClick={cancelEdit}
           disabled={saveState === "saving"}
-          className="min-h-11 rounded border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 disabled:opacity-50"
+          className="min-h-11 rounded border border-white/10 px-4 py-3 text-sm font-medium text-ink/80 disabled:opacity-50"
         >
           Annuler
         </button>

@@ -69,16 +69,16 @@ export function TodayPage() {
   }, [canonicalDate]);
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-gray-50">
-      <header className="flex flex-col gap-2 border-b border-gray-200 bg-white px-4 py-3">
+    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-bg">
+      <header className="flex flex-col gap-2 border-b border-white/5 bg-bg px-4 py-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="shrink-0 text-sm font-semibold text-gray-900">Louis Performance System</span>
+          <span className="shrink-0 text-sm font-semibold uppercase tracking-widest text-gold">Nalynt</span>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-xs text-gray-400">{user?.email}</span>
+            <span className="truncate text-xs text-muted">{user?.email}</span>
             <button
               type="button"
               onClick={() => void signOut()}
-              className="shrink-0 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 active:bg-gray-100"
+              className="shrink-0 rounded border border-white/10 px-3 py-1.5 text-xs font-medium text-ink/80 active:bg-white/5"
             >
               Déconnexion
             </button>
@@ -88,19 +88,31 @@ export function TodayPage() {
       </header>
 
       <main className="flex flex-1 flex-col gap-4 px-4 py-6">
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Aujourd'hui</p>
-          <p className="mt-1 text-lg font-semibold capitalize text-gray-900">{friendlyDate}</p>
-          <p className="mt-0.5 font-mono text-xs text-gray-400">{canonicalDate}</p>
+        <section className="rounded-xl border border-white/5 bg-card px-5 py-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Today</p>
+          <p className="mt-2 text-2xl font-bold uppercase tracking-tight text-ink">{friendlyDate}</p>
+          <p className="mt-1 font-mono text-xs text-muted">{canonicalDate}</p>
         </section>
 
         <HealthFlagBanner flags={openHealthFlags} />
 
-        {athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
+        {/*
+         * V0.3 UX PREMIUM REDESIGN — hierarchy: Mission du jour -> Head
+         * Coach Decision -> Readiness -> Session Plan, all rendered inside
+         * DailyPlanPanel/DailyPlanResult/DailyPlanView (missionSlot/
+         * readinessSlot). No redundant section header here — DecisionHero
+         * already carries its own "Head Coach Decision" label; a generic
+         * "Plan du jour" label above it would only compete with it.
+         */}
+        <section className="rounded-xl border border-white/5 bg-card p-4">
+          {athleteId && (
+            <DailyPlanPanel athleteId={athleteId} date={canonicalDate} hasCheckin={hasCheckin} checkinRevision={checkinRevision} />
+          )}
+        </section>
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900">Check-in du jour</h2>
-          <p className="mb-4 mt-1 text-sm text-gray-500">Ton état du jour</p>
+        <section className="rounded-xl border border-white/5 bg-card p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Check-in</h2>
+          <p className="mb-4 mt-1 text-sm text-ink/70">Ton rituel quotidien avant de rouler.</p>
           {athleteId ? (
             <CheckinForm
               athleteId={athleteId}
@@ -109,20 +121,14 @@ export function TodayPage() {
               onSaved={() => setCheckinRevision((revision) => revision + 1)}
             />
           ) : (
-            <p className="text-sm text-red-600">Erreur de configuration : aucun athlète résolu.</p>
+            <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>
           )}
         </section>
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900">Plan du jour</h2>
-          <p className="mb-4 mt-1 text-sm text-gray-500">Généré à partir de ton check-in du jour</p>
-          {athleteId && (
-            <DailyPlanPanel athleteId={athleteId} date={canonicalDate} hasCheckin={hasCheckin} checkinRevision={checkinRevision} />
-          )}
-        </section>
+        {athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
 
-        <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900">Séance du jour</h2>
+        <section className="rounded-xl border border-white/5 bg-card p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Séance du jour</h2>
           {athleteId && <CompletedSessionCard date={canonicalDate} athleteId={athleteId} />}
         </section>
       </main>
