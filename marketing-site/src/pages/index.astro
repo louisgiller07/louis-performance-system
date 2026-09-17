@@ -3,7 +3,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Hero from "../components/Hero.astro";
 import StoryBlock from "../components/StoryBlock.astro";
 import DayWithNalynt from "../components/DayWithNalynt.astro";
-import LoopDiagram from "../components/LoopDiagram.astro";
+import AICoachModel from "../components/AICoachModel.astro";
 import DomainGrid from "../components/DomainGrid.astro";
 import CredibilityBlock from "../components/CredibilityBlock.astro";
 import DisclaimerBanner from "../components/DisclaimerBanner.astro";
@@ -43,10 +43,8 @@ import { domains } from "../content/domains.ts";
 
   <Section divider index={4}>
     <Container>
-      <Badge as="h2">La boucle NALYNT</Badge>
-      <div class="mt-6">
-        <LoopDiagram loop={siteCopy.keyMessages.loop} variant="condensed" />
-      </div>
+      <Badge as="h2" class="mb-10">{siteCopy.aiCoachModel.eyebrow}</Badge>
+      <AICoachModel content={siteCopy.aiCoachModel} />
     </Container>
   </Section>
 
@@ -54,7 +52,7 @@ import { domains } from "../content/domains.ts";
     <Container>
       <Badge as="h2">Domaines de coaching</Badge>
       <div class="mt-6">
-        <DomainGrid domains={domains} variant="preview" />
+        <DomainGrid domains={domains} />
       </div>
     </Container>
   </Section>

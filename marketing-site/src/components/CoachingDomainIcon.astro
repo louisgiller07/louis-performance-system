@@ -1,0 +1,36 @@
+---
+// V2 — Marketing Site Premium Redesign. One minimal single-color line icon
+// per coaching domain (content/domains.ts's `id`) — hand-drawn inline SVG,
+// no icon library dependency, matching the site's flat/matte "engineered
+// document" visual language (no gradients, no multi-color glyphs). Color
+// comes from the parent via `currentColor` (typically `text-accent`).
+interface Props {
+  id: string;
+  class?: string;
+}
+
+const { id, class: className = "h-6 w-6" } = Astro.props;
+
+const paths: Record<string, string> = {
+  technique: "M12 3v3.5M12 17.5V21M3 12h3.5M17.5 12H21M12 8a4 4 0 100 8 4 4 0 000-8z",
+  mental: "M4 12h3.5l1.8-4.5 2.6 9 1.8-4.5H20",
+  physique: "M4 9.5v5M7 7v10M17 7v10M20 9.5v5M7 12h10",
+  sommeil: "M20 14.2A8 8 0 1110.3 4.3 6.4 6.4 0 0020 14.2z",
+  nutrition: "M12 3.5c-3 2-4.2 5-4.2 7.8a4.2 4.2 0 008.4 0c0-2.8-1.2-5.8-4.2-7.8zM12 15.3V21",
+  "charge-pro-vie": "M4 8.5h16V19H4zM9 8.5V6.3A3 3 0 0112 3.3h0a3 3 0 013 3v2.2",
+  "analyse-longitudinale": "M4 19.5h16M7.5 16.5V9M12.5 16.5V5.5M17.5 16.5v-4.2",
+};
+---
+
+<svg
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.5"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  class={className}
+  aria-hidden="true"
+>
+  <path d={paths[id] ?? ""} />
+</svg>

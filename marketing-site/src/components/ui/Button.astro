@@ -1,11 +1,13 @@
 ---
-interface Props {
+import type { HTMLAttributes } from "astro/types";
+
+interface Props extends Omit<HTMLAttributes<"button">, "class"> {
   href?: string;
   variant?: "primary" | "secondary";
   class?: string;
 }
 
-const { href, variant = "primary", class: className = "" } = Astro.props;
+const { href, variant = "primary", class: className = "", type = "button", ...rest } = Astro.props;
 
 const base =
   "inline-flex items-center justify-center px-6 py-3 text-xs font-semibold uppercase tracking-[0.15em] transition-colors";
@@ -17,11 +19,11 @@ const variants = {
 
 {
   href ? (
-    <a href={href} class:list={[base, variants[variant], className]}>
+    <a href={href} class:list={[base, variants[variant], className]} {...rest}>
       <slot />
     </a>
   ) : (
-    <button type="button" class:list={[base, variants[variant], className]}>
+    <button type={type} class:list={[base, variants[variant], className]} {...rest}>
       <slot />
     </button>
   )

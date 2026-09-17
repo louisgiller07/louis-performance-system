@@ -1,0 +1,47 @@
+---
+// V2 — Marketing Site Premium Redesign. Replaces the previous hairline-grid
+// DomainCard usage on /coaching (bg-surface cells touching via gap-px +
+// bg-border, p-6 — read as a spec table). Each card now stands alone
+// (its own border, generous gap between cards), with a gold icon next to
+// the number, more vertical padding, and the "En pratique" block on its own
+// line rather than an inline prefix. `DomainCard.astro`/`DomainGrid.astro`
+// are unchanged and still used as-is for the homepage's compact preview list
+// — a deliberately different, simpler shape for a different context.
+import type { CoachingDomain } from "../content/domains.ts";
+import CoachingDomainIcon from "./CoachingDomainIcon.astro";
+
+interface Props {
+  domain: CoachingDomain;
+  index: number;
+  headingLevel?: "h2" | "h3";
+  /** The 7th domain ("Analyse longitudinale") — icon/number sit beside the text on wide screens instead of stacked above it. */
+  fullWidth?: boolean;
+}
+
+const { domain, index, headingLevel = "h3", fullWidth = false } = Astro.props;
+const Heading = headingLevel;
+const indexLabel = String(index).padStart(2, "0");
+---
+
+<div
+  class:list={[
+    "border border-border bg-surface p-8 sm:p-10",
+    fullWidth && "sm:flex sm:items-start sm:gap-10",
+  ]}
+>
+  <div class:list={["flex items-center gap-4", fullWidth && "sm:w-56 sm:shrink-0"]}>
+    <span class="text-accent">
+      <CoachingDomainIcon id={domain.id} class="h-7 w-7" />
+    </span>
+    <span class="font-mono text-xs tracking-[0.2em] text-accent">{indexLabel}</span>
+  </div>
+
+  <div class:list={[fullWidth && "mt-6 sm:mt-0"]}>
+    <Heading class="text-lg font-semibold tracking-wide text-text">{domain.name}</Heading>
+    <p class="mt-3 text-sm leading-relaxed text-text-muted">{domain.description}</p>
+    <div class="mt-6 border-t border-border pt-6">
+      <span class="mb-2 block font-mono text-xs uppercase tracking-[0.2em] text-accent">En pratique</span>
+      <p class="text-sm leading-relaxed text-text">{domain.example}</p>
+    </div>
+  </div>
+</div>

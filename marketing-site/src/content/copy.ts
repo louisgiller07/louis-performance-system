@@ -197,6 +197,47 @@ export interface DayWithNalyntCopy {
   steps: [DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep];
 }
 
+/**
+ * V1.9 — "Your AI Performance Coach" homepage section (Premium Content
+ * Polish). Replaces the home-page usage of `keyMessages.loop`/LoopDiagram
+ * (condensed variant) as the homepage's "how the coaching works" explainer —
+ * that 4-step Planning/Prescription/Performed/Feedback loop stays exactly as
+ * it was and is still used as-is on /comment-ca-marche (AICoachModel is a
+ * distinct, product-positioning-first framing: Understand → Decide →
+ * Improve, not a session lifecycle diagram).
+ *
+ * `title` and each step's `title`/`quote` are deliberately English — matching
+ * the web app's own "Your AI Performance Coach" tagline (web/src/auth/
+ * LoginPage.tsx) for cross-surface brand consistency — while `points` stay
+ * French like the rest of the site's explanatory copy. This is the one
+ * section on the site that mixes languages, and it's intentional.
+ */
+export interface AICoachModelStep {
+  number: string;
+  title: string;
+  points: string[];
+  quote: string;
+}
+
+export interface AICoachModelCopy {
+  eyebrow: string;
+  title: string;
+  steps: [AICoachModelStep, AICoachModelStep, AICoachModelStep];
+}
+
+/**
+ * V2 — Marketing Site Premium Redesign / functional contact form. Page
+ * intro copy above the real form (src/components/ContactForm.astro,
+ * src/pages/api/contact.ts) — `email` is kept only as a plain-text fallback
+ * line for a visitor whose JS/fetch fails, not a CTA of its own anymore.
+ */
+export interface ContactPageCopy {
+  eyebrow: string;
+  title: string;
+  intro: string;
+  email: string;
+}
+
 export interface SiteCopy {
   hero: HeroCopy;
   betaCta: BetaCtaCopy;
@@ -205,6 +246,8 @@ export interface SiteCopy {
   keyMessages: KeyMessagesCopy;
   storyOrigin: StoryOriginCopy;
   dayWithNalynt: DayWithNalyntCopy;
+  aiCoachModel: AICoachModelCopy;
+  contactPage: ContactPageCopy;
   aboutPage: AboutPageCopy;
   about: AboutCopy;
   limits: ProductLimitsCopy;
@@ -344,6 +387,38 @@ export const siteCopy: SiteCopy = {
         message: "Les événements importants restent visibles pour comprendre les décisions suivantes.",
       },
     ],
+  },
+
+  aiCoachModel: {
+    eyebrow: "Comment fonctionne NALYNT",
+    title: "Your AI Performance Coach",
+    steps: [
+      {
+        number: "01",
+        title: "Understand",
+        points: ["Entraînement", "Récupération", "Sommeil", "Fatigue", "Sensations", "Historique"],
+        quote: "Your performance data becomes a complete athlete profile.",
+      },
+      {
+        number: "02",
+        title: "Decide",
+        points: ["KEEP", "MODIFY", "REPLACE"],
+        quote: "Every day, NALYNT decides what actually matters.",
+      },
+      {
+        number: "03",
+        title: "Improve",
+        points: ["Mémoire longitudinale", "Adaptation progressive", "Compréhension de l'athlète"],
+        quote: "Not just a plan. A coach that evolves with you.",
+      },
+    ],
+  },
+
+  contactPage: {
+    eyebrow: "Une question ?",
+    title: "Contact",
+    intro: "Questions, feedback or interested in joining the beta?",
+    email: "contact@nalynt.ch",
   },
 
   aboutPage: {

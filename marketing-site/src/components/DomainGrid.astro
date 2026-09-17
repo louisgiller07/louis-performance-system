@@ -1,28 +1,19 @@
 ---
+// V2 — since Marketing Site Premium Redesign, the richer "reference grid
+// with examples" shape moved to CoachingDomainCard.astro (used directly by
+// /coaching, which is the only page that ever passed variant="full" here) —
+// this component is now single-purpose: the compact name+description scan
+// list used by the homepage's "Domaines de coaching" preview section.
 import type { CoachingDomain } from "../content/domains.ts";
 import DomainCard from "./DomainCard.astro";
 
 interface Props {
   domains: CoachingDomain[];
-  /** "preview" — single-column scan list, name + description only (home). "full" — denser reference grid with examples (/coaching). */
-  variant?: "preview" | "full";
-  /** Heading level for each domain name — "h3" nested under a page h2 (home), "h2" when it's the page's direct content (/coaching). */
-  headingLevel?: "h2" | "h3";
 }
 
-const { domains, variant = "full", headingLevel = "h3" } = Astro.props;
-const cols = variant === "preview" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+const { domains } = Astro.props;
 ---
 
-<div class:list={["grid gap-px overflow-hidden border border-border bg-border", cols]}>
-  {
-    domains.map((domain, i) => (
-      <DomainCard
-        domain={domain}
-        compact={variant === "preview"}
-        index={i + 1}
-        headingLevel={headingLevel}
-      />
-    ))
-  }
+<div class="grid grid-cols-1 gap-px overflow-hidden border border-border bg-border">
+  {domains.map((domain, i) => <DomainCard domain={domain} index={i + 1} />)}
 </div>

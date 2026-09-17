@@ -1,0 +1,42 @@
+---
+// V1.9 — "Your AI Performance Coach" homepage section (Premium Content
+// Polish). A 3-up feature-card grid (Understand / Decide / Improve) — the
+// same numbered-hairline-grid vocabulary as LoopDiagram's condensed variant,
+// but richer per card (bullet points + a closing pull-quote) and roomier
+// (p-8, mt-auto-pinned quote) for a SaaS-product feel rather than a spec
+// table. `content` must come from content/copy.ts (siteCopy.aiCoachModel) —
+// this component adds no copy of its own.
+import type { AICoachModelCopy } from "../content/copy.ts";
+
+interface Props {
+  content: AICoachModelCopy;
+}
+
+const { content } = Astro.props;
+---
+
+<div>
+  <h3 class="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-text sm:text-4xl">
+    {content.title}
+  </h3>
+
+  <div class="mt-14 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border md:grid-cols-3">
+    {
+      content.steps.map((step) => (
+        <div class="flex flex-col gap-5 bg-surface p-8">
+          <span class="font-mono text-xs tracking-[0.2em] text-accent">{step.number}</span>
+          <h4 class="text-xl font-semibold tracking-wide text-text">{step.title}</h4>
+          <div class="flex flex-col gap-1.5">
+            {step.points.map((point) => (
+              <div class="flex items-baseline gap-3">
+                <span class="h-px w-4 shrink-0 bg-accent" aria-hidden="true" />
+                <span class="text-sm text-text-muted">{point}</span>
+              </div>
+            ))}
+          </div>
+          <p class="mt-auto border-t border-border pt-5 text-base leading-relaxed text-text">{step.quote}</p>
+        </div>
+      ))
+    }
+  </div>
+</div>

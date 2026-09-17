@@ -10,8 +10,12 @@ import { siteCopy } from "../content/copy.ts";
 <BaseLayout title="Contact — NALYNT" description={siteCopy.coreValueProposition}>
   <Section index={1}>
     <Container class="max-w-2xl">
-      <Badge>Contact</Badge>
-      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">Contact</h1>
+      <Badge>{siteCopy.contactPage.eyebrow}</Badge>
+      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">{siteCopy.contactPage.title}</h1>
+      <p class="mt-4 text-base leading-relaxed text-text-muted">{siteCopy.contactPage.intro}</p>
+      <p class="mt-2 text-sm text-text-muted">
+        Tu peux aussi écrire directement à <span class="text-accent">{siteCopy.contactPage.email}</span>.
+      </p>
 
       <div class="mt-12">
         <ContactForm />
