@@ -80,7 +80,7 @@ export const POST: APIRoute = async ({ request }) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "NALYNT Contact <onboarding@resend.dev>",
+        from: "NALYNT Contact <contact@nalynt.ch>",
         to: CONTACT_INBOX,
         reply_to: payload.email,
         subject: `[NALYNT Contact] ${payload.subject}`,
