@@ -89,20 +89,41 @@ export function evaluatePainNonSafety(
   // session was never adapted, while the generic protection message
   // ("Éviter toute charge sollicitant fortement zone non précisée") was
   // still shown next to the full, unmodified prescription — the exact
-  // "aggressive prescription + protect message" contradiction this
-  // milestone fixes. Absence of a known zone can never rule out that
-  // today's session solicits it, so default to a cautious one-notch
-  // downgrade (never REST, never a new safety action — same
-  // intensity-only adaptation as a classified zone) for any session whose
-  // intensity is actually adaptable. A location that IS provided but falls
-  // outside the known categories (see zoneCategory) is unchanged — still
-  // resolves to "not solicited" (explicit product decision left open, not
-  // decided here). See docs/11_DECISION_LOG.md V0.3.013.
+  // "aggressive prescription + protect message" contradiction V0.3.013
+  // fixed for the "never adapted" case. Absence of a known zone can never
+  // rule out that today's session solicits it, so default to a cautious
+  // downgrade (never REST, never a new safety action — same intensity-only
+  // adaptation as a classified zone) for any session whose intensity is
+  // actually adaptable. A location that IS provided but falls outside the
+  // known categories (see zoneCategory) is unchanged — still resolves to
+  // "not solicited" (explicit product decision left open, not decided
+  // here). See docs/11_DECISION_LOG.md V0.3.013.
   const unspecifiedLocationAdaptable = location === undefined && !isFixedLoadKind(effectiveSession.kind);
   const solicited = sessionSollicitsZone(effectiveSession.kind, location) || unspecifiedLocationAdaptable;
 
   if (solicited && !isFixedLoadKind(effectiveSession.kind)) {
-    adapted_session = withDowngradedLoad(effectiveSession);
+    // V0.3.014 (SAFETY-013-001) — a SINGLE downgrade notch (e.g.
+    // DH_PERFORMANCE HEAVY -> MODERATE) was proven still incoherent with
+    // the protection message for a genuinely solicited zone: the session
+    // stays the same DH kind, and dhPrescription.ts's own duration table
+    // often leaves duration_min completely unchanged when the planned
+    // duration is already below the new load_profile's provisional cap
+    // (e.g. planned 240min < DH_PERFORMANCE/MODERATE's 270min provisional
+    // -> duration stays 240min). Applying withDowngradedLoad TWICE (same
+    // existing helper, no new mechanism) always lands on LIGHT regardless
+    // of the starting profile — downgradeLoadProfile is already idempotent
+    // at LIGHT, so this is a pure strengthening of the existing mechanism,
+    // never an over-reduction for an already-LIGHT session. This reuses
+    // the SAME already-tested downstream pipeline (dhPrescription.ts's
+    // duration table + DH_LOAD_GUIDANCE text) to get both a visibly
+    // shorter DH session AND materially different (non-performance-
+    // oriented) guidance text, entirely from data that already existed —
+    // no new field, no new rule_id, no change to safety.ts/C3.x/
+    // reasoningBuilder.ts. This block only ever runs when `solicited` is
+    // true (a zone NOT concerned by today's session, e.g. a specified but
+    // unclassified location, never enters this branch at all — no
+    // over-reduction risk there).
+    adapted_session = withDowngradedLoad(withDowngradedLoad(effectiveSession));
     protection.push(`Réduire l'intensité de la séance pour protéger ${zoneLabel}`);
   }
 

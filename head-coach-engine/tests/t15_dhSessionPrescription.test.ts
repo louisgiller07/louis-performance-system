@@ -415,7 +415,12 @@ describe("T15 — Acceptance P3: mental RED, physically fresh, planned DH_PERFOR
 });
 
 describe("T15 — Acceptance P4: non-Safety wrist pain, planned DH_PERFORMANCE/HEAVY", () => {
-  it("existing MODERATE downgrade unchanged, duration coherent (270), protection/monitoring preserved, no medical-safety claim", () => {
+  // V0.3.014 (SAFETY-013-001) — pain-solicited downgrade strengthened from
+  // one notch to two (see painNonSafety.ts, t22_painPrescriptionCoherence.test.ts):
+  // MODERATE/270 was proven incoherent with the "avoid strong solicitation"
+  // protection message (same DH kind, duration often unchanged by the
+  // MODERATE cap). Now always lands on LIGHT/180 for a solicited zone.
+  it("solicited zone downgrades two notches to LIGHT, duration coherent (180), protection/monitoring preserved, no medical-safety claim", () => {
     const ctx = baseRawContext({
       today: "2026-01-01",
       upcoming_races: [],
@@ -424,7 +429,7 @@ describe("T15 — Acceptance P4: non-Safety wrist pain, planned DH_PERFORMANCE/H
     });
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "MODERATE", duration_min: 270 });
+    expect(plan.final_session).toEqual({ kind: "DH_PERFORMANCE", load_profile: "LIGHT", duration_min: 180 });
     expect(plan.protection.do_not_do.some((p) => p.includes("wrist_R"))).toBe(true);
     expect(plan.monitoring.observe.some((m) => m.includes("wrist_R"))).toBe(true);
     expect(plan.reasoning).not.toMatch(/sans danger|sûr médicalement|medically safe/i);

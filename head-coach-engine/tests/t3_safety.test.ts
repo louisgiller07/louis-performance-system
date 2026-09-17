@@ -27,7 +27,9 @@ describe("T3 — SAFETY strictement limitée", () => {
     expect(plan.final_session.kind).not.toBe("REST");
     expect(plan.monitoring.observe.some((o) => o.includes("wrist_R"))).toBe(true);
     expect(plan.protection.do_not_do.some((p) => p.includes("wrist_R"))).toBe(true);
-    expect(plan.final_session).toEqual({ kind: "STRENGTH_UPPER", load_profile: "MODERATE" });
+    // V0.3.014 (SAFETY-013-001) — solicited-zone downgrade strengthened to
+    // two notches (see painNonSafety.ts) — always lands on LIGHT.
+    expect(plan.final_session).toEqual({ kind: "STRENGTH_UPPER", load_profile: "LIGHT" });
   });
 
   it("T3.3 — Douleur avec critère traumatique déclenche SAFETY A4", () => {

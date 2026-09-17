@@ -42,10 +42,12 @@ describe("T20 — PILOT-BLOCK-001 pain safety-blocker (V0.3.013)", () => {
     // The bug: the session stayed HEAVY (unmodified, "aggressive") while a
     // protection message told the athlete to protect the zone. Fixed
     // behavior: the load is actually downgraded — prescription and
-    // restriction are now compatible. (duration_min is separately
-    // recomputed by dhPrescription.ts's own policy — not asserted here.)
+    // restriction are now compatible. (V0.3.014 strengthened the exact
+    // magnitude to LIGHT — see t22_painPrescriptionCoherence.test.ts for
+    // the dedicated SAFETY-013-001 coverage; only asserting "adapted, not
+    // HEAVY" here to keep this file's own scope to the V0.3.013 bug.)
     expect(plan.final_session.kind).toBe("DH_PERFORMANCE");
-    expect(plan.final_session.load_profile).toBe("MODERATE");
+    expect(plan.final_session.load_profile).not.toBe("HEAVY");
 
     // Protection message present (still shown — the restriction itself is real).
     expect(plan.protection.do_not_do.some((p) => p.includes("zone non précisée"))).toBe(true);
@@ -87,7 +89,8 @@ describe("T20 — PILOT-BLOCK-001 pain safety-blocker (V0.3.013)", () => {
 
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "STRENGTH_UPPER", load_profile: "MODERATE" });
+    expect(plan.final_session.kind).toBe("STRENGTH_UPPER");
+    expect(plan.final_session.load_profile).not.toBe("HEAVY");
     expect(plan.protection.do_not_do.some((p) => p.includes("shoulder_L"))).toBe(true);
   });
 

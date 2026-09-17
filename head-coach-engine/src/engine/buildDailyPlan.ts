@@ -33,7 +33,7 @@ import {
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 import { selectDecisionReasoningRules, joinDecisionReasoning } from "./reasoningBuilder.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3.013";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3.014";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
