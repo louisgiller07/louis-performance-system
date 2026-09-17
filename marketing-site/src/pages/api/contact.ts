@@ -41,6 +41,88 @@ function parsePayload(body: unknown): ContactPayload | null {
   return { name, email, subject, message };
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+const EMAIL_FONT_STACK =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+function emailField(label: string, value: string): string {
+  const safeValue = escapeHtml(value).replace(/\n/g, "<br>");
+  return `
+    <tr>
+      <td style="padding:18px 0;border-top:1px solid #24262a;">
+        <div style="font-family:${EMAIL_FONT_STACK};font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#D4AF37;">
+          ${escapeHtml(label)}
+        </div>
+        <div style="margin-top:6px;font-family:${EMAIL_FONT_STACK};font-size:14px;line-height:1.6;color:#F5F5F0;white-space:pre-wrap;">
+          ${safeValue}
+        </div>
+      </td>
+    </tr>`;
+}
+
+/**
+ * Table-based layout + inline CSS only — no external stylesheet, no webfont,
+ * no background image, no flex/grid — for compatibility across mail clients
+ * (Gmail, Apple Mail, Outlook). This is an internal notification email (one
+ * recipient, contact@nalynt.ch), not a broadcast campaign, so it's built for
+ * solid rendering in modern clients rather than pixel-perfect legacy-Outlook
+ * bulletproofing.
+ */
+function buildContactEmailHtml(payload: ContactPayload): string {
+  return `<!doctype html>
+<html lang="fr">
+  <body style="margin:0;padding:0;background-color:#08090B;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#08090B;">
+      <tr>
+        <td align="center" style="padding:40px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#12151A;border-radius:6px;">
+            <tr>
+              <td style="padding:36px 32px 4px 32px;text-align:center;">
+                <span style="font-family:${EMAIL_FONT_STACK};font-size:13px;font-weight:700;letter-spacing:5px;text-transform:uppercase;color:#D4AF37;">
+                  NALYNT
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 32px 28px 32px;text-align:center;">
+                <span style="font-family:${EMAIL_FONT_STACK};font-size:20px;font-weight:600;color:#F5F5F0;">
+                  Nouvelle demande de contact
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 32px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  ${emailField("Nom", payload.name)}
+                  ${emailField("Email", payload.email)}
+                  ${emailField("Sujet", payload.subject)}
+                  ${emailField("Message", payload.message)}
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 32px 32px;text-align:center;border-top:1px solid #24262a;">
+                <span style="font-family:${EMAIL_FONT_STACK};font-size:11px;color:#8b9098;">
+                  Envoyé depuis le formulaire de contact — nalynt.ch
+                </span>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 export const POST: APIRoute = async ({ request }) => {
   let rawBody: unknown;
   try {
@@ -85,6 +167,7 @@ export const POST: APIRoute = async ({ request }) => {
         reply_to: payload.email,
         subject: `[NALYNT Contact] ${payload.subject}`,
         text: `From: ${payload.name} <${payload.email}>\n\n${payload.message}`,
+        html: buildContactEmailHtml(payload),
       }),
     });
   } catch (networkError) {
