@@ -2830,3 +2830,32 @@ Phase actuelle inchangée : **SERIOUS DOGFOOD — LONGITUDINAL COACHING LOOP** (
 **Impact** : aucun — cette ADR ne touche ni code, ni migration, ni moteur. Elle cadre la prochaine décision : une future ADR "Personalization Layer Contract" devra préciser quelles données athlète sont consommées, quels paramètres peuvent être modifiés, comment tester l'impact des personnalisations, et comment garder les décisions auditables.
 
 **Statut** : Proposed — décision de direction actée, implémentation non commencée, en attente de la décision de contrat séparée avant tout code.
+
+---
+
+## 2026-09-18 — ADR V0.3_010 : Personalization Layer Contract
+
+**Contexte** : suite à V0.3_009 (Athlete Context Consumption Strategy), NALYNT dispose de données athlète (`athletes`, `athlete_onboarding_profiles`, `athlete_coaching_profiles`, `weekly_availability`, `race_calendar`, données longitudinales) et d'un resolver `getAthleteCoachingContext()` (V0.3_008C) qui les rend disponibles sans qu'aucune ne soit consommée. Le moteur garde son flux inchangé (`RawContext` → `buildDailyPlan()` → domaines → `decisions`), frozen. V0.3_009 a acté la direction (une Personalization Layer séparée) sans en définir le contrat — c'est l'objet de cette ADR.
+
+**Objectif** : définir précisément ce qui est autorisé pour la personnalisation, avant toute implémentation. Le but n'est pas de créer un second moteur/une IA de décision — c'est de transformer le contexte athlète en paramètres de coaching explicites, consommables tels quels par le système de décision existant.
+
+**Contraintes strictes (non négociables)** : coaching déterministe, décisions explicables, architecture safety-first, aucune règle cachée, aucune personnalisation magique, aucun hack spécifique à un domaine. Explicitement rejeté par cette ADR : remplacer le moteur de coaching, un LLM décidant directement des prescriptions, une personnalisation par machine learning, toute modification des contrats M1 frozen.
+
+**Limites de personnalisation, par source de données** :
+- **Discipline** (Downhill, Enduro, ...) — Influence possible : catégories de recommandation, emphase technique. Interdit : tout changement automatique non sécurisé (ex. présumer qu'une discipline justifie un niveau de risque différent sans validation SAFETY). Test : à état du jour identique, deux disciplines ne doivent jamais changer une décision SAFETY — seulement le contenu explicatif/l'emphase.
+- **Niveau de compétition** (beginner → world cup) — Influence possible : complexité de la tâche technique proposée, attentes de progression. Interdit : présumer qu'un niveau plus élevé implique automatiquement une charge plus élevée — la charge reste gouvernée par l'état du jour, jamais par le niveau déclaré. Test : à état du jour identique, le niveau ne doit jamais modifier `session_load`/l'intensité, seulement le cadrage de la tâche.
+- **Objectif principal** (race performance, consistency, technical skills, fitness, injury prevention) — Influence possible : priorités de coaching (quel domaine est mis en avant dans l'explication). Interdit : outrepasser la logique fatigue/récupération existante. Test : un objectif "race performance" ne doit jamais faire remonter une intensité qu'une dimension RED aurait fait baisser.
+- **Disponibilité hebdomadaire** — Influence possible : contraintes de planning, timing des recommandations. Interdit : forcer une séance quand les signaux de récupération sont contraires. Test : un créneau disponible déclaré ne doit jamais surclasser une décision REST/RECOVERY_ACTIVE issue de SAFETY ou d'un signal RED.
+- **Calendrier de courses** (déjà partiellement consommé aujourd'hui via `race_calendar`/`RawContext.upcoming_races` — table indépendante de l'onboarding, non concernée par cette ADR pour sa partie déjà active) — Influence possible : périodisation, préparation de course. Interdit : ignorer l'état réel de l'athlète au profit du seul calendrier. Test : toute extension devra prouver qu'un état RED prime toujours sur la proximité d'une course (même principe que `raceProtocol`/`eventContext` existants).
+- **Données longitudinales** — Influence possible : détection de tendance, progression dans le temps. Interdit : toute conclusion boîte-noire — une tendance ne peut jamais justifier une décision sans règle explicite et traçable, même discipline que M5 (`pattern_evidence`). Test : toute tendance utilisée doit être traçable à un fait vérifiable (comme `recent_technical_context`), jamais un score agrégé opaque.
+
+**Contrat d'architecture** :
+- **Entrée** : `AthleteCoachingContext`, tel que produit par `getAthleteCoachingContext()` (V0.3_008C) — lecture seule, champs optionnels, aucune transformation de vocabulaire.
+- **Traitement (Personalization Layer)** — Autorisé : transformer le contexte en paramètres explicites, exposer des priorités. Interdit : créer une prescription directement, contourner SAFETY, remplacer une décision du moteur. La couche ne décide jamais — elle traduit un contexte déclaré en paramètres que le moteur existant peut recevoir sans que ses contrats changent de nature.
+- **Sortie** : `PersonalizationContext { priorities: string[]; constraints: string[]; preferences: string[]; rationale: string[] }`. Chaque élément de `priorities`/`constraints`/`preferences` doit être traçable à un champ précis d'`AthleteCoachingContext` via `rationale` — jamais une valeur fabriquée sans source identifiable.
+
+**Hors scope de cette ADR** : implémentation du code, définition exacte des types TypeScript de production, connexion réelle dans `RawContext`/`buildDailyPlan.ts` (reste une décision séparée, `src/{types,engine,rules,domains,mapping}` restent frozen tant qu'elle n'est pas prise), choix du premier cas d'usage concret à câbler.
+
+**Impact** : aucun — décision de direction et de contrat uniquement, aucun code/migration/moteur modifié par cette ADR.
+
+**Statut** : Proposed — contrat défini, implémentation non commencée.
