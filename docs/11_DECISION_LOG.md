@@ -2773,3 +2773,32 @@ Phase actuelle inchangée : **SERIOUS DOGFOOD — LONGITUDINAL COACHING LOOP** (
 **Impact** : nouvelle migration `supabase/migrations/20260917090000_v0_3_008a_athlete_onboarding_profiles.sql` ; `web/src/auth/{AuthContext,RequireAuth}.tsx` étendus (nouveau champ `onboardingCompleted` sur `AthleteResolution.resolved`, nouvelle branche de rendu) ; nouveau module `web/src/features/athleteOnboarding/`. `head-coach-engine/`, `supabase/functions/`, `longitudinal-engine/` non touchés — collecte de données uniquement, aucune règle de coaching/prescription/safety modifiée.
 
 **Statut** : active
+
+---
+
+## 2026-09-18 — V0.3_008C : resolver `getAthleteCoachingContext` — pont onboarding → coaching, sans brancher le moteur
+
+**Contexte** : l'onboarding (V0.3_008A) collecte discipline/niveau/objectif/disponibilité mais ces données ne sont consommées par aucune règle de coaching — écart produit identifié en revue. Objectif du ticket : rendre ce contexte disponible à la couche coaching de façon propre et versionnée, sans réécrire les moteurs.
+
+**Audit préalable (voir aussi rapport Phase 0 fourni à Louis avant implémentation)** :
+- Flux réel : `athletes`/`athlete_onboarding_profiles` → **rien** aujourd'hui → `RawContext` (`head-coach-engine/src/supabase/buildRawContext.ts`, M2) → `buildDailyPlan.ts` (`src/engine/`, **frozen M1 depuis 2026-08-13**) → domaines (frozen) → `DailyPlan`.
+- Seul précédent de contenu athlète personnalisé consommé par le moteur : `athlete_coaching_profiles` (`technique_primary_focus`, `mental_pre_race_cue`), lu dans `RawContext.coaching_profile` et passé en paramètre explicite aux domaines Technique/Mental par `buildDailyPlan.ts`.
+- `athletes.discipline` et `weekly_availability` : confirmés **non consommés** par le moteur (grep + commentaire propre de `buildRawContext.ts`). `race_calendar` : consommé mais sans lien avec l'onboarding (table indépendante).
+- **Écart doc/code découvert, signalé sans le corriger (hors scope)** : `docs/06_ARCHITECTURE.md:193` liste `weekly_availability → availability` dans le schéma de traduction Supabase → RawContext, alors que le code (`buildRawContext.ts`) ne peuple jamais ce champ, explicitement par choix ("data M1 never consumes"). À corriger dans une passe documentaire dédiée.
+
+**Décision** : implémenter uniquement la couche resolver — `getAthleteCoachingContext(client, athleteId)` dans `head-coach-engine/src/supabase/repositories/athleteCoachingContextRepo.ts` (M2, non-frozen). Elle lit `athletes.discipline` + `athlete_onboarding_profiles` et retourne un objet normalisé à champs optionnels (`athlete_id` seul est garanti). **Aucun branchement dans `RawContext`/`buildDailyPlan.ts`/les domaines** — ce serait une modification de contrat moteur M1 frozen, qui exige sa propre décision architecte séparée (non prise ici). Aucun champ n'est présenté comme consommé par une décision de coaching aujourd'hui.
+
+**Pourquoi une couche mapper (option C) plutôt que A/B** :
+- **A — étendre `athlete_coaching_profiles`** rejetée : contredirait son principe déjà documenté (V0.3_004A) "aucun champ sans consommateur runtime actuel".
+- **B — nouvelle table `coaching_context`** rejetée : dupliquerait des données déjà présentes dans `athletes`/`athlete_onboarding_profiles` sans raison ; aucune migration nécessaire pour cette passe.
+- **C (retenue)** : resolver pur, lecture seule, dans `src/supabase/repositories/` — même emplacement et même discipline que les repositories existants (`athleteCoachingProfileRepo.ts` notamment). Les grants `service_role` sur `athlete_onboarding_profiles` existaient déjà (migration V0.3_008A) — aucun changement DB.
+
+**Vocabulaire des valeurs** : les champs `discipline`/`competition_level`/`primary_goal`/`weekly_training_hours` restent des chaînes brutes, transmises telles que déclarées par l'athlète (ex. `"Downhill"`, `"World Cup"`) — aucune transformation de casse/vocabulaire inventée ici. Seul le futur branchement moteur (décision séparée) pourra définir le vocabulaire réellement nécessaire ; en inventer un maintenant, sans consommateur pour le valider, serait une forme de fausse personnalisation.
+
+**Pourquoi le branchement moteur est une décision séparée** : `src/{types,engine,rules,domains,mapping}` sont frozen (verdict M1 APPROVED 2026-08-13, `docs/06_ARCHITECTURE.md`). Ajouter un champ à `RawContext` et le lire dans `buildDailyPlan.ts` est exactement le type de changement que cette règle de gouvernance protège — décision à prendre séparément, avec un consommateur réel identifié (quelle règle, quel domaine, quel comportement précis), pas en même temps que la construction du pont de données.
+
+**Impact** : nouveau fichier `head-coach-engine/src/supabase/repositories/athleteCoachingContextRepo.ts`. Tests unitaires (`tests/supabase/athleteCoachingContextRepo.test.ts`) et d'intégration opt-in (`tests/supabase/athleteCoachingContextRepo.integration.test.ts`, isolation inter-athlète). Deux nouveaux helpers de fixture dans `tests/supabase/testDb.ts` (`insertOnboardingProfile`, `setAthleteDiscipline`). **Zéro changement** dans `src/types/`, `src/engine/`, `src/rules/`, `src/domains/`, `src/mapping/`, `supabase/functions/`, `longitudinal-engine/`.
+
+**Ce qui reste à faire (hors scope, décision future)** : le branchement réel dans `RawContext`/`buildDailyPlan.ts` pour qu'une décision de coaching consomme effectivement discipline/niveau/objectif/disponibilité.
+
+**Statut** : active

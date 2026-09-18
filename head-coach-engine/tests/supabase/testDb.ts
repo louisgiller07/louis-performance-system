@@ -308,6 +308,33 @@ export async function insertCoachingProfile(
   if (error) throw new Error(`insertCoachingProfile failed: ${error.message}`);
 }
 
+/** V0.3_008C — upserts the athlete's onboarding-profile row (`athlete_id` is the table's own PK, so this is always exactly 0 or 1 row). */
+export async function insertOnboardingProfile(
+  client: SupabaseClient,
+  athleteId: string,
+  fields: {
+    competition_level?: string | null;
+    primary_goal?: string | null;
+    weekly_training_hours?: string | null;
+    preferred_riding_days?: string[];
+  }
+): Promise<void> {
+  const { error } = await client.from("athlete_onboarding_profiles").upsert({
+    athlete_id: athleteId,
+    competition_level: fields.competition_level ?? null,
+    primary_goal: fields.primary_goal ?? null,
+    weekly_training_hours: fields.weekly_training_hours ?? null,
+    preferred_riding_days: fields.preferred_riding_days ?? [],
+  });
+  if (error) throw new Error(`insertOnboardingProfile failed: ${error.message}`);
+}
+
+/** V0.3_008C — `createTestAthlete` never sets `discipline` (DB default applies); this is the only way this suite's fixtures give an athlete a real onboarding-declared discipline. */
+export async function setAthleteDiscipline(client: SupabaseClient, athleteId: string, discipline: string): Promise<void> {
+  const { error } = await client.from("athletes").update({ discipline }).eq("id", athleteId);
+  if (error) throw new Error(`setAthleteDiscipline failed: ${error.message}`);
+}
+
 export async function insertRace(
   client: SupabaseClient,
   athleteId: string,
