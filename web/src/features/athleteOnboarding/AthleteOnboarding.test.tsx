@@ -101,6 +101,33 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
   });
 
+  it("selecting a day updates local state (toggle on) and deselecting removes it (toggle off)", async () => {
+    loadOnboardingAnswers.mockResolvedValue({
+      discipline: "Downhill",
+      competitionLevel: "Amateur racer",
+      primaryGoal: "Fitness",
+      weeklyTrainingHours: "5-10h",
+      preferredRidingDays: [],
+    });
+    const user = userEvent.setup();
+    render(<AthleteOnboarding />);
+    await screen.findByText("When do you usually ride?");
+
+    await user.click(screen.getByText("Monday"));
+    await user.click(screen.getByText("Wednesday"));
+    // Toggle Monday back off — proves the local state update is a real
+    // add/remove toggle, not a one-way accumulate.
+    await user.click(screen.getByText("Monday"));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() =>
+      expect(completeOnboarding).toHaveBeenCalledWith(
+        "athlete-1",
+        expect.objectContaining({ preferredRidingDays: ["Wednesday"] })
+      )
+    );
+  });
+
   it("the final step requires at least one riding day, then completes onboarding and shows the ready screen", async () => {
     loadOnboardingAnswers.mockResolvedValue({
       discipline: "Downhill",
@@ -119,8 +146,40 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     await user.click(screen.getByText("Sunday"));
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => expect(completeOnboarding).toHaveBeenCalledWith("athlete-1", ["Saturday", "Sunday"]));
+    await waitFor(() =>
+      expect(completeOnboarding).toHaveBeenCalledWith("athlete-1", {
+        competitionLevel: "Amateur racer",
+        primaryGoal: "Fitness",
+        weeklyTrainingHours: "5-10h",
+        preferredRidingDays: ["Saturday", "Sunday"],
+      })
+    );
     expect(await screen.findByText("Your athlete profile is ready.")).toBeInTheDocument();
+  });
+
+  it("the final write re-sends all four answers together, not just riding days — self-sufficient even if an earlier per-step save never landed", async () => {
+    loadOnboardingAnswers.mockResolvedValue({
+      discipline: "Enduro",
+      competitionLevel: "World Cup",
+      primaryGoal: "Race performance",
+      weeklyTrainingHours: "15h+",
+      preferredRidingDays: [],
+    });
+    const user = userEvent.setup();
+    render(<AthleteOnboarding />);
+
+    await screen.findByText("When do you usually ride?");
+    await user.click(screen.getByText("Monday"));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() =>
+      expect(completeOnboarding).toHaveBeenCalledWith("athlete-1", {
+        competitionLevel: "World Cup",
+        primaryGoal: "Race performance",
+        weeklyTrainingHours: "15h+",
+        preferredRidingDays: ["Monday"],
+      })
+    );
   });
 
   it("clicking Enter NALYNT on the ready screen calls refreshAthlete", async () => {

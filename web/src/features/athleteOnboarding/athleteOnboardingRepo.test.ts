@@ -154,15 +154,23 @@ describe("athleteOnboardingRepo — save functions", () => {
     expect(upsert).toHaveBeenCalledWith({ athlete_id: "athlete-1", weekly_training_hours: "10-15h" }, { onConflict: "athlete_id" });
   });
 
-  it("completeOnboarding upserts riding days and sets onboarding_completed_at", async () => {
+  it("completeOnboarding re-sends all four Niveau 1 answers together, not just riding days", async () => {
     const upsert = vi.fn().mockResolvedValue({ error: null });
     mockedFrom.mockReturnValue({ upsert });
 
-    await completeOnboarding("athlete-1", ["Monday", "Saturday"]);
+    await completeOnboarding("athlete-1", {
+      competitionLevel: "World Cup",
+      primaryGoal: "Consistency",
+      weeklyTrainingHours: "10-15h",
+      preferredRidingDays: ["Monday", "Saturday"],
+    });
 
     expect(upsert).toHaveBeenCalledTimes(1);
     const [payload] = upsert.mock.calls[0] as [Record<string, unknown>, unknown];
     expect(payload.athlete_id).toBe("athlete-1");
+    expect(payload.competition_level).toBe("World Cup");
+    expect(payload.primary_goal).toBe("Consistency");
+    expect(payload.weekly_training_hours).toBe("10-15h");
     expect(payload.preferred_riding_days).toEqual(["Monday", "Saturday"]);
     expect(typeof payload.onboarding_completed_at).toBe("string");
   });
@@ -171,6 +179,13 @@ describe("athleteOnboardingRepo — save functions", () => {
     const upsert = vi.fn().mockResolvedValue({ error: { code: "23514", message: "check constraint violated" } });
     mockedFrom.mockReturnValue({ upsert });
 
-    await expect(completeOnboarding("athlete-1", ["Monday"])).rejects.toThrow(AthleteOnboardingError);
+    await expect(
+      completeOnboarding("athlete-1", {
+        competitionLevel: "World Cup",
+        primaryGoal: "Consistency",
+        weeklyTrainingHours: "10-15h",
+        preferredRidingDays: ["Monday"],
+      })
+    ).rejects.toThrow(AthleteOnboardingError);
   });
 });

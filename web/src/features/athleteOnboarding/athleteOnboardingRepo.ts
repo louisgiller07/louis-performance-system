@@ -120,16 +120,32 @@ export async function saveWeeklyTrainingHours(athleteId: string, weeklyTrainingH
   await upsertOnboardingProfile(athleteId, { weekly_training_hours: weeklyTrainingHours });
 }
 
+export interface CompletionAnswers {
+  competitionLevel: CompetitionLevel;
+  primaryGoal: PrimaryGoal;
+  weeklyTrainingHours: WeeklyTrainingHours;
+  preferredRidingDays: RidingDay[];
+}
+
 /**
- * The final step: persists the riding-days multi-select and marks Niveau 1
- * complete in the same write. The DB's own CHECK constraint
- * (athlete_onboarding_profiles_completed_requires_answers) refuses this if
- * any earlier field was never actually saved — defense-in-depth against a
- * client bug, not something this function needs to re-check itself.
+ * The final step. Re-sends all four Niveau 1 answers together, not just
+ * `preferred_riding_days` — the DB's CHECK constraint
+ * (athlete_onboarding_profiles_completed_requires_answers) requires all four
+ * to be non-null/non-empty in the SAME row state that sets
+ * `onboarding_completed_at`, and silently rejects the write (23514) if any
+ * one of them is missing. Steps 2-4's own per-step upserts normally already
+ * persisted competition_level/primary_goal/weekly_training_hours by the time
+ * this runs, but re-sending them here makes the completion write
+ * self-sufficient rather than depending on that having actually landed —
+ * this is the fix for the reported bug where riding days/completion never
+ * persisted (a silent check-constraint rejection, not a client-state bug).
  */
-export async function completeOnboarding(athleteId: string, preferredRidingDays: RidingDay[]): Promise<void> {
+export async function completeOnboarding(athleteId: string, answers: CompletionAnswers): Promise<void> {
   await upsertOnboardingProfile(athleteId, {
-    preferred_riding_days: preferredRidingDays,
+    competition_level: answers.competitionLevel,
+    primary_goal: answers.primaryGoal,
+    weekly_training_hours: answers.weeklyTrainingHours,
+    preferred_riding_days: answers.preferredRidingDays,
     onboarding_completed_at: new Date().toISOString(),
   });
 }

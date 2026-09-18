@@ -140,8 +140,13 @@ export function AthleteOnboarding() {
         await savePrimaryGoal(athleteId, primaryGoal);
       } else if (step === 4 && weeklyTrainingHours) {
         await saveWeeklyTrainingHours(athleteId, weeklyTrainingHours);
-      } else if (step === 5 && ridingDays.length > 0) {
-        await completeOnboarding(athleteId, ridingDays);
+      } else if (step === 5 && ridingDays.length > 0 && competitionLevel && primaryGoal && weeklyTrainingHours) {
+        await completeOnboarding(athleteId, {
+          competitionLevel,
+          primaryGoal,
+          weeklyTrainingHours,
+          preferredRidingDays: ridingDays,
+        });
         setDone(true);
         setSaving(false);
         return;
@@ -186,7 +191,7 @@ export function AthleteOnboarding() {
     (step === 2 && !!competitionLevel) ||
     (step === 3 && !!primaryGoal) ||
     (step === 4 && !!weeklyTrainingHours) ||
-    (step === 5 && ridingDays.length > 0);
+    (step === 5 && ridingDays.length > 0 && !!competitionLevel && !!primaryGoal && !!weeklyTrainingHours);
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-bg px-4 py-8">
