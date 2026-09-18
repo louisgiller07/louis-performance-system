@@ -2859,3 +2859,37 @@ Phase actuelle inchangée : **SERIOUS DOGFOOD — LONGITUDINAL COACHING LOOP** (
 **Impact** : aucun — décision de direction et de contrat uniquement, aucun code/migration/moteur modifié par cette ADR.
 
 **Statut** : Proposed — contrat défini, implémentation non commencée.
+
+---
+
+## 2026-09-18 — ADR V0.3_011 : First Personalization Consumer (proposition)
+
+**Contexte** : V0.3_009 (direction) et V0.3_010 (contrat) ont acté qu'une Personalization Layer séparée traduira `AthleteCoachingContext` en `PersonalizationContext` explicite, sans jamais toucher SAFETY/charge/intensité. Il reste à choisir le premier cas d'usage concret à câbler — celui qui valide le contrat en conditions réelles avant d'en ouvrir d'autres.
+
+**Objectif** : proposer un premier consommateur unique, mesurable, à risque minimal, strictement additif — jamais une décision existante modifiée. Cette entrée est une **proposition**, pas encore une implémentation.
+
+**Proposition** : `primary_goal` (objectif principal déclaré à l'onboarding) → une phrase d'explication fixe et déterministe, ajoutée à `DailyPlan.reasoning` (champ texte libre déjà existant, produit par `reasoningBuilder.ts` — `dailyPlan.ts:136`). Aucune autre donnée (discipline, niveau, disponibilité, calendrier, longitudinal) n'est câblée dans cette première passe.
+
+**Pourquoi ce choix précis** :
+- Purement additif au texte d'explication — ne modifie jamais `session_load`, `active_mode`, le `kind`/`load_profile` de la séance, ni aucune décision SAFETY. Le contenu prescrit reste identique avec ou sans objectif déclaré.
+- Mapping fermé et statique (5 valeurs de `primary_goal` → 5 phrases fixes, écrites une fois, jamais dérivées/inférées) — aucune génération, aucune IA, aucun calcul : une simple table de correspondance visible et testable.
+- Absence de valeur reste silencieuse (pas de phrase générique fabriquée) — même discipline que `technique_primary_focus`/`mental_pre_race_cue`.
+- Réutilise un point d'attache déjà existant (`reasoning: string`) plutôt que d'inventer un nouveau champ `DailyPlan` — surface touchée minimale.
+
+**Rejeté pour cette première passe** :
+- **Discipline** — l'engine est aujourd'hui DH-only ; personnaliser sur Enduro/Freeride simulerait un support qui n'existe pas (fausse personnalisation, explicitement interdite par V0.3_010).
+- **Niveau de compétition** — trop proche du risque déjà identifié "niveau élevé = charge plus élevée" (interdit par V0.3_010) et du mécanisme `technique.ts`/focus DH existant ; à traiter séparément, avec plus de garde-fous.
+- **Disponibilité / calendrier / longitudinal** — touchent potentiellement au planning ou à la priorisation temporelle, donc plus proches d'une vraie décision (risque de contredire SAFETY) — hors scope d'un premier cas volontairement inoffensif.
+
+**Contrat exact proposé** :
+- Entrée : `AthleteCoachingContext.primary_goal` (optionnel, string déjà normalisée par le resolver V0.3_008C).
+- Personalization Layer : `resolveGoalRationale(primary_goal?: string): string | undefined` — fonction pure, table de correspondance fermée (5 entrées), retourne `undefined` si absent ou non reconnu (jamais une valeur par défaut fabriquée).
+- Sortie : la phrase, si présente, est ajoutée à `PersonalizationContext.rationale` puis, à l'étape moteur (séparée), concaténée à `DailyPlan.reasoning` — jamais utilisée pour changer une branche de décision.
+
+**Ce que cette ADR n'autorise PAS encore** : aucune modification de `src/{types,engine,rules,domains,mapping}`. Câbler réellement ce consommateur (toucher `buildDailyPlan.ts`/`dailyPlan.ts`) reste un changement de contrat moteur M1 — cette ADR propose et spécifie le premier cas d'usage, elle ne vaut pas autorisation d'implémentation : un accord explicite et séparé reste nécessaire avant tout code, même discipline que V0.3_008A/V0.3_008C/V0.3_009/V0.3_010.
+
+**Tests attendus si validé et implémenté** : mapping complet des 5 valeurs → 5 phrases exactes ; `primary_goal` absent/non reconnu → `reasoning` inchangé ; à contexte identique par ailleurs, deux objectifs différents ne changent jamais `session_load`/`active_mode`/le `kind` de la séance — seule la phrase ajoutée à `reasoning` diffère.
+
+**Impact** : aucun — proposition uniquement, aucun code/migration/moteur modifié par cette ADR.
+
+**Statut** : Proposed — en attente de validation avant toute implémentation.
