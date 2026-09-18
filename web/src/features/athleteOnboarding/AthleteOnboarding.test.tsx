@@ -39,6 +39,11 @@ const EMPTY_ANSWERS = {
   preferredRidingDays: [],
 };
 
+async function dismissIntro(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await screen.findByText("Welcome to NALYNT");
+  await user.click(screen.getByRole("button", { name: "Build my athlete profile" }));
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   loadOnboardingAnswers.mockResolvedValue(EMPTY_ANSWERS);
@@ -49,36 +54,95 @@ beforeEach(() => {
   completeOnboarding.mockResolvedValue(undefined);
 });
 
-describe("AthleteOnboarding — Niveau 1 wizard", () => {
-  it("starts at step 1 (discipline) for a fresh athlete, Continue disabled until an option is picked", async () => {
+describe("AthleteOnboarding — intro screen", () => {
+  it("shows the intro screen first for a genuinely fresh start", async () => {
     render(<AthleteOnboarding />);
+
+    expect(await screen.findByText("Welcome to NALYNT")).toBeInTheDocument();
+    expect(screen.getByText("Your AI performance coach starts by understanding you.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Every athlete is different. Your goals, your schedule and your riding style shape your performance journey.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText("What do you ride?")).not.toBeInTheDocument();
+  });
+
+  it("dismissing the intro reveals step 1", async () => {
+    const user = userEvent.setup();
+    render(<AthleteOnboarding />);
+
+    await dismissIntro(user);
 
     expect(await screen.findByText("What do you ride?")).toBeInTheDocument();
     expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
+  });
+
+  it("is skipped when resuming mid-wizard (not a fresh start)", async () => {
+    loadOnboardingAnswers.mockResolvedValue({
+      discipline: "Downhill",
+      competitionLevel: "Amateur racer",
+      primaryGoal: null,
+      weeklyTrainingHours: null,
+      preferredRidingDays: [],
+    });
+
+    render(<AthleteOnboarding />);
+
+    expect(await screen.findByText("What do you want NALYNT to help you achieve?")).toBeInTheDocument();
+    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
+  });
+});
+
+describe("AthleteOnboarding — Niveau 1 wizard", () => {
+  it("starts at step 1 (discipline) for a fresh athlete, Continue disabled until an option is picked", async () => {
+    const user = userEvent.setup();
+    render(<AthleteOnboarding />);
+    await dismissIntro(user);
+
+    expect(await screen.findByText("What do you ride?")).toBeInTheDocument();
+    expect(screen.getByText("This helps NALYNT understand your riding environment.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
   it("progression between steps: selecting an option and clicking Continue saves it and advances", async () => {
     const user = userEvent.setup();
     render(<AthleteOnboarding />);
-    await screen.findByText("What do you ride?");
+    await dismissIntro(user);
 
     await user.click(screen.getByText("Downhill"));
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(saveDiscipline).toHaveBeenCalledWith("athlete-1", "Downhill"));
-    expect(await screen.findByText("Your current level")).toBeInTheDocument();
+    expect(await screen.findByText("Where are you today in your journey?")).toBeInTheDocument();
     expect(screen.getByText("Step 2 of 5")).toBeInTheDocument();
+  });
+
+  it("step 3 shows a short description under each goal option", async () => {
+    loadOnboardingAnswers.mockResolvedValue({
+      discipline: "Downhill",
+      competitionLevel: "Amateur racer",
+      primaryGoal: null,
+      weeklyTrainingHours: null,
+      preferredRidingDays: [],
+    });
+
+    render(<AthleteOnboarding />);
+
+    await screen.findByText("What do you want NALYNT to help you achieve?");
+    expect(screen.getByText("Be faster when it matters.")).toBeInTheDocument();
+    expect(screen.getByText("Reduce mistakes and repeat your best riding.")).toBeInTheDocument();
+    expect(screen.getByText("Build stronger fundamentals and confidence.")).toBeInTheDocument();
+    expect(screen.getByText("Improve strength and endurance.")).toBeInTheDocument();
+    expect(screen.getByText("Train smarter and stay on your bike.")).toBeInTheDocument();
   });
 
   it("Back returns to the previous step without re-saving", async () => {
     const user = userEvent.setup();
     render(<AthleteOnboarding />);
-    await screen.findByText("What do you ride?");
+    await dismissIntro(user);
 
     await user.click(screen.getByText("Downhill"));
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByText("Your current level");
+    await screen.findByText("Where are you today in your journey?");
 
     await user.click(screen.getByRole("button", { name: "Back" }));
 
@@ -97,7 +161,7 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
 
     render(<AthleteOnboarding />);
 
-    expect(await screen.findByText("What do you want to improve?")).toBeInTheDocument();
+    expect(await screen.findByText("What do you want NALYNT to help you achieve?")).toBeInTheDocument();
     expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
   });
 
@@ -111,7 +175,7 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     });
     const user = userEvent.setup();
     render(<AthleteOnboarding />);
-    await screen.findByText("When do you usually ride?");
+    await screen.findByText("When can NALYNT help you train around your riding?");
 
     await user.click(screen.getByText("Monday"));
     await user.click(screen.getByText("Wednesday"));
@@ -139,7 +203,7 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     const user = userEvent.setup();
     render(<AthleteOnboarding />);
 
-    await screen.findByText("When do you usually ride?");
+    await screen.findByText("When can NALYNT help you train around your riding?");
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
 
     await user.click(screen.getByText("Saturday"));
@@ -168,7 +232,7 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     const user = userEvent.setup();
     render(<AthleteOnboarding />);
 
-    await screen.findByText("When do you usually ride?");
+    await screen.findByText("When can NALYNT help you train around your riding?");
     await user.click(screen.getByText("Monday"));
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -182,7 +246,22 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     );
   });
 
-  it("clicking Enter NALYNT on the ready screen calls refreshAthlete", async () => {
+  it("shows an error and does not advance when saving a step fails", async () => {
+    saveDiscipline.mockRejectedValue(new Error("Impossible d'enregistrer ta réponse. Réessaie dans un instant."));
+    const user = userEvent.setup();
+    render(<AthleteOnboarding />);
+    await dismissIntro(user);
+
+    await user.click(screen.getByText("Downhill"));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("What do you ride?")).toBeInTheDocument();
+  });
+});
+
+describe("AthleteOnboarding — completion screen", () => {
+  it("shows the checklist, the closing text, and a 'Start improving' button, then calls refreshAthlete on click", async () => {
     loadOnboardingAnswers.mockResolvedValue({
       discipline: "Downhill",
       competitionLevel: "Amateur racer",
@@ -190,29 +269,21 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
       weeklyTrainingHours: "5-10h",
       preferredRidingDays: ["Monday"],
     });
-    completeOnboarding.mockResolvedValue(undefined);
     const user = userEvent.setup();
     render(<AthleteOnboarding />);
 
-    await screen.findByText("When do you usually ride?");
+    await screen.findByText("When can NALYNT help you train around your riding?");
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByText("Your athlete profile is ready.");
 
-    await user.click(screen.getByRole("button", { name: "Enter NALYNT" }));
+    expect(await screen.findByText("Your athlete profile is ready.")).toBeInTheDocument();
+    expect(screen.getByText("Your discipline")).toBeInTheDocument();
+    expect(screen.getByText("Your experience level")).toBeInTheDocument();
+    expect(screen.getByText("Your goals")).toBeInTheDocument();
+    expect(screen.getByText("Your availability")).toBeInTheDocument();
+    expect(screen.getByText("Your performance journey starts now.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Start improving" }));
 
     await waitFor(() => expect(refreshAthlete).toHaveBeenCalledTimes(1));
-  });
-
-  it("shows an error and does not advance when saving a step fails", async () => {
-    saveDiscipline.mockRejectedValue(new Error("Impossible d'enregistrer ta réponse. Réessaie dans un instant."));
-    const user = userEvent.setup();
-    render(<AthleteOnboarding />);
-    await screen.findByText("What do you ride?");
-
-    await user.click(screen.getByText("Downhill"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText("What do you ride?")).toBeInTheDocument();
   });
 });

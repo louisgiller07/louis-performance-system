@@ -88,13 +88,16 @@ describe("RequireAuth", () => {
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 
-  it("V0.3_008A — athlete resolved but onboarding not completed: renders the onboarding wizard, not the protected child", async () => {
+  it("V0.3_008A — athlete resolved but onboarding not completed: renders the onboarding wizard (its own intro screen), not the protected child or AthleteBootstrap", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [
       { id: "athlete-1", athlete_onboarding_profiles: null },
     ]);
-    await waitFor(() => expect(screen.getByText("What do you ride?")).toBeInTheDocument());
+    // Both AthleteOnboarding's fresh-start intro and AthleteBootstrap share
+    // the "Welcome to NALYNT" headline (same first-run branding) — disambiguate
+    // on each screen's own distinct copy instead.
+    await waitFor(() => expect(screen.getByText("Build my athlete profile")).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
-    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Let's build your athlete profile.")).not.toBeInTheDocument();
   });
 
   it("V0.3_008A — athlete resolved and onboarding completed: renders the protected child, not the onboarding wizard", async () => {

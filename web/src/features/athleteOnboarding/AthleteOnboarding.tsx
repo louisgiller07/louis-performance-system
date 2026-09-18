@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import {
@@ -22,6 +22,7 @@ import {
   type WeeklyTrainingHours,
   type RidingDay,
 } from "./onboardingOptions";
+import { INTRO_COPY, STEP_COPY, PRIMARY_GOAL_DESCRIPTIONS, COMPLETION_COPY } from "./onboardingCopy";
 
 const TOTAL_STEPS = 5;
 
@@ -41,21 +42,39 @@ function firstUnansweredStep(answers: {
 
 interface ChoiceCardProps {
   label: string;
+  description?: string;
   selected: boolean;
   onClick: () => void;
 }
 
-function ChoiceCard({ label, selected, onClick }: ChoiceCardProps) {
+function ChoiceCard({ label, description, selected, onClick }: ChoiceCardProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-xl border px-4 py-3.5 text-left text-base transition-colors ${
+      className={`w-full rounded-xl border px-4 py-3.5 text-left transition-colors ${
         selected ? "border-gold bg-gold/10 text-ink" : "border-white/10 bg-bg text-ink hover:border-white/25"
       }`}
     >
-      {label}
+      <span className="block text-base">{label}</span>
+      {description && <span className="mt-1 block text-sm text-muted">{description}</span>}
     </button>
+  );
+}
+
+/** Subtle, dependency-free fade/slide-in — re-triggers whenever its `key` changes (e.g. on step change). */
+function FadeIn({ children }: { children: ReactNode }) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return (
+    <div className={`transition-all duration-500 ease-out ${visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}>
+      {children}
+    </div>
   );
 }
 
@@ -90,6 +109,9 @@ export function AthleteOnboarding() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Only shown on a genuinely fresh start (nothing answered yet) — a
+  // returning athlete resuming mid-wizard skips straight to their step.
+  const [showIntro, setShowIntro] = useState(false);
 
   const [discipline, setDiscipline] = useState<Discipline | null>(null);
   const [competitionLevel, setCompetitionLevel] = useState<CompetitionLevel | null>(null);
@@ -109,7 +131,9 @@ export function AthleteOnboarding() {
         setPrimaryGoal(answers.primaryGoal);
         setWeeklyTrainingHours(answers.weeklyTrainingHours);
         setRidingDays(answers.preferredRidingDays);
-        setStep(firstUnansweredStep(answers));
+        const resumeStep = firstUnansweredStep(answers);
+        setStep(resumeStep);
+        setShowIntro(resumeStep === 1);
         setLoading(false);
       })
       .catch(() => {
@@ -172,16 +196,49 @@ export function AthleteOnboarding() {
     return <div className="flex min-h-screen items-center justify-center bg-bg text-sm text-muted">Loading…</div>;
   }
 
+  if (showIntro) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-8 text-center">
+        <FadeIn>
+          <div className="w-full max-w-105">
+            <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">{INTRO_COPY.title}</p>
+            <p className="mt-4 text-lg font-semibold text-ink">{INTRO_COPY.subtitle}</p>
+            <p className="mt-4 text-sm leading-relaxed text-muted">{INTRO_COPY.description}</p>
+            <PrimaryButton
+              onClick={() => setShowIntro(false)}
+              className="mt-8 w-full min-h-12.5 text-base tracking-wide"
+            >
+              {INTRO_COPY.cta}
+            </PrimaryButton>
+          </div>
+        </FadeIn>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-8 text-center">
-        <div className="w-full max-w-105">
-          <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-          <p className="mt-6 text-xl font-bold text-ink">Your athlete profile is ready.</p>
-          <PrimaryButton onClick={() => void handleEnter()} className="mt-8 w-full min-h-12.5 text-base tracking-wide">
-            Enter NALYNT
-          </PrimaryButton>
-        </div>
+        <FadeIn>
+          <div className="w-full max-w-105">
+            <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
+            <p className="mt-6 text-xl font-bold text-ink">{COMPLETION_COPY.title}</p>
+            <ul className="mt-6 flex flex-col gap-2 text-left">
+              {COMPLETION_COPY.checklist.map((item) => (
+                <li key={item} className="flex items-center gap-2 text-sm text-ink">
+                  <span className="text-gold" aria-hidden="true">
+                    ✓
+                  </span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-sm text-muted">{COMPLETION_COPY.text}</p>
+            <PrimaryButton onClick={() => void handleEnter()} className="mt-8 w-full min-h-12.5 text-base tracking-wide">
+              {COMPLETION_COPY.cta}
+            </PrimaryButton>
+          </div>
+        </FadeIn>
       </div>
     );
   }
@@ -198,71 +255,99 @@ export function AthleteOnboarding() {
       <div className="flex w-full max-w-105 flex-col gap-6">
         <ProgressBar step={step} />
 
-        {step === 1 && (
-          <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-ink">What do you ride?</h1>
-            <div className="flex flex-col gap-2.5">
-              {DISCIPLINE_OPTIONS.map((option) => (
-                <ChoiceCard key={option} label={option} selected={discipline === option} onClick={() => setDiscipline(option)} />
-              ))}
+        <FadeIn key={step}>
+          {step === 1 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[1].title}</h1>
+                {STEP_COPY[1].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[1].hint}</p>}
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {DISCIPLINE_OPTIONS.map((option) => (
+                  <ChoiceCard key={option} label={option} selected={discipline === option} onClick={() => setDiscipline(option)} />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 2 && (
-          <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-ink">Your current level</h1>
-            <div className="flex flex-col gap-2.5">
-              {COMPETITION_LEVEL_OPTIONS.map((option) => (
-                <ChoiceCard
-                  key={option}
-                  label={option}
-                  selected={competitionLevel === option}
-                  onClick={() => setCompetitionLevel(option)}
-                />
-              ))}
+          {step === 2 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[2].title}</h1>
+                {STEP_COPY[2].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[2].hint}</p>}
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {COMPETITION_LEVEL_OPTIONS.map((option) => (
+                  <ChoiceCard
+                    key={option}
+                    label={option}
+                    selected={competitionLevel === option}
+                    onClick={() => setCompetitionLevel(option)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 3 && (
-          <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-ink">What do you want to improve?</h1>
-            <div className="flex flex-col gap-2.5">
-              {PRIMARY_GOAL_OPTIONS.map((option) => (
-                <ChoiceCard key={option} label={option} selected={primaryGoal === option} onClick={() => setPrimaryGoal(option)} />
-              ))}
+          {step === 3 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[3].title}</h1>
+                {STEP_COPY[3].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[3].hint}</p>}
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {PRIMARY_GOAL_OPTIONS.map((option) => (
+                  <ChoiceCard
+                    key={option}
+                    label={option}
+                    description={PRIMARY_GOAL_DESCRIPTIONS[option]}
+                    selected={primaryGoal === option}
+                    onClick={() => setPrimaryGoal(option)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 4 && (
-          <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-ink">How much time can you train per week?</h1>
-            <div className="flex flex-col gap-2.5">
-              {WEEKLY_TRAINING_HOURS_OPTIONS.map((option) => (
-                <ChoiceCard
-                  key={option}
-                  label={option}
-                  selected={weeklyTrainingHours === option}
-                  onClick={() => setWeeklyTrainingHours(option)}
-                />
-              ))}
+          {step === 4 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[4].title}</h1>
+                {STEP_COPY[4].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[4].hint}</p>}
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {WEEKLY_TRAINING_HOURS_OPTIONS.map((option) => (
+                  <ChoiceCard
+                    key={option}
+                    label={option}
+                    selected={weeklyTrainingHours === option}
+                    onClick={() => setWeeklyTrainingHours(option)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {step === 5 && (
-          <div className="flex flex-col gap-4">
-            <h1 className="text-2xl font-bold text-ink">When do you usually ride?</h1>
-            <p className="text-sm text-muted">Select all that apply.</p>
-            <div className="flex flex-col gap-2.5">
-              {RIDING_DAY_OPTIONS.map((option) => (
-                <ChoiceCard key={option} label={option} selected={ridingDays.includes(option)} onClick={() => toggleRidingDay(option)} />
-              ))}
+          {step === 5 && (
+            <div className="flex flex-col gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[5].title}</h1>
+                {STEP_COPY[5].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[5].hint}</p>}
+                <p className="mt-1 text-sm text-muted">Select all that apply.</p>
+              </div>
+              <div className="flex flex-col gap-2.5">
+                {RIDING_DAY_OPTIONS.map((option) => (
+                  <ChoiceCard
+                    key={option}
+                    label={option}
+                    selected={ridingDays.includes(option)}
+                    onClick={() => toggleRidingDay(option)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </FadeIn>
 
         {error && (
           <p role="alert" className="text-sm text-red-400">
