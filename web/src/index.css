@@ -28,6 +28,19 @@ body,
   background-color: var(--color-bg);
 }
 
+/*
+ * The app is dark-only (no light mode). Without this, Chrome/Edge assume a
+ * light page for native form-control chrome — most visibly the <select>
+ * dropdown popup (PlanningDayCard's "Séance"/duration pickers), which then
+ * renders with its default light background behind our light `text-ink`
+ * text: unreadable white-on-white. Firefox infers dark styling here on its
+ * own; Chromium needs this explicit signal. Fixes the popup's background,
+ * scrollbars, etc. — no visual change to anything already styled directly.
+ */
+html {
+  color-scheme: dark;
+}
+
 html,
 body {
   min-height: 100%;
