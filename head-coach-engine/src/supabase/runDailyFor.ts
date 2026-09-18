@@ -8,10 +8,23 @@
  *
  * Flow, strictly:
  *   1. `computeDailyFor` — called exactly once (read + M1, zero write).
- *   2. `mapDailyPlanToDecisionRow` (M2_002, unchanged) — DailyPlan → decision row.
- *   3. `DailyPlan.health_flag_to_create` (the real M1 field name — not
+ *      `computeDailyFor` itself stays byte-for-byte M1's output, per its
+ *      own documented contract ("no coaching post-processing") — untouched
+ *      by this task.
+ *   2. V0.3_011 — First Personalization Consumer: `applyGoalPersonalization`
+ *      appends one fixed, deterministic sentence to `DailyPlan.reasoning`
+ *      when the athlete has declared a recognized `primary_goal` (see
+ *      goalReasoning.ts, docs/11_DECISION_LOG.md ADR V0.3_011). Strictly
+ *      additive to `reasoning` only — every other `DailyPlan` field,
+ *      including `final_session`/`active_mode`/`decision`, passes through
+ *      unchanged. Resolving the athlete's coaching context is best-effort:
+ *      a failure (e.g. a transient DB error) is recorded as a warning and
+ *      never fails the daily run — a cosmetic explanation addition must
+ *      never be able to block a real coaching decision.
+ *   3. `mapDailyPlanToDecisionRow` (M2_002 shape, unchanged) — DailyPlan → decision row.
+ *   4. `DailyPlan.health_flag_to_create` (the real M1 field name — not
  *      assumed) present? → `mapHealthFlagToCreatePayload`. Absent → `null`.
- *   4. `persistDailyRun` — called exactly once. The RPC performs the
+ *   5. `persistDailyRun` — called exactly once. The RPC performs the
  *      health-flag-ensure-open + decision-insert atomically on the
  *      PostgreSQL side (M2_006); this module never issues a second write
  *      to reproduce that transaction client-side.
@@ -25,10 +38,13 @@
  * read path or invented from nothing.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DailyPlan } from "../types/index.js";
 import { computeDailyFor, type ComputeDailyForResult } from "./computeDailyFor.js";
 import { mapDailyPlanToDecisionRow } from "./mapping/dailyPlanToDecisionRow.js";
 import { mapHealthFlagToCreatePayload } from "./mapping/healthFlagToCreatePayload.js";
 import { persistDailyRun, type PersistDailyRunResult } from "./persistDailyRun.js";
+import { getAthleteCoachingContext } from "./repositories/athleteCoachingContextRepo.js";
+import { applyGoalPersonalization } from "./goalReasoning.js";
 
 export class DailyPlanDateMismatchError extends Error {
   constructor(requestedToday: string, dailyPlanDate: string) {
@@ -57,14 +73,40 @@ export interface RunDailyForResult extends ComputeDailyForResult {
 export interface RunDailyForDeps {
   computeDailyFor: typeof computeDailyFor;
   persistDailyRun: typeof persistDailyRun;
+  /** V0.3_011 — injectable so orchestration/personalization can be unit-tested with plain mocks, same reasoning as the other two deps. */
+  getAthleteCoachingContext: typeof getAthleteCoachingContext;
 }
 
-const DEFAULT_DEPS: RunDailyForDeps = { computeDailyFor, persistDailyRun };
+const DEFAULT_DEPS: RunDailyForDeps = { computeDailyFor, persistDailyRun, getAthleteCoachingContext };
+
+/**
+ * V0.3_011 — resolves the athlete's declared `primary_goal` and appends its
+ * fixed sentence to `dailyPlan.reasoning`. Best-effort: any failure
+ * resolving the athlete's coaching context (network, transient DB error)
+ * is returned as a warning, never thrown — this is a cosmetic explanation
+ * addition, not a coaching decision, and must never be able to block a
+ * real daily run.
+ */
+async function personalizeReasoning(
+  client: SupabaseClient,
+  athleteId: string,
+  dailyPlan: DailyPlan,
+  resolveContext: typeof getAthleteCoachingContext
+): Promise<{ dailyPlan: DailyPlan; warnings: string[] }> {
+  try {
+    const context = await resolveContext(client, athleteId);
+    return { dailyPlan: applyGoalPersonalization(dailyPlan, context.primary_goal), warnings: [] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { dailyPlan, warnings: [`V0.3_011 personalization skipped: could not resolve athlete coaching context (${message})`] };
+  }
+}
 
 /**
  * Computes today's `DailyPlan` for `athleteId` (via `computeDailyFor`,
- * called exactly once) and persists it atomically (via `persistDailyRun`,
- * called exactly once). No other write.
+ * called exactly once), applies the V0.3_011 goal-reasoning personalization
+ * (additive, `reasoning` only), and persists it atomically (via
+ * `persistDailyRun`, called exactly once). No other write.
  */
 export async function runDailyFor(
   client: SupabaseClient,
@@ -83,13 +125,25 @@ export async function runDailyFor(
     throw new DailyPlanDateMismatchError(today, computed.dailyPlan.date);
   }
 
-  const decisionRow = mapDailyPlanToDecisionRow(computed.dailyPlan, athleteId);
+  const { dailyPlan: personalizedPlan, warnings: personalizationWarnings } = await personalizeReasoning(
+    client,
+    athleteId,
+    computed.dailyPlan,
+    deps.getAthleteCoachingContext
+  );
 
-  const healthFlag = computed.dailyPlan.health_flag_to_create
-    ? mapHealthFlagToCreatePayload(computed.dailyPlan.health_flag_to_create, today)
+  const decisionRow = mapDailyPlanToDecisionRow(personalizedPlan, athleteId);
+
+  const healthFlag = personalizedPlan.health_flag_to_create
+    ? mapHealthFlagToCreatePayload(personalizedPlan.health_flag_to_create, today)
     : null;
 
   const persistence = await deps.persistDailyRun(client, athleteId, healthFlag, decisionRow);
 
-  return { ...computed, persistence };
+  return {
+    ...computed,
+    dailyPlan: personalizedPlan,
+    warnings: [...computed.warnings, ...personalizationWarnings],
+    persistence,
+  };
 }

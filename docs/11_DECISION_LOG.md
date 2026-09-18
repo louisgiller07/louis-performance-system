@@ -2893,3 +2893,10 @@ Phase actuelle inchangée : **SERIOUS DOGFOOD — LONGITUDINAL COACHING LOOP** (
 **Impact** : aucun — proposition uniquement, aucun code/migration/moteur modifié par cette ADR.
 
 **Statut** : Proposed — en attente de validation avant toute implémentation.
+
+**Note d'implémentation (2026-09-18, post-validation)** : implémenté exactement dans ce scope. Trois clarifications par rapport au texte ci-dessus, découvertes en Phase 0 :
+- **Point d'attache réel** : `computeDailyFor.ts` documente explicitement "no coaching post-processing... byte-for-byte" — y toucher aurait cassé son propre contrat. La personnalisation est donc appliquée un niveau au-dessus, dans `runDailyFor.ts` (M2, non-frozen), juste après `computeDailyFor` et avant `mapDailyPlanToDecisionRow` — `computeDailyFor.ts`/`buildDailyPlan.ts`/`RawContext` restent intégralement inchangés, byte-for-byte.
+- **Clés du mapping** : les exemples snake_case (`race_performance`, ...) de ce brief et de l'ADR ne correspondent à aucune valeur réelle — `AthleteCoachingContext.primary_goal` porte les chaînes exactes déclarées à l'onboarding (Title Case : `"Race performance"`, `"Consistency"`, etc., voir `onboardingOptions.ts`). Le mapping implémenté (`goalReasoning.ts`) est keyé sur ces valeurs réelles, pas sur l'illustration.
+- **Résilience** : la résolution du contexte athlète (nouvelle lecture DB dans le chemin d'écriture quotidien réel) est best-effort — un échec est renvoyé comme warning (`RunDailyForResult.warnings`), jamais une exception : une amélioration cosmétique du texte ne doit jamais pouvoir bloquer une vraie décision de coaching.
+
+Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-coach-engine/src/supabase/runDailyFor.ts` (modifié — nouvelle dépendance injectable `getAthleteCoachingContext`, étape de personnalisation ajoutée). Tests : `tests/supabase/goalReasoning.test.ts` (nouveau), `tests/supabase/runDailyFor.test.ts` (étendu). Statut de l'ADR inchangé (implémentation validée séparément, pas de nouvelle ADR).
