@@ -2802,3 +2802,31 @@ Phase actuelle inchangée : **SERIOUS DOGFOOD — LONGITUDINAL COACHING LOOP** (
 **Ce qui reste à faire (hors scope, décision future)** : le branchement réel dans `RawContext`/`buildDailyPlan.ts` pour qu'une décision de coaching consomme effectivement discipline/niveau/objectif/disponibilité.
 
 **Statut** : active
+
+---
+
+## 2026-09-18 — ADR V0.3_009 : Athlete Context Consumption Strategy
+
+**Contexte** : NALYNT collecte des informations athlète via `athletes`, `athlete_onboarding_profiles` et `athlete_coaching_profiles`. Le resolver `getAthleteCoachingContext()` (V0.3_008C) fournit une lecture normalisée de ce contexte, mais rien ne le consomme aujourd'hui — le moteur garde son flux actuel (`RawContext` → `buildDailyPlan()` → domaines → `decisions`), et `RawContext`/`buildDailyPlan`/les domaines restent frozen (M1 APPROVED 2026-08-13), non modifiables sans nouvelle décision architecte.
+
+**Problème** : les données d'onboarding (discipline, niveau, objectif principal, disponibilité) doivent pouvoir influencer le coaching, mais de façon contrôlée. Question tranchée par cette ADR : comment rendre le contexte athlète consommable par le système de coaching sans dégrader la séparation des responsabilités ni créer de règles implicites difficiles à expliquer ?
+
+**Décision** : introduire une **Personalization Layer** séparée, plutôt que d'étendre `RawContext` ou de laisser chaque domaine lire le contexte directement. Flux cible : `getAthleteCoachingContext()` → `AthleteCoachingContext` → couche de personnalisation → moteur de coaching existant (inchangé) → `decisions`. Le moteur ne devient jamais dépendant du contexte athlète brut — la couche de personnalisation le traduit en paramètres explicites que le moteur peut recevoir sans que ses contrats internes changent de nature.
+
+**Alternatives considérées** :
+- **Ajouter le contexte directement dans `RawContext`** — rejetée. Risque de transformer `RawContext` en objet fourre-tout mélangeant données observées, historique et préférences athlète ; les contrats M1 deviendraient plus difficiles à maintenir, et toute évolution du profil athlète finirait par exiger une modification du moteur.
+- **Laisser chaque domaine (`technique.ts`, `mental.ts`, `training.ts`, ...) consommer directement le contexte** — rejetée. Duplication probable, chaque domaine devrait connaître la structure athlète, risque d'incohérences entre domaines. La personnalisation doit être coordonnée au niveau système, pas distribuée domaine par domaine.
+
+**Principes retenus pour toute future implémentation** :
+1. Le moteur reste déterministe — la couche de personnalisation fournit des paramètres explicites, elle ne remplace jamais une décision du moteur.
+2. Pas de personnalisation implicite — une donnée consommée doit avoir un consommateur identifié, une règle documentée, un test associé.
+3. Les préférences athlète ne sont pas des ordres — ex. un objectif "Race performance" ne signifie pas automatiquement "augmenter toutes les intensités" ; fatigue, sécurité et contraintes physiologiques priment toujours.
+4. Explicabilité obligatoire — toute décision affectée doit pouvoir justifier le contexte utilisé, la règle appliquée et le résultat obtenu.
+
+**Portée de cette ADR** : décision d'architecture uniquement — **aucun code modifié**. La première implémentation (hors scope ici, à planifier séparément) devra : formaliser un contrat `AthleteCoachingContext` (le resolver V0.3_008C en est la base), formaliser un contrat de personnalisation, connecter un premier cas d'usage mesurable, et l'accompagner de tests.
+
+**Hors scope (non-goals)** : génération IA libre, chatbot coaching, modification des domaines M1 frozen, remplacement du moteur déterministe, apprentissage automatique.
+
+**Impact** : aucun — cette ADR ne touche ni code, ni migration, ni moteur. Elle cadre la prochaine décision : une future ADR "Personalization Layer Contract" devra préciser quelles données athlète sont consommées, quels paramètres peuvent être modifiés, comment tester l'impact des personnalisations, et comment garder les décisions auditables.
+
+**Statut** : Proposed — décision de direction actée, implémentation non commencée, en attente de la décision de contrat séparée avant tout code.
