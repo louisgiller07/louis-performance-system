@@ -7,6 +7,12 @@
  * ("computeDailyFor et runDailyFor sont deux opérations distinctes.").
  *
  * Flow, strictly:
+ *   0. V0.4_015 — best-effort projection pre-compute step (see
+ *      `runProjectionBestEffort` below): converges `planned_sessions`/
+ *      `training_blocks` toward the athlete's accepted canonical plan for
+ *      today's window, before anything reads them. Disabled unless
+ *      `TRAINING_PLAN_PROJECTION_WINDOW_DAYS` is set (ADR V0.4_015A); never
+ *      throws, only ever contributes a warning.
  *   1. `computeDailyFor` — called exactly once (read + M1, zero write).
  *      `computeDailyFor` itself stays byte-for-byte M1's output, per its
  *      own documented contract ("no coaching post-processing") — untouched
@@ -45,6 +51,8 @@ import { mapHealthFlagToCreatePayload } from "./mapping/healthFlagToCreatePayloa
 import { persistDailyRun, type PersistDailyRunResult } from "./persistDailyRun.js";
 import { getAthleteCoachingContext } from "./repositories/athleteCoachingContextRepo.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
+import { projectTrainingPlan } from "./projectTrainingPlan.js";
+import { resolveTrainingPlanProjectionWindow } from "./trainingPlanProjectionConfig.js";
 
 export class DailyPlanDateMismatchError extends Error {
   constructor(requestedToday: string, dailyPlanDate: string) {
@@ -75,9 +83,70 @@ export interface RunDailyForDeps {
   persistDailyRun: typeof persistDailyRun;
   /** V0.3_011 — injectable so orchestration/personalization can be unit-tested with plain mocks, same reasoning as the other two deps. */
   getAthleteCoachingContext: typeof getAthleteCoachingContext;
+  /** V0.4_015 — injectable so the pre-compute projection step can be unit-tested with plain mocks, same reasoning as the other deps. */
+  projectTrainingPlan: typeof projectTrainingPlan;
+  resolveTrainingPlanProjectionWindow: typeof resolveTrainingPlanProjectionWindow;
 }
 
-const DEFAULT_DEPS: RunDailyForDeps = { computeDailyFor, persistDailyRun, getAthleteCoachingContext };
+const DEFAULT_DEPS: RunDailyForDeps = {
+  computeDailyFor,
+  persistDailyRun,
+  getAthleteCoachingContext,
+  projectTrainingPlan,
+  resolveTrainingPlanProjectionWindow,
+};
+
+/**
+ * ADR V0.4_015A — pure UTC calendar-date math, manual parsing (never
+ * `new Date(isoString)`) to avoid the local-timezone ambiguity
+ * `head-coach-engine/src/engine/dateUtils.ts` (frozen) already documents
+ * for exactly this reason. That file has no `addDays` export, so this is a
+ * small, local equivalent — not a duplicate of anything it does provide.
+ */
+function addDays(iso: string, days: number): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year as number, (month as number) - 1, (day as number) + days));
+  const yyyy = shifted.getUTCFullYear();
+  const mm = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * V0.4_015 — best-effort projection pre-compute step, run before
+ * `computeDailyFor` so Head Coach reads freshly-converged
+ * `planned_sessions`/`training_blocks` for today, never stale content
+ * (ADR V0.4_012/V0.4_013). Never throws:
+ *  - not configured (`resolveWindow()` -> `enabled: false`, no warning) ->
+ *    silent no-op, the intended deployable-dark default (ADR V0.4_015A).
+ *  - configured but invalid (`enabled: false` with a `warning`) -> that
+ *    warning is surfaced, projection is skipped.
+ *  - configured and enabled, but `project(...)` itself throws -> caught
+ *    here specifically (never a blanket try/catch around the rest of
+ *    `runDailyFor`), turned into a warning. Same discipline as
+ *    `personalizeReasoning` below: a compatibility-layer step must never
+ *    be able to block a real coaching decision.
+ */
+async function runProjectionBestEffort(
+  client: SupabaseClient,
+  athleteId: string,
+  today: string,
+  resolveWindow: typeof resolveTrainingPlanProjectionWindow,
+  project: typeof projectTrainingPlan
+): Promise<string[]> {
+  const config = resolveWindow();
+  if (!config.enabled) {
+    return config.warning ? [config.warning] : [];
+  }
+
+  try {
+    await project(client, athleteId, today, addDays(today, config.windowDays));
+    return [];
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return [`V0.4_015 projection skipped: ${message}`];
+  }
+}
 
 /**
  * V0.3_011 — resolves the athlete's declared `primary_goal` and appends its
@@ -114,6 +183,14 @@ export async function runDailyFor(
   today: string,
   deps: RunDailyForDeps = DEFAULT_DEPS
 ): Promise<RunDailyForResult> {
+  const projectionWarnings = await runProjectionBestEffort(
+    client,
+    athleteId,
+    today,
+    deps.resolveTrainingPlanProjectionWindow,
+    deps.projectTrainingPlan
+  );
+
   const computed = await deps.computeDailyFor(client, athleteId, today);
 
   // Defensive invariant, not a data-driven check: buildDailyPlan (M1,
@@ -143,7 +220,7 @@ export async function runDailyFor(
   return {
     ...computed,
     dailyPlan: personalizedPlan,
-    warnings: [...computed.warnings, ...personalizationWarnings],
+    warnings: [...projectionWarnings, ...computed.warnings, ...personalizationWarnings],
     persistence,
   };
 }

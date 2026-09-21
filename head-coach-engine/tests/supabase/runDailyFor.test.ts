@@ -8,6 +8,11 @@ import {
   getAthleteCoachingContext,
   type AthleteCoachingContext,
 } from "../../src/supabase/repositories/athleteCoachingContextRepo.js";
+import { projectTrainingPlan, type ProjectionReport } from "../../src/supabase/projectTrainingPlan.js";
+import {
+  resolveTrainingPlanProjectionWindow,
+  type TrainingPlanProjectionWindowConfig,
+} from "../../src/supabase/trainingPlanProjectionConfig.js";
 import type { DailyPlan, RawContext } from "../../src/types/index.js";
 
 const ATHLETE_ID = "athlete-1";
@@ -43,10 +48,19 @@ const FAKE_CLIENT = {} as SupabaseClient;
 /** V0.3_011 default: no onboarding context at all — every existing test (written before personalization existed) must keep seeing byte-for-byte unchanged reasoning. */
 const NO_CONTEXT: AthleteCoachingContext = { athlete_id: ATHLETE_ID };
 
+/** V0.4_015 default: disabled, matching the deployable-dark default (ADR V0.4_015A) — every existing test (written before this step existed) must keep seeing byte-for-byte unchanged behavior unless it opts in. */
+const PROJECTION_DISABLED: TrainingPlanProjectionWindowConfig = { enabled: false };
+
+const PROJECTION_NO_CANDIDATES: ProjectionReport = {
+  plannedSessions: [],
+  trainingBlock: { outcome: "no_candidate" },
+};
+
 function buildDeps(
   dailyPlan: DailyPlan,
   persistResult: PersistDailyRunResult,
-  athleteContext: AthleteCoachingContext | (() => Promise<AthleteCoachingContext>) = NO_CONTEXT
+  athleteContext: AthleteCoachingContext | (() => Promise<AthleteCoachingContext>) = NO_CONTEXT,
+  projectionConfig: TrainingPlanProjectionWindowConfig = PROJECTION_DISABLED
 ) {
   const computeDailyForMock = vi.fn<typeof computeDailyFor>(
     async (): Promise<ComputeDailyForResult> => ({
@@ -61,14 +75,25 @@ function buildDeps(
   const getAthleteCoachingContextMock = vi.fn<typeof getAthleteCoachingContext>(async () =>
     typeof athleteContext === "function" ? athleteContext() : athleteContext
   );
+  const projectTrainingPlanMock = vi.fn<typeof projectTrainingPlan>(async (): Promise<ProjectionReport> => PROJECTION_NO_CANDIDATES);
+  const resolveTrainingPlanProjectionWindowMock = vi.fn<typeof resolveTrainingPlanProjectionWindow>(() => projectionConfig);
 
   const deps: RunDailyForDeps = {
     computeDailyFor: computeDailyForMock,
     persistDailyRun: persistDailyRunMock,
     getAthleteCoachingContext: getAthleteCoachingContextMock,
+    projectTrainingPlan: projectTrainingPlanMock,
+    resolveTrainingPlanProjectionWindow: resolveTrainingPlanProjectionWindowMock,
   };
 
-  return { deps, computeDailyForMock, persistDailyRunMock, getAthleteCoachingContextMock };
+  return {
+    deps,
+    computeDailyForMock,
+    persistDailyRunMock,
+    getAthleteCoachingContextMock,
+    projectTrainingPlanMock,
+    resolveTrainingPlanProjectionWindowMock,
+  };
 }
 
 describe("M2 write path — runDailyFor orchestration (mocked deps, no live DB)", () => {
@@ -241,5 +266,94 @@ describe("V0.3_011 — First Personalization Consumer (primary_goal -> DailyPlan
     expect(result.dailyPlan.reasoning).toBe("Séance maintenue.");
     expect(result.warnings.some((w) => w.includes("V0.3_011"))).toBe(true);
     expect(persistDailyRunMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("V0.4_015 — projection pre-compute step (best-effort, never blocking)", () => {
+  it("disabled: projectTrainingPlan is never called; computeDailyFor and persistDailyRun still run normally", async () => {
+    const dailyPlan = buildFixtureDailyPlan();
+    const { deps, projectTrainingPlanMock, computeDailyForMock, persistDailyRunMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      { enabled: false }
+    );
+
+    await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(projectTrainingPlanMock).not.toHaveBeenCalled();
+    expect(computeDailyForMock).toHaveBeenCalledTimes(1);
+    expect(persistDailyRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("enabled: projectTrainingPlan is called with athleteId, today, and today + windowDays", async () => {
+    const dailyPlan = buildFixtureDailyPlan();
+    const { deps, projectTrainingPlanMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      { enabled: true, windowDays: 14 }
+    );
+
+    await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    // TODAY = "2026-08-16" + 14 days = "2026-08-30".
+    expect(projectTrainingPlanMock).toHaveBeenCalledWith(FAKE_CLIENT, ATHLETE_ID, TODAY, "2026-08-30");
+  });
+
+  it("ordering: projection runs before computeDailyFor", async () => {
+    const order: string[] = [];
+    const dailyPlan = buildFixtureDailyPlan();
+    const { deps } = buildDeps(dailyPlan, { decision_id: "d1", health_flag_id: null }, NO_CONTEXT, {
+      enabled: true,
+      windowDays: 7,
+    });
+
+    deps.projectTrainingPlan = vi.fn(async (): Promise<ProjectionReport> => {
+      order.push("projection");
+      return PROJECTION_NO_CANDIDATES;
+    });
+    deps.computeDailyFor = vi.fn(async (): Promise<ComputeDailyForResult> => {
+      order.push("compute");
+      return { rawContext: FAKE_RAW_CONTEXT, dailyPlan, warnings: [] };
+    });
+
+    await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(order).toEqual(["projection", "compute"]);
+  });
+
+  it("projection failure: runDailyFor still resolves, computeDailyFor and persistDailyRun still execute, warnings contains the failure message", async () => {
+    const dailyPlan = buildFixtureDailyPlan();
+    const { deps, computeDailyForMock, persistDailyRunMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      { enabled: true, windowDays: 7 }
+    );
+    deps.projectTrainingPlan = vi.fn(async () => {
+      throw new Error("projection failed");
+    });
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(computeDailyForMock).toHaveBeenCalledTimes(1);
+    expect(persistDailyRunMock).toHaveBeenCalledTimes(1);
+    expect(result.warnings.some((w) => w.includes("projection failed"))).toBe(true);
+  });
+
+  it("preserves other warning sources: a projection warning and the existing V0.3_011 personalization warning both appear together", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ reasoning: "Séance maintenue." });
+    const { deps } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      () => Promise.reject(new Error("connection reset")),
+      { enabled: false, warning: "TRAINING_PLAN_PROJECTION_WINDOW_DAYS is invalid" }
+    );
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.warnings.some((w) => w.includes("TRAINING_PLAN_PROJECTION_WINDOW_DAYS is invalid"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("V0.3_011"))).toBe(true);
   });
 });
