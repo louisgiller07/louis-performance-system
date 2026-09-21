@@ -1,0 +1,22 @@
+{
+  "name": "planning-engine",
+  "version": "0.1.0",
+  "description": "Louis Performance System — Planning Engine (V0.4 M1). Sibling package to head-coach-engine: pure contracts, versioned exercise/drill catalogues, validators and golden-scenario fixtures for the canonical training-plan model (docs/11_DECISION_LOG.md, V0.4 M0 Architecture Lock). M1 is fully inert — no I/O, no Supabase, no production wiring. Never imported by head-coach-engine or daily-run; never imports head-coach-engine internals.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.build.json",
+    "build:clean": "npm run clean && npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
