@@ -4,6 +4,7 @@ import { RatingSlider } from "../../components/RatingSlider";
 import { YesNoChoice } from "../../components/YesNoChoice";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
+import { Select } from "../../components/Select";
 import { getCompletedSession, putCompletedSession } from "./completedSessionRepo";
 import { validateCompletedSessionForm } from "./completedSessionValidation";
 import {
@@ -477,17 +478,13 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1 text-sm text-ink/80">
         Statut
-        <select
-          value={form.completion_status}
-          onChange={(event) => handleStatusChange(event.target.value as CompletionStatus)}
-          className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
-        >
+        <Select value={form.completion_status} onChange={(event) => handleStatusChange(event.target.value as CompletionStatus)}>
           {COMPLETION_STATUSES.map((status) => (
             <option key={status} value={status}>
               {COMPLETION_STATUS_LABELS[status]}
             </option>
           ))}
-        </select>
+        </Select>
         {fieldErrors.completion_status && (
           <span role="alert" className="text-xs text-red-400">
             {fieldErrors.completion_status}
@@ -510,10 +507,9 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
       {showDecisionSelector && (
         <label className="flex flex-col gap-1 text-sm text-ink/80">
           Quel plan as-tu suivi ?
-          <select
+          <Select
             value={decisionLinkResolved ? (form.decision_id ?? NONE_DECISION_OPTION) : ""}
             onChange={(event) => handleDecisionChange(event.target.value)}
-            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
           >
             <option value="" disabled>
               — Choisir —
@@ -524,18 +520,17 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
               </option>
             ))}
             <option value={NONE_DECISION_OPTION}>Aucun de ces plans / séance libre</option>
-          </select>
+          </Select>
         </label>
       )}
 
       {isSkipped ? (
         <label className="flex flex-col gap-1 text-sm text-ink/80">
           Type de séance non faite
-          <select
+          <Select
             value={form.skipped_session_type}
             onChange={(event) => updateField("skipped_session_type", event.target.value as CompletedSessionFormState["skipped_session_type"])}
             disabled={skippedTypeLocked}
-            className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink disabled:bg-white/5 disabled:text-muted"
           >
             <option value="" disabled>
               — Choisir —
@@ -545,7 +540,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
                 {SESSION_TYPE_LABELS[type]}
               </option>
             ))}
-          </select>
+          </Select>
           {skippedTypeLocked && (
             <span className="text-xs text-muted">
               Dérivé du plan lié — choisis « Aucun de ces plans / séance libre » ci-dessus pour modifier.
@@ -561,10 +556,9 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
         <>
           <label className="flex flex-col gap-1 text-sm text-ink/80">
             Activité réellement effectuée
-            <select
+            <Select
               value={form.performed_kind}
               onChange={(event) => handlePerformedKindChange(event.target.value as TrainingInterventionKind | "")}
-              className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
             >
               <option value="" disabled>
                 — Choisir —
@@ -578,7 +572,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </Select>
             {fieldErrors.performed_kind && (
               <span role="alert" className="text-xs text-red-400">
                 {fieldErrors.performed_kind}
@@ -706,11 +700,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
         <>
           <label className="flex flex-col gap-1 text-sm text-ink/80">
             Pourquoi la séance a-t-elle changé ?
-            <select
-              value={form.change_reason}
-              onChange={(event) => handleChangeReasonChange(event.target.value)}
-              className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
-            >
+            <Select value={form.change_reason} onChange={(event) => handleChangeReasonChange(event.target.value)}>
               <option value="" disabled>
                 — Choisir —
               </option>
@@ -719,7 +709,7 @@ export function CompletedSessionCard({ date, athleteId }: CompletedSessionCardPr
                   {CHANGE_REASON_LABELS[reason]}
                 </option>
               ))}
-            </select>
+            </Select>
             {fieldErrors.change_reason && (
               <span role="alert" className="text-xs text-red-400">
                 {fieldErrors.change_reason}

@@ -4,6 +4,7 @@ import { LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPla
 import { Badge } from "../../components/Badge";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
+import { Select } from "../../components/Select";
 // Coarse DbSessionType → French label — the canonical existing home for
 // this mapping (already used by CompletedSessionCard). Reused here, never
 // duplicated, for the one legacy case a Planning row can be in: a pre-M2_003
@@ -232,11 +233,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
 
           <label className="flex flex-col gap-1 text-sm text-ink/80">
             Séance
-            <select
-              value={draftKind}
-              onChange={(event) => handleKindChange(event.target.value)}
-              className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
-            >
+            <Select value={draftKind} onChange={(event) => handleKindChange(event.target.value)}>
               <option value="" disabled>
                 — Choisir —
               </option>
@@ -249,7 +246,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </Select>
           </label>
 
           {isVariableKind && (
@@ -284,10 +281,9 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
             <div className="flex flex-col gap-1">
               <label className="flex flex-col gap-1 text-sm text-ink/80">
                 {PLANNED_DURATION_LABEL}
-                <select
+                <Select
                   value={draftDurationMin ?? ""}
                   onChange={(event) => setDraftDurationMin(event.target.value === "" ? null : Number(event.target.value))}
-                  className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink"
                 >
                   <option value="">{PLANNED_DURATION_NONE_LABEL}</option>
                   {PLANNED_DURATION_PRESETS_MIN.map((min) => (
@@ -295,7 +291,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
                       {formatPlannedDuration(min)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               {/* Sibling of the label, not nested inside it — an implicit
                   <label> match resolves by the label's own accessible text

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { RatingSlider } from "../../components/RatingSlider";
 import { YesNoChoice } from "../../components/YesNoChoice";
 import { PrimaryButton } from "../../components/PrimaryButton";
+import { Select } from "../../components/Select";
 import { loadCheckin, saveCheckin } from "./checkinRepo";
 import { validateCheckin, type CheckinFieldErrors } from "./checkinValidation";
 import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, rowToFormState, type CheckinFormState } from "./checkinTypes";
@@ -259,10 +260,9 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
             />
             <label className="flex flex-col gap-1 text-sm text-ink/80">
               Localisation
-              <select
+              <Select
                 value={form.pain_location_code}
                 onChange={(event) => updateField("pain_location_code", event.target.value as CheckinFormState["pain_location_code"])}
-                className="rounded border border-white/10 bg-card px-3 py-3 text-base text-ink"
               >
                 <option value="">—</option>
                 {PAIN_LOCATION_CODES.map((code) => (
@@ -270,7 +270,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
                     {PAIN_LOCATION_LABELS[code]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <YesNoChoice
               label="Douleur traumatique"

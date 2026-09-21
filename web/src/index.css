@@ -41,6 +41,24 @@ html {
   color-scheme: dark;
 }
 
+/*
+ * `color-scheme: dark` alone turned out not to be enough in Chrome/Edge:
+ * once a <select> has ANY author color/background styling (every select in
+ * this app does — text-ink at minimum), Chromium stops applying its own
+ * dark UA background to the popup's <option> rows, but the light `color`
+ * still inherits down into them — light text on the browser's leftover
+ * white popup background. Unlike most CSS properties, Chromium (and Edge)
+ * DO honor `background-color`/`color` set directly on <option>/<optgroup>,
+ * so this is the actual fix, centralized here rather than repeated per
+ * call site — every current and future <select> in the app is covered
+ * automatically. Firefox already rendered this correctly either way.
+ */
+select option,
+select optgroup {
+  background-color: var(--color-card);
+  color: var(--color-ink);
+}
+
 html,
 body {
   min-height: 100%;
