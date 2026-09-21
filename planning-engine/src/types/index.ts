@@ -37,4 +37,4 @@ export type { DhDrill, DhTechnicalPrescription } from "./dhPrescription.js";
 
 export type { PrescriptionStructure } from "./prescriptionStructure.js";
 
-export type { PlannedPrescription, FinalPrescriptionSource, FinalPrescription } from "./prescription.js";
+export type { PlannedPrescription, ActiveSessionOrigin, ReconciliationAction, FinalPrescription } from "./prescription.js";

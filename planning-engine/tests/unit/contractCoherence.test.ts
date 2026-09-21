@@ -35,12 +35,14 @@ describe("contract coherence — one full entity graph", () => {
       lockedDates: [],
       recentHistory: { recentSessionKinds: [], recentMissedOrReplacedCount: 0, trailingVolumeMinutes: 0 },
     },
+    inputSnapshotSchemaVersion: "v1",
     inputSnapshotHash: "hash-1",
     plannerVersion: "v1",
     rulesetVersion: "v1",
     catalogVersion: "v1",
     prescriptionSchemaVersion: "v1",
     generationTrigger: "initial",
+    generationRequestId: "gen-req-1",
     generatedAt: "2026-10-18T12:00:00Z",
     rationale: "Initial development block.",
     relaxedConstraints: [],
@@ -117,7 +119,8 @@ describe("contract coherence — one full entity graph", () => {
     decisionId: "decision-1",
     planVersionId: version.id,
     plannedPrescriptionId: plannedPrescription.id,
-    source: "head_coach_keep",
+    activeSessionOrigin: "generated",
+    reconciliationAction: "keep",
     adaptationRuleIds: [],
     schemaVersion: "v1",
     catalogVersion: "v1",
@@ -134,8 +137,7 @@ describe("contract coherence — one full entity graph", () => {
   });
 
   it("the final prescription's structure is valid", () => {
-    expect(finalPrescription.structure).toBeDefined();
-    expect(() => validatePrescriptionStructure(finalPrescription.structure!)).not.toThrow();
+    expect(() => validatePrescriptionStructure(finalPrescription.structure)).not.toThrow();
   });
 
   it("the final prescription's provenance is internally consistent", () => {

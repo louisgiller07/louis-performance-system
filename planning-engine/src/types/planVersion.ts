@@ -4,6 +4,11 @@
  * entirely in TrainingPlanVersionLifecycleTransition (planLifecycle.ts),
  * exactly mirroring the already-proven `pattern_evidence_identities` /
  * `pattern_evidence_lifecycle_transitions` split in the existing schema.
+ *
+ * Fields below are aligned exactly with `training_plan_versions` in the
+ * locked M2 schema (supabase/migrations/..._v0_4_001a_training_plan_versions.sql)
+ * — inputSnapshotSchemaVersion and generationRequestId were identified as
+ * gaps during the M2 persistence closure and added here to close them.
  */
 import type { PlanInputSnapshot } from "./planInputSnapshot.js";
 
@@ -33,7 +38,9 @@ export interface TrainingPlanVersion {
   horizonEndDate: string; // ISO date
 
   inputSnapshot: PlanInputSnapshot;
-  /** Cheap pre-check for "did anything meaningful change since the last version" — optimization only, never load-bearing for correctness (M0 §Metadata). */
+  /** PlanInputSnapshot's own shape can evolve independently of plannerVersion/rulesetVersion — without this, an old snapshot becomes ambiguous to parse once the shape changes. */
+  inputSnapshotSchemaVersion: string;
+  /** Cheap pre-check for "did anything meaningful change since the last version" — optimization/audit metadata only, never load-bearing for correctness or identity (see generationRequestId below). */
   inputSnapshotHash: string;
 
   plannerVersion: string;
@@ -43,6 +50,15 @@ export interface TrainingPlanVersion {
   prescriptionSchemaVersion: string;
 
   generationTrigger: GenerationTrigger;
+  /**
+   * Idempotency key for the generation RPC — one UUID per LOGICAL generation
+   * request, supplied by the caller, never derived from input content.
+   * inputSnapshotHash is NOT identity: a deliberate regeneration with
+   * byte-identical inputs must still be allowed, which a hash-based identity
+   * would incorrectly collapse. A retry reuses the same generationRequestId;
+   * a genuinely new generation always gets a fresh one.
+   */
+  generationRequestId: string;
   generatedAt: string; // ISO datetime
 
   rationale: string;

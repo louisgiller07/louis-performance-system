@@ -5,6 +5,8 @@ export { validateLifecycleChain } from "./validateLifecycle.js";
 export { assertAvailabilityDeclared, GenerationBlockedError } from "./validatePlanInputSnapshot.js";
 export type { GenerationBlockedReason } from "./validatePlanInputSnapshot.js";
 export {
-  sourceRequiresPlannedPrescription,
+  requiresPlanVersion,
+  requiresPlannedPrescription,
+  requiresAdaptationRules,
   validateFinalPrescriptionProvenance,
 } from "./validateFinalPrescriptionProvenance.js";

@@ -175,12 +175,12 @@ export const GOLDEN_SCENARIOS: readonly GoldenScenario[] = [
     expectedPrinciples: [
       "The immutable generated plan (GeneratedPlanSession, PlannedPrescription) is never modified — history stays exactly as originally generated.",
       "The active coarse session for that date now differs from the plan (origin='manual').",
-      "FinalPrescription.source = 'manual_override_new_kind'; a fresh prescription is generated for DH_TECHNICAL via the shared Prescription module.",
+      "FinalPrescription.activeSessionOrigin = 'manual_override_new_kind', reconciliationAction = 'keep' (Head Coach agrees with the athlete's chosen DH_TECHNICAL kind); a fresh prescription is generated via the shared Prescription module.",
       "FinalPrescription.plannedPrescriptionId is undefined — the original strength prescription is not compatible/executed.",
     ],
     forbiddenOutcomes: [
       "Mutating GeneratedPlanSession or PlannedPrescription to reflect the override.",
-      "A FinalPrescription with source='manual_override_new_kind' carrying a plannedPrescriptionId (see validateFinalPrescriptionProvenance).",
+      "A FinalPrescription with activeSessionOrigin='manual_override_new_kind' carrying a plannedPrescriptionId (see validateFinalPrescriptionProvenance).",
     ],
     applicableInvariantCheckers: [],
   },

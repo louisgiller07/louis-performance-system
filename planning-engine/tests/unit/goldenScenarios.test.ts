@@ -48,16 +48,28 @@ describe("scenario J — missing availability blocks generation (M0 Issue 4)", (
   });
 });
 
-describe("scenario I — manual override provenance (M0 Issue 3)", () => {
-  it("a FinalPrescription with source=manual_override_new_kind and no plannedPrescriptionId is valid", () => {
+describe("scenario I — manual override provenance (M0 Issue 3 / M2 provenance closure)", () => {
+  it("a FinalPrescription with activeSessionOrigin=manual_override_new_kind, reconciliationAction=keep, and no plannedPrescriptionId is valid", () => {
     expect(() =>
-      validateFinalPrescriptionProvenance({ source: "manual_override_new_kind", plannedPrescriptionId: undefined })
+      validateFinalPrescriptionProvenance({
+        activeSessionOrigin: "manual_override_new_kind",
+        reconciliationAction: "keep",
+        planVersionId: "v1",
+        plannedPrescriptionId: undefined,
+        adaptationRuleIds: [],
+      })
     ).not.toThrow();
   });
 
-  it("a FinalPrescription with source=manual_override_new_kind carrying a plannedPrescriptionId is rejected", () => {
+  it("a FinalPrescription with activeSessionOrigin=manual_override_new_kind carrying a plannedPrescriptionId is rejected", () => {
     expect(() =>
-      validateFinalPrescriptionProvenance({ source: "manual_override_new_kind", plannedPrescriptionId: "pp-original" })
+      validateFinalPrescriptionProvenance({
+        activeSessionOrigin: "manual_override_new_kind",
+        reconciliationAction: "keep",
+        planVersionId: "v1",
+        plannedPrescriptionId: "pp-original",
+        adaptationRuleIds: [],
+      })
     ).toThrow();
   });
 });
