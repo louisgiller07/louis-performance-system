@@ -335,6 +335,116 @@ export async function setAthleteDiscipline(client: SupabaseClient, athleteId: st
   if (error) throw new Error(`setAthleteDiscipline failed: ${error.message}`);
 }
 
+/** M2.7 / ADR V0.4_012 — result of building a real, accepted canonical training plan via the actual generate/accept RPCs (never hand-inserted rows, so fixtures exercise the same invariants production traffic does). */
+export interface AcceptedTrainingPlanFixture {
+  planVersionId: string;
+  blockId: string;
+  weekId: string;
+  /** date (ISO) -> training_plan_generated_sessions.id */
+  generatedSessionIds: Record<string, string>;
+}
+
+export interface TrainingPlanFixtureSession {
+  date: string;
+  kind: string;
+  loadProfile?: string;
+  durationMin?: number;
+  focus?: string;
+}
+
+/**
+ * Builds and accepts one canonical training plan — a single block/week
+ * spanning `[horizonStartDate, horizonEndDate]` plus the given sessions —
+ * via `generate_training_plan_version` then `accept_training_plan_version`
+ * (the real, already-validated RPCs), never by hand-inserting canonical
+ * rows. `fields.sessions` must be non-empty — the generation RPC itself
+ * requires at least one session.
+ */
+export async function generateAndAcceptTrainingPlan(
+  client: SupabaseClient,
+  athleteId: string,
+  fields: {
+    horizonStartDate: string;
+    horizonEndDate: string;
+    blockMode?: string;
+    sessions: TrainingPlanFixtureSession[];
+  }
+): Promise<AcceptedTrainingPlanFixture> {
+  const planVersionId = randomUUID();
+  const blockId = randomUUID();
+  const weekId = randomUUID();
+  const generatedSessionIds: Record<string, string> = {};
+
+  const sessionsPayload = fields.sessions.map((s) => {
+    const id = randomUUID();
+    generatedSessionIds[s.date] = id;
+    return {
+      id,
+      weekId,
+      date: s.date,
+      kind: s.kind,
+      ...(s.loadProfile !== undefined ? { loadProfile: s.loadProfile } : {}),
+      ...(s.durationMin !== undefined ? { durationMin: s.durationMin } : {}),
+      ...(s.focus !== undefined ? { focus: s.focus } : {}),
+      doseTarget: { domain: "recovery" },
+      rationale: "test fixture",
+    };
+  });
+
+  const { data: genData, error: genError } = await client.rpc("generate_training_plan_version", {
+    p_athlete_id: athleteId,
+    p_generation_request_id: randomUUID(),
+    p_version: {
+      id: planVersionId,
+      horizonStartDate: fields.horizonStartDate,
+      horizonEndDate: fields.horizonEndDate,
+      inputSnapshot: {},
+      inputSnapshotSchemaVersion: "v1",
+      inputSnapshotHash: randomUUID(),
+      plannerVersion: "v1",
+      rulesetVersion: "v1",
+      catalogVersion: "v1",
+      prescriptionSchemaVersion: "v1",
+      generationTrigger: "initial",
+      rationale: "test fixture",
+    },
+    p_blocks: [
+      {
+        id: blockId,
+        sequenceNumber: 1,
+        name: "Test block",
+        mode: fields.blockMode ?? "IN_SEASON",
+        primaryFocus: "test",
+        startDate: fields.horizonStartDate,
+        endDate: fields.horizonEndDate,
+      },
+    ],
+    p_weeks: [
+      {
+        id: weekId,
+        blockId,
+        weekNumber: 1,
+        startDate: fields.horizonStartDate,
+        endDate: fields.horizonEndDate,
+        weekType: "development",
+        doseSummary: {},
+        rationale: "test fixture",
+      },
+    ],
+    p_sessions: sessionsPayload,
+    p_planned_prescriptions: [],
+  });
+  if (genError || !genData) throw new Error(`generateAndAcceptTrainingPlan: generate failed: ${genError?.message}`);
+
+  const { error: acceptError } = await client.rpc("accept_training_plan_version", {
+    p_athlete_id: athleteId,
+    p_plan_version_id: planVersionId,
+  });
+  if (acceptError) throw new Error(`generateAndAcceptTrainingPlan: accept failed: ${acceptError.message}`);
+
+  return { planVersionId, blockId, weekId, generatedSessionIds };
+}
+
 export async function insertRace(
   client: SupabaseClient,
   athleteId: string,
