@@ -1,0 +1,25 @@
+{
+  "name": "prescription-engine",
+  "version": "0.1.0",
+  "description": "Louis Performance System — Prescription Engine (V0.4 scaffold). Sibling package to planning-engine and head-coach-engine: resolves a single planning-engine session (kind + doseTarget) into a concrete exercise/drill prescription by selecting from planning-engine's catalogues (docs/11_DECISION_LOG.md, V0.4_119 -> V0.4_130 design/prep audits). Depends on planning-engine for its prescription types, catalogues, and validatePrescriptionStructure; never imports head-coach-engine internals.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.build.json",
+    "build:clean": "npm run clean && npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "planning-engine": "file:../planning-engine"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
