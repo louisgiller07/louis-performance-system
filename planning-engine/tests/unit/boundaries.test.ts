@@ -34,6 +34,12 @@ describe("M1 architecture boundary — planning-engine never imports head-coach-
   });
 });
 
+describe("M1 architecture boundary — planning-engine never imports prescription-engine", () => {
+  it("contains zero import/require specifiers pointing at prescription-engine across src/**", () => {
+    expect(findOffenders(/(?:from\s+["']|require\(\s*["'])[^"']*prescription-engine/)).toEqual([]);
+  });
+});
+
 describe("M1 architecture boundary — planning-engine never imports web/React code", () => {
   it("contains zero import/require specifiers pointing at web or react across src/**", () => {
     expect(findOffenders(/(?:from\s+["']|require\(\s*["'])[^"']*(?:\/web\/|^react$|["']react["'])/)).toEqual([]);
