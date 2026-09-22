@@ -7,11 +7,12 @@
  * validatePrescriptionStructure; never imports head-coach-engine internals
  * (see tests/unit/boundaries.test.ts).
  *
- * This file is a scaffold only — no resolver logic exists yet.
  * PrescriptionRequest/PrescriptionResult are the locked call contract
- * (V0.4_121/122, ownership locked V0.4_129 §1); the strength/DH resolvers
- * and the entry point that assembles a PrescriptionResult are out of scope
- * for this ticket.
+ * (V0.4_121/122, ownership locked V0.4_129 §1). The strength/DH resolvers
+ * (V0.4_132/133/134) and the prescriptionEngine entry point (V0.4_135) now
+ * exist — this package can dispatch and validate end to end, though
+ * repScheme (outside amrap), restSeconds, and executionCue still have no
+ * approved V1 source and always throw PendingProductDecisionError.
  */
 import type {
   SessionKind,
@@ -27,6 +28,15 @@ export { validatePrescriptionStructure } from "planning-engine";
 
 export interface PrescriptionRequest {
   generatedPlanSessionId: string;
+  /**
+   * Id for the PlannedPrescription row this call will produce — assigned by
+   * the caller (head-coach-engine, via randomUUID()) before invoking this
+   * package, same precedent as generatedPlanSessionId (V0.4_114). Never
+   * generated inside prescription-engine: doing so would break the pure,
+   * deterministic "same input -> same output" contract every selector in
+   * this package already relies on (V0.4_132/133). Found and locked V0.4_135.
+   */
+  plannedPrescriptionId: string;
   kind: SessionKind;
 
   durationMin: number;
@@ -49,3 +59,4 @@ export interface PrescriptionResult {
 
 export * from "./errors.js";
 export * from "./constants.js";
+export { prescriptionEngine } from "./prescriptionEngine.js";
