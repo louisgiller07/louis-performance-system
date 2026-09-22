@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PrescriptionRequest } from "../../src/index.js";
 import type { StrengthPrescription } from "planning-engine";
-import { PlanningEngineValidationError, EXERCISE_CATALOG_VERSION } from "planning-engine";
+import { PlanningEngineValidationError, EXERCISE_CATALOG_VERSION, DRILL_CATALOG_VERSION } from "planning-engine";
 import { prescriptionEngine } from "../../src/prescriptionEngine.js";
-import { UnsupportedPrescriptionKindError, PendingProductDecisionError } from "../../src/errors.js";
+import { UnsupportedPrescriptionKindError } from "../../src/errors.js";
 import * as strengthResolverModule from "../../src/strength/strengthResolver.js";
 
 const FULL_EQUIPMENT = ["barbell", "squat_rack", "dumbbells", "bench", "pull_up_bar", "cable_machine", "resistance_bands"];
@@ -33,24 +33,19 @@ function dhRequest(overrides: Partial<PrescriptionRequest> = {}): PrescriptionRe
 }
 
 describe("prescriptionEngine — dispatch", () => {
-  it("STRENGTH_LOWER calls the strength resolver — surfaces its real restSeconds blocker", () => {
-    try {
-      prescriptionEngine(baseRequest({ kind: "STRENGTH_LOWER" }));
-      throw new Error("expected prescriptionEngine to throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PendingProductDecisionError);
-      expect((error as PendingProductDecisionError).field).toBe("restSeconds");
-    }
+  // Both real resolvers now resolve successfully for real catalogue data
+  // (V0.4_138/139) — dispatch is proven here by which resolver's real
+  // selection output shows up in the result, not by which error fires.
+  it("STRENGTH_LOWER calls the strength resolver and returns a real strength prescription", () => {
+    const result = prescriptionEngine(baseRequest({ kind: "STRENGTH_LOWER" }));
+    expect(result.prescription.structure.domain).toBe("strength");
+    expect(result.prescription.structure).toMatchObject({ blocks: [{ exerciseId: "bodyweight_squat" }] });
   });
 
-  it("DH_TECHNICAL calls the dh resolver — surfaces its real executionCue blocker", () => {
-    try {
-      prescriptionEngine(dhRequest());
-      throw new Error("expected prescriptionEngine to throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PendingProductDecisionError);
-      expect((error as PendingProductDecisionError).field).toBe("executionCue");
-    }
+  it("DH_TECHNICAL calls the dh resolver and returns a real DH prescription", () => {
+    const result = prescriptionEngine(dhRequest());
+    expect(result.prescription.structure.domain).toBe("dh_technical");
+    expect(result.prescription.structure).toMatchObject({ drills: [{ drillId: "cornering_flat_turn_precision" }] });
   });
 
   it("AEROBIC_BASE throws UnsupportedPrescriptionKindError without calling any resolver", () => {
@@ -60,16 +55,71 @@ describe("prescriptionEngine — dispatch", () => {
   });
 });
 
+describe("prescriptionEngine — integration, full PlannedPrescription envelope (V0.4_140)", () => {
+  it("Strength: a real PrescriptionRequest resolves to a valid, complete PlannedPrescription", () => {
+    const result = prescriptionEngine(baseRequest({ kind: "STRENGTH_LOWER" }));
+
+    expect(result.prescription).toEqual({
+      id: "prescription-1",
+      generatedPlanSessionId: "session-1",
+      schemaVersion: "v1",
+      catalogVersion: EXERCISE_CATALOG_VERSION,
+      structure: {
+        domain: "strength",
+        schemaVersion: "v1",
+        blocks: [
+          {
+            role: "work",
+            exerciseId: "bodyweight_squat",
+            sets: 12,
+            intensity: { type: "rpe", target: 7 },
+            repScheme: { type: "amrap" },
+            restSeconds: 60,
+          },
+        ],
+      },
+    });
+    expect(result.relaxedConstraints).toEqual([]);
+  });
+
+  it("DH: a real PrescriptionRequest resolves to a valid, complete PlannedPrescription", () => {
+    const result = prescriptionEngine(dhRequest());
+
+    expect(result.prescription).toEqual({
+      id: "prescription-1",
+      generatedPlanSessionId: "session-1",
+      schemaVersion: "v1",
+      catalogVersion: DRILL_CATALOG_VERSION,
+      structure: {
+        domain: "dh_technical",
+        schemaVersion: "v1",
+        drills: [
+          {
+            drillId: "cornering_flat_turn_precision",
+            skillTarget: "cornering",
+            terrainRequirement: "flow_trail",
+            runs: 6,
+            successCriterion: "Hits the marked apex within a bike length on 4/5 runs.",
+            executionCue: "Pick the marked apex before entry and steer your front wheel through it every run.",
+          },
+        ],
+      },
+    });
+    expect(result.relaxedConstraints).toEqual([]);
+  });
+});
+
 describe("prescriptionEngine — validation boundary", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  // Both real resolvers always throw today (repScheme/restSeconds/executionCue
-  // are blocked, V0.4_134) — so the validation boundary and result shape can
-  // only be exercised by mocking a resolver's return value here. This does
-  // not change production behavior; strengthResolver.ts/dhResolver.ts are
-  // untouched.
+  // The integration tests above already exercise the real resolvers end to
+  // end successfully (V0.4_138/139 filled the catalogue). Mocking here
+  // targets a case the real catalogue can no longer produce — an invalid
+  // structure — to prove validatePrescriptionStructure actually runs rather
+  // than being skipped. Does not change production behavior;
+  // strengthResolver.ts/dhResolver.ts are untouched.
   it("calls validatePrescriptionStructure after resolution and returns {prescription, relaxedConstraints: []} for a valid structure", () => {
     const validPrescription: StrengthPrescription = {
       domain: "strength",

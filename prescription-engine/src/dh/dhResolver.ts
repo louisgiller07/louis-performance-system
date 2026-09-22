@@ -1,28 +1,29 @@
 /**
  * dhResolver — assembles a DhTechnicalPrescription from PrescriptionRequest
- * by calling the already-built DH selectors (V0.4_133). V0.4_134.
+ * by calling the already-built DH selectors (V0.4_133) and reading
+ * prescription metadata directly from the catalogue (V0.4_138), which is
+ * the sole source of truth for executionCue — never generated/templated
+ * here.
  *
  * Never chooses a different skillTarget/drill, never recomputes load,
  * never reads recentHistory, never touches kind, never persists anything.
- * Never calls validatePrescriptionStructure — belongs to the future entry
- * point. Never produces RelaxedConstraint/insufficient_exercise_variety —
- * that collection belongs to a higher layer, not this resolver.
+ * Never calls validatePrescriptionStructure — belongs to the entry point.
+ * Never produces RelaxedConstraint/insufficient_exercise_variety — that
+ * collection belongs to a higher layer, not this resolver.
  *
- * executionCue has no approved V1 source (V0.4_126 §2 — DrillCatalogEntry
- * has no equivalent field, and no coaching cue text can be generated or
- * templated). Throws PendingProductDecisionError — already defined in
- * ../errors.ts (V0.4_131), reused rather than duplicated as
- * "PendingPrescriptionDecisionError ou équivalent" per this ticket's own
- * wording, since errors.ts is outside this ticket's authorized scope.
+ * executionCue is read straight from the selected drill's catalogue entry
+ * (V0.4_138 filled all 12 real entries). PendingProductDecisionError
+ * (../errors.ts, V0.4_131) remains the guard for the case a catalogue
+ * entry genuinely carries a blank executionCue — never a fabricated value.
  *
- * resolveDhKnownFields exists separately from resolveDh so the fields that
- * DO have a real source (skillTarget, drillId, runs, successCriterion,
- * terrainRequirement) stay independently testable even though executionCue
- * always blocks the full assembly today — the intended, already-documented
- * V0.4_126 conclusion, not a bug.
+ * resolveDhKnownFields resolves every field a DhDrill needs (V0.4_139 —
+ * previously split to work around executionCue always throwing, V0.4_134;
+ * that reason no longer applies now that the catalogue carries real data,
+ * so the split stays only as a clean, independently testable unit, not a
+ * workaround).
  */
 import type { PrescriptionRequest } from "../index.js";
-import type { DhTechnicalPrescription, DhDrill } from "planning-engine";
+import type { DhTechnicalPrescription, DhDrill, DrillCatalogEntry } from "planning-engine";
 import { DRILL_CATALOG } from "planning-engine";
 import { selectSkillTarget } from "./skillTargetSelection.js";
 import { selectDrill } from "./drillSelection.js";
@@ -37,6 +38,14 @@ export interface ResolvedDhKnownFields {
   runs: number;
   successCriterion: string;
   terrainRequirement: string;
+  executionCue: string;
+}
+
+export function resolveExecutionCue(drill: DrillCatalogEntry): string {
+  if (drill.executionCue.trim().length === 0) {
+    throw new PendingProductDecisionError("executionCue", `drill "${drill.id}" has a blank executionCue in the catalogue`);
+  }
+  return drill.executionCue;
 }
 
 export function resolveDhKnownFields(request: PrescriptionRequest): ResolvedDhKnownFields {
@@ -66,14 +75,8 @@ export function resolveDhKnownFields(request: PrescriptionRequest): ResolvedDhKn
     runs: request.doseTarget.focusedRunsCount,
     successCriterion: drill.successCriteria,
     terrainRequirement: drill.terrainRequirement,
+    executionCue: resolveExecutionCue(drill),
   };
-}
-
-function resolveExecutionCue(drillId: string): string {
-  throw new PendingProductDecisionError(
-    "executionCue",
-    `DrillCatalogEntry has no executionCue field for drill "${drillId}" — no coaching cue text can be generated or templated (V0.4_126 §2)`
-  );
 }
 
 export function resolveDh(request: PrescriptionRequest): DhTechnicalPrescription {
@@ -85,7 +88,7 @@ export function resolveDh(request: PrescriptionRequest): DhTechnicalPrescription
     terrainRequirement: known.terrainRequirement,
     runs: known.runs,
     successCriterion: known.successCriterion,
-    executionCue: resolveExecutionCue(known.drillId),
+    executionCue: known.executionCue,
   };
 
   return {

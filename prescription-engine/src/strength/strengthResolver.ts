@@ -1,26 +1,25 @@
 /**
  * strengthResolver — assembles a StrengthPrescription from PrescriptionRequest
- * by calling the already-built strength selectors (V0.4_132). V0.4_134.
+ * by calling the already-built strength selectors (V0.4_132) and reading
+ * prescription metadata directly from the catalogue (V0.4_138), which is
+ * the sole source of truth for repScheme/restSeconds — never invented here.
  *
  * Never chooses a different exercise, never recomputes load, never reads
  * recentHistory, never touches kind beyond checking it belongs to the
  * strength kinds, never persists anything. Never calls
- * validatePrescriptionStructure — that belongs to the future entry point
+ * validatePrescriptionStructure — that belongs to the entry point
  * (prescriptionEngine.ts), not this resolver.
  *
- * repScheme/restSeconds have no approved V1 source (V0.4_124 §1/§2,
- * V0.4_126 §3) except repScheme's amrap case, which needs no invented
- * number at all. Both throw PendingProductDecisionError — already defined
- * in ../errors.ts (V0.4_131), reused rather than duplicated as
- * "PendingPrescriptionDecisionError ou équivalent" per this ticket's own
- * wording, since errors.ts is outside this ticket's authorized scope.
- * restSeconds always throws today, so resolveStrength always throws today
- * — the intended, already-documented V0.4_126 conclusion, not a bug.
+ * repScheme/restSeconds are read straight from the selected exercise's
+ * catalogue entry (V0.4_138 filled all 21 real entries). PendingProductDecisionError
+ * (../errors.ts, V0.4_131) remains the guard for the case a catalogue entry
+ * genuinely lacks one of these fields — never a fabricated value.
  *
- * resolveStrengthKnownFields exists separately from resolveStrength so the
- * fields that DO have a real source (movementCategory, exerciseId, sets,
- * intensity, and repScheme's amrap case) stay independently testable even
- * though restSeconds always blocks the full assembly today.
+ * resolveStrengthKnownFields resolves every field a StrengthBlock needs
+ * (V0.4_139 — previously split to work around repScheme/restSeconds always
+ * throwing, V0.4_134; that reason no longer applies now that the catalogue
+ * carries real data, so the split stays only as a clean, independently
+ * testable unit, not a workaround).
  */
 import type { PrescriptionRequest } from "../index.js";
 import type { StrengthPrescription, RepScheme, Intensity, ExerciseCatalogEntry, MovementCategory } from "planning-engine";
@@ -39,23 +38,21 @@ export interface ResolvedStrengthKnownFields {
   sets: number;
   intensity: Intensity;
   repScheme: RepScheme;
+  restSeconds: number;
 }
 
 export function resolveRepScheme(exercise: ExerciseCatalogEntry): RepScheme {
-  if (exercise.supportedModalities.includes("amrap")) {
-    return { type: "amrap" };
+  if (exercise.repScheme === undefined) {
+    throw new PendingProductDecisionError("repScheme", `exercise "${exercise.id}" has no repScheme defined in the catalogue`);
   }
-  throw new PendingProductDecisionError(
-    "repScheme",
-    `exercise "${exercise.id}" does not support "amrap" — no other RepScheme variant (fixed/range/time) has an approved V1 numeric source (V0.4_125 §1)`
-  );
+  return exercise.repScheme;
 }
 
-function resolveRestSeconds(): number {
-  throw new PendingProductDecisionError(
-    "restSeconds",
-    "no approved V1 source exists for rest duration (V0.4_125 §2, V0.4_126 §3) — every candidate value, including 0, encodes a real coaching claim"
-  );
+export function resolveRestSeconds(exercise: ExerciseCatalogEntry): number {
+  if (exercise.restSeconds === undefined) {
+    throw new PendingProductDecisionError("restSeconds", `exercise "${exercise.id}" has no restSeconds defined in the catalogue`);
+  }
+  return exercise.restSeconds;
 }
 
 export function resolveStrengthKnownFields(request: PrescriptionRequest): ResolvedStrengthKnownFields {
@@ -81,6 +78,7 @@ export function resolveStrengthKnownFields(request: PrescriptionRequest): Resolv
     sets: request.doseTarget.setVolume,
     intensity: { type: "rpe", target: request.doseTarget.targetRpeOrRir },
     repScheme: resolveRepScheme(exercise),
+    restSeconds: resolveRestSeconds(exercise),
   };
 }
 
@@ -97,7 +95,7 @@ export function resolveStrength(request: PrescriptionRequest): StrengthPrescript
         sets: known.sets,
         intensity: known.intensity,
         repScheme: known.repScheme,
-        restSeconds: resolveRestSeconds(),
+        restSeconds: known.restSeconds,
       },
     ],
   };

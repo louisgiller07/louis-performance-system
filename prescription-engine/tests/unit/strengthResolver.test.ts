@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PrescriptionRequest } from "../../src/index.js";
-import { EXERCISE_CATALOG } from "planning-engine";
-import { resolveStrength, resolveStrengthKnownFields, resolveRepScheme } from "../../src/strength/strengthResolver.js";
+import type { ExerciseCatalogEntry } from "planning-engine";
+import { EXERCISE_CATALOG, validatePrescriptionStructure } from "planning-engine";
+import { resolveStrength, resolveStrengthKnownFields, resolveRepScheme, resolveRestSeconds } from "../../src/strength/strengthResolver.js";
 import { PendingProductDecisionError } from "../../src/errors.js";
 
 const FULL_EQUIPMENT = ["barbell", "squat_rack", "dumbbells", "bench", "pull_up_bar", "cable_machine", "resistance_bands"];
@@ -17,6 +18,19 @@ function strengthRequest(overrides: Partial<PrescriptionRequest> = {}): Prescrip
     technicalPriorities: { strengths: [], weaknesses: [], priorityAreas: [] },
     terrainAccess: [],
     strengthExperienceTier: "beginner",
+    ...overrides,
+  };
+}
+
+/** Not the real catalogue — a local object matching ExerciseCatalogEntry's shape, used only to exercise resolveRepScheme/resolveRestSeconds' guard clauses in isolation. */
+function fakeExercise(overrides: Partial<ExerciseCatalogEntry> = {}): ExerciseCatalogEntry {
+  return {
+    id: "fake_exercise",
+    displayName: "Fake Exercise",
+    movementCategory: "squat",
+    equipmentRequirements: [],
+    supportedModalities: ["fixed_reps"],
+    substitutions: [],
     ...overrides,
   };
 }
@@ -46,44 +60,67 @@ describe("resolveStrengthKnownFields — sets and intensity", () => {
   });
 });
 
-describe("resolveRepScheme — amrap accepted directly", () => {
-  it("returns {type: 'amrap'} for an exercise that supports it", () => {
+describe("resolveRepScheme — reads directly from the catalogue (V0.4_138/139)", () => {
+  it("returns the real repScheme for an amrap-eligible exercise (bodyweight_squat)", () => {
     expect(resolveRepScheme(EXERCISE_CATALOG["bodyweight_squat"]!)).toEqual({ type: "amrap" });
   });
-});
 
-describe("resolveStrengthKnownFields — repScheme, amrap-eligible exercise", () => {
-  it("beginner tier resolves to bodyweight_squat and repScheme succeeds as amrap", () => {
-    const result = resolveStrengthKnownFields(strengthRequest({ strengthExperienceTier: "beginner" }));
-    expect(result.exerciseId).toBe("bodyweight_squat");
-    expect(result.repScheme).toEqual({ type: "amrap" });
+  it("returns the real repScheme for a range-based exercise (goblet_squat)", () => {
+    expect(resolveRepScheme(EXERCISE_CATALOG["goblet_squat"]!)).toEqual({ type: "range", min: 8, max: 12 });
+  });
+
+  it("returns the real repScheme for a heavier compound exercise (barbell_back_squat)", () => {
+    expect(resolveRepScheme(EXERCISE_CATALOG["barbell_back_squat"]!)).toEqual({ type: "range", min: 5, max: 8 });
+  });
+
+  it("throws PendingProductDecisionError when the catalogue entry has no repScheme", () => {
+    expect(() => resolveRepScheme(fakeExercise({ repScheme: undefined }))).toThrow(PendingProductDecisionError);
   });
 });
 
-describe("resolveStrengthKnownFields — explicit error when repScheme has no source", () => {
-  it("throws PendingProductDecisionError('repScheme') for an exercise that does not support amrap", () => {
-    // intermediate tier -> goblet_squat, which does not support amrap
-    expect(() => resolveStrengthKnownFields(strengthRequest({ strengthExperienceTier: "intermediate" }))).toThrow(
-      PendingProductDecisionError
-    );
-    try {
-      resolveStrengthKnownFields(strengthRequest({ strengthExperienceTier: "intermediate" }));
-      throw new Error("expected resolveStrengthKnownFields to throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PendingProductDecisionError);
-      expect((error as PendingProductDecisionError).field).toBe("repScheme");
-    }
+describe("resolveRestSeconds — reads directly from the catalogue (V0.4_138/139)", () => {
+  it("returns the real restSeconds for bodyweight_squat", () => {
+    expect(resolveRestSeconds(EXERCISE_CATALOG["bodyweight_squat"]!)).toBe(60);
+  });
+
+  it("returns the real restSeconds for barbell_back_squat", () => {
+    expect(resolveRestSeconds(EXERCISE_CATALOG["barbell_back_squat"]!)).toBe(150);
+  });
+
+  it("throws PendingProductDecisionError when the catalogue entry has no restSeconds", () => {
+    expect(() => resolveRestSeconds(fakeExercise({ restSeconds: undefined }))).toThrow(PendingProductDecisionError);
   });
 });
 
-describe("resolveStrength — explicit error when restSeconds has no source", () => {
-  it("throws PendingProductDecisionError('restSeconds') even when repScheme itself succeeds (amrap-eligible exercise)", () => {
-    try {
-      resolveStrength(strengthRequest({ strengthExperienceTier: "beginner" }));
-      throw new Error("expected resolveStrength to throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(PendingProductDecisionError);
-      expect((error as PendingProductDecisionError).field).toBe("restSeconds");
-    }
+describe("resolveStrength — returns a valid StrengthPrescription end to end", () => {
+  it("resolves STRENGTH_LOWER + beginner to a complete, structurally valid prescription", () => {
+    const result = resolveStrength(strengthRequest({ strengthExperienceTier: "beginner" }));
+
+    expect(result).toEqual({
+      domain: "strength",
+      schemaVersion: "v1",
+      blocks: [
+        {
+          role: "work",
+          exerciseId: "bodyweight_squat",
+          sets: 12,
+          intensity: { type: "rpe", target: 7 },
+          repScheme: { type: "amrap" },
+          restSeconds: 60,
+        },
+      ],
+    });
+  });
+
+  it("the result passes validatePrescriptionStructure (final validation)", () => {
+    const result = resolveStrength(strengthRequest({ strengthExperienceTier: "advanced" }));
+    expect(() => validatePrescriptionStructure(result)).not.toThrow();
+  });
+
+  it("resolves for a non-amrap exercise (intermediate tier -> goblet_squat) without error", () => {
+    const result = resolveStrength(strengthRequest({ strengthExperienceTier: "intermediate" }));
+    expect(result.blocks[0]!.exerciseId).toBe("goblet_squat");
+    expect(result.blocks[0]!.repScheme).toEqual({ type: "range", min: 8, max: 12 });
+    expect(result.blocks[0]!.restSeconds).toBe(90);
   });
 });

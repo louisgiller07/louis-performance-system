@@ -58,5 +58,8 @@ export interface PrescriptionResult {
 }
 
 export * from "./errors.js";
-export * from "./constants.js";
 export { prescriptionEngine } from "./prescriptionEngine.js";
+// STRENGTH_KINDS/DH_KINDS (./constants.js) are deliberately NOT re-exported
+// here — an internal dispatch detail, never part of this package's public
+// contract (V0.4_140 §1). Every internal consumer already imports them by
+// direct relative path, never through this barrel.
