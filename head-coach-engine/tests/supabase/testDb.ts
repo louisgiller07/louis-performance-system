@@ -353,14 +353,14 @@ export interface TrainingPlanFixtureSession {
 }
 
 /**
- * Builds and accepts one canonical training plan — a single block/week
- * spanning `[horizonStartDate, horizonEndDate]` plus the given sessions —
- * via `generate_training_plan_version` then `accept_training_plan_version`
- * (the real, already-validated RPCs), never by hand-inserting canonical
- * rows. `fields.sessions` must be non-empty — the generation RPC itself
- * requires at least one session.
+ * Builds one canonical training plan — a single block/week spanning
+ * `[horizonStartDate, horizonEndDate]` plus the given sessions — via
+ * `generate_training_plan_version` (the real, already-validated RPC), never
+ * by hand-inserting canonical rows. Leaves the version in `draft` state —
+ * never accepts it. `fields.sessions` must be non-empty — the generation
+ * RPC itself requires at least one session.
  */
-export async function generateAndAcceptTrainingPlan(
+export async function generateTrainingPlan(
   client: SupabaseClient,
   athleteId: string,
   fields: {
@@ -434,15 +434,36 @@ export async function generateAndAcceptTrainingPlan(
     p_sessions: sessionsPayload,
     p_planned_prescriptions: [],
   });
-  if (genError || !genData) throw new Error(`generateAndAcceptTrainingPlan: generate failed: ${genError?.message}`);
+  if (genError || !genData) throw new Error(`generateTrainingPlan: generate failed: ${genError?.message}`);
+
+  return { planVersionId, blockId, weekId, generatedSessionIds };
+}
+
+/**
+ * Builds and accepts one canonical training plan — see
+ * {@link generateTrainingPlan} for the generation half, unchanged in
+ * behavior by this extraction — then accepts it via
+ * `accept_training_plan_version` (the real, already-validated RPC).
+ */
+export async function generateAndAcceptTrainingPlan(
+  client: SupabaseClient,
+  athleteId: string,
+  fields: {
+    horizonStartDate: string;
+    horizonEndDate: string;
+    blockMode?: string;
+    sessions: TrainingPlanFixtureSession[];
+  }
+): Promise<AcceptedTrainingPlanFixture> {
+  const fixture = await generateTrainingPlan(client, athleteId, fields);
 
   const { error: acceptError } = await client.rpc("accept_training_plan_version", {
     p_athlete_id: athleteId,
-    p_plan_version_id: planVersionId,
+    p_plan_version_id: fixture.planVersionId,
   });
   if (acceptError) throw new Error(`generateAndAcceptTrainingPlan: accept failed: ${acceptError.message}`);
 
-  return { planVersionId, blockId, weekId, generatedSessionIds };
+  return fixture;
 }
 
 export async function insertRace(
