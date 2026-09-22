@@ -3,3 +3,6 @@ export type { MovementCategory, PrescriptionModality, ExerciseCatalogEntry } fro
 
 export { DRILL_CATALOG_VERSION, DRILL_CATALOG, DRILL_CATALOG_ENTRIES } from "./drillCatalog.js";
 export type { DrillDifficultyTier, DrillCatalogEntry } from "./drillCatalog.js";
+
+export { WEEK_TEMPLATE_CATALOG_VERSION, WEEK_TEMPLATE_CATALOG, WEEK_TEMPLATE_CATALOG_ENTRIES } from "./weekTemplateCatalog.js";
+export type { WeekTemplateCatalogEntry } from "./weekTemplateCatalog.js";
