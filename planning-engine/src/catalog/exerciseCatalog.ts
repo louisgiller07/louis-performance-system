@@ -6,9 +6,19 @@
  * IDs are permanent. A meaningful change to an entry ships as a NEW id; the
  * old one is marked `deprecated: true, replacedBy` and is NEVER deleted or
  * repurposed — see README.md "Catalogue versioning rules".
+ *
+ * `repScheme`/`restSeconds` (V0.4_138) close the prescription-engine
+ * blockers identified V0.4_136/137: the catalogue is the sole source of
+ * truth for these values, never invented downstream. `repScheme.type` is
+ * always one already listed in that same entry's `supportedModalities` —
+ * enforced by tests/unit/catalog.test.ts, reusing validatePrescriptionStructure
+ * rather than reimplementing its checks. `restSeconds` is optional by
+ * design (V0.4_137): "no timed rest prescribed" remains a legitimate,
+ * un-invented state, distinct from a missing value.
  */
+import type { RepScheme } from "../types/strengthPrescription.js";
 
-export const EXERCISE_CATALOG_VERSION = "v1";
+export const EXERCISE_CATALOG_VERSION = "v2";
 
 export type MovementCategory = "squat" | "hinge" | "push" | "pull" | "carry" | "core" | "mobility";
 
@@ -23,6 +33,10 @@ export interface ExerciseCatalogEntry {
   supportedModalities: PrescriptionModality[];
   /** Other exerciseIds this can substitute for/be substituted by — symmetric in practice for this V1 set. */
   substitutions: string[];
+  /** Canonical rep scheme for this exercise — `type` is always a member of `supportedModalities` above. Optional: not every entry has been filled in yet (V0.4_138 filled all 21). */
+  repScheme?: RepScheme;
+  /** Canonical rest duration in seconds. Optional by design, not by omission — "no timed rest prescribed" is itself a legitimate value (V0.4_137), never a stand-in for a missing one. */
+  restSeconds?: number;
   progressesTo?: string;
   regressesTo?: string;
   deprecated?: boolean;
@@ -38,6 +52,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["fixed_reps", "rep_range", "amrap"],
     substitutions: [],
+    repScheme: { type: "amrap" },
+    restSeconds: 60,
     progressesTo: "goblet_squat",
   },
   {
@@ -47,6 +63,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["dumbbells"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 8, max: 12 },
+    restSeconds: 90,
     progressesTo: "barbell_back_squat",
     regressesTo: "bodyweight_squat",
   },
@@ -57,6 +75,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["barbell", "squat_rack"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 5, max: 8 },
+    restSeconds: 150,
     regressesTo: "goblet_squat",
   },
 
@@ -68,6 +88,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 10, max: 15 },
+    restSeconds: 60,
     progressesTo: "dumbbell_romanian_deadlift",
   },
   {
@@ -77,6 +99,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["dumbbells"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 8, max: 12 },
+    restSeconds: 90,
     progressesTo: "barbell_deadlift",
     regressesTo: "bodyweight_hip_hinge",
   },
@@ -87,6 +111,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["barbell"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 5, max: 8 },
+    restSeconds: 150,
     regressesTo: "dumbbell_romanian_deadlift",
   },
 
@@ -98,6 +124,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["fixed_reps", "rep_range", "amrap"],
     substitutions: [],
+    repScheme: { type: "amrap" },
+    restSeconds: 60,
     progressesTo: "dumbbell_bench_press",
   },
   {
@@ -107,6 +135,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["dumbbells", "bench"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: ["barbell_bench_press"],
+    repScheme: { type: "range", min: 8, max: 12 },
+    restSeconds: 90,
     progressesTo: "barbell_bench_press",
     regressesTo: "pushup",
   },
@@ -117,6 +147,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["barbell", "bench"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: ["dumbbell_bench_press"],
+    repScheme: { type: "range", min: 5, max: 8 },
+    restSeconds: 150,
     regressesTo: "dumbbell_bench_press",
   },
 
@@ -128,6 +160,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 10, max: 15 },
+    restSeconds: 45,
     progressesTo: "resistance_band_row",
   },
   {
@@ -137,6 +171,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["resistance_bands"],
     supportedModalities: ["fixed_reps", "rep_range", "time"],
     substitutions: [],
+    repScheme: { type: "range", min: 12, max: 15 },
+    restSeconds: 60,
     progressesTo: "lat_pulldown",
     regressesTo: "floor_ytw_raise",
   },
@@ -147,6 +183,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["cable_machine"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: ["pull_up"],
+    repScheme: { type: "range", min: 8, max: 12 },
+    restSeconds: 90,
     progressesTo: "pull_up",
     regressesTo: "resistance_band_row",
   },
@@ -157,6 +195,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["pull_up_bar"],
     supportedModalities: ["fixed_reps", "rep_range", "amrap"],
     substitutions: ["lat_pulldown"],
+    repScheme: { type: "amrap" },
+    restSeconds: 90,
     regressesTo: "lat_pulldown",
   },
 
@@ -168,6 +208,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["time"],
     substitutions: [],
+    repScheme: { type: "time", seconds: 30 },
+    restSeconds: 45,
     progressesTo: "farmer_carry",
   },
   {
@@ -177,6 +219,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["dumbbells"],
     supportedModalities: ["time"],
     substitutions: ["suitcase_carry"],
+    repScheme: { type: "time", seconds: 40 },
+    restSeconds: 90,
     regressesTo: "bear_crawl",
   },
   {
@@ -186,6 +230,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["dumbbells"],
     supportedModalities: ["time"],
     substitutions: ["farmer_carry"],
+    repScheme: { type: "time", seconds: 30 },
+    restSeconds: 90,
   },
 
   // --- core ---
@@ -196,6 +242,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["time"],
     substitutions: [],
+    repScheme: { type: "time", seconds: 45 },
+    restSeconds: 45,
     progressesTo: "pallof_press",
   },
   {
@@ -205,6 +253,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["resistance_bands"],
     supportedModalities: ["fixed_reps", "rep_range"],
     substitutions: [],
+    repScheme: { type: "range", min: 10, max: 15 },
+    restSeconds: 45,
     regressesTo: "plank",
   },
   {
@@ -214,6 +264,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: ["pull_up_bar"],
     supportedModalities: ["fixed_reps", "rep_range", "amrap"],
     substitutions: [],
+    repScheme: { type: "amrap" },
+    restSeconds: 60,
     regressesTo: "plank",
   },
 
@@ -225,6 +277,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["time"],
     substitutions: [],
+    repScheme: { type: "time", seconds: 60 },
+    restSeconds: 15,
   },
   {
     id: "thoracic_rotation_mobility",
@@ -233,6 +287,8 @@ const ENTRIES: ExerciseCatalogEntry[] = [
     equipmentRequirements: [],
     supportedModalities: ["time"],
     substitutions: [],
+    repScheme: { type: "time", seconds: 45 },
+    restSeconds: 15,
   },
 ];
 

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { EXERCISE_CATALOG_ENTRIES, EXERCISE_CATALOG_VERSION } from "../../src/catalog/exerciseCatalog.js";
+import { EXERCISE_CATALOG_ENTRIES, EXERCISE_CATALOG_VERSION, type PrescriptionModality } from "../../src/catalog/exerciseCatalog.js";
 import { DRILL_CATALOG_ENTRIES, DRILL_CATALOG_VERSION } from "../../src/catalog/drillCatalog.js";
 import { WEEK_TEMPLATE_CATALOG_ENTRIES, WEEK_TEMPLATE_CATALOG_VERSION, type WeekTemplateCatalogEntry } from "../../src/catalog/weekTemplateCatalog.js";
 import { validateCatalogConsistency } from "../../src/validation/validateCatalog.js";
+import { validatePrescriptionStructure } from "../../src/validation/validatePrescription.js";
 import { PlanningEngineValidationError } from "../../src/validation/errors.js";
+import type { RepScheme, StrengthPrescription } from "../../src/types/strengthPrescription.js";
 
 describe("exercise catalog", () => {
   it("has a non-blank version string", () => {
@@ -40,6 +42,51 @@ describe("exercise catalog", () => {
     const broken = [{ ...EXERCISE_CATALOG_ENTRIES[0]!, id: "test_entry", deprecated: true, substitutions: [] }];
     expect(() => validateCatalogConsistency("exercise catalog", broken)).toThrow(PlanningEngineValidationError);
   });
+
+  it("every repScheme's type is a modality already listed in that entry's supportedModalities (V0.4_138)", () => {
+    const modalityForRepSchemeType: Record<RepScheme["type"], PrescriptionModality> = {
+      fixed: "fixed_reps",
+      range: "rep_range",
+      time: "time",
+      amrap: "amrap",
+    };
+    for (const entry of EXERCISE_CATALOG_ENTRIES) {
+      if (entry.repScheme === undefined) continue;
+      const requiredModality = modalityForRepSchemeType[entry.repScheme.type];
+      expect(
+        entry.supportedModalities,
+        `entry "${entry.id}" has repScheme.type "${entry.repScheme.type}" but does not list "${requiredModality}" in supportedModalities`
+      ).toContain(requiredModality);
+    }
+  });
+
+  it("every repScheme passes structural validation — reuses validatePrescriptionStructure, never reimplements validateRepScheme's checks", () => {
+    for (const entry of EXERCISE_CATALOG_ENTRIES) {
+      if (entry.repScheme === undefined) continue;
+      const syntheticStructure: StrengthPrescription = {
+        domain: "strength",
+        schemaVersion: "v1",
+        blocks: [
+          {
+            role: "work",
+            exerciseId: entry.id,
+            sets: 1,
+            repScheme: entry.repScheme,
+            intensity: { type: "bodyweight" },
+            restSeconds: entry.restSeconds ?? 0,
+          },
+        ],
+      };
+      expect(() => validatePrescriptionStructure(syntheticStructure), `entry "${entry.id}"'s repScheme failed validation`).not.toThrow();
+    }
+  });
+
+  it("no restSeconds is negative (V0.4_138)", () => {
+    for (const entry of EXERCISE_CATALOG_ENTRIES) {
+      if (entry.restSeconds === undefined) continue;
+      expect(entry.restSeconds, `entry "${entry.id}" has a negative restSeconds`).toBeGreaterThanOrEqual(0);
+    }
+  });
 });
 
 describe("DH drill catalog", () => {
@@ -64,6 +111,12 @@ describe("DH drill catalog", () => {
     // not every drill can require bike-park-specific terrain.
     const corneringDrills = DRILL_CATALOG_ENTRIES.filter((d) => d.skillTarget === "cornering");
     expect(corneringDrills.some((d) => d.terrainRequirement !== "bike_park_jump_line")).toBe(true);
+  });
+
+  it("every drill has a non-blank executionCue (V0.4_138)", () => {
+    for (const entry of DRILL_CATALOG_ENTRIES) {
+      expect(entry.executionCue.trim().length, `drill "${entry.id}" has a blank executionCue`).toBeGreaterThan(0);
+    }
   });
 });
 
