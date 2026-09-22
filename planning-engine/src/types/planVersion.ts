@@ -11,6 +11,7 @@
  * gaps during the M2 persistence closure and added here to close them.
  */
 import type { PlanInputSnapshot } from "./planInputSnapshot.js";
+import type { SessionDomain } from "../pipeline/weekSegmenter.js";
 
 export type GenerationTrigger =
   | "initial"
@@ -22,10 +23,29 @@ export type GenerationTrigger =
   | "manual_edit"
   | "ruleset_upgrade";
 
+/**
+ * Closed vocabulary of relaxable hard constraints (V0.4_112/112A — replaces
+ * a previously-unvalidated free string; see the V0.4_112 audit conversation
+ * for the full reasoning — not yet reflected in docs/11_DECISION_LOG.md as
+ * of this change). Covers only the two sources already fully
+ * designed (WeekSegmenter's placement shortfall, ConstraintResolver's
+ * recovery-spacing correction — neither yet implemented). Deliberately does
+ * NOT include an equipment/exercise member: that source belongs to the
+ * future Prescription Engine, not yet designed — a real closed-vocabulary
+ * member must never be guessed ahead of its owning module's own contract.
+ * Extend by adding a member when that module is actually designed, never by
+ * redefining an existing one (same permanent-id discipline as the
+ * catalogues in catalog/).
+ */
+export type ConstraintId = "placement_shortfall" | "recovery_spacing";
+
 export interface RelaxedConstraint {
-  /** Stable id of the hard constraint that could not be fully satisfied — see validation/validatePlanVersion.ts's known-constraint-id list. */
-  constraintId: string;
+  constraintId: ConstraintId;
   reason: string;
+  /** Present when the constraint concerns one specific domain (both current sources do). */
+  domain?: SessionDomain;
+  /** Present when a specific date is concerned (recovery_spacing) — absent for placement_shortfall, which structurally has no date (an unplaced slot was never assigned one). */
+  date?: string;
 }
 
 export interface TrainingPlanVersion {

@@ -13,7 +13,7 @@ export type {
   PlanInputSnapshot,
 } from "./planInputSnapshot.js";
 
-export type { GenerationTrigger, RelaxedConstraint, TrainingPlanVersion } from "./planVersion.js";
+export type { GenerationTrigger, ConstraintId, RelaxedConstraint, TrainingPlanVersion } from "./planVersion.js";
 
 export type {
   DraftTransition,
