@@ -4,6 +4,17 @@
   "description": "Louis Performance System — Prescription Engine (V0.4 scaffold). Sibling package to planning-engine and head-coach-engine: resolves a single planning-engine session (kind + doseTarget) into a concrete exercise/drill prescription by selecting from planning-engine's catalogues (docs/11_DECISION_LOG.md, V0.4_119 -> V0.4_130 design/prep audits). Depends on planning-engine for its prescription types, catalogues, and validatePrescriptionStructure; never imports head-coach-engine internals.",
   "type": "module",
   "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=24"
   },
