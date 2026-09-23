@@ -107,3 +107,35 @@ describe("PerformanceSetup — save gating", () => {
     expect(screen.queryByText("Profil enregistré.")).not.toBeInTheDocument();
   });
 });
+
+// V0.5_036 — a plan must never be generated from Performance Setup changes
+// that are visible but not yet saved. This exercises the real wiring
+// between PerformanceSetup's own dirty-tracking and
+// TrainingPlanGenerationPanel's configurationReady prop (not mocked here —
+// the panel itself is unit-tested in TrainingPlanGenerationPanel.test.tsx).
+describe("PerformanceSetup — training plan generation save gate", () => {
+  it("disables the generate button once the form has unsaved changes", async () => {
+    const user = userEvent.setup();
+    renderPerformanceSetup();
+
+    expect(await screen.findByRole("button", { name: "Générer mon plan" })).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "barbell" }));
+
+    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
+    expect(screen.getByText(/Enregistre ta configuration/)).toBeInTheDocument();
+  });
+
+  it("re-enables the generate button once the changes are saved", async () => {
+    const user = userEvent.setup();
+    renderPerformanceSetup();
+
+    await user.click(await screen.findByRole("button", { name: "barbell" }));
+    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await screen.findByText("Profil enregistré.");
+
+    expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled();
+  });
+});

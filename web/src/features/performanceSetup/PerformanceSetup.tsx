@@ -13,6 +13,7 @@ import {
   type PerformanceSetupAnswers,
 } from "./performanceSetupRepo";
 import { EQUIPMENT_OPTIONS, TERRAIN_OPTIONS, TECHNICAL_PRIORITY_OPTIONS, STRENGTH_EXPERIENCE_TIER_OPTIONS } from "./performanceSetupOptions";
+import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
 
 const EMPTY_ANSWERS: PerformanceSetupAnswers = {
   equipment: [],
@@ -87,6 +88,19 @@ export function PerformanceSetup() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [answers, setAnswers] = useState<PerformanceSetupAnswers>(EMPTY_ANSWERS);
+  // V0.5_036 — no existing dirty-tracking mechanism to reuse (confirmed:
+  // `saved` only ever flips true on success and is never reset on a later
+  // edit). This is the deliberately simple, component-local substitute the
+  // ticket asked for: every user-driven edit (never the initial load) marks
+  // the form dirty; only a successful save clears it. A plan must never be
+  // generated from unsaved changes — see TrainingPlanGenerationPanel's
+  // `configurationReady` prop below.
+  const [dirty, setDirty] = useState(false);
+
+  function updateAnswers(updater: (a: PerformanceSetupAnswers) => PerformanceSetupAnswers) {
+    setAnswers(updater);
+    setDirty(true);
+  }
 
   useEffect(() => {
     if (!athleteId) return;
@@ -126,6 +140,7 @@ export function PerformanceSetup() {
     try {
       await savePerformanceSetup(athleteId, answers);
       setSaved(true);
+      setDirty(false);
     } catch (err) {
       setError(err instanceof PerformanceSetupError ? err.message : "Une erreur inattendue s'est produite. Réessaie.");
     } finally {
@@ -150,7 +165,7 @@ export function PerformanceSetup() {
         <ToggleGroup
           options={EQUIPMENT_OPTIONS}
           selected={answers.equipment}
-          onToggle={(value) => setAnswers((a) => ({ ...a, equipment: toggleValue(a.equipment, value) }))}
+          onToggle={(value) => updateAnswers((a) => ({ ...a, equipment: toggleValue(a.equipment, value) }))}
         />
       </Card>
 
@@ -159,7 +174,7 @@ export function PerformanceSetup() {
         <ToggleGroup
           options={TERRAIN_OPTIONS}
           selected={answers.terrainAccess}
-          onToggle={(value) => setAnswers((a) => ({ ...a, terrainAccess: toggleValue(a.terrainAccess, value) }))}
+          onToggle={(value) => updateAnswers((a) => ({ ...a, terrainAccess: toggleValue(a.terrainAccess, value) }))}
         />
       </Card>
 
@@ -171,7 +186,7 @@ export function PerformanceSetup() {
           <ToggleGroup
             options={TECHNICAL_PRIORITY_OPTIONS}
             selected={answers.strengths}
-            onToggle={(value) => setAnswers((a) => ({ ...a, strengths: toggleValue(a.strengths, value) }))}
+            onToggle={(value) => updateAnswers((a) => ({ ...a, strengths: toggleValue(a.strengths, value) }))}
           />
         </div>
 
@@ -180,7 +195,7 @@ export function PerformanceSetup() {
           <ToggleGroup
             options={TECHNICAL_PRIORITY_OPTIONS}
             selected={answers.weaknesses}
-            onToggle={(value) => setAnswers((a) => ({ ...a, weaknesses: toggleValue(a.weaknesses, value) }))}
+            onToggle={(value) => updateAnswers((a) => ({ ...a, weaknesses: toggleValue(a.weaknesses, value) }))}
           />
         </div>
 
@@ -189,7 +204,7 @@ export function PerformanceSetup() {
           <ToggleGroup
             options={TECHNICAL_PRIORITY_OPTIONS}
             selected={answers.priorityAreas}
-            onToggle={(value) => setAnswers((a) => ({ ...a, priorityAreas: toggleValue(a.priorityAreas, value) }))}
+            onToggle={(value) => updateAnswers((a) => ({ ...a, priorityAreas: toggleValue(a.priorityAreas, value) }))}
           />
         </div>
       </Card>
@@ -199,7 +214,7 @@ export function PerformanceSetup() {
         <Select
           value={answers.strengthExperienceTier ?? ""}
           onChange={(e) =>
-            setAnswers((a) => ({
+            updateAnswers((a) => ({
               ...a,
               strengthExperienceTier: e.target.value === "" ? null : (e.target.value as PerformanceSetupAnswers["strengthExperienceTier"]),
             }))
@@ -218,7 +233,7 @@ export function PerformanceSetup() {
         <p className="text-sm font-medium text-ink">Objectif de saison (optionnel)</p>
         <textarea
           value={answers.seasonObjective ?? ""}
-          onChange={(e) => setAnswers((a) => ({ ...a, seasonObjective: e.target.value }))}
+          onChange={(e) => updateAnswers((a) => ({ ...a, seasonObjective: e.target.value }))}
           rows={3}
           className="rounded border border-white/10 bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted"
           placeholder="Ex. Podium aux championnats nationaux"
@@ -231,6 +246,8 @@ export function PerformanceSetup() {
       <PrimaryButton onClick={() => void handleSave()} disabled={saving || isEmpty} className="w-full">
         {saving ? "Enregistrement…" : "Enregistrer"}
       </PrimaryButton>
+
+      <TrainingPlanGenerationPanel configurationReady={!dirty && !saving} />
     </PageShell>
   );
 }
