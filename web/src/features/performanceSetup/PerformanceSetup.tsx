@@ -14,6 +14,7 @@ import {
 } from "./performanceSetupRepo";
 import { EQUIPMENT_OPTIONS, TERRAIN_OPTIONS, TECHNICAL_PRIORITY_OPTIONS, STRENGTH_EXPERIENCE_TIER_OPTIONS } from "./performanceSetupOptions";
 import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
+import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
 
 const EMPTY_ANSWERS: PerformanceSetupAnswers = {
   equipment: [],
@@ -96,6 +97,17 @@ export function PerformanceSetup() {
   // generated from unsaved changes — see TrainingPlanGenerationPanel's
   // `configurationReady` prop below.
   const [dirty, setDirty] = useState(false);
+  // V0.5_045 — availability lives in its own section/component with its own
+  // load/save lifecycle (AvailabilitySection.tsx); this page only tracks the
+  // small slice of its state the generation gate actually needs, reported
+  // via onGateStateChange. loading starts true so the gate never reads
+  // "ready" before the athlete's real saved availability is known.
+  const [availabilityGate, setAvailabilityGate] = useState<AvailabilityGateState>({
+    loading: true,
+    dirty: false,
+    saving: false,
+    hasSavedAvailability: false,
+  });
 
   function updateAnswers(updater: (a: PerformanceSetupAnswers) => PerformanceSetupAnswers) {
     setAnswers(updater);
@@ -247,7 +259,18 @@ export function PerformanceSetup() {
         {saving ? "Enregistrement…" : "Enregistrer"}
       </PrimaryButton>
 
-      <TrainingPlanGenerationPanel configurationReady={!dirty && !saving} />
+      <AvailabilitySection onGateStateChange={setAvailabilityGate} />
+
+      <TrainingPlanGenerationPanel
+        configurationReady={
+          !dirty &&
+          !saving &&
+          !availabilityGate.loading &&
+          !availabilityGate.dirty &&
+          !availabilityGate.saving &&
+          availabilityGate.hasSavedAvailability
+        }
+      />
     </PageShell>
   );
 }
