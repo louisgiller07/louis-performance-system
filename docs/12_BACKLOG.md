@@ -602,6 +602,31 @@ Second point d'observation du dogfood. T+2 après Verbier iXS, état matinal exc
 
 ---
 
+## V0.4 — Planning Engine / Prescription Engine / Generation Persistence Pipeline (CLOSED LOCALLY, 2026-09-23)
+
+Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-coach-engine`) livrant un pipeline complet de génération de plan d'entraînement, de l'input athlète jusqu'à la persistance PostgreSQL, validé contre une instance Supabase locale réelle (aucun mock pour le test d'intégration final). Voir `docs/11_DECISION_LOG.md` (2026-09-23, V0.4_015 à V0.4_018) pour le détail des décisions d'architecture.
+
+### Terminé
+
+- [x] V0.4_138 — métadonnées catalogue (`repScheme`/`restSeconds` sur `ExerciseCatalogEntry`, `executionCue` sur `DrillCatalogEntry`)
+- [x] V0.4_139 — résolution complète des prescriptions (strength + DH) depuis les données catalogue
+- [x] V0.4_141 — exports du package `prescription-engine` pour consommation externe
+- [x] V0.4_142 — moteur de génération (`generationEngine.ts`, connecte `planning-engine` + `prescription-engine`)
+- [x] V0.4_146 — mapper de persistance (domaine → payload RPC)
+- [x] V0.4_147 — wrapper RPC `generate_training_plan_version`
+- [x] V0.4_148 — orchestrateur de persistance (`persistGeneratedTrainingPlan()`)
+- [x] V0.4_149 — test d'intégration réel contre Supabase local (génération complète + idempotence, aucun mock)
+
+### Restant
+
+- [ ] Créer un point d'entrée de production appelant `persistGeneratedTrainingPlan()` (Edge Function, CLI, ou route — aucun choisi à ce stade)
+- [ ] Connecter automatiquement génération → acceptation (`accept_training_plan_version`) → projection (`projectTrainingPlan`) — les trois étapes existent séparément mais ne sont jamais encore chaînées pour ce nouveau pipeline
+- [ ] Définir le flux utilisateur complet de création de plan (déclenchement, saisie du `PlanInputSnapshot`, présentation du résultat)
+- [ ] `GeneratedPlanSession.focus` — ownership toujours non résolu (V0.4_126, reconfirmé hors périmètre V1)
+- [ ] Éventuels metadata utilisateur non encore identifiés
+
+---
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)

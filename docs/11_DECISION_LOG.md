@@ -2972,3 +2972,69 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 **Impact** : nouveaux fichiers `head-coach-engine/src/supabase/{acceptTrainingPlanVersion.ts,acceptTrainingPlanVersionRpc.ts}` ; test `head-coach-engine/tests/supabase/acceptTrainingPlanVersion.test.ts` (5 cas : succès d'acceptation déclenche la projection, échec de projection n'affecte pas le résultat d'acceptation, échec d'acceptation empêche l'appel de projection, paramètres athlète/fenêtre transmis exactement à la projection, paramètres transmis exactement au RPC d'acceptation). Build (`tsc`) propre ; suite complète head-coach-engine 626/626 tests verts (626 = 621 + les 5 nouveaux), aucune régression. Aucun fichier frozen M1, aucun fichier de `planning-engine/`/`web/`, aucune migration touchés — confirmé par `git diff --stat`, pas seulement supposé.
 
 **Statut** : Accepted
+
+---
+
+## 2026-09-23 — ADR V0.4_015 : Package ownership boundaries (planning-engine / prescription-engine / head-coach-engine)
+
+**Contexte** : la série V0.4_119→150 a construit deux nouveaux packages (`planning-engine`, `prescription-engine`) et une couche d'orchestration/persistance complète dans `head-coach-engine`, sans qu'aucune décision d'architecture n'ait encore été tracée dans ce journal. Cette entrée ferme cet écart pour la frontière la plus structurante : qui possède quoi entre les trois packages.
+
+**Décision — trois responsabilités strictement séparées** : `planning-engine` possède la planification abstraite (séquences de semaines, placement de sessions, charge, résolution de contraintes) ainsi que les catalogues d'exercices/drills et leurs métadonnées de prescription (voir ADR V0.4_018) — jamais l'exécution d'une sélection de contenu de séance. `prescription-engine` possède la résolution de séance concrète (sélection exercice/drill, construction de `StrengthPrescription`/`DhTechnicalPrescription`, validation structurelle) — ne connaît que `planning-engine` (types, catalogues, `validatePrescriptionStructure`), jamais `head-coach-engine`. `head-coach-engine` possède l'orchestration, le minting d'identité (ADR V0.4_016) et la persistance (ADR V0.4_017) — seul package autorisé à dépendre de `@supabase/supabase-js`.
+
+**Interdictions vérifiées, pas seulement énoncées** : recherche directe (`grep`) de `head-coach-engine`/`prescription-engine`/`@supabase`/`randomUUID`/`crypto.random` dans `planning-engine/src` et `prescription-engine/src` — chaque occurrence trouvée est un commentaire de documentation expliquant une frontière ou son absence, aucun `import` réel, aucun appel réel. Recherche symétrique côté `head-coach-engine` pour tout accès direct aux catalogues (`EXERCISE_CATALOG[`, `DRILL_CATALOG[`) ou calcul de charge — aucune occurrence dans les fichiers de génération/persistance.
+
+**Explicitement rejeté** : un package `contracts` séparé pour les types partagés (aucun troisième consommateur identifié au-delà de `prescription-engine`/`head-coach-engine`, qui héritent déjà proprement de `planning-engine` — voir V0.4_143 §5) ; fusionner les moteurs ; dupliquer les catalogues dans `prescription-engine`.
+
+**Impact** : aucune migration. 22 fichiers touchés sur toute la série (4 `planning-engine`, 7 `prescription-engine`, 11 `head-coach-engine`), committés en 8 commits (`42763e1`→`8a0b178`).
+
+**Statut** : Accepted
+
+---
+
+## 2026-09-23 — ADR V0.4_016 : Identity ownership — minting des IDs de génération
+
+**Contexte** : la génération d'un plan produit une hiérarchie d'identifiants (version, bloc, semaines, séances, prescriptions) qui doivent exister avant tout appel à la RPC de persistance, celle-ci exigeant des ids fournis par l'appelant (vérifié par lecture directe de `generate_training_plan_version` — chaque `insert` utilise `(payload->>'id')::uuid`, jamais un défaut Postgres).
+
+**Décision** : `head-coach-engine` possède exclusivement le minting de `planVersionId`, `blockId`, `weekId`, `generatedPlanSessionId` et `plannedPrescriptionId`, via `randomUUID()` dans `src/generation/generationEngine.ts`. `planning-engine` et `prescription-engine` restent purs et déterministes — aucun des deux ne génère jamais d'id, confirmé par grep direct sur leurs sources compilées.
+
+**Cas particulier — `generationRequestId`** : contrairement aux autres ids, optionnellement fourni par l'appelant de `runGenerationEngine` plutôt que toujours minté frais. Raison : la RPC vérifie l'idempotence sur `(athleteId, generationRequestId)` — une tentative répétée de la même requête logique doit réutiliser le même id pour être reconnue comme un replay ; `planVersionId`/`blockId`/`weekId`/les ids de session peuvent en revanche être remintés à chaque tentative sans risque, la RPC ignorant silencieusement le nouveau payload dès qu'un replay est détecté.
+
+**Explicitement rejeté** : minter un id dans `planning-engine`/`prescription-engine` (romprait leur pureté, déjà testée et exploitée pour la déterminisme des sélecteurs) ; dériver `generationRequestId` d'un hash du contenu (une régénération délibérée à contenu identique doit rester possible, voir le contrat d'idempotence de la RPC elle-même).
+
+**Impact** : `head-coach-engine/src/generation/generationEngine.ts`, aucune migration.
+
+**Statut** : Accepted
+
+---
+
+## 2026-09-23 — ADR V0.4_017 : Persistence boundary — mapper, wrapper RPC, frontière transactionnelle
+
+**Contexte** : fermer la chaîne entre le résultat de génération en mémoire et l'écriture PostgreSQL réelle, sans dupliquer de logique entre TypeScript et SQL.
+
+**Décision — chaîne stricte** : `GenerationEngineResult` → `generationResultToPersistencePayload()` (mapper pur, aucun appel réseau, aucun UUID, aucune logique métier — seule exception : une vérification défensive `EXERCISE_CATALOG_VERSION === DRILL_CATALOG_VERSION`, structurelle et non un choix silencieux) → `generateTrainingPlanVersionRpc()` (wrapper typé, un seul appel `client.rpc(...)`, parseur explicite du JSON retourné, jamais de cast aveugle, erreurs jamais interceptées) → `generate_training_plan_version`.
+
+**La RPC reste l'unique frontière transactionnelle** : confirmé par lecture directe de la migration `20260921092000_v0_4_001e_generate_training_plan_version_rpc.sql` — une fonction PL/pgSQL s'exécute intrinsèquement dans une seule transaction ; toute exception non interceptée déroule l'ensemble (version, transition de cycle de vie, blocs, semaines, séances, prescriptions), jamais un état partiel. `service_role` ne détient que `SELECT` sur les cinq tables concernées (`SECURITY DEFINER`) — la RPC est le seul chemin d'écriture possible, aucun contournement structurel.
+
+**Comportement en échec, vérifié empiriquement (V0.4_149, Supabase local réel)** : un échec de `planning-engine`/`prescription-engine` interrompt l'assemblage en mémoire avant tout appel RPC — zéro écriture. Un échec de la RPC déroule tout côté SQL — zéro état partiel. Un second appel avec le même `(athleteId, generationRequestId)` retourne `idempotentReplay: true` et n'ajoute aucune ligne — vérifié par requête directe (une seule ligne `training_plan_versions`).
+
+**Explicitement rejeté** : répartir l'écriture sur plusieurs appels RPC ; dupliquer la validation de structure côté SQL (déjà faite en TypeScript par `validatePrescriptionStructure`, avant tout appel RPC).
+
+**Impact** : `head-coach-engine/src/supabase/{mapping/generationResultToPersistencePayload.ts,rpc/generateTrainingPlanVersionRpc.ts,persistGeneratedTrainingPlan.ts}`, aucune migration (RPC déjà existante et inchangée).
+
+**Statut** : Accepted
+
+---
+
+## 2026-09-23 — ADR V0.4_018 : Prescription catalog ownership — repScheme, restSeconds, executionCue
+
+**Contexte** : les resolvers de `prescription-engine` restaient bloqués (`PendingProductDecisionError` systématique) faute de source non-inventée pour le schéma de répétitions, le temps de repos et les consignes d'exécution DH — identifié par l'audit V0.4_136/137.
+
+**Décision** : ces trois champs restent des métadonnées de catalogue, ajoutées à `ExerciseCatalogEntry`/`DrillCatalogEntry` dans `planning-engine` — jamais une logique de resolver dans `prescription-engine`, cohérent avec l'ownership déjà posé par l'ADR V0.4_015. `repScheme?`/`restSeconds?` sur `ExerciseCatalogEntry` restent optionnels par conception (un remplissage progressif ne casse rien) ; `executionCue` sur `DrillCatalogEntry` est obligatoire (même statut que `successCriteria`, déjà existant) — les 12 entrées drill réelles ont reçu une valeur dans le même changement que l'extension de type, jamais en deux étapes séparées.
+
+**Frontière avec les resolvers** : `strengthResolver.ts`/`dhResolver.ts` lisent ces champs directement depuis le catalogue, ne les recalculent ni ne les inventent jamais. `PendingProductDecisionError` reste la garde explicite pour le cas où un champ catalogue serait absent — un filet de sécurité, plus un blocage systématique une fois le catalogue rempli.
+
+**Explicitement rejeté** : une table de règles séparée par movementCategory/modality (romprait le principe déjà établi que le catalogue est l'unique source de vérité, introduirait une seconde source à synchroniser) ; générer/templater `executionCue` depuis `successCriteria`/`skillTarget` (resterait du texte inventé même si construit à partir de champs réels).
+
+**Impact** : `planning-engine/src/catalog/{exerciseCatalog.ts,drillCatalog.ts}`, `prescription-engine/src/{strength/strengthResolver.ts,dh/dhResolver.ts}`, aucune migration (catalogues = fichiers TypeScript versionnés en code, jamais des tables).
+
+**Statut** : Accepted

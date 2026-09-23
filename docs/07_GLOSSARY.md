@@ -166,3 +166,26 @@ Contexte réaliste préparé pour les tests, basé sur les données réelles de 
 
 **Test déterministe**
 Test dont la sortie attendue est unique. Interdiction d'utiliser `expect().toContain([...])` sur des sorties alternatives. Si le comportement est ambigu, l'arbitrage doit être défini dans la spec avant l'écriture du test.
+
+## Génération de plan (V0.4)
+
+**GenerationContext** (`head-coach-engine/src/generation/generationEngine.ts`)
+Enveloppe d'identité mintée par `runGenerationEngine()` au début de chaque appel : `planVersionId`, `generationRequestId`, `blockId`. Seule source de ces trois ids — jamais générés par `planning-engine` ni `prescription-engine`.
+
+**AssembledWeek** (`head-coach-engine/src/generation/generationEngine.ts`)
+Semaine assemblée par `runGenerationEngine()` : reprend les champs déjà produits par l'`OrchestratedWeek` de `planning-engine` (`weekType`, `doseSummary`, `rationale`, `relaxedConstraints`), enrichis d'un `id` et d'un `blockId` mintés par head-coach-engine, et d'un tableau d'`AssembledSession`.
+
+**AssembledSession** (`head-coach-engine/src/generation/generationEngine.ts`)
+Session assemblée par `runGenerationEngine()` : reprend les champs déjà produits par `planning-engine` (`date`, `kind`, `loadProfile`, `durationMin`, `doseTarget`, `rationale`), enrichis d'un `generatedPlanSessionId` et d'un `weekId` mintés par head-coach-engine, et d'une `prescription` optionnelle (`PrescriptionResult`) — absente pour les sessions aerobic, jamais un placeholder.
+
+**PrescriptionRequest** (`prescription-engine/src/index.ts`)
+Contrat d'entrée de `prescription-engine` : une séance unique (`kind`, `doseTarget`, `equipment`, `technicalPriorities`, `terrainAccess`, `strengthExperienceTier`, `generatedPlanSessionId`, `plannedPrescriptionId` fournis par l'appelant). Jamais un plan ou une semaine entière.
+
+**PrescriptionResult** (`prescription-engine/src/index.ts`)
+Contrat de sortie de `prescription-engine` : `{prescription: PlannedPrescription, relaxedConstraints: RelaxedConstraint[]}`. `relaxedConstraints` reste toujours `[]` en V1 — la collecte de contraintes relâchées appartient à une couche supérieure, non encore construite.
+
+**PlannedPrescription** (`planning-engine/src/types/prescription.ts`)
+Modèle canonique d'une prescription planifiée complète, appartenant à exactement une `GeneratedPlanSession`. Porte son identité propre (`id`), la référence à la session qu'elle prescrit (`generatedPlanSessionId`), ses versions (`schemaVersion`, `catalogVersion`), et le contenu métier lui-même via `structure: PrescriptionStructure`. `prescription-engine` construit le contenu (`structure`) ; `head-coach-engine` assigne l'identité (`id`, via `PrescriptionRequest.plannedPrescriptionId`) — voir `docs/11_DECISION_LOG.md` (V0.4_016/017). Utilisé par le modèle de persistance des prescriptions planifiées (`training_plan_planned_prescriptions`).
+
+**PrescriptionStructure** (`planning-engine/src/types/prescriptionStructure.ts`)
+Structure canonique du contenu d'une prescription — union fermée à deux domaines pour V1 (`StrengthPrescription | DhTechnicalPrescription`), jamais un troisième variant (les sessions aerobic n'ont pas de `PlannedPrescription` du tout). Représente uniquement le contenu métier de la séance (exercices/reps/repos pour Strength, drills/runs/consignes pour DH) — jamais son identité ni sa persistance, portées par `PlannedPrescription` qui l'englobe. Validée structurellement par `validatePrescriptionStructure()` (`planning-engine/src/validation/validatePrescription.ts`), appelée une seule fois en frontière de sortie par le point d'entrée de `prescription-engine` — jamais dans les resolvers, jamais dupliquée.
