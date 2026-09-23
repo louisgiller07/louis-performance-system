@@ -26,11 +26,8 @@ import type { StrengthPrescription, RepScheme, Intensity, ExerciseCatalogEntry, 
 import { EXERCISE_CATALOG } from "planning-engine";
 import { selectMovementCategory } from "./movementCategorySelection.js";
 import { selectExercise } from "./exerciseSelection.js";
-import { STRENGTH_KINDS } from "../constants.js";
+import { STRENGTH_KINDS, PRESCRIPTION_SCHEMA_VERSION } from "../constants.js";
 import { UnsupportedPrescriptionKindError, PendingProductDecisionError } from "../errors.js";
-
-/** Pure technical version stamp — never a coaching value, same convention as EXERCISE_CATALOG_VERSION. */
-const PRESCRIPTION_SCHEMA_VERSION = "v1";
 
 export interface ResolvedStrengthKnownFields {
   movementCategory: MovementCategory;

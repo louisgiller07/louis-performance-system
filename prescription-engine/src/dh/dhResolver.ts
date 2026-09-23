@@ -27,10 +27,8 @@ import type { DhTechnicalPrescription, DhDrill, DrillCatalogEntry } from "planni
 import { DRILL_CATALOG } from "planning-engine";
 import { selectSkillTarget } from "./skillTargetSelection.js";
 import { selectDrill } from "./drillSelection.js";
+import { PRESCRIPTION_SCHEMA_VERSION } from "../constants.js";
 import { UnsupportedPrescriptionKindError, PendingProductDecisionError } from "../errors.js";
-
-/** Pure technical version stamp — never a coaching value, same convention as DRILL_CATALOG_VERSION. */
-const PRESCRIPTION_SCHEMA_VERSION = "v1";
 
 export interface ResolvedDhKnownFields {
   drillId: string;

@@ -59,6 +59,12 @@ export interface PrescriptionResult {
 
 export * from "./errors.js";
 export { prescriptionEngine } from "./prescriptionEngine.js";
+// PRESCRIPTION_SCHEMA_VERSION (./constants.js) IS part of this package's
+// public contract, unlike STRENGTH_KINDS/DH_KINDS below — head-coach-engine's
+// future generateAndPersistTrainingPlan() needs it to populate
+// VersionPersistenceContext.prescriptionSchemaVersion without re-guessing
+// "v1" a third time (V0.5_004/V0.5_005).
+export { PRESCRIPTION_SCHEMA_VERSION } from "./constants.js";
 // STRENGTH_KINDS/DH_KINDS (./constants.js) are deliberately NOT re-exported
 // here — an internal dispatch detail, never part of this package's public
 // contract (V0.4_140 §1). Every internal consumer already imports them by

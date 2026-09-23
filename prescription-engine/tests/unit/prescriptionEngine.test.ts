@@ -4,6 +4,7 @@ import type { StrengthPrescription } from "planning-engine";
 import { PlanningEngineValidationError, EXERCISE_CATALOG_VERSION, DRILL_CATALOG_VERSION } from "planning-engine";
 import { prescriptionEngine } from "../../src/prescriptionEngine.js";
 import { UnsupportedPrescriptionKindError } from "../../src/errors.js";
+import { PRESCRIPTION_SCHEMA_VERSION } from "../../src/index.js";
 import * as strengthResolverModule from "../../src/strength/strengthResolver.js";
 
 const FULL_EQUIPMENT = ["barbell", "squat_rack", "dumbbells", "bench", "pull_up_bar", "cable_machine", "resistance_bands"];
@@ -167,5 +168,26 @@ describe("prescriptionEngine — validation boundary", () => {
     vi.spyOn(strengthResolverModule, "resolveStrength").mockReturnValue(invalidPrescription);
 
     expect(() => prescriptionEngine(baseRequest({ kind: "STRENGTH_LOWER" }))).toThrow(PlanningEngineValidationError);
+  });
+});
+
+// V0.5_005 — PRESCRIPTION_SCHEMA_VERSION centralization contract: publicly
+// exported from the package root, and both resolvers actually consume the
+// SAME constant (not two independently-valued local copies) — proven here
+// via the real engine dispatch, not by re-reading each resolver's source.
+describe("PRESCRIPTION_SCHEMA_VERSION", () => {
+  it("is exported as a non-blank string", () => {
+    expect(typeof PRESCRIPTION_SCHEMA_VERSION).toBe("string");
+    expect(PRESCRIPTION_SCHEMA_VERSION.trim().length).toBeGreaterThan(0);
+  });
+
+  it("matches the strength resolver's produced schemaVersion", () => {
+    const result = prescriptionEngine(baseRequest({ kind: "STRENGTH_LOWER" }));
+    expect(result.prescription.structure.schemaVersion).toBe(PRESCRIPTION_SCHEMA_VERSION);
+  });
+
+  it("matches the DH resolver's produced schemaVersion", () => {
+    const result = prescriptionEngine(dhRequest());
+    expect(result.prescription.structure.schemaVersion).toBe(PRESCRIPTION_SCHEMA_VERSION);
   });
 });

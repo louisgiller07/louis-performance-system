@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runPlanningPipeline, type PlanningPipelineOrchestratorInput } from "../../src/pipeline/planningPipelineOrchestrator.js";
+import { runPlanningPipeline, PLANNING_ENGINE_VERSION, type PlanningPipelineOrchestratorInput } from "../../src/pipeline/planningPipelineOrchestrator.js";
 import * as loadDerivationModule from "../../src/pipeline/loadDerivation.js";
 import { InvalidBlockRangeError } from "../../src/pipeline/weekSequenceBuilder.js";
 import type { TrainingPlanBlock } from "../../src/types/planBlock.js";
@@ -179,5 +179,14 @@ describe("runPlanningPipeline — error propagation", () => {
     const input = baseInput({ block: block({ startDate: "2026-10-25", endDate: "2026-10-19" }) });
 
     expect(() => runPlanningPipeline(input)).toThrow(InvalidBlockRangeError);
+  });
+});
+
+// V0.5_005 — PLANNING_ENGINE_VERSION contract: exported, non-blank, same
+// technical-version-stamp convention as EXERCISE_CATALOG_VERSION/DRILL_CATALOG_VERSION.
+describe("PLANNING_ENGINE_VERSION", () => {
+  it("is exported as a non-blank string", () => {
+    expect(typeof PLANNING_ENGINE_VERSION).toBe("string");
+    expect(PLANNING_ENGINE_VERSION.trim().length).toBeGreaterThan(0);
   });
 });

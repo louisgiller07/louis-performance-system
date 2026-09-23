@@ -12,6 +12,11 @@
  * recentRecoveryContext.ts), which reuses these SAME rows (D-1 is always
  * inside a 7-day window) — deliberately NOT a second query. `recentLoad`'s
  * own consumer (`mapCompletedSessionRow`) simply ignores the extra columns.
+ *
+ * V0.5_007 — `actual_duration_min` added to the select for
+ * `mapPlanInputRecentHistory` (src/supabase/mapping/
+ * mapPlanInputRecentHistory.ts), same "reuse these SAME rows" precedent —
+ * no second query.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PROVISIONAL_THRESHOLDS } from "../../engine/provisionalThresholds.js";
@@ -38,7 +43,9 @@ export async function getRecentSessions(
 
   const { data, error } = await client
     .from("completed_sessions")
-    .select("session_date, session_type, intervention, completion_status, post_leg_fatigue, post_grip_fatigue, change_reason")
+    .select(
+      "session_date, session_type, intervention, completion_status, actual_duration_min, post_leg_fatigue, post_grip_fatigue, change_reason"
+    )
     .eq("athlete_id", athleteId)
     .gte("session_date", windowStart)
     .lte("session_date", today);
