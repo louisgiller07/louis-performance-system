@@ -4,27 +4,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlanInputSnapshot } from "planning-engine";
 import {
   generateAndPersistTrainingPlan,
+  deriveTrainingPlanBlock,
   type GenerateAndPersistTrainingPlanDeps,
   type GenerateAndPersistTrainingPlanInput,
 } from "../../src/supabase/generateAndPersistTrainingPlan.js";
 import type { buildPlanInputSnapshot } from "../../src/supabase/buildPlanInputSnapshot.js";
 import type { persistGeneratedTrainingPlan, PersistGeneratedTrainingPlanInput } from "../../src/supabase/persistGeneratedTrainingPlan.js";
-import type { GenerationEngineInput } from "../../src/generation/generationEngine.js";
 import type { GenerateTrainingPlanVersionResult } from "../../src/supabase/rpc/generateTrainingPlanVersionRpc.js";
 
 const ATHLETE_ID = "athlete-1";
 const GENERATION_REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 const TODAY = "2026-09-23";
+const DURATION_WEEKS = 6;
 const FAKE_CLIENT = {} as SupabaseClient;
-
-const BLOCK: GenerationEngineInput["block"] = {
-  sequenceNumber: 1,
-  name: "Test block",
-  mode: "IN_SEASON",
-  primaryFocus: "test",
-  startDate: "2026-10-19",
-  endDate: "2026-10-25",
-};
 
 const SNAPSHOT: PlanInputSnapshot = {
   discipline: "Downhill",
@@ -46,7 +38,7 @@ function baseInput(overrides: Partial<GenerateAndPersistTrainingPlanInput> = {})
     client: FAKE_CLIENT,
     athleteId: ATHLETE_ID,
     generationRequestId: GENERATION_REQUEST_ID,
-    block: BLOCK,
+    durationWeeks: DURATION_WEEKS,
     today: TODAY,
     ...overrides,
   };
@@ -60,7 +52,52 @@ function buildDeps(overrides: Partial<GenerateAndPersistTrainingPlanDeps> = {}):
   };
 }
 
-describe("generateAndPersistTrainingPlan — V0.5_010", () => {
+describe("deriveTrainingPlanBlock — V0.5_031/032", () => {
+  it("derives sequenceNumber=1, fixed name/primaryFocus, and mode=UNSPECIFIED — never invented per-athlete values", () => {
+    const block = deriveTrainingPlanBlock(TODAY, DURATION_WEEKS);
+
+    expect(block.sequenceNumber).toBe(1);
+    expect(block.name).toBe("Plan d'entraînement généré");
+    expect(block.primaryFocus).toBe("Objectif non précisé");
+    expect(block.mode).toBe("UNSPECIFIED");
+  });
+
+  it("sets startDate to today, unchanged", () => {
+    const block = deriveTrainingPlanBlock(TODAY, DURATION_WEEKS);
+
+    expect(block.startDate).toBe(TODAY);
+  });
+
+  it("computes an inclusive endDate: durationWeeks * 7 - 1 days after today", () => {
+    const block = deriveTrainingPlanBlock("2026-10-19", 1);
+
+    expect(block.endDate).toBe("2026-10-25"); // 7 days inclusive, matching WeekSequenceBuilder's own single-week fixture
+  });
+
+  it("computes endDate correctly for a multi-week duration", () => {
+    const block = deriveTrainingPlanBlock("2026-09-23", 6);
+
+    expect(block.endDate).toBe("2026-11-03"); // 42 days inclusive
+  });
+
+  it("computes endDate correctly across a month/year boundary", () => {
+    const block = deriveTrainingPlanBlock("2026-12-20", 4);
+
+    expect(block.endDate).toBe("2027-01-16"); // 28 days inclusive, crosses both month and year
+  });
+});
+
+describe("generateAndPersistTrainingPlan — V0.5_010/031/032", () => {
+  it("passes persistGeneratedTrainingPlan a block derived from durationWeeks + today, matching deriveTrainingPlanBlock exactly", async () => {
+    const deps = buildDeps();
+
+    await generateAndPersistTrainingPlan(baseInput({ today: TODAY, durationWeeks: DURATION_WEEKS }), deps);
+
+    const call = (deps.persistGeneratedTrainingPlan as ReturnType<typeof vi.fn>).mock.calls[0]![0] as PersistGeneratedTrainingPlanInput;
+    expect(call.generation.block).toEqual(deriveTrainingPlanBlock(TODAY, DURATION_WEEKS));
+  });
+
+
   it("1. calls buildPlanInputSnapshot before persistGeneratedTrainingPlan, in that order", async () => {
     const callOrder: string[] = [];
     const deps = buildDeps({

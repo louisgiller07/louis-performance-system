@@ -23,11 +23,17 @@
  * rejection (see this file's own test suite for how that failure mode is
  * exercised).
  *
- * Per V0.5_010's lock: the caller supplies only what it can actually know —
- * `athleteId`, `generationRequestId` (never minted here, transmitted
- * verbatim), `block`, `today`, and optionally `generationTrigger`/
- * `baseVersionId`. Every version-metadata field already owned by an
- * existing layer (`plannerVersion`/`rulesetVersion` from
+ * Per V0.5_010's lock (refined V0.5_031/032): the caller supplies only what
+ * it can actually know — `athleteId`, `generationRequestId` (never minted
+ * here, transmitted verbatim), `durationWeeks`, `today`, and optionally
+ * `generationTrigger`/`baseVersionId`. The full `TrainingPlanBlock` is no
+ * longer caller-supplied: V0.5_031's field-by-field audit found
+ * `sequenceNumber`/`name`/`mode`/`primaryFocus` have no legitimate
+ * per-request value for the athlete to provide (fixed, non-invented
+ * constants — see `deriveTrainingPlanBlock` below), leaving `durationWeeks`
+ * as the only real user input, with `startDate`/`endDate` mechanically
+ * derived from it and `today`. Every version-metadata field already owned by
+ * an existing layer (`plannerVersion`/`rulesetVersion` from
  * `PLANNING_ENGINE_VERSION`, `prescriptionSchemaVersion` from
  * `PRESCRIPTION_SCHEMA_VERSION`, `catalogVersion` inside the mapper itself)
  * is read directly here, never requested from the caller and never
@@ -85,12 +91,48 @@ function hashInputSnapshot(snapshot: PlanInputSnapshot): string {
   return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
 }
 
+// Fixed, non-invented TrainingPlanBlock fields — V0.5_031 lock (§11 C/D/E/F).
+// Never derived per-athlete, never free text: block.name and primaryFocus
+// are French to match the rest of web's UI copy; mode="UNSPECIFIED" matches
+// M1's own pre-existing "no configured phase" precedent (buildRawContext.ts);
+// sequenceNumber=1 because exactly one block is created per generation call.
+const DERIVED_BLOCK_SEQUENCE_NUMBER = 1;
+const DERIVED_BLOCK_NAME = "Plan d'entraînement généré";
+const DERIVED_BLOCK_PRIMARY_FOCUS = "Objectif non précisé";
+const DERIVED_BLOCK_MODE = "UNSPECIFIED";
+
+/** Adds `days` (possibly 0) to an ISO calendar date in UTC — same technique as the `addDays` helper already used by daily-run/accept-training-plan/generate-training-plan's own Edge Functions. */
+function addDaysUtc(date: string, days: number): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year as number, (month as number) - 1, (day as number) + days)).toISOString().slice(0, 10);
+}
+
+/**
+ * Derives the single `TrainingPlanBlock` for a generation call from the only
+ * user-supplied field — `durationWeeks` — plus the server-resolved `today`.
+ * V0.5_031 lock: `startDate`/`endDate` are the only computed fields, using
+ * inclusive-`endDate` UTC arithmetic matching `WeekSequenceBuilder`'s own
+ * inclusive range semantics (`durationWeeks` weeks starting at `today`, both
+ * ends inclusive, so `endDate = today + durationWeeks * 7 - 1` days).
+ */
+export function deriveTrainingPlanBlock(today: string, durationWeeks: number): GenerationEngineInput["block"] {
+  return {
+    sequenceNumber: DERIVED_BLOCK_SEQUENCE_NUMBER,
+    name: DERIVED_BLOCK_NAME,
+    mode: DERIVED_BLOCK_MODE,
+    primaryFocus: DERIVED_BLOCK_PRIMARY_FOCUS,
+    startDate: today,
+    endDate: addDaysUtc(today, durationWeeks * 7 - 1),
+  };
+}
+
 export interface GenerateAndPersistTrainingPlanInput {
   client: SupabaseClient;
   athleteId: string;
   /** Caller-supplied idempotency key — never minted here, always transmitted exactly as received. */
   generationRequestId: string;
-  block: GenerationEngineInput["block"];
+  /** The only real user input for block construction — see `deriveTrainingPlanBlock`. Structural validation (integer, >= 1) is the caller's (Edge Function's) responsibility; trusted as-is here, same discipline as `today`/`block` were trusted before V0.5_032. */
+  durationWeeks: number;
   today: string;
   /** Defaults to "initial" — the only trigger this ticket's flow (first-time generation) ever produces; kept as a parameter so a future regeneration flow can supply a different value without a signature change. */
   generationTrigger?: GenerationTrigger;
@@ -132,7 +174,7 @@ export async function generateAndPersistTrainingPlan(
   return deps.persistGeneratedTrainingPlan({
     client: input.client,
     generation: {
-      block: input.block,
+      block: deriveTrainingPlanBlock(input.today, input.durationWeeks),
       planInputSnapshot,
       generationRequestId: input.generationRequestId,
     },

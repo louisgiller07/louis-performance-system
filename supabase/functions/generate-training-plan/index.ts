@@ -6,10 +6,13 @@
 // architecture, no new authentication mechanism.
 //
 // Composes head-coach-engine's already-existing, already-tested
-// generateAndPersistTrainingPlan() (V0.5_010) — never reimplements
-// buildPlanInputSnapshot/runGenerationEngine/persistence logic, never mints
-// generationRequestId or athleteId, never calls a Supabase RPC directly from
-// this file, never builds an inputSnapshot itself.
+// generateAndPersistTrainingPlan() (V0.5_010, contract minimized V0.5_032) —
+// never reimplements buildPlanInputSnapshot/runGenerationEngine/persistence
+// logic, never mints generationRequestId or athleteId, never calls a
+// Supabase RPC directly from this file, never builds an inputSnapshot
+// itself, never constructs a TrainingPlanBlock itself (V0.5_031 lock: block
+// construction belongs to generateAndPersistTrainingPlan, not the HTTP
+// boundary).
 //
 // `handleGenerateTrainingPlan` is exported separately from the wrapped
 // `fetch` purely for testability — withSupabase's own auth wrapping is not
@@ -19,7 +22,6 @@
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
 import { generateAndPersistTrainingPlan } from "../../../head-coach-engine/dist/supabase/generateAndPersistTrainingPlan.js";
-import { parseTrainingMode, InvalidTrainingModeError } from "../../../head-coach-engine/dist/supabase/mapping/trainingMode.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */
@@ -29,19 +31,10 @@ interface GenerateTrainingPlanRequestContext {
 }
 
 const UUID_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ALLOWED_BODY_KEYS = ["generationRequestId", "block"];
-const ALLOWED_BLOCK_KEYS = ["sequenceNumber", "name", "mode", "primaryFocus", "startDate", "endDate"];
-const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
-
-function isValidCalendarDate(value: string): boolean {
-  if (!DATE_FORMAT.test(value)) return false;
-  const [year, month, day] = value.split("-").map(Number);
-  // Round-trip through Date.UTC to reject roll-over dates (e.g. 2026-02-30
-  // would silently become 2026-03-02 if we trusted the constructor alone) —
-  // same discipline as daily-run/index.ts's own isValidCalendarDate.
-  const date = new Date(Date.UTC(year as number, (month as number) - 1, day as number));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === (month as number) - 1 && date.getUTCDate() === day;
-}
+// V0.5_031 lock: the minimal user-intent contract — generationRequestId +
+// durationWeeks only. block/sequenceNumber/name/mode/primaryFocus/startDate/
+// endDate are never accepted from the client anymore.
+const ALLOWED_BODY_KEYS = ["generationRequestId", "durationWeeks"];
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
@@ -52,61 +45,17 @@ function errorResponse(status: number, code: string, message: string): Response 
 }
 
 /**
- * Structural validation only — presence, types, UUID format, calendar date
- * format, a recognized TrainingMode. Deliberately never validates
- * availability/performance profile/discipline/equipment/exercise
- * compatibility — that belongs to buildPlanInputSnapshot()/planning-engine
- * (GenerationBlockedError/PlanningEngineValidationError), never duplicated
- * here (ticket-locked scope).
+ * Structural validation only — presence, type, and the one bound V0.5_031
+ * found actually derivable from the code (`durationWeeks >= 1`; below that,
+ * WeekSequenceBuilder produces an empty week sequence). No upper bound is
+ * validated here — none is locked yet (V0.5_031 §2: "décision produit
+ * encore nécessaire"), so none is invented.
  */
-function validateBlock(value: unknown): { ok: true; block: Parameters<typeof generateAndPersistTrainingPlan>[0]["block"] } | { ok: false; message: string } {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { ok: false, message: "block is required and must be a JSON object." };
+function validateDurationWeeks(value: unknown): { ok: true; durationWeeks: number } | { ok: false; message: string } {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    return { ok: false, message: "durationWeeks is required and must be a positive integer." };
   }
-  const body = value as Record<string, unknown>;
-
-  const unknownKeys = Object.keys(body).filter((key) => !ALLOWED_BLOCK_KEYS.includes(key));
-  if (unknownKeys.length > 0) {
-    return { ok: false, message: `block has unknown propert${unknownKeys.length === 1 ? "y" : "ies"}: ${unknownKeys.join(", ")}.` };
-  }
-
-  if (typeof body.sequenceNumber !== "number" || !Number.isInteger(body.sequenceNumber) || body.sequenceNumber < 1) {
-    return { ok: false, message: "block.sequenceNumber is required and must be a positive integer." };
-  }
-  if (typeof body.name !== "string" || body.name.trim().length === 0) {
-    return { ok: false, message: "block.name is required and must not be blank." };
-  }
-  if (typeof body.primaryFocus !== "string" || body.primaryFocus.trim().length === 0) {
-    return { ok: false, message: "block.primaryFocus is required and must not be blank." };
-  }
-  if (typeof body.startDate !== "string" || !isValidCalendarDate(body.startDate)) {
-    return { ok: false, message: "block.startDate is required and must be a valid calendar date in YYYY-MM-DD format." };
-  }
-  if (typeof body.endDate !== "string" || !isValidCalendarDate(body.endDate)) {
-    return { ok: false, message: "block.endDate is required and must be a valid calendar date in YYYY-MM-DD format." };
-  }
-
-  let mode: ReturnType<typeof parseTrainingMode>;
-  try {
-    mode = parseTrainingMode(body.mode);
-  } catch (err) {
-    if (err instanceof InvalidTrainingModeError) {
-      return { ok: false, message: "block.mode is required and must be a recognized training mode." };
-    }
-    throw err;
-  }
-
-  return {
-    ok: true,
-    block: {
-      sequenceNumber: body.sequenceNumber,
-      name: body.name,
-      mode,
-      primaryFocus: body.primaryFocus,
-      startDate: body.startDate,
-      endDate: body.endDate,
-    },
-  };
+  return { ok: true, durationWeeks: value };
 }
 
 /**
@@ -162,9 +111,9 @@ export async function handleGenerateTrainingPlan(
     return errorResponse(400, "invalid_request", "generationRequestId is required and must be a valid UUID.");
   }
 
-  const blockResult = validateBlock((body as Record<string, unknown>).block);
-  if (!blockResult.ok) {
-    return errorResponse(400, "invalid_request", blockResult.message);
+  const durationWeeksResult = validateDurationWeeks((body as Record<string, unknown>).durationWeeks);
+  if (!durationWeeksResult.ok) {
+    return errorResponse(400, "invalid_request", durationWeeksResult.message);
   }
 
   // Athlete resolution goes through the RLS-scoped `ctx.supabase` client,
@@ -197,12 +146,14 @@ export async function handleGenerateTrainingPlan(
     // RLS-scoped ctx.supabase query above, never from client input.
     // generationRequestId is transmitted exactly as received — never
     // minted here. today is the server clock — never accepted from the
-    // client.
+    // client. The TrainingPlanBlock itself is constructed inside
+    // generateAndPersistTrainingPlan from durationWeeks + today
+    // (V0.5_031/032 lock) — never built in this file.
     const result = await deps.generateAndPersistTrainingPlan({
       client: ctx.supabaseAdmin,
       athleteId,
       generationRequestId: generationRequestIdValue,
-      block: blockResult.block,
+      durationWeeks: durationWeeksResult.durationWeeks,
       today: todayUtc(),
     });
 
