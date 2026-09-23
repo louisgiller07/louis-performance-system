@@ -167,14 +167,23 @@ export async function generateAndPersistTrainingPlan(
   input: GenerateAndPersistTrainingPlanInput,
   deps: GenerateAndPersistTrainingPlanDeps = DEFAULT_DEPS
 ): Promise<GenerateTrainingPlanVersionResult> {
-  const planInputSnapshot = await deps.buildPlanInputSnapshot(input.client, input.athleteId, input.today);
+  // Block derived first (V0.5_041/042 lock) — buildPlanInputSnapshot needs
+  // its {startDate, endDate} to load races over the plan's real horizon,
+  // not just around `today`. deriveTrainingPlanBlock is pure and has no
+  // dependency on the snapshot, so reordering is safe.
+  const block = deriveTrainingPlanBlock(input.today, input.durationWeeks);
+
+  const planInputSnapshot = await deps.buildPlanInputSnapshot(input.client, input.athleteId, input.today, {
+    startDate: block.startDate,
+    endDate: block.endDate,
+  });
 
   const generationTrigger = input.generationTrigger ?? DEFAULT_GENERATION_TRIGGER;
 
   return deps.persistGeneratedTrainingPlan({
     client: input.client,
     generation: {
-      block: deriveTrainingPlanBlock(input.today, input.durationWeeks),
+      block,
       planInputSnapshot,
       generationRequestId: input.generationRequestId,
     },

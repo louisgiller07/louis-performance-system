@@ -138,3 +138,37 @@ export async function getRacesInWindow(
     isRaceCoachingRelevant(row.status, row.end_date as string, today)
   );
 }
+
+/**
+ * Fetches `race_calendar` rows whose [start_date, end_date] overlaps an
+ * explicit [startDate, endDate] range — the Planning Engine's own need
+ * (V0.5_041 architecture lock), never M1's fixed short window above.
+ * `getRacesInWindow` is deliberately left untouched by this addition — a
+ * separate function, not a refactor of it (V0.5_041 §6/§4: M1 safety takes
+ * priority over avoiding this small amount of query-shape duplication).
+ *
+ * Same coaching-relevance filtering as `getRacesInWindow` — every returned
+ * row has already passed {@link isRaceCoachingRelevant} against `today`
+ * (an explicit, separate parameter — never deduced from `startDate`, even
+ * though the one current caller always has `startDate === today`).
+ */
+export async function getRacesOverlappingRange(
+  client: SupabaseClient,
+  athleteId: string,
+  startDate: string,
+  endDate: string,
+  today: string
+): Promise<RaceCalendarRawRow[]> {
+  const { data, error } = await client
+    .from("race_calendar")
+    .select("event_name, start_date, end_date, priority, race_format, status")
+    .eq("athlete_id", athleteId)
+    .lte("start_date", endDate)
+    .gte("end_date", startDate);
+
+  assertNoSupabaseError(error, "race_calendar");
+
+  return ((data ?? []) as RaceCalendarRawRow[]).filter((row) =>
+    isRaceCoachingRelevant(row.status, row.end_date as string, today)
+  );
+}

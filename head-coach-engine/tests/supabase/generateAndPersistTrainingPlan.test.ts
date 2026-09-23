@@ -98,6 +98,21 @@ describe("generateAndPersistTrainingPlan — V0.5_010/031/032", () => {
   });
 
 
+  // V0.5_041/042 — the block must be derived first, and buildPlanInputSnapshot
+  // must receive its {startDate, endDate} as the horizon, so races load over
+  // the plan's real range instead of just around `today`.
+  it("derives the block before building the snapshot, and passes the block's own dates as the snapshot horizon", async () => {
+    const deps = buildDeps();
+
+    await generateAndPersistTrainingPlan(baseInput({ today: TODAY, durationWeeks: DURATION_WEEKS }), deps);
+
+    const expectedBlock = deriveTrainingPlanBlock(TODAY, DURATION_WEEKS);
+    expect(deps.buildPlanInputSnapshot).toHaveBeenCalledWith(FAKE_CLIENT, ATHLETE_ID, TODAY, {
+      startDate: expectedBlock.startDate,
+      endDate: expectedBlock.endDate,
+    });
+  });
+
   it("1. calls buildPlanInputSnapshot before persistGeneratedTrainingPlan, in that order", async () => {
     const callOrder: string[] = [];
     const deps = buildDeps({

@@ -14,7 +14,15 @@
  * live data belongs here. `deps` mirrors `RunDailyForDeps`'s own shape
  * exactly — an injectable seam for orchestration testing with plain mocks,
  * never an IoC framework; production callers pass only `(client, athleteId,
- * today)`.
+ * today, horizon)`.
+ *
+ * `horizon` (V0.5_041/042) is the generated plan's own `{startDate,
+ * endDate}` (from `deriveTrainingPlanBlock`) — required, no default. It is
+ * used for exactly one thing: loading `races` over the plan's full range
+ * via `getRacesOverlappingRange`, never M1's fixed `getRacesInWindow`
+ * window. Every other field (availability/recentHistory/lockedDates/
+ * profile) is deliberately unaffected — see V0.5_041's own audit for why
+ * none of them need horizon-awareness today.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -40,7 +48,7 @@ import { getPerformanceProfileFor } from "./repositories/athletePerformanceProfi
 import { getAvailabilityWindowsFor, type AthleteAvailabilityWindowRawRow } from "./repositories/athleteAvailabilityWindowsRepo.js";
 import { getAvailabilityExceptionsFor, type AthleteAvailabilityExceptionRawRow } from "./repositories/athleteAvailabilityExceptionsRepo.js";
 import { getLockedDatesFor, type AthleteLockedDateRawRow } from "./repositories/athleteLockedDatesRepo.js";
-import { getRacesInWindow, type RaceCalendarRawRow } from "./repositories/raceCalendarRepo.js";
+import { getRacesOverlappingRange, type RaceCalendarRawRow } from "./repositories/raceCalendarRepo.js";
 import { getRecentSessions } from "./repositories/completedSessionsRepo.js";
 import { mapPlanInputRecentHistory } from "./mapping/mapPlanInputRecentHistory.js";
 
@@ -57,7 +65,7 @@ export interface BuildPlanInputSnapshotDeps {
   getAvailabilityWindowsFor: typeof getAvailabilityWindowsFor;
   getAvailabilityExceptionsFor: typeof getAvailabilityExceptionsFor;
   getLockedDatesFor: typeof getLockedDatesFor;
-  getRacesInWindow: typeof getRacesInWindow;
+  getRacesOverlappingRange: typeof getRacesOverlappingRange;
   getRecentSessions: typeof getRecentSessions;
 }
 
@@ -67,9 +75,15 @@ const DEFAULT_DEPS: BuildPlanInputSnapshotDeps = {
   getAvailabilityWindowsFor,
   getAvailabilityExceptionsFor,
   getLockedDatesFor,
-  getRacesInWindow,
+  getRacesOverlappingRange,
   getRecentSessions,
 };
+
+/** The generated plan's own horizon (V0.5_041 lock) — deliberately just the two dates the Planning Engine's race window actually needs, never the full `TrainingPlanBlock` (mode/name/primaryFocus/sequenceNumber are irrelevant here). Required, no default: a caller that forgets it must fail to compile, never silently fall back to an M1-shaped window. */
+export interface PlanInputSnapshotHorizon {
+  startDate: string;
+  endDate: string;
+}
 
 function mapAvailabilityWindow(row: AthleteAvailabilityWindowRawRow): PlanInputAvailabilityWindow {
   return {
@@ -146,6 +160,7 @@ export async function buildPlanInputSnapshot(
   client: SupabaseClient,
   athleteId: string,
   today: string,
+  horizon: PlanInputSnapshotHorizon,
   deps: BuildPlanInputSnapshotDeps = DEFAULT_DEPS
 ): Promise<PlanInputSnapshot> {
   // --- Discipline / profil (athleteCoachingContextRepo) ---
@@ -199,8 +214,12 @@ export async function buildPlanInputSnapshot(
   const lockedDateRows = await deps.getLockedDatesFor(client, athleteId);
   const lockedDates = lockedDateRows.map(mapLockedDate);
 
-  // --- Races (raceCalendarRepo) — never blocking, an empty calendar is legitimate ---
-  const raceRows = await deps.getRacesInWindow(client, athleteId, today);
+  // --- Races (raceCalendarRepo) — never blocking, an empty calendar is
+  // legitimate. Horizon-aware (V0.5_041/042): loads exactly
+  // [horizon.startDate, horizon.endDate] — the generated plan's own full
+  // range, never M1's fixed short window (getRacesInWindow, untouched,
+  // still used only by buildRawContext.ts).
+  const raceRows = await deps.getRacesOverlappingRange(client, athleteId, horizon.startDate, horizon.endDate, today);
   const races = raceRows.map(mapRace);
 
   // --- Recent history (completedSessionsRepo + mapPlanInputRecentHistory, V0.5_006/007) ---
