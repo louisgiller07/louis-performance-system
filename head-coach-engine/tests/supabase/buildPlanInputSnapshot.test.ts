@@ -130,6 +130,36 @@ describe("buildPlanInputSnapshot — V0.5_009", () => {
     expect(snapshot.technicalPriorities).toEqual({ strengths: [], weaknesses: [], priorityAreas: [] });
   });
 
+  // V0.5_019 — equipment/terrainAccess/priorityAreas are validated against
+  // the real planning-engine catalogue values before a snapshot is ever
+  // returned, same "present but malformed -> PlanningEngineValidationError"
+  // category as the tier check above (never GenerationBlockedError).
+  it("throws a PlanningEngineValidationError for an unrecognized equipment value", async () => {
+    const deps = buildDeps({
+      getPerformanceProfileFor: vi.fn(async () => fullPerformanceProfile({ equipment: ["barbell", "random_machine"] })),
+    });
+
+    await expect(buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, deps)).rejects.toBeInstanceOf(PlanningEngineValidationError);
+  });
+
+  it("throws a PlanningEngineValidationError for an unrecognized terrainAccess value", async () => {
+    const deps = buildDeps({
+      getPerformanceProfileFor: vi.fn(async () => fullPerformanceProfile({ terrain_access: ["forest_unknown"] })),
+    });
+
+    await expect(buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, deps)).rejects.toBeInstanceOf(PlanningEngineValidationError);
+  });
+
+  it("throws a PlanningEngineValidationError for an unrecognized technicalPriorities.priorityAreas value", async () => {
+    const deps = buildDeps({
+      getPerformanceProfileFor: vi.fn(async () =>
+        fullPerformanceProfile({ technical_priorities: { strengths: [], weaknesses: [], priorityAreas: ["wheelie"] } })
+      ),
+    });
+
+    await expect(buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, deps)).rejects.toBeInstanceOf(PlanningEngineValidationError);
+  });
+
   it("is pure — two calls with the same inputs produce the exact same result, and never mutate the deps' return values", async () => {
     const profile = fullPerformanceProfile();
     const profileSnapshot = JSON.parse(JSON.stringify(profile));

@@ -26,7 +26,14 @@ import type {
   PlanInputLockedDate,
   PlanInputTechnicalPriorities,
 } from "planning-engine";
-import { assertAvailabilityDeclared, assertValidStrengthExperienceTier, GenerationBlockedError } from "planning-engine";
+import {
+  assertAvailabilityDeclared,
+  assertValidStrengthExperienceTier,
+  assertValidEquipment,
+  assertValidTerrainAccess,
+  assertValidPriorityAreas,
+  GenerationBlockedError,
+} from "planning-engine";
 
 import { getAthleteCoachingContext } from "./repositories/athleteCoachingContextRepo.js";
 import { getPerformanceProfileFor } from "./repositories/athletePerformanceProfileRepo.js";
@@ -165,6 +172,17 @@ export async function buildPlanInputSnapshot(
   const terrainAccess = performanceProfile.terrain_access as string[];
   const declaredLimitations = performanceProfile.declared_limitations as string[];
   const technicalPriorities = normalizeTechnicalPriorities(performanceProfile.technical_priorities);
+
+  // V0.5_019 — equipment/terrainAccess/priorityAreas are present-but-malformed
+  // checks (PlanningEngineValidationError), same category as the tier check
+  // above, never GenerationBlockedError (reserved for validly absent data).
+  // declaredLimitations/seasonObjective are deliberately NOT validated here —
+  // no planning-engine/prescription-engine rule consumes either today
+  // (V0.5_017/018 audits), so there is nothing a closed vocabulary could be
+  // checked against without inventing one.
+  assertValidEquipment(equipment);
+  assertValidTerrainAccess(terrainAccess);
+  assertValidPriorityAreas(technicalPriorities.priorityAreas);
 
   // --- Availability (athleteAvailabilityWindowsRepo / athleteAvailabilityExceptionsRepo) ---
   const [windowRows, exceptionRows] = await Promise.all([

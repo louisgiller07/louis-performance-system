@@ -15,6 +15,7 @@
  */
 import { PlanningEngineValidationError } from "./errors.js";
 import type { StrengthExperienceTier } from "../types/planInputSnapshot.js";
+import { EXERCISE_CATALOG_ENTRIES, DRILL_CATALOG_ENTRIES } from "../catalog/index.js";
 
 /**
  * `missing_performance_profile`/`missing_discipline` are reserved for
@@ -76,4 +77,50 @@ export function assertValidStrengthExperienceTier(value: string): asserts value 
       value
     );
   }
+}
+
+/**
+ * V0.5_019 — unlike `strengthExperienceTier` (a fixed 3-value enum with no
+ * underlying data source), `equipment`/`terrainAccess`/`priorityAreas` are
+ * validated against the SAME catalogue data prescription-engine's own
+ * selectors already filter by (`isEquipmentCompatible`/`terrainAccess.
+ * includes(terrainRequirement)`/`priorityAreas[0]` used directly as a
+ * skillTarget — see prescription-engine's exerciseSelection.ts/
+ * drillSelection.ts/skillTargetSelection.ts, confirmed identical vocabulary,
+ * V0.5_018 §3). Derived directly from EXERCISE_CATALOG_ENTRIES/
+ * DRILL_CATALOG_ENTRIES rather than hand-duplicated a second time within
+ * this same package — a value the catalogue actually uses today is by
+ * definition valid, and a future catalogue change is picked up automatically,
+ * with no separate list to keep in sync here. This is a same-package
+ * reference (validation/ -> catalog/), not a boundary crossing — web/ still
+ * never imports either.
+ */
+const VALID_EQUIPMENT: ReadonlySet<string> = new Set(EXERCISE_CATALOG_ENTRIES.flatMap((entry) => entry.equipmentRequirements));
+const VALID_TERRAIN: ReadonlySet<string> = new Set(DRILL_CATALOG_ENTRIES.map((entry) => entry.terrainRequirement));
+const VALID_SKILL_TARGETS: ReadonlySet<string> = new Set(DRILL_CATALOG_ENTRIES.map((entry) => entry.skillTarget));
+
+function assertEachKnown(context: string, values: readonly string[], known: ReadonlySet<string>): void {
+  const unrecognized = values.filter((value) => !known.has(value));
+  if (unrecognized.length > 0) {
+    throw new PlanningEngineValidationError(
+      context,
+      `contains unrecognized value(s): ${unrecognized.join(", ")}`,
+      values
+    );
+  }
+}
+
+/** Every declared equipment item must match a value at least one exercise's `equipmentRequirements` actually references — an unrecognized item is malformed data, never silently ignored. */
+export function assertValidEquipment(equipment: readonly string[]): void {
+  assertEachKnown("PlanInputSnapshot.equipment", equipment, VALID_EQUIPMENT);
+}
+
+/** Every declared terrain item must match a value at least one drill's `terrainRequirement` actually references. */
+export function assertValidTerrainAccess(terrainAccess: readonly string[]): void {
+  assertEachKnown("PlanInputSnapshot.terrainAccess", terrainAccess, VALID_TERRAIN);
+}
+
+/** Every declared priority area must match a real drill `skillTarget` — `priorityAreas[0]` is used directly as a skillTarget by prescription-engine's skillTargetSelection.ts, with no translation step. */
+export function assertValidPriorityAreas(priorityAreas: readonly string[]): void {
+  assertEachKnown("PlanInputSnapshot.technicalPriorities.priorityAreas", priorityAreas, VALID_SKILL_TARGETS);
 }
