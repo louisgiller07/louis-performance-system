@@ -11,6 +11,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { HistoryDetailPage } from "./pages/HistoryDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { SimulationLabPage } from "./pages/SimulationLabPage";
+import { PerformanceSetup } from "./features/performanceSetup/PerformanceSetup";
 
 export default function App() {
   return (
@@ -66,6 +67,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <SimulationLabPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/performance-setup"
+            element={
+              <RequireAuth>
+                <PerformanceSetup />
               </RequireAuth>
             }
           />
