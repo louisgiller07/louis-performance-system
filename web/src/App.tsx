@@ -12,6 +12,7 @@ import { HistoryDetailPage } from "./pages/HistoryDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { SimulationLabPage } from "./pages/SimulationLabPage";
 import { PerformanceSetup } from "./features/performanceSetup/PerformanceSetup";
+import { TrainingPlanPreviewPage } from "./pages/TrainingPlanPreviewPage";
 
 export default function App() {
   return (
@@ -75,6 +76,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <PerformanceSetup />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/training-plan-preview"
+            element={
+              <RequireAuth>
+                <TrainingPlanPreviewPage />
               </RequireAuth>
             }
           />

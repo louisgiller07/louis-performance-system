@@ -9,6 +9,7 @@ import {
   getTrainingPlanDrafts,
   getTrainingPlanReview,
   getLatestDraft,
+  getActivePlanVersionId,
   assembleTrainingPlanReview,
   latestStateByVersion,
   TrainingPlanReviewError,
@@ -359,5 +360,25 @@ describe("getLatestDraft", () => {
     const review = await getLatestDraft();
 
     expect(review?.version.id).toBe("version-2");
+  });
+});
+
+describe("getActivePlanVersionId", () => {
+  it("returns null when the athlete has never accepted a plan", async () => {
+    mockTables({ training_plan_current_version: { data: null, error: null } });
+
+    expect(await getActivePlanVersionId()).toBeNull();
+  });
+
+  it("returns the current version id when one is active", async () => {
+    mockTables({ training_plan_current_version: { data: { plan_version_id: "version-1" }, error: null } });
+
+    expect(await getActivePlanVersionId()).toBe("version-1");
+  });
+
+  it("throws TrainingPlanReviewError when the read fails", async () => {
+    mockTables({ training_plan_current_version: { data: null, error: { code: "500" } } });
+
+    await expect(getActivePlanVersionId()).rejects.toBeInstanceOf(TrainingPlanReviewError);
   });
 });

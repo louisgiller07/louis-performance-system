@@ -24,6 +24,14 @@
 // `generation_note` (real columns, deliberately excluded — not in this
 // ticket's explicit field list, not silently forgotten); training_plan_
 // planned_prescriptions omits schema_version/catalog_version.
+//
+// V0.5_028 — getActivePlanVersionId() added (extends this same file, within
+// this ticket's authorized directory): the acceptance confirmation step
+// needs to know whether accepting a draft would replace an already-active
+// plan (training_plan_current_version, RLS-readable — confirmed V0.5_025).
+// Not part of the V0.5_027 read tree itself (a version/block/week/session/
+// prescription concern) — a separate, minimal read, same "own_select" RLS
+// idiom as everything else in this file.
 import { supabase } from "../../lib/supabase";
 import type {
   TrainingPlanReview,
@@ -409,4 +417,21 @@ export async function getLatestDraft(): Promise<TrainingPlanReview | null> {
   if (drafts.length === 0) return null;
   // drafts[0] is already the most recent — getTrainingPlanDrafts() orders by generated_at desc.
   return getTrainingPlanReview(drafts[0]!.id);
+}
+
+/**
+ * The athlete's currently active plan version id, or `null` if none has
+ * ever been accepted — a real, legitimate state (mirrors head-coach-engine's
+ * own trainingPlanCurrentVersionRepo.getCurrentPlanVersion, the RLS-scoped
+ * equivalent for the web client).
+ */
+export async function getActivePlanVersionId(): Promise<string | null> {
+  const { data, error } = await supabase.from("training_plan_current_version").select("plan_version_id").maybeSingle();
+
+  if (error) {
+    console.error("trainingPlanReviewRepo.getActivePlanVersionId failed", error.code);
+    throw new TrainingPlanReviewError();
+  }
+
+  return (data as { plan_version_id: string } | null)?.plan_version_id ?? null;
 }
