@@ -113,8 +113,14 @@ export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlan
 
     if (result.ok) {
       // Success consumes the intention — the next click starts a new one.
+      // V0.5_038 — navigates to the exact planVersionId returned, never the
+      // id-less "/training-plan-preview" (which would resolve to whatever
+      // happens to be the latest draft at load time — a real race if
+      // another generation completes first). This works identically for
+      // idempotentReplay: true — the id returned is still the correct one
+      // to show, regardless of how recent it is relative to other drafts.
       setGenerationRequestId(null);
-      navigate("/training-plan-preview");
+      navigate(`/training-plan-preview/${encodeURIComponent(result.data.planVersionId)}`);
       return;
     }
 

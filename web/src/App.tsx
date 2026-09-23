@@ -87,6 +87,14 @@ export default function App() {
               </RequireAuth>
             }
           />
+          <Route
+            path="/training-plan-preview/:planVersionId"
+            element={
+              <RequireAuth>
+                <TrainingPlanPreviewPage />
+              </RequireAuth>
+            }
+          />
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </BrowserRouter>

@@ -268,8 +268,8 @@ describe("TrainingPlanGenerationPanel — existing drafts", () => {
   });
 });
 
-describe("TrainingPlanGenerationPanel — success navigation", () => {
-  it("navigates to /training-plan-preview only after generateTrainingPlan resolves", async () => {
+describe("TrainingPlanGenerationPanel — success navigation (V0.5_038)", () => {
+  it("navigates to the exact returned planVersionId, only after generateTrainingPlan resolves — never the id-less route", async () => {
     let resolveGenerate!: (value: unknown) => void;
     generateTrainingPlan.mockReturnValue(new Promise((resolve) => (resolveGenerate = resolve)));
     const user = userEvent.setup();
@@ -281,8 +281,32 @@ describe("TrainingPlanGenerationPanel — success navigation", () => {
     await waitFor(() => expect(generateTrainingPlan).toHaveBeenCalledTimes(1));
     expect(navigateMock).not.toHaveBeenCalled();
 
-    resolveGenerate({ ok: true, data: SUCCESS_RESPONSE });
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/training-plan-preview"));
+    resolveGenerate({ ok: true, data: { planVersionId: "plan-123", idempotentReplay: false } });
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/training-plan-preview/plan-123"));
+  });
+
+  it("navigates to the exact returned planVersionId on an idempotent replay too, regardless of any other more-recent draft", async () => {
+    generateTrainingPlan.mockResolvedValue({ ok: true, data: { planVersionId: "old-plan-456", idempotentReplay: true } });
+    const user = userEvent.setup();
+    renderPanel();
+
+    await fillDuration(user, "6");
+    await user.click(screen.getByRole("button", { name: "Générer mon plan" }));
+
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/training-plan-preview/old-plan-456"));
+  });
+
+  it("URL-encodes the planVersionId when navigating", async () => {
+    generateTrainingPlan.mockResolvedValue({ ok: true, data: { planVersionId: "plan/with space", idempotentReplay: false } });
+    const user = userEvent.setup();
+    renderPanel();
+
+    await fillDuration(user, "6");
+    await user.click(screen.getByRole("button", { name: "Générer mon plan" }));
+
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith(`/training-plan-preview/${encodeURIComponent("plan/with space")}`)
+    );
   });
 });
 
