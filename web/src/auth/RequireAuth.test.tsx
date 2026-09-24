@@ -72,12 +72,12 @@ describe("RequireAuth", () => {
   it("V0.3_004B — unauthenticated: bootstrap is never shown, redirects to /login instead", async () => {
     renderProtected(null);
     await waitFor(() => expect(screen.getByText("Login page")).toBeInTheDocument());
-    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bienvenue sur NALYNT")).not.toBeInTheDocument();
   });
 
   it("V0.3_004B — authenticated with zero athlete rows: renders the AthleteBootstrap UI, not the dead-end message or the protected child", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, []);
-    await waitFor(() => expect(screen.getByText("Welcome to NALYNT")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Bienvenue sur NALYNT")).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     expect(screen.queryByText(/contacte le support/i)).not.toBeInTheDocument();
   });
@@ -85,7 +85,7 @@ describe("RequireAuth", () => {
   it("V0.3_004B — more than one athlete resolved: still the existing config-error message, bootstrap is NOT shown", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [{ id: "athlete-1" }, { id: "athlete-2" }]);
     await waitFor(() => expect(screen.getByText(/erreur de configuration/i)).toBeInTheDocument());
-    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bienvenue sur NALYNT")).not.toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 
@@ -96,9 +96,9 @@ describe("RequireAuth", () => {
     // Both AthleteOnboarding's fresh-start intro and AthleteBootstrap share
     // the "Welcome to NALYNT" headline (same first-run branding) — disambiguate
     // on each screen's own distinct copy instead.
-    await waitFor(() => expect(screen.getByText("Build my athlete profile")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Créer mon profil d'athlète")).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
-    expect(screen.queryByText("Let's build your athlete profile.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Créons ton profil d'athlète.")).not.toBeInTheDocument();
   });
 
   it("V0.3_008A — athlete resolved and onboarding completed: renders the protected child, not the onboarding wizard", async () => {
@@ -106,7 +106,7 @@ describe("RequireAuth", () => {
       { id: "athlete-1", athlete_onboarding_profiles: ONBOARDING_DONE },
     ]);
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
-    expect(screen.queryByText("What do you ride?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quelle discipline pratiques-tu ?")).not.toBeInTheDocument();
   });
 
   describe("PILOT_012 — health-data consent gate", () => {

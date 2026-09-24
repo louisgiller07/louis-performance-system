@@ -12,7 +12,16 @@ import {
   PerformanceSetupError,
   type PerformanceSetupAnswers,
 } from "./performanceSetupRepo";
-import { EQUIPMENT_OPTIONS, TERRAIN_OPTIONS, TECHNICAL_PRIORITY_OPTIONS, STRENGTH_EXPERIENCE_TIER_OPTIONS } from "./performanceSetupOptions";
+import {
+  EQUIPMENT_OPTIONS,
+  EQUIPMENT_LABELS,
+  TERRAIN_OPTIONS,
+  TERRAIN_LABELS,
+  TECHNICAL_PRIORITY_OPTIONS,
+  TECHNICAL_PRIORITY_LABELS,
+  STRENGTH_EXPERIENCE_TIER_OPTIONS,
+  STRENGTH_EXPERIENCE_TIER_LABELS,
+} from "./performanceSetupOptions";
 import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
 import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
 
@@ -44,17 +53,20 @@ function ToggleChip({ label, selected, onClick }: { label: string; selected: boo
 
 function ToggleGroup<T extends string>({
   options,
+  labels,
   selected,
   onToggle,
 }: {
   options: readonly T[];
+  /** Display label per persisted value — the value itself is never rendered. */
+  labels: Record<T, string>;
   selected: readonly T[];
   onToggle: (value: T) => void;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((option) => (
-        <ToggleChip key={option} label={option} selected={selected.includes(option)} onClick={() => onToggle(option)} />
+        <ToggleChip key={option} label={labels[option]} selected={selected.includes(option)} onClick={() => onToggle(option)} />
       ))}
     </div>
   );
@@ -170,12 +182,13 @@ export function PerformanceSetup() {
 
   return (
     <PageShell header={<AppHeader />}>
-      <SectionHeader title="Performance Setup" subtitle="Ces informations orientent la génération de ton plan d'entraînement." />
+      <SectionHeader title="Profil de performance" subtitle="Ces informations orientent la génération de ton plan d'entraînement." />
 
       <Card className="flex flex-col gap-3">
         <p className="text-sm font-medium text-ink">Équipement disponible</p>
         <ToggleGroup
           options={EQUIPMENT_OPTIONS}
+          labels={EQUIPMENT_LABELS}
           selected={answers.equipment}
           onToggle={(value) => updateAnswers((a) => ({ ...a, equipment: toggleValue(a.equipment, value) }))}
         />
@@ -185,6 +198,7 @@ export function PerformanceSetup() {
         <p className="text-sm font-medium text-ink">Terrain accessible</p>
         <ToggleGroup
           options={TERRAIN_OPTIONS}
+          labels={TERRAIN_LABELS}
           selected={answers.terrainAccess}
           onToggle={(value) => updateAnswers((a) => ({ ...a, terrainAccess: toggleValue(a.terrainAccess, value) }))}
         />
@@ -197,6 +211,7 @@ export function PerformanceSetup() {
           <p className="text-xs uppercase tracking-widest text-muted">Points forts</p>
           <ToggleGroup
             options={TECHNICAL_PRIORITY_OPTIONS}
+            labels={TECHNICAL_PRIORITY_LABELS}
             selected={answers.strengths}
             onToggle={(value) => updateAnswers((a) => ({ ...a, strengths: toggleValue(a.strengths, value) }))}
           />
@@ -206,6 +221,7 @@ export function PerformanceSetup() {
           <p className="text-xs uppercase tracking-widest text-muted">Points faibles</p>
           <ToggleGroup
             options={TECHNICAL_PRIORITY_OPTIONS}
+            labels={TECHNICAL_PRIORITY_LABELS}
             selected={answers.weaknesses}
             onToggle={(value) => updateAnswers((a) => ({ ...a, weaknesses: toggleValue(a.weaknesses, value) }))}
           />
@@ -215,6 +231,7 @@ export function PerformanceSetup() {
           <p className="text-xs uppercase tracking-widest text-muted">Priorités pour ce plan</p>
           <ToggleGroup
             options={TECHNICAL_PRIORITY_OPTIONS}
+            labels={TECHNICAL_PRIORITY_LABELS}
             selected={answers.priorityAreas}
             onToggle={(value) => updateAnswers((a) => ({ ...a, priorityAreas: toggleValue(a.priorityAreas, value) }))}
           />
@@ -235,7 +252,7 @@ export function PerformanceSetup() {
           <option value="">— Choisir —</option>
           {STRENGTH_EXPERIENCE_TIER_OPTIONS.map((tier) => (
             <option key={tier} value={tier}>
-              {tier}
+              {STRENGTH_EXPERIENCE_TIER_LABELS[tier]}
             </option>
           ))}
         </Select>

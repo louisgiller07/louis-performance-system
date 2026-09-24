@@ -210,3 +210,29 @@ describe("AvailabilitySection — no arbitrary defaults", () => {
     expect(screen.getByLabelText("Heure de fin — Mardi")).toHaveValue("");
   });
 });
+
+describe("AvailabilitySection — generation blocker message (PILOT_015)", () => {
+  it("the 'no availability saved' blocker disappears once a window is actually saved, and stays gone on reload", async () => {
+    const saved = [{ id: "w1", dayOfWeek: 6 as const, startTime: "09:00", endTime: "12:00", label: null }];
+    saveAvailabilityWindows.mockResolvedValue(saved);
+    const user = userEvent.setup();
+    const { unmount } = renderSection();
+    await screen.findByText("Disponibilités");
+    expect(screen.getByText(/Aucune disponibilité enregistrée/)).toBeInTheDocument();
+
+    await user.click(dayGroup("Samedi").getByRole("button", { name: "Non disponible" }));
+    await user.type(screen.getByLabelText("Heure de début — Samedi"), "09:00");
+    await user.type(screen.getByLabelText("Heure de fin — Samedi"), "12:00");
+    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
+
+    await screen.findByText("Disponibilités enregistrées.");
+    expect(screen.queryByText(/Aucune disponibilité enregistrée/)).not.toBeInTheDocument();
+
+    unmount();
+    loadAvailabilityWindows.mockResolvedValue(saved);
+    renderSection();
+    await screen.findByText("Disponibilités");
+    expect(screen.getByLabelText("Heure de début — Samedi")).toHaveValue("09:00");
+    expect(screen.queryByText(/Aucune disponibilité enregistrée/)).not.toBeInTheDocument();
+  });
+});

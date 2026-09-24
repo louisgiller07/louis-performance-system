@@ -27,11 +27,20 @@ function genericError(code: string): GenerateTrainingPlanError {
 // resolves safely via the fallback message below, never a crash. Never a
 // navigation instruction here (ticket-locked scope) — only a message the
 // future component can act on.
+//
+// PILOT_015 — no_compatible_drill / no_compatible_exercise are the same kind
+// of user-fixable 422: a valid setup for which the catalogue has no DH drill
+// (plan priority × experience × terrain) or strength exercise (equipment ×
+// experience).
 const MESSAGE_FOR_BLOCKED_REASON: Partial<Record<string, string>> = {
-  missing_availability: "Configure tes disponibilités avant de générer un plan d'entraînement.",
-  missing_performance_profile: "Complète ton profil de performance (Performance Setup) avant de générer un plan d'entraînement.",
-  missing_discipline: "Renseigne ta discipline dans ton profil avant de générer un plan d'entraînement.",
-  missing_strength_experience_tier: "Complète ton niveau d'expérience en musculation (Performance Setup) avant de générer un plan d'entraînement.",
+  missing_availability: "Ajoute au moins un jour de disponibilité.",
+  missing_performance_profile: "Complète et enregistre ton profil de performance.",
+  missing_discipline: "Sélectionne ta discipline.",
+  missing_strength_experience_tier: "Indique ton expérience en préparation physique.",
+  no_compatible_drill:
+    "Aucun exercice technique ne correspond à ta priorité pour ce plan, ton expérience et tes terrains. Choisis une autre priorité pour ce plan ou ajoute des terrains accessibles, enregistre, puis réessaie.",
+  no_compatible_exercise:
+    "Ton équipement ne permet pas de construire toutes les séances de force. Ajoute le matériel dont tu disposes, enregistre, puis réessaie.",
 };
 
 // Canonical codes from supabase/functions/generate-training-plan/index.ts +
@@ -69,7 +78,12 @@ function mapHttpBody(status: number, code: string | undefined): GenerateTraining
     case "invalid_request":
       return { code, message: "Requête invalide.", retryable: false, action: "generic" };
     case "internal_error":
-      return { code, message: "Une erreur inattendue s'est produite côté serveur. Réessaie.", retryable: true, action: "retry" };
+      return {
+        code,
+        message: "La génération du plan a rencontré une erreur. Réessaie ou contacte le support si le problème continue.",
+        retryable: true,
+        action: "retry",
+      };
     default:
       return genericError(code ?? "unknown_http_error");
   }

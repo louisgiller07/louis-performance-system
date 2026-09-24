@@ -71,8 +71,8 @@ export function AthleteBootstrap() {
           className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
-            <h1 className="text-xl font-bold text-ink">Welcome to NALYNT</h1>
-            <p className="mt-1 text-sm text-muted">Let's build your athlete profile.</p>
+            <h1 className="text-xl font-bold text-ink">Bienvenue sur NALYNT</h1>
+            <p className="mt-1 text-sm text-muted">Créons ton profil d'athlète.</p>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -92,7 +92,7 @@ export function AthleteBootstrap() {
             </p>
           )}
           <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
-            {submitting ? "Creating…" : "Continue"}
+            {submitting ? "Création…" : "Continuer"}
           </PrimaryButton>
         </form>
       </div>

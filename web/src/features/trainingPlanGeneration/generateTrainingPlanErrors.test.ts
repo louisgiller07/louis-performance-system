@@ -14,13 +14,16 @@ describe("mapGenerateTrainingPlanError", () => {
   });
 
   // The 4 canonical GenerationBlockedError reasons from
-  // supabase/functions/generate-training-plan/errorMapping.ts — every one
-  // must map to a user-fixable, non-retryable, UX-exploitable error.
+  // supabase/functions/generate-training-plan/errorMapping.ts, plus the two
+  // PILOT_015 catalogue outcomes — every one must map to a user-fixable,
+  // non-retryable, UX-exploitable error, never "Erreur serveur".
   it.each([
-    ["missing_availability", /disponibilités/i],
-    ["missing_performance_profile", /profil de performance/i],
-    ["missing_discipline", /discipline/i],
-    ["missing_strength_experience_tier", /musculation/i],
+    ["missing_availability", "Ajoute au moins un jour de disponibilité."],
+    ["missing_performance_profile", "Complète et enregistre ton profil de performance."],
+    ["missing_discipline", "Sélectionne ta discipline."],
+    ["missing_strength_experience_tier", "Indique ton expérience en préparation physique."],
+    ["no_compatible_drill", /Choisis une autre priorité pour ce plan/],
+    ["no_compatible_exercise", /Ajoute le matériel dont tu disposes/],
   ])("maps GenerationBlockedError reason %s to a user-fixable error with an exploitable message", async (reason, expectedMessage) => {
     const mapped = await mapGenerateTrainingPlanError(httpError(422, { error: { code: reason, message: "ignored" } }));
     expect(mapped.code).toBe(reason);
@@ -46,6 +49,7 @@ describe("mapGenerateTrainingPlanError", () => {
     const mapped = await mapGenerateTrainingPlanError(httpError(500, { error: { code: "internal_error" } }));
     expect(mapped.retryable).toBe(true);
     expect(mapped.action).toBe("retry");
+    expect(mapped.message).toBe("La génération du plan a rencontré une erreur. Réessaie ou contacte le support si le problème continue.");
   });
 
   it("maps invalid_request (400) to a non-retryable generic error", async () => {

@@ -174,7 +174,8 @@ export async function handleGenerateTrainingPlan(
   } catch (error) {
     const mapped = mapGenerateTrainingPlanError(error);
     console.error(`generate-training-plan: generateAndPersistTrainingPlan failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
-    // mapGenerateTrainingPlanError returns 422 only for GenerationBlockedError (code = blockedReason).
+    // mapGenerateTrainingPlanError returns 422 only for a user-fixable setup outcome: GenerationBlockedError
+    // (code = blockedReason) or, since PILOT_015, no_compatible_drill / no_compatible_exercise.
     await recordPilotEvent(
       ctx.supabaseAdmin,
       mapped.status === 422

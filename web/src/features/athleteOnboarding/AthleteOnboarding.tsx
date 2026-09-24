@@ -25,7 +25,18 @@ import {
   type WeeklyTrainingHours,
   type RidingDay,
 } from "./onboardingOptions";
-import { INTRO_COPY, STEP_COPY, PRIMARY_GOAL_DESCRIPTIONS, COMPLETION_COPY } from "./onboardingCopy";
+import {
+  INTRO_COPY,
+  STEP_COPY,
+  PRIMARY_GOAL_DESCRIPTIONS,
+  COMPLETION_COPY,
+  DISCIPLINE_LABELS,
+  COMPETITION_LEVEL_LABELS,
+  PRIMARY_GOAL_LABELS,
+  WEEKLY_TRAINING_HOURS_LABELS,
+  RIDING_DAY_LABELS,
+  WIZARD_COPY,
+} from "./onboardingCopy";
 
 const TOTAL_STEPS = 5;
 
@@ -85,7 +96,7 @@ function ProgressBar({ step }: { step: number }) {
   return (
     <div className="flex w-full flex-col gap-2">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-        Step {step} of {TOTAL_STEPS}
+        {WIZARD_COPY.progress(step, TOTAL_STEPS)}
       </p>
       <div className="flex gap-1.5">
         {Array.from({ length: TOTAL_STEPS }, (_, i) => (
@@ -202,7 +213,7 @@ export function AthleteOnboarding() {
   }
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-bg text-sm text-muted">Loading…</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-bg text-sm text-muted">{WIZARD_COPY.loading}</div>;
   }
 
   if (showIntro) {
@@ -273,7 +284,7 @@ export function AthleteOnboarding() {
               </div>
               <div className="flex flex-col gap-2.5">
                 {DISCIPLINE_OPTIONS.map((option) => (
-                  <ChoiceCard key={option} label={option} selected={discipline === option} onClick={() => setDiscipline(option)} />
+                  <ChoiceCard key={option} label={DISCIPLINE_LABELS[option]} selected={discipline === option} onClick={() => setDiscipline(option)} />
                 ))}
               </div>
             </div>
@@ -289,7 +300,7 @@ export function AthleteOnboarding() {
                 {COMPETITION_LEVEL_OPTIONS.map((option) => (
                   <ChoiceCard
                     key={option}
-                    label={option}
+                    label={COMPETITION_LEVEL_LABELS[option]}
                     selected={competitionLevel === option}
                     onClick={() => setCompetitionLevel(option)}
                   />
@@ -308,7 +319,7 @@ export function AthleteOnboarding() {
                 {PRIMARY_GOAL_OPTIONS.map((option) => (
                   <ChoiceCard
                     key={option}
-                    label={option}
+                    label={PRIMARY_GOAL_LABELS[option]}
                     description={PRIMARY_GOAL_DESCRIPTIONS[option]}
                     selected={primaryGoal === option}
                     onClick={() => setPrimaryGoal(option)}
@@ -328,7 +339,7 @@ export function AthleteOnboarding() {
                 {WEEKLY_TRAINING_HOURS_OPTIONS.map((option) => (
                   <ChoiceCard
                     key={option}
-                    label={option}
+                    label={WEEKLY_TRAINING_HOURS_LABELS[option]}
                     selected={weeklyTrainingHours === option}
                     onClick={() => setWeeklyTrainingHours(option)}
                   />
@@ -342,13 +353,13 @@ export function AthleteOnboarding() {
               <div>
                 <h1 className="text-2xl font-bold text-ink">{STEP_COPY[5].title}</h1>
                 {STEP_COPY[5].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[5].hint}</p>}
-                <p className="mt-1 text-sm text-muted">Select all that apply.</p>
+                <p className="mt-1 text-sm text-muted">{WIZARD_COPY.selectAll}</p>
               </div>
               <div className="flex flex-col gap-2.5">
                 {RIDING_DAY_OPTIONS.map((option) => (
                   <ChoiceCard
                     key={option}
-                    label={option}
+                    label={RIDING_DAY_LABELS[option]}
                     selected={ridingDays.includes(option)}
                     onClick={() => toggleRidingDay(option)}
                   />
@@ -373,7 +384,7 @@ export function AthleteOnboarding() {
               disabled={saving}
               className="min-h-12.5 flex-1 rounded border border-white/10 text-sm font-semibold uppercase tracking-wide text-muted hover:border-white/25 disabled:opacity-40"
             >
-              Back
+              {WIZARD_COPY.back}
             </button>
           )}
           <PrimaryButton
@@ -381,7 +392,7 @@ export function AthleteOnboarding() {
             disabled={!canContinue || saving}
             className="min-h-12.5 flex-1 text-base tracking-wide"
           >
-            {saving ? "Saving…" : "Continue"}
+            {saving ? WIZARD_COPY.saving : WIZARD_COPY.continue}
           </PrimaryButton>
         </div>
       </div>

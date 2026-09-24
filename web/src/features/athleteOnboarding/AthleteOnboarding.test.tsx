@@ -53,8 +53,8 @@ const EMPTY_ANSWERS = {
 };
 
 async function dismissIntro(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await screen.findByText("Welcome to NALYNT");
-  await user.click(screen.getByRole("button", { name: "Build my athlete profile" }));
+  await screen.findByText("Bienvenue sur NALYNT");
+  await user.click(screen.getByRole("button", { name: "Créer mon profil d'athlète" }));
 }
 
 beforeEach(() => {
@@ -71,12 +71,12 @@ describe("AthleteOnboarding — intro screen", () => {
   it("shows the intro screen first for a genuinely fresh start", async () => {
     renderOnboarding();
 
-    expect(await screen.findByText("Welcome to NALYNT")).toBeInTheDocument();
-    expect(screen.getByText("Your AI performance coach starts by understanding you.")).toBeInTheDocument();
+    expect(await screen.findByText("Bienvenue sur NALYNT")).toBeInTheDocument();
+    expect(screen.getByText("Ton coach de performance commence par apprendre à te connaître.")).toBeInTheDocument();
     expect(
-      screen.getByText("Every athlete is different. Your goals, your schedule and your riding style shape your performance journey.")
+      screen.getByText("Chaque athlète est différent. Tes objectifs, ton emploi du temps et ta façon de rouler façonnent ta progression.")
     ).toBeInTheDocument();
-    expect(screen.queryByText("What do you ride?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quelle discipline pratiques-tu ?")).not.toBeInTheDocument();
   });
 
   it("dismissing the intro reveals step 1", async () => {
@@ -85,8 +85,8 @@ describe("AthleteOnboarding — intro screen", () => {
 
     await dismissIntro(user);
 
-    expect(await screen.findByText("What do you ride?")).toBeInTheDocument();
-    expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
+    expect(await screen.findByText("Quelle discipline pratiques-tu ?")).toBeInTheDocument();
+    expect(screen.getByText("Étape 1 sur 5")).toBeInTheDocument();
   });
 
   it("is skipped when resuming mid-wizard (not a fresh start)", async () => {
@@ -100,8 +100,8 @@ describe("AthleteOnboarding — intro screen", () => {
 
     renderOnboarding();
 
-    expect(await screen.findByText("What do you want NALYNT to help you achieve?")).toBeInTheDocument();
-    expect(screen.queryByText("Welcome to NALYNT")).not.toBeInTheDocument();
+    expect(await screen.findByText("Qu'est-ce que NALYNT doit t'aider à atteindre ?")).toBeInTheDocument();
+    expect(screen.queryByText("Bienvenue sur NALYNT")).not.toBeInTheDocument();
   });
 });
 
@@ -111,9 +111,9 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     renderOnboarding();
     await dismissIntro(user);
 
-    expect(await screen.findByText("What do you ride?")).toBeInTheDocument();
-    expect(screen.getByText("This helps NALYNT understand your riding environment.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(await screen.findByText("Quelle discipline pratiques-tu ?")).toBeInTheDocument();
+    expect(screen.getByText("Ça aide NALYNT à comprendre ton environnement de pilotage.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
   });
 
   it("progression between steps: selecting an option and clicking Continue saves it and advances", async () => {
@@ -121,12 +121,12 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     renderOnboarding();
     await dismissIntro(user);
 
-    await user.click(screen.getByText("Downhill"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByText("Descente (DH)"));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
 
     await waitFor(() => expect(saveDiscipline).toHaveBeenCalledWith("athlete-1", "Downhill"));
-    expect(await screen.findByText("Where are you today in your journey?")).toBeInTheDocument();
-    expect(screen.getByText("Step 2 of 5")).toBeInTheDocument();
+    expect(await screen.findByText("Où en es-tu aujourd'hui ?")).toBeInTheDocument();
+    expect(screen.getByText("Étape 2 sur 5")).toBeInTheDocument();
   });
 
   it("step 3 shows a short description under each goal option", async () => {
@@ -140,12 +140,12 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
 
     renderOnboarding();
 
-    await screen.findByText("What do you want NALYNT to help you achieve?");
-    expect(screen.getByText("Be faster when it matters.")).toBeInTheDocument();
-    expect(screen.getByText("Reduce mistakes and repeat your best riding.")).toBeInTheDocument();
-    expect(screen.getByText("Build stronger fundamentals and confidence.")).toBeInTheDocument();
-    expect(screen.getByText("Improve strength and endurance.")).toBeInTheDocument();
-    expect(screen.getByText("Train smarter and stay on your bike.")).toBeInTheDocument();
+    await screen.findByText("Qu'est-ce que NALYNT doit t'aider à atteindre ?");
+    expect(screen.getByText("Être plus rapide quand ça compte.")).toBeInTheDocument();
+    expect(screen.getByText("Faire moins d'erreurs et reproduire tes meilleurs runs.")).toBeInTheDocument();
+    expect(screen.getByText("Construire des bases solides et prendre confiance.")).toBeInTheDocument();
+    expect(screen.getByText("Améliorer ta force et ton endurance.")).toBeInTheDocument();
+    expect(screen.getByText("T'entraîner plus intelligemment et rester sur le vélo.")).toBeInTheDocument();
   });
 
   it("Back returns to the previous step without re-saving", async () => {
@@ -153,13 +153,13 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     renderOnboarding();
     await dismissIntro(user);
 
-    await user.click(screen.getByText("Downhill"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    await screen.findByText("Where are you today in your journey?");
+    await user.click(screen.getByText("Descente (DH)"));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    await screen.findByText("Où en es-tu aujourd'hui ?");
 
-    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(screen.getByRole("button", { name: "Retour" }));
 
-    expect(await screen.findByText("What do you ride?")).toBeInTheDocument();
+    expect(await screen.findByText("Quelle discipline pratiques-tu ?")).toBeInTheDocument();
     expect(saveDiscipline).toHaveBeenCalledTimes(1);
   });
 
@@ -174,8 +174,8 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
 
     renderOnboarding();
 
-    expect(await screen.findByText("What do you want NALYNT to help you achieve?")).toBeInTheDocument();
-    expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
+    expect(await screen.findByText("Qu'est-ce que NALYNT doit t'aider à atteindre ?")).toBeInTheDocument();
+    expect(screen.getByText("Étape 3 sur 5")).toBeInTheDocument();
   });
 
   it("selecting a day updates local state (toggle on) and deselecting removes it (toggle off)", async () => {
@@ -188,15 +188,15 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     });
     const user = userEvent.setup();
     renderOnboarding();
-    await screen.findByText("When can NALYNT help you train around your riding?");
+    await screen.findByText("Quels jours roules-tu habituellement ?");
 
-    await user.click(screen.getByText("Monday"));
-    await user.click(screen.getByText("Wednesday"));
+    await user.click(screen.getByText("Lundi"));
+    await user.click(screen.getByText("Mercredi"));
     // Toggle Monday back off — proves the local state update is a real
     // add/remove toggle, not a one-way accumulate.
-    await user.click(screen.getByText("Monday"));
+    await user.click(screen.getByText("Lundi"));
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
 
     await waitFor(() =>
       expect(completeOnboarding).toHaveBeenCalledWith(
@@ -217,15 +217,15 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     const user = userEvent.setup();
     renderOnboarding();
 
-    await screen.findByText("When can NALYNT help you train around your riding?");
-    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await screen.findByText("Quels jours roules-tu habituellement ?");
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
 
-    await user.click(screen.getByText("Saturday"));
-    await user.click(screen.getByText("Sunday"));
+    await user.click(screen.getByText("Samedi"));
+    await user.click(screen.getByText("Dimanche"));
     // Riding days alone are not enough: explicit health-data consent is required.
-    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
 
     await waitFor(() =>
       expect(completeOnboarding).toHaveBeenCalledWith("athlete-1", {
@@ -236,7 +236,7 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
         privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
       })
     );
-    expect(await screen.findByText("Your athlete profile is ready.")).toBeInTheDocument();
+    expect(await screen.findByText("Ton profil d'athlète est prêt.")).toBeInTheDocument();
   });
 
   it("the final write re-sends all four answers together, not just riding days — self-sufficient even if an earlier per-step save never landed", async () => {
@@ -250,10 +250,10 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     const user = userEvent.setup();
     renderOnboarding();
 
-    await screen.findByText("When can NALYNT help you train around your riding?");
-    await user.click(screen.getByText("Monday"));
+    await screen.findByText("Quels jours roules-tu habituellement ?");
+    await user.click(screen.getByText("Lundi"));
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
 
     await waitFor(() =>
       expect(completeOnboarding).toHaveBeenCalledWith("athlete-1", {
@@ -272,11 +272,11 @@ describe("AthleteOnboarding — Niveau 1 wizard", () => {
     renderOnboarding();
     await dismissIntro(user);
 
-    await user.click(screen.getByText("Downhill"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByText("Descente (DH)"));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
-    expect(screen.getByText("What do you ride?")).toBeInTheDocument();
+    expect(screen.getByText("Quelle discipline pratiques-tu ?")).toBeInTheDocument();
   });
 });
 
@@ -292,18 +292,18 @@ describe("AthleteOnboarding — completion screen", () => {
     const user = userEvent.setup();
     renderOnboarding();
 
-    await screen.findByText("When can NALYNT help you train around your riding?");
+    await screen.findByText("Quels jours roules-tu habituellement ?");
     await user.click(screen.getByRole("checkbox"));
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
 
-    expect(await screen.findByText("Your athlete profile is ready.")).toBeInTheDocument();
-    expect(screen.getByText("Your discipline")).toBeInTheDocument();
-    expect(screen.getByText("Your experience level")).toBeInTheDocument();
-    expect(screen.getByText("Your goals")).toBeInTheDocument();
-    expect(screen.getByText("Your availability")).toBeInTheDocument();
-    expect(screen.getByText("Next: set up your training profile and availability to generate your first training plan.")).toBeInTheDocument();
+    expect(await screen.findByText("Ton profil d'athlète est prêt.")).toBeInTheDocument();
+    expect(screen.getByText("Ta discipline")).toBeInTheDocument();
+    expect(screen.getByText("Ton niveau")).toBeInTheDocument();
+    expect(screen.getByText("Tes objectifs")).toBeInTheDocument();
+    expect(screen.getByText("Tes disponibilités")).toBeInTheDocument();
+    expect(screen.getByText("Prochaine étape : configure ton profil de performance et tes disponibilités pour générer ton premier plan d'entraînement.")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Set up my training plan" }));
+    await user.click(screen.getByRole("button", { name: "Configurer mon plan d'entraînement" }));
 
     await waitFor(() => expect(refreshAthlete).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Performance setup page")).toBeInTheDocument();
@@ -323,7 +323,7 @@ describe("AthleteOnboarding — health-data consent (PILOT_012)", () => {
     loadOnboardingAnswers.mockResolvedValue(FINAL_STEP_ANSWERS);
     renderOnboarding();
 
-    await screen.findByText("When can NALYNT help you train around your riding?");
+    await screen.findByText("Quels jours roules-tu habituellement ?");
     expect(screen.getByRole("checkbox")).not.toBeChecked();
     expect(screen.getByRole("link", { name: "informations de confidentialité" })).toHaveAttribute("href", "/privacy");
   });
@@ -333,12 +333,12 @@ describe("AthleteOnboarding — health-data consent (PILOT_012)", () => {
     const user = userEvent.setup();
     renderOnboarding();
 
-    await screen.findByText("When can NALYNT help you train around your riding?");
-    const continueButton = screen.getByRole("button", { name: "Continue" });
+    await screen.findByText("Quels jours roules-tu habituellement ?");
+    const continueButton = screen.getByRole("button", { name: "Continuer" });
     expect(continueButton).toBeDisabled();
     await user.click(continueButton);
 
     expect(completeOnboarding).not.toHaveBeenCalled();
-    expect(screen.queryByText("Your athlete profile is ready.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ton profil d'athlète est prêt.")).not.toBeInTheDocument();
   });
 });

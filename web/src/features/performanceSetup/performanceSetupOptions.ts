@@ -81,3 +81,46 @@ export type TechnicalPriority = (typeof TECHNICAL_PRIORITY_OPTIONS)[number];
  */
 export const STRENGTH_EXPERIENCE_TIER_OPTIONS = ["beginner", "intermediate", "advanced"] as const;
 export type StrengthExperienceTier = (typeof STRENGTH_EXPERIENCE_TIER_OPTIONS)[number];
+
+// PILOT_015 — athlete-facing French labels. Display only: the values above
+// stay the persisted/API contract (the DB and generate-training-plan always
+// receive e.g. "squat_rack", never "Rack à squat"). Exhaustive by type, so a
+// value added above without a label is a compile error, never a raw enum on
+// screen.
+export const EQUIPMENT_LABELS: Record<Equipment, string> = {
+  barbell: "Barre",
+  squat_rack: "Rack à squat",
+  dumbbells: "Haltères",
+  bench: "Banc",
+  resistance_bands: "Bandes élastiques",
+  cable_machine: "Poulie / machine à câbles",
+  pull_up_bar: "Barre de traction",
+};
+
+export const TERRAIN_LABELS: Record<Terrain, string> = {
+  any_groomed_trail: "Sentier aménagé",
+  flow_trail: "Flow trail",
+  bermed_trail: "Piste avec relevés",
+  technical_trail: "Sentier technique",
+  rock_garden: "Pierrier / rock garden",
+  steep_technical_trail: "Pente technique raide",
+  root_rock_trail: "Sentier avec racines et rochers",
+  bike_park_jump_line: "Bike park / ligne de sauts",
+  full_dh_track: "Piste DH complète",
+};
+
+export const TECHNICAL_PRIORITY_LABELS: Record<TechnicalPriority, string> = {
+  braking: "Freinage",
+  cornering: "Virages",
+  line_choice: "Choix de ligne",
+  steep_terrain: "Terrain raide",
+  roots_rocks: "Racines et rochers",
+  jumps: "Sauts",
+  race_execution: "Exécution en course",
+};
+
+export const STRENGTH_EXPERIENCE_TIER_LABELS: Record<StrengthExperienceTier, string> = {
+  beginner: "Débutant",
+  intermediate: "Intermédiaire",
+  advanced: "Avancé",
+};

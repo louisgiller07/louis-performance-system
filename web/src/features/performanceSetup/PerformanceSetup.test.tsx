@@ -3,6 +3,16 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { PerformanceSetup } from "./PerformanceSetup";
+import {
+  EQUIPMENT_OPTIONS,
+  EQUIPMENT_LABELS,
+  TERRAIN_OPTIONS,
+  TERRAIN_LABELS,
+  TECHNICAL_PRIORITY_OPTIONS,
+  TECHNICAL_PRIORITY_LABELS,
+  STRENGTH_EXPERIENCE_TIER_OPTIONS,
+  STRENGTH_EXPERIENCE_TIER_LABELS,
+} from "./performanceSetupOptions";
 
 // AppHeader renders AppNav, which reads route location via react-router
 // hooks — same requirement as every other page-level test in this codebase
@@ -76,9 +86,9 @@ describe("PerformanceSetup — loading and restoration", () => {
 
     renderPerformanceSetup();
 
-    const barbellChip = await screen.findByRole("button", { name: "barbell" });
+    const barbellChip = await screen.findByRole("button", { name: "Barre" });
     expect(barbellChip).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByDisplayValue("intermediate")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Intermédiaire")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Podium at nationals")).toBeInTheDocument();
   });
 
@@ -103,7 +113,7 @@ describe("PerformanceSetup — save gating", () => {
     const user = userEvent.setup();
     renderPerformanceSetup();
 
-    const barbellChip = await screen.findByRole("button", { name: "barbell" });
+    const barbellChip = await screen.findByRole("button", { name: "Barre" });
     await user.click(barbellChip);
 
     const saveButton = screen.getByRole("button", { name: "Enregistrer" });
@@ -120,7 +130,7 @@ describe("PerformanceSetup — save gating", () => {
     const user = userEvent.setup();
     renderPerformanceSetup();
 
-    await user.click(await screen.findByRole("button", { name: "barbell" }));
+    await user.click(await screen.findByRole("button", { name: "Barre" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     expect(await screen.findByText(/Une erreur inattendue/)).toBeInTheDocument();
@@ -137,12 +147,12 @@ describe("PerformanceSetup — training plan generation save gate", () => {
   it("disables the generate button once the form has unsaved changes", async () => {
     const user = userEvent.setup();
     renderPerformanceSetup();
-    await screen.findByRole("button", { name: "barbell" });
+    await screen.findByRole("button", { name: "Barre" });
     // Availability is already satisfied (beforeEach default) — isolates
     // the profile's own dirty gate as the only variable under test.
     await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
 
-    await user.click(screen.getByRole("button", { name: "barbell" }));
+    await user.click(screen.getByRole("button", { name: "Barre" }));
 
     expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
     expect(screen.getByText(/Enregistre ta configuration/)).toBeInTheDocument();
@@ -152,7 +162,7 @@ describe("PerformanceSetup — training plan generation save gate", () => {
     const user = userEvent.setup();
     renderPerformanceSetup();
 
-    await user.click(await screen.findByRole("button", { name: "barbell" }));
+    await user.click(await screen.findByRole("button", { name: "Barre" }));
     expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
@@ -170,7 +180,7 @@ describe("PerformanceSetup — availability save gate (V0.5_045)", () => {
     loadAvailabilityWindows.mockReturnValue(new Promise(() => {})); // never resolves within this test
     renderPerformanceSetup();
 
-    await screen.findByRole("button", { name: "barbell" });
+    await screen.findByRole("button", { name: "Barre" });
 
     expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
   });
@@ -238,7 +248,7 @@ describe("PerformanceSetup — availability save gate (V0.5_045)", () => {
     renderPerformanceSetup();
     await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
 
-    await user.click(screen.getByRole("button", { name: "barbell" }));
+    await user.click(screen.getByRole("button", { name: "Barre" }));
 
     expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
   });
@@ -246,12 +256,91 @@ describe("PerformanceSetup — availability save gate (V0.5_045)", () => {
   it("blocks generation when availability is dirty even though the profile is already saved", async () => {
     const user = userEvent.setup();
     renderPerformanceSetup();
-    await user.click(await screen.findByRole("button", { name: "barbell" }));
+    await user.click(await screen.findByRole("button", { name: "Barre" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
     await screen.findByText("Profil enregistré.");
 
     await user.click(within(screen.getByRole("group", { name: "Mardi" })).getByRole("button", { name: "Non disponible" }));
 
     expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
+  });
+});
+
+// PILOT_015 — athlete-facing French labels; the persisted/API values stay the technical enums.
+describe("PerformanceSetup — French labels, technical values (PILOT_015)", () => {
+  const RAW_VALUES = [
+    ...EQUIPMENT_OPTIONS,
+    ...TERRAIN_OPTIONS,
+    ...TECHNICAL_PRIORITY_OPTIONS,
+    ...STRENGTH_EXPERIENCE_TIER_OPTIONS,
+  ];
+
+  it("renders every option with its French label and never a raw technical value", async () => {
+    const { container } = renderPerformanceSetup();
+    await screen.findByRole("button", { name: "Rack à squat" });
+
+    for (const value of EQUIPMENT_OPTIONS) expect(screen.getByRole("button", { name: EQUIPMENT_LABELS[value] })).toBeInTheDocument();
+    for (const value of TERRAIN_OPTIONS) expect(screen.getByRole("button", { name: TERRAIN_LABELS[value] })).toBeInTheDocument();
+    for (const value of TECHNICAL_PRIORITY_OPTIONS) {
+      // Same vocabulary rendered three times: Points forts, Points faibles, Priorités pour ce plan.
+      expect(screen.getAllByRole("button", { name: TECHNICAL_PRIORITY_LABELS[value] })).toHaveLength(3);
+    }
+    for (const value of STRENGTH_EXPERIENCE_TIER_OPTIONS) {
+      expect(screen.getByRole("option", { name: STRENGTH_EXPERIENCE_TIER_LABELS[value] })).toHaveValue(value);
+    }
+    expect(screen.getByRole("heading", { name: "Profil de performance" })).toBeInTheDocument();
+
+    const visibleText = container.textContent ?? "";
+    for (const value of RAW_VALUES) expect(visibleText).not.toContain(value);
+  });
+
+  it("selecting French labels saves the technical values", async () => {
+    const user = userEvent.setup();
+    renderPerformanceSetup();
+
+    await user.click(await screen.findByRole("button", { name: "Rack à squat" }));
+    await user.click(screen.getByRole("button", { name: "Piste DH complète" }));
+    const [strengthVirages, , priorityVirages] = screen.getAllByRole("button", { name: "Virages" });
+    await user.click(strengthVirages!);
+    await user.click(screen.getAllByRole("button", { name: "Exécution en course" })[1]!);
+    await user.click(priorityVirages!);
+    await user.selectOptions(screen.getByRole("combobox"), "Intermédiaire");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(savePerformanceSetup).toHaveBeenCalledWith("athlete-1", {
+        equipment: ["squat_rack"],
+        terrainAccess: ["full_dh_track"],
+        strengths: ["cornering"],
+        weaknesses: ["race_execution"],
+        priorityAreas: ["cornering"],
+        strengthExperienceTier: "intermediate",
+        seasonObjective: null,
+      })
+    );
+  });
+
+  it("a reload restores the saved technical values under their French labels", async () => {
+    loadPerformanceSetupAnswers.mockResolvedValue({
+      ...EMPTY_ANSWERS,
+      equipment: ["squat_rack", "pull_up_bar"],
+      terrainAccess: ["bike_park_jump_line"],
+      strengths: ["cornering"],
+      weaknesses: ["race_execution"],
+      priorityAreas: ["race_execution"],
+      strengthExperienceTier: "advanced",
+    });
+
+    renderPerformanceSetup();
+
+    expect(await screen.findByRole("button", { name: "Rack à squat" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Barre de traction" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Barre" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Bike park / ligne de sauts" })).toHaveAttribute("aria-pressed", "true");
+    const [strength, weakness, priority] = screen.getAllByRole("button", { name: "Exécution en course" });
+    expect(strength).toHaveAttribute("aria-pressed", "false");
+    expect(weakness).toHaveAttribute("aria-pressed", "true");
+    expect(priority).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByDisplayValue("Avancé")).toBeInTheDocument();
   });
 });

@@ -14,13 +14,13 @@ App : **https://app.nalynt.ch** — contact : **contact@nalynt.ch**
 
 ## 1. Démarrer (une seule fois, ~20 minutes)
 
-Tout se fait depuis l'app, sans URL à taper. Les premiers écrans de profil sont en anglais, le reste de l'app est en français.
+Tout se fait depuis l'app, sans URL à taper. Seule la page de création de compte est encore en anglais.
 
 1. **Crée ton compte** sur app.nalynt.ch (email + mot de passe, ou Google), puis connecte-toi.
 2. **Complète ton profil** : discipline, niveau, objectif, temps disponible, jours où tu roules.
 3. **Lis la notice de confidentialité** : le lien est juste au-dessus de la case de consentement.
 4. **Coche la case** pour accepter l'utilisation de tes données de check-in (fatigue, douleur, maladie, suspicion de commotion). Sans cette case, tu ne peux pas continuer.
-5. Clique **« Set up my training plan »** : tu arrives sur **Configuration**.
+5. Clique **« Configurer mon plan d'entraînement »** : tu arrives sur **Configuration** (ton profil de performance).
 6. **Remplis ton profil de performance** : équipement disponible, terrains accessibles, priorités techniques, expérience en préparation physique. Clique **« Enregistrer »**.
 7. **Ajoute tes disponibilités** : pour chaque jour où tu peux t'entraîner, active **« Disponible »** et indique une heure de début et de fin. Clique **« Enregistrer mes disponibilités »**.
 8. Dans **« Créer mon plan »**, mets **6** semaines puis clique **« Générer mon plan »**.

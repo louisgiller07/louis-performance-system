@@ -42,10 +42,10 @@ async function submitName(name: string) {
 describe("AthleteBootstrap", () => {
   it("renders the minimal setup surface: title, supporting text, one field, one button", () => {
     renderBootstrap();
-    expect(screen.getByText("Welcome to NALYNT")).toBeInTheDocument();
-    expect(screen.getByText("Let's build your athlete profile.")).toBeInTheDocument();
+    expect(screen.getByText("Bienvenue sur NALYNT")).toBeInTheDocument();
+    expect(screen.getByText("Créons ton profil d'athlète.")).toBeInTheDocument();
     expect(screen.getByLabelText("Nom")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeInTheDocument();
   });
 
   it("B — empty name: submit rejected, never calls createOwnAthlete", async () => {
@@ -109,7 +109,7 @@ describe("AthleteBootstrap", () => {
     renderBootstrap();
     await user.type(screen.getByLabelText("Nom"), "Louis");
 
-    const button = screen.getByRole("button", { name: "Continue" });
+    const button = screen.getByRole("button", { name: "Continuer" });
     await user.click(button);
     expect(button).toBeDisabled();
     await user.click(button); // second click while still in flight must be a no-op
