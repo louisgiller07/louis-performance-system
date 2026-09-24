@@ -3071,4 +3071,4 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 
 **Rollout** : la migration doit être appliquée en production **avant** le déploiement web (le select de `AuthContext` lit les nouvelles colonnes).
 
-**Statut** : Accepted (local uniquement, non déployé)
+**Statut** : Accepted — DEPLOYED TO PRODUCTION (PILOT_013, 2026-09-24). Commit `32449c3` ; migration `20260924100000_pilot_002_health_data_consent` appliquée sur `uvolpldwwyvadlamulvr` avant le déploiement web ; rollout production terminé (smoke compte test : consentement horodaté serveur, `/privacy` publique). Responsable du traitement de la notice : Louis Giller. Blockers pilote P1-1/P1-2 fermés — RESTRICTED PILOT: GO.
