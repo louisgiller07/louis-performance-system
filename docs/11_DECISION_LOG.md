@@ -3081,7 +3081,7 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 
 **Hors périmètre** : la couverture du catalogue de drills. Pour chaque niveau, 3 des 7 priorités techniques n'ont aucun drill : `intermediate` → `jumps`, `roots_rocks`, `race_execution` ; `beginner` → `line_choice`, `steep_terrain`, `race_execution` ; `advanced` → `braking`, `line_choice`, `steep_terrain`. Décision architecte (PILOT_016) : **option A — compléter la couverture du catalogue** (niveau × priorité) dans un ticket séparé (PILOT_017). Pas de changement de la politique de sélection (V0.4_124/126 inchangés). Le 422 `no_compatible_drill` reste le filet. Recrutement pilote en pause jusqu'au correctif catalogue et au rollout production.
 
-**Statut** : Accepted (local, non déployé)
+**Statut** : Accepted — deployed to production in PILOT_018 (`generate-training-plan` v5, web via `9d71afa`).
 
 ## 2026-09-24 — ADR PILOT_017 : Technical drill catalogue coverage
 

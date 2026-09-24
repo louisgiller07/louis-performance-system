@@ -14,7 +14,7 @@ App : **https://app.nalynt.ch** — contact : **contact@nalynt.ch**
 
 ## 1. Démarrer (une seule fois, ~20 minutes)
 
-Tout se fait depuis l'app, sans URL à taper. Seule la page de création de compte est encore en anglais.
+Tout se fait depuis l'app, sans URL à taper. La page de création de compte et certains textes du plan (noms d'exercices et de drills, par exemple) sont encore en anglais.
 
 1. **Crée ton compte** sur app.nalynt.ch (email + mot de passe, ou Google), puis connecte-toi.
 2. **Complète ton profil** : discipline, niveau, objectif, temps disponible, jours où tu roules.
