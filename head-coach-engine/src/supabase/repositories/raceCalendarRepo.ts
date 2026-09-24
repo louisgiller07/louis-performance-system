@@ -125,7 +125,12 @@ export async function getRacesInWindow(
     .select("event_name, start_date, end_date, priority, race_format, status")
     .eq("athlete_id", athleteId)
     .lte("start_date", windowEnd)
-    .gte("end_date", windowStart);
+    .gte("end_date", windowStart)
+    // Deterministic order: computeEventContext keeps input order on exact ties (PILOT_003).
+    .order("start_date", { ascending: true })
+    .order("end_date", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   assertNoSupabaseError(error, "race_calendar");
 
@@ -164,7 +169,12 @@ export async function getRacesOverlappingRange(
     .select("event_name, start_date, end_date, priority, race_format, status")
     .eq("athlete_id", athleteId)
     .lte("start_date", endDate)
-    .gte("end_date", startDate);
+    .gte("end_date", startDate)
+    // Same deterministic order — keeps PlanInputSnapshot.races (and its hash) stable.
+    .order("start_date", { ascending: true })
+    .order("end_date", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   assertNoSupabaseError(error, "race_calendar");
 

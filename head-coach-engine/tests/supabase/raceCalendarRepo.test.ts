@@ -18,7 +18,15 @@ interface CapturedQuery {
   athleteId?: string;
   lte?: string;
   gte?: string;
+  orders?: Array<{ column: string; ascending: boolean }>;
 }
+
+const DETERMINISTIC_ORDER = [
+  { column: "start_date", ascending: true },
+  { column: "end_date", ascending: true },
+  { column: "created_at", ascending: true },
+  { column: "id", ascending: true },
+];
 
 /**
  * A minimal in-memory stand-in for the real `race_calendar` Postgres query
@@ -48,12 +56,23 @@ function fakeClient(rows: readonly FakeRaceRow[], captured: CapturedQuery): Supa
                 lte(_column: string, value2: string) {
                   captured.lte = value2;
                   return {
-                    async gte(_column2: string, value3: string) {
+                    gte(_column2: string, value3: string) {
                       captured.gte = value3;
-                      const matching = rows.filter(
-                        (r) => r.athlete_id === captured.athleteId && r.start_date <= captured.lte! && r.end_date >= captured.gte!
-                      );
-                      return { data: matching, error: null };
+                      captured.orders = [];
+                      // Rows are returned in fixture order (the "database" order) — .order() is only recorded.
+                      const builder = {
+                        order(column: string, options: { ascending: boolean }) {
+                          captured.orders!.push({ column, ascending: options.ascending });
+                          return builder;
+                        },
+                        then<T>(resolve: (value: { data: FakeRaceRow[]; error: null }) => T) {
+                          const matching = rows.filter(
+                            (r) => r.athlete_id === captured.athleteId && r.start_date <= captured.lte! && r.end_date >= captured.gte!
+                          );
+                          return Promise.resolve({ data: matching, error: null }).then(resolve);
+                        },
+                      };
+                      return builder;
                     },
                   };
                 },
@@ -181,5 +200,37 @@ describe("getRacesInWindow — M1 non-regression (V0.5_041/042)", () => {
     expect(captured.athleteId).toBe(ATHLETE_ID);
     expect(captured.lte).toBe(EXPECTED_WINDOW_END);
     expect(captured.gte).toBe(EXPECTED_WINDOW_START);
+  });
+});
+
+describe("deterministic race ordering (PILOT_004)", () => {
+  const TODAY = "2026-09-23";
+
+  it("getRacesInWindow orders by start_date, end_date, created_at, id — all ascending, in that exact sequence", async () => {
+    const captured: CapturedQuery = {};
+    await getRacesInWindow(fakeClient([], captured), ATHLETE_ID, TODAY);
+
+    expect(captured.orders).toEqual(DETERMINISTIC_ORDER);
+  });
+
+  it("getRacesOverlappingRange orders by start_date, end_date, created_at, id — all ascending, in that exact sequence", async () => {
+    const captured: CapturedQuery = {};
+    await getRacesOverlappingRange(fakeClient([], captured), ATHLETE_ID, "2026-10-01", "2026-10-14", TODAY);
+
+    expect(captured.orders).toEqual(DETERMINISTIC_ORDER);
+  });
+
+  it("the coaching-relevance filter keeps the relative order the query returned", async () => {
+    const first = race({ event_name: "First", start_date: "2026-09-25", end_date: "2026-09-25" });
+    const dropped = race({ event_name: "Cancelled", start_date: "2026-09-26", end_date: "2026-09-26", status: "cancelled" });
+    const second = race({ event_name: "Second", start_date: "2026-09-27", end_date: "2026-09-27" });
+    const third = race({ event_name: "Third", start_date: "2026-09-28", end_date: "2026-09-28" });
+    const rows = [first, dropped, second, third];
+
+    const inWindow = await getRacesInWindow(fakeClient(rows, {}), ATHLETE_ID, TODAY);
+    const overlapping = await getRacesOverlappingRange(fakeClient(rows, {}), ATHLETE_ID, "2026-09-23", "2026-10-07", TODAY);
+
+    expect(inWindow.map((r) => r.event_name)).toEqual(["First", "Second", "Third"]);
+    expect(overlapping.map((r) => r.event_name)).toEqual(["First", "Second", "Third"]);
   });
 });
