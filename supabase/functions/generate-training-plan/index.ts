@@ -21,7 +21,7 @@
 // a real JWT/session or mutating any ESM import binding (V0.5_014 fix,
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
-import { generateAndPersistTrainingPlan } from "../../../head-coach-engine/dist/supabase/generateAndPersistTrainingPlan.js";
+import { generateAndPersistTrainingPlan } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */

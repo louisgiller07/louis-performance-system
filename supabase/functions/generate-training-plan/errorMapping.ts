@@ -3,22 +3,14 @@
 // shaping — same discipline as accept-training-plan/errorMapping.ts /
 // abandon-training-plan/errorMapping.ts.
 //
-// GenerationBlockedError is defined in planning-engine (buildPlanInputSnapshot
-// throws it, via head-coach-engine), not re-exported by any head-coach-engine
-// file — every OTHER Edge Function in this project only ever imports from
-// head-coach-engine/dist/ (planning-engine is a local workspace package, not
-// npm-published, and cannot be resolved by Deno's "npm:" specifier
-// mechanism). Since the ticket requires a real `instanceof` check (never
-// parsing error.message, never a string comparison on error.name), and
-// head-coach-engine cannot be modified to re-export the class, the only
-// technically correct source is planning-engine's own compiled output —
-// planning-engine already builds to dist/ exactly like head-coach-engine
-// does (confirmed before writing this file). This is a read of an existing
-// build artifact, not a modification of planning-engine.
+// GenerationBlockedError must come from the same Edge bundle as
+// generateAndPersistTrainingPlan (V0.5_059): the bundle embeds its own copy of
+// planning-engine, so importing the class from anywhere else would break the
+// `instanceof` check below.
 import {
   GenerationBlockedError,
   type GenerationBlockedReason,
-} from "../../../planning-engine/dist/validation/validatePlanInputSnapshot.js";
+} from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 
 export interface MappedGenerateTrainingPlanError {
   status: number;

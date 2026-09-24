@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:edge": "esbuild dist/edge/generateTrainingPlanEdgeEntry.js --bundle --format=esm --platform=neutral --external:node:* --outfile=dist/edge/generateTrainingPlan.bundle.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:edge": "npm run build && vitest run --config vitest.edge.config.ts",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "latest",
+    "esbuild": "0.28.2",
     "tsx": "latest",
     "typescript": "latest",
     "vitest": "latest"

@@ -3038,3 +3038,15 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 **Impact** : `planning-engine/src/catalog/{exerciseCatalog.ts,drillCatalog.ts}`, `prescription-engine/src/{strength/strengthResolver.ts,dh/dhResolver.ts}`, aucune migration (catalogues = fichiers TypeScript versionnés en code, jamais des tables).
 
 **Statut** : Accepted
+
+## 2026-09-24 — ADR V0.5_059 : Edge generation bundling (`generate-training-plan`)
+
+**Contexte** : sous le runtime Supabase Edge (Deno), `generate-training-plan` échouait au démarrage (`InvalidWorkerCreation`) : son graphe runtime atteint `head-coach-engine/dist`, qui importe `planning-engine`/`prescription-engine` comme spécificateurs nus (packages locaux `file:`, non publiés, résolus en Node via les symlinks `node_modules` uniquement). `accept-training-plan`/`daily-run` n'y sont pas exposés : ils n'importent ces packages qu'en `import type`, effacé au build.
+
+**Décision** : un artefact esbuild dédié. `head-coach-engine/src/edge/generateTrainingPlanEdgeEntry.ts` (ré-exports uniquement) → `tsc` → `npm run build:edge` → `head-coach-engine/dist/edge/generateTrainingPlan.bundle.js` (ESM, `planning-engine` + `prescription-engine` embarqués, seul `node:*` reste externe). `generate-training-plan` importe le service **et** `GenerationBlockedError` depuis ce même bundle, pour que l'`instanceof` de `errorMapping.ts` voie la classe réellement levée. Aucun changement métier, aucune zone M1 frozen touchée ; les autres Edge Functions restent sur `dist/`.
+
+**Explicitement rejeté** : import map vers les `dist` des deux packages (option A) — le CLI Supabase monte chaque fichier du graphe en bind mount Docker ; sous Windows la commande dépasse la limite `CreateProcess` (`ENAMETOOLONG`), donc non vérifiable par `functions serve` en local ; imports relatifs codés en dur dans `head-coach-engine` et `prescription-engine` (option B) — couple physiquement les packages et contourne leurs `exports`.
+
+**Impact** : le bundle n'est pas versionné (sous `dist/`, déjà ignoré) ; `npm run build` puis `npm run build:edge` sont requis avant `supabase functions serve`/`deploy`. `esbuild` 0.28.2 devient une devDependency explicite de `head-coach-engine` (déjà présente transitivement). Dette connue : le nombre de bind mounts par fichier reste proche de la limite Windows pour `functions serve`.
+
+**Statut** : Accepted
