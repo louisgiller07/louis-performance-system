@@ -22,6 +22,7 @@
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
 import { generateAndPersistTrainingPlan } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
+import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */
@@ -157,6 +158,15 @@ export async function handleGenerateTrainingPlan(
       today: todayUtc(),
     });
 
+    await recordPilotEvent(ctx.supabaseAdmin, {
+      eventType: "plan_generation_succeeded",
+      athleteId,
+      planVersionId: result.planVersionId,
+      generationRequestId: generationRequestIdValue,
+      idempotentReplay: result.idempotentReplay,
+      durationWeeks: durationWeeksResult.durationWeeks,
+    });
+
     // Deliberately minimal — never inputSnapshot, catalogVersion, or full
     // prescriptions: those are internal generation details, never part of
     // this endpoint's response contract (V0.5_011/022 lock).
@@ -164,6 +174,13 @@ export async function handleGenerateTrainingPlan(
   } catch (error) {
     const mapped = mapGenerateTrainingPlanError(error);
     console.error(`generate-training-plan: generateAndPersistTrainingPlan failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
+    // mapGenerateTrainingPlanError returns 422 only for GenerationBlockedError (code = blockedReason).
+    await recordPilotEvent(
+      ctx.supabaseAdmin,
+      mapped.status === 422
+        ? { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: mapped.code }
+        : { eventType: "plan_generation_failed", athleteId, generationRequestId: generationRequestIdValue, errorName: errorNameOf(error), errorCode: mapped.code }
+    );
     return errorResponse(mapped.status, mapped.code, mapped.message);
   }
 }

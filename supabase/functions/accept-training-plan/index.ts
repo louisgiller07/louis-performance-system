@@ -45,6 +45,7 @@
 import { withSupabase } from "@supabase/server";
 import { acceptTrainingPlanVersion } from "../../../head-coach-engine/dist/supabase/acceptTrainingPlanVersion.js";
 import { resolveTrainingPlanProjectionWindow } from "../../../head-coach-engine/dist/supabase/trainingPlanProjectionConfig.js";
+import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapAcceptError } from "./errorMapping.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */
@@ -162,6 +163,28 @@ export async function handleAcceptTrainingPlan(
     // ctx.supabaseAdmin only — athleteId came exclusively from the
     // RLS-scoped ctx.supabase query above, never from client input.
     const outcome = await deps.acceptTrainingPlanVersion(ctx.supabaseAdmin, athleteId, planVersionIdValue, windowStart, windowEnd);
+
+    await recordPilotEvent(ctx.supabaseAdmin, {
+      eventType: "plan_acceptance_succeeded",
+      athleteId,
+      planVersionId: outcome.acceptance.planVersionId,
+      idempotentReplay: outcome.acceptance.idempotentReplay,
+      ...(outcome.projection
+        ? {
+            projectedSessionCount: outcome.projection.plannedSessions.filter((s) => s.outcome === "projected").length,
+            trainingBlockOutcome: outcome.projection.trainingBlock.outcome,
+          }
+        : {}),
+    });
+    if (outcome.warnings.length > 0) {
+      await recordPilotEvent(ctx.supabaseAdmin, {
+        eventType: "plan_acceptance_projection_warning",
+        athleteId,
+        planVersionId: outcome.acceptance.planVersionId,
+        warnings: outcome.warnings,
+      });
+    }
+
     return Response.json(
       {
         planVersionId: outcome.acceptance.planVersionId,
@@ -173,6 +196,13 @@ export async function handleAcceptTrainingPlan(
   } catch (error) {
     const mapped = mapAcceptError(error);
     console.error(`accept-training-plan: acceptTrainingPlanVersion failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
+    await recordPilotEvent(ctx.supabaseAdmin, {
+      eventType: "plan_acceptance_failed",
+      athleteId,
+      planVersionId: planVersionIdValue,
+      errorName: errorNameOf(error),
+      errorCode: mapped.code,
+    });
     return errorResponse(mapped.status, mapped.code, mapped.message);
   }
 }

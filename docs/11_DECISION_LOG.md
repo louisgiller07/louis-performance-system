@@ -3050,3 +3050,13 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 **Impact** : le bundle n'est pas versionné (sous `dist/`, déjà ignoré) ; `npm run build` puis `npm run build:edge` sont requis avant `supabase functions serve`/`deploy`. `esbuild` 0.28.2 devient une devDependency explicite de `head-coach-engine` (déjà présente transitivement). Dette connue : le nombre de bind mounts par fichier reste proche de la limite Windows pour `functions serve`.
 
 **Statut** : Accepted
+
+## 2026-09-24 — ADR PILOT_008 : Pilot observability events table
+
+**Contexte** : pendant le pilote restreint, un signalement testeur (« la génération a planté », « pas de prescription ») n'était pas diagnosticable après coup : les Edge Functions ne journalisaient que des erreurs sans identifiant, les `warnings` n'existaient que dans la réponse HTTP (jamais rendus ni persistés), et la rétention des logs Supabase n'est pas garantie (audit PILOT_007).
+
+**Décision** : table `pilot_observability_events`, append-only par permissions (RLS activée sans policy ; `service_role` = INSERT uniquement ; aucun accès `anon`/`authenticated` ; pas de FK, pour qu'une écriture d'observabilité ne puisse jamais échouer ou bloquer une suppression par contrainte). Écrite best-effort (`recordPilotEvent`, `head-coach-engine/src/supabase/observability/pilotEvents.ts` — jamais d'exception, jamais d'effet sur la réponse) par `generate-training-plan`, `accept-training-plan`, `daily-run` et `completed-session`, avec l'`athleteId` résolu par le flux authentifié. 11 événements fermés (CHECK en base) ; sévérité fixée par type — REST/MODIFY/REPLACE restent `daily_run_succeeded` (`info`), jamais des erreurs. Lignes construites champ par champ depuis une union discriminée : identifiants métier (`plan_version_id`, `generation_request_id`, `event_date`, `decision_id`, `generated_session_id`, `completed_session_id`) + codes techniques et warnings bornés (5 × 300 caractères). Pas de `requestId` : `athlete_id` + date + identifiants métier suffisent au support.
+
+**Règles** : jamais lue par la planification, la prescription, le Head Coach ni aucune logique de génération/décision — observabilité seulement ; elle référence les tables métier, ne les recopie jamais ; jamais de JWT/token/clé/mot de passe/email/profil, de body brut, de check-in, de donnée santé, de prescription ou de `dailyPlan`, ni de message/stack d'erreur (nom + code seulement). Les réponses HTTP sont inchangées.
+
+**Statut** : Accepted

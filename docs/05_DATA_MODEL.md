@@ -180,6 +180,23 @@ Avant V0.3_004A, ces deux valeurs vivaient dans un singleton de code mono-athlè
 
 **Production** : ligne réelle de Louis peuplée en V0.3_004D (2026-09-04) avec ses deux valeurs approuvées. Preuve empirique de l'isolation cross-athlète (aucune fuite du contenu de Louis vers un second athlète) exécutée en production réelle contre deux utilisateurs scratch — voir `11_DECISION_LOG.md` (2026-09-04 — V0.3_004D).
 
+### `pilot_observability_events` (PILOT_008 — observabilité pilote, hors modèle coaching)
+
+Table technique append-only, écrite best-effort par les Edge Functions `generate-training-plan`, `accept-training-plan`, `daily-run` et `completed-session`. **Jamais lue** par le planning engine, le prescription engine, le Head Coach ni aucune logique de génération ou de décision quotidienne.
+
+| Colonne | Type | Note |
+|---|---|---|
+| `id` | `uuid` PK | `gen_random_uuid()` |
+| `created_at` | `timestamptz` | `now()` |
+| `event_type` | `text` | `CHECK` : 11 valeurs (`plan_generation_*`, `plan_acceptance_*`, `daily_run_*`, `session_completion_*`) |
+| `severity` | `text` | `CHECK` : `info` / `warning` / `error` ; fixée par le type d'événement côté helper |
+| `athlete_id` | `uuid NOT NULL` | pas de FK, volontairement |
+| `plan_version_id`, `generation_request_id`, `decision_id`, `generated_session_id`, `completed_session_id` | `uuid NULL` | références vers les tables métier, jamais de copie |
+| `event_date` | `date NULL` | date métier (daily-run / completion) |
+| `metadata` | `jsonb` | codes techniques, warnings bornés (5 × 300 car.) ; jamais de check-in, santé, prescription, plan ou donnée utilisateur |
+
+Accès : RLS activée sans policy ; `service_role` = `INSERT` uniquement ; aucun accès `anon` / `authenticated` ; lecture support via rôle SQL admin. Index : `(athlete_id, created_at desc)`, `(event_type, created_at desc)`. Voir `11_DECISION_LOG.md` (2026-09-24 — ADR PILOT_008).
+
 ---
 
 ## Enums

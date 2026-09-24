@@ -24,6 +24,7 @@
 import { withSupabase } from "@supabase/server";
 import { validateCompletedSessionBody, validateDateParam } from "./validation.ts";
 import { classifyMissingReadback } from "./apiErrors.ts";
+import { recordPilotEvent } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 
 const ALLOWED_METHODS = "GET, PUT";
 
@@ -126,6 +127,12 @@ export default {
     }
     const athleteId = athletes[0].id as string;
 
+    // Records session_completion_failed, then returns exactly the same error response as before.
+    const fail = async (status: number, code: string, message: string): Promise<Response> => {
+      await recordPilotEvent(ctx.supabaseAdmin, { eventType: "session_completion_failed", athleteId, eventDate: body.session_date, errorCode: code });
+      return errorResponse(status, code, message);
+    };
+
     // free_notes preservation — RLS-scoped, read-only. free_notes is not
     // part of the M5_003 client contract (see module doc above): the
     // browser never sees or sets it. But persist_completed_session is a
@@ -142,7 +149,7 @@ export default {
 
     if (existingRowError) {
       console.error(`completed-session: existing-row lookup failed [${existingRowError.code}]`);
-      return errorResponse(500, "internal_error", "Failed to check for an existing completed session.");
+      return fail(500, "internal_error", "Failed to check for an existing completed session.");
     }
     const preservedFreeNotes = existingRow?.free_notes ?? null;
 
@@ -189,16 +196,16 @@ export default {
 
       if (decisionError) {
         console.error(`completed-session: decision preflight failed [${decisionError.code}]`);
-        return errorResponse(500, "internal_error", "Failed to validate the linked decision.");
+        return fail(500, "internal_error", "Failed to validate the linked decision.");
       }
       if (!decisionRow) {
-        return errorResponse(422, "decision_link_invalid", "decision_id must reference your own decision dated exactly session_date.");
+        return fail(422, "decision_link_invalid", "decision_id must reference your own decision dated exactly session_date.");
       }
 
       if (body.completion_status !== "replaced") {
         const plannedSession = decisionRow.final_session as string;
         if (body.session_type !== plannedSession) {
-          return errorResponse(
+          return fail(
             422,
             "decision_session_mismatch",
             "For this completion_status, session_type must match the linked decision's planned session."
@@ -217,7 +224,7 @@ export default {
       // non-null, so this DB-dependent half of the check belongs here, not
       // in the portable validator.
       if (body.technical_outcome !== null && !hasExecutionTask(decisionRow.daily_plan)) {
-        return errorResponse(
+        return fail(
           422,
           "technical_outcome_no_task",
           "technical_outcome requires the linked decision to carry a prescribed technical execution task."
@@ -257,13 +264,13 @@ export default {
       // is unexpected/environmental, not something to reinterpret from
       // PostgreSQL's human-readable exception text.
       console.error(`completed-session: persist_completed_session RPC failed [${rpcError.code}]`);
-      return errorResponse(500, "persistence_failed", "Failed to persist the completed session.");
+      return fail(500, "persistence_failed", "Failed to persist the completed session.");
     }
 
     const completedSessionId = (rpcResult as { completed_session_id?: unknown } | null)?.completed_session_id;
     if (typeof completedSessionId !== "string") {
       console.error("completed-session: persist_completed_session returned an unexpected shape");
-      return errorResponse(500, "internal_error", "An unexpected error occurred while persisting the completed session.");
+      return fail(500, "internal_error", "An unexpected error occurred while persisting the completed session.");
     }
 
     // Canonical readback — RLS-scoped, proves ownership independently of
@@ -280,13 +287,22 @@ export default {
 
     if (readbackError) {
       console.error(`completed-session: readback failed [${readbackError.code}]`);
-      return errorResponse(500, "internal_error", "Failed to read back the persisted completed session.");
+      return fail(500, "internal_error", "Failed to read back the persisted completed session.");
     }
     if (!readbackRow) {
       console.error("completed-session: readback returned no row after a successful RPC write");
       const missing = classifyMissingReadback();
-      return errorResponse(missing.status, missing.code, missing.message);
+      return fail(missing.status, missing.code, missing.message);
     }
+
+    await recordPilotEvent(ctx.supabaseAdmin, {
+      eventType: "session_completion_succeeded",
+      athleteId,
+      eventDate: body.session_date,
+      completedSessionId,
+      decisionId: body.decision_id,
+      completionStatus: body.completion_status,
+    });
 
     return Response.json({ completedSession: readbackRow, warnings: [] }, { status: 200 });
   }),

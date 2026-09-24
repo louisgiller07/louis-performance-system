@@ -6,6 +6,7 @@
 // runDailyFor.
 import { withSupabase } from "@supabase/server";
 import { runDailyFor } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
+import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapDailyRunError } from "./errorMapping.ts";
 
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
@@ -93,6 +94,27 @@ export default {
       // ctx.supabaseAdmin only — athleteId came exclusively from the
       // RLS-scoped ctx.supabase query above, never from client input.
       const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue);
+
+      // REST/MODIFY/REPLACE are normal coaching outcomes: daily_run_succeeded (info), never an error.
+      await recordPilotEvent(ctx.supabaseAdmin, {
+        eventType: "daily_run_succeeded",
+        athleteId,
+        eventDate: dateValue,
+        decisionId: result.persistence.decision_id,
+        decision: result.dailyPlan.decision,
+        executablePrescriptionDelivered: result.executablePrescription !== null,
+        ...(result.executablePrescription ? { generatedSessionId: result.executablePrescription.generatedPlanSessionId } : {}),
+      });
+      if (result.warnings.length > 0) {
+        await recordPilotEvent(ctx.supabaseAdmin, {
+          eventType: "daily_run_warning",
+          athleteId,
+          eventDate: dateValue,
+          decisionId: result.persistence.decision_id,
+          warnings: result.warnings,
+        });
+      }
+
       return Response.json(
         {
           dailyPlan: result.dailyPlan,
@@ -110,6 +132,13 @@ export default {
     } catch (error) {
       const mapped = mapDailyRunError(error);
       console.error(`daily-run: runDailyFor failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
+      await recordPilotEvent(ctx.supabaseAdmin, {
+        eventType: "daily_run_failed",
+        athleteId,
+        eventDate: dateValue,
+        errorName: errorNameOf(error),
+        errorCode: mapped.code,
+      });
       return errorResponse(mapped.status, mapped.code, mapped.message);
     }
   }),
