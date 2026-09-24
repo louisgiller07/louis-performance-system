@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TrainingPlanPreviewPage } from "./TrainingPlanPreviewPage";
 import { TrainingPlanVersionNotFoundError } from "../features/trainingPlanReview/trainingPlanReviewRepo";
@@ -17,6 +18,10 @@ vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", async () => {
   );
   return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId };
 });
+
+const { acceptTrainingPlan } = vi.hoisted(() => ({ acceptTrainingPlan: vi.fn() }));
+
+vi.mock("../features/trainingPlanReview/acceptTrainingPlan", () => ({ acceptTrainingPlan }));
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({ user: { email: "athlete@example.com" }, signOut: vi.fn() }),
@@ -195,5 +200,65 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("accepted-plan");
+  });
+});
+
+// V0.5_050 — the CTA must come from the re-fetched, persisted lifecycle
+// (handleAccepted → load()), never from local click state.
+describe("TrainingPlanPreviewPage — post-acceptance CTA (V0.5_050)", () => {
+  it("draft → accept success → re-fetch returns accepted → 'Aller à Aujourd'hui' appears and navigates to /today", async () => {
+    let persistedState: TrainingPlanReview["lifecycleState"] = "draft";
+    getTrainingPlanDrafts.mockImplementation(async () => (persistedState === "draft" ? [DRAFT_1] : []));
+    getTrainingPlanReview.mockImplementation(async () => ({ ...reviewFor(DRAFT_1), lifecycleState: persistedState }));
+    acceptTrainingPlan.mockImplementation(async (id: string) => {
+      persistedState = "accepted";
+      return { ok: true, data: { planVersionId: id, idempotentReplay: false } };
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/training-plan-preview/${DRAFT_1.id}`]}>
+        <Routes>
+          <Route path="/training-plan-preview/:planVersionId" element={<TrainingPlanPreviewPage />} />
+          <Route path="/today" element={<p>Today page</p>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Accepter ce plan" }));
+    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
+
+    const cta = await screen.findByRole("link", { name: "Aller à Aujourd'hui" });
+    expect(screen.getByText("Plan actif")).toBeInTheDocument();
+    expect(acceptTrainingPlan).toHaveBeenCalledWith(DRAFT_1.id);
+    expect(getTrainingPlanReview).toHaveBeenCalledTimes(2);
+
+    await userEvent.click(within(cta).getByRole("button"));
+    expect(await screen.findByText("Today page")).toBeInTheDocument();
+  });
+
+  it("accept failure: the plan stays draft and the CTA never appears", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([DRAFT_1]);
+    getTrainingPlanReview.mockResolvedValue(reviewFor(DRAFT_1));
+    acceptTrainingPlan.mockResolvedValue({ ok: false, error: { code: "unknown", message: "Erreur serveur.", retryable: true, action: "retry" } });
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Accepter ce plan" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
+
+    expect(await screen.findByText("Erreur serveur.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
+  });
+
+  it("refresh on an accepted plan's exact URL shows the CTA from persisted data alone", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([]);
+    getTrainingPlanReview.mockResolvedValue({ ...reviewFor(DRAFT_1), lifecycleState: "accepted" });
+    getActivePlanVersionId.mockResolvedValue(DRAFT_1.id);
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    expect(await screen.findByRole("link", { name: "Aller à Aujourd'hui" })).toHaveAttribute("href", "/today");
+    expect(acceptTrainingPlan).not.toHaveBeenCalled();
   });
 });

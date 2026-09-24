@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Card } from "../../../components/Card";
 import { Badge } from "../../../components/Badge";
 import { SectionHeader } from "../../../components/SectionHeader";
+import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
 import type { TrainingPlanLifecycleState, TrainingPlanReview } from "../trainingPlanReviewTypes";
 import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
@@ -64,6 +65,18 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: Trai
       />
 
       <Badge tone={LIFECYCLE_TONE[review.lifecycleState]}>{LIFECYCLE_LABEL[review.lifecycleState]}</Badge>
+
+      {/*
+       * Persisted lifecycle, never local click state — so it survives a
+       * refresh. "accepted" is always the current plan: accepting another
+       * version atomically moves this one to "superseded"
+       * (accept_training_plan_version RPC).
+       */}
+      {review.lifecycleState === "accepted" && (
+        <Link to="/today">
+          <PrimaryButton className="w-full">Aller à Aujourd'hui</PrimaryButton>
+        </Link>
+      )}
 
       <Card className="flex flex-col gap-2">
         <p className="text-sm text-ink/90">{review.version.rationale}</p>
