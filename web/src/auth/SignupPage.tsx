@@ -174,6 +174,11 @@ export function SignupPage() {
               Login
             </Link>
           </p>
+          <p className="text-center text-xs text-muted">
+            <Link to="/privacy" className="underline">
+              Confidentialité
+            </Link>
+          </p>
         </form>
       </div>
     </div>

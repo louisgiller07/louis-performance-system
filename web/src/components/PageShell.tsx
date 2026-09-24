@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 interface PageShellProps {
   /** Rendered above <main> — typically <AppHeader/>, or a page-specific header (e.g. HistoryDetailPage's back-link). */
@@ -16,6 +17,11 @@ export function PageShell({ header, children }: PageShellProps) {
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-bg">
       {header}
       <main className="flex flex-1 flex-col gap-4 px-4 py-6">{children}</main>
+      <footer className="px-4 pb-6 text-center">
+        <Link to="/privacy" className="text-xs text-muted underline">
+          Confidentialité
+        </Link>
+      </footer>
     </div>
   );
 }

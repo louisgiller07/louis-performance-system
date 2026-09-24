@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabase";
 // in supabase/functions/daily-run/index.ts).
 export type AthleteResolution =
   | { status: "loading" }
-  | { status: "resolved"; athleteId: string; onboardingCompleted: boolean }
+  | { status: "resolved"; athleteId: string; onboardingCompleted: boolean; acceptedPrivacyNoticeVersion: string | null }
   | { status: "no_athlete" }
   | { status: "config_error"; message: string };
 
@@ -39,16 +39,18 @@ interface AuthState {
  * object or null, never an array, but this code tolerates either shape
  * defensively rather than assuming the exact runtime representation.
  */
-interface AthleteRow {
-  id: string;
-  athlete_onboarding_profiles: { onboarding_completed_at: string | null } | { onboarding_completed_at: string | null }[] | null;
+interface OnboardingEmbed {
+  onboarding_completed_at: string | null;
+  privacy_notice_version: string | null;
 }
 
-function readOnboardingCompleted(row: AthleteRow): boolean {
-  const profile = Array.isArray(row.athlete_onboarding_profiles)
-    ? row.athlete_onboarding_profiles[0]
-    : row.athlete_onboarding_profiles;
-  return Boolean(profile?.onboarding_completed_at);
+interface AthleteRow {
+  id: string;
+  athlete_onboarding_profiles: OnboardingEmbed | OnboardingEmbed[] | null;
+}
+
+function readOnboardingProfile(row: AthleteRow): OnboardingEmbed | undefined {
+  return Array.isArray(row.athlete_onboarding_profiles) ? row.athlete_onboarding_profiles[0] : (row.athlete_onboarding_profiles ?? undefined);
 }
 
 /** The single RLS-scoped athlete lookup — shared by the mount-time effect and refreshAthlete(), never duplicated. */
@@ -57,12 +59,18 @@ async function resolveAthlete(): Promise<AthleteResolution> {
   // no .eq("user_id", ...) filter is added or needed here.
   const { data, error } = await supabase
     .from("athletes")
-    .select("id, athlete_onboarding_profiles(onboarding_completed_at)");
+    .select("id, athlete_onboarding_profiles(onboarding_completed_at, privacy_notice_version)");
   if (error) return { status: "config_error", message: error.message };
   if (!data || data.length === 0) return { status: "no_athlete" };
   if (data.length > 1) return { status: "config_error", message: "Multiple athletes resolved for this user." };
   const row = data[0] as AthleteRow;
-  return { status: "resolved", athleteId: row.id, onboardingCompleted: readOnboardingCompleted(row) };
+  const profile = readOnboardingProfile(row);
+  return {
+    status: "resolved",
+    athleteId: row.id,
+    onboardingCompleted: Boolean(profile?.onboarding_completed_at),
+    acceptedPrivacyNoticeVersion: profile?.privacy_notice_version ?? null,
+  };
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);

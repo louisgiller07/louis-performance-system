@@ -158,7 +158,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
   }
 
   // NAL-003 — the restore lookup gates everything below it: never briefly
-  // show "Générer mon plan" while it's still possible a persisted decision
+  // show "Préparer ma séance du jour" while it's still possible a persisted decision
   // is about to replace that state seconds later, and never treat a read
   // failure as "no decision, please generate one".
   if (restorePhase === "loading") {
@@ -181,7 +181,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
   return (
     <div className="flex flex-col gap-3">
       <PrimaryButton onClick={() => void handleGenerate()} disabled={!hasCheckin || state === "running"}>
-        {state === "running" ? "Analyse en cours…" : "Générer mon plan"}
+        {state === "running" ? "Analyse en cours…" : "Préparer ma séance du jour"}
       </PrimaryButton>
 
       {!hasCheckin && <p className="text-xs text-muted">Enregistre d'abord ton check-in du jour.</p>}

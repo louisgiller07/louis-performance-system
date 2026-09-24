@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useEffectiveToday } from "../lib/simulationClock";
 import { CheckinForm } from "../features/checkin/CheckinForm";
@@ -11,6 +12,8 @@ import { Card } from "../components/Card";
 import { SectionHeader } from "../components/SectionHeader";
 import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
 import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
+import { getActivePlanVersionId } from "../features/trainingPlanReview/trainingPlanReviewRepo";
+import { PrimaryButton } from "../components/PrimaryButton";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -58,6 +61,25 @@ export function TodayPage() {
     };
   }, [athleteId]);
 
+  // PILOT_012 — athletes without an accepted training plan get a clear entry to set one up.
+  // Best-effort read of the existing current-plan pointer: on error nothing is shown and
+  // the rest of Today is unaffected.
+  const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!athleteId) return;
+    let cancelled = false;
+    getActivePlanVersionId()
+      .then((planVersionId) => {
+        if (!cancelled) setHasActivePlan(planVersionId !== null);
+      })
+      .catch(() => {
+        // Best-effort — see comment above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [athleteId]);
+
   // Canonical YYYY-MM-DD — real date for any real athlete, simulated date
   // only for the configured simulation athlete (see simulationClock.ts).
   const canonicalDate = useEffectiveToday();
@@ -80,6 +102,18 @@ export function TodayPage() {
       </Card>
 
       <HealthFlagBanner flags={openHealthFlags} />
+
+      {hasActivePlan === false && (
+        <Card className="flex flex-col gap-3">
+          <SectionHeader title="Ton plan d'entraînement" />
+          <p className="text-sm text-ink/80">
+            Complète ton profil et tes disponibilités pour créer ton premier plan d'entraînement.
+          </p>
+          <Link to="/performance-setup">
+            <PrimaryButton className="w-full">Configurer mon profil et générer mon plan</PrimaryButton>
+          </Link>
+        </Card>
+      )}
 
       {/*
        * V0.3 UX PREMIUM REDESIGN — hierarchy: Mission du jour -> Head

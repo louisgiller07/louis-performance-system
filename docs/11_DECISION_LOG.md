@@ -3060,3 +3060,15 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 **Règles** : jamais lue par la planification, la prescription, le Head Coach ni aucune logique de génération/décision — observabilité seulement ; elle référence les tables métier, ne les recopie jamais ; jamais de JWT/token/clé/mot de passe/email/profil, de body brut, de check-in, de donnée santé, de prescription ou de `dailyPlan`, ni de message/stack d'erreur (nom + code seulement). Les réponses HTTP sont inchangées.
 
 **Statut** : Accepted
+
+## 2026-09-24 — ADR PILOT_012 : Consentement explicite aux données de santé + notice de confidentialité
+
+**Contexte** : l'audit PILOT_011 a relevé (P1-2) que NALYNT collecte des données liées à la santé dans les check-ins (douleur, maladie, fatigue, suspicion de commotion) sans notice de confidentialité ni consentement explicite enregistré.
+
+**Décision** : deux colonnes additives sur `athlete_onboarding_profiles` (migration `20260924100000_pilot_002_health_data_consent.sql`) : `privacy_notice_version text NULL` et `health_data_consent_at timestamptz NULL`. Le client n'écrit que la version (`PRIVACY_NOTICE_VERSION`, `web/src/features/privacy/privacyNotice.ts`) ; un trigger `BEFORE INSERT OR UPDATE` pose `health_data_consent_at = now()` côté serveur et ignore toute valeur envoyée par le client (horodatage non falsifiable). Contrôle DB : `CHECK` paire version/horodatage, `CHECK` version non blanche, et `CHECK (onboarding_completed_at IS NULL OR privacy_notice_version IS NOT NULL) NOT VALID` — aucun nouvel onboarding complété sans consentement, les lignes existantes ne sont pas réécrites. RLS existante inchangée (ligne propre uniquement, prouvée par `athleteConsent.integration.test.ts`).
+
+**Règles** : case non pré-cochée ; aucun backfill, aucun consentement par défaut, aucun consentement inféré d'une connexion ou d'anciens check-ins. Les utilisateurs existants sans consentement pour la version courante voient une barrière (`ConsentGate`, via `RequireAuth`) avant l'app ; un changement futur de `PRIVACY_NOTICE_VERSION` redemande le consentement. Page publique `/privacy`, factuelle, sans affirmation de conformité. Responsable du traitement (`PRIVACY_OPERATOR`) : Louis Giller, personne physique, adresse approuvée en PILOT_013 ; contact `contact@nalynt.ch`. Aucune autre donnée juridique (raison sociale, IDE, TVA, téléphone) n'est affichée ni inventée. La notice reste en version `2026-09-24` : les coordonnées ont été ajoutées avant tout déploiement, aucun athlète n'avait encore accepté une version différente.
+
+**Rollout** : la migration doit être appliquée en production **avant** le déploiement web (le select de `AuthContext` lit les nouvelles colonnes).
+
+**Statut** : Accepted (local uniquement, non déployé)

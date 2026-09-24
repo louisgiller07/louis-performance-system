@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TodayPage } from "./TodayPage";
 import { todayLocal } from "../lib/date";
@@ -14,6 +14,16 @@ function renderTodayPage() {
 }
 
 const signOut = vi.fn();
+
+// PILOT_012 — current-plan pointer (training_plan_current_version via the existing repo).
+// Defaults to an active plan so every pre-existing test keeps the normal Today flow.
+const { getActivePlanVersionId } = vi.hoisted(() => ({ getActivePlanVersionId: vi.fn() }));
+vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId }));
+vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFlags: vi.fn().mockResolvedValue([]) }));
+
+beforeEach(() => {
+  getActivePlanVersionId.mockResolvedValue("plan-1");
+});
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({
@@ -227,5 +237,44 @@ describe("TodayPage", () => {
 
     expect(screen.getByText(realToday)).toBeInTheDocument();
     expect(screen.queryByText("2026-09-20")).not.toBeInTheDocument();
+  });
+
+  describe("PILOT_012 — guided entry for athletes without a training plan", () => {
+    it("no accepted plan: shows the setup CTA to /performance-setup, and Today keeps check-in, decision and completion", async () => {
+      getActivePlanVersionId.mockResolvedValue(null);
+      renderTodayPage();
+
+      const cta = await screen.findByRole("link", { name: "Configurer mon profil et générer mon plan" });
+      expect(cta).toHaveAttribute("href", "/performance-setup");
+      expect(screen.getByText("Complète ton profil et tes disponibilités pour créer ton premier plan d'entraînement.")).toBeInTheDocument();
+      expect(screen.getByTestId("checkin-form-stub")).toBeInTheDocument();
+      expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
+      expect(screen.getByTestId("completed-session-card-stub")).toBeInTheDocument();
+    });
+
+    it("an active plan: no setup CTA, normal Today flow unchanged", async () => {
+      renderTodayPage();
+
+      await waitFor(() => expect(getActivePlanVersionId).toHaveBeenCalled());
+      expect(screen.queryByRole("link", { name: "Configurer mon profil et générer mon plan" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("checkin-form-stub")).toBeInTheDocument();
+      expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
+    });
+
+    it("a failed plan lookup never blocks Today and shows no CTA", async () => {
+      getActivePlanVersionId.mockRejectedValue(new Error("network"));
+      renderTodayPage();
+
+      await waitFor(() => expect(getActivePlanVersionId).toHaveBeenCalled());
+      expect(screen.queryByRole("link", { name: "Configurer mon profil et générer mon plan" })).not.toBeInTheDocument();
+      expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
+    });
+
+    it("the header always links to the Configuration page and the footer to the privacy notice", () => {
+      renderTodayPage();
+
+      expect(screen.getByRole("link", { name: "Configuration" })).toHaveAttribute("href", "/performance-setup");
+      expect(screen.getByRole("link", { name: "Confidentialité" })).toHaveAttribute("href", "/privacy");
+    });
   });
 });

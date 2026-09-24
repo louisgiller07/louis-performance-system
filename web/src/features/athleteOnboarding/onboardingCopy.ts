@@ -46,6 +46,6 @@ export const PRIMARY_GOAL_DESCRIPTIONS: Record<PrimaryGoal, string> = {
 export const COMPLETION_COPY = {
   title: "Your athlete profile is ready.",
   checklist: ["Your discipline", "Your experience level", "Your goals", "Your availability"],
-  text: "Your performance journey starts now.",
-  cta: "Start improving",
+  text: "Next: set up your training profile and availability to generate your first training plan.",
+  cta: "Set up my training plan",
 };

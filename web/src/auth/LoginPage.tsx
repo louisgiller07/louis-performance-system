@@ -118,6 +118,11 @@ export function LoginPage() {
               Create one
             </Link>
           </p>
+          <p className="text-center text-xs text-muted">
+            <Link to="/privacy" className="underline">
+              Confidentialité
+            </Link>
+          </p>
         </form>
 
         <div className="mt-8 flex flex-col items-center gap-1.5 text-center">

@@ -13,6 +13,8 @@ import { InsightsPage } from "./pages/InsightsPage";
 import { SimulationLabPage } from "./pages/SimulationLabPage";
 import { PerformanceSetup } from "./features/performanceSetup/PerformanceSetup";
 import { TrainingPlanPreviewPage } from "./pages/TrainingPlanPreviewPage";
+import { TrainingPlanEntryPage } from "./pages/TrainingPlanEntryPage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 
 export default function App() {
   return (
@@ -23,6 +25,7 @@ export default function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route
             path="/today"
             element={
@@ -76,6 +79,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <PerformanceSetup />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/training-plan"
+            element={
+              <RequireAuth>
+                <TrainingPlanEntryPage />
               </RequireAuth>
             }
           />

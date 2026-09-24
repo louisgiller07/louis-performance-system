@@ -7,6 +7,8 @@ const LINK_BASE = "flex min-h-11 flex-1 items-center justify-center rounded px-1
 const LINK_ACTIVE = "bg-gold text-bg";
 const LINK_INACTIVE = "text-muted active:bg-white/5";
 
+// PILOT_012 — "Programme" = the generated training plan (/training-plan resolves the
+// current plan), "Semaine" = the manual 7-day planning (/plan).
 // Minimal navigation — no sidebar, no menu. Shared between TodayPage,
 // /plan (V0.3_003C), the /history pages (M4_006), and /insights (V0.3_001C-3).
 export function AppNav() {
@@ -15,8 +17,11 @@ export function AppNav() {
       <NavLink to="/today" className={({ isActive }) => `${LINK_BASE} ${isActive ? LINK_ACTIVE : LINK_INACTIVE}`}>
         Aujourd'hui
       </NavLink>
+      <NavLink to="/training-plan" className={({ isActive }) => `${LINK_BASE} ${isActive ? LINK_ACTIVE : LINK_INACTIVE}`}>
+        Programme
+      </NavLink>
       <NavLink to="/plan" className={({ isActive }) => `${LINK_BASE} ${isActive ? LINK_ACTIVE : LINK_INACTIVE}`}>
-        Plan
+        Semaine
       </NavLink>
       <NavLink to="/history" className={({ isActive }) => `${LINK_BASE} ${isActive ? LINK_ACTIVE : LINK_INACTIVE}`}>
         Historique

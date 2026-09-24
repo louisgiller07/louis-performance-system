@@ -1,5 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { HealthDataConsentCheckbox } from "../privacy/HealthDataConsentCheckbox";
+import { PRIVACY_NOTICE_VERSION } from "../privacy/privacyNotice";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import {
   loadOnboardingAnswers,
@@ -104,7 +107,10 @@ function ProgressBar({ step }: { step: number }) {
  */
 export function AthleteOnboarding() {
   const { athleteId, refreshAthlete } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  // Explicit health-data consent — never pre-checked, required to complete onboarding.
+  const [healthDataConsent, setHealthDataConsent] = useState(false);
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,12 +170,13 @@ export function AthleteOnboarding() {
         await savePrimaryGoal(athleteId, primaryGoal);
       } else if (step === 4 && weeklyTrainingHours) {
         await saveWeeklyTrainingHours(athleteId, weeklyTrainingHours);
-      } else if (step === 5 && ridingDays.length > 0 && competitionLevel && primaryGoal && weeklyTrainingHours) {
+      } else if (step === 5 && ridingDays.length > 0 && competitionLevel && primaryGoal && weeklyTrainingHours && healthDataConsent) {
         await completeOnboarding(athleteId, {
           competitionLevel,
           primaryGoal,
           weeklyTrainingHours,
           preferredRidingDays: ridingDays,
+          privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
         });
         setDone(true);
         setSaving(false);
@@ -190,6 +197,8 @@ export function AthleteOnboarding() {
 
   async function handleEnter() {
     await refreshAthlete();
+    // A brand-new athlete has no training plan yet: the next step is always the setup page.
+    navigate("/performance-setup", { replace: true });
   }
 
   if (loading) {
@@ -248,7 +257,7 @@ export function AthleteOnboarding() {
     (step === 2 && !!competitionLevel) ||
     (step === 3 && !!primaryGoal) ||
     (step === 4 && !!weeklyTrainingHours) ||
-    (step === 5 && ridingDays.length > 0 && !!competitionLevel && !!primaryGoal && !!weeklyTrainingHours);
+    (step === 5 && ridingDays.length > 0 && !!competitionLevel && !!primaryGoal && !!weeklyTrainingHours && healthDataConsent);
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-bg px-4 py-8">
@@ -345,6 +354,7 @@ export function AthleteOnboarding() {
                   />
                 ))}
               </div>
+              <HealthDataConsentCheckbox checked={healthDataConsent} onChange={setHealthDataConsent} disabled={saving} />
             </div>
           )}
         </FadeIn>

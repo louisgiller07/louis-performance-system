@@ -58,7 +58,7 @@ describe("PlanPage — A", () => {
     loadPlannedSessions.mockResolvedValue([]);
     renderPage();
     expect(screen.getByRole("heading", { name: "Planning" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Semaine" })).toBeInTheDocument();
     await waitFor(() => expect(loadPlannedSessions).toHaveBeenCalled());
   });
 });

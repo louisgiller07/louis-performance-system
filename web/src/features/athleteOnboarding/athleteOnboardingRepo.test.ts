@@ -163,6 +163,7 @@ describe("athleteOnboardingRepo — save functions", () => {
       primaryGoal: "Consistency",
       weeklyTrainingHours: "10-15h",
       preferredRidingDays: ["Monday", "Saturday"],
+      privacyNoticeVersion: "2026-09-24",
     });
 
     expect(upsert).toHaveBeenCalledTimes(1);
@@ -173,6 +174,9 @@ describe("athleteOnboardingRepo — save functions", () => {
     expect(payload.weekly_training_hours).toBe("10-15h");
     expect(payload.preferred_riding_days).toEqual(["Monday", "Saturday"]);
     expect(typeof payload.onboarding_completed_at).toBe("string");
+    // PILOT_012 — consent version sent with the completion; the timestamp is server-side only.
+    expect(payload.privacy_notice_version).toBe("2026-09-24");
+    expect(payload).not.toHaveProperty("health_data_consent_at");
   });
 
   it("upsert failure throws AthleteOnboardingError, never the raw Supabase error", async () => {
@@ -185,6 +189,7 @@ describe("athleteOnboardingRepo — save functions", () => {
         primaryGoal: "Consistency",
         weeklyTrainingHours: "10-15h",
         preferredRidingDays: ["Monday"],
+        privacyNoticeVersion: "2026-09-24",
       })
     ).rejects.toThrow(AthleteOnboardingError);
   });

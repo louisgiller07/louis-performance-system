@@ -125,6 +125,8 @@ export interface CompletionAnswers {
   primaryGoal: PrimaryGoal;
   weeklyTrainingHours: WeeklyTrainingHours;
   preferredRidingDays: RidingDay[];
+  /** The privacy notice version the athlete explicitly accepted (checkbox). */
+  privacyNoticeVersion: string;
 }
 
 /**
@@ -147,5 +149,8 @@ export async function completeOnboarding(athleteId: string, answers: CompletionA
     weekly_training_hours: answers.weeklyTrainingHours,
     preferred_riding_days: answers.preferredRidingDays,
     onboarding_completed_at: new Date().toISOString(),
+    // Explicit health-data consent (checkbox) — required by the DB for completion;
+    // health_data_consent_at is set server-side by a trigger.
+    privacy_notice_version: answers.privacyNoticeVersion,
   });
 }

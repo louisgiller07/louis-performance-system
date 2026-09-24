@@ -33,7 +33,7 @@ interface CheckinFormProps {
    * Reports whether a checkin currently exists for this date — fired once
    * after the initial load (row found vs. none), and again after every
    * successful save (always true then). This is the single signal
-   * TodayPage needs to enable "Générer mon plan" — it never needs a
+   * TodayPage needs to enable "Préparer ma séance du jour" — it never needs a
    * separate query to know whether a checkin exists.
    */
   onCheckinAvailabilityChange?: (hasCheckin: boolean) => void;

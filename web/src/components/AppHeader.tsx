@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { AppNav } from "./AppNav";
 
@@ -18,6 +19,12 @@ export function AppHeader() {
         <span className="shrink-0 text-sm font-semibold uppercase tracking-widest text-gold">Nalynt</span>
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-xs text-muted">{user?.email}</span>
+          <Link
+            to="/performance-setup"
+            className="shrink-0 rounded border border-white/10 px-3 py-1.5 text-xs font-medium text-ink/80 active:bg-white/5"
+          >
+            Configuration
+          </Link>
           <button
             type="button"
             onClick={() => void signOut()}

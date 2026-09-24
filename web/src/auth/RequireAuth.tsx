@@ -3,6 +3,8 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { AthleteBootstrap } from "../features/athleteBootstrap/AthleteBootstrap";
 import { AthleteOnboarding } from "../features/athleteOnboarding/AthleteOnboarding";
+import { ConsentGate } from "../features/privacy/ConsentGate";
+import { PRIVACY_NOTICE_VERSION } from "../features/privacy/privacyNotice";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading, athleteResolution } = useAuth();
@@ -21,6 +23,11 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (athleteResolution.status === "resolved" && !athleteResolution.onboardingCompleted) {
     return <AthleteOnboarding />;
+  }
+
+  // Explicit health-data consent for the current notice — never inferred for existing accounts.
+  if (athleteResolution.status === "resolved" && athleteResolution.acceptedPrivacyNoticeVersion !== PRIVACY_NOTICE_VERSION) {
+    return <ConsentGate />;
   }
 
   if (athleteResolution.status === "config_error") {

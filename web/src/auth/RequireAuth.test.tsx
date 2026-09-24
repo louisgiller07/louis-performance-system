@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import { RequireAuth } from "./RequireAuth";
+import { PRIVACY_NOTICE_VERSION } from "../features/privacy/privacyNotice";
 
 vi.mock("../lib/supabase", () => ({
   supabase: {
@@ -23,7 +24,7 @@ const mockedAuth = supabase.auth as unknown as {
 };
 const mockedFrom = supabase.from as unknown as ReturnType<typeof vi.fn>;
 
-const ONBOARDING_DONE = { onboarding_completed_at: "2026-01-01T00:00:00Z" };
+const ONBOARDING_DONE = { onboarding_completed_at: "2026-01-01T00:00:00Z", privacy_notice_version: PRIVACY_NOTICE_VERSION };
 
 function renderProtected(
   initialSession: unknown,
@@ -106,5 +107,31 @@ describe("RequireAuth", () => {
     ]);
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
     expect(screen.queryByText("What do you ride?")).not.toBeInTheDocument();
+  });
+
+  describe("PILOT_012 — health-data consent gate", () => {
+    it("an existing athlete (onboarding done, no consent recorded) sees the consent gate, never the protected content", async () => {
+      renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [
+        { id: "athlete-1", athlete_onboarding_profiles: { onboarding_completed_at: "2026-01-01T00:00:00Z", privacy_notice_version: null } },
+      ]);
+      await waitFor(() => expect(screen.getByText("Tes données de santé")).toBeInTheDocument());
+      expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox")).not.toBeChecked();
+      expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
+    });
+
+    it("an athlete who accepted an older notice version is asked again", async () => {
+      renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [
+        { id: "athlete-1", athlete_onboarding_profiles: { onboarding_completed_at: "2026-01-01T00:00:00Z", privacy_notice_version: "2000-01-01" } },
+      ]);
+      await waitFor(() => expect(screen.getByText("Tes données de santé")).toBeInTheDocument());
+      expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+    });
+
+    it("an athlete who accepted the current version goes straight to the app", async () => {
+      renderProtected({ user: { id: "user-1", email: "louis@example.test" } });
+      await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+      expect(screen.queryByText("Tes données de santé")).not.toBeInTheDocument();
+    });
   });
 });

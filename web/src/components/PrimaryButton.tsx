@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes } from "react";
 
 // V0.3 UX PREMIUM — Global App Redesign. The one shared primary action
 // button (solid gold, dark text) — generalizes the pattern already used by
-// "Générer mon plan"/"Enregistrer le check-in"/"Enregistrer la séance".
+// "Préparer ma séance du jour"/"Enregistrer le check-in"/"Enregistrer la séance".
 // A plain <button type="button"> passthrough for props (onClick, disabled,
 // type override, aria-*) — no custom behavior, styling only.
 export function PrimaryButton({ className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {

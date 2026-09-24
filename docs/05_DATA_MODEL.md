@@ -197,6 +197,17 @@ Table technique append-only, écrite best-effort par les Edge Functions `generat
 
 Accès : RLS activée sans policy ; `service_role` = `INSERT` uniquement ; aucun accès `anon` / `authenticated` ; lecture support via rôle SQL admin. Index : `(athlete_id, created_at desc)`, `(event_type, created_at desc)`. Voir `11_DECISION_LOG.md` (2026-09-24 — ADR PILOT_008).
 
+### `athlete_onboarding_profiles` — consentement données de santé (PILOT_012, additif)
+
+Deux colonnes ajoutées par `20260924100000_pilot_002_health_data_consent.sql` :
+
+| Colonne | Type | Note |
+|---|---|---|
+| `privacy_notice_version` | `text NULL` | version de la notice acceptée, écrite par le client ; `CHECK` non blanche |
+| `health_data_consent_at` | `timestamptz NULL` | posée **uniquement** par le trigger `trg_athlete_onboarding_profiles_health_data_consent_at` (`now()` quand la version change) ; toute valeur client est ignorée |
+
+Contraintes : `athlete_onboarding_profiles_consent_pair` (les deux colonnes sont `NULL` ensemble ou renseignées ensemble) ; `athlete_onboarding_profiles_completed_requires_consent` (`onboarding_completed_at IS NULL OR privacy_notice_version IS NOT NULL`, **`NOT VALID`** : les lignes antérieures restent `NULL`, jamais de backfill ; elles sont gérées par la barrière de consentement web). RLS et grants existants inchangés (ligne propre uniquement). Voir `11_DECISION_LOG.md` (2026-09-24 — ADR PILOT_012).
+
 ---
 
 ## Enums
