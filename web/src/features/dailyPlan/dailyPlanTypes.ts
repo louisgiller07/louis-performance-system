@@ -185,10 +185,87 @@ export interface DailyPlan {
   engine_version: string;
 }
 
+// V0.5_047/048 — the athlete's exact, executable prescription for today
+// (sets/reps/%, or drills/runs/cues), sourced from the canonical generated
+// plan. Mirrors planning-engine's own PlannedPrescription/PrescriptionStructure
+// (never imported directly — same "no shared build boundary" discipline as
+// the rest of this file). Deliberately a SIBLING of DailyPlan, never a field
+// on it: M1's frozen DailyPlan/TrainingIntervention carry no prescription
+// concept at all — this is enrichment the backend layers on top, after M1's
+// KEEP/MODIFY/REPLACE/REST decision is already final, and ONLY when that
+// decision is exactly "KEEP" (see runDailyFor.ts's own lock — the backend
+// gates this, not just the frontend).
+
+export type ExecutableRepScheme =
+  | { type: "fixed"; reps: number }
+  | { type: "range"; min: number; max: number }
+  | { type: "time"; seconds: number }
+  | { type: "amrap" };
+
+export type ExecutableIntensity =
+  | { type: "rpe"; target: number }
+  | { type: "rir"; target: number }
+  | { type: "percent_1rm"; value: number }
+  | { type: "fixed_load_kg"; value: number }
+  | { type: "training_max_percent"; value: number }
+  | { type: "bodyweight" };
+
+export interface ExecutableStrengthBlock {
+  role: string;
+  /** Catalogue id, never a display string — no catalogue lookup is available to web/ (same precedent as trainingPlanReview's own exerciseId handling). Humanized mechanically at render time. */
+  exerciseId: string;
+  sets: number;
+  repScheme: ExecutableRepScheme;
+  intensity: ExecutableIntensity;
+  restSeconds: number;
+  tempo?: string;
+  unilateral?: boolean;
+  substitutionOf?: string;
+}
+
+export interface ExecutableStrengthPrescription {
+  domain: "strength";
+  schemaVersion: string;
+  blocks: ExecutableStrengthBlock[];
+}
+
+export interface ExecutableDhDrill {
+  /** Catalogue id, never a display string — same discipline as exerciseId above. */
+  drillId: string;
+  skillTarget: string;
+  terrainRequirement: string;
+  runs: number;
+  executionCue: string;
+  successCriterion: string;
+  progressionCondition?: string;
+  regressionCondition?: string;
+}
+
+export interface ExecutableDhPrescription {
+  domain: "dh_technical";
+  schemaVersion: string;
+  drills: ExecutableDhDrill[];
+}
+
+// Closed union, exactly 2 domains — never "aerobic": that domain
+// structurally has no PlannedPrescription anywhere in the system
+// (planning-engine's own PRESCRIBABLE_DOMAINS never generates one for it).
+export type ExecutablePrescriptionStructure = ExecutableStrengthPrescription | ExecutableDhPrescription;
+
+export interface ExecutablePrescription {
+  id: string;
+  generatedPlanSessionId: string;
+  schemaVersion: string;
+  catalogVersion: string;
+  structure: ExecutablePrescriptionStructure;
+}
+
 /** Exact response contract of supabase/functions/daily-run — see its index.ts. */
 export interface DailyRunResponse {
   dailyPlan: DailyPlan;
   decisionId: string;
   healthFlagId: string | null;
   warnings: string[];
+  /** Absent/null whenever decision !== "KEEP", the session has no canonical lineage, or the backend lookup itself failed (always best-effort — see runDailyFor.ts). */
+  executablePrescription?: ExecutablePrescription | null;
 }

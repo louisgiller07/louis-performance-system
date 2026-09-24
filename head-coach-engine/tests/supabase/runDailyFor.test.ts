@@ -13,7 +13,10 @@ import {
   resolveTrainingPlanProjectionWindow,
   type TrainingPlanProjectionWindowConfig,
 } from "../../src/supabase/trainingPlanProjectionConfig.js";
+import { getProjectedGeneratedSessionIdForDate } from "../../src/supabase/repositories/plannedSessionsRepo.js";
+import { getPlannedPrescriptionForGeneratedSession } from "../../src/supabase/repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import type { DailyPlan, RawContext } from "../../src/types/index.js";
+import type { PlannedPrescription } from "planning-engine";
 
 const ATHLETE_ID = "athlete-1";
 const TODAY = "2026-08-16";
@@ -56,11 +59,17 @@ const PROJECTION_NO_CANDIDATES: ProjectionReport = {
   trainingBlock: { outcome: "no_candidate" },
 };
 
+/** V0.5_047/048 default: no lineage found — every existing test (written before this step existed) must keep seeing byte-for-byte unchanged behavior (executablePrescription: null, no new warning). */
+const NO_LINEAGE: string | null = null;
+const NO_PRESCRIPTION: PlannedPrescription | null = null;
+
 function buildDeps(
   dailyPlan: DailyPlan,
   persistResult: PersistDailyRunResult,
   athleteContext: AthleteCoachingContext | (() => Promise<AthleteCoachingContext>) = NO_CONTEXT,
-  projectionConfig: TrainingPlanProjectionWindowConfig = PROJECTION_DISABLED
+  projectionConfig: TrainingPlanProjectionWindowConfig = PROJECTION_DISABLED,
+  generatedSessionId: string | null | (() => Promise<string | null>) = NO_LINEAGE,
+  prescription: PlannedPrescription | null | (() => Promise<PlannedPrescription | null>) = NO_PRESCRIPTION
 ) {
   const computeDailyForMock = vi.fn<typeof computeDailyFor>(
     async (): Promise<ComputeDailyForResult> => ({
@@ -77,6 +86,12 @@ function buildDeps(
   );
   const projectTrainingPlanMock = vi.fn<typeof projectTrainingPlan>(async (): Promise<ProjectionReport> => PROJECTION_NO_CANDIDATES);
   const resolveTrainingPlanProjectionWindowMock = vi.fn<typeof resolveTrainingPlanProjectionWindow>(() => projectionConfig);
+  const getProjectedGeneratedSessionIdForDateMock = vi.fn<typeof getProjectedGeneratedSessionIdForDate>(async () =>
+    typeof generatedSessionId === "function" ? generatedSessionId() : generatedSessionId
+  );
+  const getPlannedPrescriptionForGeneratedSessionMock = vi.fn<typeof getPlannedPrescriptionForGeneratedSession>(async () =>
+    typeof prescription === "function" ? prescription() : prescription
+  );
 
   const deps: RunDailyForDeps = {
     computeDailyFor: computeDailyForMock,
@@ -84,6 +99,8 @@ function buildDeps(
     getAthleteCoachingContext: getAthleteCoachingContextMock,
     projectTrainingPlan: projectTrainingPlanMock,
     resolveTrainingPlanProjectionWindow: resolveTrainingPlanProjectionWindowMock,
+    getProjectedGeneratedSessionIdForDate: getProjectedGeneratedSessionIdForDateMock,
+    getPlannedPrescriptionForGeneratedSession: getPlannedPrescriptionForGeneratedSessionMock,
   };
 
   return {
@@ -93,6 +110,8 @@ function buildDeps(
     getAthleteCoachingContextMock,
     projectTrainingPlanMock,
     resolveTrainingPlanProjectionWindowMock,
+    getProjectedGeneratedSessionIdForDateMock,
+    getPlannedPrescriptionForGeneratedSessionMock,
   };
 }
 
@@ -355,5 +374,165 @@ describe("V0.4_015 — projection pre-compute step (best-effort, never blocking)
 
     expect(result.warnings.some((w) => w.includes("TRAINING_PLAN_PROJECTION_WINDOW_DAYS is invalid"))).toBe(true);
     expect(result.warnings.some((w) => w.includes("V0.3_011"))).toBe(true);
+  });
+});
+
+describe("V0.5_047/048 — executable prescription lookup (best-effort, KEEP-only gate)", () => {
+  const SAMPLE_PRESCRIPTION: PlannedPrescription = {
+    id: "prescription-1",
+    generatedPlanSessionId: "session-1",
+    schemaVersion: "v1",
+    catalogVersion: "v1",
+    structure: { domain: "strength", schemaVersion: "v1", blocks: [] },
+  };
+
+  // Acceptance matrix (V0.5_048 §26):
+  // decision | source_generated_session_id | prescription | result
+  it("KEEP + lineage present + prescription present -> prescription attached, no warning", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+    const { deps } = buildDeps(dailyPlan, { decision_id: "d1", health_flag_id: null }, NO_CONTEXT, PROJECTION_DISABLED, "session-1", SAMPLE_PRESCRIPTION);
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toEqual(SAMPLE_PRESCRIPTION);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("KEEP + lineage present + prescription absent -> no prescription, warning present", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+    const { deps } = buildDeps(dailyPlan, { decision_id: "d1", health_flag_id: null }, NO_CONTEXT, PROJECTION_DISABLED, "session-1", null);
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toBeNull();
+    expect(result.warnings.some((w) => w.includes("V0.5_048"))).toBe(true);
+  });
+
+  it("KEEP + no lineage (manual/legacy session) -> graceful degradation, NO warning (a legitimate state, not a failure)", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+    const { deps, getPlannedPrescriptionForGeneratedSessionMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      PROJECTION_DISABLED,
+      null
+    );
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toBeNull();
+    expect(result.warnings).toEqual([]);
+    // No lineage -> the prescription lookup itself must never even be attempted.
+    expect(getPlannedPrescriptionForGeneratedSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("KEEP + lookup error -> Daily Plan still succeeds, warning present, persistDailyRun still called", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+    const { deps, persistDailyRunMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      PROJECTION_DISABLED,
+      () => Promise.reject(new Error("connection reset"))
+    );
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toBeNull();
+    expect(result.warnings.some((w) => w.includes("V0.5_048") && w.includes("connection reset"))).toBe(true);
+    expect(persistDailyRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["MODIFY", "REPLACE"] as const)(
+    "%s + lineage present + prescription present -> lookup NEVER executed, no prescription",
+    async (decision) => {
+      const dailyPlan = buildFixtureDailyPlan({ decision });
+      const { deps, getProjectedGeneratedSessionIdForDateMock, getPlannedPrescriptionForGeneratedSessionMock } = buildDeps(
+        dailyPlan,
+        { decision_id: "d1", health_flag_id: null },
+        NO_CONTEXT,
+        PROJECTION_DISABLED,
+        "session-1",
+        SAMPLE_PRESCRIPTION
+      );
+
+      const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+      expect(result.executablePrescription).toBeNull();
+      expect(getProjectedGeneratedSessionIdForDateMock).not.toHaveBeenCalled();
+      expect(getPlannedPrescriptionForGeneratedSessionMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("REST + lineage/prescription would be present -> no prescription, no lookup attempted", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ decision: "REST", final_session: { kind: "REST" } });
+    const { deps, getProjectedGeneratedSessionIdForDateMock, getPlannedPrescriptionForGeneratedSessionMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: "f1" },
+      NO_CONTEXT,
+      PROJECTION_DISABLED,
+      "session-1",
+      SAMPLE_PRESCRIPTION
+    );
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toBeNull();
+    expect(getProjectedGeneratedSessionIdForDateMock).not.toHaveBeenCalled();
+    expect(getPlannedPrescriptionForGeneratedSessionMock).not.toHaveBeenCalled();
+  });
+
+  // V0.5_048 §27 — supersession/reprojection. A full "plan A projected, then
+  // plan B supersedes it and reprojects" sequence needs a real Supabase
+  // instance (the lineage column is only ever mutated by the real
+  // project_training_plan RPC) — out of reach for this mocked unit-test
+  // file per the ticket's own scope limit. What IS verified here, honestly,
+  // with mocks: the lookup always uses whatever id
+  // getProjectedGeneratedSessionIdForDate returns AT CALL TIME, never a
+  // cached/earlier value — which is the exact property that makes
+  // correctness under reprojection possible (runProjectionBestEffort
+  // already runs before this lookup, step 0 of runDailyFor). Two separate
+  // runs with two different lineage ids (simulating "today, before" vs.
+  // "today, after a supersession+reprojection") must each use their own id.
+  it("uses whatever lineage id is current at call time, never a stale one from a previous run (supersession proxy — see note above for the real-DB limit)", async () => {
+    const dailyPlanA = buildFixtureDailyPlan({ decision: "KEEP" });
+    const runA = buildDeps(dailyPlanA, { decision_id: "dA", health_flag_id: null }, NO_CONTEXT, PROJECTION_DISABLED, "session-A1", {
+      ...SAMPLE_PRESCRIPTION,
+      id: "prescription-A1",
+      generatedPlanSessionId: "session-A1",
+    });
+
+    const dailyPlanB = buildFixtureDailyPlan({ decision: "KEEP" });
+    const runB = buildDeps(dailyPlanB, { decision_id: "dB", health_flag_id: null }, NO_CONTEXT, PROJECTION_DISABLED, "session-B1", {
+      ...SAMPLE_PRESCRIPTION,
+      id: "prescription-B1",
+      generatedPlanSessionId: "session-B1",
+    });
+
+    const resultA = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, runA.deps);
+    const resultB = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, runB.deps);
+
+    expect(resultA.executablePrescription?.generatedPlanSessionId).toBe("session-A1");
+    expect(resultB.executablePrescription?.generatedPlanSessionId).toBe("session-B1");
+    expect(resultB.executablePrescription?.generatedPlanSessionId).not.toBe(resultA.executablePrescription?.generatedPlanSessionId);
+  });
+
+  it("never injects executablePrescription into dailyPlan/decisionRow — enrichment stays a sibling field, M1 output untouched", async () => {
+    const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+    const { deps, persistDailyRunMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      PROJECTION_DISABLED,
+      "session-1",
+      SAMPLE_PRESCRIPTION
+    );
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.dailyPlan).toBe(dailyPlan);
+    expect(Object.keys(result.dailyPlan)).not.toContain("executablePrescription");
+    const [, , , decisionRowArg] = persistDailyRunMock.mock.calls[0]!;
+    expect(decisionRowArg).not.toHaveProperty("executablePrescription");
   });
 });

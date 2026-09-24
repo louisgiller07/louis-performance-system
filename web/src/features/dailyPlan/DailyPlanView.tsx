@@ -16,7 +16,8 @@ import {
   hasActiveSafetyRule,
 } from "./safetyPresentation";
 import { formatDhSessionWindow, formatDhSessionWindowCompact, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
-import type { DailyPlan, RecentRecoveryContext } from "./dailyPlanTypes";
+import { ExecutablePrescriptionCard } from "./ExecutablePrescriptionCard";
+import type { DailyPlan, ExecutablePrescription, RecentRecoveryContext } from "./dailyPlanTypes";
 
 // V0.3_008A — Previous-Day Recovery Continuity. A dedicated, purely factual
 // read-only section — deliberately NEVER folded into `reasoning` (that
@@ -99,6 +100,16 @@ export interface DailyPlanViewProps {
    * card renders exactly as before — zero behavior change for History.
    */
   missionSlot?: ReactNode;
+  /**
+   * V0.5_047/048 — the athlete's exact executable prescription for today,
+   * ONLY ever rendered when `dailyPlan.decision === "KEEP"` AND this is
+   * present (checked again right here, frontend-side, even though the
+   * backend already gates it — never trust a single layer for something
+   * this consequential: showing a stale prescription after MODIFY/REPLACE
+   * would be actively misleading). Absent/null/undefined all mean "nothing
+   * to show" — never a fabricated fallback.
+   */
+  executablePrescription?: ExecutablePrescription | null;
 }
 
 // Rendering-only: production display of a real, already-computed
@@ -113,6 +124,7 @@ export function DailyPlanView({
   technicalMetadata,
   readinessSlot,
   missionSlot,
+  executablePrescription,
 }: DailyPlanViewProps) {
   const showInlineMission = missionSlot === undefined;
   // Only worth comparing when there was an actual prior planned session —
@@ -319,6 +331,21 @@ export function DailyPlanView({
             )}
           </PlanSection>
         </>
+      )}
+
+      {/*
+       * V0.5_047/048 — the athlete's exact executable prescription, shown
+       * ONLY when Head Coach actually KEPT the planned session (kind AND
+       * load_profile unchanged — sameIntervention, buildDailyPlan.ts) and a
+       * canonical prescription was actually found. Under MODIFY/REPLACE the
+       * canonical prescription's volumes/intensities (or its whole domain)
+       * may no longer match final_session, so it is never shown then — the
+       * existing "Prévu" vs "Aujourd'hui" diff card above already explains
+       * the adaptation honestly; no placeholder text is added here for that
+       * case (ticket lock: absence of this card is enough).
+       */}
+      {dailyPlan.decision === "KEEP" && executablePrescription != null && (
+        <ExecutablePrescriptionCard prescription={executablePrescription} />
       )}
 
       {dailyPlan.mental.active && (

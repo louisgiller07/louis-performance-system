@@ -7,7 +7,7 @@ import type { DailyRunResponse } from "./dailyPlanTypes";
 // metadata from a real DailyRunResponse, then delegates all rendering to
 // DailyPlanView (shared with /history's HistoryDetail — M4_006).
 export function DailyPlanResult({ result }: { result: DailyRunResponse }) {
-  const { dailyPlan, healthFlagId, warnings, decisionId } = result;
+  const { dailyPlan, healthFlagId, warnings, decisionId, executablePrescription } = result;
 
   // Explicit server signal only — never a frontend-deduced safety rule
   // (no A1-A5 hardcoded here).
@@ -22,6 +22,7 @@ export function DailyPlanResult({ result }: { result: DailyRunResponse }) {
       technicalMetadata={{ decisionId, raw: result }}
       readinessSlot={<ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} />}
       missionSlot={<MissionCard dailyPlan={dailyPlan} />}
+      executablePrescription={executablePrescription}
     />
   );
 }

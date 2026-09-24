@@ -27,6 +27,14 @@
  *      a failure (e.g. a transient DB error) is recorded as a warning and
  *      never fails the daily run — a cosmetic explanation addition must
  *      never be able to block a real coaching decision.
+ *   2b. V0.5_047/048 — best-effort executable-prescription lookup (see
+ *      `resolveExecutablePrescriptionBestEffort` below): ONLY when
+ *      `computed.dailyPlan.decision === "KEEP"`, resolves today's
+ *      canonical `PlannedPrescription` via `planned_sessions.
+ *      source_generated_session_id → training_plan_planned_prescriptions`.
+ *      Never written to any table, never fed back into M1 — purely
+ *      additive enrichment on the returned result. Never throws, only ever
+ *      contributes a warning.
  *   3. `mapDailyPlanToDecisionRow` (M2_002 shape, unchanged) — DailyPlan → decision row.
  *   4. `DailyPlan.health_flag_to_create` (the real M1 field name — not
  *      assumed) present? → `mapHealthFlagToCreatePayload`. Absent → `null`.
@@ -44,12 +52,15 @@
  * read path or invented from nothing.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PlannedPrescription } from "planning-engine";
 import type { DailyPlan } from "../types/index.js";
 import { computeDailyFor, type ComputeDailyForResult } from "./computeDailyFor.js";
 import { mapDailyPlanToDecisionRow } from "./mapping/dailyPlanToDecisionRow.js";
 import { mapHealthFlagToCreatePayload } from "./mapping/healthFlagToCreatePayload.js";
 import { persistDailyRun, type PersistDailyRunResult } from "./persistDailyRun.js";
 import { getAthleteCoachingContext } from "./repositories/athleteCoachingContextRepo.js";
+import { getProjectedGeneratedSessionIdForDate } from "./repositories/plannedSessionsRepo.js";
+import { getPlannedPrescriptionForGeneratedSession } from "./repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
 import { resolveTrainingPlanProjectionWindow } from "./trainingPlanProjectionConfig.js";
@@ -68,6 +79,21 @@ export class DailyPlanDateMismatchError extends Error {
 
 export interface RunDailyForResult extends ComputeDailyForResult {
   persistence: PersistDailyRunResult;
+  /**
+   * V0.5_047/048 — the canonical `PlannedPrescription` for today's session,
+   * ONLY when Head Coach's `decision` is exactly `"KEEP"` (never for
+   * MODIFY/REPLACE/REST — their session parameters may no longer match the
+   * canonical prescription's sets/reps/intensity, even when MODIFY leaves
+   * `kind` unchanged) and only when the session actually traces back to a
+   * generated, accepted plan (`source_generated_session_id`). `null` for
+   * every other case, including a manual/legacy session, an aerobic session
+   * (which never has a PlannedPrescription), or any lookup failure —
+   * always best-effort, never able to fail the daily run itself. Never
+   * injected into `DailyPlan`/`RawContext`/`TrainingIntervention` — those
+   * stay entirely frozen and coarse; this is enrichment layered on top,
+   * after M1's decision is already final.
+   */
+  executablePrescription: PlannedPrescription | null;
 }
 
 /**
@@ -86,12 +112,17 @@ export interface RunDailyForDeps {
   /** V0.4_015 — injectable so the pre-compute projection step can be unit-tested with plain mocks, same reasoning as the other deps. */
   projectTrainingPlan: typeof projectTrainingPlan;
   resolveTrainingPlanProjectionWindow: typeof resolveTrainingPlanProjectionWindow;
+  /** V0.5_047/048 — injectable so the executable-prescription lookup can be unit-tested with plain mocks, same reasoning as the other deps. */
+  getProjectedGeneratedSessionIdForDate: typeof getProjectedGeneratedSessionIdForDate;
+  getPlannedPrescriptionForGeneratedSession: typeof getPlannedPrescriptionForGeneratedSession;
 }
 
 const DEFAULT_DEPS: RunDailyForDeps = {
   computeDailyFor,
   persistDailyRun,
   getAthleteCoachingContext,
+  getProjectedGeneratedSessionIdForDate,
+  getPlannedPrescriptionForGeneratedSession,
   projectTrainingPlan,
   resolveTrainingPlanProjectionWindow,
 };
@@ -149,6 +180,54 @@ async function runProjectionBestEffort(
 }
 
 /**
+ * V0.5_047/048 — best-effort lookup of the canonical `PlannedPrescription`
+ * for today's session, gated STRICTLY on `decision === "KEEP"` (checked
+ * here, backend-side — never only in the frontend). MODIFY/REPLACE/REST
+ * never even attempt the lookup: under MODIFY the session's kind is
+ * (almost) always unchanged, but its load/duration may have shifted, so the
+ * canonical prescription's volumes/intensities can no longer be trusted;
+ * under REPLACE the domain itself may differ entirely; REST has no session
+ * to prescribe at all. Every failure mode (no lineage, no prescription row,
+ * a thrown error) degrades to `null` plus, where noted, a warning — never
+ * thrown, matching `runProjectionBestEffort`'s own discipline exactly. A
+ * missing lineage (`no_canonical_plan` — a manual/legacy session, or no
+ * accepted plan for this date) is NOT warning-worthy: it is a real,
+ * legitimate state, not a failure.
+ */
+async function resolveExecutablePrescriptionBestEffort(
+  client: SupabaseClient,
+  athleteId: string,
+  today: string,
+  decision: DailyPlan["decision"],
+  getLineage: typeof getProjectedGeneratedSessionIdForDate,
+  getPrescription: typeof getPlannedPrescriptionForGeneratedSession
+): Promise<{ executablePrescription: PlannedPrescription | null; warnings: string[] }> {
+  if (decision !== "KEEP") {
+    return { executablePrescription: null, warnings: [] };
+  }
+
+  try {
+    const generatedPlanSessionId = await getLineage(client, athleteId, today);
+    if (!generatedPlanSessionId) {
+      return { executablePrescription: null, warnings: [] };
+    }
+
+    const prescription = await getPrescription(client, generatedPlanSessionId);
+    if (!prescription) {
+      return {
+        executablePrescription: null,
+        warnings: [`V0.5_048: no canonical prescription found for today's KEEP session (generatedPlanSessionId=${generatedPlanSessionId}).`],
+      };
+    }
+
+    return { executablePrescription: prescription, warnings: [] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { executablePrescription: null, warnings: [`V0.5_048 executable prescription lookup skipped: ${message}`] };
+  }
+}
+
+/**
  * V0.3_011 — resolves the athlete's declared `primary_goal` and appends its
  * fixed sentence to `dailyPlan.reasoning`. Best-effort: any failure
  * resolving the athlete's coaching context (network, transient DB error)
@@ -202,6 +281,21 @@ export async function runDailyFor(
     throw new DailyPlanDateMismatchError(today, computed.dailyPlan.date);
   }
 
+  // V0.5_047/048 — decided from computed.dailyPlan.decision (M1's own,
+  // frozen output — never re-derived), before personalization runs.
+  // personalizeReasoning only ever touches `reasoning`, never `decision`,
+  // so reading it here vs. after makes no difference to correctness; doing
+  // it here keeps this step visually grouped with the other read-only,
+  // best-effort enrichments in this function.
+  const { executablePrescription, warnings: executablePrescriptionWarnings } = await resolveExecutablePrescriptionBestEffort(
+    client,
+    athleteId,
+    today,
+    computed.dailyPlan.decision,
+    deps.getProjectedGeneratedSessionIdForDate,
+    deps.getPlannedPrescriptionForGeneratedSession
+  );
+
   const { dailyPlan: personalizedPlan, warnings: personalizationWarnings } = await personalizeReasoning(
     client,
     athleteId,
@@ -220,7 +314,8 @@ export async function runDailyFor(
   return {
     ...computed,
     dailyPlan: personalizedPlan,
-    warnings: [...projectionWarnings, ...computed.warnings, ...personalizationWarnings],
+    warnings: [...projectionWarnings, ...computed.warnings, ...executablePrescriptionWarnings, ...personalizationWarnings],
     persistence,
+    executablePrescription,
   };
 }

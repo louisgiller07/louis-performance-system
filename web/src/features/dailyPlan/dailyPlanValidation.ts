@@ -56,6 +56,97 @@ function isValidIntervention(value: unknown): boolean {
   return isObject(value) && typeof value.kind === "string";
 }
 
+// V0.5_047/048 — validates the executable-prescription enrichment field.
+// Same "never survive as present just because it's not undefined"
+// discipline as every other optional field below: absent/null are both
+// legitimate (decision !== KEEP, no lineage, aerobic session, or a failed
+// best-effort backend lookup), but a PRESENT value must be well-formed —
+// domain "aerobic" (or anything else) is explicitly rejected, since that
+// shape structurally never exists in the real PrescriptionStructure union.
+const ALLOWED_REP_SCHEME_TYPES = ["fixed", "range", "time", "amrap"] as const;
+const ALLOWED_INTENSITY_TYPES = ["rpe", "rir", "percent_1rm", "fixed_load_kg", "training_max_percent", "bodyweight"] as const;
+
+function isValidExecutableRepScheme(value: unknown): boolean {
+  if (!isObject(value) || !isOneOf(value.type, ALLOWED_REP_SCHEME_TYPES)) return false;
+  switch (value.type) {
+    case "fixed":
+      return typeof value.reps === "number";
+    case "range":
+      return typeof value.min === "number" && typeof value.max === "number";
+    case "time":
+      return typeof value.seconds === "number";
+    case "amrap":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isValidExecutableIntensity(value: unknown): boolean {
+  if (!isObject(value) || !isOneOf(value.type, ALLOWED_INTENSITY_TYPES)) return false;
+  switch (value.type) {
+    case "rpe":
+    case "rir":
+      return typeof value.target === "number";
+    case "percent_1rm":
+    case "fixed_load_kg":
+    case "training_max_percent":
+      return typeof value.value === "number";
+    case "bodyweight":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function isValidExecutableStrengthBlock(value: unknown): boolean {
+  return (
+    isObject(value) &&
+    typeof value.role === "string" &&
+    typeof value.exerciseId === "string" &&
+    typeof value.sets === "number" &&
+    isValidExecutableRepScheme(value.repScheme) &&
+    isValidExecutableIntensity(value.intensity) &&
+    typeof value.restSeconds === "number"
+  );
+}
+
+function isValidExecutableDhDrill(value: unknown): boolean {
+  return (
+    isObject(value) &&
+    typeof value.drillId === "string" &&
+    typeof value.skillTarget === "string" &&
+    typeof value.terrainRequirement === "string" &&
+    typeof value.runs === "number" &&
+    typeof value.executionCue === "string" &&
+    typeof value.successCriterion === "string"
+  );
+}
+
+function isValidExecutablePrescriptionStructure(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  if (value.domain === "strength") {
+    return Array.isArray(value.blocks) && value.blocks.every(isValidExecutableStrengthBlock);
+  }
+  if (value.domain === "dh_technical") {
+    return Array.isArray(value.drills) && value.drills.every(isValidExecutableDhDrill);
+  }
+  // Explicitly rejects "aerobic" and anything else — never a real shape.
+  return false;
+}
+
+function isValidExecutablePrescription(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  return (
+    isObject(value) &&
+    typeof value.id === "string" &&
+    typeof value.generatedPlanSessionId === "string" &&
+    typeof value.schemaVersion === "string" &&
+    typeof value.catalogVersion === "string" &&
+    isValidExecutablePrescriptionStructure(value.structure)
+  );
+}
+
 function isValidTriggeredRules(value: unknown): boolean {
   if (!Array.isArray(value)) return false;
   return value.every(
@@ -182,6 +273,7 @@ export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse
   if (typeof data.decisionId !== "string") return false;
   if (data.healthFlagId !== null && typeof data.healthFlagId !== "string") return false;
   if (!isStringArray(data.warnings)) return false;
+  if (!isValidExecutablePrescription(data.executablePrescription)) return false;
 
   return isValidDailyPlan(data.dailyPlan);
 }

@@ -29,3 +29,29 @@ export async function getPlannedSessionFor(
   assertNoSupabaseError(error, "planned_sessions");
   return data as PlannedSessionRawRow | null;
 }
+
+/**
+ * V0.5_047/048 — reads only the generated-session lineage of today's
+ * `planned_sessions` row, deliberately separate from `getPlannedSessionFor`
+ * above (never touched — that function feeds M1 via buildRawContext and
+ * stays exactly as it was). Returns `null` both when no row exists for the
+ * date, and when a row exists but was never sourced from a generated plan
+ * (a manual/legacy session, or a date with no accepted plan coverage) —
+ * both are legitimate, never an error (see planning-engine's
+ * `ActiveSessionOrigin: "no_canonical_plan"` for the same distinction).
+ */
+export async function getProjectedGeneratedSessionIdForDate(
+  client: SupabaseClient,
+  athleteId: string,
+  date: string
+): Promise<string | null> {
+  const { data, error } = await client
+    .from("planned_sessions")
+    .select("source_generated_session_id")
+    .eq("athlete_id", athleteId)
+    .eq("planned_date", date)
+    .maybeSingle();
+
+  assertNoSupabaseError(error, "planned_sessions");
+  return (data as { source_generated_session_id: string | null } | null)?.source_generated_session_id ?? null;
+}

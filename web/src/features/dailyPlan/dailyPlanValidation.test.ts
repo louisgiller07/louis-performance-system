@@ -339,3 +339,130 @@ describe("V0.3_006B — DH duration_min contract parity", () => {
     expect(isValidDailyPlan(legacy)).toBe(true);
   });
 });
+
+describe("V0.5_047/048 — executablePrescription validation", () => {
+  const VALID_STRENGTH_PRESCRIPTION = {
+    id: "prescription-1",
+    generatedPlanSessionId: "session-1",
+    schemaVersion: "v1",
+    catalogVersion: "v1",
+    structure: {
+      domain: "strength",
+      schemaVersion: "v1",
+      blocks: [
+        {
+          role: "work",
+          exerciseId: "back_squat",
+          sets: 4,
+          repScheme: { type: "fixed", reps: 5 },
+          intensity: { type: "percent_1rm", value: 80 },
+          restSeconds: 180,
+        },
+      ],
+    },
+  };
+
+  const VALID_DH_PRESCRIPTION = {
+    id: "prescription-2",
+    generatedPlanSessionId: "session-2",
+    schemaVersion: "v1",
+    catalogVersion: "v1",
+    structure: {
+      domain: "dh_technical",
+      schemaVersion: "v1",
+      drills: [
+        {
+          drillId: "berm_carry_speed",
+          skillTarget: "cornering",
+          terrainRequirement: "flow_trail",
+          runs: 6,
+          executionCue: "Reste bas dans le virage.",
+          successCriterion: "Vitesse constante sur les 3 derniers virages.",
+        },
+      ],
+    },
+  };
+
+  it("accepts a response with the field absent (undefined)", () => {
+    expect(isValidDailyRunResponse(VALID_RESPONSE)).toBe(true);
+  });
+
+  it("accepts a response with the field explicitly null", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: null })).toBe(true);
+  });
+
+  it("accepts a well-formed strength prescription", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: VALID_STRENGTH_PRESCRIPTION })).toBe(true);
+  });
+
+  it("accepts a well-formed DH technical prescription", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: VALID_DH_PRESCRIPTION })).toBe(true);
+  });
+
+  it("accepts every RepScheme/Intensity discriminant variant", () => {
+    const variants = {
+      ...VALID_STRENGTH_PRESCRIPTION,
+      structure: {
+        ...VALID_STRENGTH_PRESCRIPTION.structure,
+        blocks: [
+          { role: "work", exerciseId: "a", sets: 3, repScheme: { type: "range", min: 8, max: 12 }, intensity: { type: "rpe", target: 8 }, restSeconds: 90 },
+          { role: "work", exerciseId: "b", sets: 3, repScheme: { type: "time", seconds: 30 }, intensity: { type: "rir", target: 2 }, restSeconds: 60 },
+          { role: "work", exerciseId: "c", sets: 1, repScheme: { type: "amrap" }, intensity: { type: "bodyweight" }, restSeconds: 0 },
+          {
+            role: "accessory",
+            exerciseId: "d",
+            sets: 3,
+            repScheme: { type: "fixed", reps: 10 },
+            intensity: { type: "fixed_load_kg", value: 20 },
+            restSeconds: 60,
+          },
+          {
+            role: "accessory",
+            exerciseId: "e",
+            sets: 3,
+            repScheme: { type: "fixed", reps: 10 },
+            intensity: { type: "training_max_percent", value: 70 },
+            restSeconds: 60,
+          },
+        ],
+      },
+    };
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: variants })).toBe(true);
+  });
+
+  it("rejects a malformed strength prescription (missing repScheme)", () => {
+    const malformed = {
+      ...VALID_STRENGTH_PRESCRIPTION,
+      structure: {
+        domain: "strength",
+        schemaVersion: "v1",
+        blocks: [{ role: "work", exerciseId: "back_squat", sets: 4, intensity: { type: "percent_1rm", value: 80 }, restSeconds: 180 }],
+      },
+    };
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: malformed })).toBe(false);
+  });
+
+  it("rejects a malformed DH prescription (missing executionCue)", () => {
+    const malformed = {
+      ...VALID_DH_PRESCRIPTION,
+      structure: {
+        domain: "dh_technical",
+        schemaVersion: "v1",
+        drills: [{ drillId: "berm_carry_speed", skillTarget: "cornering", terrainRequirement: "flow_trail", runs: 6, successCriterion: "OK" }],
+      },
+    };
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: malformed })).toBe(false);
+  });
+
+  it("rejects domain: \"aerobic\" — that shape never exists in the real PrescriptionStructure union", () => {
+    const aerobic = {
+      ...VALID_STRENGTH_PRESCRIPTION,
+      structure: { domain: "aerobic", schemaVersion: "v1" },
+    };
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: aerobic })).toBe(false);
+  });
+
+  it("rejects a non-object, non-null executablePrescription", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: "not an object" })).toBe(false);
+  });
+});

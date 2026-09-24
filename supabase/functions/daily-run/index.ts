@@ -99,6 +99,11 @@ export default {
           decisionId: result.persistence.decision_id,
           healthFlagId: result.persistence.health_flag_id,
           warnings: result.warnings,
+          // V0.5_047/048 — pure passthrough, already resolved by runDailyFor
+          // itself (gated on decision === "KEEP", best-effort). This Edge
+          // Function never reads any table or applies any business logic of
+          // its own for this field — an HTTP boundary only.
+          executablePrescription: result.executablePrescription,
         },
         { status: 200 }
       );
