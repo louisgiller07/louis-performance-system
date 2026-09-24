@@ -13,10 +13,17 @@ import {
   insertPlannedSession,
   insertCompletedSession,
   insertDecision,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
   type TestAthlete,
 } from "./testDb.js";
 
-describe("M2 write path — runDailyFor (integration, local Supabase, real persist_daily_run)", () => {
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+
+describe.skipIf(!INTEGRATION_ENABLED)("M2 write path — runDailyFor (integration, local Supabase, real persist_daily_run)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -33,7 +40,7 @@ describe("M2 write path — runDailyFor (integration, local Supabase, real persi
     const today = "2026-08-16";
     await insertCheckin(client, athlete.athleteId, today);
     await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
-    await insertPlannedSession(client, athlete.athleteId, today, { session_type: "REST" });
+    await insertPlannedSession(athlete.athleteId, today, { session_type: "REST" });
 
     const result = await runDailyFor(client, athlete.athleteId, today);
 
@@ -173,7 +180,7 @@ describe("M2 write path — runDailyFor (integration, local Supabase, real persi
 // unchanged by this ticket) — this proves the new
 // `recent_recovery_context` field rides that existing, already-immutable
 // append-only mechanism correctly: no new persistence code was needed.
-describe("V0.3_008A — recent_recovery_context persisted snapshot immutability (real Supabase)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_008A — recent_recovery_context persisted snapshot immutability (real Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -264,7 +271,7 @@ describe("V0.3_008A — recent_recovery_context persisted snapshot immutability 
 // JSONB, unchanged by this ticket) — no new persistence code, but a
 // distinct nested field deserves its own direct real-DB proof rather than
 // inferring it from V0.3_008A's.
-describe("V0.3_008B — prior_task_reference persisted snapshot immutability (real Supabase)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_008B — prior_task_reference persisted snapshot immutability (real Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -302,7 +309,7 @@ describe("V0.3_008B — prior_task_reference persisted snapshot immutability (re
     // surfaced at all — see the today-relevance gate).
     await insertCheckin(client, athlete.athleteId, today);
     await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
-    await insertPlannedSession(client, athlete.athleteId, today, {
+    await insertPlannedSession(athlete.athleteId, today, {
       session_type: "DH_TECHNICAL",
       intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
     });
@@ -379,7 +386,7 @@ describe("V0.3_008B — prior_task_reference persisted snapshot immutability (re
     await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
     // No planned session -> inference fallback, not guaranteed DH-family;
     // REST is the simplest deterministic non-DH case.
-    await insertPlannedSession(client, athlete.athleteId, today, { session_type: "REST" });
+    await insertPlannedSession(athlete.athleteId, today, { session_type: "REST" });
 
     const result = await runDailyFor(client, athlete.athleteId, today);
     expect(result.dailyPlan.dh_or_technical.active).toBe(false);

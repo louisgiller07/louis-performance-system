@@ -10,10 +10,16 @@ import {
   insertCheckin,
   insertTrainingBlock,
   insertRace,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
   type TestAthlete,
 } from "./testDb.js";
 
-describe("M2 read path — computeDailyFor equivalence with M1 fixtures (integration, local Supabase)", () => {
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+
+describe.skipIf(!INTEGRATION_ENABLED)("M2 read path — computeDailyFor equivalence with M1 fixtures (integration, local Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -73,7 +79,7 @@ describe("M2 read path — computeDailyFor equivalence with M1 fixtures (integra
   });
 });
 
-describe("M2 read path — computeDailyFor performs zero writes (integration, local Supabase)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("M2 read path — computeDailyFor performs zero writes (integration, local Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 

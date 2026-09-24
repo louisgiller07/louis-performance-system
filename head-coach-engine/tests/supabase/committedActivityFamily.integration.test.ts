@@ -28,10 +28,17 @@ import {
   insertTrainingBlock,
   insertPlannedSession,
   insertRace,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
   type TestAthlete,
 } from "./testDb.js";
 
-describe("V0.3_005A (NAL-001) — DB->engine wiring: planned_sessions.is_committed through runDailyFor", () => {
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005A (NAL-001) — DB->engine wiring: planned_sessions.is_committed through runDailyFor", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -59,7 +66,7 @@ describe("V0.3_005A (NAL-001) — DB->engine wiring: planned_sessions.is_committ
   });
 
   it("Case A — is_committed=TRUE: committed DH-family adaptation survives the full DB round-trip, never AEROBIC_BASE", async () => {
-    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+    await insertPlannedSession(athlete.athleteId, TODAY, {
       session_type: "DH_PERFORMANCE",
       intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
       is_committed: true,
@@ -107,7 +114,7 @@ describe("V0.3_005A (NAL-001) — DB->engine wiring: planned_sessions.is_committ
   });
 
   it("Case B — is_committed=FALSE (control): legacy verbatim race-protocol substitution, no commitment trace", async () => {
-    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+    await insertPlannedSession(athlete.athleteId, TODAY, {
       session_type: "DH_PERFORMANCE",
       intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
       is_committed: false,

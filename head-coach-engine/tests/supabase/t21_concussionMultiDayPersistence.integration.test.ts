@@ -1,7 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
-import { createTestClient, createTestAthlete, deleteTestAthlete, insertCheckin, insertTrainingBlock, type TestAthlete } from "./testDb.js";
+import {
+  createTestClient,
+  createTestAthlete,
+  deleteTestAthlete,
+  insertCheckin,
+  insertTrainingBlock,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
+  type TestAthlete,
+} from "./testDb.js";
+
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
 
 /**
  * V0.3.013 — PILOT-BLOCK-002. Strengthens the existing single-neutral-day
@@ -17,7 +30,7 @@ import { createTestClient, createTestAthlete, deleteTestAthlete, insertCheckin, 
  * explicit external write (the same privileged DB action a real medical
  * validation workflow would perform) can close it.
  */
-describe("T21 — concussion signal survives multiple neutral days, closes only on explicit resolution (V0.3.013)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("T21 — concussion signal survives multiple neutral days, closes only on explicit resolution (V0.3.013)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 

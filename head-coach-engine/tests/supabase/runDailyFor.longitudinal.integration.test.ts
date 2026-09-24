@@ -1,9 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
-import { createTestClient, createTestAthlete, deleteTestAthlete, insertCheckin, insertTrainingBlock, type TestAthlete } from "./testDb.js";
+import {
+  createTestClient,
+  createTestAthlete,
+  deleteTestAthlete,
+  insertCheckin,
+  insertTrainingBlock,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
+  type TestAthlete,
+} from "./testDb.js";
 
-describe("M2 write path — longitudinal A1 → A5 → resolution (integration, real M1 engine + real DB + real runDailyFor)", () => {
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+
+describe.skipIf(!INTEGRATION_ENABLED)("M2 write path — longitudinal A1 → A5 → resolution (integration, real M1 engine + real DB + real runDailyFor)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 

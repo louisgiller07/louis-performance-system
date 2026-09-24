@@ -23,8 +23,9 @@ import { projectTrainingPlan } from "../../src/supabase/projectTrainingPlan.js";
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESOLVED_ADMIN_URL = resolveTestSupabaseUrl();
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 const INTEGRATION_ENABLED =
-  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(RESOLVED_ADMIN_URL);
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(RESOLVED_ADMIN_URL);
 
 const WINDOW_START = "2026-10-19";
 const WINDOW_END = "2026-10-25";
@@ -137,7 +138,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2.7 — projectTrainingPlan (real local 
       sessions: [{ date: "2026-10-20", kind: "STRENGTH_LOWER", loadProfile: "MODERATE" }],
     });
     // Athlete manual save — source defaults to 'manual' (insertPlannedSession never sets source).
-    await insertPlannedSession(admin, athleteA.athleteId, "2026-10-20", {
+    await insertPlannedSession(athleteA.athleteId, "2026-10-20", {
       session_type: "DH_TECHNICAL",
       intervention: { kind: "DH_TECHNICAL" },
     });

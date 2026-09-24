@@ -19,12 +19,20 @@ import {
   insertCoachingProfile,
   insertCompletedSession,
   insertDecision,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
+  getAthleteAuthClient,
   type TestAthlete,
 } from "./testDb.js";
 
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+
 const TODAY = "2026-08-16";
 
-describe("M2 read path — buildRawContext (integration, local Supabase)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("M2 read path — buildRawContext (integration, local Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -106,7 +114,7 @@ describe("M2 read path — buildRawContext (integration, local Supabase)", () =>
   it("uses the rich intervention JSONB as source of truth for planned_session", async () => {
     await insertCheckin(client, athlete.athleteId, TODAY);
     await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
-    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+    await insertPlannedSession(athlete.athleteId, TODAY, {
       session_type: "STRENGTH_A",
       intervention: { kind: "STRENGTH_UPPER", load_profile: "HEAVY" },
     });
@@ -119,7 +127,7 @@ describe("M2 read path — buildRawContext (integration, local Supabase)", () =>
   it("falls back to the deterministic inversion for a legacy REST row with no intervention", async () => {
     await insertCheckin(client, athlete.athleteId, TODAY);
     await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
-    await insertPlannedSession(client, athlete.athleteId, TODAY, { session_type: "REST" });
+    await insertPlannedSession(athlete.athleteId, TODAY, { session_type: "REST" });
 
     const { rawContext, warnings } = await buildRawContext(client, athlete.athleteId, TODAY);
 
@@ -130,7 +138,7 @@ describe("M2 read path — buildRawContext (integration, local Supabase)", () =>
   it("never fabricates a rich intervention for a legacy ambiguous session_type, and surfaces a warning", async () => {
     await insertCheckin(client, athlete.athleteId, TODAY);
     await insertTrainingBlock(client, athlete.athleteId, "IN_SEASON");
-    await insertPlannedSession(client, athlete.athleteId, TODAY, { session_type: "STRENGTH_A" });
+    await insertPlannedSession(athlete.athleteId, TODAY, { session_type: "STRENGTH_A" });
 
     const { rawContext, warnings } = await buildRawContext(client, athlete.athleteId, TODAY);
 
@@ -145,7 +153,7 @@ describe("M2 read path — buildRawContext (integration, local Supabase)", () =>
     // primary_objective is intentionally not settable via insertPlannedSession's
     // typed fixture helper — there is structurally no path for it to leak into
     // RawContext.planned_intent through this boundary.
-    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+    await insertPlannedSession(athlete.athleteId, TODAY, {
       session_type: "REST",
       planned_intent: "Explicit intent from planned_intent column",
     });
@@ -167,7 +175,7 @@ describe("M2 read path — buildRawContext (integration, local Supabase)", () =>
   });
 });
 
-describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_002B — widened race window (today+14) — M1 inertness", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -389,10 +397,12 @@ describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => 
 
     it("CASE 3 — a current training_blocks row exists but mode is NULL -> explicit InvalidTrainingModeError, never silently mapped to UNSPECIFIED", async () => {
       await insertCheckin(client, athlete.athleteId, TODAY);
-      // Same shape insertTrainingBlock uses, but with mode explicitly NULL
-      // instead of a valid enum value — malformed configured data, not an
-      // absent row.
-      const { error } = await client.from("training_blocks").insert({
+      // Mode explicitly NULL — malformed configured data, not an absent row.
+      // Projection can never produce it (canonical block mode is NOT NULL),
+      // so it is written as a legacy row through the athlete's own client
+      // under RLS; service_role has no write grant here since V0.4_002D.
+      const athleteClient = await getAthleteAuthClient(athlete.athleteId);
+      const { error } = await athleteClient.from("training_blocks").insert({
         athlete_id: athlete.athleteId,
         name: "Malformed current block",
         start_date: "2026-01-01",
@@ -427,7 +437,7 @@ describe("V0.3_002B — widened race window (today+14) — M1 inertness", () => 
   });
 });
 
-describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real Supabase)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -628,7 +638,7 @@ describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real S
       race_format: "HOT_TRAIL_2DAY",
       status: "confirmed",
     });
-    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+    await insertPlannedSession(athlete.athleteId, TODAY, {
       session_type: "DH_PERFORMANCE",
       intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
       is_committed: true,
@@ -656,7 +666,7 @@ describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real S
       race_format: "HOT_TRAIL_2DAY",
       status: "cancelled",
     });
-    await insertPlannedSession(client, athlete.athleteId, TODAY, {
+    await insertPlannedSession(athlete.athleteId, TODAY, {
       session_type: "DH_PERFORMANCE",
       intervention: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" },
       is_committed: true,
@@ -684,7 +694,7 @@ describe("V0.3_005B (NAL-007A) — race status coaching-relevance filter (real S
 // (recentRecoveryContext.test.ts) — this proves only that the real select
 // against a real completed_sessions row actually carries the new columns
 // end to end.
-describe("V0.3_008A — Previous-Day Recovery Continuity (real Supabase wiring)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_008A — Previous-Day Recovery Continuity (real Supabase wiring)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
   const TODAY = "2026-08-24";
@@ -824,7 +834,7 @@ describe("V0.3_008A — Previous-Day Recovery Continuity (real Supabase wiring)"
 // real query bounds (window/limit), the real FK-linkage (decision_id ->
 // decisions.id, including multiple same-date decisions), and cross-athlete
 // isolation against the actual local Supabase stack.
-describe("V0.3_008B — Technical Continuity (real Supabase wiring)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("V0.3_008B — Technical Continuity (real Supabase wiring)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
   const TODAY = "2026-09-14";

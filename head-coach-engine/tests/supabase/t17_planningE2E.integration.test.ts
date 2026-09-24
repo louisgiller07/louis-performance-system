@@ -33,6 +33,7 @@ import {
   insertCoachingProfile,
   isLoopbackSupabaseUrl,
   resolveTestSupabaseUrl,
+  getAthleteAuthClient,
   type TestAthlete,
 } from "./testDb.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
@@ -42,8 +43,9 @@ import { mapTrainingInterventionToDbSessionType } from "../../src/mapping/traini
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESOLVED_ADMIN_URL = resolveTestSupabaseUrl();
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
 const INTEGRATION_ENABLED =
-  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(RESOLVED_ADMIN_URL);
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(RESOLVED_ADMIN_URL);
 
 // Always-on, pure, network-free — proves the negative case directly rather
 // than only by inspection: the real production project URL can never
@@ -107,9 +109,11 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
     await withScratchAthlete("T17 planned-then-deleted", async (athlete) => {
       await insertTrainingBlock(admin, athlete.athleteId, "IN_SEASON");
       await insertCheckin(admin, athlete.athleteId, date);
-      await insertPlannedSession(admin, athlete.athleteId, date, { session_type: "REST", intervention: { kind: "REST" } });
+      await insertPlannedSession(athlete.athleteId, date, { session_type: "REST", intervention: { kind: "REST" } });
 
-      const { error: deleteError } = await admin
+      // Same delete as the web app's /plan (planningRepo.deletePlannedSession): the athlete's own client under RLS.
+      const athleteClient = await getAthleteAuthClient(athlete.athleteId);
+      const { error: deleteError } = await athleteClient
         .from("planned_sessions")
         .delete()
         .eq("athlete_id", athlete.athleteId)
@@ -137,7 +141,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
     await withScratchAthlete("T17 explicit REST", async (athlete) => {
       await insertTrainingBlock(admin, athlete.athleteId, "IN_SEASON");
       await insertCheckin(admin, athlete.athleteId, date);
-      await insertPlannedSession(admin, athlete.athleteId, date, { session_type: "REST", intervention: { kind: "REST" } });
+      await insertPlannedSession(athlete.athleteId, date, { session_type: "REST", intervention: { kind: "REST" } });
 
       const result = await runDailyFor(admin, athlete.athleteId, date);
 
@@ -162,7 +166,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
     await withScratchAthlete("T17 strength+nutrition", async (athlete) => {
       await insertTrainingBlock(admin, athlete.athleteId, "IN_SEASON");
       await insertCheckin(admin, athlete.athleteId, date);
-      await insertPlannedSession(admin, athlete.athleteId, date, {
+      await insertPlannedSession(athlete.athleteId, date, {
         session_type: "STRENGTH_A",
         intervention: { kind: "STRENGTH_LOWER", load_profile: "HEAVY" },
       });
@@ -191,7 +195,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
     await withScratchAthlete("T17 DH+technique", async (athlete) => {
       await insertTrainingBlock(admin, athlete.athleteId, "IN_SEASON");
       await insertCheckin(admin, athlete.athleteId, date);
-      await insertPlannedSession(admin, athlete.athleteId, date, {
+      await insertPlannedSession(athlete.athleteId, date, {
         session_type: "DH_TECHNICAL",
         intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
       });
@@ -217,7 +221,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("T17 — Planning → RawContext → Daily
     await withScratchAthlete("T17 race precedence", async (athlete) => {
       await insertTrainingBlock(admin, athlete.athleteId, "IN_SEASON");
       await insertCheckin(admin, athlete.athleteId, date);
-      await insertPlannedSession(admin, athlete.athleteId, date, {
+      await insertPlannedSession(athlete.athleteId, date, {
         session_type: "DH_TECHNICAL",
         intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
       });

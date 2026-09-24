@@ -11,8 +11,9 @@
  *   SUPABASE_SECRET_KEY="$(npx supabase status -o env | grep SECRET_KEY | cut -d'"' -f2)" npm test
  */
 import { randomUUID } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../src/supabase/client.js";
+import { projectTrainingPlan } from "../../src/supabase/projectTrainingPlan.js";
 
 const LOCAL_URL = "http://127.0.0.1:54321";
 /** The local Supabase CLI's default REST API port. */
@@ -94,6 +95,40 @@ export interface TestAthlete {
   userId: string;
 }
 
+export class MissingTestPublishableKeyError extends Error {
+  constructor() {
+    super(
+      "No Supabase publishable/anon key found in the environment. Set SUPABASE_PUBLISHABLE_KEY (or " +
+        "SUPABASE_ANON_KEY) to your local stack's key — required to sign in as a scratch athlete."
+    );
+    this.name = "MissingTestPublishableKeyError";
+  }
+}
+
+// Scratch athletes' own credentials, so fixtures can write through the athlete's
+// authenticated client (RLS) exactly like the web app does.
+const credentialsByAthleteId = new Map<string, { email: string; password: string }>();
+const authClientByAthleteId = new Map<string, SupabaseClient>();
+
+/** The scratch athlete's own signed-in client (publishable key + password session, RLS applies). */
+export async function getAthleteAuthClient(athleteId: string): Promise<SupabaseClient> {
+  const cached = authClientByAthleteId.get(athleteId);
+  if (cached) return cached;
+
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+  if (!publishableKey) throw new MissingTestPublishableKeyError();
+  const url = resolveTestSupabaseUrl();
+  if (!isLoopbackSupabaseUrl(url)) throw new UnsafeTestTargetError(url);
+  const credentials = credentialsByAthleteId.get(athleteId);
+  if (!credentials) throw new Error(`getAthleteAuthClient: ${athleteId} was not created by createTestAthlete in this run`);
+
+  const authClient = createClient(url, publishableKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error } = await authClient.auth.signInWithPassword(credentials);
+  if (error) throw new Error(`getAthleteAuthClient: sign-in failed: ${error.message}`);
+  authClientByAthleteId.set(athleteId, authClient);
+  return authClient;
+}
+
 /**
  * Creates a scratch auth user (via the GoTrue Admin API — PostgREST does
  * not expose the `auth` schema directly, even to service_role) + an
@@ -102,9 +137,11 @@ export interface TestAthlete {
 export async function createTestAthlete(client: SupabaseClient, name: string): Promise<TestAthlete> {
   const athleteId = randomUUID();
   const email = `m2-read-path-test-${randomUUID()}@example.invalid`;
+  const password = randomUUID();
 
   const { data: userData, error: userError } = await client.auth.admin.createUser({
     email,
+    password,
     email_confirm: true,
   });
   if (userError || !userData.user) {
@@ -115,13 +152,28 @@ export async function createTestAthlete(client: SupabaseClient, name: string): P
   const { error: athleteError } = await client.from("athletes").insert({ id: athleteId, user_id: userId, name });
   if (athleteError) throw new Error(`createTestAthlete: athletes insert failed: ${athleteError.message}`);
 
+  credentialsByAthleteId.set(athleteId, { email, password });
   return { athleteId, userId };
 }
 
-/** Deletes the athlete (cascades decisions/health_flags/planned_sessions/completed_sessions/daily_checkins) then the auth user. */
+/**
+ * Deletes the athlete (cascades decisions/health_flags/planned_sessions/completed_sessions/daily_checkins) then the auth user.
+ *
+ * Known limitation: canonical training plans are immutable history (FK RESTRICT + no-delete
+ * triggers on training_plan_*), so an athlete that owns one cannot be deleted — it is left in the
+ * local database on purpose. Every other failure is thrown, never swallowed.
+ */
 export async function deleteTestAthlete(client: SupabaseClient, athlete: TestAthlete): Promise<void> {
-  await client.from("athletes").delete().eq("id", athlete.athleteId);
-  await client.auth.admin.deleteUser(athlete.userId);
+  credentialsByAthleteId.delete(athlete.athleteId);
+  authClientByAthleteId.delete(athlete.athleteId);
+
+  const { error: athleteError } = await client.from("athletes").delete().eq("id", athlete.athleteId);
+  if (athleteError) {
+    if (athleteError.code === "23503" && athleteError.message.includes("training_plan_versions_athlete_id_fkey")) return;
+    throw new Error(`deleteTestAthlete: athletes delete failed: ${athleteError.message}`);
+  }
+  const { error: userError } = await client.auth.admin.deleteUser(athlete.userId);
+  if (userError) throw new Error(`deleteTestAthlete: auth user delete failed: ${userError.message}`);
 }
 
 export interface CheckinFixture {
@@ -183,25 +235,34 @@ export async function insertCheckin(
   if (error) throw new Error(`insertCheckin failed: ${error.message}`);
 }
 
+/**
+ * A current `training_blocks` row (2026-01-01..2026-12-31, given `mode`) produced the only way
+ * production writes that table since V0.4_002D: an accepted canonical plan projected by the real
+ * `projectTrainingPlan` → `project_training_plan` RPC. The canonical plan's single (required)
+ * session sits on 2026-12-31, outside the projected window, so no planned_sessions row is created.
+ */
 export async function insertTrainingBlock(
   client: SupabaseClient,
   athleteId: string,
   mode: string
 ): Promise<void> {
-  const { error } = await client.from("training_blocks").insert({
-    athlete_id: athleteId,
-    name: "Test block",
-    start_date: "2026-01-01",
-    end_date: "2026-12-31",
-    primary_focus: "test",
-    is_current: true,
-    mode,
+  await generateAndAcceptTrainingPlan(client, athleteId, {
+    horizonStartDate: "2026-01-01",
+    horizonEndDate: "2026-12-31",
+    blockMode: mode,
+    sessions: [{ date: "2026-12-31", kind: "REST" }],
   });
-  if (error) throw new Error(`insertTrainingBlock failed: ${error.message}`);
+  const report = await projectTrainingPlan(client, athleteId, "2026-01-01", "2026-01-01");
+  if (report.trainingBlock.outcome === "no_candidate") throw new Error("insertTrainingBlock: projection produced no training block");
+  if (report.plannedSessions.length > 0) throw new Error("insertTrainingBlock: projection unexpectedly wrote planned_sessions");
 }
 
+/**
+ * A manual planned session written through the athlete's own authenticated client under RLS —
+ * the same path as the web app's /plan (web/src/features/planning/planningRepo.ts). service_role
+ * has no write grant on planned_sessions since V0.4_002D.
+ */
 export async function insertPlannedSession(
-  client: SupabaseClient,
   athleteId: string,
   date: string,
   fields: {
@@ -212,7 +273,8 @@ export async function insertPlannedSession(
     is_committed?: boolean;
   }
 ): Promise<void> {
-  const { error } = await client.from("planned_sessions").insert({
+  const authClient = await getAthleteAuthClient(athleteId);
+  const { error } = await authClient.from("planned_sessions").insert({
     athlete_id: athleteId,
     planned_date: date,
     session_type: fields.session_type,

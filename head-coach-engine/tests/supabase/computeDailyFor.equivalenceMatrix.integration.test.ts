@@ -51,8 +51,15 @@ import {
   insertCompletedSession,
   insertHealthFlag,
   insertCoachingProfile,
+  isLoopbackSupabaseUrl,
+  resolveTestSupabaseUrl,
   type TestAthlete,
 } from "./testDb.js";
+
+const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
+const INTEGRATION_ENABLED =
+  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
 
 interface Scenario {
   name: string;
@@ -295,7 +302,7 @@ const SCENARIOS: Scenario[] = [
   },
 ];
 
-describe("M2 closure pass — fixture ↔ Supabase equivalence matrix (integration, local Supabase)", () => {
+describe.skipIf(!INTEGRATION_ENABLED)("M2 closure pass — fixture ↔ Supabase equivalence matrix (integration, local Supabase)", () => {
   let client: SupabaseClient;
   let athlete: TestAthlete;
 
@@ -321,7 +328,7 @@ describe("M2 closure pass — fixture ↔ Supabase equivalence matrix (integrati
     await insertCoachingProfile(client, athlete.athleteId, LOUIS_COACHING_PROFILE);
 
     if (scenario.plannedSession) {
-      await insertPlannedSession(client, athlete.athleteId, scenario.today, {
+      await insertPlannedSession(athlete.athleteId, scenario.today, {
         session_type: mapTrainingInterventionToDbSessionType(scenario.plannedSession),
         intervention: scenario.plannedSession,
         planned_intent: scenario.plannedIntent ?? null,
