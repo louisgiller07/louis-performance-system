@@ -18,7 +18,8 @@
  */
 import type { RepScheme } from "../types/strengthPrescription.js";
 
-export const EXERCISE_CATALOG_VERSION = "v2";
+// "v3" (PILOT_017): released together with DRILL_CATALOG_VERSION — the exercise entries themselves are unchanged.
+export const EXERCISE_CATALOG_VERSION = "v3";
 
 export type MovementCategory = "squat" | "hinge" | "push" | "pull" | "carry" | "core" | "mobility";
 

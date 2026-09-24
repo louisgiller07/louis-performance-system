@@ -332,3 +332,49 @@ describe("runGenerationEngine — final assembly, end to end with real engines",
     expect(aerobicSession!.prescription).toBeUndefined();
   });
 });
+
+// PILOT_017 — the production profile that failed on 2026-09-24 (NoCompatibleDrillError → 500,
+// then 422 since PILOT_015): Downhill, intermediate, priorityAreas[0] = race_execution. With the
+// completed drill catalogue it must generate, through the real planning + prescription engines.
+describe("runGenerationEngine — production profile regression (PILOT_017)", () => {
+  const productionProfile = (): PlanInputSnapshot =>
+    planInputSnapshot({
+      strengthExperienceTier: "intermediate",
+      equipment: ["squat_rack", "bench", "pull_up_bar", "cable_machine", "resistance_bands"],
+      terrainAccess: [
+        "flow_trail",
+        "bermed_trail",
+        "steep_technical_trail",
+        "full_dh_track",
+        "bike_park_jump_line",
+        "rock_garden",
+        "root_rock_trail",
+        "technical_trail",
+        "any_groomed_trail",
+      ],
+      technicalPriorities: { strengths: ["cornering"], weaknesses: ["race_execution"], priorityAreas: ["race_execution"] },
+      availability: {
+        windows: [
+          { dayOfWeek: 3, startTime: "18:00", endTime: "20:00" },
+          { dayOfWeek: 6, startTime: "09:00", endTime: "12:00" },
+        ],
+        exceptions: [],
+      },
+    });
+
+  it("generates without NoCompatibleDrillError and prescribes intermediate race_execution drills", () => {
+    const result = runGenerationEngine({ block: block(), planInputSnapshot: productionProfile() });
+
+    const dhDrills = result.weeks
+      .flatMap((w) => w.sessions)
+      .flatMap((s) => {
+        const structure = s.prescription?.prescription.structure;
+        return structure && structure.domain === "dh_technical" ? structure.drills : [];
+      });
+    expect(dhDrills.length).toBeGreaterThan(0);
+    for (const drill of dhDrills) {
+      expect(drill.skillTarget).toBe("race_execution");
+      expect(planningEngineModule.DRILL_CATALOG[drill.drillId]!.difficulty).toBe("intermediate");
+    }
+  });
+});

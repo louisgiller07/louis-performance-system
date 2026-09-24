@@ -3082,3 +3082,22 @@ Fichiers : `head-coach-engine/src/supabase/goalReasoning.ts` (nouveau), `head-co
 **Hors périmètre** : la couverture du catalogue de drills. Pour chaque niveau, 3 des 7 priorités techniques n'ont aucun drill : `intermediate` → `jumps`, `roots_rocks`, `race_execution` ; `beginner` → `line_choice`, `steep_terrain`, `race_execution` ; `advanced` → `braking`, `line_choice`, `steep_terrain`. Décision architecte (PILOT_016) : **option A — compléter la couverture du catalogue** (niveau × priorité) dans un ticket séparé (PILOT_017). Pas de changement de la politique de sélection (V0.4_124/126 inchangés). Le 422 `no_compatible_drill` reste le filet. Recrutement pilote en pause jusqu'au correctif catalogue et au rollout production.
 
 **Statut** : Accepted (local, non déployé)
+
+## 2026-09-24 — ADR PILOT_017 : Technical drill catalogue coverage
+
+**Contexte** : PILOT_015/016 ont établi que 9 des 21 combinaisons `skillTarget × difficulty` n'avaient aucun drill. Comme `selectDrill` exige un niveau exact, un profil DH valide (par exemple `intermediate` + `race_execution`) ne pouvait pas générer de plan. Décision architecte PILOT_016 : option A, compléter la couverture du catalogue.
+
+**Décision** : option A implémentée dans `planning-engine/src/catalog/drillCatalog.ts`. 9 nouveaux drills, les IDs existants sont inchangés :
+- `line_choice_two_line_scan`, `steep_terrain_controlled_roll_in`, `race_execution_section_consistency` (beginner) ;
+- `jumps_linked_tables`, `roots_rocks_unweighted_line`, `race_execution_split_pace` (intermediate) ;
+- `braking_marked_zone_at_speed`, `line_choice_fast_line_compare`, `steep_terrain_off_brake_chute` (advanced).
+
+La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terrain déjà utilisé par son `skillTarget`, ou un terrain courant ; `race_execution/intermediate` ne dépend pas de `full_dh_track`. Les chaînes `progressesTo`/`regressesTo` sont complétées. La version combinée du catalogue passe de `DRILL_CATALOG_VERSION`/`EXERCISE_CATALOG_VERSION` `v2` à `v3` (versions publiées ensemble ; entrées d'exercices inchangées).
+
+**Inchangé** :
+- la politique de sélection : `priorityAreas[0]`, correspondance de niveau exacte, aucun repli vers un autre niveau ni une autre priorité (V0.4_124/126) ;
+- `prescription-engine/src` ;
+- `NoCompatibleDrillError` est conservée comme filet (terrain réellement incompatible, catalogue futur incomplet), avec le mapping HTTP 422 `no_compatible_drill` de PILOT_015 ;
+- le catalogue d'exercices a été audité : chacune des 6 catégories demandées a une entrée sans matériel et aucun filtre de niveau, donc aucun trou analogue.
+
+**Statut** : Accepted

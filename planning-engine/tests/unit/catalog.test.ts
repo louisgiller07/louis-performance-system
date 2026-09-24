@@ -190,3 +190,28 @@ describe("week template catalog", () => {
     }
   });
 });
+
+// PILOT_017 — prescription-engine's selectDrill matches difficulty exactly and never falls
+// back to another tier or priority, so every skillTarget × difficulty pair needs its own drill.
+describe("DH drill catalog — skillTarget × difficulty coverage (PILOT_017)", () => {
+  const SKILL_TARGETS = ["braking", "cornering", "line_choice", "steep_terrain", "roots_rocks", "jumps", "race_execution"] as const;
+  const TIERS = ["beginner", "intermediate", "advanced"] as const;
+
+  it("21/21 combinations have at least one non-deprecated drill", () => {
+    const missing: string[] = [];
+    for (const skillTarget of SKILL_TARGETS) {
+      for (const tier of TIERS) {
+        const drills = DRILL_CATALOG_ENTRIES.filter((d) => d.skillTarget === skillTarget && d.difficulty === tier && d.deprecated !== true);
+        if (drills.length === 0) missing.push(`${skillTarget}/${tier}`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("every drill uses only the closed skillTarget/difficulty vocabularies", () => {
+    for (const entry of DRILL_CATALOG_ENTRIES) {
+      expect(SKILL_TARGETS as readonly string[], `drill "${entry.id}" skillTarget`).toContain(entry.skillTarget);
+      expect(TIERS as readonly string[], `drill "${entry.id}" difficulty`).toContain(entry.difficulty);
+    }
+  });
+});
