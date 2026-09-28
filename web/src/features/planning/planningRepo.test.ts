@@ -34,7 +34,7 @@ describe("planningRepo.loadPlannedSessions", () => {
 
     expect(result).toEqual([]);
     expect(mockedFrom).toHaveBeenCalledWith("planned_sessions");
-    expect(select).toHaveBeenCalledWith("planned_date, session_type, intervention, planned_intent, is_committed");
+    expect(select).toHaveBeenCalledWith("planned_date, session_type, intervention, planned_intent, is_committed, source");
     expect(eq).toHaveBeenCalledWith("athlete_id", "athlete-1");
     expect(gte).toHaveBeenCalledWith("planned_date", "2026-08-01");
     expect(lte).toHaveBeenCalledWith("planned_date", "2026-08-31");

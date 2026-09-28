@@ -6,17 +6,18 @@ import { TrainingPlanPreviewPage } from "./TrainingPlanPreviewPage";
 import { TrainingPlanVersionNotFoundError } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import type { TrainingPlanDraftSummary, TrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewTypes";
 
-const { getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId } = vi.hoisted(() => ({
+const { getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates } = vi.hoisted(() => ({
   getTrainingPlanDrafts: vi.fn(),
   getTrainingPlanReview: vi.fn(),
   getActivePlanVersionId: vi.fn(),
+  getManualPlannedDates: vi.fn(),
 }));
 
 vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", async () => {
   const actual = await vi.importActual<typeof import("../features/trainingPlanReview/trainingPlanReviewRepo")>(
     "../features/trainingPlanReview/trainingPlanReviewRepo"
   );
-  return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId };
+  return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates };
 });
 
 const { acceptTrainingPlan } = vi.hoisted(() => ({ acceptTrainingPlan: vi.fn() }));
@@ -72,6 +73,7 @@ function reviewFor(draft: TrainingPlanDraftSummary): TrainingPlanReview {
 beforeEach(() => {
   vi.resetAllMocks();
   getActivePlanVersionId.mockResolvedValue(null);
+  getManualPlannedDates.mockResolvedValue([]);
 });
 
 describe("TrainingPlanPreviewPage", () => {
@@ -99,7 +101,7 @@ describe("TrainingPlanPreviewPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("version-1");
   });
 
@@ -120,7 +122,7 @@ describe("TrainingPlanPreviewPage", () => {
 
     renderPage();
 
-    await screen.findByText("Initial training plan generation.");
+    await screen.findByText("Première génération de ton plan d'entraînement.");
     expect(screen.queryByText(/plans en attente/)).not.toBeInTheDocument();
   });
 
@@ -144,7 +146,7 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
     getTrainingPlanReview.mockImplementation(async (id: string) => {
       if (id === "plan-123") {
         return {
-          version: { ...DRAFT_1, id: "plan-123", rationale: "Targeted plan.", relaxedConstraints: [] },
+          version: { ...DRAFT_1, id: "plan-123", rationale: "Regenerated after declared equipment changed.", relaxedConstraints: [] },
           lifecycleState: "draft",
           blocks: [],
         };
@@ -154,7 +156,7 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage("/training-plan-preview/plan-123");
 
-    expect(await screen.findByText("Targeted plan.")).toBeInTheDocument();
+    expect(await screen.findByText("Plan régénéré après une modification de ton équipement.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("plan-123");
   });
 
@@ -167,8 +169,8 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
-    expect(screen.queryByText("Regenerated after a manual edit.")).not.toBeInTheDocument();
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
+    expect(screen.queryByText("Plan régénéré après une modification manuelle.")).not.toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith(DRAFT_1.id);
     expect(getTrainingPlanReview).not.toHaveBeenCalledWith(DRAFT_2.id);
   });
@@ -183,8 +185,8 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
     renderPage("/training-plan-preview/missing-id");
 
     expect(await screen.findByText("Ce plan est introuvable ou n'est plus accessible.")).toBeInTheDocument();
-    expect(screen.queryByText("Initial training plan generation.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Regenerated after a manual edit.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Première génération de ton plan d'entraînement.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plan régénéré après une modification manuelle.")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Voir les plans disponibles" })).toHaveAttribute("href", "/training-plan-preview");
   });
 
@@ -198,7 +200,7 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage("/training-plan-preview/accepted-plan");
 
-    expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("accepted-plan");
   });
 });
@@ -260,5 +262,96 @@ describe("TrainingPlanPreviewPage — post-acceptance CTA (V0.5_050)", () => {
 
     expect(await screen.findByRole("link", { name: "Aller à Aujourd'hui" })).toHaveAttribute("href", "/today");
     expect(acceptTrainingPlan).not.toHaveBeenCalled();
+  });
+});
+
+// V06-02 — program days the athlete overrode in their planning: a
+// supplementary read, only for the accepted plan, never blocking the page.
+describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
+  function acceptedReviewWithSessionOn(date: string): TrainingPlanReview {
+    return {
+      version: { ...DRAFT_1, relaxedConstraints: [] },
+      lifecycleState: "accepted",
+      blocks: [
+        {
+          id: "block-1",
+          sequenceNumber: 1,
+          name: "Block",
+          mode: "IN_SEASON",
+          primaryFocus: "base",
+          startDate: DRAFT_1.horizonStartDate,
+          endDate: DRAFT_1.horizonEndDate,
+          weeks: [
+            {
+              id: "week-1",
+              blockId: "block-1",
+              weekNumber: 1,
+              startDate: "2026-10-19",
+              endDate: "2026-10-25",
+              weekType: "development",
+              rationale: "Standard development week.",
+              doseSummary: {
+                plannedStrengthSessionCount: 1,
+                plannedDhTechnicalSessionCount: 0,
+                plannedAerobicSessionCount: 0,
+                plannedRestOrRecoveryDayCount: 0,
+                totalPlannedMinutes: 60,
+              },
+              sessions: [
+                { id: "s-1", weekId: "week-1", date, kind: "STRENGTH_LOWER", loadProfile: "MODERATE", durationMin: 60, doseTarget: null, rationale: "Standard development week. Adjusted due to recent missed or replaced sessions pattern", prescription: null },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("accepted plan: a program day held as a manual row is reported; a manual row outside the program is not", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([]);
+    getTrainingPlanReview.mockResolvedValue(acceptedReviewWithSessionOn("2026-10-20"));
+    getManualPlannedDates.mockResolvedValue(["2026-10-20", "2026-10-21"]);
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    expect(await screen.findByText("1 jour de ce programme a été modifié par toi dans ton planning.")).toBeInTheDocument();
+    expect(getManualPlannedDates).toHaveBeenCalledWith(DRAFT_1.horizonStartDate, DRAFT_1.horizonEndDate);
+  });
+
+  it("accepted plan with no modification: no message", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([]);
+    getTrainingPlanReview.mockResolvedValue(acceptedReviewWithSessionOn("2026-10-20"));
+    getManualPlannedDates.mockResolvedValue([]);
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
+    await waitFor(() => expect(getManualPlannedDates).toHaveBeenCalled());
+    expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
+  });
+
+  it("read failure: the plan stays fully displayed and usable, the message is simply hidden", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([]);
+    getTrainingPlanReview.mockResolvedValue(acceptedReviewWithSessionOn("2026-10-20"));
+    getManualPlannedDates.mockRejectedValue(new Error("network down"));
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
+    await waitFor(() => expect(getManualPlannedDates).toHaveBeenCalled());
+    expect(screen.getByText("Plan actif")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Aller à Aujourd'hui" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
+  });
+
+  it("draft plan: never reads the athlete's planning (its days are not projected yet)", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([DRAFT_1]);
+    getTrainingPlanReview.mockResolvedValue({ ...acceptedReviewWithSessionOn("2026-10-20"), lifecycleState: "draft" });
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
+    expect(getManualPlannedDates).not.toHaveBeenCalled();
   });
 });

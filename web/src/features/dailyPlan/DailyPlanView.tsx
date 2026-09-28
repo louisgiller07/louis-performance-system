@@ -17,6 +17,7 @@ import {
 } from "./safetyPresentation";
 import { formatDhSessionWindow, formatDhSessionWindowCompact, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
 import { ExecutablePrescriptionCard } from "./ExecutablePrescriptionCard";
+import { sanitizeHealthSignalReason } from "./healthZoneLabels";
 import type { DailyPlan, ExecutablePrescription, RecentRecoveryContext } from "./dailyPlanTypes";
 
 // V0.3_008A — Previous-Day Recovery Continuity. A dedicated, purely factual
@@ -185,7 +186,10 @@ export function DailyPlanView({
       {hasHealthSignal && (
         <div className="rounded-lg border border-red-500/40 bg-red-950/30 p-3">
           <p className="text-sm font-semibold text-red-400">Attention santé</p>
-          <p className="mt-0.5 text-xs text-red-300">{healthSignalReason ?? "Le coach a généré un signal de santé pour cette décision."}</p>
+          {/* REV-014 — the engine's trailing pain_location_code is shown as its French label, never raw. */}
+          <p className="mt-0.5 text-xs text-red-300">
+            {sanitizeHealthSignalReason(healthSignalReason) ?? "Le coach a généré un signal de santé pour cette décision."}
+          </p>
         </div>
       )}
 

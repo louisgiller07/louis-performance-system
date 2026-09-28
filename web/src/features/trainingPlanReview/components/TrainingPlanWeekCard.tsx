@@ -3,9 +3,14 @@ import { Badge } from "../../../components/Badge";
 import type { TrainingPlanReviewWeek } from "../trainingPlanReviewTypes";
 import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
 import { TrainingPlanSessionCard } from "./TrainingPlanSessionCard";
+import { formatWeekAttentionSummary, translateExplanation } from "../trainingPlanExplanationLabels";
 
 /** One week: number, dates, type, rationale, dose summary, and its sessions — never a week's sessions rendered anywhere else (ticket lock: the accept action stays exclusively in TrainingPlanOverview). */
 export function TrainingPlanWeekCard({ week }: { week: TrainingPlanReviewWeek }) {
+  // REV-013 — translated for display; the relaxed-constraint count becomes a separate summary line, not part of the explanation.
+  const explanation = translateExplanation(week.rationale, "week");
+  const attentionSummary = formatWeekAttentionSummary(explanation.attentionPointCount);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
@@ -15,7 +20,8 @@ export function TrainingPlanWeekCard({ week }: { week: TrainingPlanReviewWeek })
         <Badge tone="gold">{humanizeLabel(week.weekType)}</Badge>
       </div>
 
-      <p className="text-sm text-ink/80">{week.rationale}</p>
+      {explanation.text && <p className="text-sm text-ink/80">{explanation.text}</p>}
+      {attentionSummary && <p className="text-xs text-muted">{attentionSummary}</p>}
 
       <PlanSection title="Volume">
         <p>

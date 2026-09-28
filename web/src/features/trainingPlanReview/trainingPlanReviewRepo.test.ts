@@ -10,6 +10,7 @@ import {
   getTrainingPlanReview,
   getLatestDraft,
   getActivePlanVersionId,
+  getManualPlannedDates,
   assembleTrainingPlanReview,
   latestStateByVersion,
   TrainingPlanReviewError,
@@ -380,5 +381,34 @@ describe("getActivePlanVersionId", () => {
     mockTables({ training_plan_current_version: { data: null, error: { code: "500" } } });
 
     await expect(getActivePlanVersionId()).rejects.toBeInstanceOf(TrainingPlanReviewError);
+  });
+});
+
+// V06-02 — supplementary read of the athlete's own manual planned_sessions dates.
+describe("getManualPlannedDates", () => {
+  function mockPlannedSessions(result: QueryResult) {
+    const lte = vi.fn().mockResolvedValue(result);
+    const gte = vi.fn(() => ({ lte }));
+    const eq = vi.fn(() => ({ gte }));
+    const select = vi.fn(() => ({ eq }));
+    mockedFrom.mockReturnValue({ select });
+    return { select, eq, gte, lte };
+  }
+
+  it("selects only planned_date of manual rows in the plan's horizon and returns the dates", async () => {
+    const { select, eq, gte, lte } = mockPlannedSessions({ data: [{ planned_date: "2026-10-20" }, { planned_date: "2026-10-22" }], error: null });
+
+    expect(await getManualPlannedDates("2026-10-19", "2026-11-01")).toEqual(["2026-10-20", "2026-10-22"]);
+    expect(mockedFrom).toHaveBeenCalledWith("planned_sessions");
+    expect(select).toHaveBeenCalledWith("planned_date");
+    expect(eq).toHaveBeenCalledWith("source", "manual");
+    expect(gte).toHaveBeenCalledWith("planned_date", "2026-10-19");
+    expect(lte).toHaveBeenCalledWith("planned_date", "2026-11-01");
+  });
+
+  it("throws TrainingPlanReviewError (no raw DB error) when the read fails", async () => {
+    mockPlannedSessions({ data: null, error: { code: "42501", message: "permission denied" } });
+
+    await expect(getManualPlannedDates("2026-10-19", "2026-11-01")).rejects.toThrow(TrainingPlanReviewError);
   });
 });

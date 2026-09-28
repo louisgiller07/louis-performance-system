@@ -6,6 +6,8 @@ import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
 import type { TrainingPlanLifecycleState, TrainingPlanReview } from "../trainingPlanReviewTypes";
 import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
+import { describeRelaxedConstraints } from "../placementReasonLabels";
+import { translateExplanation } from "../trainingPlanExplanationLabels";
 import { AcceptTrainingPlanButton } from "./AcceptTrainingPlanButton";
 import type { AcceptTrainingPlanResponse } from "../acceptTrainingPlan";
 
@@ -27,6 +29,19 @@ interface TrainingPlanOverviewProps {
   review: TrainingPlanReview;
   hasActivePlan: boolean;
   onAccepted: (result: AcceptTrainingPlanResponse) => void;
+  /**
+   * V06-02 — program days the athlete has overridden in their planning
+   * (findAthleteModifiedProgramDates). `null`/absent = unknown (not loaded,
+   * not applicable, or the read failed) and renders nothing, exactly like
+   * an empty list.
+   */
+  athleteModifiedDates?: readonly string[] | null;
+}
+
+function modifiedDaysMessage(count: number): string {
+  return count > 1
+    ? `${count} jours de ce programme ont été modifiés par toi dans ton planning.`
+    : "1 jour de ce programme a été modifié par toi dans ton planning.";
 }
 
 /**
@@ -43,7 +58,7 @@ interface TrainingPlanOverviewProps {
  * repository layer), so there is nothing here that could accidentally leak
  * them.
  */
-export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: TrainingPlanOverviewProps) {
+export function TrainingPlanOverview({ review, hasActivePlan, onAccepted, athleteModifiedDates = null }: TrainingPlanOverviewProps) {
   const weeks = review.blocks.flatMap((block) => block.weeks);
   const weekCount = weeks.length;
   const totals = weeks.reduce(
@@ -56,6 +71,9 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: Trai
     }),
     { strength: 0, dh: 0, aerobic: 0, rest: 0, minutes: 0 }
   );
+  const attentionPoints = describeRelaxedConstraints(review.version.relaxedConstraints);
+  // REV-013 — the stored English rationale is translated for display only.
+  const versionExplanation = translateExplanation(review.version.rationale, "version").text;
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,8 +96,16 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: Trai
         </Link>
       )}
 
+      {athleteModifiedDates && athleteModifiedDates.length > 0 && (
+        <Card className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-ink">{modifiedDaysMessage(athleteModifiedDates.length)}</p>
+          <p className="text-xs text-muted">{athleteModifiedDates.map(formatShortDate).join(" · ")}</p>
+          <p className="text-xs text-muted">Pour ces jours, ta semaine suit tes modifications.</p>
+        </Card>
+      )}
+
       <Card className="flex flex-col gap-2">
-        <p className="text-sm text-ink/90">{review.version.rationale}</p>
+        {versionExplanation && <p className="text-sm text-ink/90">{versionExplanation}</p>}
         {review.blocks.map((block) => (
           <p key={block.id} className="text-xs text-muted">
             {block.name} — {humanizeLabel(block.primaryFocus)}
@@ -95,12 +121,13 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: Trai
         <p className="text-xs text-muted">{totals.minutes} min au total</p>
       </Card>
 
-      {review.version.relaxedConstraints.length > 0 && (
+      {/* V06-04 — engine reasons are never shown raw: describeRelaxedConstraints turns them into counted French sentences. */}
+      {attentionPoints.length > 0 && (
         <Card className="flex flex-col gap-1">
           <p className="text-sm font-medium text-ink">Points d'attention</p>
-          {review.version.relaxedConstraints.map((constraint, index) => (
-            <p key={index} className="text-xs text-muted">
-              {constraint.reason}
+          {attentionPoints.map((text) => (
+            <p key={text} className="text-xs text-muted">
+              {text}
             </p>
           ))}
         </Card>

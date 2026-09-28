@@ -27,7 +27,7 @@ const WEEK: TrainingPlanReviewWeek = {
       loadProfile: "HEAVY",
       durationMin: 60,
       doseTarget: { domain: "strength" },
-      rationale: "Standard development week. Adjusted due to recent missed or replaced sessions",
+      rationale: "Standard development week. Adjusted due to recent missed or replaced sessions pattern",
       prescription: null,
     },
     {
@@ -38,7 +38,7 @@ const WEEK: TrainingPlanReviewWeek = {
       loadProfile: "MODERATE",
       durationMin: 90,
       doseTarget: { domain: "aerobic" },
-      rationale: "Standard development week. Adjusted due to recent missed or replaced sessions",
+      rationale: "Standard development week. Adjusted due to recent missed or replaced sessions pattern",
       prescription: null,
     },
   ],
@@ -50,7 +50,7 @@ describe("TrainingPlanWeekCard", () => {
 
     expect(screen.getByText(/Semaine 1/)).toBeInTheDocument();
     expect(screen.getByText("Development")).toBeInTheDocument();
-    expect(screen.getByText("Standard development week.")).toBeInTheDocument();
+    expect(screen.getByText("Semaine standard de développement.")).toBeInTheDocument();
     expect(screen.getByText(/2 force/)).toBeInTheDocument();
     expect(screen.getByText("240 min au total")).toBeInTheDocument();
   });
@@ -60,5 +60,42 @@ describe("TrainingPlanWeekCard", () => {
 
     expect(screen.getByText("Strength Lower")).toBeInTheDocument();
     expect(screen.getByText("Aerobic Base")).toBeInTheDocument();
+  });
+});
+
+// REV-013 — the week's English engine rationale is translated for display; the relaxed-constraint count becomes a separate summary line.
+describe("TrainingPlanWeekCard — explanation (REV-013)", () => {
+  it("translates the explanation and shows the relaxed-constraint count as a separate attention summary", () => {
+    render(<TrainingPlanWeekCard week={{ ...WEEK, rationale: "Standard development week. 3 constraint(s) relaxed." }} />);
+
+    expect(screen.getByText("Semaine standard de développement.")).toBeInTheDocument();
+    expect(screen.getByText("3 points d'attention cette semaine.")).toBeInTheDocument();
+    expect(screen.queryByText(/constraint|relaxed|Standard development week/)).not.toBeInTheDocument();
+  });
+
+  it("shows no attention summary when the week has none", () => {
+    render(<TrainingPlanWeekCard week={WEEK} />);
+
+    expect(screen.queryByText(/point.? d'attention/)).not.toBeInTheDocument();
+  });
+
+  it("taper week explanation is translated", () => {
+    render(
+      <TrainingPlanWeekCard
+        week={{ ...WEEK, weekType: "taper", rationale: "Taper week ahead of an upcoming race: reduced volume versus a normal development week. 1 constraint(s) relaxed." }}
+      />
+    );
+
+    expect(screen.getByText("Semaine d'affûtage avant une course : volume réduit par rapport à une semaine de développement normale.")).toBeInTheDocument();
+    expect(screen.getByText("1 point d'attention cette semaine.")).toBeInTheDocument();
+  });
+
+  it("the sessions' own explanations are translated too, the other week fields are unchanged", () => {
+    render(<TrainingPlanWeekCard week={WEEK} />);
+
+    expect(screen.getAllByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toHaveLength(2);
+    expect(screen.getByText("Development")).toBeInTheDocument();
+    expect(screen.getByText(/2 force · 1 DH · 1 aérobie · 3 repos/)).toBeInTheDocument();
+    expect(screen.getByText("240 min au total")).toBeInTheDocument();
   });
 });

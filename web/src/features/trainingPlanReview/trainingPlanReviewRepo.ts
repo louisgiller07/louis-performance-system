@@ -420,6 +420,31 @@ export async function getLatestDraft(): Promise<TrainingPlanReview | null> {
 }
 
 /**
+ * V06-02 — dates in [fromDate, toDate] (inclusive) where the athlete's own
+ * planning (`planned_sessions`) holds an athlete-authored row
+ * (`source = 'manual'`) — the rows `project_training_plan` never overwrites.
+ * Read-only, same own-client/RLS discipline as the rest of this file
+ * (planned_sessions_own_data scopes the rows to the caller's athlete). A
+ * supplementary read: callers must treat a failure as "unknown", never
+ * block the plan review on it.
+ */
+export async function getManualPlannedDates(fromDate: string, toDate: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("planned_sessions")
+    .select("planned_date")
+    .eq("source", "manual")
+    .gte("planned_date", fromDate)
+    .lte("planned_date", toDate);
+
+  if (error) {
+    console.error("trainingPlanReviewRepo.getManualPlannedDates failed", error.code);
+    throw new TrainingPlanReviewError();
+  }
+
+  return ((data ?? []) as { planned_date: string }[]).map((row) => row.planned_date);
+}
+
+/**
  * The athlete's currently active plan version id, or `null` if none has
  * ever been accepted — a real, legitimate state (mirrors head-coach-engine's
  * own trainingPlanCurrentVersionRepo.getCurrentPlanVersion, the RLS-scoped

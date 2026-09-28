@@ -54,6 +54,26 @@ function weekdayLabel(dateISO: string): string {
 
 const LOAD_CHOICES: readonly LoadProfile[] = ["HEAVY", "MODERATE", "LIGHT"];
 
+/**
+ * V06-02 — where this day's session comes from, straight from
+ * `planned_sessions.source`. "Programme" only for a row the projection
+ * wrote (`generated`); "Modifiée par toi" only for an athlete-authored row
+ * that carries a real intervention. A legacy row (intervention=NULL, which
+ * reads `manual` only through the column's DB default), `rule`/`template`,
+ * or a missing source get no badge — never a guessed origin.
+ */
+function sourceBadgeLabel(row: PlannedSessionRow | null): string | null {
+  if (row?.source === "generated") return "Programme";
+  if (row?.source === "manual" && row.intervention !== null) return "Modifiée par toi";
+  return null;
+}
+
+/** Collapsed-card duration, from the persisted `intervention.duration_min` only — nothing shown when absent or malformed. */
+function formatCardDuration(durationMin: unknown): string | null {
+  if (typeof durationMin !== "number" || !Number.isFinite(durationMin) || durationMin <= 0) return null;
+  return durationMin < 60 ? `${durationMin} min` : formatPlannedDuration(durationMin);
+}
+
 interface PlanningDayCardProps {
   athleteId: string;
   date: string;
@@ -188,6 +208,9 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
   // string — same underlying row.intervention fields, no new data.
   const kindLabel = row ? (row.intervention ? (TRAINING_KIND_LABELS[row.intervention.kind] ?? row.intervention.kind) : legacyLabel) : noPlanLabel;
   const loadProfile = row?.intervention?.load_profile ?? null;
+  const sourceLabel = sourceBadgeLabel(row);
+  const durationLabel = formatCardDuration(row?.intervention?.duration_min);
+  const isCommitted = row?.is_committed === true;
 
   return (
     <div className={`rounded-lg border bg-card ${isToday ? "border-gold" : "border-white/10"}`}>
@@ -208,17 +231,22 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
         </div>
       )}
       <button type="button" onClick={onToggleExpand} className="min-h-11 w-full p-3 text-left active:bg-white/5">
-        {isToday ? (
-          <p className="text-xs font-semibold uppercase tracking-widest text-gold">Today</p>
-        ) : (
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            {weekdayLabel(date)} {formatCalendarDate(date)}
-          </p>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          {isToday ? (
+            <p className="text-xs font-semibold uppercase tracking-widest text-gold">Today</p>
+          ) : (
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
+              {weekdayLabel(date)} {formatCalendarDate(date)}
+            </p>
+          )}
+          {sourceLabel && <Badge>{sourceLabel}</Badge>}
+        </div>
         <p className={`mt-1.5 font-semibold uppercase tracking-tight ${row ? "text-ink" : "text-muted"}`}>{kindLabel}</p>
-        {loadProfile && (
-          <div className="mt-1.5">
-            <Badge tone="gold">{LOAD_PROFILE_LABELS[loadProfile]}</Badge>
+        {(loadProfile || durationLabel || isCommitted) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {loadProfile && <Badge tone="gold">{LOAD_PROFILE_LABELS[loadProfile]}</Badge>}
+            {durationLabel && <span className="text-xs text-ink/80">{durationLabel}</span>}
+            {isCommitted && <Badge tone="green">Activité engagée</Badge>}
           </div>
         )}
       </button>
