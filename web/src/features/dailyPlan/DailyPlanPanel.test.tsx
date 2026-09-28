@@ -21,6 +21,12 @@ vi.mock("./runDailyRun", () => ({
 const { loadLatestDecisionForDate } = vi.hoisted(() => ({ loadLatestDecisionForDate: vi.fn() }));
 vi.mock("../history/historyRepo", () => ({ loadLatestDecisionForDate }));
 
+// PILOT_022 — server-side freshness of a restored decision. Defaults to
+// "still current" so the pre-existing restore tests keep their meaning; the
+// REV-01 tests below override it.
+const { loadDecisionCurrency } = vi.hoisted(() => ({ loadDecisionCurrency: vi.fn() }));
+vi.mock("./decisionCurrencyRepo", () => ({ loadDecisionCurrency }));
+
 import { runDailyRun } from "./runDailyRun";
 
 const mockedRun = runDailyRun as unknown as ReturnType<typeof vi.fn>;
@@ -59,6 +65,7 @@ const SUCCESS_RESPONSE_2 = {
 beforeEach(() => {
   vi.resetAllMocks();
   loadLatestDecisionForDate.mockResolvedValue(null);
+  loadDecisionCurrency.mockResolvedValue({ isCurrent: true, staleReason: null });
 });
 
 describe("DailyPlanPanel", () => {
@@ -556,5 +563,70 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     expect(screen.queryByText(/environ 4 h/)).not.toBeInTheDocument();
     expect(screen.queryByText("240 min")).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
+  });
+});
+
+// PILOT_022 (REV-01) — a decision computed from an older check-in or planned
+// session must never become executable again after navigation or reload.
+describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
+  it("A: decision generated -> check-in edited -> remount/reload: the old decision is NOT shown as current", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "checkin_changed" });
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Ton check-in a changé. Génère un nouveau plan.")).toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plan déjà généré aujourd'hui.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Préparer ma séance du jour/ })).toBeEnabled();
+    expect(loadDecisionCurrency).toHaveBeenCalledWith(RESTORED_ROW.id);
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  it("B: no relevant input changed -> remount restores the same valid decision", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: true, staleReason: null });
+
+    const first = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await screen.findByText("Maintenir");
+    first.unmount();
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(screen.queryByText(/Génère un nouveau plan/)).not.toBeInTheDocument();
+  });
+
+  it("C: the planned session changed after the decision -> stale, with its own notice", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "planned_session_changed" });
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByText("Ta séance prévue a changé. Génère un nouveau plan.")).toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+  });
+
+  it("freshness cannot be verified -> retryable error, the decision is never assumed current", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    loadDecisionCurrency.mockRejectedValue(new Error("boom"));
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger ton plan du jour. Réessaie.");
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+  });
+
+  it("explicit recalculation after a stale restore shows the new decision", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "checkin_changed" });
+    mockedRun.mockResolvedValue({ ok: true, data: SUCCESS_RESPONSE_2 });
+    const user = userEvent.setup();
+
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
+    await screen.findByText("Ton check-in a changé. Génère un nouveau plan.");
+    await user.click(screen.getByRole("button", { name: /Préparer ma séance du jour/ }));
+
+    expect(await screen.findByText("Adapter")).toBeInTheDocument();
+    expect(screen.queryByText(/Génère un nouveau plan/)).not.toBeInTheDocument();
   });
 });

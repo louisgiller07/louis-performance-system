@@ -49,6 +49,15 @@ export interface DecisionInsertRow {
   daily_plan: DailyPlan;
   active_mode: TrainingMode;
   confidence_level: ConfidenceLevel;
+  /**
+   * PILOT_022 — versions of the inputs this decision was computed from (see
+   * `getDailyRunInputVersions`). Set by runDailyFor, never by the mapping
+   * below, which stays a pure DailyPlan translation.
+   */
+  source_checkin_id?: string | null;
+  source_checkin_updated_at?: string | null;
+  source_planned_session_id?: string | null;
+  source_planned_session_updated_at?: string | null;
 }
 
 /**

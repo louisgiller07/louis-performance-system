@@ -87,5 +87,5 @@ export async function projectTrainingPlan(
       }
     : null;
 
-  return deps.projectTrainingPlanRpc(client, athleteId, planVersionId, plannedSessionCandidates, trainingBlockCandidate);
+  return deps.projectTrainingPlanRpc(client, athleteId, planVersionId, plannedSessionCandidates, trainingBlockCandidate, windowStart);
 }

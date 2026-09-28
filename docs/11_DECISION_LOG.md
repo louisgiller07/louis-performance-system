@@ -3101,3 +3101,27 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 - le catalogue d'exercices a été audité : chacune des 6 catégories demandées a une entrée sans matériel et aucun filtre de niveau, donc aucun trou analogue.
 
 **Statut** : Accepted
+
+## 2026-09-28 — ADR PILOT_022 : Fraîcheur de décision, provenance de prescription, réconciliation au remplacement de plan
+
+**Contexte** : une revue navigateur sur le compte de simulation a reproduit trois défauts P1.
+
+**REV-01 — décision périmée redevenue exécutable.** Today restaurait la dernière décision du jour (`loadLatestDecisionForDate`) sans vérifier qu'elle correspondait encore à ses entrées. L'invalidation ne tenait qu'à un compteur React en mémoire (`checkinRevision`), perdu à chaque montage. Aucune provenance n'était persistée : `source_checkin_id` existait mais n'était jamais écrit.
+- **Invariant** : une décision n'est rendue exécutable que si le check-in et la séance planifiée (ou son absence) du jour portent encore exactement la version (`id`, `updated_at`) lue par daily-run.
+- `runDailyFor` lit ces versions après la projection et avant le calcul. `persist_daily_run` les enregistre dans les nouvelles colonnes `decisions.source_checkin_updated_at`, `source_planned_session_id` et `source_planned_session_updated_at` ; `source_checkin_id` est désormais écrit.
+- La vue `daily_decision_currency` (`security_invoker`, SELECT seulement) calcule `is_current` et `stale_reason` côté serveur. Today n'affiche la décision restaurée que si elle est courante ; sinon il affiche un message et le bouton de recalcul. Les anciennes décisions restent dans l'historique.
+- Lignes antérieures : pas de backfill. Repli conservateur sur les horodatages.
+
+**REV-02 — anciens exercices de force sur une séance devenue aérobie.** La modification manuelle (`savePlannedSession`) passe `source = 'manual'` mais conserve les colonnes de lignée, omises de l'upsert. `getProjectedGeneratedSessionIdForDate` ne lisait que `source_generated_session_id` et renvoyait la prescription canonique de la séance de force d'origine, contrairement à son propre contrat (« null pour une séance manuelle »).
+- **Règle de propriété** : la prescription canonique n'est servie que pour une ligne `source = 'generated'` appartenant à la version du plan courant. Une séance manuelle n'en reçoit jamais, qu'il s'agisse d'un changement de concept ou seulement de charge (contrat V0.5_047/048), et une ligne d'un plan remplacé non plus.
+
+**REV-03 — séances du plan A visibles après acceptation du plan B.** `project_training_plan` ne faisait que l'upsert des dates candidates du plan courant. Les lignes `generated` de A sur des dates absentes de B n'étaient jamais retirées.
+- **Contrat de réconciliation** : un nouveau paramètre optionnel `p_window_start` supprime, dans la même transaction que la projection, les lignes `source = 'generated'` datées de `p_window_start` ou après et appartenant à une autre version (résultat `removed_superseded`).
+- Les séances manuelles ne sont jamais touchées. Une date avec une séance complétée garde sa ligne (`skipped_completed`), et `completed_sessions` n'est jamais modifiée. L'historique antérieur à la fenêtre est inchangé.
+- Les appels sans le paramètre gardent le comportement précédent. Le rejeu reste idempotent.
+
+**Atomicité** : l'acceptation (pointeur) et la projection restent deux transactions (V0.4_014). Une projection échouée laisse transitoirement l'ancienne projection. Elle est signalée par `plan_acceptance_projection_warning` et convergée par la projection du daily-run suivant ou par un rejeu d'acceptation, grâce à la réconciliation.
+
+**Migration** : `20260924110000_pilot_003_decision_provenance_projection_reconciliation.sql`, additive. Moteur M1 et règles de sécurité inchangés.
+
+**Statut** : Accepted — validé en local (PILOT_025) : intégrations PILOT_022 6/6, opt-in complet 946/946, E2E navigateur local sur athlète scratch REV-01/REV-02/REV-03/combiné PASS. Non déployé ; retest navigateur en production en attente.

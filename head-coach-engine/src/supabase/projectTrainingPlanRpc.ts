@@ -15,7 +15,9 @@ export type PlannedSessionProjectionOutcome =
   | "unchanged"
   | "skipped_completed"
   | "skipped_manual_override"
-  | "skipped_stale_version";
+  | "skipped_stale_version"
+  /** PILOT_022 — a generated row owned by a superseded plan version, removed by reconciliation. */
+  | "removed_superseded";
 
 export type TrainingBlockProjectionOutcome =
   | "updated"
@@ -58,6 +60,7 @@ const PLANNED_SESSION_OUTCOMES: readonly string[] = [
   "skipped_completed",
   "skipped_manual_override",
   "skipped_stale_version",
+  "removed_superseded",
 ];
 const TRAINING_BLOCK_OUTCOMES: readonly string[] = [
   "updated",
@@ -122,13 +125,17 @@ export async function projectTrainingPlanRpc(
   athleteId: string,
   planVersionId: string,
   plannedSessionCandidates: PlannedSessionCandidate[],
-  trainingBlockCandidate: TrainingBlockCandidate | null
+  trainingBlockCandidate: TrainingBlockCandidate | null,
+  windowStart: string
 ): Promise<ProjectTrainingPlanResult> {
+  // PILOT_022 (REV-03) — p_window_start enables reconciliation of generated rows
+  // left by a superseded plan version on or after the window start.
   const { data, error } = await client.rpc("project_training_plan", {
     p_athlete_id: athleteId,
     p_plan_version_id: planVersionId,
     p_planned_session_candidates: plannedSessionCandidates,
     p_training_block_candidate: trainingBlockCandidate,
+    p_window_start: windowStart,
   });
 
   if (error) throw new ProjectTrainingPlanRpcError(error.message);

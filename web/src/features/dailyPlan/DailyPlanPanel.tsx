@@ -6,12 +6,19 @@ import { runDailyRun } from "./runDailyRun";
 import { DailyPlanResult } from "./DailyPlanResult";
 import { isValidDailyPlan } from "./dailyPlanValidation";
 import { loadLatestDecisionForDate } from "../history/historyRepo";
+import { loadDecisionCurrency, type DecisionStaleReason } from "./decisionCurrencyRepo";
 import type { DailyRunError } from "./dailyRunErrors";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 
 type RequestState = "idle" | "running" | "success" | "error";
 /** NAL-003 — the persisted-decision restore lookup, independent of the generation RequestState above. */
 type RestorePhase = "loading" | "ready" | "error";
+
+const CHECKIN_CHANGED_NOTICE = "Ton check-in a changé. Génère un nouveau plan.";
+const STALE_NOTICE: Record<DecisionStaleReason, string> = {
+  checkin_changed: CHECKIN_CHANGED_NOTICE,
+  planned_session_changed: "Ta séance prévue a changé. Génère un nouveau plan.",
+};
 
 interface DailyPlanPanelProps {
   /** NAL-003 — the caller's own resolved athleteId, used only to restore today's already-persisted decision (RLS-scoped, same read path as /history). */
@@ -47,7 +54,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
   const [error, setError] = useState<DailyRunError | null>(null);
-  const [showInvalidatedNotice, setShowInvalidatedNotice] = useState(false);
+  const [invalidatedNotice, setInvalidatedNotice] = useState<string | null>(null);
 
   // NAL-003 — persisted-decision restore, entirely separate from the
   // generation RequestState above: reading what already happened today is
@@ -61,8 +68,18 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
     try {
       const row = await loadLatestDecisionForDate(athleteId, date);
       if (row && isValidDailyPlan(row.dailyPlan)) {
-        setResult({ dailyPlan: row.dailyPlan, decisionId: row.id, healthFlagId: null, warnings: [] });
-        setState("success");
+        // PILOT_022 (REV-01) — the latest decision is not necessarily a valid
+        // one: it is restored as today's executable plan only while the
+        // check-in and planned session it was computed from are unchanged
+        // (persisted provenance, evaluated server-side). A stale decision
+        // stays in history but is never shown as current.
+        const currency = await loadDecisionCurrency(row.id);
+        if (currency.isCurrent) {
+          setResult({ dailyPlan: row.dailyPlan, decisionId: row.id, healthFlagId: null, warnings: [] });
+          setState("success");
+        } else {
+          setInvalidatedNotice(STALE_NOTICE[currency.staleReason ?? "checkin_changed"]);
+        }
       }
       // No row, or a malformed/legacy row that fails validation: nothing to
       // restore — leaves `state` at its default "idle" so the normal
@@ -104,7 +121,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
     if (previousRevisionRef.current === checkinRevision) return;
     previousRevisionRef.current = checkinRevision;
 
-    if (hadVisibleResultRef.current) setShowInvalidatedNotice(true);
+    if (hadVisibleResultRef.current) setInvalidatedNotice(CHECKIN_CHANGED_NOTICE);
     hadVisibleResultRef.current = false;
     setResult(null);
     setError(null);
@@ -125,7 +142,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
     // alongside a new attempt's error, and vice versa.
     setResult(null);
     setError(null);
-    setShowInvalidatedNotice(false);
+    setInvalidatedNotice(null);
     setState("running");
     try {
       const outcome = await runDailyRun(date);
@@ -186,7 +203,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
 
       {!hasCheckin && <p className="text-xs text-muted">Enregistre d'abord ton check-in du jour.</p>}
 
-      {showInvalidatedNotice && <p className="text-xs text-muted">Ton check-in a changé. Génère un nouveau plan.</p>}
+      {invalidatedNotice && <p className="text-xs text-muted">{invalidatedNotice}</p>}
 
       {error && (
         <p role="alert" className="text-sm text-red-400">

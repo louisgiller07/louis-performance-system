@@ -13,7 +13,11 @@ import {
   resolveTrainingPlanProjectionWindow,
   type TrainingPlanProjectionWindowConfig,
 } from "../../src/supabase/trainingPlanProjectionConfig.js";
-import { getProjectedGeneratedSessionIdForDate } from "../../src/supabase/repositories/plannedSessionsRepo.js";
+import {
+  getDailyRunInputVersions,
+  getProjectedGeneratedSessionIdForDate,
+  type DailyRunInputVersions,
+} from "../../src/supabase/repositories/plannedSessionsRepo.js";
 import { getPlannedPrescriptionForGeneratedSession } from "../../src/supabase/repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import type { DailyPlan, RawContext } from "../../src/types/index.js";
 import type { PlannedPrescription } from "planning-engine";
@@ -63,13 +67,20 @@ const PROJECTION_NO_CANDIDATES: ProjectionReport = {
 const NO_LINEAGE: string | null = null;
 const NO_PRESCRIPTION: PlannedPrescription | null = null;
 
+/** PILOT_022 — default input versions: today's check-in exists, no planned session. */
+const INPUT_VERSIONS: DailyRunInputVersions = {
+  checkin: { id: "checkin-1", updated_at: "2026-08-13T07:00:00.123456+00:00" },
+  plannedSession: null,
+};
+
 function buildDeps(
   dailyPlan: DailyPlan,
   persistResult: PersistDailyRunResult,
   athleteContext: AthleteCoachingContext | (() => Promise<AthleteCoachingContext>) = NO_CONTEXT,
   projectionConfig: TrainingPlanProjectionWindowConfig = PROJECTION_DISABLED,
   generatedSessionId: string | null | (() => Promise<string | null>) = NO_LINEAGE,
-  prescription: PlannedPrescription | null | (() => Promise<PlannedPrescription | null>) = NO_PRESCRIPTION
+  prescription: PlannedPrescription | null | (() => Promise<PlannedPrescription | null>) = NO_PRESCRIPTION,
+  inputVersions: DailyRunInputVersions = INPUT_VERSIONS
 ) {
   const computeDailyForMock = vi.fn<typeof computeDailyFor>(
     async (): Promise<ComputeDailyForResult> => ({
@@ -93,6 +104,8 @@ function buildDeps(
     typeof prescription === "function" ? prescription() : prescription
   );
 
+  const getDailyRunInputVersionsMock = vi.fn<typeof getDailyRunInputVersions>(async () => inputVersions);
+
   const deps: RunDailyForDeps = {
     computeDailyFor: computeDailyForMock,
     persistDailyRun: persistDailyRunMock,
@@ -101,6 +114,7 @@ function buildDeps(
     resolveTrainingPlanProjectionWindow: resolveTrainingPlanProjectionWindowMock,
     getProjectedGeneratedSessionIdForDate: getProjectedGeneratedSessionIdForDateMock,
     getPlannedPrescriptionForGeneratedSession: getPlannedPrescriptionForGeneratedSessionMock,
+    getDailyRunInputVersions: getDailyRunInputVersionsMock,
   };
 
   return {
@@ -112,6 +126,7 @@ function buildDeps(
     resolveTrainingPlanProjectionWindowMock,
     getProjectedGeneratedSessionIdForDateMock,
     getPlannedPrescriptionForGeneratedSessionMock,
+    getDailyRunInputVersionsMock,
   };
 }
 
@@ -157,14 +172,51 @@ describe("M2 write path — runDailyFor orchestration (mocked deps, no live DB)"
     });
   });
 
-  it("passes a decisionRow that is exactly mapDailyPlanToDecisionRow's output", async () => {
+  it("passes a decisionRow that is exactly mapDailyPlanToDecisionRow's output plus the PILOT_022 input provenance", async () => {
     const dailyPlan = buildFixtureDailyPlan({ reasoning: "Custom reasoning for this test" });
     const { deps, persistDailyRunMock } = buildDeps(dailyPlan, { decision_id: "d1", health_flag_id: null });
 
     await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
 
     const [, , , decisionRowArg] = persistDailyRunMock.mock.calls[0]!;
-    expect(decisionRowArg).toEqual(mapDailyPlanToDecisionRow(dailyPlan, ATHLETE_ID));
+    expect(decisionRowArg).toEqual({
+      ...mapDailyPlanToDecisionRow(dailyPlan, ATHLETE_ID),
+      source_checkin_id: "checkin-1",
+      source_checkin_updated_at: "2026-08-13T07:00:00.123456+00:00",
+      source_planned_session_id: null,
+      source_planned_session_updated_at: null,
+    });
+  });
+
+  it("PILOT_022 — records the planned session version read before computing, after projection", async () => {
+    const dailyPlan = buildFixtureDailyPlan();
+    const versions: DailyRunInputVersions = {
+      checkin: { id: "checkin-9", updated_at: "2026-08-13T06:00:00+00:00" },
+      plannedSession: { id: "planned-9", updated_at: "2026-08-13T05:00:00+00:00" },
+    };
+    const { deps, persistDailyRunMock, getDailyRunInputVersionsMock, projectTrainingPlanMock, computeDailyForMock } = buildDeps(
+      dailyPlan,
+      { decision_id: "d1", health_flag_id: null },
+      NO_CONTEXT,
+      { enabled: true, windowDays: 14 },
+      NO_LINEAGE,
+      NO_PRESCRIPTION,
+      versions
+    );
+
+    await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(getDailyRunInputVersionsMock).toHaveBeenCalledWith(FAKE_CLIENT, ATHLETE_ID, TODAY);
+    const versionsOrder = getDailyRunInputVersionsMock.mock.invocationCallOrder[0]!;
+    expect(projectTrainingPlanMock.mock.invocationCallOrder[0]!).toBeLessThan(versionsOrder);
+    expect(versionsOrder).toBeLessThan(computeDailyForMock.mock.invocationCallOrder[0]!);
+    const [, , , decisionRowArg] = persistDailyRunMock.mock.calls[0]!;
+    expect(decisionRowArg).toMatchObject({
+      source_checkin_id: "checkin-9",
+      source_checkin_updated_at: "2026-08-13T06:00:00+00:00",
+      source_planned_session_id: "planned-9",
+      source_planned_session_updated_at: "2026-08-13T05:00:00+00:00",
+    });
   });
 
   it("returns computeDailyFor's result plus the persistence result", async () => {

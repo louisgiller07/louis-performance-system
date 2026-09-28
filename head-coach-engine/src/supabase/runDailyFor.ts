@@ -59,7 +59,7 @@ import { mapDailyPlanToDecisionRow } from "./mapping/dailyPlanToDecisionRow.js";
 import { mapHealthFlagToCreatePayload } from "./mapping/healthFlagToCreatePayload.js";
 import { persistDailyRun, type PersistDailyRunResult } from "./persistDailyRun.js";
 import { getAthleteCoachingContext } from "./repositories/athleteCoachingContextRepo.js";
-import { getProjectedGeneratedSessionIdForDate } from "./repositories/plannedSessionsRepo.js";
+import { getDailyRunInputVersions, getProjectedGeneratedSessionIdForDate } from "./repositories/plannedSessionsRepo.js";
 import { getPlannedPrescriptionForGeneratedSession } from "./repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
@@ -115,6 +115,8 @@ export interface RunDailyForDeps {
   /** V0.5_047/048 — injectable so the executable-prescription lookup can be unit-tested with plain mocks, same reasoning as the other deps. */
   getProjectedGeneratedSessionIdForDate: typeof getProjectedGeneratedSessionIdForDate;
   getPlannedPrescriptionForGeneratedSession: typeof getPlannedPrescriptionForGeneratedSession;
+  /** PILOT_022 — injectable so the input-provenance capture can be unit-tested with plain mocks, same reasoning as the other deps. */
+  getDailyRunInputVersions: typeof getDailyRunInputVersions;
 }
 
 const DEFAULT_DEPS: RunDailyForDeps = {
@@ -125,6 +127,7 @@ const DEFAULT_DEPS: RunDailyForDeps = {
   getPlannedPrescriptionForGeneratedSession,
   projectTrainingPlan,
   resolveTrainingPlanProjectionWindow,
+  getDailyRunInputVersions,
 };
 
 /**
@@ -270,6 +273,12 @@ export async function runDailyFor(
     deps.projectTrainingPlan
   );
 
+  // PILOT_022 (REV-01) — read the inputs' versions after projection (which may
+  // rewrite today's planned session) and before computing: if either input is
+  // written while the decision is being computed, the recorded version is the
+  // older one and the decision is correctly reported stale afterwards.
+  const inputVersions = await deps.getDailyRunInputVersions(client, athleteId, today);
+
   const computed = await deps.computeDailyFor(client, athleteId, today);
 
   // Defensive invariant, not a data-driven check: buildDailyPlan (M1,
@@ -303,7 +312,13 @@ export async function runDailyFor(
     deps.getAthleteCoachingContext
   );
 
-  const decisionRow = mapDailyPlanToDecisionRow(personalizedPlan, athleteId);
+  const decisionRow = {
+    ...mapDailyPlanToDecisionRow(personalizedPlan, athleteId),
+    source_checkin_id: inputVersions.checkin?.id ?? null,
+    source_checkin_updated_at: inputVersions.checkin?.updated_at ?? null,
+    source_planned_session_id: inputVersions.plannedSession?.id ?? null,
+    source_planned_session_updated_at: inputVersions.plannedSession?.updated_at ?? null,
+  };
 
   const healthFlag = personalizedPlan.health_flag_to_create
     ? mapHealthFlagToCreatePayload(personalizedPlan.health_flag_to_create, today)

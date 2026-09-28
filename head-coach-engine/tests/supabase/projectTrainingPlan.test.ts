@@ -103,7 +103,7 @@ function buildDeps(overrides: Partial<{
   const getCurrentPlanVersionMock = vi.fn(async () => currentVersion);
   const getGeneratedSessionsInWindowMock = vi.fn(async () => generatedSessions);
   const getCurrentGeneratedBlockMock = vi.fn(async () => currentBlock);
-  const projectTrainingPlanRpcMock = vi.fn(async () => rpcResult);
+  const projectTrainingPlanRpcMock = vi.fn(async (..._args: unknown[]) => rpcResult);
 
   const deps = {
     getCurrentPlanVersion: getCurrentPlanVersionMock,
@@ -144,7 +144,7 @@ describe("projectTrainingPlan — orchestration (mocked deps, no live DB)", () =
     await projectTrainingPlan(FAKE_CLIENT, ATHLETE_ID, WINDOW_START, WINDOW_END, deps);
 
     expect(projectTrainingPlanRpcMock).toHaveBeenCalledTimes(1);
-    expect(projectTrainingPlanRpcMock).toHaveBeenCalledWith(FAKE_CLIENT, ATHLETE_ID, "version-1", [], null);
+    expect(projectTrainingPlanRpcMock).toHaveBeenCalledWith(FAKE_CLIENT, ATHLETE_ID, "version-1", [], null, WINDOW_START);
   });
 
   it("block resolution: a resolved current block is translated into a TrainingBlockCandidate with the right field names", async () => {
@@ -173,7 +173,8 @@ describe("projectTrainingPlan — orchestration (mocked deps, no live DB)", () =
         startDate: "2026-10-19",
         endDate: "2026-11-15",
         sourcePlanBlockId: "block-1",
-      }
+      },
+      WINDOW_START
     );
   });
 
