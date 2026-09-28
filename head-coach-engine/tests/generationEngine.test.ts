@@ -378,3 +378,56 @@ describe("runGenerationEngine — production profile regression (PILOT_017)", ()
     }
   });
 });
+
+// V06-03 — full generation through the real planning + prescription engines,
+// with short availability windows in the exact "HH:MM:SS" format Postgres
+// `time` returns (buildPlanInputSnapshot passes it through unchanged): no
+// generated session may be longer than the longest window of its date.
+describe("runGenerationEngine — availability window capacity (V06-03)", () => {
+  function minutes(time: string): number {
+    const [h, m] = time.split(":").map(Number);
+    return h! * 60 + m!;
+  }
+
+  function dayOfWeek(isoDate: string): number {
+    const [y, m, d] = isoDate.split("-").map(Number);
+    return new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
+  }
+
+  const SHORT_WINDOWS: PlanInputSnapshot["availability"] = {
+    windows: [
+      { dayOfWeek: 2, startTime: "18:00:00", endTime: "19:00:00" }, // Tue, 60 min
+      { dayOfWeek: 6, startTime: "09:00:00", endTime: "13:00:00" }, // Sat, 240 min
+    ],
+    exceptions: [],
+  };
+
+  it("4-week generation: every session fits its window, DH 90 min lands on Saturday and never on Tuesday's 60 min", () => {
+    const result = runGenerationEngine({
+      block: block({ startDate: "2026-10-19", endDate: "2026-11-15" }),
+      planInputSnapshot: planInputSnapshot({ availability: SHORT_WINDOWS }),
+    });
+
+    const longest = new Map<number, number>();
+    for (const w of SHORT_WINDOWS.windows) longest.set(w.dayOfWeek, Math.max(minutes(w.endTime) - minutes(w.startTime), longest.get(w.dayOfWeek) ?? 0));
+
+    const sessions = result.weeks.flatMap((week) => week.sessions);
+    expect(sessions.length).toBeGreaterThan(0);
+    for (const session of sessions) {
+      expect(session.durationMin, `${session.date} ${session.kind}`).toBeLessThanOrEqual(longest.get(dayOfWeek(session.date))!);
+    }
+    const dh = sessions.filter((s) => s.kind.startsWith("DH_"));
+    expect(dh.length).toBe(4);
+    expect(dh.every((s) => dayOfWeek(s.date) === 6 && s.durationMin === 90)).toBe(true);
+  });
+
+  it("Tuesday 18:00-19:00 only: no session longer than 60 min, the missing DH is an explicit placement_shortfall", () => {
+    const tuesdayOnly: PlanInputSnapshot["availability"] = { windows: [SHORT_WINDOWS.windows[0]!], exceptions: [] };
+    const result = runGenerationEngine({ block: block(), planInputSnapshot: planInputSnapshot({ availability: tuesdayOnly }) });
+
+    const week = result.weeks[0]!;
+    expect(week.sessions.every((s) => s.durationMin <= 60)).toBe(true);
+    expect(week.sessions.some((s) => s.kind.startsWith("DH_"))).toBe(false);
+    expect(week.relaxedConstraints).toContainEqual({ constraintId: "placement_shortfall", reason: "insufficient_available_time", domain: "dh_technical" });
+  });
+});

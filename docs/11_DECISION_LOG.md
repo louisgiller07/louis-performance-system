@@ -3125,3 +3125,24 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 **Migration** : `20260924110000_pilot_003_decision_provenance_projection_reconciliation.sql`, additive. Moteur M1 et règles de sécurité inchangés.
 
 **Statut** : Accepted — validé en local (PILOT_025) : intégrations PILOT_022 6/6, opt-in complet 946/946, E2E navigateur local sur athlète scratch REV-01/REV-02/REV-03/combiné PASS. Non déployé ; retest navigateur en production en attente.
+
+## 2026-09-28 — ADR V06-03 : Placement des séances dans la capacité des créneaux de disponibilité
+
+**Contexte.** `WeekSegmenter` ne lisait que `dayOfWeek` des créneaux (`startTime`/`endTime` transportés par le snapshot mais ignorés). Les durées de `LoadDerivation` (DH 90, force 60, aérobie 45 ; taper 60/45/30) pouvaient donc dépasser le créneau : cas audité, mardi 18:00–19:00 → `DH_TECHNICAL` 90 min.
+
+**Décision produit (verrouillée par le ticket, option A).** Une séance doit tenir dans un seul créneau. Sinon, un autre jour disponible assez long est cherché ; à défaut, la séance n'est pas placée et le manque est explicite. Aucun raccourcissement automatique, aucune durée minimale par domaine inventée.
+
+**Implémentation.**
+- `LoadDerivation.referenceDurationMinFor(domain, weekType)` expose la durée de référence que `deriveLoad` assigne déjà (valeurs inchangées). L'orchestrateur la transmet à `segmentWeek` (`sessionDurationMinByDomain`). `HistoryAdjuster` ne peut que la réduire, donc la durée finale reste ≤ capacité.
+- Capacité d'une date = le plus long créneau unique de son jour de semaine (deux créneaux courts ne s'additionnent pas). Formats `HH:mm` et `HH:mm:ss` (Postgres `time`) acceptés. Fenêtre invalide → `InvalidAvailabilityWindowError`, jamais devinée.
+- Placement inchangé sinon (DH d'abord, date libre la plus tôt), avec la condition `durée ≤ capacité`.
+- **Choix d'algorithme, pas d'optimisation garantie** : chaque séance prend la première date libre qui convient (glouton chronologique). Aucune recherche de la meilleure combinaison de placements. Le DH (durée la plus longue) étant placé en premier, aucun cas connu ne laisse une séance non placée alors qu'une autre répartition l'aurait permis, mais ce n'est pas prouvé en général.
+- Exception `available: true` sur un jour sans créneau récurrent : aucune heure connue, donc aucune limite appliquée (comportement antérieur conservé). Sur un jour avec créneaux, leur capacité s'applique.
+- Nouveau motif `UnplaceableReason` : `insufficient_available_time` (des dates libres existaient, aucune assez longue). Il passe par le mécanisme existant `placement_shortfall`. `ConstraintId` (union fermée, V0.4_112A) n'est pas modifié.
+- `PLANNING_ENGINE_VERSION` `v1` → `v2` (stocké dans `training_plan_versions.planner_version`/`ruleset_version`). Les plans existants restent immuables.
+
+**Invariance.** Sortie du pipeline identique octet pour octet à `v1` pour tous les golden scenarios (créneaux 16:00–20:00), vérifiée contre HEAD et couverte par un test d'équivalence avec des créneaux non bornés.
+
+**Déploiement.** Aucune migration. Seule `generate-training-plan` (bundle `head-coach-engine` + `planning-engine`) doit être redéployée. `daily-run` et `accept-training-plan` ne sont pas concernés. Le Programme web affiche le motif brut sous « Points d'attention », comme les motifs existants (REV-005).
+
+**Statut** : Accepted — validé en local (tests planning-engine, head-coach-engine, `test:edge`). Non déployé.
