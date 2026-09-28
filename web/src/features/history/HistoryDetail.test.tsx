@@ -86,6 +86,22 @@ describe("HistoryDetail", () => {
     expect(screen.getByText("Douleur 3 jours de suite")).toBeInTheDocument();
   });
 
+  it("REV-014: a stored health reason with a raw zone code shows the zone's French label, never the code", () => {
+    render(
+      <HistoryDetail
+        row={makeRow({
+          dailyPlan: { ...VALID_DAILY_PLAN, health_flag_to_create: { type: "injury_suspect", reason: "Douleur nouvelle sévère (8/10) — knee_R" } },
+        })}
+        performedMatch={{ kind: "none" }}
+      />
+    );
+    expect(screen.getByText("Attention santé")).toBeInTheDocument();
+    expect(screen.getByText("Douleur nouvelle sévère (8/10) — Genou droit")).toBeInTheDocument();
+    // Banner only: the dev-only technical JSON dump (import.meta.env.DEV) intentionally shows the stored raw plan.
+    const banner = screen.getByText("Attention santé").parentElement!;
+    expect(banner.textContent).not.toMatch(/\bknee_R\b/);
+  });
+
   it("shows no health banner when the stored DailyPlan carries no health_flag_to_create", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
     expect(screen.queryByText("Attention santé")).not.toBeInTheDocument();
