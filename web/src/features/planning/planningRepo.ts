@@ -11,8 +11,9 @@ import type { PlannedSessionRow, TrainingIntervention } from "./planningTypes";
 // planned_duration_min, planned_time_of_day, training_block_id, notes) —
 // out of scope for V0.3_003B (docs/11_DECISION_LOG.md V0.3_003A). A single
 // string literal (not a runtime concatenation), same reason as
-// checkinRepo.ts's CHECKIN_COLUMNS.
-const PLANNED_SESSION_COLUMNS = "planned_date, session_type, intervention, planned_intent, is_committed";
+// checkinRepo.ts's CHECKIN_COLUMNS. `source` (V06-02) is read for display
+// only (Programme / Modifiée par toi badge) — never written from a read row.
+const PLANNED_SESSION_COLUMNS = "planned_date, session_type, intervention, planned_intent, is_committed, source";
 
 export class PlanningLoadError extends Error {
   constructor() {

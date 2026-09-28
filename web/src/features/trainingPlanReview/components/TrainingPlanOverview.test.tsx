@@ -99,6 +99,35 @@ describe("TrainingPlanOverview", () => {
   });
 });
 
+describe("TrainingPlanOverview — athlete modifications (V06-02)", () => {
+  it("shows how many program days the athlete modified, with their dates", () => {
+    renderOverview({ review: review({ lifecycleState: "accepted" }), athleteModifiedDates: ["2026-10-20", "2026-10-22", "2026-10-24"] });
+
+    expect(screen.getByText("3 jours de ce programme ont été modifiés par toi dans ton planning.")).toBeInTheDocument();
+    expect(screen.getByText(/20 oct\..*22 oct\..*24 oct\./)).toBeInTheDocument();
+    expect(screen.getByText("Pour ces jours, ta semaine suit tes modifications.")).toBeInTheDocument();
+  });
+
+  it("uses the singular for a single modified day", () => {
+    renderOverview({ review: review({ lifecycleState: "accepted" }), athleteModifiedDates: ["2026-10-20"] });
+
+    expect(screen.getByText("1 jour de ce programme a été modifié par toi dans ton planning.")).toBeInTheDocument();
+  });
+
+  it("shows no message when no day was modified", () => {
+    renderOverview({ review: review({ lifecycleState: "accepted" }), athleteModifiedDates: [] });
+
+    expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
+  });
+
+  it("shows no message when the modifications are unknown (not loaded or read failed)", () => {
+    renderOverview({ review: review({ lifecycleState: "accepted" }), athleteModifiedDates: null });
+
+    expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
+    expect(screen.getByText("Plan actif")).toBeInTheDocument();
+  });
+});
+
 describe("TrainingPlanOverview — post-acceptance CTA (V0.5_050)", () => {
   it("draft: shows the Accept button, never the 'Aller à Aujourd'hui' CTA", () => {
     renderOverview();

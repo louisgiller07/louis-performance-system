@@ -99,6 +99,90 @@ describe("PlanningDayCard — collapsed states", () => {
   });
 });
 
+describe("PlanningDayCard — source, duration and commitment on the collapsed card (V06-02)", () => {
+  function dhRow(overrides: Partial<PlannedSessionRow> = {}): PlannedSessionRow {
+    return {
+      planned_date: "2026-09-01",
+      session_type: "DH_TECHNICAL",
+      intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 },
+      planned_intent: null,
+      is_committed: false,
+      ...overrides,
+    };
+  }
+
+  it("source generated → 'Programme' badge", () => {
+    render(<Harness initialRow={dhRow({ source: "generated" })} />);
+    expect(screen.getByText("Programme")).toBeInTheDocument();
+    expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
+  });
+
+  it("source manual → 'Modifiée par toi' badge", () => {
+    render(<Harness initialRow={dhRow({ source: "manual" })} />);
+    expect(screen.getByText("Modifiée par toi")).toBeInTheDocument();
+    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+  });
+
+  it("source absent → no source badge at all", () => {
+    render(<Harness initialRow={dhRow()} />);
+    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
+  });
+
+  it("legacy row (intervention NULL, manual only through the DB default) → no source badge", () => {
+    render(<Harness initialRow={dhRow({ source: "manual", session_type: "REST", intervention: null })} />);
+    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
+  });
+
+  it("unused enum values (rule/template) → no source badge", () => {
+    render(<Harness initialRow={dhRow({ source: "template" })} />);
+    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
+  });
+
+  it("no row → no source badge", () => {
+    render(<Harness initialRow={null} />);
+    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
+  });
+
+  it("shows the persisted duration (≥ 1 h and < 1 h)", () => {
+    const { unmount } = render(<Harness initialRow={dhRow({ source: "generated" })} />);
+    expect(screen.getByText("1 h 30")).toBeInTheDocument();
+    unmount();
+
+    render(<Harness initialRow={dhRow({ intervention: { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 } })} />);
+    expect(screen.getByText("45 min")).toBeInTheDocument();
+  });
+
+  it("shows no duration when the intervention has none", () => {
+    render(<Harness initialRow={strengthHeavyRow()} />);
+    expect(screen.queryByText(/\d+ (h|min)/)).not.toBeInTheDocument();
+  });
+
+  it("shows 'Activité engagée' only for a committed row", () => {
+    const { unmount } = render(<Harness initialRow={dhRow({ is_committed: true })} />);
+    expect(screen.getByText("Activité engagée")).toBeInTheDocument();
+    unmount();
+
+    render(<Harness initialRow={dhRow({ is_committed: false })} />);
+    expect(screen.queryByText("Activité engagée")).not.toBeInTheDocument();
+  });
+
+  it("a saved edit shows the returned row's own source (manual)", async () => {
+    const user = userEvent.setup();
+    savePlannedSession.mockResolvedValue(dhRow({ source: "manual", intervention: { kind: "REST" }, session_type: "REST" }));
+    render(<Harness initialRow={dhRow({ source: "generated" })} initialExpanded />);
+
+    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(await screen.findByText("Modifiée par toi")).toBeInTheDocument();
+    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+  });
+});
+
 describe("PlanningDayCard — session picker (F, G)", () => {
   it("F: offers exactly the 15 athlete-plannable kinds", () => {
     render(<Harness initialExpanded />);

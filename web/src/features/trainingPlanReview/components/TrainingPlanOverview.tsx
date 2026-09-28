@@ -27,6 +27,19 @@ interface TrainingPlanOverviewProps {
   review: TrainingPlanReview;
   hasActivePlan: boolean;
   onAccepted: (result: AcceptTrainingPlanResponse) => void;
+  /**
+   * V06-02 — program days the athlete has overridden in their planning
+   * (findAthleteModifiedProgramDates). `null`/absent = unknown (not loaded,
+   * not applicable, or the read failed) and renders nothing, exactly like
+   * an empty list.
+   */
+  athleteModifiedDates?: readonly string[] | null;
+}
+
+function modifiedDaysMessage(count: number): string {
+  return count > 1
+    ? `${count} jours de ce programme ont été modifiés par toi dans ton planning.`
+    : "1 jour de ce programme a été modifié par toi dans ton planning.";
 }
 
 /**
@@ -43,7 +56,7 @@ interface TrainingPlanOverviewProps {
  * repository layer), so there is nothing here that could accidentally leak
  * them.
  */
-export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: TrainingPlanOverviewProps) {
+export function TrainingPlanOverview({ review, hasActivePlan, onAccepted, athleteModifiedDates = null }: TrainingPlanOverviewProps) {
   const weeks = review.blocks.flatMap((block) => block.weeks);
   const weekCount = weeks.length;
   const totals = weeks.reduce(
@@ -76,6 +89,14 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted }: Trai
         <Link to="/today">
           <PrimaryButton className="w-full">Aller à Aujourd'hui</PrimaryButton>
         </Link>
+      )}
+
+      {athleteModifiedDates && athleteModifiedDates.length > 0 && (
+        <Card className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-ink">{modifiedDaysMessage(athleteModifiedDates.length)}</p>
+          <p className="text-xs text-muted">{athleteModifiedDates.map(formatShortDate).join(" · ")}</p>
+          <p className="text-xs text-muted">Pour ces jours, ta semaine suit tes modifications.</p>
+        </Card>
       )}
 
       <Card className="flex flex-col gap-2">

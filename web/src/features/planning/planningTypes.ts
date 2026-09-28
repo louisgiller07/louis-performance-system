@@ -49,6 +49,15 @@ export function isLoadProfile(value: string): value is LoadProfile {
 }
 
 /**
+ * `planned_sessions.source` (enum `session_source`): `"generated"` is written
+ * only by the `project_training_plan` RPC (V0.4_003a), `"manual"` by
+ * savePlannedSession below and as the column's DB default — so a legacy row
+ * written before the Planning feature also reads `"manual"`. `"rule"`/
+ * `"template"` exist in the enum but no current code path writes them.
+ */
+export type PlannedSessionSource = "generated" | "manual" | "rule" | "template";
+
+/**
  * Row shape as read from `planned_sessions` — mirrors exactly the columns
  * head-coach-engine's getPlannedSessionFor selects
  * (src/supabase/repositories/plannedSessionsRepo.ts: "session_type,
@@ -68,4 +77,10 @@ export interface PlannedSessionRow {
    * plan. `NOT NULL DEFAULT FALSE` in the DB — every legacy row is flexible.
    */
   is_committed: boolean;
+  /**
+   * V06-02 — who authored this row (see PlannedSessionSource). `NOT NULL` in
+   * the DB, but optional here: a row without it (or with an unrecognized
+   * value) is simply shown without a source badge, never guessed.
+   */
+  source?: PlannedSessionSource;
 }

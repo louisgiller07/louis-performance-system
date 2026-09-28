@@ -9,8 +9,10 @@ import {
   getTrainingPlanDrafts,
   getTrainingPlanReview,
   getActivePlanVersionId,
+  getManualPlannedDates,
   TrainingPlanVersionNotFoundError,
 } from "../features/trainingPlanReview/trainingPlanReviewRepo";
+import { findAthleteModifiedProgramDates } from "../features/trainingPlanReview/athleteModifiedProgramDays";
 import type { TrainingPlanDraftSummary, TrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewTypes";
 import { TrainingPlanOverview } from "../features/trainingPlanReview/components/TrainingPlanOverview";
 import { TrainingPlanWeekCard } from "../features/trainingPlanReview/components/TrainingPlanWeekCard";
@@ -56,6 +58,9 @@ export function TrainingPlanPreviewPage() {
   const [review, setReview] = useState<TrainingPlanReview | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>(LOAD_ERROR_MESSAGE);
+  // V06-02 — keyed by plan version so a result can never be shown against a
+  // different plan than the one it was computed for.
+  const [modifications, setModifications] = useState<{ planVersionId: string; dates: string[] } | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -108,6 +113,28 @@ export function TrainingPlanPreviewPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // V06-02 — supplementary, non-blocking read, only once the review is
+  // already on screen and only for the accepted (projected) plan: a draft's
+  // days are not in the athlete's planning yet, so comparing them would say
+  // nothing about modifications. Any failure just leaves the message hidden.
+  useEffect(() => {
+    if (!review || review.lifecycleState !== "accepted") return;
+    let cancelled = false;
+    getManualPlannedDates(review.version.horizonStartDate, review.version.horizonEndDate)
+      .then((manualDates) => {
+        if (!cancelled) setModifications({ planVersionId: review.version.id, dates: findAthleteModifiedProgramDates(review, manualDates) });
+      })
+      .catch(() => {
+        // Deliberately silent: the plan review stays fully usable without it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [review]);
+
+  const athleteModifiedDates =
+    review && review.lifecycleState === "accepted" && modifications?.planVersionId === review.version.id ? modifications.dates : null;
 
   function handleSelectDraft(planVersionId: string) {
     // Navigates rather than fetching locally — the URL becomes the one
@@ -177,7 +204,12 @@ export function TrainingPlanPreviewPage() {
 
       {review && (
         <>
-          <TrainingPlanOverview review={review} hasActivePlan={hasActivePlan} onAccepted={handleAccepted} />
+          <TrainingPlanOverview
+            review={review}
+            hasActivePlan={hasActivePlan}
+            onAccepted={handleAccepted}
+            athleteModifiedDates={athleteModifiedDates}
+          />
           <div className="flex flex-col gap-4">
             {review.blocks
               .flatMap((block) => block.weeks)
