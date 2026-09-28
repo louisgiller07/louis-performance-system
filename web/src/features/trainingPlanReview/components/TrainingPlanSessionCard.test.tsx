@@ -24,7 +24,7 @@ describe("TrainingPlanSessionCard", () => {
 
     expect(screen.getByText("Strength Lower")).toBeInTheDocument();
     expect(screen.getByText("60 min")).toBeInTheDocument();
-    expect(screen.getByText("Standard development week.")).toBeInTheDocument();
+    expect(screen.getByText("Semaine standard de développement.")).toBeInTheDocument();
   });
 
   it("renders nothing extra when prescription is null (e.g. an aerobic session)", () => {
@@ -169,5 +169,48 @@ describe("TrainingPlanSessionCard", () => {
     expect(screen.getByText("Cornering Flat Turn Precision")).toBeInTheDocument();
     expect(screen.getByText(/6 passages/)).toBeInTheDocument();
     expect(screen.getByText("Look where you want to go.")).toBeInTheDocument();
+  });
+});
+
+// REV-013 — the session's English engine rationale is translated for display.
+describe("TrainingPlanSessionCard — explanation (REV-013)", () => {
+  it("translates every part of the session explanation, other fields unchanged", () => {
+    render(
+      <TrainingPlanSessionCard
+        session={session({
+          rationale:
+            "Standard development week. Adjusted due to recent missed or replaced sessions pattern Reduced heavy strength load to avoid consecutive heavy strength sessions",
+        })}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        "Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées. Charge de force réduite pour éviter deux séances lourdes d'affilée."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Adjusted|Reduced|heavy|pattern/)).not.toBeInTheDocument();
+    expect(screen.getByText("Strength Lower")).toBeInTheDocument();
+    expect(screen.getByText("60 min")).toBeInTheDocument();
+  });
+
+  it("an unknown part is dropped, the known part is kept", () => {
+    render(<TrainingPlanSessionCard session={session({ rationale: "Standard development week. New fatigue adjustment." })} />);
+
+    expect(screen.getByText("Semaine standard de développement.")).toBeInTheDocument();
+    expect(screen.queryByText(/fatigue adjustment/)).not.toBeInTheDocument();
+  });
+
+  it("an entirely unknown explanation shows the neutral sentence, never the English", () => {
+    render(<TrainingPlanSessionCard session={session({ rationale: "Brand new engine explanation." })} />);
+
+    expect(screen.getByText("Séance prévue par ton programme.")).toBeInTheDocument();
+    expect(screen.queryByText(/Brand new/)).not.toBeInTheDocument();
+  });
+
+  it("an empty explanation renders no paragraph", () => {
+    const { container } = render(<TrainingPlanSessionCard session={session({ rationale: "" })} />);
+
+    expect(container.querySelectorAll("p")).toHaveLength(2); // duration + domain only
   });
 });

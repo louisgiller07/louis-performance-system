@@ -101,7 +101,7 @@ describe("TrainingPlanPreviewPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("version-1");
   });
 
@@ -122,7 +122,7 @@ describe("TrainingPlanPreviewPage", () => {
 
     renderPage();
 
-    await screen.findByText("Initial training plan generation.");
+    await screen.findByText("Première génération de ton plan d'entraînement.");
     expect(screen.queryByText(/plans en attente/)).not.toBeInTheDocument();
   });
 
@@ -146,7 +146,7 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
     getTrainingPlanReview.mockImplementation(async (id: string) => {
       if (id === "plan-123") {
         return {
-          version: { ...DRAFT_1, id: "plan-123", rationale: "Targeted plan.", relaxedConstraints: [] },
+          version: { ...DRAFT_1, id: "plan-123", rationale: "Regenerated after declared equipment changed.", relaxedConstraints: [] },
           lifecycleState: "draft",
           blocks: [],
         };
@@ -156,7 +156,7 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage("/training-plan-preview/plan-123");
 
-    expect(await screen.findByText("Targeted plan.")).toBeInTheDocument();
+    expect(await screen.findByText("Plan régénéré après une modification de ton équipement.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("plan-123");
   });
 
@@ -169,8 +169,8 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
-    expect(screen.queryByText("Regenerated after a manual edit.")).not.toBeInTheDocument();
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
+    expect(screen.queryByText("Plan régénéré après une modification manuelle.")).not.toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith(DRAFT_1.id);
     expect(getTrainingPlanReview).not.toHaveBeenCalledWith(DRAFT_2.id);
   });
@@ -185,8 +185,8 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
     renderPage("/training-plan-preview/missing-id");
 
     expect(await screen.findByText("Ce plan est introuvable ou n'est plus accessible.")).toBeInTheDocument();
-    expect(screen.queryByText("Initial training plan generation.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Regenerated after a manual edit.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Première génération de ton plan d'entraînement.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Plan régénéré après une modification manuelle.")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Voir les plans disponibles" })).toHaveAttribute("href", "/training-plan-preview");
   });
 
@@ -200,7 +200,7 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage("/training-plan-preview/accepted-plan");
 
-    expect(await screen.findByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
     expect(getTrainingPlanReview).toHaveBeenCalledWith("accepted-plan");
   });
 });
@@ -289,7 +289,7 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
               startDate: "2026-10-19",
               endDate: "2026-10-25",
               weekType: "development",
-              rationale: "Week rationale.",
+              rationale: "Standard development week.",
               doseSummary: {
                 plannedStrengthSessionCount: 1,
                 plannedDhTechnicalSessionCount: 0,
@@ -298,7 +298,7 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
                 totalPlannedMinutes: 60,
               },
               sessions: [
-                { id: "s-1", weekId: "week-1", date, kind: "STRENGTH_LOWER", loadProfile: "MODERATE", durationMin: 60, doseTarget: null, rationale: "Session rationale.", prescription: null },
+                { id: "s-1", weekId: "week-1", date, kind: "STRENGTH_LOWER", loadProfile: "MODERATE", durationMin: 60, doseTarget: null, rationale: "Standard development week. Adjusted due to recent missed or replaced sessions pattern", prescription: null },
               ],
             },
           ],
@@ -325,7 +325,7 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByText("Session rationale.")).toBeInTheDocument();
+    expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
     await waitFor(() => expect(getManualPlannedDates).toHaveBeenCalled());
     expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
   });
@@ -337,7 +337,7 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByText("Session rationale.")).toBeInTheDocument();
+    expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
     await waitFor(() => expect(getManualPlannedDates).toHaveBeenCalled());
     expect(screen.getByText("Plan actif")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Aller à Aujourd'hui" })).toBeInTheDocument();
@@ -351,7 +351,7 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByText("Session rationale.")).toBeInTheDocument();
+    expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
     expect(getManualPlannedDates).not.toHaveBeenCalled();
   });
 });

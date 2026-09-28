@@ -7,6 +7,7 @@ import { SecondaryButton } from "../../../components/SecondaryButton";
 import type { TrainingPlanLifecycleState, TrainingPlanReview } from "../trainingPlanReviewTypes";
 import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
 import { describeRelaxedConstraints } from "../placementReasonLabels";
+import { translateExplanation } from "../trainingPlanExplanationLabels";
 import { AcceptTrainingPlanButton } from "./AcceptTrainingPlanButton";
 import type { AcceptTrainingPlanResponse } from "../acceptTrainingPlan";
 
@@ -71,6 +72,8 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted, athlet
     { strength: 0, dh: 0, aerobic: 0, rest: 0, minutes: 0 }
   );
   const attentionPoints = describeRelaxedConstraints(review.version.relaxedConstraints);
+  // REV-013 — the stored English rationale is translated for display only.
+  const versionExplanation = translateExplanation(review.version.rationale, "version").text;
 
   return (
     <div className="flex flex-col gap-4">
@@ -102,7 +105,7 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted, athlet
       )}
 
       <Card className="flex flex-col gap-2">
-        <p className="text-sm text-ink/90">{review.version.rationale}</p>
+        {versionExplanation && <p className="text-sm text-ink/90">{versionExplanation}</p>}
         {review.blocks.map((block) => (
           <p key={block.id} className="text-xs text-muted">
             {block.name} — {humanizeLabel(block.primaryFocus)}

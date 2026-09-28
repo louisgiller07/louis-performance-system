@@ -2,6 +2,7 @@ import { Card } from "../../../components/Card";
 import { Badge } from "../../../components/Badge";
 import type { TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
 import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
+import { translateExplanation } from "../trainingPlanExplanationLabels";
 
 interface StrengthBlockLike {
   exerciseId?: unknown;
@@ -137,6 +138,7 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
  */
 export function TrainingPlanSessionCard({ session }: { session: TrainingPlanReviewSession }) {
   const domain = readDomain(session.doseTarget);
+  const sessionExplanation = translateExplanation(session.rationale, "session").text;
 
   return (
     <Card className="flex flex-col gap-2">
@@ -146,7 +148,8 @@ export function TrainingPlanSessionCard({ session }: { session: TrainingPlanRevi
       </div>
       {session.durationMin !== null && <p className="text-sm text-ink/80">{session.durationMin} min</p>}
       {domain && <p className="text-xs text-muted">{humanizeLabel(domain)}</p>}
-      <p className="text-sm text-ink/90">{session.rationale}</p>
+      {/* REV-013 — the stored English rationale is translated for display only. */}
+      {sessionExplanation && <p className="text-sm text-ink/90">{sessionExplanation}</p>}
       {session.prescription && (
         <div className="mt-1 border-t border-white/5 pt-2">
           <PrescriptionStructure structure={session.prescription.structure} />

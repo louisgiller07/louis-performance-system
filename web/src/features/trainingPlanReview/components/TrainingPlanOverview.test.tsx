@@ -66,7 +66,7 @@ describe("TrainingPlanOverview", () => {
     renderOverview();
 
     expect(screen.getByText(/1 semaine/)).toBeInTheDocument();
-    expect(screen.getByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(screen.getByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
   });
 
   it("displays the lifecycle state and volume summary", () => {
@@ -96,6 +96,36 @@ describe("TrainingPlanOverview", () => {
 
     expect(screen.queryByText(/version-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/inputSnapshot/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("TrainingPlanOverview — explanation (REV-013)", () => {
+  function withRationale(rationale: string): TrainingPlanReview {
+    const base = review();
+    return { ...base, version: { ...base.version, rationale } };
+  }
+
+  it("translates the plan's generation explanation, never shows the English", () => {
+    renderOverview({ review: withRationale("Regenerated after declared availability changed.") });
+
+    expect(screen.getByText("Plan régénéré après une modification de tes disponibilités.")).toBeInTheDocument();
+    expect(screen.queryByText(/Regenerated|availability/)).not.toBeInTheDocument();
+  });
+
+  it("an unknown explanation falls back to the neutral sentence", () => {
+    renderOverview({ review: withRationale("Some future generation note.") });
+
+    expect(screen.getByText("Plan généré à partir de ta configuration.")).toBeInTheDocument();
+    expect(screen.queryByText(/future generation note/)).not.toBeInTheDocument();
+  });
+
+  it("other overview fields are unchanged", () => {
+    renderOverview();
+
+    expect(screen.getByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
+    expect(screen.getByText(/Base Phase/)).toBeInTheDocument();
+    expect(screen.getByText("Volume global")).toBeInTheDocument();
+    expect(screen.getByText("240 min au total")).toBeInTheDocument();
   });
 });
 
@@ -143,7 +173,7 @@ describe("TrainingPlanOverview — placement reasons (V06-04)", () => {
   it("normal sessions and the rest of the overview are unaffected by the reasons", () => {
     renderOverview({ review: withConstraints([{ constraintId: "placement_shortfall", reason: "insufficient_available_time", domain: "dh_technical" }]) });
 
-    expect(screen.getByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(screen.getByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
     expect(screen.getByText("Volume global")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accepter ce plan" })).toBeInTheDocument();
   });
