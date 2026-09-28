@@ -32,6 +32,9 @@ describe("TrainingPlanSessionCard", () => {
 
     expect(screen.queryByText(/séries/)).not.toBeInTheDocument();
     expect(screen.queryByText(/passages/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/reps|RPE|Repos/)).not.toBeInTheDocument();
+    expect(screen.getByText("Aerobic Base")).toBeInTheDocument();
+    expect(screen.getByText("60 min")).toBeInTheDocument();
   });
 
   it("displays the strength prescription's exercises when present", () => {
@@ -49,6 +52,99 @@ describe("TrainingPlanSessionCard", () => {
 
     expect(screen.getByText("Bodyweight Squat")).toBeInTheDocument();
     expect(screen.getByText(/12 séries/)).toBeInTheDocument();
+  });
+
+  function strengthSession(block: Record<string, unknown>): TrainingPlanReviewSession {
+    return session({
+      prescription: {
+        id: "prescription-1",
+        generatedPlanSessionId: "session-1",
+        structure: { domain: "strength", schemaVersion: "v1", blocks: [block] },
+      },
+    });
+  }
+
+  const COMPLETE_BLOCK = {
+    role: "work",
+    exerciseId: "barbell_back_squat",
+    sets: 3,
+    repScheme: { type: "fixed", reps: 8 },
+    intensity: { type: "rpe", target: 7 },
+    restSeconds: 120,
+  };
+
+  it("displays the complete strength prescription: sets × reps, RPE and rest (Today's format)", () => {
+    render(<TrainingPlanSessionCard session={strengthSession(COMPLETE_BLOCK)} />);
+
+    expect(screen.getByText("Barbell Back Squat")).toBeInTheDocument();
+    expect(screen.getByText("3 × 8 reps — RPE 7")).toBeInTheDocument();
+    expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
+  });
+
+  it("formats a range rep scheme like Today", () => {
+    render(<TrainingPlanSessionCard session={strengthSession({ ...COMPLETE_BLOCK, sets: 12, repScheme: { type: "range", min: 8, max: 12 } })} />);
+
+    expect(screen.getByText("12 × 8-12 reps — RPE 7")).toBeInTheDocument();
+  });
+
+  it("renders without crashing and without reps when repScheme is absent", () => {
+    const { repScheme: _omitted, ...block } = COMPLETE_BLOCK;
+    render(<TrainingPlanSessionCard session={strengthSession(block)} />);
+
+    expect(screen.getByText("3 séries — RPE 7")).toBeInTheDocument();
+    expect(screen.queryByText(/reps/)).not.toBeInTheDocument();
+    expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
+  });
+
+  it("renders without crashing and without intensity when intensity is absent", () => {
+    const { intensity: _omitted, ...block } = COMPLETE_BLOCK;
+    render(<TrainingPlanSessionCard session={strengthSession(block)} />);
+
+    expect(screen.getByText("3 × 8 reps")).toBeInTheDocument();
+    expect(screen.queryByText(/RPE/)).not.toBeInTheDocument();
+    expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
+  });
+
+  it("renders without crashing and without rest when restSeconds is absent", () => {
+    const { restSeconds: _omitted, ...block } = COMPLETE_BLOCK;
+    render(<TrainingPlanSessionCard session={strengthSession(block)} />);
+
+    expect(screen.getByText("3 × 8 reps — RPE 7")).toBeInTheDocument();
+    expect(screen.queryByText(/Repos/)).not.toBeInTheDocument();
+  });
+
+  it("omits malformed fields instead of rendering a fabricated value", () => {
+    render(
+      <TrainingPlanSessionCard
+        session={strengthSession({
+          exerciseId: "barbell_back_squat",
+          sets: "3",
+          repScheme: { type: "fixed" },
+          intensity: { type: "unknown_type", target: 7 },
+          restSeconds: null,
+        })}
+      />
+    );
+
+    expect(screen.getByText("Barbell Back Squat")).toBeInTheDocument();
+    expect(screen.queryByText(/séries|reps|RPE|Repos|undefined|NaN/)).not.toBeInTheDocument();
+  });
+
+  it("does not crash on a non-object block", () => {
+    render(<TrainingPlanSessionCard session={strengthSession(null as unknown as Record<string, unknown>)} />);
+
+    expect(screen.getByText("Exercice")).toBeInTheDocument();
+  });
+
+  it("never displays internal prescription fields", () => {
+    const { container } = render(
+      <TrainingPlanSessionCard session={strengthSession({ ...COMPLETE_BLOCK, substitutionOf: "goblet_squat" })} />
+    );
+
+    const text = container.textContent ?? "";
+    for (const internal of ["barbell_back_squat", "goblet_squat", "Goblet Squat", "schemaVersion", "v1", "work", "Travail", "fixed", "rpe", "repScheme", "restSeconds", "prescription-1"]) {
+      expect(text).not.toContain(internal);
+    }
   });
 
   it("displays the DH prescription's drills when present", () => {
