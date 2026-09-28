@@ -99,6 +99,56 @@ describe("TrainingPlanOverview", () => {
   });
 });
 
+describe("TrainingPlanOverview — placement reasons (V06-04)", () => {
+  function withConstraints(relaxedConstraints: TrainingPlanReview["version"]["relaxedConstraints"]): TrainingPlanReview {
+    const base = review();
+    return { ...base, version: { ...base.version, relaxedConstraints } };
+  }
+
+  it("shows each engine reason as athlete wording in the existing 'Points d'attention' card, never the raw key", () => {
+    renderOverview({
+      review: withConstraints([
+        { constraintId: "placement_shortfall", reason: "insufficient_available_time", domain: "dh_technical" },
+        { constraintId: "placement_shortfall", reason: "insufficient_available_time", domain: "dh_technical" },
+        { constraintId: "placement_shortfall", reason: "insufficient_available_dates", domain: "aerobic" },
+      ]),
+    });
+
+    expect(screen.getByText("Points d'attention")).toBeInTheDocument();
+    expect(screen.getByText("2 séances DH non placées : pas assez de temps disponible dans tes créneaux.")).toBeInTheDocument();
+    expect(screen.getByText("1 séance aérobie non placée : pas assez de jours disponibles.")).toBeInTheDocument();
+    expect(screen.queryByText(/insufficient_|placement_shortfall|dh_technical/)).not.toBeInTheDocument();
+  });
+
+  it("an unknown reason still appears, as the generic fallback", () => {
+    renderOverview({ review: withConstraints([{ constraintId: "placement_shortfall", reason: "some_future_reason", domain: "strength" }]) });
+
+    expect(screen.getByText("1 séance de force n'a pas pu être placée.")).toBeInTheDocument();
+    expect(screen.queryByText(/some_future_reason/)).not.toBeInTheDocument();
+  });
+
+  it("a plan without relaxed constraints shows no 'Points d'attention' card at all", () => {
+    renderOverview({ review: withConstraints([]) });
+
+    expect(screen.queryByText("Points d'attention")).not.toBeInTheDocument();
+    expect(screen.queryByText(/non placée|pas pu être placée/)).not.toBeInTheDocument();
+  });
+
+  it("entries with no usable reason show no card rather than an empty or raw one", () => {
+    renderOverview({ review: withConstraints([{ constraintId: "placement_shortfall", reason: "", domain: "dh_technical" }]) });
+
+    expect(screen.queryByText("Points d'attention")).not.toBeInTheDocument();
+  });
+
+  it("normal sessions and the rest of the overview are unaffected by the reasons", () => {
+    renderOverview({ review: withConstraints([{ constraintId: "placement_shortfall", reason: "insufficient_available_time", domain: "dh_technical" }]) });
+
+    expect(screen.getByText("Initial training plan generation.")).toBeInTheDocument();
+    expect(screen.getByText("Volume global")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accepter ce plan" })).toBeInTheDocument();
+  });
+});
+
 describe("TrainingPlanOverview — athlete modifications (V06-02)", () => {
   it("shows how many program days the athlete modified, with their dates", () => {
     renderOverview({ review: review({ lifecycleState: "accepted" }), athleteModifiedDates: ["2026-10-20", "2026-10-22", "2026-10-24"] });

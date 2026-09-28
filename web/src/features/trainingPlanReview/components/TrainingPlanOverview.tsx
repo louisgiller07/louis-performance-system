@@ -6,6 +6,7 @@ import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
 import type { TrainingPlanLifecycleState, TrainingPlanReview } from "../trainingPlanReviewTypes";
 import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
+import { describeRelaxedConstraints } from "../placementReasonLabels";
 import { AcceptTrainingPlanButton } from "./AcceptTrainingPlanButton";
 import type { AcceptTrainingPlanResponse } from "../acceptTrainingPlan";
 
@@ -69,6 +70,7 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted, athlet
     }),
     { strength: 0, dh: 0, aerobic: 0, rest: 0, minutes: 0 }
   );
+  const attentionPoints = describeRelaxedConstraints(review.version.relaxedConstraints);
 
   return (
     <div className="flex flex-col gap-4">
@@ -116,12 +118,13 @@ export function TrainingPlanOverview({ review, hasActivePlan, onAccepted, athlet
         <p className="text-xs text-muted">{totals.minutes} min au total</p>
       </Card>
 
-      {review.version.relaxedConstraints.length > 0 && (
+      {/* V06-04 — engine reasons are never shown raw: describeRelaxedConstraints turns them into counted French sentences. */}
+      {attentionPoints.length > 0 && (
         <Card className="flex flex-col gap-1">
           <p className="text-sm font-medium text-ink">Points d'attention</p>
-          {review.version.relaxedConstraints.map((constraint, index) => (
-            <p key={index} className="text-xs text-muted">
-              {constraint.reason}
+          {attentionPoints.map((text) => (
+            <p key={text} className="text-xs text-muted">
+              {text}
             </p>
           ))}
         </Card>
