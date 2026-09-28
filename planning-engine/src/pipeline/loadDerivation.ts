@@ -104,11 +104,23 @@ function deriveDoseTarget(domain: SupportedDomain, weekType: WeekType): SessionD
   }
 }
 
+/**
+ * V06-03 — the reference (pre-history) duration a session of `domain` gets
+ * in a week of `weekType`: the exact value deriveLoad() itself assigns
+ * below, exposed so the orchestrator can hand it to WeekSegmenter before
+ * any kind exists (a slot must fit its availability window). Depends only
+ * on domain + weekType, never on kind; HistoryAdjuster can only lower it
+ * afterwards, so it is an upper bound of every final durationMin.
+ */
+export function referenceDurationMinFor(domain: SupportedDomain, weekType: WeekType): number {
+  return isTaper(weekType) ? TAPER_DURATION_MIN[domain] : BASE_DURATION_MIN[domain];
+}
+
 export function deriveLoad(input: LoadDerivationInput): LoadDerivationOutput {
   const domain = domainForKind(input.kind);
   const taper = isTaper(input.weekType);
 
-  const durationMin = taper ? TAPER_DURATION_MIN[domain] : BASE_DURATION_MIN[domain];
+  const durationMin = referenceDurationMinFor(domain, input.weekType);
   const doseTarget = deriveDoseTarget(domain, input.weekType);
   const loadProfile: LoadProfile | undefined = LOAD_VARIABLE_SESSION_KINDS.has(input.kind)
     ? taper

@@ -16,7 +16,7 @@ import { selectWeekTemplate, type TemplateSelectionReason } from "./templateSele
 import { segmentWeek } from "./weekSegmenter.js";
 import type { SessionDomain } from "./weekSegmenter.js";
 import { assignSessionKinds } from "./sessionKindAssignment.js";
-import { deriveLoad, type LoadDerivationOutput } from "./loadDerivation.js";
+import { deriveLoad, referenceDurationMinFor, type LoadDerivationOutput } from "./loadDerivation.js";
 import { adjustHistory, type HistoryAdjusterOutput } from "./historyAdjuster.js";
 import { resolveConstraints, type ConstraintResolverSessionEntry } from "./constraintResolver.js";
 import type { PipelineSessionEnvelope } from "../types/pipelineSessionEnvelope.js";
@@ -31,8 +31,11 @@ import type {
 import type { WeekDoseSummary, WeekType } from "../types/planWeek.js";
 import type { RelaxedConstraint } from "../types/planVersion.js";
 
-/** Pure technical version stamp — never a coaching value, same convention as EXERCISE_CATALOG_VERSION/DRILL_CATALOG_VERSION. Bumped manually whenever this pipeline's algorithm changes. */
-export const PLANNING_ENGINE_VERSION = "v1";
+/**
+ * Pure technical version stamp — never a coaching value, same convention as EXERCISE_CATALOG_VERSION/DRILL_CATALOG_VERSION. Bumped manually whenever this pipeline's algorithm changes.
+ * v2 (V06-03): WeekSegmenter only places a slot on a date whose availability window can hold the session's duration.
+ */
+export const PLANNING_ENGINE_VERSION = "v2";
 
 export interface PlanningPipelineOrchestratorInput {
   block: TrainingPlanBlock;
@@ -130,6 +133,13 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
       availability: input.availability,
       terrainAccess: input.terrainAccess,
       lockedDates: input.lockedDates,
+      // V06-03 — the same reference figures deriveLoad() assigns below
+      // (HistoryAdjuster can only lower them), so a placed slot always fits.
+      sessionDurationMinByDomain: {
+        strength: referenceDurationMinFor("strength", weekType),
+        dh_technical: referenceDurationMinFor("dh_technical", weekType),
+        aerobic: referenceDurationMinFor("aerobic", weekType),
+      },
     });
 
     const { assignments } = assignSessionKinds({ placedSlots });
