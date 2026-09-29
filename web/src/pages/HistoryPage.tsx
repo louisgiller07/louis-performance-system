@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { PageShell } from "../components/PageShell";
+import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
 import { HistoryHero } from "../features/history/HistoryHero";
 import { HistoryList } from "../features/history/HistoryList";
@@ -63,6 +64,7 @@ export function HistoryPage() {
   return (
     <PageShell header={<AppHeader />}>
       <HistoryHero />
+      <SubPageLink to="/insights" label="Insights" hint="· tendances à valider" />
 
       {state === "loading" && <p className="text-sm text-muted">Chargement…</p>}
 

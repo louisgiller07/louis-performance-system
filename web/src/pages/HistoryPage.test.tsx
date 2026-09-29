@@ -108,11 +108,12 @@ describe("HistoryPage", () => {
     await waitFor(() => expect(mockedLoad).toHaveBeenCalledWith("athlete-1"));
   });
 
-  it("logout button calls signOut", () => {
+  it("UX-02: no logout in the header anymore (moved to Profil); Insights is reached from Historique", () => {
     mockedLoad.mockReturnValue(new Promise(() => {}));
     renderHistoryPage();
-    screen.getByText("Déconnexion").click();
-    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Déconnexion")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Insights/ })).toHaveAttribute("href", "/insights");
+    expect(screen.getByRole("link", { name: "Historique" })).toHaveAttribute("aria-current", "page");
   });
 
   // V0.3_007D — one batched completed-session query for the whole page load.

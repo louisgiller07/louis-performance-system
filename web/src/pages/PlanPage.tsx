@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { PageShell } from "../components/PageShell";
+import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import { SecondaryButton } from "../components/SecondaryButton";
@@ -114,6 +115,7 @@ export function PlanPage() {
 
   return (
     <PageShell header={<AppHeader />}>
+      <SubPageLink to="/training-plan" label="Programme" back />
       <SectionHeader title="Planning" subtitle="7 prochains jours" />
 
       {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}

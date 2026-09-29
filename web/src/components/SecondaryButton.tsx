@@ -8,7 +8,7 @@ export function SecondaryButton({ className = "", ...props }: ButtonHTMLAttribut
     <button
       type="button"
       {...props}
-      className={`min-h-11 rounded border border-white/10 px-4 py-2 text-sm font-medium text-ink/80 disabled:opacity-40 ${className}`}
+      className={`ux-press min-h-11 rounded border border-line px-4 py-2 text-sm font-medium text-ink/85 hover:border-gold/60 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light disabled:opacity-40 ${className}`}
     />
   );
 }

@@ -64,9 +64,12 @@ describe("DailyPlanResult", () => {
         })}
       />
     );
-    expect(screen.getByText("Entraînement")).toBeInTheDocument();
-    expect(screen.getByText(/DH technique/)).toBeInTheDocument();
-    expect(screen.getByText("Travail de virages")).toBeInTheDocument();
+    // UX-03 — on Today the MissionHero names the session and carries the (sanitized) objective;
+    // the separate "Entraînement" card is History-only now (HistoryDetail.test.tsx).
+    const hero = screen.getByRole("region", { name: "Aérobie base" });
+    expect(hero).toHaveTextContent("Travail de virages");
+    expect(hero).toHaveTextContent("charge modérée");
+    expect(screen.queryByText("Entraînement")).not.toBeInTheDocument();
   });
 
   it("does not render an empty training card when the section is inactive", () => {
@@ -376,9 +379,13 @@ describe("DailyPlanResult", () => {
         })}
       />
     );
-    expect(screen.getByText("Séance")).toBeInTheDocument();
-    expect(screen.getByText(/DH performance/)).toBeInTheDocument();
-    expect(screen.getByText(/Récupération active/)).toBeInTheDocument();
+    // UX-03 — Today's comparison now lives in the MissionHero ("Prévu" → "Adapté"),
+    // never duplicated by the former "Séance" card.
+    expect(screen.queryByText("Séance")).not.toBeInTheDocument();
+    expect(screen.getByText(/Prévu : DH performance/)).toBeInTheDocument();
+    expect(screen.getByText(/Adapté : Récupération active/)).toBeInTheDocument();
+    const hero = screen.getByRole("region", { name: "Récupération active" });
+    expect(hero.textContent).not.toMatch(/DH_PERFORMANCE|RECOVERY_ACTIVE|HEAVY/);
   });
 
   it("does not show a planned-vs-final comparison for a KEEP with an unchanged session", () => {
@@ -465,7 +472,7 @@ describe("DailyPlanResult", () => {
     expect(screen.queryByText("Technique")).not.toBeInTheDocument();
   });
 
-  it("a non-DH session keeps the existing 'Entraînement' card unchanged, and never shows Today's Mission/Session Plan", () => {
+  it("a non-DH session is presented by the MissionHero (kind + objective), and never shows the DH Mission/Session Plan cards", () => {
     render(
       <DailyPlanResult
         result={makeResult({
@@ -474,10 +481,11 @@ describe("DailyPlanResult", () => {
         })}
       />
     );
-    expect(screen.getByText("Entraînement")).toBeInTheDocument();
-    // REV-015.1 — the inline DH mission card and Today's hoisted MissionCard now share the
-    // title "Mission du jour": exactly one (the hoisted card) means no inline DH card.
-    expect(screen.getAllByText("Mission du jour")).toHaveLength(1);
+    expect(screen.getByRole("region", { name: "Aérobie base" })).toHaveTextContent("Base aérobie");
+    // UX-03 — Today's MissionHero ("Ta mission du jour") replaces the hoisted MissionCard;
+    // a non-DH session never shows the inline DH "Mission du jour" card.
+    expect(screen.getAllByText("Ta mission du jour")).toHaveLength(1);
+    expect(screen.queryByText("Mission du jour")).not.toBeInTheDocument();
     expect(screen.queryByText("Plan de séance")).not.toBeInTheDocument();
   });
 

@@ -47,7 +47,9 @@ export function RatingSlider({ label, value, min = 0, max = 10, onChange, error,
         <span>{label}</span>
         <span className="flex items-baseline gap-2">
           {valueLabel && <span className="text-[10px] font-semibold uppercase tracking-wide text-gold">{valueLabel}</span>}
-          <span className="font-mono text-xs text-muted">{value === "" ? "—" : value}</span>
+          <span key={String(value)} className="ux-pop font-display text-2xl font-extrabold leading-none text-ink">
+            {value === "" ? "—" : value}
+          </span>
         </span>
       </span>
       {helper && <span className="text-xs text-muted">{helper}</span>}
@@ -58,8 +60,8 @@ export function RatingSlider({ label, value, min = 0, max = 10, onChange, error,
         step={1}
         value={value === "" ? min : value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="h-1.5 w-full touch-manipulation appearance-none rounded-full accent-gold"
-        style={{ background: `linear-gradient(to right, var(--color-gold) ${percent}%, rgba(255,255,255,0.08) ${percent}%)` }}
+        className="ux-range my-2 w-full touch-manipulation"
+        style={{ background: `linear-gradient(to right, var(--color-gold) ${percent}%, var(--color-line) ${percent}%)` }}
       />
       {(lowLabel || highLabel) && (
         <span className="flex items-center justify-between text-[11px] text-muted">

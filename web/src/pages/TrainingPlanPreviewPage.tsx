@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
+import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -200,6 +201,7 @@ export function TrainingPlanPreviewPage() {
 
   return (
     <PageShell header={<AppHeader />}>
+      <SubPageLink to="/plan" label="Ma semaine" hint="· planning des 7 prochains jours" />
       {drafts.length > 1 && selectedId && <DraftList drafts={drafts} selectedId={selectedId} onSelect={handleSelectDraft} />}
 
       {review && (

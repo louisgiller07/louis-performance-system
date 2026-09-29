@@ -7,12 +7,35 @@
  * here and keep using Tailwind's stock red/amber utility scales as-is.
  */
 @theme {
-  --color-bg: #08090b;
-  --color-card: #12151a;
-  --color-gold: #d4af37;
-  --color-gold-light: #f5d76e;
-  --color-ink: #f5f5f0;
-  --color-muted: #8b9098;
+  /*
+   * UX-01 — aligned on the marketing site (marketing-site/src/styles/
+   * global.css): carbon black, race-asphalt surfaces, titanium text, matte
+   * factory gold used sparingly. Token NAMES are unchanged (bg/card/gold/
+   * gold-light/ink/muted), so every existing call site picks up the new
+   * palette without being touched. `muted` is Stone Grey lifted to pass
+   * WCAG AA on every surface (≥5:1 on card-2).
+   */
+  --color-bg: #080909;
+  --color-card: #151718;
+  --color-card-2: #1c1e1e;
+  --color-line: #26282a;
+  --color-gold: #b89a4a;
+  --color-gold-light: #c9ab5c;
+  --color-ink: #e7e4dd;
+  --color-muted: #8a8e86;
+  --color-pine: #0b130f;
+
+  /* Condensed display face (self-hosted @fontsource) — headlines and key numbers only. */
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+
+  /* Engineered, not bubbly: every rounded-* utility tightens without touching call sites. */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /*
@@ -62,4 +85,186 @@ select optgroup {
 html,
 body {
   min-height: 100%;
+}
+
+body {
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * UX-01 — motion primitives (CSS only, no animation library). Every one of
+ * them is disabled under prefers-reduced-motion: the element simply
+ * appears in its final state.
+ *
+ * - .ux-enter          fade + slide up on mount; stagger with style="--d: 120ms"
+ * - .ux-pop            short scale-in for a value that just changed
+ * - .ux-skeleton       premium shimmer placeholder while data loads
+ * - .ux-press          tactile press feedback on buttons / tappable cards
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .ux-enter {
+    animation: ux-enter 0.7s var(--ease-premium) both;
+    animation-delay: var(--d, 0ms);
+  }
+  .ux-pop {
+    animation: ux-pop 0.5s var(--ease-premium) both;
+    animation-delay: var(--d, 0ms);
+  }
+  .ux-press {
+    transition:
+      transform 0.15s var(--ease-premium),
+      background-color 0.2s,
+      border-color 0.2s,
+      color 0.2s;
+  }
+  .ux-press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .ux-skeleton {
+    background: linear-gradient(90deg, var(--color-card) 0%, var(--color-card-2) 40%, var(--color-card) 80%) 0 0 / 300% 100%;
+    animation: ux-shimmer 1.6s linear infinite;
+  }
+}
+.ux-skeleton {
+  background-color: var(--color-card-2);
+}
+
+@keyframes ux-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.9rem, 0);
+  }
+}
+@keyframes ux-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+@keyframes ux-shimmer {
+  to {
+    background-position: -300% 0;
+  }
+}
+
+/* Film grain — tiny inline SVG noise tile, same as the marketing site. */
+.ux-grain {
+  position: relative;
+  isolation: isolate;
+}
+.ux-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+
+/* Range inputs (RatingSlider): a real, thumb-sized control on touch screens. */
+input[type="range"].ux-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  outline: none;
+}
+input[type="range"].ux-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  border: 3px solid var(--color-gold);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+input[type="range"].ux-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  border: 3px solid var(--color-gold);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.5);
+  cursor: pointer;
+}
+input[type="range"].ux-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--color-gold-light);
+  outline-offset: 3px;
+}
+
+/*
+ * UX-03 — Today: guided check-in, analysis sequence, mission reveal.
+ * Final state by default (no-JS / reduced motion); motion only when allowed.
+ */
+.checkin-guided > fieldset:first-child > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.checkin-guided fieldset {
+  gap: 1.25rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mission-strike {
+    animation: ux-strike 0.5s var(--ease-premium) 0.7s both;
+  }
+  .mission-adapted {
+    animation: ux-slide-in 0.7s var(--ease-premium) 0.95s both;
+  }
+  .analysis-line {
+    animation: ux-line 0.5s ease calc(var(--i) * 380ms + 200ms) both;
+  }
+  .analysis-check {
+    animation: ux-pop 0.4s var(--ease-premium) calc(var(--i) * 380ms + 480ms) both;
+  }
+  .analysis-bar {
+    animation: ux-bar 1.8s var(--ease-premium) both;
+  }
+  .analysis-dot {
+    animation: ux-pulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes ux-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes ux-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0.75rem, 0, 0);
+  }
+}
+@keyframes ux-line {
+  from {
+    opacity: 0.3;
+  }
+}
+@keyframes ux-bar {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes ux-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .checkin-sheet:not([hidden]) .checkin-sheet-panel {
+    animation: ux-enter 0.5s var(--ease-premium) both;
+  }
 }

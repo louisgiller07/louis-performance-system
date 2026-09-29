@@ -82,7 +82,7 @@ export function ResetPasswordPage() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-80"
-        style={{ background: "radial-gradient(ellipse at top, rgba(212,175,55,0.08), transparent 70%)" }}
+        style={{ background: "radial-gradient(ellipse at top, rgba(184,154,74,0.09), transparent 70%)" }}
       />
 
       <div className="relative flex w-full max-w-105 flex-col items-center">

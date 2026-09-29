@@ -112,6 +112,16 @@ export interface DailyPlanViewProps {
    * to show" — never a fabricated fallback.
    */
   executablePrescription?: ExecutablePrescription | null;
+  /**
+   * UX-03 — Today only (DailyPlanResult): the missionSlot is the unified
+   * MissionHero, which already shows the decision + confidence + reasoning
+   * (DecisionHero), the planned → adapted comparison (the "Séance" card)
+   * and the session title. Those three are then not rendered again here.
+   * Everything else — health signal, safety "À éviter" precedence, recovery,
+   * monitoring, "Pourquoi cette décision ?" — renders exactly as before.
+   * History (no prop) is unaffected.
+   */
+  heroInMission?: boolean;
 }
 
 // Rendering-only: production display of a real, already-computed
@@ -127,6 +137,7 @@ export function DailyPlanView({
   readinessSlot,
   missionSlot,
   executablePrescription,
+  heroInMission = false,
 }: DailyPlanViewProps) {
   const showInlineMission = missionSlot === undefined;
   // Only worth comparing when there was an actual prior planned session —
@@ -180,12 +191,12 @@ export function DailyPlanView({
     <div className="flex flex-col gap-3">
       {missionSlot}
 
-      <DecisionHero dailyPlan={dailyPlan} />
+      {!heroInMission && <DecisionHero dailyPlan={dailyPlan} />}
 
       {readinessSlot}
 
       {hasHealthSignal && (
-        <div className="rounded-lg border border-red-500/40 bg-red-950/30 p-3">
+        <div className="rounded-lg border border-red-500/40 bg-red-950/30 p-4">
           <p className="text-sm font-semibold text-red-400">Attention santé</p>
           {/* REV-014 — the engine's trailing pain_location_code is shown as its French label, never raw. */}
           <p className="mt-0.5 text-xs text-red-300">
@@ -194,7 +205,7 @@ export function DailyPlanView({
         </div>
       )}
 
-      {sessionChanged && (
+      {sessionChanged && !heroInMission && (
         <PlanSection title="Séance">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -211,7 +222,8 @@ export function DailyPlanView({
         </PlanSection>
       )}
 
-      {dailyPlan.training.active && !isDhPrescription && (
+      {/* UX-03 — on Today the MissionHero already names the session (kind, duration, load). */}
+      {dailyPlan.training.active && !isDhPrescription && !heroInMission && (
         <PlanSection title="Entraînement">
           {dailyPlan.training.session_type && <p className="font-medium text-ink">{formatIntervention(dailyPlan.training.session_type)}</p>}
           {/*
@@ -301,9 +313,11 @@ export function DailyPlanView({
            * de-emphasized under the badges rather than the primary copy.
            */}
           <PlanSection title="Plan de séance">
-            <p className="text-xl font-bold uppercase tracking-tight text-ink">
-              {TRAINING_KIND_LABELS[dailyPlan.final_session.kind] ?? dailyPlan.final_session.kind}
-            </p>
+            {!heroInMission && (
+              <p className="text-xl font-bold uppercase tracking-tight text-ink">
+                {TRAINING_KIND_LABELS[dailyPlan.final_session.kind] ?? dailyPlan.final_session.kind}
+              </p>
+            )}
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               {dailyPlan.final_session.duration_min !== undefined && (
                 <span className="rounded bg-gold/15 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-gold">
@@ -432,8 +446,13 @@ export function DailyPlanView({
       )}
 
       {decisionReasoningRules.length > 0 && (
-        <details className="rounded-lg border border-white/5 bg-card p-3 text-sm text-ink/70">
-          <summary className="cursor-pointer font-medium text-ink">Pourquoi cette décision ?</summary>
+        <details className="group rounded-lg border border-line bg-card p-4 text-sm text-ink/70">
+          <summary className="flex min-h-6 cursor-pointer list-none items-center justify-between font-medium text-ink [&::-webkit-details-marker]:hidden">
+            Pourquoi cette décision ?
+            <span className="text-gold transition-transform duration-300 group-open:rotate-90" aria-hidden="true">
+              →
+            </span>
+          </summary>
           {/*
            * V0.3_006A1 — athlete-facing "why" must never render raw
            * internal identifiers (rule.layer/rule.rule_id, e.g. "A · A5")

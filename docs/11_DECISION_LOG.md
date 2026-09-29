@@ -3146,3 +3146,21 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 **Déploiement.** Aucune migration. Seule `generate-training-plan` (bundle `head-coach-engine` + `planning-engine`) doit être redéployée. `daily-run` et `accept-training-plan` ne sont pas concernés. Le Programme web affiche le motif brut sous « Points d'attention », comme les motifs existants (REV-005).
 
 **Statut** : Accepted — validé en local (tests planning-engine, head-coach-engine, `test:edge`). Non déployé.
+
+## 2026-09-29 — ADR UX-01/02/03 : Refonte premium de l'application web (design system, navigation, Aujourd'hui)
+
+**Contexte.** Le site marketing a adopté une identité premium (noir carbone, doré mat, typographie condensée, animations discrètes). L'application gardait l'identité V0.3 (doré saturé, cinq onglets en pilules, Aujourd'hui sur plus de trois écrans avec le formulaire de check-in toujours déplié). Refonte strictement côté `web/` : moteur Head Coach, règles métier, appels Supabase, structures de données et validations inchangés.
+
+**UX-01 — Design system.** Tokens alignés sur le site, noms conservés (`bg`, `card`, `gold`, `ink`, `muted`) pour que tous les usages existants basculent sans modification. `muted` relevé pour le contraste AA sur toutes les surfaces. Barlow Condensed auto-hébergée pour les titres. Primitives d'animation CSS (aucune librairie), toutes désactivées sous `prefers-reduced-motion`. Le vert hors sécurité est supprimé (Badge `green` rendu neutre). Le rouge (sécurité) et l'ambre (course/santé) sont conservés.
+
+**UX-02 — Navigation.** Barre d'onglets fixe en bas, quatre onglets : Aujourd'hui, Programme, Historique, Profil. `/plan` (ancien onglet Semaine) est atteint depuis Programme, `/insights` depuis Historique. E-mail, Configuration, Confidentialité et Déconnexion passent dans `/profile`. Aucune route supprimée.
+
+**UX-03 — Aujourd'hui.**
+- Écran piloté par l'état : squelette → invitation au check-in (sans check-in du jour) → mission. Date affichée « Mardi 29 septembre », jamais ISO.
+- Check-in guidé : `CheckinForm` gagne un mode `guided` (quatre étapes thématiques, une par écran). Mêmes champs, même `validateCheckin`, même `saveCheckin`. « Suivant » ne franchit une étape que si la validation existante ne signale aucune erreur sur ses propres champs. Le mode `full` (défaut) reste inchangé et couvert par les tests existants. Commotion et fièvre restent des Oui/Non obligatoires (tri-état).
+- `MissionHero` remplace, sur Aujourd'hui uniquement, `MissionCard` + `DecisionHero` + la carte « Séance ». Il affiche « Prévu → Adapté » quand `decision !== KEEP` et qu'une séance était prévue (verdict du Head Coach, aucune règle frontend). Mêmes sanitizers `safetyPresentation`. REST garde l'accent rouge. L'historique conserve sa présentation.
+- **Changement de parcours** : après un enregistrement réel du check-in, l'analyse (`runDailyRun`, même appel et mêmes gardes que le bouton) démarre automatiquement (`autoGenerateOnCheckinSave`, opt-in). Le simple chargement d'un check-in existant ne déclenche rien. Une fois la mission affichée, le bouton « Préparer ma séance du jour » n'est plus proposé ; un nouveau calcul passe par la modification du check-in.
+- **Rythme de présentation** : l'état « NALYNT analyse… » reste visible au moins 1,8 s (`minAnalysisMs`). La requête n'est ni retardée ni rejouée, seule la révélation attend.
+- Les props de `DailyPlanPanel` sont toutes optionnelles avec défaut identique à l'existant (tests historiques inchangés).
+
+**Statut** : Accepted — tests web 1513/1513, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule), 320/390/768 px sans débordement. Non déployé.

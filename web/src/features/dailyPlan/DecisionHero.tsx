@@ -12,7 +12,7 @@ const DECISION_ACCENT: Record<string, { border: string; text: string; ring: stri
   KEEP: {
     border: "border-gold/40",
     text: "text-gold",
-    ring: "shadow-[0_0_0_1px_rgba(212,175,55,0.25)]",
+    ring: "shadow-[0_0_0_1px_rgba(184,154,74,0.28)]",
     tagline: "Prêt à performer",
   },
   MODIFY: {
@@ -24,7 +24,7 @@ const DECISION_ACCENT: Record<string, { border: string; text: string; ring: stri
   REPLACE: {
     border: "border-gold-light",
     text: "text-gold-light",
-    ring: "shadow-[0_0_10px_1px_rgba(245,215,110,0.25)]",
+    ring: "shadow-[0_0_10px_1px_rgba(201,171,92,0.3)]",
     tagline: "Nouveau plan — prêt à performer",
   },
   REST: { border: "border-red-500/50", text: "text-red-400", ring: "shadow-[0_0_0_1px_rgba(248,113,113,0.25)]" },
