@@ -1,5 +1,6 @@
 import { athleteSafeMonitoring } from "./safetyPresentation";
-import { retainedSignals, SIGNAL_CHECKIN_FIELD, type CheckinField } from "./coachInsights";
+import { retainedSignals, SIGNAL_CHECKIN_FIELD } from "./coachInsights";
+import { checkinTiles } from "./checkinTiles";
 import type { DailyPlan } from "./dailyPlanTypes";
 import type { CheckinRow } from "../checkin/checkinTypes";
 
@@ -12,25 +13,6 @@ import type { CheckinRow } from "../checkin/checkinTypes";
 //   engine retained a signal coming from that answer.
 // - The server-derived health signal and the first monitoring note keep
 //   exactly the ReadinessCard semantics (red when active, sanitized text).
-interface Tile {
-  field: CheckinField;
-  label: string;
-  value: string;
-  detail?: string;
-}
-
-function tilesFrom(checkin: CheckinRow): Tile[] {
-  const tiles: Tile[] = [];
-  if (checkin.sleep_hours !== null) {
-    const hours = `${String(checkin.sleep_hours).replace(".", ",")} h`;
-    tiles.push({ field: "sleep", label: "Sommeil", value: hours, detail: checkin.sleep_quality !== null ? `qualité ${checkin.sleep_quality}/10` : undefined });
-  }
-  if (checkin.energy !== null) tiles.push({ field: "energy", label: "Énergie", value: `${checkin.energy}/10` });
-  if (checkin.leg_fatigue !== null) tiles.push({ field: "leg_fatigue", label: "Fatigue jambes", value: `${checkin.leg_fatigue}/10` });
-  if (checkin.grip_fatigue !== null) tiles.push({ field: "grip_fatigue", label: "Avant-bras", value: `${checkin.grip_fatigue}/10` });
-  return tiles;
-}
-
 export function CoachStateCard({
   dailyPlan,
   hasHealthSignal,
@@ -45,7 +27,7 @@ export function CoachStateCard({
 }) {
   const signals = retainedSignals(dailyPlan);
   const retainedFields = new Set(signals.map((entry) => SIGNAL_CHECKIN_FIELD[entry.signal]).filter(Boolean));
-  const tiles = checkin ? tilesFrom(checkin) : [];
+  const tiles = checkin ? checkinTiles(checkin) : [];
   const attention = athleteSafeMonitoring(dailyPlan)[0];
   const baseDelay = revealed ? 900 : 120;
 

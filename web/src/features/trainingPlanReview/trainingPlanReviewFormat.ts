@@ -20,7 +20,7 @@ export function humanizeLabel(value: string): string {
     .join(" ");
 }
 
-/** Parses a bare YYYY-MM-DD as a local calendar date — never `new Date(dateString)`, which reads it as UTC midnight and can render the wrong day near a timezone boundary (same discipline as history/HistoryList.tsx). */
+/** Parses a bare YYYY-MM-DD as a local calendar date — never `new Date(dateString)`, which reads it as UTC midnight and can render the wrong day near a timezone boundary (same discipline as history/HistoryDayCard.tsx). */
 export function parseLocalDate(dateISO: string): Date {
   const [year, month, day] = dateISO.split("-").map(Number);
   return new Date(year as number, (month as number) - 1, day as number);
