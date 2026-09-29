@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TodayPage } from "./TodayPage";
 import { addDays, todayLocal } from "../lib/date";
+import { weekDates } from "../features/today/todayContext";
 import { writeSimulatedDate } from "../lib/simulationClock";
 
 function renderTodayPage(path = "/today") {
@@ -23,7 +24,7 @@ vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFl
 
 beforeEach(() => {
   getActivePlanVersionId.mockResolvedValue("plan-1");
-  todayContextValue.current = { firstName: "Louis", races: [], objective: "Performance en course", planned: [], completed: [] };
+  todayContextValue.current = { firstName: "Louis", races: [], objective: "Performance en course", planned: [], completed: [], checkinDates: [] };
 });
 
 // UX-04 — Today's read-only coach context (its loading and rules are covered by
@@ -98,6 +99,7 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     autoGenerateOnCheckinSave,
     minAnalysisMs,
     checkinSnapshot,
+    detailsTarget,
   }: {
     date: string;
     hasCheckin: boolean;
@@ -106,11 +108,13 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     autoGenerateOnCheckinSave?: boolean;
     minAnalysisMs?: number;
     checkinSnapshot?: { sleep_hours: number } | null;
+    detailsTarget?: HTMLElement | null;
   }) => (
     <div data-testid="daily-plan-panel-stub">
       daily-plan-panel date={date} hasCheckin={String(hasCheckin)} checkinRevision={checkinRevision} hideIdle={String(hideIdleWithoutCheckin)} autoGenerate=
       {String(autoGenerateOnCheckinSave)} minAnalysisMs={minAnalysisMs} checkinSnapshot=
-      {checkinSnapshot === undefined ? "undefined" : checkinSnapshot === null ? "null" : `sleep:${checkinSnapshot.sleep_hours}`}
+      {checkinSnapshot === undefined ? "undefined" : checkinSnapshot === null ? "null" : `sleep:${checkinSnapshot.sleep_hours}`} details=
+      {detailsTarget ? "mounted" : String(detailsTarget)}
     </div>
   ),
 }));
@@ -138,34 +142,81 @@ const sheet = () => {
 };
 
 describe("TodayPage — UX-04 coach context", () => {
-  it("greets the rider by first name, with the date, and the current objective when no race is within reach", () => {
+  it("greets the rider by first name, then the declared objective when no race is within reach (UX-05 'Ton objectif')", () => {
     renderTodayPage();
 
     expect(screen.getByRole("heading", { name: "Bonjour Louis" })).toBeInTheDocument();
-    expect(screen.getByText("Objectif actuel")).toBeInTheDocument();
-    expect(screen.getAllByText("Performance en course").length).toBeGreaterThan(0);
+    expect(screen.getByRole("region", { name: "Ton objectif" })).toHaveTextContent("Performance en course");
   });
 
-  it("a race within 120 days: J-XX + its name, in the greeting, the next step and the week", () => {
+  it("no race and no declared objective: no context banner at all (never 'aucun objectif')", () => {
+    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], checkinDates: [] };
+    renderTodayPage();
+
+    for (const name of ["Prochaine course", "Objectif de saison", "Ton objectif", "En course"]) {
+      expect(screen.queryByRole("region", { name })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText(/aucun objectif/i)).not.toBeInTheDocument();
+  });
+
+  it("a race within 120 days: PROCHAINE COURSE · J-12 · its name, and the next step builds towards it", () => {
     todayContextValue.current = {
       firstName: "Louis",
-      races: [{ eventName: "iXS Lenzerheide", startDate: addDays(todayLocal(), 12), endDate: addDays(todayLocal(), 13), priority: "A" }],
-      objective: null,
+      races: [{ eventName: "iXS Lenzerheide", startDate: addDays(todayLocal(), 12), endDate: addDays(todayLocal(), 13), priority: "A", location: "Lenzerheide", raceFormat: "IXS_3DAY" }],
+      objective: "Performance en course",
       planned: [],
       completed: [],
+      checkinDates: [],
     };
     renderTodayPage();
 
-    expect(screen.getByText("J-12")).toBeInTheDocument();
+    const banner = screen.getByRole("region", { name: "Prochaine course" });
+    expect(within(banner).getByText("J-12")).toBeInTheDocument();
+    expect(banner).toHaveTextContent("iXS Lenzerheide");
+    expect(banner).toHaveTextContent("Lenzerheide · iXS, 3 jours · Priorité A");
     expect(screen.getByRole("region", { name: "Prochaine étape" })).toHaveTextContent("Cap sur iXS Lenzerheide, dans 12 jours.");
-    expect(screen.getByRole("region", { name: "Cette semaine" })).toHaveTextContent("Cap · iXS Lenzerheide · J-12");
   });
 
-  it("no first name: the brand instead of a guessed greeting; while the context loads, no coach cards yet", () => {
+  it("validated hierarchy: context banner → mission → next step → this week → regularity → after the session → plan detail (last)", async () => {
+    const { container } = renderTodayPage();
+    screen.getByText("simulate checkin available (load)").click();
+    await screen.findByRole("region", { name: "Ta régularité" });
+
+    const order = [
+      screen.getByRole("region", { name: "Ton objectif" }),
+      screen.getByTestId("daily-plan-panel-stub"),
+      screen.getByRole("region", { name: "Prochaine étape" }),
+      screen.getByRole("region", { name: "Cette semaine" }),
+      screen.getByRole("region", { name: "Ta régularité" }),
+      screen.getByText("Après ta séance"),
+    ];
+    for (let i = 1; i < order.length; i++) {
+      expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    // The collapsible plan detail's mount point is handed to the panel and sits after "Après ta séance".
+    await waitFor(() => expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("details=mounted"));
+    const sheet = container.querySelector<HTMLElement>('[role="dialog"][aria-label="Check-in du jour"]')!;
+    const detailsMount = sheet.previousElementSibling!;
+    expect(detailsMount.tagName).toBe("DIV");
+    expect(screen.getByText("Après ta séance").compareDocumentPosition(detailsMount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("regularity: today's check-in + the plain count of days with a check-in this week (Monday → today)", async () => {
+    const monday = weekDates(todayLocal())[0]!;
+    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], checkinDates: monday === todayLocal() ? [] : [monday] };
+    renderTodayPage();
+    screen.getByText("simulate checkin available (load)").click();
+
+    const card = await screen.findByRole("region", { name: "Ta régularité" });
+    expect(card).toHaveTextContent("Check-in aujourd'hui");
+    expect(card).toHaveTextContent(monday === todayLocal() ? "1 check-in cette semaine" : "2 check-ins cette semaine");
+  });
+
+  it("no first name: 'Bonjour' alone, never the brand; while the context loads, no coach cards yet", () => {
     todayContextValue.current = null;
     renderTodayPage();
 
-    expect(screen.getByRole("heading", { name: "NALYNT" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bonjour" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Prochaine étape" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Cette semaine" })).not.toBeInTheDocument();
   });
@@ -218,15 +269,16 @@ describe("TodayPage (UX-03)", () => {
       return waitFor(() => {
         expect(screen.getByRole("button", { name: "Commencer mon check-in" })).toBeInTheDocument();
         expect(screen.getByTestId("today-planning-summary-stub")).toHaveTextContent(`today-planning-summary athlete=athlete-1 date=${todayLocal()}`);
-        expect(screen.queryByText("Check-in du jour enregistré")).not.toBeInTheDocument();
+        expect(screen.queryByText("Check-in aujourd'hui")).not.toBeInTheDocument();
       });
     });
 
-    it("check-in already done: no invitation, a 'Check-in du jour enregistré' row with Modifier; the panel gets hasCheckin=true without a revision bump", async () => {
+    it("check-in already done: no invitation; 'Check-in aujourd'hui' with Modifier (UX-05 regularity card); the panel gets hasCheckin=true without a revision bump", async () => {
       renderTodayPage();
       screen.getByText("simulate checkin available (load)").click();
 
-      expect(await screen.findByText("Check-in du jour enregistré")).toBeInTheDocument();
+      expect(await screen.findByText("Check-in aujourd'hui")).toBeInTheDocument();
+      expect(within(screen.getByRole("region", { name: "Ta régularité" })).getByRole("button", { name: "Modifier" })).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Commencer mon check-in" })).not.toBeInTheDocument();
       expect(screen.queryByTestId("today-planning-summary-stub")).not.toBeInTheDocument();
       const stub = screen.getByTestId("daily-plan-panel-stub");

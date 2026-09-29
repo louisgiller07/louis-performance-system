@@ -3182,3 +3182,23 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 **À vérifier en production.** Rendu du prénom sur de vrais profils : prénom seul, nom complet (premier mot), nom d'équipe ou d'entreprise.
 
 **Statut** : Accepted — tests web 1557/1557, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule). Non déployé.
+
+## 2026-09-29 — ADR UX-05 : Repères d'Aujourd'hui (contexte athlète, semaine, régularité)
+
+> Presentation-only, like UX-04: no training logic, no score, no streak, no percentage. The engine decides; Today gives the day its context.
+
+**Hiérarchie d'Aujourd'hui (validée).** Bonjour → contexte course / objectif → mission du jour → ce que ton coach a retenu → ton état du jour → prochaine étape → cette semaine → ta régularité → après ta séance → « Voir les détails du plan ». Le bandeau de suivi santé, quand il existe, reste juste avant la mission (sécurité d'abord).
+
+**Contexte course / objectif (`RaceBanner`).** Course en cours → « En course · Jour N ». Prochaine course < 120 jours → « Prochaine course · J-XX », nom, puis date · lieu · format · priorité quand ces colonnes existent (`race_calendar.location`, `race_format`, `priority` ; libellés FR existants, jamais l'enum brut). 120–365 jours → « Objectif de saison » + nom. Sinon objectif déclaré par l'athlète → « Ton objectif ». Sans vraie donnée, le bloc n'est pas rendu (jamais « aucun objectif »). Phrase de clôture éditoriale fixe, jamais une métrique.
+
+**Cette semaine.** Lundi → dimanche, comptages simples de lignes existantes (séances prévues hors repos, séances réalisées `done`/`partial`/`replaced`), pluriel sauf pour exactement 1. Un symbole par jour (✓ réalisée · ● aujourd'hui · ○ prévue · ⚑ course) ; le jour sélectionné (aujourd'hui par défaut, tout jour au toucher) est détaillé : nom, durée, statut. Aucun graphique, jauge ni pourcentage.
+
+**Ta régularité.** « Check-in aujourd'hui » (+ Modifier, qui remplace l'ancienne ligne « Check-in du jour enregistré ») et « N check-ins cette semaine » = nombre de jours distincts, du lundi à aujourd'hui, ayant un check-in enregistré. Pas de série, pas de récompense, pas de jugement (« NALYNT observe, il n'applaudit pas »). Carte absente s'il n'y a rien à observer.
+
+**Détails du plan.** Sur Aujourd'hui uniquement (`detailsTarget`), le détail non sécuritaire (plan de séance, prescription, mental, récupération, sommeil, nutrition, protocole de course, « Pourquoi cette décision ? ») est rendu inchangé dans un bloc repliable fermé en bas de page. « Attention santé », « À éviter » et « À surveiller » restent visibles sous la mission, dans leur ordre relatif existant. L'historique et tout autre appelant gardent le rendu en ligne à l'identique.
+
+**Prénom (modifie UX-04).** Sans prénom exploitable, l'accueil affiche « Bonjour » seul (et non plus « NALYNT ») : NALYNT est la marque, pas l'identité du pilote.
+
+**Lectures.** Toutes RLS, colonnes existantes, lecture seule : `race_calendar` (requête dédiée à Aujourd'hui avec `location`/`race_format`, mêmes filtres que Semaine, qui reste inchangée), `daily_checkins.checkin_date` de la semaine, plus les lectures UX-04. Aucune modification du moteur, des moteurs planning/prescription/longitudinal, de Supabase, des Edge Functions ni du schéma.
+
+**Statut** : Accepted — tests web 1574/1574, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule). Non déployé.

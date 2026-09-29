@@ -14,13 +14,14 @@ import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
 import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
 import { getActivePlanVersionId } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { SecondaryButton } from "../components/SecondaryButton";
 import { CheckinSheet } from "../features/checkin/CheckinSheet";
 import { CheckinHero } from "../features/checkin/CheckinHero";
 import { AnalysisSequence } from "../features/dailyPlan/AnalysisSequence";
 import type { CheckinRow } from "../features/checkin/checkinTypes";
 import { useTodayContext } from "../features/today/todayContextRepo";
-import { nextPlannedSession, raceHorizon, weekSummary } from "../features/today/todayContext";
+import { nextPlannedSession, raceHorizon, weekCheckinCount, weekSummary } from "../features/today/todayContext";
+import { RaceBanner } from "../features/today/RaceBanner";
+import { RegularityCard } from "../features/today/RegularityCard";
 import { TodayGreeting } from "../features/today/TodayGreeting";
 import { NextStepCard } from "../features/today/NextStepCard";
 import { WeekStrip } from "../features/today/WeekStrip";
@@ -73,6 +74,8 @@ export function TodayPage() {
 
   // UX-04 — today's check-in values as declared (loaded, then as saved), for "Ton état du jour".
   const [checkinValues, setCheckinValues] = useState<CheckinRow | null>(null);
+  // UX-05 — mount point for the collapsible plan detail, at the bottom of the page.
+  const [detailsTarget, setDetailsTarget] = useState<HTMLDivElement | null>(null);
 
   // V0.3_006A1 — read-only, independent of check-in/plan generation state:
   // a load failure here must never block the check-in/plan flow, and vice
@@ -144,14 +147,14 @@ export function TodayPage() {
 
   return (
     <PageShell header={<AppHeader />}>
-      {/* UX-04 — the coach greets the rider and names what today is for (race or objective). */}
-      <TodayGreeting
-        firstName={todayContext?.firstName ?? null}
-        friendlyDate={friendlyDate}
-        canonicalDate={canonicalDate}
-        horizon={horizon}
-        objective={todayContext?.objective ?? null}
-      />
+      {/*
+       * UX-05 — validated hierarchy: Bonjour → race / objective → mission →
+       * what the coach retained → state of the day → next step → this week →
+       * regularity → after the session → [Voir les détails du plan]. The
+       * health follow-up banner stays right before the mission (safety first).
+       */}
+      <TodayGreeting firstName={todayContext?.firstName ?? null} friendlyDate={friendlyDate} canonicalDate={canonicalDate} />
+      {todayContext && <RaceBanner horizon={horizon} objective={todayContext.objective} />}
 
       {/* Safety first: an active health follow-up always sits above the mission. */}
       <HealthFlagBanner flags={openHealthFlags} />
@@ -193,21 +196,21 @@ export function TodayPage() {
           runningSlot={<AnalysisSequence />}
           loadingSlot={checkinKnown ? heroSkeleton : null}
           checkinSnapshot={checkinValues}
+          detailsTarget={detailsTarget}
         />
       )}
 
-      {hasCheckin && (
-        <div className="ux-enter flex items-center justify-between gap-3 rounded-lg border border-line bg-card px-4 py-3">
-          <p className="flex items-center gap-2.5 text-sm text-ink">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-gold/60 text-xs text-gold" aria-hidden="true">
-              ✓
-            </span>
-            Check-in du jour enregistré
-          </p>
-          <SecondaryButton onClick={() => setSheetOpen(true)} className="min-h-10 px-3 py-1.5 text-xs uppercase tracking-[0.12em]">
-            Modifier
-          </SecondaryButton>
-        </div>
+      {/* UX-04/05 — where today leads: next step, the week, and plain regularity. */}
+      {todayContext && (
+        <>
+          <NextStepCard next={nextPlannedSession(todayContext.planned, canonicalDate)} today={canonicalDate} horizon={horizon} objective={todayContext.objective} />
+          <WeekStrip week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races)} />
+          <RegularityCard
+            checkedInToday={hasCheckin}
+            weekCount={weekCheckinCount(todayContext.checkinDates, canonicalDate, hasCheckin)}
+            onEditCheckin={() => setSheetOpen(true)}
+          />
+        </>
       )}
 
       <Card>
@@ -215,17 +218,8 @@ export function TodayPage() {
         <div className="mt-4">{athleteId && <CompletedSessionCard date={canonicalDate} athleteId={athleteId} />}</div>
       </Card>
 
-      {/* UX-04 — where today leads: the next planned session and the week, always tied to the race / objective. */}
-      {todayContext && (
-        <>
-          <NextStepCard next={nextPlannedSession(todayContext.planned, canonicalDate)} today={canonicalDate} horizon={horizon} objective={todayContext.objective} />
-          <WeekStrip
-            week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races)}
-            horizon={horizon}
-            objective={todayContext.objective}
-          />
-        </>
-      )}
+      {/* UX-05 — the collapsible plan detail ("Voir les détails du plan") is rendered here, last. */}
+      <div ref={setDetailsTarget} />
 
       {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}
 
