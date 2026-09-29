@@ -10,7 +10,7 @@ export function PrimaryButton({ className = "", ...props }: ButtonHTMLAttributes
     <button
       type="button"
       {...props}
-      className={`min-h-11 rounded bg-gold px-4 py-3 text-sm font-semibold text-bg disabled:opacity-40 ${className}`}
+      className={`ux-press min-h-12 rounded bg-gold px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-bg hover:bg-gold-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light disabled:opacity-40 ${className}`}
     />
   );
 }

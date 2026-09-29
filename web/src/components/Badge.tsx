@@ -2,11 +2,15 @@ import type { ReactNode } from "react";
 
 type BadgeTone = "gold" | "muted" | "red" | "green";
 
+// UX-01 — hairline outline tags instead of filled pills. `green` is kept as
+// a tone NAME for existing call sites (a genuinely completed/"done"
+// outcome) but no longer renders green: off-palette colors are reserved for
+// safety (red) and race/health (amber). It reads as a quiet "done" state.
 const TONE_CLASS: Record<BadgeTone, string> = {
-  gold: "bg-gold/15 text-gold",
-  muted: "bg-white/5 text-ink/80",
-  red: "bg-red-500/15 text-red-400",
-  green: "bg-emerald-500/15 text-emerald-400",
+  gold: "border-gold/50 text-gold",
+  muted: "border-line text-ink/75",
+  red: "border-red-500/50 text-red-400",
+  green: "border-ink/25 text-ink",
 };
 
 interface BadgeProps {
@@ -30,7 +34,7 @@ interface BadgeProps {
 // day cards, Insights) don't reinvent it.
 export function Badge({ children, tone = "muted" }: BadgeProps) {
   return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${TONE_CLASS[tone]}`}>
+    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] ${TONE_CLASS[tone]}`}>
       {children}
     </span>
   );

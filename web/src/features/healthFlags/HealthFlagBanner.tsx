@@ -24,13 +24,17 @@ export function HealthFlagBanner({ flags }: { flags: OpenHealthFlag[] }) {
   if (!concussionFlag) return null;
 
   return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
-      <p className="text-sm font-semibold text-amber-800">Suivi santé actif</p>
-      <p className="mt-1 text-xs text-amber-700">
+    // UX-01 — same safety amber, same wording, on the dark palette (was a light amber-50 block).
+    <div role="status" className="ux-enter rounded-lg border border-amber-400/60 bg-amber-950/40 p-4">
+      <p className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-300" aria-hidden="true" />
+        Suivi santé actif
+      </p>
+      <p className="mt-1.5 text-sm text-amber-100/90">
         {HEALTH_FLAG_TYPE_LABELS.concussion_suspect} signalée le {formatFlagDate(concussionFlag.flagDate)}.
       </p>
-      <p className="mt-1.5 text-xs text-amber-700">Ce signal reste actif même si tu réponds « Non » aujourd'hui.</p>
-      <p className="mt-1.5 text-xs text-amber-700">NALYNT ne permet pas encore de clôturer ce suivi depuis l'application.</p>
+      <p className="mt-1.5 text-xs text-amber-100/80">Ce signal reste actif même si tu réponds « Non » aujourd'hui.</p>
+      <p className="mt-1.5 text-xs text-amber-100/80">NALYNT ne permet pas encore de clôturer ce suivi depuis l'application.</p>
     </div>
   );
 }

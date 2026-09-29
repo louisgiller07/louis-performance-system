@@ -11,5 +11,5 @@ interface CardProps {
 // escape hatch for a rare one-off adjustment (e.g. extra padding), never a
 // way to override the core dark-card identity.
 export function Card({ children, className = "" }: CardProps) {
-  return <div className={`rounded-xl border border-white/5 bg-card p-4 ${className}`}>{children}</div>;
+  return <div className={`rounded-xl border border-line bg-card p-4 shadow-[0_24px_48px_-32px_rgb(0_0_0/0.8)] ${className}`}>{children}</div>;
 }

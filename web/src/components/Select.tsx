@@ -11,7 +11,7 @@ export function Select({ className = "", ...props }: SelectHTMLAttributes<HTMLSe
   return (
     <select
       {...props}
-      className={`rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink disabled:bg-white/5 disabled:text-muted ${className}`}
+      className={`rounded border border-line bg-card px-3 py-3 text-base text-ink focus:border-gold focus:outline-none disabled:bg-white/5 disabled:text-muted ${className}`}
     />
   );
 }
