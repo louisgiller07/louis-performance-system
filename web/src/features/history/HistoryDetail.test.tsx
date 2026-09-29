@@ -128,6 +128,22 @@ describe("HistoryDetail", () => {
     expect(stored).toEqual(before);
   });
 
+  it("REV-014b: a stored non-safety pain decision shows no raw zone code (no Readiness card in History; À surveiller is cleaned)", () => {
+    const stored = buildDailyPlan(baseRawContext({ checkin: { pain: true, pain_intensity: 4, pain_new: false, pain_location_code: "knee_R" } }));
+    const before = structuredClone(stored);
+
+    const { container } = render(<HistoryDetail row={makeRow({ dailyPlan: stored as unknown as DecisionHistoryRow["dailyPlan"] })} performedMatch={{ kind: "none" }} />);
+
+    expect(screen.queryByText("État de préparation")).not.toBeInTheDocument();
+    expect(screen.getByText("Surveiller l'évolution de la douleur (Genou droit, intensité 4/10) sur 24-48h")).toBeInTheDocument();
+    const visible = container.cloneNode(true) as HTMLElement;
+    visible.querySelectorAll("details").forEach((d) => {
+      if (d.querySelector("summary")?.textContent === "Détails techniques") d.remove();
+    });
+    expect(visible.textContent).not.toMatch(/\bknee_R\b/);
+    expect(stored).toEqual(before);
+  });
+
   it("shows no health banner when the stored DailyPlan carries no health_flag_to_create", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
     expect(screen.queryByText("Attention santé")).not.toBeInTheDocument();

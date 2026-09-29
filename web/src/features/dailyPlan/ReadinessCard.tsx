@@ -1,4 +1,5 @@
 import { formatConfidence } from "./dailyPlanLabels";
+import { athleteSafeMonitoring } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
 
 // V0.3 UX PREMIUM REDESIGN — "État de préparation" (was "Readiness") as a pilot status readout, not a
@@ -9,10 +10,12 @@ import type { DailyPlan } from "./dailyPlanTypes";
 // "LOW"/"MEDIUM"/"HIGH" enum). ÉTAT DU CORPS is a plain-language read of the same
 // server-derived hasHealthSignal boolean DailyPlanView already receives
 // (never a frontend-deduced A1-A5 rule). ATTENTION shows the first real
-// monitoring.observe entry verbatim when present — never a count, never
-// invented text.
+// monitoring.observe entry when present — never a count, never invented
+// text — through the same athleteSafeMonitoring as DailyPlanView's "À
+// surveiller" (REV-014b: PAIN_NON_SAFETY embeds the raw pain_location_code,
+// e.g. "(knee_R, intensité 4/10)", which must render as its French label).
 export function ReadinessCard({ dailyPlan, hasHealthSignal }: { dailyPlan: DailyPlan; hasHealthSignal: boolean }) {
-  const attention = dailyPlan.monitoring.observe[0];
+  const attention = athleteSafeMonitoring(dailyPlan)[0];
   // REV-015.1 — French label only; the raw LOW/MEDIUM/HIGH enum is never rendered.
   const confidenceLabel = formatConfidence(dailyPlan.confidence);
 
