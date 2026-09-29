@@ -45,6 +45,25 @@ export async function loadCheckin(athleteId: string, date: string): Promise<Chec
 }
 
 /**
+ * UX-07 — the caller's own check-ins on the given dates, in one batched read
+ * (History's "Ton état du jour"). One row per day at most
+ * (unique_checkin_per_day); a day without a check-in is simply absent.
+ */
+export async function loadCheckinsForDates(athleteId: string, dates: string[]): Promise<CheckinRow[]> {
+  const uniqueDates = Array.from(new Set(dates));
+  if (uniqueDates.length === 0) return [];
+
+  const { data, error } = await supabase.from("daily_checkins").select(CHECKIN_COLUMNS).eq("athlete_id", athleteId).in("checkin_date", uniqueDates);
+
+  if (error) {
+    console.error("checkinRepo.loadCheckinsForDates failed", error.code);
+    throw new CheckinLoadError();
+  }
+
+  return (data ?? []) as CheckinRow[];
+}
+
+/**
  * Upserts today's checkin on the real unique constraint
  * (unique_checkin_per_day, `UNIQUE (athlete_id, checkin_date)` — already
  * present since the baseline migration). Returns the row actually

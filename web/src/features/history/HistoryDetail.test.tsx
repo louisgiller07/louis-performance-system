@@ -181,7 +181,9 @@ describe("HistoryDetail", () => {
     );
 
     expect(screen.getByText(/ne peut pas être affichée complètement/)).toBeInTheDocument();
-    expect(screen.getByText("STRENGTH_A")).toBeInTheDocument();
+    // UX-07 — the legacy session type in French, never the raw enum.
+    expect(screen.getByText("Force A")).toBeInTheDocument();
+    expect(screen.queryByText("STRENGTH_A")).not.toBeInTheDocument();
     // Never invents a decision label from an untrusted shape.
     expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });

@@ -3220,3 +3220,21 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 **Lectures.** Toutes RLS, lecture seule, sources existantes : version du plan, brouillons, `race_calendar`, objectif déclaré, `completed_sessions` jusqu'à aujourd'hui, historique des décisions (90 jours). Aucune modification du moteur M1, des moteurs planning/prescription, de Supabase, des Edge Functions ni du schéma.
 
 **Statut** : Accepted — tests web 1599/1599, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule), 320/375/390 px sans débordement. Non déployé.
+
+## 2026-09-29 — ADR UX-07 : Historique, le parcours du pilote
+
+> Presentation-only, like UX-04/05/06: no training logic, no score, no percentage, no invented progression. History stops listing engine decisions and shows the rider's journey: what was planned, what NALYNT changed, why, and what was recorded.
+
+**Une journée = une carte.** Les décisions restent append-only : plusieurs décisions d'un même jour deviennent une seule journée dont l'issue est la dernière décision valide (celle que le pilote a vue en dernier ; une ligne plus récente mais invalide ne masque jamais une décision valide). Les autres restent accessibles dans « Journée réévaluée N fois », N = nombre de réévaluations après la première décision (3 décisions → « 2 fois »). Heures uniquement dans ce bloc replié : « Première décision · 15:43 », « Réévaluation · 22:42 », avec la séance retenue.
+
+**Carte journée.** Date + état du corps (« Prêt » / « Signal actif », signal santé porté par la décision) → mission (« Mission du jour » ou « Signal santé ») → adaptation (« NALYNT a adapté ton plan » : prévu barré ↓ adapté), ou « Ta séance est restée conforme au plan », ou « Aucune séance prévue ce jour-là » → « Pourquoi ? » (formulations UX-04, `coachWhy`) → « Ton état du jour » (valeurs du check-in telles que déclarées) → réalisation. Le « prévu » est la séance que le moteur avait sous les yeux au moment de décider (`planned_session_before`), jamais la version actuelle du plan (`planned_sessions` non lue).
+
+**Réalisation.** Séance enregistrée → « ✓ Séance réalisée » / « Séance partiellement réalisée » / « Séance remplacée » / « Séance non faite » (+ durée réelle). Sans enregistrement et avec une séance prévue : « Séance à venir » si la date n'est pas passée, « Séance non enregistrée » sinon. Jamais « tu n'as pas fait ta séance » (oubli, séance externe, synchronisation).
+
+**Zones.** Aujourd'hui (carte complète, sinon invitation au check-in) → Cette semaine (semaine calendaire lundi → dimanche, comme Aujourd'hui et Programme ; cartes complètes) → Plus ancien (lignes compactes groupées par mois).
+
+**Ton parcours · depuis le {première date chargée}.** Comptages simples des journées chargées : journées analysées, adaptations (décision ≠ KEEP avec séance prévue, hors repos sécurité), repos sécurité (REST décidé par une règle de couche A, compté à part : ce n'est pas une adaptation normale), séances enregistrées, séances non enregistrées (jours passés avec séance prévue). Jamais « cette saison » (aucune saison n'est enregistrée), aucun pourcentage, score ou niveau.
+
+**Lectures.** Toutes RLS, lecture seule, tables et colonnes existantes : 120 dernières décisions, `completed_sessions` et `daily_checkins` de ces dates (une lecture groupée chacune, `loadCheckinsForDates` ajouté côté web), `race_calendar`, objectif déclaré. Décisions et séances enregistrées obligatoires (échec = état d'erreur, comme avant) ; check-ins, courses et objectif au mieux (un échec masque seulement leur ligne). Structure prête pour un chargement progressif ou un filtre par mois / course sans changer le modèle de journée. Page détail : libellé français d'une ancienne décision au lieu de l'enum brut. Aucune modification du moteur, de Supabase, des Edge Functions ni du schéma.
+
+**Statut** : Accepted — tests web 1612/1612, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule), 320/375/390 px sans débordement. Non déployé.

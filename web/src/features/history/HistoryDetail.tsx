@@ -5,6 +5,7 @@ import { summarizeDecision } from "./historySummary";
 import type { DecisionHistoryRow } from "./historyTypes";
 import { NO_COMPLETED_SESSION_COPY, SAME_DAY_UNASSOCIATED_COPY, type PerformedMatch } from "./historyPerformedMatch";
 import { HistoryPerformedSummary } from "./HistoryPerformedSummary";
+import { SESSION_TYPE_LABELS, type SessionType } from "../completedSession/completedSessionTypes";
 
 // A stored decision is never recomputed — this renders exactly what
 // persist_daily_run wrote to decisions.daily_plan at the time, via the
@@ -53,7 +54,8 @@ export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow
             )}
             <div>
               <dt className="inline font-medium">Séance enregistrée (ancien format) : </dt>
-              <dd className="inline">{row.finalSessionDb}</dd>
+              {/* UX-07 — French label, never the raw legacy enum. */}
+              <dd className="inline">{Object.prototype.hasOwnProperty.call(SESSION_TYPE_LABELS, row.finalSessionDb) ? SESSION_TYPE_LABELS[row.finalSessionDb as SessionType] : "Séance"}</dd>
             </div>
           </dl>
         </div>
