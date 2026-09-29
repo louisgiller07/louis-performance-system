@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { GOOGLE_CONTINUE, GOOGLE_REDIRECTING } from "./authCopy";
 
 /** Same discipline as the other auth pages — never raw `.message`, branch on the stable documented `.code`. */
 function googleAuthErrorMessage(error: AuthError): string {
@@ -50,7 +51,7 @@ export function GoogleAuthButton({ onError }: GoogleAuthButtonProps) {
       className="flex min-h-11 items-center justify-center gap-2.5 rounded border border-white/10 bg-card px-4 py-3 text-sm font-semibold text-ink transition-colors hover:border-gold disabled:opacity-40"
     >
       <GoogleIcon />
-      {submitting ? "Redirecting…" : "Continue with Google"}
+      {submitting ? GOOGLE_REDIRECTING : GOOGLE_CONTINUE}
     </button>
   );
 }

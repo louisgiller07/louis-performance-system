@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GoogleAuthButton } from "./GoogleAuthButton";
+import { AUTH_OR, EMAIL_LABEL, PASSWORD_LABEL, PASSWORDS_MISMATCH } from "./authCopy";
 
 /**
  * Never the raw provider `.message` (English, provider-authored — same
@@ -58,7 +59,7 @@ export function SignupPage() {
     // Supabase and never a substitute for the server's own password policy
     // (weak_password below still applies after this check passes).
     if (password !== confirmPassword) {
-      setError("Passwords don't match.");
+      setError(PASSWORDS_MISMATCH);
       return;
     }
 
@@ -86,9 +87,9 @@ export function SignupPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-center">
         <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-        <p className="mt-6 max-w-sm text-ink">Check your email to confirm your account.</p>
+        <p className="mt-6 max-w-sm text-ink">Vérifie ta boîte mail pour confirmer ton compte.</p>
         <p className="mt-2 max-w-sm text-sm text-muted">
-          We sent a confirmation link to <span className="text-ink">{email}</span>.
+          Nous avons envoyé un lien de confirmation à <span className="text-ink">{email}</span>.
         </p>
       </div>
     );
@@ -110,7 +111,7 @@ export function SignupPage() {
 
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-white/10" />
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted">Or</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted">{AUTH_OR}</p>
             <div className="h-px flex-1 bg-white/10" />
           </div>
         </div>
@@ -120,12 +121,12 @@ export function SignupPage() {
           className="mt-4 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
-            <p className="text-xl font-bold text-ink">Join NALYNT</p>
-            <p className="mt-1 text-sm text-muted">Create your free athlete account</p>
+            <p className="text-xl font-bold text-ink">Rejoins NALYNT</p>
+            <p className="mt-1 text-sm text-muted">Crée ton compte athlète gratuit</p>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Email
+            {EMAIL_LABEL}
             <input
               type="email"
               required
@@ -136,7 +137,7 @@ export function SignupPage() {
             />
           </label>
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Password
+            {PASSWORD_LABEL}
             <input
               type="password"
               required
@@ -148,7 +149,7 @@ export function SignupPage() {
             />
           </label>
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Confirm password
+            Confirme le mot de passe
             <input
               type="password"
               required
@@ -165,13 +166,13 @@ export function SignupPage() {
             </p>
           )}
           <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
-            {submitting ? "Creating account…" : "Create account"}
+            {submitting ? "Création du compte…" : "Créer mon compte"}
           </PrimaryButton>
 
           <p className="text-center text-sm text-muted">
-            Already have an account?{" "}
+            Déjà un compte ?{" "}
             <Link to="/login" className="font-medium text-gold hover:underline">
-              Login
+              Se connecter
             </Link>
           </p>
           <p className="text-center text-xs text-muted">

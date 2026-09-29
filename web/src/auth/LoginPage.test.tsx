@@ -33,7 +33,7 @@ function renderLoginPage() {
 }
 
 async function submit(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.type(screen.getByLabelText("Email"), "louis@example.test");
+  await user.type(screen.getByLabelText("Adresse e-mail"), "louis@example.test");
   await user.type(screen.getByLabelText("Mot de passe"), "wrong-password");
   await user.click(screen.getByRole("button", { name: /Connexion/ }));
 }
@@ -89,7 +89,7 @@ describe("LoginPage", () => {
     const user = userEvent.setup();
     renderLoginPage();
 
-    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
+    await user.click(screen.getByRole("button", { name: /Continuer avec Google/ }));
 
     expect(signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
@@ -105,7 +105,7 @@ describe("LoginPage", () => {
     const user = userEvent.setup();
     renderLoginPage();
 
-    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
+    await user.click(screen.getByRole("button", { name: /Continuer avec Google/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de se connecter avec Google. Réessaie.");
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();

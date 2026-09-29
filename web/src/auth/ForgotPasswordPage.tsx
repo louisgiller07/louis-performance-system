@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { EMAIL_LABEL } from "./authCopy";
 
 /** Same discipline as LoginPage.tsx/SignupPage.tsx — never raw `.message`, branch on the stable documented `.code`. */
 function resetErrorMessage(error: AuthError): string {
@@ -51,9 +52,9 @@ export function ForgotPasswordPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-center">
         <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-        <p className="mt-6 max-w-sm text-ink">Check your email for a reset link.</p>
+        <p className="mt-6 max-w-sm text-ink">Vérifie ta boîte mail.</p>
         <p className="mt-2 max-w-sm text-sm text-muted">
-          If an account exists for <span className="text-ink">{email}</span>, we sent instructions to reset your password.
+          Si un compte existe pour <span className="text-ink">{email}</span>, nous t'avons envoyé les instructions pour réinitialiser ton mot de passe.
         </p>
       </div>
     );
@@ -75,12 +76,12 @@ export function ForgotPasswordPage() {
           className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
-            <p className="text-xl font-bold text-ink">Reset your password</p>
-            <p className="mt-1 text-sm text-muted">We'll email you a reset link.</p>
+            <p className="text-xl font-bold text-ink">Réinitialise ton mot de passe</p>
+            <p className="mt-1 text-sm text-muted">Nous t'enverrons un lien de réinitialisation par e-mail.</p>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Email
+            {EMAIL_LABEL}
             <input
               type="email"
               required
@@ -96,11 +97,11 @@ export function ForgotPasswordPage() {
             </p>
           )}
           <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
-            {submitting ? "Sending…" : "Send reset link"}
+            {submitting ? "Envoi…" : "Envoyer le lien"}
           </PrimaryButton>
 
           <Link to="/login" className="text-center text-sm text-muted hover:text-gold">
-            Back to login
+            Retour à la connexion
           </Link>
         </form>
       </div>

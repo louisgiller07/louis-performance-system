@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GoogleAuthButton, readOAuthCallbackError } from "./GoogleAuthButton";
+import { AUTH_OR, EMAIL_LABEL, PASSWORD_LABEL } from "./authCopy";
 
 export function LoginPage() {
   const { session } = useAuth();
@@ -58,9 +59,9 @@ export function LoginPage() {
 
       <div className="relative flex w-full max-w-105 flex-col items-center">
         <p className="text-3xl font-bold uppercase tracking-[0.3em] text-gold">Nalynt</p>
-        <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted">Your AI Performance Coach</p>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted">Ton coach de performance IA</p>
         <p className="mt-4 max-w-70 text-center text-sm text-ink/70">
-          Your AI coach for training, recovery and race performance.
+          Ton coach IA pour l'entraînement, la récupération et la performance en course.
         </p>
 
         <div className="mt-8 flex w-full flex-col gap-4">
@@ -68,7 +69,7 @@ export function LoginPage() {
 
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-white/10" />
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted">Or</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted">{AUTH_OR}</p>
             <div className="h-px flex-1 bg-white/10" />
           </div>
         </div>
@@ -78,7 +79,7 @@ export function LoginPage() {
           className="mt-4 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Email
+            {EMAIL_LABEL}
             <input
               type="email"
               required
@@ -89,7 +90,7 @@ export function LoginPage() {
             />
           </label>
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Mot de passe
+            {PASSWORD_LABEL}
             <input
               type="password"
               required
@@ -109,13 +110,13 @@ export function LoginPage() {
           </PrimaryButton>
 
           <Link to="/forgot-password" className="text-center text-sm text-muted hover:text-gold">
-            Forgot password?
+            Mot de passe oublié ?
           </Link>
 
           <p className="text-center text-sm text-muted">
-            Don't have an account?{" "}
+            Pas encore de compte ?{" "}
             <Link to="/signup" className="font-medium text-gold hover:underline">
-              Create one
+              Crée-en un
             </Link>
           </p>
           <p className="text-center text-xs text-muted">
@@ -126,7 +127,7 @@ export function LoginPage() {
         </form>
 
         <div className="mt-8 flex flex-col items-center gap-1.5 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Designed for</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Conçu pour</p>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">
             DH <span className="text-gold">•</span> Enduro <span className="text-gold">•</span> Gravity
           </p>

@@ -4,6 +4,7 @@ import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { PASSWORDS_MISMATCH } from "./authCopy";
 
 /** Same discipline as LoginPage.tsx/SignupPage.tsx — never raw `.message`, branch on the stable documented `.code`. */
 function updatePasswordErrorMessage(error: AuthError): string {
@@ -42,7 +43,7 @@ export function ResetPasswordPage() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("Passwords don't match.");
+      setError(PASSWORDS_MISMATCH);
       return;
     }
 
@@ -68,9 +69,9 @@ export function ResetPasswordPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-center">
         <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-        <p className="mt-6 max-w-sm text-ink">This reset link is invalid or has expired.</p>
+        <p className="mt-6 max-w-sm text-ink">Ce lien de réinitialisation est invalide ou a expiré.</p>
         <Link to="/forgot-password" className="mt-4 text-sm font-medium text-gold hover:underline">
-          Request a new link
+          Demander un nouveau lien
         </Link>
       </div>
     );
@@ -92,11 +93,11 @@ export function ResetPasswordPage() {
           className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
-            <p className="text-xl font-bold text-ink">Set a new password</p>
+            <p className="text-xl font-bold text-ink">Choisis un nouveau mot de passe</p>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            New password
+            Nouveau mot de passe
             <input
               type="password"
               required
@@ -108,7 +109,7 @@ export function ResetPasswordPage() {
             />
           </label>
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Confirm new password
+            Confirme le nouveau mot de passe
             <input
               type="password"
               required
@@ -125,7 +126,7 @@ export function ResetPasswordPage() {
             </p>
           )}
           <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
-            {submitting ? "Updating…" : "Update password"}
+            {submitting ? "Mise à jour…" : "Mettre à jour le mot de passe"}
           </PrimaryButton>
         </form>
       </div>

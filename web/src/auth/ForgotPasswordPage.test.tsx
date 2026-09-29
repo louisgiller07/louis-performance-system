@@ -22,8 +22,8 @@ function renderForgotPasswordPage() {
 }
 
 async function submit(user: ReturnType<typeof userEvent.setup>, email = "louis@example.test"): Promise<void> {
-  await user.type(screen.getByLabelText("Email"), email);
-  await user.click(screen.getByRole("button", { name: /Send reset link/ }));
+  await user.type(screen.getByLabelText("Adresse e-mail"), email);
+  await user.click(screen.getByRole("button", { name: /Envoyer le lien/ }));
 }
 
 // V0.3 — password-reset request phase. Same NAL-005-style discipline: never
@@ -49,7 +49,7 @@ describe("ForgotPasswordPage", () => {
 
     await submit(user);
 
-    expect(await screen.findByText(/Check your email for a reset link/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vérifie ta boîte mail/)).toBeInTheDocument();
   });
 
   it("shows a curated message for an invalid email, never the raw provider error", async () => {
@@ -95,6 +95,6 @@ describe("ForgotPasswordPage", () => {
 
   it("links back to /login", () => {
     renderForgotPasswordPage();
-    expect(screen.getByRole("link", { name: "Back to login" })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("link", { name: "Retour à la connexion" })).toHaveAttribute("href", "/login");
   });
 });
