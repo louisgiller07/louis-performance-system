@@ -1,8 +1,19 @@
 import { Card } from "../../../components/Card";
 import { Badge } from "../../../components/Badge";
 import type { TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
-import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
+import { formatShortDate } from "../trainingPlanReviewFormat";
+// REV-015.3 — French exercise/drill names by catalogue id; an unknown id shows the neutral label, never the id.
+import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../../trainingLabels/exerciseLabels";
+// REV-015.4b — French drill instruction only when the stored English matches its known source; otherwise the stored text is kept.
+import { translateDrillExecutionCue } from "../../trainingLabels/drillInstructionLabels";
 import { translateExplanation } from "../trainingPlanExplanationLabels";
+import {
+  formatRepetitionRange,
+  formatRepetitions,
+  translateDomain,
+  translateTrainingKind,
+  UNKNOWN_SESSION_LABEL,
+} from "../../trainingLabels/trainingLabels";
 
 interface StrengthBlockLike {
   exerciseId?: unknown;
@@ -40,9 +51,9 @@ function formatRepScheme(value: unknown): string | null {
   const repScheme = value as Record<string, unknown>;
   switch (repScheme.type) {
     case "fixed":
-      return isFiniteNumber(repScheme.reps) ? `${repScheme.reps} reps` : null;
+      return isFiniteNumber(repScheme.reps) ? formatRepetitions(repScheme.reps) : null;
     case "range":
-      return isFiniteNumber(repScheme.min) && isFiniteNumber(repScheme.max) ? `${repScheme.min}-${repScheme.max} reps` : null;
+      return isFiniteNumber(repScheme.min) && isFiniteNumber(repScheme.max) ? formatRepetitionRange(repScheme.min, repScheme.max) : null;
     case "time":
       return isFiniteNumber(repScheme.seconds) ? `${repScheme.seconds} s` : null;
     case "amrap":
@@ -73,7 +84,7 @@ function formatIntensity(value: unknown): string | null {
   }
 }
 
-/** "12 × 8-12 reps — RPE 7" (Today's layout); falls back to "12 séries" when no valid repScheme exists. `null` when nothing valid is left to show. */
+/** "12 × 8-12 répétitions — RPE 7" (Today's layout); falls back to "12 séries" when no valid repScheme exists. `null` when nothing valid is left to show. */
 function formatStrengthDose(block: StrengthBlockLike): string | null {
   const sets = isFiniteNumber(block.sets) ? block.sets : null;
   const reps = formatRepScheme(block.repScheme);
@@ -89,8 +100,8 @@ function formatStrengthDose(block: StrengthBlockLike): string | null {
  * exist in the real payload (StrengthPrescription/DhTechnicalPrescription,
  * planning-engine — mirrored here by convention, never imported); an
  * unrecognized/malformed shape renders nothing extra, never a fabricated
- * value. Exercise/drill names are humanized catalogue ids (no human-readable
- * name is available to web/ — see trainingPlanReviewFormat.ts's own doc).
+ * value. Exercise/drill names are the French labels of their catalogue ids
+ * (trainingLabels/exerciseLabels.ts, REV-015.3), never the raw id.
  */
 function PrescriptionStructure({ structure }: { structure: unknown }) {
   const domain = readDomain(structure);
@@ -103,7 +114,7 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
           const dose = formatStrengthDose(block);
           return (
             <li key={index} className="text-sm text-ink/90">
-              <p>{typeof block.exerciseId === "string" ? humanizeLabel(block.exerciseId) : "Exercice"}</p>
+              <p>{translateExercise(block.exerciseId) ?? UNKNOWN_EXERCISE_LABEL}</p>
               {dose && <p className="text-muted">{dose}</p>}
               {isFiniteNumber(block.restSeconds) && <p className="text-xs text-muted">Repos : {block.restSeconds} s</p>}
             </li>
@@ -118,9 +129,11 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
       <ul className="flex flex-col gap-1">
         {drills.map((drill, index) => (
           <li key={index} className="text-sm text-ink/90">
-            {typeof drill.drillId === "string" ? humanizeLabel(drill.drillId) : "Drill"}
+            {translateDrill(drill.drillId) ?? UNKNOWN_DRILL_LABEL}
             {typeof drill.runs === "number" && <span className="text-muted"> — {drill.runs} passages</span>}
-            {typeof drill.executionCue === "string" && <p className="text-xs text-muted">{drill.executionCue}</p>}
+            {translateDrillExecutionCue(drill.drillId, drill.executionCue) && (
+              <p className="text-xs text-muted">{translateDrillExecutionCue(drill.drillId, drill.executionCue)}</p>
+            )}
           </li>
         ))}
       </ul>
@@ -137,17 +150,19 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
  * those domains) — ticket-locked behavior, not an omission.
  */
 export function TrainingPlanSessionCard({ session }: { session: TrainingPlanReviewSession }) {
-  const domain = readDomain(session.doseTarget);
+  // REV-015.2 — French domain label; an unknown domain hides the line.
+  const domainLabel = translateDomain(readDomain(session.doseTarget));
   const sessionExplanation = translateExplanation(session.rationale, "session").text;
 
   return (
     <Card className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs uppercase tracking-widest text-muted">{formatShortDate(session.date)}</span>
-        <Badge>{humanizeLabel(session.kind)}</Badge>
+        {/* REV-015.2 — French session kind; an unknown kind never shows its raw identifier. */}
+        <Badge>{translateTrainingKind(session.kind) ?? UNKNOWN_SESSION_LABEL}</Badge>
       </div>
       {session.durationMin !== null && <p className="text-sm text-ink/80">{session.durationMin} min</p>}
-      {domain && <p className="text-xs text-muted">{humanizeLabel(domain)}</p>}
+      {domainLabel && <p className="text-xs text-muted">{domainLabel}</p>}
       {/* REV-013 — the stored English rationale is translated for display only. */}
       {sessionExplanation && <p className="text-sm text-ink/90">{sessionExplanation}</p>}
       {session.prescription && (

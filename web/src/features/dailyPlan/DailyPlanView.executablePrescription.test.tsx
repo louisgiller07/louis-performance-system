@@ -49,7 +49,7 @@ const STRENGTH_PRESCRIPTION: ExecutablePrescription = {
     blocks: [
       {
         role: "work",
-        exerciseId: "back_squat",
+        exerciseId: "barbell_back_squat",
         sets: 4,
         repScheme: { type: "fixed", reps: 5 },
         intensity: { type: "percent_1rm", value: 80 },
@@ -69,7 +69,7 @@ const DH_PRESCRIPTION: ExecutablePrescription = {
     schemaVersion: "v1",
     drills: [
       {
-        drillId: "berm_carry_speed",
+        drillId: "cornering_berm_speed",
         skillTarget: "cornering",
         terrainRequirement: "flow_trail",
         runs: 6,
@@ -84,13 +84,13 @@ describe("DailyPlanView — executable prescription acceptance matrix (V0.5_048)
   it("KEEP + strength prescription present → card is shown with correct content", () => {
     render(<DailyPlanView dailyPlan={basePlan("KEEP")} hasHealthSignal={false} executablePrescription={STRENGTH_PRESCRIPTION} />);
     expect(screen.getByText("Exercices")).toBeInTheDocument();
-    expect(screen.getByText("Back Squat")).toBeInTheDocument();
+    expect(screen.getByText("Squat arrière à la barre")).toBeInTheDocument();
   });
 
   it("KEEP + DH technical prescription present → card is shown with correct content", () => {
     render(<DailyPlanView dailyPlan={basePlan("KEEP")} hasHealthSignal={false} executablePrescription={DH_PRESCRIPTION} />);
     expect(screen.getByText("Exercices")).toBeInTheDocument();
-    expect(screen.getByText("Berm Carry Speed")).toBeInTheDocument();
+    expect(screen.getByText("Garder la vitesse dans les virages relevés")).toBeInTheDocument();
   });
 
   it("KEEP + no prescription (undefined) → card is absent", () => {

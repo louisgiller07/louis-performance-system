@@ -21,7 +21,7 @@ describe("App routing", () => {
     getSession.mockResolvedValue({ data: { session: null } });
     window.history.pushState({}, "", "/insights");
     render(<App />);
-    await waitFor(() => expect(screen.getByLabelText(/email/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText("Adresse e-mail")).toBeInTheDocument());
   });
 
   // V0.3_003C — proves /plan is actually wired behind RequireAuth in
@@ -31,6 +31,6 @@ describe("App routing", () => {
     getSession.mockResolvedValue({ data: { session: null } });
     window.history.pushState({}, "", "/plan");
     render(<App />);
-    await waitFor(() => expect(screen.getByLabelText(/email/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText("Adresse e-mail")).toBeInTheDocument());
   });
 });

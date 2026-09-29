@@ -1,5 +1,16 @@
 import { PlanSection } from "../../components/PlanSection";
 import type { ExecutableIntensity, ExecutablePrescription, ExecutableRepScheme } from "./dailyPlanTypes";
+import { formatRepetitionRange, formatRepetitions, translateSkill, translateTerrain } from "../trainingLabels/trainingLabels";
+// REV-015.3 — French exercise/drill names by catalogue id; an unknown id shows the neutral label, never the id.
+import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../trainingLabels/exerciseLabels";
+// REV-015.4b — French drill instruction/criterion only when the stored English matches its known source; otherwise the stored text is kept.
+import { translateDrillExecutionCue, translateDrillSuccessCriterion } from "../trainingLabels/drillInstructionLabels";
+
+/** REV-015.2 — "Freinage · Sentier aménagé"; an unknown skill/terrain is left out, never shown raw. `null` when neither is known. */
+function formatDrillContext(skillTarget: string, terrainRequirement: string): string | null {
+  const parts = [translateSkill(skillTarget), translateTerrain(terrainRequirement)].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 const ROLE_LABELS: Record<string, string> = {
   warm_up: "Échauffement",
@@ -7,29 +18,13 @@ const ROLE_LABELS: Record<string, string> = {
   accessory: "Accessoire",
 };
 
-/**
- * Mechanical id -> label (lowercase, split "_", capitalize each word) — same
- * discipline as trainingPlanReview's own humanizeLabel, duplicated locally
- * rather than cross-imported (siblings across feature folders stay
- * decoupled, no shared build boundary — same precedent applied throughout
- * this codebase). No catalogue lookup exists on the web side; this is the
- * honest minimal fallback, never an invented translation.
- */
-function humanizeId(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 function formatRepScheme(repScheme: ExecutableRepScheme): string {
   switch (repScheme.type) {
     case "fixed":
-      return `${repScheme.reps} reps`;
+      return formatRepetitions(repScheme.reps);
     case "range":
-      return `${repScheme.min}-${repScheme.max} reps`;
+      return formatRepetitionRange(repScheme.min, repScheme.max);
     case "time":
       return `${repScheme.seconds} s`;
     case "amrap":
@@ -77,7 +72,7 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
           {structure.blocks.map((block, index) => (
             <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
               {ROLE_LABELS[block.role] && <p className="text-xs uppercase tracking-wide text-muted">{ROLE_LABELS[block.role]}</p>}
-              <p className="font-medium text-ink">{humanizeId(block.exerciseId)}</p>
+              <p className="font-medium text-ink">{translateExercise(block.exerciseId) ?? UNKNOWN_EXERCISE_LABEL}</p>
               <p className="text-ink/80">
                 {block.sets} × {formatRepScheme(block.repScheme)} — {formatIntensity(block.intensity)}
               </p>
@@ -91,13 +86,17 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
         <ul className="flex flex-col gap-3">
           {structure.drills.map((drill, index) => (
             <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
-              <p className="font-medium text-ink">{humanizeId(drill.drillId)}</p>
-              <p className="text-xs uppercase tracking-wide text-muted">
-                {humanizeId(drill.skillTarget)} · {humanizeId(drill.terrainRequirement)}
-              </p>
+              <p className="font-medium text-ink">{translateDrill(drill.drillId) ?? UNKNOWN_DRILL_LABEL}</p>
+              {formatDrillContext(drill.skillTarget, drill.terrainRequirement) && (
+                <p className="text-xs uppercase tracking-wide text-muted">{formatDrillContext(drill.skillTarget, drill.terrainRequirement)}</p>
+              )}
               <p className="text-ink/80">{drill.runs} passages</p>
-              <p className="text-sm text-ink/70">{drill.executionCue}</p>
-              <p className="text-sm text-muted">Réussite : {drill.successCriterion}</p>
+              {translateDrillExecutionCue(drill.drillId, drill.executionCue) && (
+                <p className="text-sm text-ink/70">{translateDrillExecutionCue(drill.drillId, drill.executionCue)}</p>
+              )}
+              {translateDrillSuccessCriterion(drill.drillId, drill.successCriterion) && (
+                <p className="text-sm text-muted">Réussite : {translateDrillSuccessCriterion(drill.drillId, drill.successCriterion)}</p>
+              )}
               {drill.progressionCondition && <p className="text-sm text-muted">Progression : {drill.progressionCondition}</p>}
               {drill.regressionCondition && <p className="text-sm text-muted">Régression : {drill.regressionCondition}</p>}
             </li>

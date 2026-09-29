@@ -736,3 +736,25 @@ describe.each(PLANNABLE_FIXED_LOAD_KINDS)("PlanningDayCard — fixed kind %s (F,
     await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", kind, null, false, null));
   });
 });
+
+// REV-015.2 — the current day's card reads "Aujourd'hui", never "Today"; kinds stay French.
+describe("PlanningDayCard — today label (REV-015.2)", () => {
+  it("today's card reads 'Aujourd'hui'", () => {
+    render(
+      <PlanningDayCard
+        athleteId="athlete-1"
+        date="2026-09-01"
+        row={strengthHeavyRow()}
+        races={[]}
+        isToday
+        isExpanded={false}
+        onToggleExpand={() => {}}
+        onRowChange={() => {}}
+      />
+    );
+
+    expect(screen.getByText("Aujourd'hui")).toBeInTheDocument();
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
+    expect(screen.getByText("Renfo bas du corps")).toBeInTheDocument();
+  });
+});

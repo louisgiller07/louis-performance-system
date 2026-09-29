@@ -233,7 +233,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
       <button type="button" onClick={onToggleExpand} className="min-h-11 w-full p-3 text-left active:bg-white/5">
         <div className="flex items-center justify-between gap-2">
           {isToday ? (
-            <p className="text-xs font-semibold uppercase tracking-widest text-gold">Today</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-gold">Aujourd'hui</p>
           ) : (
             <p className="text-xs font-medium uppercase tracking-wide text-muted">
               {weekdayLabel(date)} {formatCalendarDate(date)}

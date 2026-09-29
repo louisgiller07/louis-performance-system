@@ -31,10 +31,10 @@ async function submit(
   password = "correct-horse",
   confirmPassword = password
 ): Promise<void> {
-  await user.type(screen.getByLabelText("Email"), email);
-  await user.type(screen.getByLabelText("Password"), password);
-  await user.type(screen.getByLabelText("Confirm password"), confirmPassword);
-  await user.click(screen.getByRole("button", { name: /Create account/ }));
+  await user.type(screen.getByLabelText("Adresse e-mail"), email);
+  await user.type(screen.getByLabelText("Mot de passe"), password);
+  await user.type(screen.getByLabelText("Confirme le mot de passe"), confirmPassword);
+  await user.click(screen.getByRole("button", { name: /Créer mon compte/ }));
 }
 
 // V0.3 — Marketing -> Signup -> App flow. Same NAL-005-style discipline as
@@ -102,7 +102,7 @@ describe("SignupPage", () => {
 
     await submit(user);
 
-    expect(await screen.findByText(/Check your email to confirm your account/)).toBeInTheDocument();
+    expect(await screen.findByText(/Vérifie ta boîte mail pour confirmer ton compte/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -115,7 +115,7 @@ describe("SignupPage", () => {
 
     await waitFor(() => expect(signUp).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Check your email/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Vérifie ta boîte mail/)).not.toBeInTheDocument();
   });
 
   it("shows a mismatch error and never calls signUp when the two passwords differ", async () => {
@@ -124,13 +124,13 @@ describe("SignupPage", () => {
 
     await submit(user, "louis@example.test", "correct-horse", "different-horse");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Passwords don't match.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Les mots de passe ne correspondent pas.");
     expect(signUp).not.toHaveBeenCalled();
   });
 
   it("links to /login for an existing account", () => {
     renderSignupPage();
-    expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("link", { name: "Se connecter" })).toHaveAttribute("href", "/login");
   });
 
   it("shows a 'Continue with Google' button and calls signInWithOAuth with the google provider on click", async () => {
@@ -138,7 +138,7 @@ describe("SignupPage", () => {
     const user = userEvent.setup();
     renderSignupPage();
 
-    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
+    await user.click(screen.getByRole("button", { name: /Continuer avec Google/ }));
 
     expect(signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
@@ -154,7 +154,7 @@ describe("SignupPage", () => {
     const user = userEvent.setup();
     renderSignupPage();
 
-    await user.click(screen.getByRole("button", { name: /Continue with Google/ }));
+    await user.click(screen.getByRole("button", { name: /Continuer avec Google/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de se connecter avec Google. Réessaie.");
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();

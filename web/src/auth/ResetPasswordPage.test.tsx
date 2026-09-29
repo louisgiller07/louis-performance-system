@@ -29,9 +29,9 @@ async function submit(
   password = "new-horse-battery",
   confirmPassword = password
 ): Promise<void> {
-  await user.type(screen.getByLabelText("New password"), password);
-  await user.type(screen.getByLabelText("Confirm new password"), confirmPassword);
-  await user.click(screen.getByRole("button", { name: /Update password/ }));
+  await user.type(screen.getByLabelText("Nouveau mot de passe"), password);
+  await user.type(screen.getByLabelText("Confirme le nouveau mot de passe"), confirmPassword);
+  await user.click(screen.getByRole("button", { name: /Mettre à jour le mot de passe/ }));
 }
 
 // V0.3 — password-reset completion phase. Reached only via the emailed
@@ -44,16 +44,16 @@ describe("ResetPasswordPage", () => {
     renderResetPasswordPage();
 
     expect(screen.getByText(/Chargement/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nouveau mot de passe")).not.toBeInTheDocument();
   });
 
   it("shows an invalid-link message with no form when there is no recovery session", () => {
     useAuth.mockReturnValue({ session: null, loading: false });
     renderResetPasswordPage();
 
-    expect(screen.getByText(/This reset link is invalid or has expired/)).toBeInTheDocument();
-    expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Request a new link" })).toHaveAttribute("href", "/forgot-password");
+    expect(screen.getByText(/Ce lien de réinitialisation est invalide ou a expiré/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nouveau mot de passe")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Demander un nouveau lien" })).toHaveAttribute("href", "/forgot-password");
   });
 
   it("shows a mismatch error and never calls updateUser when the two passwords differ", async () => {
@@ -63,7 +63,7 @@ describe("ResetPasswordPage", () => {
 
     await submit(user, "new-horse-battery", "different-battery");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Passwords don't match.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Les mots de passe ne correspondent pas.");
     expect(updateUser).not.toHaveBeenCalled();
   });
 
