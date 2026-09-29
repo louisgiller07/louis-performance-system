@@ -1,5 +1,6 @@
 import { DECISION_LABELS, formatConfidence, LOAD_PROFILE_LABELS, PRIOR_TECHNICAL_OUTCOME_COPY, TRAINING_KIND_LABELS, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
 import { athleteSafeReasoning, athleteSafeTrainingObjective } from "./safetyPresentation";
+import { coachWhy } from "./coachInsights";
 import { formatDuration } from "./durationLabels";
 import type { DailyPlan, TrainingIntervention } from "./dailyPlanTypes";
 
@@ -89,9 +90,10 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
       : undefined;
   const spotHint = isDh ? dailyPlan.dh_or_technical.spot_hint : undefined;
   const priorTask = isDh ? dailyPlan.dh_or_technical.prior_task_reference : undefined;
-  const reasoning = athleteSafeReasoning(dailyPlan);
+  // UX-04 — "Pourquoi ?": the retained engine signals worded for a rider, or the engine's own sanitized reasoning (safety, race, REST).
+  const why = coachWhy(dailyPlan);
   // No repetition: an objective sentence the coach's reasoning already says verbatim is not shown twice.
-  const body = rawBody && !reasoning.includes(rawBody.trim()) ? rawBody : undefined;
+  const body = rawBody && !why.includes(rawBody.trim()) && !athleteSafeReasoning(dailyPlan).includes(rawBody.trim()) ? rawBody : undefined;
   const loadLabel = final.load_profile ? LOAD_PROFILE_LABELS[final.load_profile] : undefined;
   const sessionLine = [durationMin !== undefined ? formatDuration(durationMin) : undefined, loadLabel].filter(Boolean).join(" · ");
   // The training phase (e.g. "Semaine de course") as a French label, never the raw enum;
@@ -145,9 +147,16 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
         </div>
       )}
 
-      <p className="ux-enter mt-5 border-l border-gold/60 pl-4 text-sm leading-relaxed text-ink/85" style={{ ["--d" as string]: "400ms" }}>
-        {reasoning}
-      </p>
+      <div className="ux-enter mt-5 border-l border-gold/60 pl-4" style={{ ["--d" as string]: "400ms" }}>
+        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-gold">Pourquoi ?</p>
+        <p className="mt-1.5 text-base leading-relaxed text-ink/90">{why}</p>
+      </div>
+
+      {adapted && (
+        <p className="ux-enter mt-5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted" style={{ ["--d" as string]: "480ms" }}>
+          Ton objectif reste. Ton plan s'adapte.
+        </p>
+      )}
 
       {/*
        * V0.3_008B — historical fact from an earlier day, kept visually

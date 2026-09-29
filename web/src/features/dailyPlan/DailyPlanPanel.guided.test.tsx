@@ -113,4 +113,32 @@ describe("DailyPlanPanel — Today's guided flow props (UX-03)", () => {
     expect(mockedRun).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
   });
+
+  it("UX-04 checkinSnapshot: Today's coach reading replaces the Readiness card; the long reveal plays only after a fresh run, never on a restore", async () => {
+    const CHECKIN = { sleep_hours: 7, sleep_quality: 8, energy: 6, leg_fatigue: 4, grip_fatigue: 2 } as never;
+    loadLatestDecisionForDate.mockResolvedValue({ id: "d-0", dailyPlan: PLAN });
+    const { unmount } = render(<DailyPlanPanel athleteId="a-1" date="2026-09-29" hasCheckin={true} checkinRevision={0} {...GUIDED} checkinSnapshot={CHECKIN} />);
+
+    const restored = await screen.findByRole("region", { name: "Ce que ton coach a retenu" });
+    expect(restored.className).not.toContain("coach-revealed");
+    expect(restored).toHaveTextContent("Ton état du jour");
+    expect(screen.queryByText("État de préparation")).not.toBeInTheDocument();
+    unmount();
+
+    loadLatestDecisionForDate.mockResolvedValue(null);
+    mockedRun.mockResolvedValue(RESPONSE);
+    const { rerender } = render(<DailyPlanPanel athleteId="a-1" date="2026-09-29" hasCheckin={false} checkinRevision={0} {...GUIDED} checkinSnapshot={CHECKIN} />);
+    await waitFor(() => expect(loadLatestDecisionForDate).toHaveBeenCalled());
+    rerender(<DailyPlanPanel athleteId="a-1" date="2026-09-29" hasCheckin={true} checkinRevision={1} {...GUIDED} checkinSnapshot={CHECKIN} />);
+
+    expect((await screen.findByRole("region", { name: "Ce que ton coach a retenu" })).className).toContain("coach-revealed");
+  });
+
+  it("without checkinSnapshot the historical rendering (Readiness card) is kept", async () => {
+    loadLatestDecisionForDate.mockResolvedValue({ id: "d-0", dailyPlan: PLAN });
+    render(<DailyPlanPanel athleteId="a-1" date="2026-09-29" hasCheckin={true} checkinRevision={0} {...GUIDED} />);
+
+    expect(await screen.findByText("État de préparation")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Ce que ton coach a retenu" })).not.toBeInTheDocument();
+  });
 });

@@ -91,8 +91,11 @@ describe("MissionHero (UX-03)", () => {
       <MissionHero
         dailyPlan={{
           ...BASE_PLAN,
-          dh_or_technical: { ...BASE_PLAN.dh_or_technical, prior_task_reference: { execution_task: "Freiner plus tard", technical_outcome: "achieved", decision_date: "2026-09-27" } },
-        } as DailyPlan}
+          dh_or_technical: {
+            ...BASE_PLAN.dh_or_technical,
+            prior_task_reference: { source_decision_id: "d-0", session_date: "2026-09-27", kind: "DH_TECHNICAL", execution_task: "Freiner plus tard", technical_outcome: "yes" },
+          },
+        }}
       />
     );
 

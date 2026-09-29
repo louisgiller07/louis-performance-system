@@ -8,8 +8,10 @@ import {
   LOAD_PROFILE_LABELS,
   PRIOR_TECHNICAL_OUTCOME_COPY,
 } from "./dailyPlanLabels";
+import { coachWhy } from "./coachInsights";
 import {
   athleteSafeOverrideReason,
+  athleteSafeReasoning,
   athleteSafeRuleDetail,
   athleteSafeMonitoring,
   athleteSafeProtection,
@@ -177,6 +179,9 @@ export function DailyPlanView({
   // `triggered_rules` only for a decision persisted before this field
   // existed (`decision_reasoning === undefined`) — see dailyPlanTypes.ts.
   const decisionReasoningRules = dailyPlan.decision_reasoning ?? dailyPlan.triggered_rules;
+  // UX-04 — Today only: the engine's full sanitized reasoning, when the hero shows a different (rider-worded) sentence.
+  const engineReasoning = athleteSafeReasoning(dailyPlan);
+  const coachReasoning = heroInMission && engineReasoning.trim() !== "" && coachWhy(dailyPlan) !== engineReasoning ? engineReasoning : null;
   const protectionSection = safeProtection.length > 0 && (
     <PlanSection title="À éviter">
       <ul className="list-disc pl-4 text-red-400">
@@ -445,7 +450,7 @@ export function DailyPlanView({
         </PlanSection>
       )}
 
-      {decisionReasoningRules.length > 0 && (
+      {(decisionReasoningRules.length > 0 || coachReasoning) && (
         <details className="group rounded-lg border border-line bg-card p-4 text-sm text-ink/70">
           <summary className="flex min-h-6 cursor-pointer list-none items-center justify-between font-medium text-ink [&::-webkit-details-marker]:hidden">
             Pourquoi cette décision ?
@@ -466,6 +471,12 @@ export function DailyPlanView({
            * the raw triggered_rules audit array, so this panel can never
            * contradict the `reasoning` summary shown in DecisionHero.
            */}
+          {/*
+           * UX-04 — on Today the hero's "Pourquoi ?" may be a rider-worded
+           * summary of the retained signals; the coach's full (sanitized)
+           * reasoning then stays available here, never lost.
+           */}
+          {coachReasoning && <p className="mt-2 text-ink/85">{coachReasoning}</p>}
           <ul className="mt-2 flex flex-col gap-2">
             {decisionReasoningRules.map((rule, index) => (
               <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
