@@ -3,7 +3,7 @@ import { retainedSignals, SIGNAL_CHECKIN_FIELD, type CheckinField } from "./coac
 import type { DailyPlan } from "./dailyPlanTypes";
 import type { CheckinRow } from "../checkin/checkinTypes";
 
-// UX-04 — Today's "Ce que ton coach a retenu" + "Ton état du jour" (replaces
+// UX-04 / UX-05 — Today's "Ce que ton coach a retenu" + "Ton état du jour" cards (replaces
 // the Readiness card on Today only; History keeps ReadinessCard).
 // - Retained signals come only from the engine's own `signals_used`
 //   (coachInsights.ts), worded for a rider.
@@ -49,36 +49,42 @@ export function CoachStateCard({
   const attention = athleteSafeMonitoring(dailyPlan)[0];
   const baseDelay = revealed ? 900 : 120;
 
+  // UX-05 — two distinct cards, in the validated order: what the coach retained, then the athlete's state.
   return (
-    <section aria-labelledby="coach-state-title" className={`rounded-xl border border-line bg-card p-5 ${revealed ? "coach-revealed" : ""}`}>
-      <h2 id="coach-state-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
-        <span className="h-px w-5 bg-gold" aria-hidden="true" />
-        Ce que ton coach a retenu
-      </h2>
+    <>
+      <section aria-labelledby="coach-state-title" className={`rounded-xl border border-line bg-card p-5 ${revealed ? "coach-revealed" : ""}`}>
+        <h2 id="coach-state-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+          <span className="h-px w-5 bg-gold" aria-hidden="true" />
+          Ce que ton coach a retenu
+        </h2>
 
-      {signals.length > 0 ? (
-        <ul className="mt-4 flex flex-col">
-          {signals.map((entry, index) => (
-            <li
-              key={entry.label}
-              className="ux-enter flex items-center gap-3 border-b border-line py-3 first:pt-0 last:border-b-0"
-              style={{ ["--d" as string]: `${baseDelay + index * 180}ms` }}
-            >
-              <span className="h-2 w-2 shrink-0 rounded-full bg-gold" aria-hidden="true" />
-              <span className="font-display text-2xl font-extrabold uppercase leading-none text-ink">{entry.label}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="ux-enter mt-3 text-sm leading-relaxed text-ink/80" style={{ ["--d" as string]: `${baseDelay}ms` }}>
-          Aucun signal de ton check-in n'a demandé d'adapter ta séance.
-        </p>
-      )}
+        {signals.length > 0 ? (
+          <ul className="mt-4 flex flex-col">
+            {signals.map((entry, index) => (
+              <li
+                key={entry.label}
+                className="ux-enter flex items-center gap-3 border-b border-line py-3 first:pt-0 last:border-b-0"
+                style={{ ["--d" as string]: `${baseDelay + index * 180}ms` }}
+              >
+                <span className="h-2 w-2 shrink-0 rounded-full bg-gold" aria-hidden="true" />
+                <span className="font-display text-2xl font-extrabold uppercase leading-none text-ink">{entry.label}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="ux-enter mt-3 text-sm leading-relaxed text-ink/80" style={{ ["--d" as string]: `${baseDelay}ms` }}>
+            Aucun signal de ton check-in n'a demandé d'adapter ta séance.
+          </p>
+        )}
+      </section>
 
-      {tiles.length > 0 && (
-        <div className="mt-5 border-t border-line pt-4">
-          <h3 className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">Ton état du jour</h3>
-          <dl className="mt-3 grid grid-cols-2 gap-2">
+      <section aria-labelledby="day-state-title" className="rounded-xl border border-line bg-card p-5">
+        <h2 id="day-state-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+          <span className="h-px w-5 bg-gold" aria-hidden="true" />
+          Ton état du jour
+        </h2>
+        {tiles.length > 0 && (
+          <dl className="mt-4 grid grid-cols-2 gap-2">
             {tiles.map((tile, index) => {
               const retained = retainedFields.has(tile.field);
               return (
@@ -94,21 +100,21 @@ export function CoachStateCard({
               );
             })}
           </dl>
-        </div>
-      )}
+        )}
 
-      <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
-        <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">État du corps</p>
-        <p className={`font-display text-lg font-extrabold uppercase leading-none ${hasHealthSignal ? "text-red-400" : "text-gold"}`}>
-          {hasHealthSignal ? "Signal actif" : "Prêt"}
-        </p>
-      </div>
-      {attention && (
-        <div className="mt-3 border-t border-line pt-3">
-          <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">Attention</p>
-          <p className="mt-1 text-sm text-ink/90">{attention}</p>
+        <div className={`flex items-center justify-between gap-3 ${tiles.length > 0 ? "mt-4 border-t border-line pt-3" : "mt-3"}`}>
+          <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">État du corps</p>
+          <p className={`font-display text-lg font-extrabold uppercase leading-none ${hasHealthSignal ? "text-red-400" : "text-gold"}`}>
+            {hasHealthSignal ? "Signal actif" : "Prêt"}
+          </p>
         </div>
-      )}
-    </section>
+        {attention && (
+          <div className="mt-3 border-t border-line pt-3">
+            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">Attention</p>
+            <p className="mt-1 text-sm text-ink/90">{attention}</p>
+          </div>
+        )}
+      </section>
+    </>
   );
 }

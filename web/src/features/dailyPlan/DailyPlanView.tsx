@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { PlanSection } from "../../components/PlanSection";
 import { DecisionHero } from "./DecisionHero";
 import {
@@ -124,6 +125,15 @@ export interface DailyPlanViewProps {
    * History (no prop) is unaffected.
    */
   heroInMission?: boolean;
+  /**
+   * UX-05 — Today only. When provided, the non-safety plan detail (session
+   * plan, prescription, mental, recovery, sleep, nutrition, race protocol,
+   * "Pourquoi cette décision ?") is rendered unchanged inside a collapsible
+   * "Voir les détails du plan" portalled into this element (the bottom of
+   * the page); `null` while that element is not mounted yet. Undefined (every
+   * other caller, e.g. History) keeps the single inline rendering.
+   */
+  detailsTarget?: HTMLElement | null;
 }
 
 // Rendering-only: production display of a real, already-computed
@@ -140,6 +150,7 @@ export function DailyPlanView({
   missionSlot,
   executablePrescription,
   heroInMission = false,
+  detailsTarget,
 }: DailyPlanViewProps) {
   const showInlineMission = missionSlot === undefined;
   // Only worth comparing when there was an actual prior planned session —
@@ -192,14 +203,8 @@ export function DailyPlanView({
     </PlanSection>
   );
 
-  return (
-    <div className="flex flex-col gap-3">
-      {missionSlot}
-
-      {!heroInMission && <DecisionHero dailyPlan={dailyPlan} />}
-
-      {readinessSlot}
-
+  const healthSection = (
+    <>
       {hasHealthSignal && (
         <div className="rounded-lg border border-red-500/40 bg-red-950/30 p-4">
           <p className="text-sm font-semibold text-red-400">Attention santé</p>
@@ -209,7 +214,10 @@ export function DailyPlanView({
           </p>
         </div>
       )}
-
+    </>
+  );
+  const sessionCard = (
+    <>
       {sessionChanged && !heroInMission && (
         <PlanSection title="Séance">
           <div className="grid grid-cols-2 gap-3">
@@ -226,7 +234,10 @@ export function DailyPlanView({
           </div>
         </PlanSection>
       )}
-
+    </>
+  );
+  const trainingSection = (
+    <>
       {/* UX-03 — on Today the MissionHero already names the session (kind, duration, load). */}
       {dailyPlan.training.active && !isDhPrescription && !heroInMission && (
         <PlanSection title="Entraînement">
@@ -249,7 +260,10 @@ export function DailyPlanView({
           {showInlineMission && dailyPlan.training.objective && <p className="text-ink/70">{athleteSafeTrainingObjective(dailyPlan)}</p>}
         </PlanSection>
       )}
-
+    </>
+  );
+  const dhSections = (
+    <>
       {/*
        * V0.3_006B — Session Prescription V1, split (V0.3 UX PREMIUM
        * REDESIGN) into two adjacent cards for a DH-family session:
@@ -356,7 +370,10 @@ export function DailyPlanView({
           </PlanSection>
         </>
       )}
-
+    </>
+  );
+  const prescriptionSection = (
+    <>
       {/*
        * V0.5_047/048 — the athlete's exact executable prescription, shown
        * ONLY when Head Coach actually KEPT the planned session (kind AND
@@ -371,16 +388,20 @@ export function DailyPlanView({
       {dailyPlan.decision === "KEEP" && executablePrescription != null && (
         <ExecutablePrescriptionCard prescription={executablePrescription} />
       )}
-
+    </>
+  );
+  const mentalSection = (
+    <>
       {dailyPlan.mental.active && (
         <PlanSection title="Mental">
           {dailyPlan.mental.focus && <p className="font-medium text-ink">{dailyPlan.mental.focus}</p>}
           {dailyPlan.mental.action_hint && <p className="text-ink/70">{dailyPlan.mental.action_hint}</p>}
         </PlanSection>
       )}
-
-      {safetyActive && protectionSection}
-
+    </>
+  );
+  const recentSection = (
+    <>
       {/*
        * V0.3_008A presentation gate — placed strictly AFTER both Safety-
        * relevant elements above (the "Attention santé" banner and, when
@@ -390,7 +411,10 @@ export function DailyPlanView({
        * it. Purely a DOM-order decision — no Safety behavior/logic touched.
        */}
       {dailyPlan.recent_recovery_context && <RecentRecoveryContextSection context={dailyPlan.recent_recovery_context} />}
-
+    </>
+  );
+  const recoverySection = (
+    <>
       {dailyPlan.recovery.active && dailyPlan.recovery.actions.length > 0 && (
         <PlanSection title="Récupération">
           <ul className="list-disc pl-4">
@@ -400,7 +424,10 @@ export function DailyPlanView({
           </ul>
         </PlanSection>
       )}
-
+    </>
+  );
+  const sleepSection = (
+    <>
       {dailyPlan.sleep.active && (
         <PlanSection title="Sommeil">
           {dailyPlan.sleep.target_hours !== undefined && (
@@ -421,7 +448,10 @@ export function DailyPlanView({
           {dailyPlan.sleep.notes && <p className="text-ink/70">Repère générique, pas encore individualisé pour toi.</p>}
         </PlanSection>
       )}
-
+    </>
+  );
+  const nutritionSection = (
+    <>
       {dailyPlan.nutrition.active && (
         <PlanSection title="Nutrition">
           {dailyPlan.nutrition.focus && <p className="font-medium text-ink">{dailyPlan.nutrition.focus}</p>}
@@ -429,9 +459,10 @@ export function DailyPlanView({
           {dailyPlan.nutrition.notes && <p className="text-ink/70">{dailyPlan.nutrition.notes}</p>}
         </PlanSection>
       )}
-
-      {!safetyActive && protectionSection}
-
+    </>
+  );
+  const monitoringSection = (
+    <>
       {safeMonitoring.length > 0 && (
         <PlanSection title="À surveiller">
           <ul className="list-disc pl-4">
@@ -441,7 +472,10 @@ export function DailyPlanView({
           </ul>
         </PlanSection>
       )}
-
+    </>
+  );
+  const raceProtocolSection = (
+    <>
       {dailyPlan.overrode_race_protocol && (
         <PlanSection title="Protocole de course">
           <p className="text-ink">Le protocole standard a été modifié pour aujourd'hui.</p>
@@ -449,7 +483,10 @@ export function DailyPlanView({
           {athleteSafeOverrideReason(dailyPlan) && <p className="text-ink/70">{athleteSafeOverrideReason(dailyPlan)}</p>}
         </PlanSection>
       )}
-
+    </>
+  );
+  const whySection = (
+    <>
       {(decisionReasoningRules.length > 0 || coachReasoning) && (
         <details className="group rounded-lg border border-line bg-card p-4 text-sm text-ink/70">
           <summary className="flex min-h-6 cursor-pointer list-none items-center justify-between font-medium text-ink [&::-webkit-details-marker]:hidden">
@@ -486,7 +523,10 @@ export function DailyPlanView({
           </ul>
         </details>
       )}
-
+    </>
+  );
+  const devSection = (
+    <>
       {import.meta.env.DEV && technicalMetadata && (
         <details className="text-xs text-muted">
           <summary>Détails techniques</summary>
@@ -495,6 +535,84 @@ export function DailyPlanView({
           <pre className="mt-1 overflow-x-auto whitespace-pre-wrap">{JSON.stringify(technicalMetadata.raw, null, 2)}</pre>
         </details>
       )}
+    </>
+  );
+
+  // Default order (History and every caller without detailsTarget): unchanged.
+  const inline = (
+    <div className="flex flex-col gap-3">
+      {missionSlot}
+
+      {!heroInMission && <DecisionHero dailyPlan={dailyPlan} />}
+
+      {readinessSlot}
+
+      {healthSection}
+      {sessionCard}
+      {trainingSection}
+      {dhSections}
+      {prescriptionSection}
+      {mentalSection}
+
+      {safetyActive && protectionSection}
+
+      {recentSection}
+      {recoverySection}
+      {sleepSection}
+      {nutritionSection}
+
+      {!safetyActive && protectionSection}
+
+      {monitoringSection}
+      {raceProtocolSection}
+      {whySection}
+      {devSection}
     </div>
+  );
+
+  if (detailsTarget === undefined) return inline;
+
+  // UX-05 — Today: mission, coach cards and every Safety-relevant element
+  // ("Attention santé", "À éviter", "À surveiller") stay visible right
+  // below the mission, in their existing relative order; the rest of the
+  // plan detail moves, unchanged, into one discreet collapsible at the
+  // bottom of the page ("Voir les détails du plan").
+  const planDetails = (
+    <details className="group rounded-lg border border-line bg-card/60 p-4">
+      <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between text-sm text-ink/80 hover:text-ink [&::-webkit-details-marker]:hidden">
+        Voir les détails du plan
+        <span className="text-gold transition-transform duration-300 group-open:rotate-90" aria-hidden="true">
+          →
+        </span>
+      </summary>
+      <div className="mt-4 flex flex-col gap-3">
+        {dhSections}
+        {prescriptionSection}
+        {mentalSection}
+        {recentSection}
+        {recoverySection}
+        {sleepSection}
+        {nutritionSection}
+        {raceProtocolSection}
+        {whySection}
+        {devSection}
+      </div>
+    </details>
+  );
+
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        {missionSlot}
+        {!heroInMission && <DecisionHero dailyPlan={dailyPlan} />}
+        {readinessSlot}
+        {healthSection}
+        {sessionCard}
+        {trainingSection}
+        {protectionSection}
+        {monitoringSection}
+      </div>
+      {detailsTarget && createPortal(planDetails, detailsTarget)}
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysBetween, firstNameFrom, nextPlannedSession, raceHorizon, weekDates, weekSummary } from "./todayContext";
+import { daysBetween, firstNameFrom, nextPlannedSession, raceHorizon, weekCheckinCount, weekDates, weekSummary } from "./todayContext";
 import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../planning/planningTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
@@ -71,6 +71,8 @@ describe("weekSummary — plain counts, no score", () => {
     expect(summary.days[0]).toMatchObject({ performed: true, isPast: true });
     expect(summary.days[1]).toMatchObject({ isToday: true, performed: false });
     expect(summary.days[5]!.race).toBe("Swiss Cup");
+    // UX-05 — full label and duration for the tapped-day detail.
+    expect(summary.days[3]).toMatchObject({ plannedLabel: "Renfo bas du corps", plannedDurationMin: 60 });
   });
 
   it("a legacy planned row without intervention still counts, labelled neutrally", () => {
@@ -84,5 +86,15 @@ describe("nextPlannedSession", () => {
       "2026-10-02"
     );
     expect(nextPlannedSession([planned("2026-09-28", "DH_TECHNICAL")], "2026-09-29")).toBeNull();
+  });
+});
+
+describe("weekCheckinCount (UX-05) — a plain count, no streak", () => {
+  it("distinct days Monday → today with a saved check-in; today's fresh save is counted once", () => {
+    const dates = ["2026-09-28", "2026-09-28", "2026-09-29", "2026-09-27", "2026-10-01"];
+    expect(weekCheckinCount(dates, "2026-09-29", false)).toBe(2);
+    expect(weekCheckinCount(dates, "2026-09-29", true)).toBe(2);
+    expect(weekCheckinCount(["2026-09-28"], "2026-09-29", true)).toBe(2);
+    expect(weekCheckinCount([], "2026-09-29", false)).toBe(0);
   });
 });

@@ -16,6 +16,8 @@ export interface TodayPresentation {
   checkin: CheckinRow | null;
   /** True right after a fresh analysis (not on a restore): longer reveal of what the coach retained. */
   revealed: boolean;
+  /** UX-05 — where "Voir les détails du plan" is rendered (bottom of Today); null until mounted. */
+  detailsTarget?: HTMLElement | null;
 }
 
 export function DailyPlanResult({ result, today }: { result: DailyRunResponse; today?: TodayPresentation }) {
@@ -42,6 +44,7 @@ export function DailyPlanResult({ result, today }: { result: DailyRunResponse; t
       }
       missionSlot={<MissionHero dailyPlan={dailyPlan} />}
       heroInMission
+      detailsTarget={today ? (today.detailsTarget ?? null) : undefined}
       executablePrescription={executablePrescription}
     />
   );

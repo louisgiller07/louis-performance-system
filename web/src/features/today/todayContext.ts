@@ -3,11 +3,19 @@ import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../planning/planningTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import type { TrainingInterventionKind } from "../dailyPlan/dailyPlanTypes";
+import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
 
-// UX-04 — Today's coach context (greeting, race / objective, week).
-// Pure presentation and calendar formatting only: no sporting computation,
-// no score. Every value comes from rows the athlete (or their accepted plan)
-// already has.
+// UX-04 / UX-05 — Today's coach context (greeting, race / objective, week,
+// regularity). Pure presentation and calendar formatting only: no sporting
+// computation, no score, no percentage. Every value comes from rows the
+// athlete (or their accepted plan) already has.
+
+/** A race as Today shows it: the overlay event plus the two descriptive columns race_calendar already has. */
+export interface TodayRace extends RaceOverlayEvent {
+  location: string | null;
+  /** Raw race_format enum; translated at display time (trainingLabels/raceLabels.ts), never shown raw. */
+  raceFormat: string | null;
+}
 
 /** "Louis Giller" → "Louis"; nothing usable → null (the caller shows the brand instead). */
 export function firstNameFrom(name: string | null | undefined): string | null {
@@ -22,17 +30,18 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((Date.UTC(ty!, tm! - 1, td!) - Date.UTC(fy!, fm! - 1, fd!)) / 86_400_000);
 }
 
-export type RaceHorizon =
-  | { kind: "ongoing"; race: RaceOverlayEvent; day: number }
-  | { kind: "countdown"; race: RaceOverlayEvent; days: number }
-  | { kind: "horizon"; race: RaceOverlayEvent; days: number };
+export type RaceHorizon<R extends RaceOverlayEvent = RaceOverlayEvent> =
+  | { kind: "ongoing"; race: R; day: number }
+  | { kind: "countdown"; race: R; days: number }
+  | { kind: "horizon"; race: R; days: number };
 
 /**
- * Validated display rule (UX-04): a race in progress is shown as such; the
- * next race under 120 days as "J-XX"; between 120 and 365 days as "Prochain
- * objectif"; beyond 365 days (or none) nothing — the objective is shown instead.
+ * Validated display rule (UX-04/05): a race in progress is shown as such;
+ * the next race under 120 days as "Prochaine course · J-XX"; between 120 and
+ * 365 days as "Objectif de saison"; beyond 365 days (or none) nothing — the
+ * athlete's declared objective is shown instead, if one exists.
  */
-export function raceHorizon(races: RaceOverlayEvent[], today: string): RaceHorizon | null {
+export function raceHorizon<R extends RaceOverlayEvent>(races: R[], today: string): RaceHorizon<R> | null {
   const ongoing = races
     .filter((race) => race.startDate <= today && today <= race.endDate)
     .sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
@@ -77,8 +86,11 @@ export interface WeekDay {
   date: string;
   isToday: boolean;
   isPast: boolean;
-  /** Short label of the planned session, if any ("DH", "Force", …). */
+  /** Short label of the planned session, if any ("DH", "Force", …) — fits under the day. */
   planned: string | null;
+  /** Full label of the planned session ("DH technique") — shown when the day is selected. */
+  plannedLabel: string | null;
+  plannedDurationMin: number | null;
   /** A session was actually performed (done / partial / replaced) — "skipped" does not count. */
   performed: boolean;
   race: string | null;
@@ -105,11 +117,14 @@ export function weekSummary(
     const row = planned.find((candidate) => candidate.planned_date === date);
     const performed = completed.some((session) => session.session_date === date && session.completion_status !== "skipped");
     const race = races.find((event) => event.startDate <= date && date <= event.endDate);
+    const kind = row?.intervention?.kind;
     return {
       date,
       isToday: date === today,
       isPast: date < today,
-      planned: row ? (row.intervention ? (SHORT_KIND_LABELS[row.intervention.kind] ?? "Séance") : "Séance") : null,
+      planned: row ? (kind ? (SHORT_KIND_LABELS[kind] ?? "Séance") : "Séance") : null,
+      plannedLabel: row ? (kind ? (TRAINING_KIND_LABELS[kind] ?? "Séance prévue") : "Séance prévue") : null,
+      plannedDurationMin: row?.intervention?.duration_min ?? null,
       performed,
       race: race ? race.eventName : null,
     };
@@ -129,4 +144,17 @@ export function nextPlannedSession(planned: PlannedSessionRow[], today: string):
       .filter((row) => row.planned_date > today && isTrainingSession(row))
       .sort((a, b) => a.planned_date.localeCompare(b.planned_date))[0] ?? null
   );
+}
+
+/**
+ * UX-05 — "N check-ins cette semaine": the number of distinct days, Monday
+ * through today, with a saved check-in. A plain count of existing rows — no
+ * streak, no score. `checkedInToday` covers a check-in saved after the
+ * page loaded its week.
+ */
+export function weekCheckinCount(checkinDates: string[], today: string, checkedInToday: boolean): number {
+  const dates = weekDates(today).filter((date) => date <= today);
+  const days = new Set(checkinDates.filter((date) => dates.includes(date)));
+  if (checkedInToday) days.add(today);
+  return days.size;
 }

@@ -60,6 +60,8 @@ interface DailyPlanPanelProps {
    * keeps the historical result rendering.
    */
   checkinSnapshot?: CheckinRow | null;
+  /** UX-05 — with checkinSnapshot: where the collapsible plan detail goes (bottom of Today). */
+  detailsTarget?: HTMLElement | null;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -88,6 +90,7 @@ export function DailyPlanPanel({
   runningSlot,
   loadingSlot,
   checkinSnapshot,
+  detailsTarget,
 }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
@@ -277,7 +280,7 @@ export function DailyPlanPanel({
       {result && (
         <DailyPlanResult
           result={result}
-          today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun } : undefined}
+          today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun, detailsTarget } : undefined}
         />
       )}
     </div>

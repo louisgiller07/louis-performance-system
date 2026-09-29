@@ -121,7 +121,7 @@ describe("DailyPlanPanel — Today's guided flow props (UX-03)", () => {
 
     const restored = await screen.findByRole("region", { name: "Ce que ton coach a retenu" });
     expect(restored.className).not.toContain("coach-revealed");
-    expect(restored).toHaveTextContent("Ton état du jour");
+    expect(screen.getByRole("region", { name: "Ton état du jour" })).toBeInTheDocument();
     expect(screen.queryByText("État de préparation")).not.toBeInTheDocument();
     unmount();
 
