@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TrainingPlanPreviewPage } from "./TrainingPlanPreviewPage";
@@ -29,8 +29,8 @@ vi.mock("../auth/AuthContext", () => ({
 }));
 
 // Real MemoryRouter + Routes (never a mocked useNavigate/useParams) — this
-// exercises the actual route matching, including DraftList's "pick another
-// draft" flow now navigating to /training-plan-preview/:id (V0.5_038)
+// exercises the actual route matching, including ProgramDraftSummary's "pick
+// another draft" flow now navigating to /training-plan-preview/:id (V0.5_038)
 // instead of fetching locally: clicking an entry drives a real route
 // change, which re-renders this same page with a new :planVersionId param.
 function renderPage(path: string = "/training-plan-preview") {
@@ -105,25 +105,32 @@ describe("TrainingPlanPreviewPage", () => {
     expect(getTrainingPlanReview).toHaveBeenCalledWith("version-1");
   });
 
-  it("shows the draft list only when several drafts exist, and lets the athlete pick another one", async () => {
+  it("several drafts: shows the most recent, the others folded, and lets the athlete pick another one (UX-06)", async () => {
     getTrainingPlanDrafts.mockResolvedValue([DRAFT_2, DRAFT_1]);
     getTrainingPlanReview.mockImplementation(async (id: string) => reviewFor(id === "version-2" ? DRAFT_2 : DRAFT_1));
 
     renderPage();
 
-    expect(await screen.findByText("2 plans en attente d'acceptation")).toBeInTheDocument();
     // The most recent (version-2) is loaded by default.
-    await waitFor(() => expect(getTrainingPlanReview).toHaveBeenCalledWith("version-2"));
+    expect(await screen.findByText("Plan régénéré après une modification manuelle.")).toBeInTheDocument();
+    expect(screen.getByText("Version non active")).toBeInTheDocument();
+    expect(screen.getByText("Générée le 22 septembre")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("1 autre version"));
+    await userEvent.click(screen.getByRole("button", { name: /Générée le 20 septembre/ }));
+
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
+    expect(getTrainingPlanReview).toHaveBeenLastCalledWith("version-1");
   });
 
-  it("never shows the draft list when only one draft exists", async () => {
+  it("a single draft: no other versions are offered", async () => {
     getTrainingPlanDrafts.mockResolvedValue([DRAFT_1]);
     getTrainingPlanReview.mockResolvedValue(reviewFor(DRAFT_1));
 
     renderPage();
 
     await screen.findByText("Première génération de ton plan d'entraînement.");
-    expect(screen.queryByText(/plans en attente/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/autres? versions?/)).not.toBeInTheDocument();
   });
 
   it("shows a clear error message, never a raw Supabase error, when the repository throws", async () => {
@@ -205,10 +212,12 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
   });
 });
 
-// V0.5_050 — the CTA must come from the re-fetched, persisted lifecycle
-// (handleAccepted → load()), never from local click state.
-describe("TrainingPlanPreviewPage — post-acceptance CTA (V0.5_050)", () => {
-  it("draft → accept success → re-fetch returns accepted → 'Aller à Aujourd'hui' appears and navigates to /today", async () => {
+// V0.5_050 / UX-06 — the post-acceptance state must come from the
+// re-fetched, persisted lifecycle (handleAccepted → load()), never from local
+// click state. UX-06 removed the "Aller à Aujourd'hui" CTA (the tab bar
+// covers it): an accepted plan simply stops showing the draft card.
+describe("TrainingPlanPreviewPage — acceptance (V0.5_050, UX-06)", () => {
+  it("draft → accept success → re-fetch returns accepted → the draft card disappears", async () => {
     let persistedState: TrainingPlanReview["lifecycleState"] = "draft";
     getTrainingPlanDrafts.mockImplementation(async () => (persistedState === "draft" ? [DRAFT_1] : []));
     getTrainingPlanReview.mockImplementation(async () => ({ ...reviewFor(DRAFT_1), lifecycleState: persistedState }));
@@ -217,29 +226,21 @@ describe("TrainingPlanPreviewPage — post-acceptance CTA (V0.5_050)", () => {
       return { ok: true, data: { planVersionId: id, idempotentReplay: false } };
     });
 
-    render(
-      <MemoryRouter initialEntries={[`/training-plan-preview/${DRAFT_1.id}`]}>
-        <Routes>
-          <Route path="/training-plan-preview/:planVersionId" element={<TrainingPlanPreviewPage />} />
-          <Route path="/today" element={<p>Today page</p>} />
-        </Routes>
-      </MemoryRouter>
-    );
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Accepter ce plan" }));
-    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Version non active")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Accepter ce plan" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
 
-    const cta = await screen.findByRole("link", { name: "Aller à Aujourd'hui" });
-    expect(screen.getByText("Plan actif")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Version non active")).not.toBeInTheDocument());
+    expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
     expect(acceptTrainingPlan).toHaveBeenCalledWith(DRAFT_1.id);
     expect(getTrainingPlanReview).toHaveBeenCalledTimes(2);
-
-    await userEvent.click(within(cta).getByRole("button"));
-    expect(await screen.findByText("Today page")).toBeInTheDocument();
   });
 
-  it("accept failure: the plan stays draft and the CTA never appears", async () => {
+  it("accept failure: the plan stays draft and its card stays", async () => {
     getTrainingPlanDrafts.mockResolvedValue([DRAFT_1]);
     getTrainingPlanReview.mockResolvedValue(reviewFor(DRAFT_1));
     acceptTrainingPlan.mockResolvedValue({ ok: false, error: { code: "unknown", message: "Erreur serveur.", retryable: true, action: "retry" } });
@@ -250,18 +251,41 @@ describe("TrainingPlanPreviewPage — post-acceptance CTA (V0.5_050)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
 
     expect(await screen.findByText("Erreur serveur.")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
+    expect(screen.getByText("Version non active")).toBeInTheDocument();
   });
 
-  it("refresh on an accepted plan's exact URL shows the CTA from persisted data alone", async () => {
+  it("refresh on an accepted plan's exact URL shows it as the active plan from persisted data alone", async () => {
     getTrainingPlanDrafts.mockResolvedValue([]);
     getTrainingPlanReview.mockResolvedValue({ ...reviewFor(DRAFT_1), lifecycleState: "accepted" });
     getActivePlanVersionId.mockResolvedValue(DRAFT_1.id);
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByRole("link", { name: "Aller à Aujourd'hui" })).toHaveAttribute("href", "/today");
+    expect(await screen.findByText("Ton plan actuel")).toBeInTheDocument();
+    expect(screen.queryByText("Version non active")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
     expect(acceptTrainingPlan).not.toHaveBeenCalled();
+  });
+
+  it("accepted plan with pending drafts: 'Nouvelle version de ton plan prête', opened on demand, older ones folded", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([DRAFT_2, DRAFT_1]);
+    getTrainingPlanReview.mockImplementation(async (id: string) =>
+      id === "active" ? { ...reviewFor(DRAFT_1), version: { ...DRAFT_1, id: "active", relaxedConstraints: [] }, lifecycleState: "accepted" } : reviewFor(id === "version-2" ? DRAFT_2 : DRAFT_1)
+    );
+    getActivePlanVersionId.mockResolvedValue("active");
+
+    renderPage("/training-plan-preview/active");
+
+    expect(await screen.findByText("Nouvelle version de ton plan prête")).toBeInTheDocument();
+    expect(screen.getByText("Ton plan actuel reste actif tant que tu ne l'acceptes pas.")).toBeInTheDocument();
+    expect(screen.getByText("1 ancienne version")).toBeInTheDocument();
+    expect(screen.queryByText(/adaptation/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir la nouvelle version" }));
+
+    expect(await screen.findByText("Version non active")).toBeInTheDocument();
+    expect(getTrainingPlanReview).toHaveBeenLastCalledWith("version-2");
+    expect(screen.getByRole("link", { name: "← Revenir à mon plan actif" })).toHaveAttribute("href", "/training-plan");
   });
 });
 
@@ -339,8 +363,8 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
 
     expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
     await waitFor(() => expect(getManualPlannedDates).toHaveBeenCalled());
-    expect(screen.getByText("Plan actif")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Aller à Aujourd'hui" })).toBeInTheDocument();
+    expect(screen.getByText("Ton plan actuel")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Modifier ma configuration" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
   });

@@ -1,11 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { TrainingPlanOverview } from "./TrainingPlanOverview";
 import type { TrainingPlanReview } from "../trainingPlanReviewTypes";
-
-vi.mock("../acceptTrainingPlan", () => ({ acceptTrainingPlan: vi.fn() }));
 
 function review(overrides: Partial<TrainingPlanReview> = {}): TrainingPlanReview {
   return {
@@ -56,7 +53,7 @@ function review(overrides: Partial<TrainingPlanReview> = {}): TrainingPlanReview
 function renderOverview(props: Partial<Parameters<typeof TrainingPlanOverview>[0]> = {}) {
   return render(
     <MemoryRouter>
-      <TrainingPlanOverview review={review()} hasActivePlan={false} onAccepted={vi.fn()} {...props} />
+      <TrainingPlanOverview review={review()} {...props} />
     </MemoryRouter>
   );
 }
@@ -69,26 +66,11 @@ describe("TrainingPlanOverview", () => {
     expect(screen.getByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
   });
 
-  it("displays the lifecycle state and volume summary", () => {
+  it("displays the volume summary", () => {
     renderOverview();
 
-    expect(screen.getByText("Plan prêt à être accepté")).toBeInTheDocument();
     expect(screen.getByText(/2 force/)).toBeInTheDocument();
     expect(screen.getByText("240 min au total")).toBeInTheDocument();
-  });
-
-  it("shows the Accept button for a draft, and a link to modify the configuration", () => {
-    renderOverview();
-
-    expect(screen.getByRole("button", { name: "Accepter ce plan" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Modifier ma configuration" })).toHaveAttribute("href", "/performance-setup");
-  });
-
-  it("never shows an Accept button once the version is no longer a draft", () => {
-    renderOverview({ review: review({ lifecycleState: "accepted" }) });
-
-    expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
-    expect(screen.getByText("Plan actif")).toBeInTheDocument();
   });
 
   it("never renders any internal id, hash, or technical version string", () => {
@@ -175,7 +157,7 @@ describe("TrainingPlanOverview — placement reasons (V06-04)", () => {
 
     expect(screen.getByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
     expect(screen.getByText("Volume global")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Accepter ce plan" })).toBeInTheDocument();
+    expect(screen.getByText("240 min au total")).toBeInTheDocument();
   });
 });
 
@@ -204,47 +186,21 @@ describe("TrainingPlanOverview — athlete modifications (V06-02)", () => {
     renderOverview({ review: review({ lifecycleState: "accepted" }), athleteModifiedDates: null });
 
     expect(screen.queryByText(/modifiés? par toi/)).not.toBeInTheDocument();
-    expect(screen.getByText("Plan actif")).toBeInTheDocument();
+    expect(screen.getByText("Volume global")).toBeInTheDocument();
   });
 });
 
-describe("TrainingPlanOverview — post-acceptance CTA (V0.5_050)", () => {
-  it("draft: shows the Accept button, never the 'Aller à Aujourd'hui' CTA", () => {
-    renderOverview();
-
-    expect(screen.getByRole("button", { name: "Accepter ce plan" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
-  });
-
-  it("accepted: shows 'Plan actif' and the 'Aller à Aujourd'hui' CTA pointing to /today", () => {
-    renderOverview({ review: review({ lifecycleState: "accepted" }) });
-
-    expect(screen.getByText("Plan actif")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Aller à Aujourd'hui" })).toHaveAttribute("href", "/today");
-  });
-
-  it("accepted: clicking the CTA navigates to /today", async () => {
-    render(
-      <MemoryRouter initialEntries={["/training-plan-preview/version-1"]}>
-        <Routes>
-          <Route
-            path="/training-plan-preview/:planVersionId"
-            element={<TrainingPlanOverview review={review({ lifecycleState: "accepted" })} hasActivePlan={true} onAccepted={vi.fn()} />}
-          />
-          <Route path="/today" element={<p>Today page</p>} />
-        </Routes>
-      </MemoryRouter>
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: "Aller à Aujourd'hui" }));
-
-    expect(screen.getByText("Today page")).toBeInTheDocument();
-  });
-
-  it.each(["superseded", "abandoned"] as const)("%s: never shows the post-acceptance CTA", (lifecycleState) => {
+// UX-06 — the overview is the folded "Résumé du coach": the acceptance flow
+// lives in Programme's draft card, "Aller à Aujourd'hui" was removed (the tab
+// bar covers it) and "Modifier ma configuration" sits at the bottom of
+// Programme.
+describe("TrainingPlanOverview — coach summary only (UX-06)", () => {
+  it.each(["draft", "accepted", "superseded", "abandoned"] as const)("%s: no lifecycle badge, Accept button, CTA or configuration link", (lifecycleState) => {
     renderOverview({ review: review({ lifecycleState }) });
 
-    expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Plan actif|Plan prêt à être accepté|Remplacé par|Abandonné/)).not.toBeInTheDocument();
   });
 });
