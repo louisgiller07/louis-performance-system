@@ -1,0 +1,44 @@
+---
+// /comment-ca-marche — chapter 03, what NALYNT does not do. Trust, not tech:
+// each "not" gets a gold strike drawn through it as it arrives — the one
+// animation here, and it carries the meaning.
+import { howPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { promises } = howPage;
+---
+
+<section class="border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={promises.index} label={promises.kicker} />
+    <ul class="mt-14 grid grid-cols-1 gap-12 md:grid-cols-3 md:gap-10">
+      {
+        promises.items.map((item, i) => (
+          <li class="promise" data-reveal style={`--reveal-delay: ${i * 120}ms`}>
+            <h2 class="relative inline font-display text-[clamp(2rem,3.6vw,2.9rem)] font-extrabold uppercase leading-[1.02] text-text-muted">
+              <span class="promise-strike">{item.title}</span>
+            </h2>
+            <p class="mt-5 max-w-sm text-base leading-relaxed text-text">{item.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  /* A gold line through each line of the title (works across wraps). */
+  .promise-strike {
+    background: linear-gradient(var(--color-accent), var(--color-accent)) 0 55% / 100% 3px no-repeat;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .promise:not(.is-in) .promise-strike {
+      background-size: 0% 3px;
+    }
+    .promise-strike {
+      transition: background-size 0.9s var(--ease-premium) 0.6s;
+    }
+  }
+</style>

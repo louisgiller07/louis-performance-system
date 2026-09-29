@@ -1,7 +1,7 @@
 ---
 // V3 — Premium homepage: a seven-chapter brand experience (hero → problem →
 // a day with NALYNT → how it works → the product → why NALYNT → final CTA).
-// All copy lives in content/home.ts; all motion in scripts/home.ts.
+// All copy lives in content/home.ts; all motion in scripts/motion.ts.
 import BaseLayout from "../layouts/BaseLayout.astro";
 import HomeHero from "../components/home/HomeHero.astro";
 import ProblemSection from "../components/home/ProblemSection.astro";
@@ -9,7 +9,7 @@ import DayStory from "../components/home/DayStory.astro";
 import HowItWorks from "../components/home/HowItWorks.astro";
 import ProductShowcase from "../components/home/ProductShowcase.astro";
 import WhyNalynt from "../components/home/WhyNalynt.astro";
-import FinalCta from "../components/home/FinalCta.astro";
+import FinalCta from "../components/sections/FinalCta.astro";
 import { home } from "../content/home.ts";
 ---
 
@@ -24,5 +24,5 @@ import { home } from "../content/home.ts";
 </BaseLayout>
 
 <script>
-  import "../scripts/home.ts";
+  import "../scripts/motion.ts";
 </script>

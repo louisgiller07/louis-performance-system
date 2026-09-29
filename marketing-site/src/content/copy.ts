@@ -12,7 +12,8 @@
 //
 // V3 — the homepage copy moved to content/home.ts (premium homepage); the
 // former homepage-only fields (hero, betaCta, dayWithNalynt, aiCoachModel,
-// closingCta) were removed with their components.
+// closingCta) were removed with their components; keyMessages.problem /
+// difference / loop went with the /comment-ca-marche redesign (content/pages.ts).
 
 export interface DisclaimerCopy {
   text: string;
@@ -23,25 +24,9 @@ export interface NavLink {
   href: string;
 }
 
-export interface LoopStepCopy {
-  title: string;
-  description: string;
-}
-
 export interface KeyMessagesCopy {
-  /** Le problème du coaching générique / plan figé. */
-  problem: string;
-  /** Ce qui distingue concrètement NALYNT. */
-  difference: string;
   /** La philosophie produit : règles explicites, transparence, dogfood réel. */
   philosophy: string;
-  /** La boucle Planning → Prescription → Performed → Feedback. */
-  loop: {
-    planning: LoopStepCopy;
-    prescription: LoopStepCopy;
-    performed: LoopStepCopy;
-    feedback: LoopStepCopy;
-  };
 }
 
 /**
@@ -156,39 +141,8 @@ export const siteCopy: SiteCopy = {
     "NALYNT est un système de coaching de performance qui adapte la séance du jour à l'état réel de l'athlète, distingue ce qui a été prescrit de ce qui a réellement été fait, et garde une mémoire factuelle des séances passées pour éclairer les prescriptions suivantes.",
 
   keyMessages: {
-    /**
-     * V1.6.1 — volontairement un simple constat général (jamais la
-     * conclusion "le plan ne change pas malgré la réalité", qui appartient
-     * désormais à `storyOrigin.turn` — évite la répétition relevée par la
-     * revue V1.6 entre "Le problème" et "Pourquoi NALYNT existe".
-     */
-    problem:
-      "Un plan d'entraînement générique est écrit à l'avance, sans connaître l'état réel de l'athlète le jour J : une nuit courte, une fatigue accumulée, une douleur, une semaine professionnelle chargée.",
-    difference:
-      "NALYNT part d'un check-in quotidien réel — sommeil, énergie, fatigue, mental, douleur — et ajuste la séance du jour à partir de règles de coaching explicites et traçables, écrites et validées par un coach. Ce n'est ni un plan figé à l'avance, ni une estimation générique.",
     philosophy:
       "Chaque adaptation proposée par NALYNT suit une règle de coaching explicite, écrite par un humain et vérifiable — jamais une décision opaque. Le système est construit et testé au quotidien sur de vraies séances d'un athlète réel, pas sur des données synthétiques.",
-    loop: {
-      planning: {
-        title: "Planning",
-        description: "L'athlète exprime une intention de séance pour la journée — ce qu'il prévoit de faire.",
-      },
-      prescription: {
-        title: "Prescription",
-        description:
-          "NALYNT combine cette intention avec l'état réel du jour (check-in) et le contexte (course à venir, récupération, sécurité) pour produire le plan du jour.",
-      },
-      performed: {
-        title: "Performed",
-        description:
-          "Après la séance, l'athlète enregistre ce qui a réellement été fait — parfois identique à la prescription, parfois différent.",
-      },
-      feedback: {
-        title: "Feedback",
-        description:
-          "Ce qui a été prescrit et ce qui a réellement été fait restent visibles et distincts dans l'historique ; certains faits récents (par exemple le résultat d'une tâche technique précédente) sont rappelés lors des prescriptions suivantes, à titre purement factuel.",
-      },
-    },
   },
 
   storyOrigin: {

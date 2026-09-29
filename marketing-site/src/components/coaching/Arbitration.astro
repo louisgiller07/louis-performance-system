@@ -1,0 +1,82 @@
+---
+// /coaching — chapter 02, the arbitration. Four signals pulling in different
+// directions converge (SVG hairlines drawing in on arrival) into one single,
+// explained session — the Head Coach's job, shown rather than described.
+import { coachingPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { arbitration } = coachingPage;
+const last = arbitration.titleLines.length - 1;
+---
+
+<section class="arbitration grain relative border-t border-border py-24 sm:py-32">
+  <div class="mx-auto grid w-full max-w-7xl gap-16 px-6 sm:px-8 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:items-center lg:gap-20">
+    <div>
+      <SectionKicker index={arbitration.index} label={arbitration.kicker} />
+      <h2 class="mt-8 font-display text-[clamp(2.6rem,6.5vw,5.25rem)] font-extrabold uppercase leading-[0.97] text-text">
+        {
+          arbitration.titleLines.map((line, i) => (
+            <span class:list={["block", i === last && "text-accent"]} data-reveal style={`--reveal-delay: ${i * 110}ms`}>
+              {line}
+            </span>
+          ))
+        }
+      </h2>
+      <p class="mt-8 max-w-xl text-lg leading-relaxed text-text-muted" data-reveal style="--reveal-delay: 300ms">{arbitration.body}</p>
+    </div>
+
+    <div class="converge" data-reveal="zoom" aria-hidden="true">
+      <div class="grid grid-cols-4 gap-2">
+        {
+          arbitration.chips.map((chip) => (
+            <span class="border border-border bg-surface px-1 py-3 text-center font-mono text-[0.6rem] uppercase tracking-[0.12em] text-text sm:text-[0.7rem]">
+              {chip}
+            </span>
+          ))
+        }
+      </div>
+      <svg class="block h-32 w-full" viewBox="0 0 400 128" preserveAspectRatio="none" fill="none">
+        {
+          [50, 150, 250, 350].map((x) => (
+            <path class="converge-line" d={`M${x} 0 C ${x} 70, 200 50, 200 128`} stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" pathLength="1" />
+          ))
+        }
+      </svg>
+      <div class="converge-card border border-accent/60 bg-surface p-6">
+        <p class="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-accent">Séance du jour</p>
+        <p class="mt-2 font-display text-4xl font-extrabold uppercase leading-none text-text">DH technique · 2&nbsp;h</p>
+        <p class="mt-4 border-t border-border pt-4 text-sm leading-relaxed text-text-muted">{arbitration.outcome}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .arbitration {
+    background:
+      radial-gradient(ellipse 55% 60% at 78% 55%, rgb(22 38 30 / 0.6), transparent 70%),
+      linear-gradient(to bottom, var(--color-bg), var(--color-pine) 30%, var(--color-pine) 70%, var(--color-bg));
+  }
+  .converge-line {
+    color: rgb(184 154 74 / 0.7);
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .converge:not(.is-in) .converge-line {
+      stroke-dashoffset: 1;
+    }
+    .converge-line {
+      transition: stroke-dashoffset 1.2s var(--ease-premium) 0.5s;
+    }
+    :global(.js) .converge:not(.is-in) .converge-card {
+      opacity: 0;
+      transform: translate3d(0, 1rem, 0);
+    }
+    .converge-card {
+      transition:
+        opacity 0.8s var(--ease-premium) 1.4s,
+        transform 0.8s var(--ease-premium) 1.4s;
+    }
+  }
+</style>

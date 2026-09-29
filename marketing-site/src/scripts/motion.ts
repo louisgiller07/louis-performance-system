@@ -1,4 +1,4 @@
-// V3 homepage motion — one small vanilla module, no animation library.
+// V3 site motion (homepage, /comment-ca-marche, /coaching) — one small vanilla module, no animation library.
 // Everything here only toggles classes / CSS variables (transform & opacity
 // are animated by CSS), runs work only while the relevant section is on
 // screen, and degrades to the static, fully-visible page when JS is off or
@@ -127,6 +127,24 @@ function initDayStory(): void {
       rail?.style.setProperty("--day-progress", progress.toFixed(4));
     });
   }
+}
+
+// --- /coaching: the sticky domain index follows the chapter crossing mid-viewport ---
+function initDomainIndex(): void {
+  const chapters = document.querySelectorAll<HTMLElement>("[data-domain]");
+  const entries = document.querySelectorAll<HTMLElement>("[data-domain-index]");
+  if (!chapters.length || !entries.length) return;
+  const observer = new IntersectionObserver(
+    (records) => {
+      for (const record of records) {
+        if (!record.isIntersecting) continue;
+        const current = (record.target as HTMLElement).dataset.domain;
+        entries.forEach((entry) => entry.classList.toggle("is-current", entry.dataset.domainIndex === current));
+      }
+    },
+    { rootMargin: "-50% 0px -50% 0px" },
+  );
+  chapters.forEach((chapter) => observer.observe(chapter));
 }
 
 // --- Light parallax (transform only) ---
@@ -281,6 +299,7 @@ function initProduct(): void {
 
 initRealities();
 initDayStory();
+initDomainIndex();
 initParallax();
 initDust();
 initProduct();

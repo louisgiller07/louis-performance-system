@@ -73,3 +73,38 @@ body {
   opacity: 0.07;
   mix-blend-mode: overlay;
 }
+
+/*
+ * V3 — page-hero entrance, played once on load (pure CSS, no JS needed):
+ * `.hero-line` masks a headline line that rises into place, `.hero-in`
+ * fades a block up. `--d` sets each element's delay.
+ */
+.hero-line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+.hero-line > span {
+  display: block;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-line > span {
+    animation: hero-rise 1.15s var(--ease-premium) both;
+    animation-delay: var(--d, 0ms);
+  }
+  .hero-in {
+    animation: hero-fade 1s var(--ease-premium) both;
+    animation-delay: var(--d, 0ms);
+  }
+}
+@keyframes hero-rise {
+  from {
+    transform: translate3d(0, 105%, 0);
+  }
+}
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+  }
+}

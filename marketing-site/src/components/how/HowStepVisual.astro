@@ -1,0 +1,195 @@
+---
+// Small animated vignette for one step of the /comment-ca-marche loop, in the
+// same instrument-panel language as the homepage day story. It plays once
+// when it scrolls in (`.is-in` from scripts/motion.ts); the CSS default is
+// the final state, so it reads correctly without JS / with reduced motion.
+import type { HowStep } from "../../content/pages.ts";
+
+interface Props {
+  id: HowStep["id"];
+}
+
+const { id } = Astro.props;
+
+// "plan": availability windows (outline) and the sessions placed inside them.
+const week = [
+  { d: "L", window: [60, 100], session: [62, 88], kind: "Force" },
+  { d: "M", window: [70, 100], session: [72, 96], kind: "DH" },
+  { d: "M", window: null, session: null, kind: "" },
+  { d: "J", window: [60, 100], session: [64, 84], kind: "Cardio" },
+  { d: "V", window: null, session: null, kind: "" },
+  { d: "S", window: [10, 100], session: [20, 70], kind: "DH" },
+  { d: "D", window: [10, 100], session: [30, 60], kind: "Course", race: true },
+];
+const sliders = [
+  { label: "Sommeil", v: 0.72 },
+  { label: "Énergie", v: 0.5 },
+  { label: "Fatigue jambes", v: 0.84, flag: true },
+  { label: "Douleur", v: 0.08 },
+];
+---
+
+<div class="vis grain relative overflow-hidden border border-border bg-surface/90 p-6 sm:p-7" data-reveal="zoom" aria-hidden="true">
+  {
+    id === "plan" && (
+      <div>
+        <div class="flex justify-between font-mono text-[0.65rem] uppercase tracking-[0.2em] text-text-muted">
+          <span>Semaine 3</span>
+          <span>Créneaux · séances</span>
+        </div>
+        <div class="mt-5 grid h-48 grid-cols-7 gap-2">
+          {week.map((day, i) => (
+            <div class="relative border-l border-border/60">
+              {day.window && (
+                <span
+                  class="absolute inset-x-0.5 border border-dashed border-text-muted/50"
+                  style={`top: ${day.window[0]}%; bottom: ${100 - day.window[1]}%`}
+                />
+              )}
+              {day.session && (
+                <span
+                  class:list={["plan-block absolute inset-x-1.5", day.race ? "bg-accent" : "bg-text/70"]}
+                  style={`top: ${day.session[0]}%; bottom: ${100 - day.session[1]}%; --i: ${i}`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        <div class="mt-2 grid grid-cols-7 gap-2 text-center font-mono text-[0.65rem] text-text-muted">
+          {week.map((day) => (
+            <span class:list={[day.race && "text-accent"]}>{day.d}</span>
+          ))}
+        </div>
+        <p class="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-accent">Dimanche · course</p>
+      </div>
+    )
+  }
+
+  {
+    id === "checkin" && (
+      <div class="flex flex-col gap-5">
+        <p class="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-text-muted">Check-in · 07:12</p>
+        {sliders.map((s, i) => (
+          <div>
+            <div class="flex justify-between text-sm">
+              <span class="text-text-muted">{s.label}</span>
+            </div>
+            <div class="relative mt-2.5 h-[3px] bg-border">
+              <span
+                class:list={["slider-thumb absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full", s.flag ? "bg-accent" : "bg-text"]}
+                style={`left: ${s.v * 100}%; --i: ${i}`}
+              />
+            </div>
+          </div>
+        ))}
+        <p class="flex justify-between border-t border-border pt-4 text-sm">
+          <span class="text-text-muted">Temps disponible</span>
+          <span class="font-mono text-text">2&nbsp;h</span>
+        </p>
+      </div>
+    )
+  }
+
+  {
+    id === "decide" && (
+      <div>
+        <p class="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-text-muted">Séance prévue · DH technique · 4&nbsp;h</p>
+        <div class="mt-5 grid grid-cols-3 gap-px border border-border bg-border text-center">
+          {["Garder", "Ajuster", "Remplacer"].map((choice) => (
+            <span
+              class:list={[
+                "choice bg-surface px-2 py-4 font-display text-lg font-extrabold uppercase sm:text-xl",
+                choice === "Ajuster" ? "is-chosen text-bg" : "text-text-muted",
+              ]}
+            >
+              {choice}
+            </span>
+          ))}
+        </div>
+        <div class="decide-why mt-5 border-l border-accent pl-4">
+          <p class="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-accent">Pourquoi cette décision ?</p>
+          <p class="mt-2 text-sm leading-relaxed text-text-muted">Jambes lourdes : même objectif, volume ramené à 2&nbsp;h.</p>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    id === "memory" && (
+      <div>
+        <div class="grid grid-cols-[1fr_auto_auto] gap-x-5 border-b border-border pb-3 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-text-muted">
+          <span>Séance</span>
+          <span>Prévu</span>
+          <span>Réalisé</span>
+        </div>
+        {[
+          ["DH technique", "4 h", "2 h", true],
+          ["Renfo bas du corps", "45 min", "45 min", false],
+          ["Aérobie base", "1 h", "1 h 10", false],
+        ].map(([kind, planned, done, adapted], i) => (
+          <div class="memory-row grid grid-cols-[1fr_auto_auto] items-baseline gap-x-5 border-b border-border py-3.5 text-sm" style={`--i: ${i}`}>
+            <span class="text-text">{kind}</span>
+            <span class="font-mono text-text-muted">{planned}</span>
+            <span class:list={["font-mono", adapted ? "text-accent" : "text-text"]}>{done}</span>
+          </div>
+        ))}
+        <p class="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-text-muted">Contexte conservé pour la suite</p>
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .vis {
+    box-shadow: 0 40px 80px -40px rgb(0 0 0 / 0.8);
+  }
+  .choice.is-chosen {
+    background: var(--color-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .vis:not(.is-in) .plan-block {
+      transform: scaleY(0);
+    }
+    .plan-block {
+      transform-origin: top;
+      transition: transform 0.8s var(--ease-premium) calc(var(--i) * 90ms + 0.5s);
+    }
+
+    :global(.js) .vis:not(.is-in) .slider-thumb {
+      left: 50% !important;
+    }
+    .slider-thumb {
+      transition: left 1.1s var(--ease-premium) calc(var(--i) * 120ms + 0.5s);
+    }
+
+    :global(.js) .vis:not(.is-in) .choice.is-chosen {
+      background: var(--color-surface);
+      color: var(--color-text-muted);
+    }
+    .choice.is-chosen {
+      transition:
+        background-color 0.5s ease 0.9s,
+        color 0.5s ease 0.9s;
+    }
+    :global(.js) .vis:not(.is-in) .decide-why {
+      opacity: 0;
+      transform: translate3d(0, 0.5rem, 0);
+    }
+    .decide-why {
+      transition:
+        opacity 0.7s var(--ease-premium) 1.3s,
+        transform 0.7s var(--ease-premium) 1.3s;
+    }
+
+    :global(.js) .vis:not(.is-in) .memory-row {
+      opacity: 0;
+      transform: translate3d(-0.75rem, 0, 0);
+    }
+    .memory-row {
+      transition:
+        opacity 0.6s var(--ease-premium) calc(var(--i) * 140ms + 0.5s),
+        transform 0.6s var(--ease-premium) calc(var(--i) * 140ms + 0.5s);
+    }
+  }
+</style>

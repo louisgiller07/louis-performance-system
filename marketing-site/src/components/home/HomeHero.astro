@@ -2,7 +2,7 @@
 // 01 — Hero. The headline is treated as a graphic element: two condensed
 // lines revealed through a mask on load (pure CSS, no JS dependency), over
 // a graded race photo, with a very sparse layer of drifting dust
-// (canvas, driven by scripts/home.ts — skipped under reduced motion).
+// (canvas, driven by scripts/motion.ts — skipped under reduced motion).
 import { Picture } from "astro:assets";
 import heroImage from "../../assets/home/race-performance.webp";
 import Button from "../ui/Button.astro";
@@ -93,15 +93,6 @@ const { hero } = home;
     }
   }
 
-  .hero-line {
-    display: block;
-    overflow: hidden;
-    padding-bottom: 0.06em;
-  }
-  .hero-line > span {
-    display: block;
-  }
-
   .scroll-cue-dot {
     position: absolute;
     left: 0;
@@ -112,14 +103,6 @@ const { hero } = home;
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    .hero-line > span {
-      animation: hero-rise 1.15s var(--ease-premium) both;
-      animation-delay: var(--d);
-    }
-    .hero-in {
-      animation: hero-fade 1s var(--ease-premium) both;
-      animation-delay: var(--d);
-    }
     .hero-img {
       animation: hero-settle 2.4s var(--ease-premium) both;
     }
@@ -128,17 +111,6 @@ const { hero } = home;
     }
   }
 
-  @keyframes hero-rise {
-    from {
-      transform: translate3d(0, 105%, 0);
-    }
-  }
-  @keyframes hero-fade {
-    from {
-      opacity: 0;
-      transform: translate3d(0, 1.25rem, 0);
-    }
-  }
   @keyframes hero-settle {
     from {
       transform: scale(1.08);
