@@ -1,0 +1,77 @@
+---
+// /a-propos — chapter 04, where NALYNT stands today: three milestones on one
+// hairline (the gold part draws in up to "Aujourd'hui", which pulses), then
+// the vision as a closing statement.
+import { aboutPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { today } = aboutPage;
+---
+
+<section class="border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={today.index} label={today.kicker} />
+
+    <ol class="timeline relative mt-16 grid gap-12 md:grid-cols-3 md:gap-10" data-reveal>
+      <span
+        class="absolute left-[0.3rem] top-0 h-full w-px bg-border md:left-0 md:top-[0.3rem] md:h-px md:w-full"
+        aria-hidden="true"
+      >
+        <span class="timeline-fill absolute left-0 top-0 bg-accent"></span>
+      </span>
+      {
+        today.milestones.map((m) => (
+          <li class="relative pl-10 md:pl-0 md:pt-12">
+            <span
+              class:list={[
+                "absolute left-0 top-1 h-[0.65rem] w-[0.65rem] rounded-full md:top-0",
+                m.current ? "timeline-now bg-accent" : "border border-text-muted bg-bg",
+              ]}
+              aria-hidden="true"
+            />
+            <p class:list={["font-mono text-[0.7rem] uppercase tracking-[0.22em]", m.current ? "text-accent" : "text-text-muted"]}>
+              {m.label}
+            </p>
+            <h2 class="mt-3 font-display text-3xl font-extrabold uppercase leading-none text-text sm:text-4xl">{m.title}</h2>
+            <p class="mt-4 max-w-sm text-base leading-relaxed text-text-muted">{m.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+
+    <p class="mt-28 max-w-4xl text-3xl leading-tight text-text sm:mt-36 sm:text-5xl" data-reveal>
+      {today.vision[0]} <span class="text-accent">{today.vision[1]}</span>
+    </p>
+  </div>
+</section>
+
+<style>
+  /* Gold fill runs from the start to "Aujourd'hui" (the 2nd of 3 milestones). */
+  .timeline-fill {
+    width: 100%;
+    height: 50%;
+    transform-origin: left top;
+  }
+  @media (min-width: 768px) {
+    .timeline-fill {
+      width: 50%;
+      height: 100%;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .timeline:not(.is-in) .timeline-fill {
+      transform: scale(0.001);
+    }
+    .timeline-fill {
+      transition: transform 1.6s var(--ease-premium) 0.3s;
+    }
+    .timeline-now {
+      animation: now-pulse 2.4s ease-in-out infinite;
+    }
+  }
+  @keyframes now-pulse {
+    50% {
+      box-shadow: 0 0 0 0.45rem rgb(184 154 74 / 0.18);
+    }
+  }
+</style>

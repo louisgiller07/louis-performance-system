@@ -1,20 +1,22 @@
 ---
 import { siteCopy } from "../content/copy.ts";
 import Container from "./ui/Container.astro";
+import Button from "./ui/Button.astro";
+import { loginHref, signupHref } from "../content/home.ts";
 
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
 const isActivePath = (href: string) => href.replace(/\/$/, "") === currentPath;
 ---
 
 <header class="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur">
-  <Container class="flex h-16 items-center justify-between">
+  <Container class="flex h-16 items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
     <a href="/" class="font-mono text-sm font-semibold tracking-[0.3em] text-text">
       NALYNT
     </a>
 
-    <nav class="hidden gap-8 md:flex">
+    <nav class="hidden gap-10 lg:flex" aria-label="Navigation principale">
       {
-        siteCopy.nav.map((link) => (
+        siteCopy.headerNav.map((link) => (
           <a
             href={link.href}
             class:list={[
@@ -29,33 +31,42 @@ const isActivePath = (href: string) => href.replace(/\/$/, "") === currentPath;
       }
     </nav>
 
-    <details class="relative md:hidden">
-      <summary
-        class="flex h-9 w-9 cursor-pointer list-none items-center justify-center border border-border [&::-webkit-details-marker]:hidden [&::marker]:hidden"
-        aria-label="Ouvrir la navigation"
-      >
-        <span class="flex flex-col items-center gap-[5px]" aria-hidden="true">
-          <span class="h-px w-5 bg-text"></span>
-          <span class="h-px w-5 bg-text"></span>
-          <span class="h-px w-5 bg-text"></span>
-        </span>
-      </summary>
-      <nav class="absolute right-0 top-[calc(100%+0.75rem)] flex w-56 flex-col border border-border bg-surface">
-        {
-          siteCopy.nav.map((link) => (
-            <a
-              href={link.href}
-              class:list={[
-                "border-b border-border px-4 py-3 text-sm last:border-b-0",
-                isActivePath(link.href) ? "text-accent" : "text-text-muted",
-              ]}
-              aria-current={isActivePath(link.href) ? "page" : undefined}
-            >
-              {link.label}
-            </a>
-          ))
-        }
-      </nav>
-    </details>
+    <div class="flex items-center justify-end gap-3 lg:gap-6">
+      <a href={loginHref} class="hidden text-sm text-text-muted transition-colors hover:text-text lg:inline">Connexion</a>
+      <Button href={signupHref} class="min-h-11 px-4 lg:px-6">Commencer</Button>
+
+      <details class="relative lg:hidden">
+        <summary
+          class="flex h-11 w-11 cursor-pointer list-none items-center justify-center border border-border [&::-webkit-details-marker]:hidden [&::marker]:hidden"
+          aria-label="Ouvrir la navigation"
+        >
+          <span class="flex flex-col items-center gap-[5px]" aria-hidden="true">
+            <span class="h-px w-5 bg-text"></span>
+            <span class="h-px w-5 bg-text"></span>
+            <span class="h-px w-5 bg-text"></span>
+          </span>
+        </summary>
+        <nav class="absolute right-0 top-[calc(100%+0.75rem)] flex w-56 flex-col border border-border bg-surface">
+          {
+            siteCopy.nav.map((link) => (
+              <a
+                href={link.href}
+                class:list={[
+                  "border-b border-border px-4 py-3 text-sm last:border-b-0",
+                  isActivePath(link.href) ? "text-accent" : "text-text-muted",
+                ]}
+                aria-current={isActivePath(link.href) ? "page" : undefined}
+              >
+                {link.label}
+              </a>
+            ))
+          }
+          <a href={loginHref} class="border-b border-border px-4 py-3 text-sm text-text-muted">Connexion</a>
+          <a href={signupHref} class="bg-accent px-4 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-bg">
+            Commencer gratuitement
+          </a>
+        </nav>
+      </details>
+    </div>
   </Container>
 </header>

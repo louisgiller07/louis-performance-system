@@ -1,26 +1,24 @@
 ---
+// V3 — same brand language as the homepage: hero, the daily loop, the three
+// possible decisions, what NALYNT does not do, closing CTA. Copy lives in
+// content/pages.ts (howPage); motion in scripts/motion.ts.
 import BaseLayout from "../layouts/BaseLayout.astro";
-import LoopDiagram from "../components/LoopDiagram.astro";
-import Section from "../components/ui/Section.astro";
-import Container from "../components/ui/Container.astro";
-import Badge from "../components/ui/Badge.astro";
-import { siteCopy } from "../content/copy.ts";
+import PageHero from "../components/sections/PageHero.astro";
+import HowLoop from "../components/how/HowLoop.astro";
+import DecisionTrio from "../components/how/DecisionTrio.astro";
+import StruckList from "../components/sections/StruckList.astro";
+import FinalCta from "../components/sections/FinalCta.astro";
+import { howPage } from "../content/pages.ts";
 ---
 
-<BaseLayout title="Comment ça marche — NALYNT" description={siteCopy.keyMessages.difference}>
-  <Section index={1}>
-    <Container class="max-w-2xl">
-      <Badge>Planifié → Prescrit → Réalisé</Badge>
-      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">
-        Comment ça marche
-      </h1>
-      <p class="mt-4 text-base leading-relaxed text-text-muted">{siteCopy.keyMessages.difference}</p>
-    </Container>
-  </Section>
-
-  <Section divider index={2}>
-    <Container class="max-w-2xl">
-      <LoopDiagram loop={siteCopy.keyMessages.loop} variant="full" headingLevel="h2" />
-    </Container>
-  </Section>
+<BaseLayout title={howPage.meta.title} description={howPage.meta.description} preloadDisplayFont>
+  <PageHero hero={howPage.hero} next="#boucle" />
+  <HowLoop />
+  <DecisionTrio />
+  <StruckList index={howPage.promises.index} kicker={howPage.promises.kicker} items={howPage.promises.items} />
+  <FinalCta index={howPage.cta.index} titleLines={howPage.cta.titleLines} />
 </BaseLayout>
+
+<script>
+  import "../scripts/motion.ts";
+</script>

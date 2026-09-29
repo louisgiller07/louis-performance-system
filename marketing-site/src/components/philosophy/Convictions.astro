@@ -1,0 +1,54 @@
+---
+// /philosophie — chapter 01. Five convictions as large statements that light
+// up one by one as they reach the middle of the viewport and stay lit
+// (the same `data-lit` mechanism as the homepage realities). Without JS /
+// with reduced motion they are simply all lit.
+import { philosophyPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { convictions } = philosophyPage;
+---
+
+<section id="convictions" class="scroll-mt-16 border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={convictions.index} label={convictions.kicker} />
+    <ol class="mt-14 border-t border-border">
+      {
+        convictions.items.map((item, i) => (
+          <li class="conviction grid gap-4 border-b border-border py-10 sm:py-14 lg:grid-cols-[3rem_minmax(0,7fr)_minmax(0,5fr)] lg:items-baseline lg:gap-10" data-lit>
+            <span class="font-mono text-xs text-accent">{String(i + 1).padStart(2, "0")}</span>
+            <h2 class="conviction-title font-display text-[clamp(2.4rem,6vw,4.75rem)] font-extrabold uppercase leading-[0.97]">{item.title}</h2>
+            <p class="conviction-body max-w-md text-base leading-relaxed text-text-muted sm:text-lg">{item.body}</p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  .conviction-title {
+    color: var(--color-text);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* Dimmed, yet still ≥3:1 (WCAG AA, large text) against Carbon Black. */
+    :global(.js) .conviction-title {
+      color: rgb(231 228 221 / 0.42);
+      transition: color 0.8s var(--ease-premium);
+    }
+    :global(.js) .conviction-body {
+      opacity: 0;
+      transform: translate3d(0, 0.5rem, 0);
+      transition:
+        opacity 0.8s var(--ease-premium) 0.1s,
+        transform 0.8s var(--ease-premium) 0.1s;
+    }
+    :global(.js) .conviction.is-lit .conviction-title {
+      color: var(--color-text);
+    }
+    :global(.js) .conviction.is-lit .conviction-body {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>

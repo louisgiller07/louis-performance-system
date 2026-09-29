@@ -1,0 +1,51 @@
+---
+// Closing CTA — one question, one button, then the health disclaimer.
+// Homepage chapter 07 by default; inner pages pass their own chapter number
+// and headline (same button, note and contact link everywhere).
+import Button from "../ui/Button.astro";
+import SectionKicker from "./SectionKicker.astro";
+import { home } from "../../content/home.ts";
+import { siteCopy } from "../../content/copy.ts";
+
+interface Props {
+  index?: string;
+  titleLines?: string[];
+}
+
+const { cta } = home;
+const { index = cta.index, titleLines = cta.titleLines } = Astro.props;
+---
+
+<section class="final grain relative isolate overflow-hidden border-t border-border py-28 sm:py-40">
+  <div class="mx-auto flex w-full max-w-7xl flex-col items-center px-6 text-center sm:px-8">
+    <SectionKicker index={index} label="À toi de jouer" />
+    <h2 class="mt-10 font-display text-[clamp(3rem,10vw,8.5rem)] font-extrabold uppercase leading-[0.95] text-text">
+      {
+        titleLines.map((line, i) => (
+          <span class="block" data-reveal style={`--reveal-delay: ${i * 110}ms`}>
+            {line}
+          </span>
+        ))
+      }
+    </h2>
+    <div class="mt-12 flex flex-col items-center gap-5" data-reveal style="--reveal-delay: 220ms">
+      <Button href={cta.primary.href} size="lg" arrow>{cta.primary.label}</Button>
+      <p class="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-text-muted">{cta.note}</p>
+      <a href={cta.secondary.href} class="mt-2 inline-flex min-h-11 items-center text-sm text-text-muted underline-offset-4 transition-colors hover:text-text hover:underline">
+        {cta.secondary.label}
+      </a>
+    </div>
+  </div>
+
+  <p class="mx-auto mt-24 max-w-2xl px-6 text-center text-xs leading-relaxed text-text-muted">
+    {siteCopy.disclaimer.text}
+  </p>
+</section>
+
+<style>
+  .final {
+    background:
+      radial-gradient(ellipse 55% 45% at 50% 42%, rgb(22 38 30 / 0.7), transparent 72%),
+      linear-gradient(to bottom, var(--color-bg), var(--color-pine));
+  }
+</style>

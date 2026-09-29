@@ -1,22 +1,35 @@
 ---
 import "../styles/global.css";
+import "@fontsource/barlow-condensed/latin-600.css";
+import "@fontsource/barlow-condensed/latin-800.css";
+import displayFont800 from "@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2?url";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 
 interface Props {
   title: string;
   description?: string;
+  /** Preload the 800 display weight — only for pages whose first screen uses it (homepage hero). */
+  preloadDisplayFont?: boolean;
 }
 
-const { title, description } = Astro.props;
+const { title, description, preloadDisplayFont = false } = Astro.props;
 ---
 
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#080909" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    {preloadDisplayFont && <link rel="preload" href={displayFont800} as="font" type="font/woff2" crossorigin />}
+    <!-- Scroll-reveal content is only hidden when JS runs (see global.css). -->
+    <script is:inline>document.documentElement.classList.add("js");</script>
   </head>
   <body class="bg-bg text-text">
     <Header />

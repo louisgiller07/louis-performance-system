@@ -1,0 +1,49 @@
+---
+// /comment-ca-marche — chapter 01, the daily loop. Four steps, each one a big
+// condensed word, a rider-first sentence, and its own animated vignette.
+// A gold hairline runs down the numbers and draws in as each step arrives.
+import { howPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+import HowStepVisual from "./HowStepVisual.astro";
+
+const { loop } = howPage;
+---
+
+<section id="boucle" class="scroll-mt-16 border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={loop.index} label={loop.kicker} />
+
+    <ol class="mt-14">
+      {
+        loop.steps.map((step, i) => (
+          <li class="loop-step relative grid gap-10 border-b border-border py-14 pl-10 last:border-b-0 sm:pl-16 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:items-center lg:gap-20 lg:py-20" data-reveal>
+            <span class="absolute left-0 top-[4.1rem] font-mono text-xs text-accent sm:top-[4.6rem] lg:top-[5.6rem]" aria-hidden="true">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            {i < loop.steps.length - 1 && (
+              <span class="loop-line absolute -bottom-[4.2rem] left-[0.4rem] top-[6rem] w-px origin-top bg-accent/40 sm:top-[6.6rem] lg:top-[7.6rem] lg:-bottom-[5.4rem]" aria-hidden="true" />
+            )}
+            <div>
+              <h2 class="font-display text-[clamp(3.25rem,10vw,7.5rem)] font-extrabold uppercase leading-[0.85] text-text">{step.word}</h2>
+              <p class="mt-6 text-2xl leading-snug text-text sm:text-3xl">{step.title}</p>
+              <p class="mt-4 max-w-lg text-base leading-relaxed text-text-muted sm:text-lg">{step.body}</p>
+            </div>
+            <HowStepVisual id={step.id} />
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>
+
+<style>
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .loop-step .loop-line {
+      transform: scaleY(0);
+      transition: transform 1.4s var(--ease-premium) 0.5s;
+    }
+    :global(.js) .loop-step.is-in .loop-line {
+      transform: none;
+    }
+  }
+</style>

@@ -1,0 +1,374 @@
+---
+// One state of the "Une journée avec NALYNT" instrument panel:
+// 0 = the fixed plan (before NALYNT), 1 = check-in reality, 2 = the coach's
+// adjustment (4 h ✕ → 2 h 30 ✓), 3 = history + week.
+// Each state plays its own short sequence when it receives `.is-active`
+// (set by scripts/motion.ts). The CSS default is the *final* state, so the
+// panel reads correctly without JS and under reduced motion.
+import { home } from "../../content/home.ts";
+
+export type DayPanelState = 0 | 1 | 2 | 3;
+
+interface Props {
+  state: DayPanelState;
+  /** Desktop: all states are stacked in one sticky frame and cross-fade. */
+  stacked?: boolean;
+}
+
+const { state, stacked = false } = Astro.props;
+const { day } = home;
+const headLabels = ["Programme figé", "Check-in · analyse", "Aujourd'hui", "Historique"];
+const isFrozen = state === 0;
+---
+
+<div
+  class:list={[
+    "day-panel grain flex flex-col overflow-hidden border p-6 sm:p-8",
+    isFrozen ? "is-frozen border-dashed border-border bg-surface/40" : "border-border bg-surface/90",
+    stacked ? "is-stacked absolute inset-0" : "relative min-h-[26rem]",
+  ]}
+  data-panel={state}
+>
+  <div class="flex items-center justify-between gap-4 border-b border-border pb-4 font-mono text-[0.65rem] uppercase tracking-[0.22em] text-text-muted">
+    {
+      isFrozen ? (
+        <span>Programme de la semaine</span>
+      ) : (
+        <span>
+          <span class="text-text">NALYNT</span>
+          <span class="hidden sm:inline"> · {day.stamp}</span>
+        </span>
+      )
+    }
+    <span class="flex items-center gap-2">
+      <span class:list={["h-1.5 w-1.5 rounded-full", isFrozen ? "bg-text-muted/60" : "live-dot bg-accent"]} aria-hidden="true" />
+      {headLabels[state]}
+    </span>
+  </div>
+
+  {
+    state === 0 && (
+      <div class="flex flex-1 flex-col justify-center pt-8">
+        <p class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">{day.plan.heading}</p>
+        <p class="mt-2 font-display text-[2.6rem] font-extrabold uppercase leading-none text-text/70 sm:text-5xl">{day.plan.kind}</p>
+        <dl class="mt-8 divide-y divide-dashed divide-border border-y border-dashed border-border text-sm">
+          {day.plan.rows.map((row) => (
+            <div class="flex items-baseline justify-between gap-6 py-3.5">
+              <dt class="text-text-muted">{row.label}</dt>
+              <dd class="font-mono text-text/70">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <p class="frozen-note mt-6 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-text-muted">{day.plan.footnote}</p>
+      </div>
+    )
+  }
+
+  {
+    state === 1 && (
+      <div class="relative flex flex-1 flex-col justify-center gap-6 pt-8">
+        <ul class="flex flex-col gap-5">
+          {day.metrics.map((metric, i) => (
+            <li class:list={["metric", metric.retained && "is-retained"]} style={`--i: ${i}; --v: ${metric.level / 100}`}>
+              <div class="flex items-baseline justify-between gap-4 text-sm">
+                <span class="text-text-muted">{metric.label}</span>
+                <span class:list={["text-right font-mono", metric.retained ? "text-accent" : "text-text"]}>{metric.value}</span>
+              </div>
+              <div class="mt-2 h-[3px] bg-border">
+                <span class="metric-fill block h-full origin-left" />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p class="signal flex items-center gap-3 border-t border-border pt-5 font-mono text-xs uppercase tracking-[0.16em] text-accent">
+          <span class="h-px w-5 shrink-0 bg-accent" aria-hidden="true" />
+          {day.signal}
+        </p>
+        <span class="scan pointer-events-none absolute inset-x-0 top-0 h-16" aria-hidden="true" />
+      </div>
+    )
+  }
+
+  {
+    state === 2 && (
+      <div class="flex flex-1 flex-col justify-center pt-8">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">{day.session.heading}</p>
+          <span class="badge border border-accent/60 px-2.5 py-1 font-mono text-[0.6rem] uppercase tracking-[0.2em] text-accent">
+            {day.session.badge}
+          </span>
+        </div>
+        <p class="mt-2 font-display text-[2.6rem] font-extrabold uppercase leading-none text-text sm:text-5xl">{day.session.kind}</p>
+
+        <div class="mt-7 grid grid-cols-2 gap-px border border-border bg-border">
+          <div class="planned flex flex-col gap-2 bg-surface p-4 sm:p-5">
+            <span class="flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-text-muted">
+              <span class="mark-x" aria-hidden="true">✕</span>
+              {day.session.plannedLabel}
+            </span>
+            <span class="relative self-start font-display text-4xl font-extrabold leading-none text-text-muted sm:text-5xl">
+              {day.session.plannedDuration}
+              <span class="strike absolute left-[-0.1em] right-[-0.1em] top-1/2 h-[3px] origin-left bg-text-muted" aria-hidden="true" />
+            </span>
+          </div>
+          <div class="adapted flex flex-col gap-2 bg-surface p-4 sm:p-5">
+            <span class="flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-accent">
+              <span class="mark-check" aria-hidden="true">✓</span>
+              {day.session.adaptedLabel}
+            </span>
+            <span class="font-display text-4xl font-extrabold leading-none text-accent sm:text-5xl">{day.session.duration}</span>
+          </div>
+        </div>
+        <p class="sr-only">
+          {day.session.plannedDuration} {day.session.plannedLabel}, {day.session.duration} {day.session.adaptedLabel}.
+        </p>
+
+        <dl class="mt-5 divide-y divide-border border-b border-border text-sm">
+          <div class="flex items-baseline justify-between gap-6 py-3">
+            <dt class="text-text-muted">Objectif</dt>
+            <dd class="text-right text-text">{day.session.objective}</dd>
+          </div>
+          <div class="flex items-center justify-between py-3">
+            <dt class="text-text-muted">Intensité</dt>
+            <dd class="flex items-center gap-3 text-text">
+              {day.session.intensity}
+              <span class="flex gap-1" aria-hidden="true">
+                {[0, 1, 2, 3, 4].map((n) => (
+                  <span class:list={["h-3 w-1.5", n < 3 ? "seg-on bg-text" : "bg-border"]} style={`--n: ${n}`} />
+                ))}
+              </span>
+            </dd>
+          </div>
+        </dl>
+        <div class="why mt-5 border-l border-accent pl-4">
+          <p class="font-mono text-[0.65rem] uppercase tracking-[0.2em] text-accent">Pourquoi cette décision ?</p>
+          <p class="mt-2 text-sm leading-relaxed text-text-muted">{day.session.reason}</p>
+        </div>
+      </div>
+    )
+  }
+
+  {
+    state === 3 && (
+      <div class="flex flex-1 flex-col justify-center gap-8 pt-8">
+        <ul class="flex flex-col">
+          {day.history.map((entry, i) => (
+            <li class="history-row flex items-center justify-between gap-4 border-b border-border py-3.5" style={`--i: ${i}`}>
+              <div class="flex items-baseline gap-4">
+                <span class="w-12 shrink-0 font-mono text-[0.7rem] uppercase text-text-muted">{entry.day}</span>
+                <div>
+                  <p class="text-sm text-text">{entry.kind}</p>
+                  <p class="mt-0.5 font-mono text-[0.7rem] text-text-muted">{entry.detail}</p>
+                </div>
+              </div>
+              <span
+                class:list={[
+                  "shrink-0 font-mono text-[0.6rem] uppercase tracking-[0.18em]",
+                  entry.tag === "Adaptée" ? "text-accent" : "text-text-muted",
+                ]}
+              >
+                {entry.tag}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div>
+          <p class="font-mono text-[0.65rem] uppercase tracking-[0.22em] text-text-muted">{day.week.label}</p>
+          <div class="mt-4 grid h-24 grid-cols-7 items-end gap-2" aria-hidden="true">
+            {day.week.days.map((_, i) => (
+              <span
+                class:list={["week-bar block h-full origin-bottom", i === day.week.today ? "bg-accent" : "bg-text/25"]}
+                style={`--before: ${day.week.before[i] / 100}; --after: ${day.week.after[i] / 100}; --i: ${i}`}
+              />
+            ))}
+          </div>
+          <div class="mt-2 grid grid-cols-7 gap-2 text-center font-mono text-[0.65rem] text-text-muted" aria-hidden="true">
+            {day.week.days.map((d, i) => (
+              <span class:list={[i === day.week.today && "text-accent"]}>{d}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .day-panel {
+    box-shadow:
+      0 40px 80px -40px rgb(0 0 0 / 0.8),
+      inset 0 1px 0 rgb(231 228 221 / 0.04);
+  }
+  .is-frozen {
+    box-shadow: none;
+  }
+
+  /* Final (default) state — what no-JS and reduced-motion visitors see. */
+  .metric-fill {
+    transform: scaleX(var(--v));
+    background: rgb(231 228 221 / 0.55);
+  }
+  .is-retained .metric-fill {
+    background: var(--color-accent);
+  }
+  .week-bar {
+    transform: scaleY(max(var(--after), 0.03));
+  }
+  .scan {
+    display: none;
+  }
+  .mark-x,
+  .mark-check {
+    display: inline-block;
+  }
+
+  .is-stacked {
+    opacity: 0;
+    visibility: hidden;
+  }
+  .is-stacked.is-active,
+  :global(html:not(.js)) .is-stacked[data-panel="0"] {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .is-stacked {
+      transform: translate3d(0, 1.5rem, 0) scale(0.985);
+      transition:
+        opacity 0.6s var(--ease-premium),
+        transform 0.8s var(--ease-premium),
+        visibility 0s linear 0.6s;
+    }
+    .is-stacked.is-active {
+      transform: none;
+      transition:
+        opacity 0.6s var(--ease-premium) 0.1s,
+        transform 0.8s var(--ease-premium) 0.1s,
+        visibility 0s;
+    }
+
+    .live-dot {
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    /* State 0 — the fixed plan: its "never updated" note lands last. */
+    :global(.js) .day-panel:not(.is-active) .frozen-note {
+      opacity: 0;
+    }
+    .frozen-note {
+      transition: opacity 0.8s ease 0.6s;
+    }
+
+    /* State 1 — bars fill in sequence, a scan line passes, then the retained signals. */
+    :global(.js) .day-panel:not(.is-active) .metric-fill {
+      transform: scaleX(0);
+    }
+    .metric-fill {
+      transition: transform 1s var(--ease-premium) calc(var(--i) * 110ms + 250ms);
+    }
+    :global(.js) .day-panel:not(.is-active) .signal {
+      opacity: 0;
+      transform: translate3d(0, 0.5rem, 0);
+    }
+    .signal {
+      transition:
+        opacity 0.6s var(--ease-premium) 1.1s,
+        transform 0.6s var(--ease-premium) 1.1s;
+    }
+    :global(.js) .day-panel.is-active .scan {
+      display: block;
+      background: linear-gradient(to bottom, transparent, rgb(184 154 74 / 0.12), transparent);
+      animation: scan 1.6s var(--ease-premium) 0.15s both;
+    }
+
+    /* State 2 — 4 h gets struck and crossed out, 2 h 30 lands with its check, then badge and reason. */
+    :global(.js) .day-panel:not(.is-active) .strike {
+      transform: scaleX(0);
+    }
+    .strike {
+      transition: transform 0.5s var(--ease-premium) 0.45s;
+    }
+    :global(.js) .day-panel:not(.is-active) .mark-x {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    .mark-x {
+      transition:
+        opacity 0.3s ease 0.55s,
+        transform 0.4s var(--ease-premium) 0.55s;
+    }
+    :global(.js) .day-panel:not(.is-active) .adapted {
+      opacity: 0;
+      transform: translate3d(0.75rem, 0, 0);
+    }
+    .adapted {
+      transition:
+        opacity 0.7s var(--ease-premium) 0.9s,
+        transform 0.7s var(--ease-premium) 0.9s;
+    }
+    :global(.js) .day-panel:not(.is-active) .mark-check {
+      opacity: 0;
+      transform: scale(0.4);
+    }
+    .mark-check {
+      transition:
+        opacity 0.3s ease 1.25s,
+        transform 0.5s var(--ease-premium) 1.25s;
+    }
+    :global(.js) .day-panel:not(.is-active) .badge,
+    :global(.js) .day-panel:not(.is-active) .why {
+      opacity: 0;
+      transform: translate3d(0, 0.5rem, 0);
+    }
+    .badge {
+      transition:
+        opacity 0.6s var(--ease-premium) 1.35s,
+        transform 0.6s var(--ease-premium) 1.35s;
+    }
+    .why {
+      transition:
+        opacity 0.7s var(--ease-premium) 1.6s,
+        transform 0.7s var(--ease-premium) 1.6s;
+    }
+    :global(.js) .day-panel:not(.is-active) .seg-on {
+      opacity: 0.15;
+    }
+    .seg-on {
+      transition: opacity 0.4s ease calc(var(--n) * 90ms + 1s);
+    }
+
+    /* State 3 — history rows arrive, then the week re-balances around today. */
+    :global(.js) .day-panel:not(.is-active) .history-row {
+      opacity: 0;
+      transform: translate3d(-0.75rem, 0, 0);
+    }
+    .history-row {
+      transition:
+        opacity 0.6s var(--ease-premium) calc(var(--i) * 120ms + 0.2s),
+        transform 0.6s var(--ease-premium) calc(var(--i) * 120ms + 0.2s);
+    }
+    :global(.js) .day-panel:not(.is-active) .week-bar {
+      transform: scaleY(max(var(--before), 0.03));
+    }
+    .week-bar {
+      transition: transform 1s var(--ease-premium) calc(var(--i) * 50ms + 0.9s);
+    }
+  }
+
+  @keyframes scan {
+    from {
+      transform: translateY(-4rem);
+      opacity: 1;
+    }
+    to {
+      transform: translateY(24rem);
+      opacity: 0;
+    }
+  }
+  @keyframes pulse {
+    50% {
+      opacity: 0.3;
+    }
+  }
+</style>

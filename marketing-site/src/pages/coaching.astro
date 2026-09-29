@@ -1,35 +1,23 @@
 ---
+// V3 — same brand language as the homepage: hero, the seven coaching domains
+// (docs/03_COACHING_MODEL.md) as chapters, the daily arbitration between
+// them, closing CTA. Copy lives in content/pages.ts (coachingPage) and
+// content/domains.ts; motion in scripts/motion.ts.
 import BaseLayout from "../layouts/BaseLayout.astro";
-import CoachingDomainCard from "../components/CoachingDomainCard.astro";
-import Section from "../components/ui/Section.astro";
-import Container from "../components/ui/Container.astro";
-import Badge from "../components/ui/Badge.astro";
-import { domains } from "../content/domains.ts";
-import { siteCopy } from "../content/copy.ts";
-
-// The 7th domain (docs/03_COACHING_MODEL.md — "Analyse longitudinale") gets
-// its own full-width card below the 3x2 grid of the other six.
-const gridDomains = domains.slice(0, 6);
-const longitudinal = domains[6];
+import PageHero from "../components/sections/PageHero.astro";
+import DomainChapters from "../components/coaching/DomainChapters.astro";
+import Arbitration from "../components/coaching/Arbitration.astro";
+import FinalCta from "../components/sections/FinalCta.astro";
+import { coachingPage } from "../content/pages.ts";
 ---
 
-<BaseLayout title="Le modèle de coaching — NALYNT" description={siteCopy.coreValueProposition}>
-  <Section index={1}>
-    <Container>
-      <Badge>Le modèle de coaching</Badge>
-      <h1 class="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-text sm:text-5xl">
-        7 domaines de coaching
-      </h1>
-
-      <div class="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        {gridDomains.map((domain, i) => <CoachingDomainCard domain={domain} index={i + 1} headingLevel="h2" />)}
-      </div>
-
-      {longitudinal && (
-        <div class="mt-8">
-          <CoachingDomainCard domain={longitudinal} index={7} headingLevel="h2" fullWidth />
-        </div>
-      )}
-    </Container>
-  </Section>
+<BaseLayout title={coachingPage.meta.title} description={coachingPage.meta.description} preloadDisplayFont>
+  <PageHero hero={coachingPage.hero} next="#domaines" />
+  <DomainChapters />
+  <Arbitration />
+  <FinalCta index={coachingPage.cta.index} titleLines={coachingPage.cta.titleLines} />
 </BaseLayout>
+
+<script>
+  import "../scripts/motion.ts";
+</script>

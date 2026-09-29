@@ -1,0 +1,84 @@
+---
+// 03 — Une journée avec NALYNT. The homepage's centrepiece: scroll-driven
+// storytelling in four beats — before NALYNT, the reality, the coach's
+// adjustment, the memory. Desktop: tall text steps on the left, one sticky
+// instrument panel on the right that switches state as each step reaches the
+// middle of the viewport, plus a gold progress rail. Mobile: no sticky, each
+// step is followed by its own panel, which plays when it scrolls into view.
+import { home } from "../../content/home.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+import DayPanel, { type DayPanelState } from "./DayPanel.astro";
+
+const { day } = home;
+---
+
+<section id="journee" class="day grain relative scroll-mt-16 border-t border-border py-24 sm:py-32" data-day>
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={day.index} label={day.kicker} />
+    <h2 class="mt-8 font-display text-[clamp(3.25rem,10vw,8rem)] font-extrabold uppercase leading-[0.86] text-text" data-reveal>
+      {day.title}
+    </h2>
+    <p class="mt-6 max-w-xl text-lg leading-relaxed text-text-muted sm:text-xl" data-reveal style="--reveal-delay: 100ms">
+      {day.intro}
+    </p>
+
+    <div class="mt-16 lg:mt-8 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-20">
+      <div class="relative" data-day-steps>
+        <div class="absolute bottom-0 left-0 top-0 hidden w-px bg-border lg:block" aria-hidden="true">
+          <span class="day-rail block h-full w-full origin-top bg-accent"></span>
+        </div>
+        {
+          day.steps.map((step, i) => (
+            <article class="day-step flex flex-col justify-center py-10 lg:min-h-[72vh] lg:py-0 lg:pl-14" data-day-step={i}>
+              <p class="flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-[0.24em]">
+                <span class="text-accent">Étape {i + 1}</span>
+                <span class="h-px w-6 bg-border" aria-hidden="true" />
+                <span class="text-text-muted">{step.label}</span>
+              </p>
+              <h3
+                class:list={[
+                  "mt-5 font-display font-extrabold uppercase leading-[0.95]",
+                  i === 2 ? "text-[clamp(3rem,7vw,5.5rem)] text-accent" : "text-[clamp(2.2rem,5vw,3.6rem)] text-text",
+                ]}
+              >
+                {step.title}
+              </h3>
+              <p class="mt-5 max-w-md text-base leading-relaxed text-text-muted sm:text-lg">{step.body}</p>
+              <div class="mt-10 lg:hidden" data-day-inline>
+                <DayPanel state={i as DayPanelState} />
+              </div>
+            </article>
+          ))
+        }
+      </div>
+
+      <div class="hidden lg:block">
+        <div class="sticky top-[calc(4rem+9vh)] h-[min(74vh,40rem)]">
+          <div class="relative h-full">
+            {day.steps.map((_, i) => <DayPanel state={i as DayPanelState} stacked />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .day {
+    background:
+      radial-gradient(ellipse 80% 50% at 85% 30%, rgb(22 38 30 / 0.55), transparent 70%),
+      linear-gradient(to bottom, var(--color-bg), var(--color-pine) 18%, var(--color-pine) 82%, var(--color-bg));
+  }
+  .day-rail {
+    transform: scaleY(var(--day-progress, 1));
+  }
+  @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+    :global(.js) .day-step {
+      opacity: 0.28;
+      transition: opacity 0.6s var(--ease-premium);
+    }
+    :global(.js) .day-step.is-active {
+      opacity: 1;
+    }
+  }
+</style>
