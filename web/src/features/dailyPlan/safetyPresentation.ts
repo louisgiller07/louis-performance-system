@@ -14,6 +14,8 @@
 // docs/11_DECISION_LOG.md V0.3_006A: this is presentation sanitization, not
 // a clinical/product wording decision).
 import { PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, type PainLocationCode } from "../checkin/checkinTypes";
+import { translateTrainingKind } from "../trainingLabels/trainingLabels";
+import { translateRaceFormat, translateRacePhase, translateRacePriority } from "../trainingLabels/raceLabels";
 import type { DailyPlan, TriggeredRule } from "./dailyPlanTypes";
 
 // Factual system-state statement only — never a claim about which activity
@@ -98,9 +100,83 @@ function sanitizeInferenceFallbackDetail(detail: string): string | undefined {
   return INFERENCE_FALLBACK_RAW_DETAIL.test(detail) ? INFERENCE_FALLBACK_ATHLETE_SAFE_DETAIL : undefined;
 }
 
+/**
+ * REV-016b — race explanations from the frozen M1 engine
+ * (rules/raceProtocol.ts, engine/buildDailyPlan.ts) interpolate raw
+ * identifiers: "T-3"/"T+2", "T-X", the race format and priority enums, the
+ * in-progress `event_day=`/`phase=` pair and raw session kinds. Each engine
+ * sentence is matched exactly (anchored regex) and rebuilt with the
+ * validated labels; the race name itself is kept verbatim. If the sentence
+ * does not match, or any captured value has no label, the original text is
+ * kept (never a partial or guessed rewrite).
+ */
+const RACE_PROTOCOL_TX_RAW = /^T-(\d+) avant (.+) \(([A-Z0-9_]+), priorité ([A-Z_]+)\) — protocole T-X par défaut\.$/;
+const POST_EVENT_RAW = /^T\+(\d+) après la fin de (.+) — récupération active post-course\.$/;
+const RACE_DAY_ACTIVE_RAW = /^Événement en cours \(event_day=(\d+), phase=([A-Z_]+)\) — activité de course\.$/;
+const COMMITTED_FAMILY_PRESERVED_RAW =
+  /^Activité engagée \(([A-Z_]+)\) — famille d'activité préservée, adaptation appliquée au lieu de la recommandation T-X \(([A-Z_]+)\)\.$/;
+const COMMITTED_FAMILY_NO_ADAPTATION_RAW =
+  /^Activité engagée \(([A-Z_]+)\) — aucune adaptation de même famille disponible pour cette activité, recommandation T-X \(([A-Z_]+)\) utilisée\.$/;
+/** override_reason's own fallback sentence (engine/buildDailyPlan.ts), not a triggered rule detail. */
+const OVERRIDE_FALLBACK_RAW = /^Séance finale \(([A-Z_]+)\) différente de la recommandation T-X \(([A-Z_]+)\), sans cause de domaine tracée\.$/;
+
+function sanitizeRaceProtocolDetail(detail: string): string | undefined {
+  const match = RACE_PROTOCOL_TX_RAW.exec(detail);
+  if (!match) return undefined;
+  const [, days, raceName, format, priority] = match;
+  const formatLabel = translateRaceFormat(format);
+  const priorityLabel = translateRacePriority(priority);
+  if (formatLabel === null || priorityLabel === null) return undefined;
+  return `J-${days} avant ${raceName} (${formatLabel}, priorité ${priorityLabel}) — protocole de préparation standard.`;
+}
+
+function sanitizePostEventDetail(detail: string): string | undefined {
+  const match = POST_EVENT_RAW.exec(detail);
+  return match ? `J+${match[1]} après la fin de ${match[2]} — récupération active post-course.` : undefined;
+}
+
+function sanitizeRaceDayActiveDetail(detail: string): string | undefined {
+  const match = RACE_DAY_ACTIVE_RAW.exec(detail);
+  const phaseLabel = match ? translateRacePhase(match[2]) : null;
+  return match && phaseLabel !== null ? `Course en cours (jour ${match[1]}, ${phaseLabel}) — activité de course.` : undefined;
+}
+
+function sanitizeCommittedFamilyDetail(detail: string): string | undefined {
+  const preserved = COMMITTED_FAMILY_PRESERVED_RAW.exec(detail);
+  if (preserved) {
+    const [committed, recommended] = [translateTrainingKind(preserved[1]), translateTrainingKind(preserved[2])];
+    if (committed === null || recommended === null) return undefined;
+    return `Activité engagée (${committed}) — famille d'activité préservée, adaptation appliquée au lieu de la recommandation de préparation course (${recommended}).`;
+  }
+  const noAdaptation = COMMITTED_FAMILY_NO_ADAPTATION_RAW.exec(detail);
+  if (noAdaptation) {
+    const [committed, recommended] = [translateTrainingKind(noAdaptation[1]), translateTrainingKind(noAdaptation[2])];
+    if (committed === null || recommended === null) return undefined;
+    return `Activité engagée (${committed}) — aucune adaptation de même famille disponible pour cette activité, recommandation de préparation course (${recommended}) utilisée.`;
+  }
+  return undefined;
+}
+
+function sanitizeOverrideFallback(text: string): string | undefined {
+  const match = OVERRIDE_FALLBACK_RAW.exec(text);
+  if (!match) return undefined;
+  const [finalKind, recommendedKind] = [translateTrainingKind(match[1]), translateTrainingKind(match[2])];
+  if (finalKind === null || recommendedKind === null) return undefined;
+  return `Séance finale (${finalKind}) différente de la séance de préparation course (${recommendedKind}).`;
+}
+
+// Documented, deliberately NOT translated (REV-016b): SOFT_CONSTRAINT_STRONG_APPLIED /
+// SOFT_CONSTRAINT_STRONG_OVERRIDDEN ("Contrainte "no_dh_intense" (strong, mode RACE_WEEK) …").
+// Only the RACE_WEEK / INJURY_RECOVERY modes emit them and no production decision has
+// ever contained them — see safetyPresentation.test.ts's REV-016b guard test.
+
 function resolveOverrideFor(rule: TriggeredRule): string | undefined {
   if (rule.rule_id === "PAIN_NON_SAFETY") return sanitizePainNonSafetyDetail(rule.detail);
   if (rule.rule_id === "INFERENCE_FALLBACK") return sanitizeInferenceFallbackDetail(rule.detail);
+  if (rule.rule_id === "RACE_PROTOCOL_TX") return sanitizeRaceProtocolDetail(rule.detail);
+  if (rule.rule_id === "POST_EVENT") return sanitizePostEventDetail(rule.detail);
+  if (rule.rule_id === "RACE_DAY_ACTIVE") return sanitizeRaceDayActiveDetail(rule.detail);
+  if (rule.rule_id === "COMMITTED_FAMILY_PRESERVED" || rule.rule_id === "COMMITTED_FAMILY_NO_ADAPTATION") return sanitizeCommittedFamilyDetail(rule.detail);
   const override = FIXED_RULE_OVERRIDES[rule.rule_id];
   return override && rule.detail === override.rawDetail ? override.safeDetail : undefined;
 }
@@ -127,6 +203,27 @@ export function athleteSafeReasoning(dailyPlan: DailyPlan): string {
     if (safe) reasoning = reasoning.split(rule.detail).join(safe);
   }
   return reasoning;
+}
+
+/**
+ * REV-016b — the athlete-safe equivalent of `dailyPlan.override_reason`,
+ * previously rendered raw by DailyPlanView's "Protocole de course" card. The
+ * engine builds it by joining the `detail` of its layer C/ARBITRATION rules
+ * (same targeted substring substitution as athleteSafeReasoning), or from its
+ * own fallback sentence (rewritten only on an exact match). Anything else is
+ * passed through unchanged; `undefined` stays `undefined`.
+ */
+export function athleteSafeOverrideReason(dailyPlan: DailyPlan): string | undefined {
+  const overrideReason = dailyPlan.override_reason;
+  if (overrideReason === undefined) return undefined;
+  const fallback = sanitizeOverrideFallback(overrideReason);
+  if (fallback !== undefined) return fallback;
+  let text = overrideReason;
+  for (const rule of dailyPlan.triggered_rules) {
+    const safe = resolveOverrideFor(rule);
+    if (safe) text = text.split(rule.detail).join(safe);
+  }
+  return text;
 }
 
 /**
