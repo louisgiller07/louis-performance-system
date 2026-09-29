@@ -3,6 +3,9 @@ import { render, screen, within } from "@testing-library/react";
 import { HistoryDetail } from "./HistoryDetail";
 import type { DecisionHistoryRow } from "./historyTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
+// Same cross-boundary direct engine import pattern as dailyPlan/DailyPlanView.enriched.test.tsx.
+import { buildDailyPlan } from "../../../../head-coach-engine/src/engine/buildDailyPlan.js";
+import { baseRawContext } from "../../../../head-coach-engine/fixtures/louis.js";
 
 const VALID_DAILY_PLAN = {
   active_mode: "IN_SEASON",
@@ -102,6 +105,29 @@ describe("HistoryDetail", () => {
     expect(banner.textContent).not.toMatch(/\bknee_R\b/);
   });
 
+  it("REV-015.1: a stored DH decision renders French labels only; the stored plan is unchanged", () => {
+    const stored = buildDailyPlan(baseRawContext({ planned_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 120 } }));
+    const before = structuredClone(stored);
+
+    const { container } = render(
+      <HistoryDetail row={makeRow({ confidenceLevelDb: "HIGH", dailyPlan: stored as unknown as DecisionHistoryRow["dailyPlan"] })} performedMatch={{ kind: "none" }} />
+    );
+
+    expect(screen.getByText("Décision du Head Coach")).toBeInTheDocument();
+    expect(screen.getByText("Mission du jour")).toBeInTheDocument();
+    expect(screen.getByText("Plan de séance")).toBeInTheDocument();
+    expect(screen.getByText("Intensité")).toBeInTheDocument();
+    expect(stored.confidence).toBe("MEDIUM");
+    expect(screen.getByText("Confiance moyenne")).toBeInTheDocument(); // stored enum rendered as its French label
+    // The dev-only technical JSON dump (import.meta.env.DEV) intentionally shows the raw stored plan: check the rest only.
+    const visible = container.cloneNode(true) as HTMLElement;
+    visible.querySelectorAll("details").forEach((d) => {
+      if (d.querySelector("summary")?.textContent === "Détails techniques") d.remove();
+    });
+    expect(visible.textContent).not.toMatch(/Head Coach Decision|Readiness|Confidence|Body status|\bReady\b|ready to perform|Today's Mission|Session Plan|\bFocus\b|\bHIGH\b|\bMEDIUM\b|\bLOW\b/);
+    expect(stored).toEqual(before);
+  });
+
   it("shows no health banner when the stored DailyPlan carries no health_flag_to_create", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
     expect(screen.queryByText("Attention santé")).not.toBeInTheDocument();
@@ -172,7 +198,7 @@ describe("HistoryDetail", () => {
         performedMatch={{ kind: "none" }}
       />
     );
-    expect(screen.getByText("Session Plan")).toBeInTheDocument();
+    expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 4 h/)).toBeInTheDocument();
     expect(screen.queryByText("240 min")).not.toBeInTheDocument();
   });
@@ -236,9 +262,9 @@ describe("HistoryDetail", () => {
       />
     );
     expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
-    expect(screen.getByText("Session Plan")).toBeInTheDocument();
+    expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
-    const dhCard = screen.getByText("Session Plan").closest("div")!;
+    const dhCard = screen.getByText("Plan de séance").closest("div")!;
     // V0.3 UX PREMIUM — "charge modérée" legitimately appears twice here
     // (the factual load badge + the Focus section's neutral-label
     // fallback, since this fixture has no load_guidance).
@@ -272,7 +298,7 @@ describe("HistoryDetail", () => {
         performedMatch={{ kind: "none" }}
       />
     );
-    const dhCard = screen.getByText("Session Plan").closest("div")!;
+    const dhCard = screen.getByText("Plan de séance").closest("div")!;
     expect(within(dhCard).getByText(loadGuidance)).toBeInTheDocument();
     // V0.3 UX PREMIUM — "charge lourde" now legitimately appears once, as
     // the factual load badge (always shown). It must never ALSO appear a
@@ -324,7 +350,7 @@ describe("HistoryDetail", () => {
     // specific rendered card, not the whole document, to avoid the debug
     // dump entirely (same content, different concern than the "getAllByText"
     // precedent used elsewhere in this file).
-    const dhCard = screen.getByText("Today's Mission").closest("div")!;
+    const dhCard = screen.getByText("Mission du jour").closest("div")!;
     // V0.3_008B0 — explicit "Tâche du jour :" label added alongside the value.
     expect(
       within(dhCard).getByText("Tâche du jour : Sur terrain connu, cherche une conduite fluide et relâchée sans objectif de vitesse.")
@@ -471,7 +497,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     render(<HistoryDetail row={dhDecision} performedMatch={{ kind: "linked", session }} />);
 
     // Prescrit still shows the original DH prescription, verbatim.
-    const dhCard = screen.getByText("Session Plan").closest("div")!;
+    const dhCard = screen.getByText("Plan de séance").closest("div")!;
     expect(within(dhCard).getByText(/DH performance/)).toBeInTheDocument();
 
     const card = realiseCard();

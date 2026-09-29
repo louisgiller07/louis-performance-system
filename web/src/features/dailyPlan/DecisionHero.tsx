@@ -1,4 +1,4 @@
-import { CONFIDENCE_LABELS, DECISION_LABELS, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
+import { DECISION_LABELS, formatConfidence, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
 import { athleteSafeReasoning } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
 
@@ -13,19 +13,19 @@ const DECISION_ACCENT: Record<string, { border: string; text: string; ring: stri
     border: "border-gold/40",
     text: "text-gold",
     ring: "shadow-[0_0_0_1px_rgba(212,175,55,0.25)]",
-    tagline: "Ready to perform",
+    tagline: "Prêt à performer",
   },
   MODIFY: {
     border: "border-amber-400/50",
     text: "text-amber-300",
     ring: "shadow-[0_0_0_1px_rgba(245,158,11,0.25)]",
-    tagline: "Adjusted — ready to perform",
+    tagline: "Ajusté — prêt à performer",
   },
   REPLACE: {
     border: "border-gold-light",
     text: "text-gold-light",
     ring: "shadow-[0_0_10px_1px_rgba(245,215,110,0.25)]",
-    tagline: "New plan — ready to perform",
+    tagline: "Nouveau plan — prêt à performer",
   },
   REST: { border: "border-red-500/50", text: "text-red-400", ring: "shadow-[0_0_0_1px_rgba(248,113,113,0.25)]" },
 };
@@ -40,7 +40,8 @@ const DECISION_ACCENT: Record<string, { border: string; text: string; ring: stri
 // reasoning) — no new data, presentation only.
 export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   const decisionLabel = DECISION_LABELS[dailyPlan.decision] ?? dailyPlan.decision;
-  const confidenceLabel = CONFIDENCE_LABELS[dailyPlan.confidence] ?? dailyPlan.confidence;
+  // REV-015.1 — never the raw enum; an unknown value hides the line.
+  const confidenceLabel = formatConfidence(dailyPlan.confidence);
   const modeLabel = TRAINING_MODE_LABELS[dailyPlan.active_mode] ?? dailyPlan.active_mode;
   // V0.3_006A1 — the always-visible hero reasoning must never leak internal
   // Safety provenance (e.g. the raw HealthFlagType slug inside A5's
@@ -51,11 +52,11 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   return (
     <div className={`rounded-xl border bg-card p-5 ${accent.border} ${accent.ring}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted">Head Coach Decision</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted">Décision du Head Coach</p>
         <p className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">{modeLabel}</p>
       </div>
       <p className={`mt-2 text-3xl font-bold uppercase tracking-tight ${accent.text}`}>{decisionLabel}</p>
-      <p className="mt-1.5 text-sm text-muted">Confidence {confidenceLabel.toLowerCase()}</p>
+      {confidenceLabel && <p className="mt-1.5 text-sm text-muted">Confiance {confidenceLabel.toLowerCase()}</p>}
       <p className="mt-4 text-sm leading-relaxed text-ink/90">{reasoning}</p>
       {accent.tagline && (
         <p className={`mt-4 text-xs font-semibold uppercase tracking-wide ${accent.text}`}>✓ {accent.tagline}</p>

@@ -30,6 +30,17 @@ export const CONFIDENCE_LABELS: Record<Confidence, string> = {
   HIGH: "Élevée",
 };
 
+/**
+ * REV-015.1 — French confidence label, or `null` for anything that is not a
+ * known Confidence value (own keys only). Unlike the maps above, never falls
+ * back to the raw enum: "HIGH"/"MEDIUM"/"LOW" must never reach the screen.
+ */
+export function formatConfidence(value: unknown): string | null {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(CONFIDENCE_LABELS, value)
+    ? CONFIDENCE_LABELS[value as Confidence]
+    : null;
+}
+
 export const TRAINING_MODE_LABELS: Record<TrainingMode, string> = {
   RACE_WEEK: "Semaine de course",
   RACE_CLUSTER: "Enchaînement de courses",

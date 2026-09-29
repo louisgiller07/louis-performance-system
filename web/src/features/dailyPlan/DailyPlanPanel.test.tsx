@@ -110,7 +110,7 @@ describe("DailyPlanPanel", () => {
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
 
     await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
-    expect(screen.getByText(/Confidence moyenne/)).toBeInTheDocument();
+    expect(screen.getByText(/Confiance moyenne/)).toBeInTheDocument();
     expect(screen.getByText(/En saison/)).toBeInTheDocument();
     expect(screen.getByText("Tout va bien.")).toBeInTheDocument();
   });
@@ -430,13 +430,13 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     });
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    expect(await screen.findByText("Session Plan")).toBeInTheDocument();
+    expect(await screen.findByText("Plan de séance")).toBeInTheDocument();
     expect(screen.getByText(/Fenêtre de session\s*:\s*environ 6 h/)).toBeInTheDocument();
     // V0.3_006C1 (final correction) — CANONICAL HISTORY INVARIANT: this
     // fixture's dh_or_technical never carried load_guidance (legacy shape),
     // so only the neutral load label may appear, never the new behavioral
     // coaching copy synthesized from load_profile.
-    const dhCard = screen.getByText("Session Plan").closest("div")!;
+    const dhCard = screen.getByText("Plan de séance").closest("div")!;
     // V0.3 UX PREMIUM — "charge lourde" now legitimately appears twice here
     // (the factual load badge + the Focus section's neutral-label
     // fallback, since this fixture has no load_guidance) — both are
@@ -520,7 +520,7 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByText(loadGuidance)).toBeInTheDocument();
-    const dhCard = screen.getByText("Session Plan").closest("div")!;
+    const dhCard = screen.getByText("Plan de séance").closest("div")!;
     // V0.3 UX PREMIUM — "charge modérée" legitimately appears once now (the
     // factual load badge, always shown). The actual invariant this guards:
     // it must never ALSO appear a second time as the Focus section's

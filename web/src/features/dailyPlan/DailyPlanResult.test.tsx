@@ -47,7 +47,7 @@ describe("DailyPlanResult", () => {
 
   it("displays the confidence level", () => {
     render(<DailyPlanResult result={makeResult({ confidence: "HIGH" })} />);
-    expect(screen.getByText(/Confidence élevée/i)).toBeInTheDocument();
+    expect(screen.getByText(/Confiance élevée/i)).toBeInTheDocument();
   });
 
   it("displays the active_mode as a human-readable label, not the raw enum", () => {
@@ -444,8 +444,8 @@ describe("DailyPlanResult", () => {
   it("renders the Today's Mission + Session Plan cards with kind, clarified load, hour-formatted session window, focus, and terrain — never a raw '360 min'", () => {
     render(<DailyPlanView dailyPlan={{ ...BASE_PLAN, ...DH_PLAN }} hasHealthSignal={false} />);
 
-    expect(screen.getByText("Today's Mission")).toBeInTheDocument();
-    expect(screen.getByText("Session Plan")).toBeInTheDocument();
+    expect(screen.getByText("Mission du jour")).toBeInTheDocument();
+    expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     expect(screen.getByText(/DH performance/)).toBeInTheDocument();
     // V0.3_006C1 (final correction) — rendered exactly as persisted in dh_or_technical.load_guidance.
     expect(
@@ -475,8 +475,10 @@ describe("DailyPlanResult", () => {
       />
     );
     expect(screen.getByText("Entraînement")).toBeInTheDocument();
-    expect(screen.queryByText("Today's Mission")).not.toBeInTheDocument();
-    expect(screen.queryByText("Session Plan")).not.toBeInTheDocument();
+    // REV-015.1 — the inline DH mission card and Today's hoisted MissionCard now share the
+    // title "Mission du jour": exactly one (the hoisted card) means no inline DH card.
+    expect(screen.getAllByText("Mission du jour")).toHaveLength(1);
+    expect(screen.queryByText("Plan de séance")).not.toBeInTheDocument();
   });
 
   it("formats every provisional DH duration as natural hours (V0.3_006B examples)", () => {
@@ -504,7 +506,7 @@ describe("DailyPlanResult", () => {
         result={makeResult({ ...DH_PLAN, final_session: { kind: "DH_PERFORMANCE", load_profile: "HEAVY" } })}
       />
     );
-    expect(screen.getByText("Session Plan")).toBeInTheDocument();
+    expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     expect(screen.queryByText(/Fenêtre de session/)).not.toBeInTheDocument();
   });
 
@@ -623,7 +625,7 @@ describe("DailyPlanResult", () => {
         })}
       />
     );
-    expect(screen.getByText("Session Plan")).toBeInTheDocument();
+    expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     // V0.3 UX PREMIUM — "charge lourde" legitimately appears twice here (the
     // factual load badge + the Focus section's neutral-label fallback,
     // since this fixture has no load_guidance) — neither is the fabricated
