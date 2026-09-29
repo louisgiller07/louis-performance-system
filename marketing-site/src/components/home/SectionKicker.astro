@@ -1,0 +1,17 @@
+---
+// Numbered section kicker ("03 — Une journée avec NALYNT") — the homepage's
+// chapter marker, continuing the site's gold-hairline paddock/spec-sheet motif.
+interface Props {
+  index: string;
+  label: string;
+  class?: string;
+}
+
+const { index, label, class: className = "" } = Astro.props;
+---
+
+<p class:list={["flex items-center gap-4 font-mono text-[0.7rem] uppercase tracking-[0.28em]", className]} data-reveal>
+  <span class="text-accent">{index}</span>
+  <span class="h-px w-10 bg-accent/60" aria-hidden="true"></span>
+  <span class="text-text-muted">{label}</span>
+</p>

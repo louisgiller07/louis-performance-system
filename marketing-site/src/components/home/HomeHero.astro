@@ -1,0 +1,155 @@
+---
+// 01 — Hero. The headline is treated as a graphic element: two condensed
+// lines revealed through a mask on load (pure CSS, no JS dependency), over
+// a graded race photo, with a very sparse layer of drifting dust
+// (canvas, driven by scripts/home.ts — skipped under reduced motion).
+import { Picture } from "astro:assets";
+import heroImage from "../../assets/home/race-performance.webp";
+import Button from "../ui/Button.astro";
+import { home } from "../../content/home.ts";
+
+const { hero } = home;
+---
+
+<section class="hero grain relative isolate flex min-h-[calc(100svh-4rem)] flex-col justify-end overflow-hidden bg-bg">
+  <div class="hero-media absolute inset-0 -z-20">
+    <Picture
+      src={heroImage}
+      formats={["avif", "webp"]}
+      widths={[640, 960, 1280, 1920]}
+      width={1920}
+      sizes="(min-width: 1024px) 64vw, 100vw"
+      alt={hero.image.alt}
+      loading="eager"
+      fetchpriority="high"
+      class="hero-img h-full w-full object-cover"
+    />
+  </div>
+  <div class="hero-shade pointer-events-none absolute inset-0 -z-10" aria-hidden="true"></div>
+  <canvas class="pointer-events-none absolute inset-0 -z-10 h-full w-full" data-dust aria-hidden="true"></canvas>
+
+  <div class="mx-auto w-full max-w-7xl px-6 pb-10 pt-16 sm:px-8 sm:pb-14 lg:pb-14">
+    <p class="hero-in font-mono text-[0.7rem] uppercase tracking-[0.28em] text-accent" style="--d: 0ms">
+      <span class="mr-3 inline-block h-px w-8 bg-accent align-middle" aria-hidden="true"></span>{hero.eyebrow}
+    </p>
+
+    <h1 class="mt-5 font-display text-[clamp(3.2rem,min(13.5vw,19vh),9.5rem)] font-extrabold uppercase leading-[0.84] tracking-[-0.01em] text-text">
+      <span class="hero-line"><span style="--d: 120ms">{hero.titleLines[0]}</span></span>
+      <span class="hero-line">
+        <span style="--d: 230ms">{hero.titleLines[1]} <span class="text-accent">{hero.titleAccent}</span></span>
+      </span>
+    </h1>
+
+    <div class="mt-6 grid gap-8 lg:mt-8 lg:grid-cols-[minmax(0,44rem)_1fr] lg:items-end">
+      <div>
+        <p class="hero-in text-xl font-medium leading-snug text-text sm:text-2xl" style="--d: 420ms">{hero.subtitle}</p>
+        <p class="hero-in mt-4 max-w-lg text-base leading-relaxed text-text-muted" style="--d: 500ms">{hero.support}</p>
+        <div class="hero-in mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4" style="--d: 600ms">
+          <Button href={hero.primary.href} size="lg" arrow>{hero.primary.label}</Button>
+          <Button href={hero.secondary.href} size="lg" variant="secondary">{hero.secondary.label}</Button>
+        </div>
+      </div>
+
+      <div class="hero-in hidden items-end justify-end gap-10 lg:flex" style="--d: 800ms">
+        <p class="flex items-center gap-3 font-mono text-[0.65rem] uppercase tracking-[0.22em] text-text-muted">
+          <span class="h-px w-6 bg-accent" aria-hidden="true"></span>{hero.caption}
+        </p>
+        <a href="#probleme" class="scroll-cue flex flex-col items-center gap-3 font-mono text-[0.65rem] uppercase tracking-[0.3em] text-text-muted hover:text-text">
+          Défiler
+          <span class="relative block h-12 w-px overflow-hidden bg-border" aria-hidden="true"><span class="scroll-cue-dot"></span></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero-media :global(picture) {
+    display: block;
+    height: 100%;
+  }
+  .hero-img {
+    object-position: 50% 28%;
+    filter: grayscale(0.3) contrast(1.08) brightness(0.62);
+  }
+  /* Deep pine grade + readability: bottom fade on mobile, left fade on desktop where the title sits. */
+  .hero-shade {
+    background:
+      linear-gradient(to top, var(--color-bg) 0%, rgb(8 9 9 / 0.85) 32%, rgb(8 9 9 / 0.1) 70%),
+      linear-gradient(to bottom, rgb(11 19 15 / 0.55), rgb(11 19 15 / 0.2) 40%, transparent);
+  }
+  @media (min-width: 1024px) {
+    .hero-media {
+      left: 36%;
+    }
+    .hero-img {
+      object-position: 50% 30%;
+    }
+    .hero-shade {
+      background:
+        linear-gradient(to right, var(--color-bg) 36%, rgb(8 9 9 / 0.75) 48%, rgb(8 9 9 / 0) 72%),
+        linear-gradient(to top, var(--color-bg) 0%, rgb(8 9 9 / 0) 38%),
+        radial-gradient(ellipse at 80% 20%, transparent 30%, rgb(11 19 15 / 0.6) 90%);
+    }
+  }
+
+  .hero-line {
+    display: block;
+    overflow: hidden;
+    padding-bottom: 0.06em;
+  }
+  .hero-line > span {
+    display: block;
+  }
+
+  .scroll-cue-dot {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 40%;
+    background: var(--color-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-line > span {
+      animation: hero-rise 1.15s var(--ease-premium) both;
+      animation-delay: var(--d);
+    }
+    .hero-in {
+      animation: hero-fade 1s var(--ease-premium) both;
+      animation-delay: var(--d);
+    }
+    .hero-img {
+      animation: hero-settle 2.4s var(--ease-premium) both;
+    }
+    .scroll-cue-dot {
+      animation: cue 2.2s var(--ease-premium) infinite 1.6s;
+    }
+  }
+
+  @keyframes hero-rise {
+    from {
+      transform: translate3d(0, 105%, 0);
+    }
+  }
+  @keyframes hero-fade {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 1.25rem, 0);
+    }
+  }
+  @keyframes hero-settle {
+    from {
+      transform: scale(1.08);
+    }
+  }
+  @keyframes cue {
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(260%);
+    }
+  }
+</style>

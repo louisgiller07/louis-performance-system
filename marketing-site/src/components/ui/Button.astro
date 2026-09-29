@@ -4,26 +4,39 @@ import type { HTMLAttributes } from "astro/types";
 interface Props extends Omit<HTMLAttributes<"button">, "class"> {
   href?: string;
   variant?: "primary" | "secondary";
+  /** V3 — "lg" is the homepage conversion size (≥52px touch target). */
+  size?: "md" | "lg";
+  /** V3 — trailing arrow that slides on hover. */
+  arrow?: boolean;
   class?: string;
 }
 
-const { href, variant = "primary", class: className = "", type = "button", ...rest } = Astro.props;
+const { href, variant = "primary", size = "md", arrow = false, class: className = "", type = "button", ...rest } = Astro.props;
 
 const base =
-  "inline-flex items-center justify-center px-6 py-3 text-xs font-semibold uppercase tracking-[0.15em] transition-colors";
+  "group inline-flex items-center justify-center gap-3 text-center font-semibold uppercase transition-[background-color,border-color,color,box-shadow] duration-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent";
+const sizes = {
+  md: "px-6 py-3 text-xs tracking-[0.15em]",
+  lg: "min-h-[3.25rem] px-5 py-4 text-[0.74rem] tracking-[0.1em] sm:px-7 sm:text-[0.8rem] sm:tracking-[0.15em]",
+};
 const variants = {
-  primary: "bg-accent text-bg hover:bg-accent/90",
+  primary: "bg-accent text-bg hover:bg-accent-strong hover:shadow-[0_0_0_4px_var(--color-accent-soft)]",
   secondary: "border border-border text-text hover:border-accent hover:text-accent",
 };
 ---
 
 {
   href ? (
-    <a href={href} class:list={[base, variants[variant], className]} {...rest}>
+    <a href={href} class:list={[base, sizes[size], variants[variant], className]} {...rest}>
       <slot />
+      {arrow && (
+        <span class="transition-transform duration-300 ease-[var(--ease-premium)] group-hover:translate-x-1" aria-hidden="true">
+          →
+        </span>
+      )}
     </a>
   ) : (
-    <button type={type} class:list={[base, variants[variant], className]} {...rest}>
+    <button type={type} class:list={[base, sizes[size], variants[variant], className]} {...rest}>
       <slot />
     </button>
   )

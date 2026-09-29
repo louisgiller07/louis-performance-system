@@ -1,0 +1,71 @@
+---
+// 02 — Le problème. The six realities start dimmed and light up one by one as
+// they cross the middle of the viewport, and stay lit: the point is that they
+// pile up. Without JS (or with reduced motion) they are simply all lit.
+import { home } from "../../content/home.ts";
+import SectionKicker from "./SectionKicker.astro";
+
+const { problem } = home;
+---
+
+<section id="probleme" class="relative border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto grid w-full max-w-7xl gap-14 px-6 sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
+    <div class="lg:sticky lg:top-32 lg:self-start">
+      <SectionKicker index={problem.index} label={problem.kicker} />
+      <h2 class="mt-8 font-display text-[clamp(2.4rem,6vw,4.4rem)] font-extrabold uppercase leading-[0.95] text-text">
+        <span class="block" data-reveal>{problem.titleLines[0]}</span>
+        <span class="mt-3 block text-text-muted" data-reveal style="--reveal-delay: 120ms">{problem.titleLines[1]}</span>
+      </h2>
+    </div>
+
+    <div>
+      <ol class="border-t border-border">
+        {
+          problem.realities.map((reality, i) => (
+            <li class="reality grid grid-cols-[2.25rem_1fr] items-baseline gap-x-4 border-b border-border py-6 sm:grid-cols-[3rem_1fr] sm:py-8" data-lit>
+              <span class="font-mono text-xs text-text-muted" aria-hidden="true">
+                {String(i + 1).padStart(2, "0")}
+              </span>
+              <div class="flex flex-col gap-2 md:flex-row md:items-baseline md:justify-between md:gap-8">
+                <span class="reality-word font-display text-[clamp(2.75rem,8vw,5.5rem)] font-extrabold uppercase leading-none">
+                  {reality.word}
+                </span>
+                <span class="reality-note max-w-[16rem] text-sm leading-relaxed text-text-muted md:text-right">{reality.note}</span>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+      <p class="mt-12 max-w-xl text-xl leading-snug text-text sm:text-2xl" data-reveal>
+        <span class="mr-3 inline-block h-px w-8 bg-accent align-middle" aria-hidden="true"></span>{problem.closing}
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .reality-word {
+    color: var(--color-text);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .reality-word {
+      /* Dimmed, yet still ≥3:1 (WCAG AA, large text) against Carbon Black. */
+      color: rgb(231 228 221 / 0.42);
+      transition: color 0.8s var(--ease-premium);
+    }
+    :global(.js) .reality-note {
+      opacity: 0;
+      transform: translate3d(0, 0.5rem, 0);
+      transition:
+        opacity 0.8s var(--ease-premium) 0.1s,
+        transform 0.8s var(--ease-premium) 0.1s;
+    }
+    :global(.js) .reality.is-lit .reality-word {
+      color: var(--color-text);
+    }
+    :global(.js) .reality.is-lit .reality-note {
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>

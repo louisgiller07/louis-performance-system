@@ -8,42 +8,11 @@
 // None of the strings below use these — do not reintroduce them in future
 // edits without re-checking against this constraint.
 //
-// NEEDS HUMAN VALIDATION: every field below is a first proposal. The
-// `sloganOptions` array in particular holds 3 candidates — `headline`
-// currently carries the recommended one, the other two are alternatives
-// for Louis to pick from, not a decided choice.
-
-export interface HeroCopy {
-  /**
-   * Short editorial kicker shown above `headline` — positions NALYNT in the
-   * performance/gravity space. A category label, never a slogan/promise.
-   */
-  eyebrow: string;
-  /** Recommended slogan — one of `sloganOptions` below. NEEDS VALIDATION. */
-  headline: string;
-  subheadline: string;
-  ctaLabel: string;
-  ctaHref: string;
-}
-
-/**
- * V1 — Marketing -> Signup -> App flow (Beta Access). The one CTA that
- * actually leaves this static site and lands in the real app (a distinct,
- * cross-origin absolute URL — /signup here would resolve on nalynt.ch
- * itself, which doesn't have that route). No payment, no pricing claim —
- * "free" refers only to the current no-payment beta state.
- */
-export interface BetaCtaCopy {
-  label: string;
-  href: string;
-}
-
-/** All slogan candidates considered for `hero.headline`. NEEDS VALIDATION — pick one. */
-export const sloganOptions: string[] = [
-  "Le coaching qui s'adapte à ta vraie journée.",
-  "Ce qui est prescrit. Ce qui est fait. Ce qui compte.",
-  "Un coaching qui observe avant de proposer.",
-];
+// NEEDS HUMAN VALIDATION: every field below is a first proposal.
+//
+// V3 — the homepage copy moved to content/home.ts (premium homepage); the
+// former homepage-only fields (hero, betaCta, dayWithNalynt, aiCoachModel,
+// closingCta) were removed with their components.
 
 export interface DisclaimerCopy {
   text: string;
@@ -155,77 +124,6 @@ export interface ProductLimitsCopy {
 }
 
 /**
- * V1.6.1 — closing CTA on the homepage, before the disclaimer. Addresses the
- * V1.6 review finding that the only CTA on the whole page was the Hero one,
- * with nothing prompting a next step for a visitor who reads all the way
- * down. Points to /contact (not /comment-ca-marche again) — a convinced
- * visitor has already absorbed how it works by this point; the project is
- * still at an early/dogfood stage (no signup flow, no pricing), so "get in
- * touch" is the honest next step, not a conversion funnel.
- */
-export interface ClosingCtaCopy {
-  text: string;
-  ctaLabel: string;
-  ctaHref: string;
-}
-
-/**
- * V1.7 — "Une journée avec NALYNT" homepage section (product proof). A
- * single fictional-but-representative DH technical session walked through
- * Planning → Check-in → Prescription → Performed → Feedback — the same
- * vocabulary as `keyMessages.loop`, just instantiated with concrete values
- * instead of described abstractly. No date, no real race, no personal data.
- *
- * Every step's `message` is deliberately worded to avoid: "analyse
- * biométrique avancée", "prédiction", "diagnostic" (step 2), "NALYNT
- * optimise automatiquement", "NALYNT sait exactement ce qui est meilleur",
- * "NALYNT remplace un coach" (step 3), "NALYNT apprend tout seul", "le
- * système devient automatiquement meilleur" (step 5) — do not reintroduce
- * this framing in future edits.
- */
-export interface DayWithNalyntStep {
-  title: string;
-  /** Short spec-sheet facts — rendered as distinct lines, not a paragraph. */
-  facts: string[];
-  message: string;
-}
-
-export interface DayWithNalyntCopy {
-  eyebrow: string;
-  title: string;
-  intro: string;
-  steps: [DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep, DayWithNalyntStep];
-}
-
-/**
- * V1.9 — "Your AI Performance Coach" homepage section (Premium Content
- * Polish). Replaces the home-page usage of `keyMessages.loop`/LoopDiagram
- * (condensed variant) as the homepage's "how the coaching works" explainer —
- * that 4-step Planning/Prescription/Performed/Feedback loop stays exactly as
- * it was and is still used as-is on /comment-ca-marche (AICoachModel is a
- * distinct, product-positioning-first framing: Understand → Decide →
- * Improve, not a session lifecycle diagram).
- *
- * `title` and each step's `title`/`quote` are deliberately English — matching
- * the web app's own "Your AI Performance Coach" tagline (web/src/auth/
- * LoginPage.tsx) for cross-surface brand consistency — while `points` stay
- * French like the rest of the site's explanatory copy. This is the one
- * section on the site that mixes languages, and it's intentional.
- */
-export interface AICoachModelStep {
-  number: string;
-  title: string;
-  points: string[];
-  quote: string;
-}
-
-export interface AICoachModelCopy {
-  eyebrow: string;
-  title: string;
-  steps: [AICoachModelStep, AICoachModelStep, AICoachModelStep];
-}
-
-/**
  * V2 — Marketing Site Premium Redesign / functional contact form. Page
  * intro copy above the real form (src/components/ContactForm.astro,
  * src/pages/api/contact.ts) — `email` is kept only as a plain-text fallback
@@ -239,38 +137,21 @@ export interface ContactPageCopy {
 }
 
 export interface SiteCopy {
-  hero: HeroCopy;
-  betaCta: BetaCtaCopy;
   /** Une phrase unique résumant la valeur centrale — utilisable en meta description. */
   coreValueProposition: string;
   keyMessages: KeyMessagesCopy;
   storyOrigin: StoryOriginCopy;
-  dayWithNalynt: DayWithNalyntCopy;
-  aiCoachModel: AICoachModelCopy;
   contactPage: ContactPageCopy;
   aboutPage: AboutPageCopy;
   about: AboutCopy;
   limits: ProductLimitsCopy;
-  closingCta: ClosingCtaCopy;
   disclaimer: DisclaimerCopy;
   nav: NavLink[];
+  /** V3 — the header's three centred primary links; the full `nav` stays in the footer and the mobile menu. */
+  headerNav: NavLink[];
 }
 
 export const siteCopy: SiteCopy = {
-  hero: {
-    eyebrow: "Coaching de performance — Gravity / VTT Downhill",
-    headline: sloganOptions[0],
-    subheadline:
-      "NALYNT est un système de coaching qui combine chaque jour ton intention d'entraînement, ton état réel du jour et l'historique de tes séances pour proposer un plan cohérent — pas une routine figée à l'avance.",
-    ctaLabel: "Découvrir la démarche",
-    ctaHref: "/comment-ca-marche",
-  },
-
-  betaCta: {
-    label: "Join Beta",
-    href: "https://app.nalynt.ch/signup",
-  },
-
   coreValueProposition:
     "NALYNT est un système de coaching de performance qui adapte la séance du jour à l'état réel de l'athlète, distingue ce qui a été prescrit de ce qui a réellement été fait, et garde une mémoire factuelle des séances passées pour éclairer les prescriptions suivantes.",
 
@@ -334,84 +215,6 @@ export const siteCopy: SiteCopy = {
     questionOld: "Qu’est-ce qui était prévu ?",
     questionBridge: "Mais :",
     questionNew: "Quelle est la meilleure décision aujourd’hui ?",
-  },
-
-  dayWithNalynt: {
-    eyebrow: "Exemple produit",
-    title: "Une journée avec NALYNT",
-    intro:
-      "Concrètement, voici comment cette question se traduit sur une séance DH technique — du plan initial jusqu'à la mémoire qui en reste.",
-    steps: [
-      {
-        title: "La séance prévue",
-        facts: [
-          "DH technique",
-          "Durée prévue : 4 heures",
-          "Objectif : travailler les lignes, la précision et les répétitions",
-        ],
-        message: "L'athlète commence avec une intention claire : ce qu'il souhaite travailler aujourd'hui.",
-      },
-      {
-        title: "L'état du jour",
-        facts: [
-          "Sommeil : correct",
-          "Énergie : bonne",
-          "Fatigue jambes : élevée",
-          "Grip / avant-bras : moyen",
-          "Motivation : bonne",
-        ],
-        message: "NALYNT confronte l'objectif prévu avec la réalité du jour.",
-      },
-      {
-        title: "La décision NALYNT",
-        facts: [
-          "DH technique",
-          "Volume adapté",
-          "Focus : qualité des répétitions",
-          "Réduction du volume avant dégradation technique",
-        ],
-        message: "L'objectif reste le même. La manière de l'atteindre évolue selon le contexte.",
-      },
-      {
-        title: "La séance effectuée",
-        facts: ["DH technique", "2h30 réalisées", "Focus conservé : précision et lignes"],
-        message: "NALYNT distingue ce qui était prévu de ce qui a réellement été effectué.",
-      },
-      {
-        title: "L'historique",
-        facts: [
-          "Contexte conservé : fatigue jambes avant séance",
-          "Contexte conservé : adaptation réalisée",
-          "Contexte conservé : résultat enregistré",
-        ],
-        message: "Les événements importants restent visibles pour comprendre les décisions suivantes.",
-      },
-    ],
-  },
-
-  aiCoachModel: {
-    eyebrow: "Comment fonctionne NALYNT",
-    title: "Your AI Performance Coach",
-    steps: [
-      {
-        number: "01",
-        title: "Understand",
-        points: ["Entraînement", "Récupération", "Sommeil", "Fatigue", "Sensations", "Historique"],
-        quote: "Your performance data becomes a complete athlete profile.",
-      },
-      {
-        number: "02",
-        title: "Decide",
-        points: ["KEEP", "MODIFY", "REPLACE"],
-        quote: "Every day, NALYNT decides what actually matters.",
-      },
-      {
-        number: "03",
-        title: "Improve",
-        points: ["Mémoire longitudinale", "Adaptation progressive", "Compréhension de l'athlète"],
-        quote: "Not just a plan. A coach that evolves with you.",
-      },
-    ],
   },
 
   contactPage: {
@@ -520,12 +323,6 @@ export const siteCopy: SiteCopy = {
       "NALYNT ne promet pas de progression automatique. Le système mémorise des faits — ce qui a été prescrit, ce qui a été fait, le résultat rapporté — mais ne décide pas aujourd'hui, seul, d'augmenter ou de réduire une charge d'entraînement sur cette base.",
   },
 
-  closingCta: {
-    text: "Envie d'en discuter ou de suivre l'avancée du projet ?",
-    ctaLabel: "Nous contacter",
-    ctaHref: "/contact",
-  },
-
   disclaimer: {
     text: "NALYNT ne remplace pas un médecin, un physiothérapeute, un ostéopathe ou tout autre professionnel de santé. Il oriente vers eux quand nécessaire.",
   },
@@ -537,5 +334,11 @@ export const siteCopy: SiteCopy = {
     { label: "Philosophie", href: "/philosophie" },
     { label: "À propos", href: "/a-propos" },
     { label: "Contact", href: "/contact" },
+  ],
+
+  headerNav: [
+    { label: "Coaching", href: "/coaching" },
+    { label: "Comment ça marche", href: "/comment-ca-marche" },
+    { label: "Application", href: "/#produit" },
   ],
 };

@@ -1,0 +1,112 @@
+---
+// 06 — Pourquoi NALYNT. The emotional beat: a full-bleed race photo with a
+// light parallax (scripts/home.ts, transform only), the terrain-born promise
+// over it, then the facts that back it — who builds it, where it was born.
+import { Picture } from "astro:assets";
+import jumpImage from "../../assets/home/louis-dh-jump.webp";
+import { home } from "../../content/home.ts";
+import SectionKicker from "./SectionKicker.astro";
+
+const { why } = home;
+---
+
+<section id="pourquoi" class="border-t border-border bg-bg">
+  <div class="why-media grain relative isolate flex min-h-[80svh] items-end overflow-hidden lg:min-h-[92vh]">
+    <div class="absolute inset-x-0 -bottom-[12%] -top-[12%] -z-20" data-parallax="0.12">
+      <Picture
+        src={jumpImage}
+        formats={["avif", "webp"]}
+        widths={[640, 960, 1280, 1920]}
+        width={1920}
+        sizes="100vw"
+        alt={why.image.alt}
+        loading="lazy"
+        class="why-img h-full w-full object-cover"
+      />
+    </div>
+    <div class="why-shade pointer-events-none absolute inset-0 -z-10" aria-hidden="true"></div>
+
+    <div class="mx-auto w-full max-w-7xl px-6 pb-14 sm:px-8 sm:pb-20">
+      <SectionKicker index={why.index} label={why.kicker} />
+      <h2 class="mt-8 font-display text-[clamp(2.9rem,8.5vw,7.5rem)] font-extrabold uppercase leading-[0.92] text-text">
+        {why.titleLines.map((line, i) => (
+          <span class:list={["block", i === why.titleLines.length - 1 && "text-accent"]} data-reveal style={`--reveal-delay: ${i * 90}ms`}>
+            {line}
+          </span>
+        ))}
+      </h2>
+    </div>
+  </div>
+
+  <div class="mx-auto grid w-full max-w-7xl gap-14 px-6 py-20 sm:px-8 sm:py-24 lg:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] lg:gap-20">
+    <div class="flex flex-col">
+      <figure class="m-0" data-reveal>
+        <p class="flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-[0.24em] text-accent">
+          <span class="h-px w-8 bg-accent" aria-hidden="true"></span>{why.founder.kicker}
+        </p>
+        <blockquote class="m-0 mt-8">
+          <p class="max-w-2xl text-2xl leading-snug text-text sm:text-[2rem] sm:leading-tight">
+            <span class="text-accent" aria-hidden="true">« </span>{why.founder.quote}<span class="text-accent" aria-hidden="true"> »</span>
+          </p>
+        </blockquote>
+        <figcaption class="mt-8 flex flex-col gap-1">
+          <span class="font-display text-2xl font-extrabold uppercase leading-none text-text">{why.founder.name}</span>
+          <span class="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-text-muted">{why.founder.role}</span>
+        </figcaption>
+      </figure>
+      {
+        why.body.map((paragraph, i) => (
+          <p class="mt-10 max-w-xl border-t border-border pt-8 text-base leading-relaxed text-text-muted sm:text-lg" data-reveal style={`--reveal-delay: ${i * 100 + 100}ms`}>
+            {paragraph}
+          </p>
+        ))
+      }
+      <div class="mt-4 flex flex-wrap gap-x-8 gap-y-1" data-reveal style="--reveal-delay: 200ms">
+        {
+          why.links.map((link) => (
+            <a href={link.href} class="group inline-flex min-h-11 items-center gap-2 text-sm font-semibold uppercase tracking-[0.14em] text-text transition-colors hover:text-accent">
+              <span class="link-underline">{link.label}</span>
+              <span class="transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true">→</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+
+    <dl class="grid grid-cols-1 self-start border-t border-border sm:grid-cols-3 lg:grid-cols-1">
+      {
+        why.facts.map((fact, i) => (
+          <div class="border-b border-border py-6 sm:pr-6 lg:pr-0" data-reveal style={`--reveal-delay: ${i * 90}ms`}>
+            <dt class="font-mono text-[0.7rem] uppercase tracking-[0.22em] text-text-muted">{fact.label}</dt>
+            <dd class="mt-2 font-display text-4xl font-extrabold uppercase leading-none text-text">{fact.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</section>
+
+<style>
+  .why-media :global(picture) {
+    display: block;
+    height: 100%;
+  }
+  .why-img {
+    object-position: 62% 40%;
+    filter: grayscale(0.35) contrast(1.12) brightness(0.5);
+  }
+  .why-shade {
+    background:
+      linear-gradient(to top, var(--color-bg) 0%, rgb(8 9 9 / 0.6) 35%, rgb(11 19 15 / 0.25) 70%, rgb(8 9 9 / 0.7) 100%);
+  }
+  .link-underline {
+    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+    padding-bottom: 0.25rem;
+    transition:
+      background-size 0.4s var(--ease-premium),
+      color 0.3s;
+  }
+  :global(a:hover) > .link-underline {
+    background-size: 100% 1px;
+  }
+</style>
