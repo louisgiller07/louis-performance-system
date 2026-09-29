@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { athleteSafeReasoning, athleteSafeRuleDetail, athleteSafeTrainingObjective, hasActiveSafetyRule } from "./safetyPresentation";
+import { athleteSafeOverrideReason, athleteSafeReasoning, athleteSafeRuleDetail, athleteSafeTrainingObjective, hasActiveSafetyRule } from "./safetyPresentation";
 import type { DailyPlan, TriggeredRule } from "./dailyPlanTypes";
 
 const BASE_PLAN: DailyPlan = {
@@ -164,5 +164,159 @@ describe("hasActiveSafetyRule", () => {
 
   it("false for an empty triggered_rules array", () => {
     expect(hasActiveSafetyRule(BASE_PLAN)).toBe(false);
+  });
+});
+
+// REV-016 — INFERENCE_FALLBACK's raw TrainingMode enum "(mode=…)" never reaches the athlete.
+describe("INFERENCE_FALLBACK sanitization (REV-016)", () => {
+  const fallbackRule = (mode: string): TriggeredRule => ({
+    layer: "C",
+    rule_id: "INFERENCE_FALLBACK",
+    detail: `Aucune séance planifiée — inférence depuis le contexte (mode=${mode})`,
+    signals_used: [],
+  });
+
+  it.each(["UNSPECIFIED", "IN_SEASON", "RACE_CLUSTER", "OFF_SEASON_DEVELOPMENT"])("mode=%s → 'Aucune séance planifiée.'", (mode) => {
+    expect(athleteSafeRuleDetail(fallbackRule(mode))).toBe("Aucune séance planifiée.");
+  });
+
+  it("an unexpected wording of the same rule is left untouched (never guessed)", () => {
+    const rule = { ...fallbackRule("UNSPECIFIED"), detail: "Aucune séance planifiée — autre formulation future" };
+    expect(athleteSafeRuleDetail(rule)).toBe("Aucune séance planifiée — autre formulation future");
+  });
+
+  it("the same text under another rule_id is not rewritten", () => {
+    const rule = { ...fallbackRule("UNSPECIFIED"), rule_id: "SOMETHING_ELSE" };
+    expect(athleteSafeRuleDetail(rule)).toBe(rule.detail);
+  });
+
+  it("reasoning and objective are cleaned, the rest of the reasoning is unchanged", () => {
+    const rule = fallbackRule("UNSPECIFIED");
+    const plan: DailyPlan = {
+      ...BASE_PLAN,
+      reasoning: `${rule.detail} Ton plan reste aligné avec ton objectif.`,
+      training: { ...BASE_PLAN.training, objective: rule.detail },
+      triggered_rules: [rule],
+    };
+
+    expect(athleteSafeReasoning(plan)).toBe("Aucune séance planifiée. Ton plan reste aligné avec ton objectif.");
+    expect(athleteSafeTrainingObjective(plan)).toBe("Aucune séance planifiée.");
+  });
+
+  it("absent objective stays absent; a normal objective stays unchanged", () => {
+    const rule = fallbackRule("UNSPECIFIED");
+    expect(athleteSafeTrainingObjective({ ...BASE_PLAN, training: { ...BASE_PLAN.training, objective: undefined }, triggered_rules: [rule] })).toBeUndefined();
+    expect(athleteSafeTrainingObjective({ ...BASE_PLAN, training: { ...BASE_PLAN.training, objective: "Séance de force planifiée" }, triggered_rules: [rule] })).toBe(
+      "Séance de force planifiée"
+    );
+  });
+});
+
+// REV-016b — race explanations: exact engine sentences rebuilt with validated labels; anything else kept verbatim.
+describe("race explanations (REV-016b)", () => {
+  const rule = (rule_id: string, detail: string, layer: TriggeredRule["layer"] = "B"): TriggeredRule => ({ layer, rule_id, detail, signals_used: [] });
+
+  it("old production shapes are rewritten (T-X race protocol, post-event, committed activity)", () => {
+    expect(athleteSafeRuleDetail(rule("RACE_PROTOCOL_TX", "T-3 avant iXS Cup Lenzerheide (IXS_3DAY, priorité A_PLUS) — protocole T-X par défaut."))).toBe(
+      "J-3 avant iXS Cup Lenzerheide (iXS, 3 jours, priorité A+) — protocole de préparation standard."
+    );
+    expect(athleteSafeRuleDetail(rule("RACE_PROTOCOL_TX", "T-1 avant Hot Trail Leysin (HOT_TRAIL_2DAY, priorité A) — protocole T-X par défaut."))).toBe(
+      "J-1 avant Hot Trail Leysin (Hot Trail, 2 jours, priorité A) — protocole de préparation standard."
+    );
+    expect(athleteSafeRuleDetail(rule("POST_EVENT", "T+2 après la fin de iXS Cup Lenzerheide — récupération active post-course."))).toBe(
+      "J+2 après la fin de iXS Cup Lenzerheide — récupération active post-course."
+    );
+    expect(
+      athleteSafeRuleDetail(
+        rule(
+          "COMMITTED_FAMILY_NO_ADAPTATION",
+          "Activité engagée (BIKE_MAINTENANCE) — aucune adaptation de même famille disponible pour cette activité, recommandation T-X (RECOVERY_ACTIVE) utilisée.",
+          "ARBITRATION"
+        )
+      )
+    ).toBe("Activité engagée (Entretien vélo) — aucune adaptation de même famille disponible pour cette activité, recommandation de préparation course (Récupération active) utilisée.");
+  });
+
+  it("committed activity preserved and every in-progress phase are rewritten", () => {
+    expect(
+      athleteSafeRuleDetail(
+        rule(
+          "COMMITTED_FAMILY_PRESERVED",
+          "Activité engagée (DH_TECHNICAL) — famille d'activité préservée, adaptation appliquée au lieu de la recommandation T-X (RECOVERY_ACTIVE).",
+          "ARBITRATION"
+        )
+      )
+    ).toBe("Activité engagée (DH technique) — famille d'activité préservée, adaptation appliquée au lieu de la recommandation de préparation course (Récupération active).");
+    const phases: Array<[string, string]> = [
+      ["TRACKWALK", "reconnaissance"],
+      ["PRACTICE", "entraînements"],
+      ["PRACTICE_TIMED", "entraînements chronométrés"],
+      ["QUALI", "qualifications"],
+      ["FINAL", "finale"],
+      ["RACE_DAY_GENERIC", "jour de course"],
+    ];
+    for (const [phase, label] of phases) {
+      expect(athleteSafeRuleDetail(rule("RACE_DAY_ACTIVE", `Événement en cours (event_day=1, phase=${phase}) — activité de course.`))).toBe(
+        `Course en cours (jour 1, ${label}) — activité de course.`
+      );
+    }
+  });
+
+  it("a race name containing parentheses or dashes is kept verbatim", () => {
+    expect(athleteSafeRuleDetail(rule("RACE_PROTOCOL_TX", "T-2 avant Coupe (Valais) — manche 3 (IXS_3DAY, priorité B) — protocole T-X par défaut."))).toBe(
+      "J-2 avant Coupe (Valais) — manche 3 (iXS, 3 jours, priorité B) — protocole de préparation standard."
+    );
+  });
+
+  it("unknown values or wording keep the original sentence (never a partial rewrite)", () => {
+    for (const detail of [
+      "T-3 avant Course X (OTHER, priorité A) — protocole T-X par défaut.",
+      "T-3 avant Course X (IXS_3DAY, priorité Z) — protocole T-X par défaut.",
+      "T-3 avant Course X (IXS_3DAY, priorité A) — nouvelle formulation.",
+    ]) {
+      expect(athleteSafeRuleDetail(rule("RACE_PROTOCOL_TX", detail))).toBe(detail);
+    }
+    const unknownPhase = "Événement en cours (event_day=1, phase=PRE_EVENT) — activité de course.";
+    expect(athleteSafeRuleDetail(rule("RACE_DAY_ACTIVE", unknownPhase))).toBe(unknownPhase);
+    const unknownKind = "Activité engagée (FUTURE_KIND) — aucune adaptation de même famille disponible pour cette activité, recommandation T-X (REST) utilisée.";
+    expect(athleteSafeRuleDetail(rule("COMMITTED_FAMILY_NO_ADAPTATION", unknownKind, "ARBITRATION"))).toBe(unknownKind);
+  });
+
+  it("reasoning and mission objective carry the rewritten race sentence", () => {
+    const race = rule("RACE_PROTOCOL_TX", "T-3 avant iXS Cup (IXS_3DAY, priorité A_PLUS) — protocole T-X par défaut.");
+    const plan: DailyPlan = { ...BASE_PLAN, reasoning: `${race.detail} Ton plan reste aligné.`, training: { ...BASE_PLAN.training, objective: race.detail }, triggered_rules: [race] };
+
+    expect(athleteSafeReasoning(plan)).toBe("J-3 avant iXS Cup (iXS, 3 jours, priorité A+) — protocole de préparation standard. Ton plan reste aligné.");
+    expect(athleteSafeTrainingObjective(plan)).toBe("J-3 avant iXS Cup (iXS, 3 jours, priorité A+) — protocole de préparation standard.");
+  });
+});
+
+describe("athleteSafeOverrideReason (REV-016b)", () => {
+  const committed: TriggeredRule = {
+    layer: "ARBITRATION",
+    rule_id: "COMMITTED_FAMILY_NO_ADAPTATION",
+    detail: "Activité engagée (BIKE_MAINTENANCE) — aucune adaptation de même famille disponible pour cette activité, recommandation T-X (RECOVERY_ACTIVE) utilisée.",
+    signals_used: [],
+  };
+
+  it("absent → absent", () => {
+    expect(athleteSafeOverrideReason({ ...BASE_PLAN, override_reason: undefined })).toBeUndefined();
+  });
+
+  it("engine fallback sentence → French, raw kinds and 'T-X' removed", () => {
+    expect(
+      athleteSafeOverrideReason({
+        ...BASE_PLAN,
+        override_reason: "Séance finale (STRENGTH_LOWER) différente de la recommandation T-X (RECOVERY_ACTIVE), sans cause de domaine tracée.",
+      })
+    ).toBe("Séance finale (Renfo bas du corps) différente de la séance de préparation course (Récupération active).");
+  });
+
+  it("joined rule details are rewritten like the reasoning; the production French reason is kept as-is", () => {
+    const sleep = "Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée";
+    expect(athleteSafeOverrideReason({ ...BASE_PLAN, override_reason: `${sleep} ${committed.detail}`, triggered_rules: [committed] })).toBe(
+      `${sleep} Activité engagée (Entretien vélo) — aucune adaptation de même famille disponible pour cette activité, recommandation de préparation course (Récupération active) utilisée.`
+    );
+    expect(athleteSafeOverrideReason({ ...BASE_PLAN, override_reason: sleep, triggered_rules: [] })).toBe(sleep);
   });
 });

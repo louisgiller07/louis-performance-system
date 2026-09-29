@@ -9,6 +9,7 @@ import {
   PRIOR_TECHNICAL_OUTCOME_COPY,
 } from "./dailyPlanLabels";
 import {
+  athleteSafeOverrideReason,
   athleteSafeRuleDetail,
   athleteSafeMonitoring,
   athleteSafeProtection,
@@ -425,7 +426,8 @@ export function DailyPlanView({
       {dailyPlan.overrode_race_protocol && (
         <PlanSection title="Protocole de course">
           <p className="text-ink">Le protocole standard a été modifié pour aujourd'hui.</p>
-          {dailyPlan.override_reason && <p className="text-ink/70">{dailyPlan.override_reason}</p>}
+          {/* REV-016b — never the raw engine override_reason (raw session kinds, "T-X"). */}
+          {athleteSafeOverrideReason(dailyPlan) && <p className="text-ink/70">{athleteSafeOverrideReason(dailyPlan)}</p>}
         </PlanSection>
       )}
 
