@@ -1,5 +1,12 @@
 import { PlanSection } from "../../components/PlanSection";
 import type { ExecutableIntensity, ExecutablePrescription, ExecutableRepScheme } from "./dailyPlanTypes";
+import { formatRepetitionRange, formatRepetitions, translateSkill, translateTerrain } from "../trainingLabels/trainingLabels";
+
+/** REV-015.2 — "Freinage · Sentier aménagé"; an unknown skill/terrain is left out, never shown raw. `null` when neither is known. */
+function formatDrillContext(skillTarget: string, terrainRequirement: string): string | null {
+  const parts = [translateSkill(skillTarget), translateTerrain(terrainRequirement)].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
 
 const ROLE_LABELS: Record<string, string> = {
   warm_up: "Échauffement",
@@ -27,9 +34,9 @@ function humanizeId(value: string): string {
 function formatRepScheme(repScheme: ExecutableRepScheme): string {
   switch (repScheme.type) {
     case "fixed":
-      return `${repScheme.reps} reps`;
+      return formatRepetitions(repScheme.reps);
     case "range":
-      return `${repScheme.min}-${repScheme.max} reps`;
+      return formatRepetitionRange(repScheme.min, repScheme.max);
     case "time":
       return `${repScheme.seconds} s`;
     case "amrap":
@@ -92,9 +99,9 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
           {structure.drills.map((drill, index) => (
             <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
               <p className="font-medium text-ink">{humanizeId(drill.drillId)}</p>
-              <p className="text-xs uppercase tracking-wide text-muted">
-                {humanizeId(drill.skillTarget)} · {humanizeId(drill.terrainRequirement)}
-              </p>
+              {formatDrillContext(drill.skillTarget, drill.terrainRequirement) && (
+                <p className="text-xs uppercase tracking-wide text-muted">{formatDrillContext(drill.skillTarget, drill.terrainRequirement)}</p>
+              )}
               <p className="text-ink/80">{drill.runs} passages</p>
               <p className="text-sm text-ink/70">{drill.executionCue}</p>
               <p className="text-sm text-muted">Réussite : {drill.successCriterion}</p>

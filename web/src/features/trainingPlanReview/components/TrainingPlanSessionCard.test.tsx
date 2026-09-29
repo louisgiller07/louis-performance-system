@@ -22,7 +22,7 @@ describe("TrainingPlanSessionCard", () => {
   it("displays the session's kind, duration, and rationale", () => {
     render(<TrainingPlanSessionCard session={session()} />);
 
-    expect(screen.getByText("Strength Lower")).toBeInTheDocument();
+    expect(screen.getByText("Renfo bas du corps")).toBeInTheDocument();
     expect(screen.getByText("60 min")).toBeInTheDocument();
     expect(screen.getByText("Semaine standard de développement.")).toBeInTheDocument();
   });
@@ -32,8 +32,8 @@ describe("TrainingPlanSessionCard", () => {
 
     expect(screen.queryByText(/séries/)).not.toBeInTheDocument();
     expect(screen.queryByText(/passages/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/reps|RPE|Repos/)).not.toBeInTheDocument();
-    expect(screen.getByText("Aerobic Base")).toBeInTheDocument();
+    expect(screen.queryByText(/répétitions?|RPE|Repos/)).not.toBeInTheDocument();
+    expect(screen.getByText("Aérobie base")).toBeInTheDocument();
     expect(screen.getByText("60 min")).toBeInTheDocument();
   });
 
@@ -77,14 +77,14 @@ describe("TrainingPlanSessionCard", () => {
     render(<TrainingPlanSessionCard session={strengthSession(COMPLETE_BLOCK)} />);
 
     expect(screen.getByText("Barbell Back Squat")).toBeInTheDocument();
-    expect(screen.getByText("3 × 8 reps — RPE 7")).toBeInTheDocument();
+    expect(screen.getByText("3 × 8 répétitions — RPE 7")).toBeInTheDocument();
     expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
   });
 
   it("formats a range rep scheme like Today", () => {
     render(<TrainingPlanSessionCard session={strengthSession({ ...COMPLETE_BLOCK, sets: 12, repScheme: { type: "range", min: 8, max: 12 } })} />);
 
-    expect(screen.getByText("12 × 8-12 reps — RPE 7")).toBeInTheDocument();
+    expect(screen.getByText("12 × 8-12 répétitions — RPE 7")).toBeInTheDocument();
   });
 
   it("renders without crashing and without reps when repScheme is absent", () => {
@@ -92,7 +92,7 @@ describe("TrainingPlanSessionCard", () => {
     render(<TrainingPlanSessionCard session={strengthSession(block)} />);
 
     expect(screen.getByText("3 séries — RPE 7")).toBeInTheDocument();
-    expect(screen.queryByText(/reps/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/répétitions?/)).not.toBeInTheDocument();
     expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
   });
 
@@ -100,7 +100,7 @@ describe("TrainingPlanSessionCard", () => {
     const { intensity: _omitted, ...block } = COMPLETE_BLOCK;
     render(<TrainingPlanSessionCard session={strengthSession(block)} />);
 
-    expect(screen.getByText("3 × 8 reps")).toBeInTheDocument();
+    expect(screen.getByText("3 × 8 répétitions")).toBeInTheDocument();
     expect(screen.queryByText(/RPE/)).not.toBeInTheDocument();
     expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
   });
@@ -109,7 +109,7 @@ describe("TrainingPlanSessionCard", () => {
     const { restSeconds: _omitted, ...block } = COMPLETE_BLOCK;
     render(<TrainingPlanSessionCard session={strengthSession(block)} />);
 
-    expect(screen.getByText("3 × 8 reps — RPE 7")).toBeInTheDocument();
+    expect(screen.getByText("3 × 8 répétitions — RPE 7")).toBeInTheDocument();
     expect(screen.queryByText(/Repos/)).not.toBeInTheDocument();
   });
 
@@ -127,7 +127,7 @@ describe("TrainingPlanSessionCard", () => {
     );
 
     expect(screen.getByText("Barbell Back Squat")).toBeInTheDocument();
-    expect(screen.queryByText(/séries|reps|RPE|Repos|undefined|NaN/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/séries|répétitions?|RPE|Repos|undefined|NaN/)).not.toBeInTheDocument();
   });
 
   it("does not crash on a non-object block", () => {
@@ -190,7 +190,7 @@ describe("TrainingPlanSessionCard — explanation (REV-013)", () => {
       )
     ).toBeInTheDocument();
     expect(screen.queryByText(/Adjusted|Reduced|heavy|pattern/)).not.toBeInTheDocument();
-    expect(screen.getByText("Strength Lower")).toBeInTheDocument();
+    expect(screen.getByText("Renfo bas du corps")).toBeInTheDocument();
     expect(screen.getByText("60 min")).toBeInTheDocument();
   });
 
@@ -212,5 +212,59 @@ describe("TrainingPlanSessionCard — explanation (REV-013)", () => {
     const { container } = render(<TrainingPlanSessionCard session={session({ rationale: "" })} />);
 
     expect(container.querySelectorAll("p")).toHaveLength(2); // duration + domain only
+  });
+});
+
+// REV-015.2 — session kind badge and domain line are French; unknown identifiers are never shown raw.
+describe("TrainingPlanSessionCard — training vocabulary (REV-015.2)", () => {
+  it.each([
+    ["STRENGTH_LOWER", "Renfo bas du corps"],
+    ["STRENGTH_UPPER", "Renfo haut du corps"],
+    ["DH_TECHNICAL", "DH technique"],
+    ["AEROBIC_BASE", "Aérobie base"],
+  ])("kind %s → badge %s", (kind, label) => {
+    render(<TrainingPlanSessionCard session={session({ kind })} />);
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`^${kind}$`, "i"))).not.toBeInTheDocument();
+  });
+
+  it("an unknown kind shows the neutral 'Séance d'entraînement', never the identifier", () => {
+    render(<TrainingPlanSessionCard session={session({ kind: "FUTURE_KIND" })} />);
+
+    expect(screen.getByText("Séance d'entraînement")).toBeInTheDocument();
+    expect(screen.queryByText(/FUTURE_KIND|Future Kind/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [{ domain: "strength", setVolume: 12, targetRpeOrRir: 7 }, "Force"],
+    [{ domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 }, "DH"],
+    [{ domain: "aerobic", intensityZone: "moderate" }, "Aérobie"],
+  ])("domain line is French (%j)", (doseTarget, label) => {
+    render(<TrainingPlanSessionCard session={session({ doseTarget })} />);
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText(/^(Strength|Dh Technical|Aerobic)$/)).not.toBeInTheDocument();
+  });
+
+  it("an unknown domain hides the line", () => {
+    const { container } = render(<TrainingPlanSessionCard session={session({ doseTarget: { domain: "future_domain" } })} />);
+
+    expect(container.textContent).not.toMatch(/future_domain|Future Domain/);
+  });
+
+  it("a drill without an id falls back to 'Exercice technique', never 'Drill'", () => {
+    render(
+      <TrainingPlanSessionCard
+        session={session({
+          kind: "DH_TECHNICAL",
+          doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 },
+          prescription: { id: "p-3", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ runs: 4 }] } },
+        })}
+      />
+    );
+
+    expect(screen.getByText("Exercice technique")).toBeInTheDocument();
+    expect(screen.queryByText(/^Drill$/)).not.toBeInTheDocument();
   });
 });

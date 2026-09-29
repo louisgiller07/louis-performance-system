@@ -144,6 +144,19 @@ describe("HistoryDetail", () => {
     expect(stored).toEqual(before);
   });
 
+  it("REV-015.2: an old stored strength decision shows its session type in French, never the identifier", () => {
+    const stored = buildDailyPlan(baseRawContext({ planned_session: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" } }));
+
+    const { container } = render(<HistoryDetail row={makeRow({ dailyPlan: stored as unknown as DecisionHistoryRow["dailyPlan"] })} performedMatch={{ kind: "none" }} />);
+
+    expect(screen.getAllByText(/Renfo bas du corps/).length).toBeGreaterThan(0);
+    const visible = container.cloneNode(true) as HTMLElement;
+    visible.querySelectorAll("details").forEach((d) => {
+      if (d.querySelector("summary")?.textContent === "Détails techniques") d.remove();
+    });
+    expect(visible.textContent).not.toMatch(/STRENGTH_LOWER|Strength Lower|\breps\b/);
+  });
+
   it("shows no health banner when the stored DailyPlan carries no health_flag_to_create", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
     expect(screen.queryByText("Attention santé")).not.toBeInTheDocument();

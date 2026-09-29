@@ -56,7 +56,7 @@ describe("ExecutablePrescriptionCard — strength domain", () => {
     expect(screen.getByText("Exercices")).toBeInTheDocument();
     expect(screen.getByText("Travail")).toBeInTheDocument();
     expect(screen.getByText("Back Squat")).toBeInTheDocument();
-    expect(screen.getByText("4 × 5 reps — 80% 1RM")).toBeInTheDocument();
+    expect(screen.getByText("4 × 5 répétitions — 80% 1RM")).toBeInTheDocument();
     expect(screen.getByText("Repos : 180 s")).toBeInTheDocument();
     expect(screen.getByText("Tempo : 31X1")).toBeInTheDocument();
     expect(screen.getByText("Unilatéral")).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("ExecutablePrescriptionCard — strength domain", () => {
 
     expect(screen.getByText("Accessoire")).toBeInTheDocument();
     expect(screen.getByText("Lat Pulldown")).toBeInTheDocument();
-    expect(screen.getByText("3 × 8-12 reps — RPE 8")).toBeInTheDocument();
+    expect(screen.getByText("3 × 8-12 répétitions — RPE 8")).toBeInTheDocument();
     expect(screen.queryByText(/Tempo :/)).not.toBeInTheDocument();
     expect(screen.queryByText("Unilatéral")).not.toBeInTheDocument();
   });
@@ -96,7 +96,7 @@ describe("ExecutablePrescriptionCard — dh_technical domain", () => {
 
     expect(screen.getByText("Exercices")).toBeInTheDocument();
     expect(screen.getByText("Berm Carry Speed")).toBeInTheDocument();
-    expect(screen.getByText("Cornering · Flow Trail")).toBeInTheDocument();
+    expect(screen.getByText("Virages · Flow trail")).toBeInTheDocument();
     expect(screen.getByText("6 passages")).toBeInTheDocument();
     expect(screen.getByText("Reste bas dans le virage.")).toBeInTheDocument();
     expect(screen.getByText("Réussite : Vitesse constante sur les 3 derniers virages.")).toBeInTheDocument();
@@ -127,5 +127,54 @@ describe("ExecutablePrescriptionCard — dh_technical domain", () => {
     expect(screen.getByText("Root Section Control")).toBeInTheDocument();
     expect(screen.queryByText(/Progression :/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Régression :/)).not.toBeInTheDocument();
+  });
+});
+
+// REV-015.2 — training vocabulary: repetitions, skill and terrain are French; unknown identifiers are never shown raw.
+describe("ExecutablePrescriptionCard — training vocabulary (REV-015.2)", () => {
+  function dhWith(skillTarget: string, terrainRequirement: string): ExecutablePrescription {
+    return {
+      ...DH_PRESCRIPTION,
+      structure: {
+        domain: "dh_technical",
+        schemaVersion: "v1",
+        drills: [{ drillId: "root_section_control", skillTarget, terrainRequirement, runs: 4, executionCue: "Regarde loin devant.", successCriterion: "Aucune perte de contrôle." }],
+      },
+    };
+  }
+
+  it("skill and terrain use their French labels", () => {
+    render(<ExecutablePrescriptionCard prescription={dhWith("braking", "rock_garden")} />);
+
+    expect(screen.getByText("Freinage · Pierrier / rock garden")).toBeInTheDocument();
+    expect(screen.queryByText(/Braking|Rock Garden|rock_garden/)).not.toBeInTheDocument();
+  });
+
+  it("an unknown skill is left out, the known terrain stays", () => {
+    render(<ExecutablePrescriptionCard prescription={dhWith("future_skill", "flow_trail")} />);
+
+    expect(screen.getByText("Flow trail")).toBeInTheDocument();
+    expect(screen.queryByText(/future_skill|Future Skill/)).not.toBeInTheDocument();
+  });
+
+  it("unknown skill and terrain: no context line at all, never a raw identifier", () => {
+    const { container } = render(<ExecutablePrescriptionCard prescription={dhWith("future_skill", "future_terrain")} />);
+
+    expect(container.textContent).not.toMatch(/future_skill|future_terrain|Future Skill|Future Terrain|·/);
+  });
+
+  it("a single repetition is singular; 'reps' never appears", () => {
+    const one: ExecutablePrescription = {
+      ...STRENGTH_PRESCRIPTION,
+      structure: {
+        domain: "strength",
+        schemaVersion: "v1",
+        blocks: [{ role: "work", exerciseId: "back_squat", sets: 3, repScheme: { type: "fixed", reps: 1 }, intensity: { type: "rpe", target: 9 }, restSeconds: 180 }],
+      },
+    };
+    const { container } = render(<ExecutablePrescriptionCard prescription={one} />);
+
+    expect(screen.getByText("3 × 1 répétition — RPE 9")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\breps\b/);
   });
 });

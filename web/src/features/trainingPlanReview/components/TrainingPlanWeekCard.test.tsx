@@ -49,7 +49,7 @@ describe("TrainingPlanWeekCard", () => {
     render(<TrainingPlanWeekCard week={WEEK} />);
 
     expect(screen.getByText(/Semaine 1/)).toBeInTheDocument();
-    expect(screen.getByText("Development")).toBeInTheDocument();
+    expect(screen.getByText("Développement")).toBeInTheDocument();
     expect(screen.getByText("Semaine standard de développement.")).toBeInTheDocument();
     expect(screen.getByText(/2 force/)).toBeInTheDocument();
     expect(screen.getByText("240 min au total")).toBeInTheDocument();
@@ -58,8 +58,8 @@ describe("TrainingPlanWeekCard", () => {
   it("renders every one of the week's sessions", () => {
     render(<TrainingPlanWeekCard week={WEEK} />);
 
-    expect(screen.getByText("Strength Lower")).toBeInTheDocument();
-    expect(screen.getByText("Aerobic Base")).toBeInTheDocument();
+    expect(screen.getByText("Renfo bas du corps")).toBeInTheDocument();
+    expect(screen.getByText("Aérobie base")).toBeInTheDocument();
   });
 });
 
@@ -94,8 +94,31 @@ describe("TrainingPlanWeekCard — explanation (REV-013)", () => {
     render(<TrainingPlanWeekCard week={WEEK} />);
 
     expect(screen.getAllByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toHaveLength(2);
-    expect(screen.getByText("Development")).toBeInTheDocument();
+    expect(screen.getByText("Développement")).toBeInTheDocument();
     expect(screen.getByText(/2 force · 1 DH · 1 aérobie · 3 repos/)).toBeInTheDocument();
     expect(screen.getByText("240 min au total")).toBeInTheDocument();
+  });
+});
+
+// REV-015.2 — week type badge is French; an unknown type hides the badge.
+describe("TrainingPlanWeekCard — week type (REV-015.2)", () => {
+  it.each([
+    ["development", "Développement"],
+    ["taper", "Affûtage"],
+    ["race", "Course"],
+    ["deload", "Allègement"],
+    ["recovery", "Récupération"],
+  ])("%s → %s", (weekType, label) => {
+    render(<TrainingPlanWeekCard week={{ ...WEEK, weekType }} />);
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`^${weekType}$`, "i"))).not.toBeInTheDocument();
+  });
+
+  it("an unknown week type shows no badge, never the identifier", () => {
+    const { container } = render(<TrainingPlanWeekCard week={{ ...WEEK, weekType: "future_week" }} />);
+
+    expect(container.textContent).not.toMatch(/future_week|Future Week/);
+    expect(screen.getByText(/Semaine 1/)).toBeInTheDocument();
   });
 });
