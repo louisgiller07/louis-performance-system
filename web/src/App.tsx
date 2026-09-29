@@ -15,6 +15,7 @@ import { PerformanceSetup } from "./features/performanceSetup/PerformanceSetup";
 import { TrainingPlanPreviewPage } from "./pages/TrainingPlanPreviewPage";
 import { TrainingPlanEntryPage } from "./pages/TrainingPlanEntryPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 export default function App() {
   return (
@@ -55,6 +56,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <HistoryDetailPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth>
+                <ProfilePage />
               </RequireAuth>
             }
           />

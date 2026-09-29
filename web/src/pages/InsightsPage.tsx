@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { PageShell } from "../components/PageShell";
+import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
 import { SectionHeader } from "../components/SectionHeader";
 import { SecondaryButton } from "../components/SecondaryButton";
@@ -119,6 +120,7 @@ export function InsightsPage() {
 
   return (
     <PageShell header={<AppHeader />}>
+      <SubPageLink to="/history" label="Historique" back />
       <SectionHeader title="Insights" />
 
       {pageNotices.map((notice) => (

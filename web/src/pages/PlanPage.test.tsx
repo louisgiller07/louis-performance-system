@@ -47,7 +47,7 @@ function horizonDates(): string[] {
 
 function renderPage() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={["/plan"]}>
       <PlanPage />
     </MemoryRouter>
   );
@@ -58,7 +58,9 @@ describe("PlanPage — A", () => {
     loadPlannedSessions.mockResolvedValue([]);
     renderPage();
     expect(screen.getByRole("heading", { name: "Planning" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Semaine" })).toBeInTheDocument();
+    // UX-02 — /plan lives under the Programme tab (former "Semaine" tab), with a way back to Programme.
+    expect(screen.getByRole("link", { name: "Programme" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Retour à Programme" })).toHaveAttribute("href", "/training-plan");
     await waitFor(() => expect(loadPlannedSessions).toHaveBeenCalled());
   });
 });

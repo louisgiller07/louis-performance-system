@@ -187,12 +187,11 @@ describe("TodayPage", () => {
     expect(await screen.findByTestId("daily-plan-panel-stub")).toHaveTextContent("checkinRevision=2");
   });
 
-  it("logout button calls signOut", () => {
+  it("UX-02: no Déconnexion in the header anymore (moved to the Profil tab)", () => {
     renderTodayPage();
 
-    screen.getByText("Déconnexion").click();
-
-    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Déconnexion")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Profil" })).toHaveAttribute("href", "/profile");
   });
 
   it("renders CompletedSessionCard wired with the canonical date and athleteId — no live decision context is threaded through anymore (V0.3_007B)", () => {
@@ -277,11 +276,12 @@ describe("TodayPage", () => {
       expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
     });
 
-    it("the header always links to the Configuration page and the footer to the privacy notice", () => {
+    it("UX-02: Configuration and Confidentialité are reached from the Profil tab, not the header/footer", () => {
       renderTodayPage();
 
-      expect(screen.getByRole("link", { name: "Configuration" })).toHaveAttribute("href", "/performance-setup");
-      expect(screen.getByRole("link", { name: "Confidentialité" })).toHaveAttribute("href", "/privacy");
+      expect(screen.queryByRole("link", { name: "Configuration" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Confidentialité" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Profil" })).toHaveAttribute("href", "/profile");
     });
   });
 });

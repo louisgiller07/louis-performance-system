@@ -107,8 +107,9 @@ describe("HistoryDetailPage", () => {
   it("links back to /history", async () => {
     mockedLoad.mockResolvedValue(VALID_ROW);
     renderDetailPage();
-    await waitFor(() => expect(screen.getByText(/Historique/)).toBeInTheDocument());
-    expect(screen.getByText(/Historique/).closest("a")).toHaveAttribute("href", "/history");
+    // UX-02 — the back link, distinct from the bottom tab bar's own "Historique" tab.
+    await waitFor(() => expect(screen.getByRole("link", { name: "← Historique" })).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "← Historique" })).toHaveAttribute("href", "/history");
   });
 
   // V0.3_007D — Réalisé wiring: exact-date query, exact-FK classification.
