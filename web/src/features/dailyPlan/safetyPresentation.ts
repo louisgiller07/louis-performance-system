@@ -83,8 +83,24 @@ function sanitizePainNonSafetyDetail(detail: string): string {
     : `Douleur signalée — ${zoneLabel} — surveillance renforcée, séance non concernée par cette zone.`;
 }
 
+/**
+ * REV-016 — INFERENCE_FALLBACK's `detail` (engine/buildDailyPlan.ts, frozen
+ * M1) ends with the raw TrainingMode enum, e.g. "Aucune séance planifiée —
+ * inférence depuis le contexte (mode=UNSPECIFIED)". It is emitted on every
+ * day without a planned session and reaches `reasoning`, `training.objective`
+ * and the "Pourquoi" panel. Only that exact engine sentence (any mode value)
+ * is rewritten; any other wording is left untouched rather than guessed.
+ */
+const INFERENCE_FALLBACK_RAW_DETAIL = /^Aucune séance planifiée — inférence depuis le contexte \(mode=[A-Z_]+\)$/;
+const INFERENCE_FALLBACK_ATHLETE_SAFE_DETAIL = "Aucune séance planifiée.";
+
+function sanitizeInferenceFallbackDetail(detail: string): string | undefined {
+  return INFERENCE_FALLBACK_RAW_DETAIL.test(detail) ? INFERENCE_FALLBACK_ATHLETE_SAFE_DETAIL : undefined;
+}
+
 function resolveOverrideFor(rule: TriggeredRule): string | undefined {
   if (rule.rule_id === "PAIN_NON_SAFETY") return sanitizePainNonSafetyDetail(rule.detail);
+  if (rule.rule_id === "INFERENCE_FALLBACK") return sanitizeInferenceFallbackDetail(rule.detail);
   const override = FIXED_RULE_OVERRIDES[rule.rule_id];
   return override && rule.detail === override.rawDetail ? override.safeDetail : undefined;
 }

@@ -157,6 +157,19 @@ describe("HistoryDetail", () => {
     expect(visible.textContent).not.toMatch(/STRENGTH_LOWER|Strength Lower|\breps\b/);
   });
 
+  it("REV-016: an old stored no-planned-session decision never shows '(mode=…)'", () => {
+    const stored = buildDailyPlan(baseRawContext({ planned_session: null, active_mode: "UNSPECIFIED" } as Parameters<typeof baseRawContext>[0]));
+
+    const { container } = render(<HistoryDetail row={makeRow({ dailyPlan: stored as unknown as DecisionHistoryRow["dailyPlan"] })} performedMatch={{ kind: "none" }} />);
+
+    const visible = container.cloneNode(true) as HTMLElement;
+    visible.querySelectorAll("details").forEach((d) => {
+      if (d.querySelector("summary")?.textContent === "Détails techniques") d.remove();
+    });
+    expect(visible.textContent).toContain("Aucune séance planifiée.");
+    expect(visible.textContent).not.toMatch(/mode=|UNSPECIFIED|inférence depuis le contexte/);
+  });
+
   it("shows no health banner when the stored DailyPlan carries no health_flag_to_create", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
     expect(screen.queryByText("Attention santé")).not.toBeInTheDocument();

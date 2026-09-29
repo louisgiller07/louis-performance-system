@@ -166,3 +166,48 @@ describe("hasActiveSafetyRule", () => {
     expect(hasActiveSafetyRule(BASE_PLAN)).toBe(false);
   });
 });
+
+// REV-016 — INFERENCE_FALLBACK's raw TrainingMode enum "(mode=…)" never reaches the athlete.
+describe("INFERENCE_FALLBACK sanitization (REV-016)", () => {
+  const fallbackRule = (mode: string): TriggeredRule => ({
+    layer: "C",
+    rule_id: "INFERENCE_FALLBACK",
+    detail: `Aucune séance planifiée — inférence depuis le contexte (mode=${mode})`,
+    signals_used: [],
+  });
+
+  it.each(["UNSPECIFIED", "IN_SEASON", "RACE_CLUSTER", "OFF_SEASON_DEVELOPMENT"])("mode=%s → 'Aucune séance planifiée.'", (mode) => {
+    expect(athleteSafeRuleDetail(fallbackRule(mode))).toBe("Aucune séance planifiée.");
+  });
+
+  it("an unexpected wording of the same rule is left untouched (never guessed)", () => {
+    const rule = { ...fallbackRule("UNSPECIFIED"), detail: "Aucune séance planifiée — autre formulation future" };
+    expect(athleteSafeRuleDetail(rule)).toBe("Aucune séance planifiée — autre formulation future");
+  });
+
+  it("the same text under another rule_id is not rewritten", () => {
+    const rule = { ...fallbackRule("UNSPECIFIED"), rule_id: "SOMETHING_ELSE" };
+    expect(athleteSafeRuleDetail(rule)).toBe(rule.detail);
+  });
+
+  it("reasoning and objective are cleaned, the rest of the reasoning is unchanged", () => {
+    const rule = fallbackRule("UNSPECIFIED");
+    const plan: DailyPlan = {
+      ...BASE_PLAN,
+      reasoning: `${rule.detail} Ton plan reste aligné avec ton objectif.`,
+      training: { ...BASE_PLAN.training, objective: rule.detail },
+      triggered_rules: [rule],
+    };
+
+    expect(athleteSafeReasoning(plan)).toBe("Aucune séance planifiée. Ton plan reste aligné avec ton objectif.");
+    expect(athleteSafeTrainingObjective(plan)).toBe("Aucune séance planifiée.");
+  });
+
+  it("absent objective stays absent; a normal objective stays unchanged", () => {
+    const rule = fallbackRule("UNSPECIFIED");
+    expect(athleteSafeTrainingObjective({ ...BASE_PLAN, training: { ...BASE_PLAN.training, objective: undefined }, triggered_rules: [rule] })).toBeUndefined();
+    expect(athleteSafeTrainingObjective({ ...BASE_PLAN, training: { ...BASE_PLAN.training, objective: "Séance de force planifiée" }, triggered_rules: [rule] })).toBe(
+      "Séance de force planifiée"
+    );
+  });
+});
