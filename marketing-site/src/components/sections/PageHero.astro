@@ -1,8 +1,11 @@
 ---
-// Inner-page hero (/comment-ca-marche, /coaching): the homepage's typographic
-// language without a photo — condensed headline revealed line by line (last
-// line in gold), deep pine light, grain and the same sparse dust layer
-// (scripts/motion.ts). One primary CTA, a scroll cue to the first chapter.
+// Inner-page hero: the homepage's typographic language — condensed headline
+// revealed line by line (last line in gold), deep pine light, grain and the
+// same sparse dust layer (scripts/motion.ts). Optional graded full-bleed
+// photo (/a-propos), optional primary CTA, compact height (/contact), and a
+// scroll cue to the page's first chapter.
+import type { ImageMetadata } from "astro";
+import { Picture } from "astro:assets";
 import Button from "../ui/Button.astro";
 import type { PageHeroCopy } from "../../content/pages.ts";
 import { home } from "../../content/home.ts";
@@ -10,14 +13,44 @@ import { home } from "../../content/home.ts";
 interface Props {
   hero: PageHeroCopy;
   /** Anchor of the page's first chapter, for the scroll cue. */
-  next: string;
+  next?: string;
+  image?: { src: ImageMetadata; alt: string };
+  /** Show the "Commencer gratuitement" button (default true). */
+  cta?: boolean;
+  compact?: boolean;
 }
 
-const { hero, next } = Astro.props;
+const { hero, next, image, cta = true, compact = false } = Astro.props;
 const last = hero.titleLines.length - 1;
 ---
 
-<section class="page-hero grain relative isolate flex min-h-[calc(78svh-4rem)] flex-col justify-end overflow-hidden">
+<section
+  class:list={[
+    "page-hero grain relative isolate flex flex-col justify-end overflow-hidden",
+    compact ? "min-h-[calc(52svh-4rem)]" : "min-h-[calc(78svh-4rem)]",
+    image && "has-image",
+  ]}
+>
+  {
+    image && (
+      <>
+        <div class="absolute inset-0 -z-20">
+          <Picture
+            src={image.src}
+            formats={["avif", "webp"]}
+            widths={[640, 960, 1280, 1920]}
+            width={1920}
+            sizes="100vw"
+            alt={image.alt}
+            loading="eager"
+            fetchpriority="high"
+            class="page-hero-img h-full w-full object-cover"
+          />
+        </div>
+        <div class="page-hero-shade pointer-events-none absolute inset-0 -z-10" aria-hidden="true" />
+      </>
+    )
+  }
   <canvas class="pointer-events-none absolute inset-0 -z-10 h-full w-full" data-dust aria-hidden="true"></canvas>
   <div class="mx-auto w-full max-w-7xl px-6 pb-14 pt-24 sm:px-8 sm:pb-20">
     <p class="hero-in font-mono text-[0.7rem] uppercase tracking-[0.28em] text-accent">
@@ -37,18 +70,30 @@ const last = hero.titleLines.length - 1;
     <div class="mt-8 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <p class="hero-in max-w-xl text-lg leading-relaxed text-text-muted sm:text-xl" style="--d: 450ms">{hero.intro}</p>
-        <div class="hero-in mt-8" style="--d: 560ms">
-          <Button href={home.hero.primary.href} size="lg" arrow>{home.hero.primary.label}</Button>
-        </div>
+        {
+          cta && (
+            <div class="hero-in mt-8" style="--d: 560ms">
+              <Button href={home.hero.primary.href} size="lg" arrow>
+                {home.hero.primary.label}
+              </Button>
+            </div>
+          )
+        }
       </div>
-      <a
-        href={next}
-        class="hero-in hidden flex-col items-center gap-3 font-mono text-[0.65rem] uppercase tracking-[0.3em] text-text-muted hover:text-text lg:flex"
-        style="--d: 700ms"
-      >
-        Défiler
-        <span class="relative block h-12 w-px overflow-hidden bg-border" aria-hidden="true"><span class="scroll-cue-dot"></span></span>
-      </a>
+      {
+        next && (
+          <a
+            href={next}
+            class="hero-in hidden flex-col items-center gap-3 font-mono text-[0.65rem] uppercase tracking-[0.3em] text-text-muted hover:text-text lg:flex"
+            style="--d: 700ms"
+          >
+            Défiler
+            <span class="relative block h-12 w-px overflow-hidden bg-border" aria-hidden="true">
+              <span class="scroll-cue-dot" />
+            </span>
+          </a>
+        )
+      }
     </div>
   </div>
 </section>
@@ -59,6 +104,20 @@ const last = hero.titleLines.length - 1;
       radial-gradient(ellipse 70% 60% at 85% 10%, rgb(22 38 30 / 0.75), transparent 70%),
       linear-gradient(to bottom, var(--color-pine), var(--color-bg));
   }
+  .page-hero.has-image {
+    background: var(--color-bg);
+  }
+  .page-hero :global(picture) {
+    display: block;
+    height: 100%;
+  }
+  .page-hero-img {
+    object-position: 62% 40%;
+    filter: grayscale(0.35) contrast(1.1) brightness(0.5);
+  }
+  .page-hero-shade {
+    background: linear-gradient(to top, var(--color-bg) 0%, rgb(8 9 9 / 0.55) 40%, rgb(11 19 15 / 0.3) 75%, rgb(8 9 9 / 0.6) 100%);
+  }
   .scroll-cue-dot {
     position: absolute;
     left: 0;
@@ -68,8 +127,16 @@ const last = hero.titleLines.length - 1;
     background: var(--color-accent);
   }
   @media (prefers-reduced-motion: no-preference) {
+    .page-hero-img {
+      animation: hero-settle 2.4s var(--ease-premium) both;
+    }
     .scroll-cue-dot {
       animation: cue 2.2s var(--ease-premium) infinite 1.6s;
+    }
+  }
+  @keyframes hero-settle {
+    from {
+      transform: scale(1.08);
     }
   }
   @keyframes cue {

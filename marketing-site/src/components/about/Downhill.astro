@@ -1,0 +1,33 @@
+---
+// /a-propos — chapter 03, why Downhill. One big claim, three short beats.
+import { aboutPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { downhill } = aboutPage;
+const last = downhill.titleLines.length - 1;
+---
+
+<section class="border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={downhill.index} label={downhill.kicker} />
+    <h2 class="mt-8 font-display text-[clamp(2.75rem,8vw,7rem)] font-extrabold uppercase leading-[0.95] text-text">
+      {
+        downhill.titleLines.map((line, i) => (
+          <span class:list={["block", i === last && "text-accent"]} data-reveal style={`--reveal-delay: ${i * 110}ms`}>
+            {line}
+          </span>
+        ))
+      }
+    </h2>
+    <div class="mt-16 grid gap-10 border-t border-border pt-10 md:grid-cols-3 md:gap-12">
+      {
+        downhill.body.map((paragraph, i) => (
+          <p class="text-base leading-relaxed text-text-muted sm:text-lg" data-reveal style={`--reveal-delay: ${i * 120}ms`}>
+            <span class="mb-4 block font-mono text-xs text-accent">{String(i + 1).padStart(2, "0")}</span>
+            {paragraph}
+          </p>
+        ))
+      }
+    </div>
+  </div>
+</section>

@@ -1,25 +1,51 @@
 ---
+// V3 — same brand language as the homepage: compact typographic hero, then
+// the real contact form (ContactForm → /api/contact, unchanged behaviour)
+// next to a short aside — direct e-mail, or try the app straight away.
 import BaseLayout from "../layouts/BaseLayout.astro";
+import PageHero from "../components/sections/PageHero.astro";
 import ContactForm from "../components/ContactForm.astro";
-import Section from "../components/ui/Section.astro";
-import Container from "../components/ui/Container.astro";
-import Badge from "../components/ui/Badge.astro";
+import Button from "../components/ui/Button.astro";
+import { contactPage } from "../content/pages.ts";
+import { home } from "../content/home.ts";
 import { siteCopy } from "../content/copy.ts";
 ---
 
-<BaseLayout title="Contact — NALYNT" description={siteCopy.coreValueProposition}>
-  <Section index={1}>
-    <Container class="max-w-2xl">
-      <Badge>{siteCopy.contactPage.eyebrow}</Badge>
-      <h1 class="mt-4 text-4xl font-semibold tracking-tight text-text sm:text-5xl">{siteCopy.contactPage.title}</h1>
-      <p class="mt-4 text-base leading-relaxed text-text-muted">{siteCopy.contactPage.intro}</p>
-      <p class="mt-2 text-sm text-text-muted">
-        Tu peux aussi écrire directement à <span class="text-accent">{siteCopy.contactPage.email}</span>.
-      </p>
+<BaseLayout title={contactPage.meta.title} description={contactPage.meta.description} preloadDisplayFont>
+  <PageHero hero={contactPage.hero} cta={false} compact />
 
-      <div class="mt-12">
+  <section class="border-t border-border bg-bg py-20 sm:py-28">
+    <div class="mx-auto grid w-full max-w-7xl gap-16 px-6 sm:px-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:gap-24">
+      <div data-reveal>
         <ContactForm />
       </div>
-    </Container>
-  </Section>
+
+      <aside class="flex flex-col gap-12 lg:border-l lg:border-border lg:pl-12" data-reveal style="--reveal-delay: 120ms">
+        <div>
+          <p class="flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-[0.24em] text-accent">
+            <span class="h-px w-8 bg-accent" aria-hidden="true"></span>{contactPage.aside.emailLabel}
+          </p>
+          <a
+            href={`mailto:${contactPage.email}`}
+            class="mt-5 inline-flex min-h-11 items-center break-all font-display text-3xl font-extrabold leading-none text-text transition-colors hover:text-accent sm:text-4xl"
+          >
+            {contactPage.email}
+          </a>
+        </div>
+        <div class="border-t border-border pt-10">
+          <p class="font-display text-3xl font-extrabold uppercase leading-none text-text">{contactPage.aside.tryLabel}</p>
+          <p class="mt-4 max-w-sm text-base leading-relaxed text-text-muted">{contactPage.aside.tryText}</p>
+          <Button href={home.hero.primary.href} size="lg" arrow class="mt-8">{home.hero.primary.label}</Button>
+        </div>
+      </aside>
+    </div>
+
+    <p class="mx-auto mt-24 max-w-2xl px-6 text-center text-xs leading-relaxed text-text-muted">
+      {siteCopy.disclaimer.text}
+    </p>
+  </section>
 </BaseLayout>
+
+<script>
+  import "../scripts/motion.ts";
+</script>

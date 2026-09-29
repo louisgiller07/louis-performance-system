@@ -6,7 +6,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import PageHero from "../components/sections/PageHero.astro";
 import HowLoop from "../components/how/HowLoop.astro";
 import DecisionTrio from "../components/how/DecisionTrio.astro";
-import Promises from "../components/how/Promises.astro";
+import StruckList from "../components/sections/StruckList.astro";
 import FinalCta from "../components/sections/FinalCta.astro";
 import { howPage } from "../content/pages.ts";
 ---
@@ -15,7 +15,7 @@ import { howPage } from "../content/pages.ts";
   <PageHero hero={howPage.hero} next="#boucle" />
   <HowLoop />
   <DecisionTrio />
-  <Promises />
+  <StruckList index={howPage.promises.index} kicker={howPage.promises.kicker} items={howPage.promises.items} />
   <FinalCta index={howPage.cta.index} titleLines={howPage.cta.titleLines} />
 </BaseLayout>
 

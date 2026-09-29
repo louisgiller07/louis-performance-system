@@ -1,19 +1,26 @@
 ---
-// /comment-ca-marche — chapter 03, what NALYNT does not do. Trust, not tech:
-// each "not" gets a gold strike drawn through it as it arrives — the one
-// animation here, and it carries the meaning.
-import { howPage } from "../../content/pages.ts";
-import SectionKicker from "../sections/SectionKicker.astro";
+// "What NALYNT does not do" (/comment-ca-marche) and "ce qu'on s'interdit"
+// (/philosophie). Trust, not tech: each "not" gets a gold strike drawn
+// through it as it arrives — the one animation here, and it carries the
+// meaning.
+import type { Statement } from "../../content/pages.ts";
+import SectionKicker from "./SectionKicker.astro";
 
-const { promises } = howPage;
+interface Props {
+  index: string;
+  kicker: string;
+  items: Statement[];
+}
+
+const { index, kicker, items } = Astro.props;
 ---
 
 <section class="border-t border-border bg-bg py-24 sm:py-32">
   <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
-    <SectionKicker index={promises.index} label={promises.kicker} />
+    <SectionKicker index={index} label={kicker} />
     <ul class="mt-14 grid grid-cols-1 gap-12 md:grid-cols-3 md:gap-10">
       {
-        promises.items.map((item, i) => (
+        items.map((item, i) => (
           <li class="promise" data-reveal style={`--reveal-delay: ${i * 120}ms`}>
             <h2 class="relative inline font-display text-[clamp(2rem,3.6vw,2.9rem)] font-extrabold uppercase leading-[1.02] text-text-muted">
               <span class="promise-strike">{item.title}</span>

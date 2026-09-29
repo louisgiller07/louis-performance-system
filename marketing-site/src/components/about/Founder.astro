@@ -1,0 +1,85 @@
+---
+// /a-propos — chapter 02, the founder. Graded race portrait with a light
+// parallax, the same first-person quote as the homepage's human proof, a
+// short bio and three facts.
+import { Picture } from "astro:assets";
+import portrait from "../../assets/home/race-performance.webp";
+import { aboutPage } from "../../content/pages.ts";
+import { home } from "../../content/home.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { founder: copy } = aboutPage;
+const { founder } = home.why;
+---
+
+<section class="founder grain relative border-t border-border py-24 sm:py-32">
+  <div class="mx-auto grid w-full max-w-7xl gap-14 px-6 sm:px-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center lg:gap-20">
+    <div class="relative aspect-[4/5] overflow-hidden border border-border" data-reveal="zoom">
+      <div class="absolute inset-x-0 -bottom-[10%] -top-[10%]" data-parallax="0.08">
+        <Picture
+          src={portrait}
+          formats={["avif", "webp"]}
+          widths={[480, 720, 960, 1280]}
+          width={1280}
+          sizes="(min-width: 1024px) 40vw, 100vw"
+          alt={copy.imageAlt}
+          loading="lazy"
+          class="founder-img h-full w-full object-cover"
+        />
+      </div>
+      <p class="absolute bottom-0 left-0 right-0 flex items-center gap-3 bg-gradient-to-t from-bg to-transparent px-5 pb-5 pt-16 font-mono text-[0.65rem] uppercase tracking-[0.22em] text-text">
+        <span class="h-px w-6 bg-accent" aria-hidden="true"></span>{founder.name} · #86
+      </p>
+    </div>
+
+    <div>
+      <SectionKicker index={copy.index} label={copy.kicker} />
+      <figure class="m-0 mt-10" data-reveal>
+        <blockquote class="m-0">
+          <p class="text-2xl leading-snug text-text sm:text-[2.1rem] sm:leading-tight">
+            <span class="text-accent" aria-hidden="true">«&nbsp;</span>{founder.quote}<span class="text-accent" aria-hidden="true">&nbsp;»</span>
+          </p>
+        </blockquote>
+        <figcaption class="mt-8 flex flex-col gap-1">
+          <span class="font-display text-3xl font-extrabold uppercase leading-none text-text">{founder.name}</span>
+          <span class="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-text-muted">{founder.role}</span>
+        </figcaption>
+      </figure>
+      <div class="mt-10 flex flex-col gap-4 border-t border-border pt-8">
+        {
+          copy.text.map((paragraph, i) => (
+            <p class="max-w-xl text-base leading-relaxed text-text-muted sm:text-lg" data-reveal style={`--reveal-delay: ${i * 100}ms`}>
+              {paragraph}
+            </p>
+          ))
+        }
+      </div>
+      <dl class="mt-10 grid grid-cols-3 border-t border-border">
+        {
+          copy.facts.map((fact, i) => (
+            <div class:list={["pt-6", i > 0 && "border-l border-border pl-4 sm:pl-6"]} data-reveal style={`--reveal-delay: ${i * 90}ms`}>
+              <dt class="font-mono text-[0.6rem] uppercase tracking-[0.18em] text-text-muted sm:text-[0.65rem]">{fact.label}</dt>
+              <dd class="mt-2 font-display text-2xl font-extrabold uppercase leading-none text-text sm:text-4xl">{fact.value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </div>
+</section>
+
+<style>
+  .founder {
+    background:
+      radial-gradient(ellipse 50% 60% at 20% 50%, rgb(22 38 30 / 0.55), transparent 70%),
+      linear-gradient(to bottom, var(--color-bg), var(--color-pine) 30%, var(--color-pine) 70%, var(--color-bg));
+  }
+  .founder :global(picture) {
+    display: block;
+    height: 100%;
+  }
+  .founder-img {
+    object-position: 50% 30%;
+    filter: grayscale(0.25) contrast(1.08) brightness(0.8);
+  }
+</style>

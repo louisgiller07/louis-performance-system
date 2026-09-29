@@ -1,0 +1,66 @@
+---
+// /a-propos — chapter 01, the origin. The plan-vs-reality contrast, then the
+// project's founding question as a typographic moment: the old question gets
+// a strike drawn through it, the new one lands large and gold.
+import { aboutPage } from "../../content/pages.ts";
+import SectionKicker from "../sections/SectionKicker.astro";
+
+const { origin } = aboutPage;
+---
+
+<section id="origine" class="scroll-mt-16 border-t border-border bg-bg py-24 sm:py-32">
+  <div class="mx-auto w-full max-w-7xl px-6 sm:px-8">
+    <SectionKicker index={origin.index} label={origin.kicker} />
+    <div class="mt-12 grid gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-20">
+      <p class="text-3xl leading-tight text-text sm:text-4xl" data-reveal>{origin.lead}</p>
+      <ul class="flex flex-col border-t border-border">
+        {
+          origin.contrast.map((line, i) => (
+            <li class="flex items-baseline gap-4 border-b border-border py-4 text-lg text-text-muted" data-reveal style={`--reveal-delay: ${i * 90}ms`}>
+              <span class="h-px w-5 shrink-0 bg-accent" aria-hidden="true" />
+              {line}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    <div class="question mt-24 border-t border-border pt-16 sm:mt-32 sm:pt-20" data-reveal>
+      <p class="text-lg text-text-muted">{origin.questionIntro}</p>
+      <p class="mt-4 font-display text-[clamp(2rem,5vw,3.75rem)] font-extrabold uppercase leading-[1.02] text-text-muted">
+        <span class="question-strike">«&nbsp;{origin.questionOld}&nbsp;»</span>
+      </p>
+      <p class="mt-10 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.24em] text-accent">
+        <span class="h-px w-8 bg-accent" aria-hidden="true"></span>{origin.questionBridge}
+      </p>
+      <p class="question-new mt-4 font-display text-[clamp(2.75rem,8vw,7rem)] font-extrabold uppercase leading-[1.02] text-accent">
+        «&nbsp;{origin.questionNew}&nbsp;»
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .question-strike {
+    background: linear-gradient(var(--color-accent), var(--color-accent)) 0 55% / 100% 3px no-repeat;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .question:not(.is-in) .question-strike {
+      background-size: 0% 3px;
+    }
+    .question-strike {
+      transition: background-size 0.9s var(--ease-premium) 0.7s;
+    }
+    :global(.js) .question:not(.is-in) .question-new {
+      opacity: 0;
+      transform: translate3d(0, 1.5rem, 0);
+    }
+    .question-new {
+      transition:
+        opacity 1s var(--ease-premium) 1.3s,
+        transform 1.2s var(--ease-premium) 1.3s;
+    }
+  }
+</style>

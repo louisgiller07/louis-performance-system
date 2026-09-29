@@ -1,22 +1,22 @@
 ---
+// V3 — same brand language as the homepage: hero, five convictions that
+// light up as you read, what NALYNT forbids itself, closing CTA. Copy lives
+// in content/pages.ts (philosophyPage); motion in scripts/motion.ts.
 import BaseLayout from "../layouts/BaseLayout.astro";
-import PhilosophyBlock from "../components/PhilosophyBlock.astro";
-import Section from "../components/ui/Section.astro";
-import Container from "../components/ui/Container.astro";
-import Badge from "../components/ui/Badge.astro";
-import { siteCopy } from "../content/copy.ts";
+import PageHero from "../components/sections/PageHero.astro";
+import Convictions from "../components/philosophy/Convictions.astro";
+import StruckList from "../components/sections/StruckList.astro";
+import FinalCta from "../components/sections/FinalCta.astro";
+import { philosophyPage } from "../content/pages.ts";
 ---
 
-<BaseLayout title="Philosophie — NALYNT" description={siteCopy.keyMessages.philosophy}>
-  <Section index={1}>
-    <Container>
-      <Badge>Philosophie</Badge>
-      <h1 class="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-text sm:text-5xl">
-        Philosophie
-      </h1>
-      <div class="mt-10">
-        <PhilosophyBlock philosophy={siteCopy.keyMessages.philosophy} limits={siteCopy.limits} />
-      </div>
-    </Container>
-  </Section>
+<BaseLayout title={philosophyPage.meta.title} description={philosophyPage.meta.description} preloadDisplayFont>
+  <PageHero hero={philosophyPage.hero} next="#convictions" />
+  <Convictions />
+  <StruckList index={philosophyPage.limits.index} kicker={philosophyPage.limits.kicker} items={philosophyPage.limits.items} />
+  <FinalCta index={philosophyPage.cta.index} titleLines={philosophyPage.cta.titleLines} />
 </BaseLayout>
+
+<script>
+  import "../scripts/motion.ts";
+</script>

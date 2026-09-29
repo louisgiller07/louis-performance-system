@@ -134,3 +134,164 @@ export const coachingPage = {
     titleLines: ["Entraîne-toi", "comme un pro."],
   },
 };
+
+export interface Statement {
+  title: string;
+  body: string;
+}
+
+export interface Milestone {
+  label: string;
+  title: string;
+  body: string;
+  current?: boolean;
+}
+
+export const philosophyPage = {
+  meta: {
+    title: "Philosophie — NALYNT",
+    description:
+      "Nos convictions : la réalité d'abord, un objectif qui ne bouge pas, chaque décision expliquée, la qualité avant le volume. Et ce qu'on s'interdit.",
+  },
+  hero: {
+    kicker: "Philosophie",
+    titleLines: ["S'entraîner juste.", "Pas plus.", "Pas moins."],
+    intro: "Ce en quoi on croit, et ce qu'on s'interdit. Parce qu'un pilote doit pouvoir faire confiance à son coach.",
+  } satisfies PageHeroCopy,
+
+  convictions: {
+    index: "01",
+    kicker: "Nos convictions",
+    items: [
+      {
+        title: "La réalité d'abord.",
+        body: "Un plan n'a de valeur que s'il colle à ta journée. NALYNT part de ton état du jour, pas d'un calendrier écrit il y a trois semaines.",
+      },
+      {
+        title: "L'objectif ne bouge pas.",
+        body: "On ajuste le chemin, jamais le cap. Ta course reste le point fixe autour duquel tout s'organise.",
+      },
+      {
+        title: "Chaque décision s'explique.",
+        body: "Derrière chaque ajustement, une logique de coach que tu peux lire, en une phrase. Jamais une boîte noire.",
+      },
+      {
+        title: "La qualité avant le volume.",
+        body: "Un run propre vaut mieux que trois runs de trop. En DH, la fatigue se paie en trajectoires.",
+      },
+      {
+        title: "Né sur le terrain.",
+        body: "Chaque principe est testé sur les vraies séances d'un pilote Elite, pas sur des données de laboratoire.",
+      },
+    ] satisfies Statement[],
+  },
+
+  limits: {
+    index: "02",
+    kicker: "Ce qu'on s'interdit",
+    items: [
+      {
+        title: "Jouer au médecin.",
+        body: "NALYNT ne pose aucun diagnostic. Au moindre signal qui inquiète, il t'oriente vers un médecin, un physio ou un ostéo.",
+      },
+      {
+        title: "Décider à ta place.",
+        body: "NALYNT propose et explique. Tu gardes le dernier mot sur ta séance.",
+      },
+      {
+        title: "Promettre la lune.",
+        body: "Il garde la mémoire de tes séances, mais ne décide pas seul d'augmenter ta charge. Progresser reste ton travail.",
+      },
+    ] satisfies Statement[],
+  },
+
+  cta: {
+    index: "03",
+    titleLines: ["Prêt à t'entraîner", "juste ?"],
+  },
+};
+
+export const aboutPage = {
+  meta: {
+    title: "À propos — NALYNT",
+    description:
+      "NALYNT est né dans le VTT Downhill de compétition, construit et testé chaque jour par Louis Giller, pilote Elite suisse.",
+  },
+  hero: {
+    kicker: "À propos",
+    titleLines: ["Construit", "depuis le terrain."],
+    intro: "NALYNT est né sur les pistes de DH, d'une question qu'un pilote se pose chaque matin avant de rouler.",
+    imageAlt: "Louis Giller en plein saut sur une piste de VTT descente, dossard 86, au-dessus d'une bosse de terre.",
+  },
+
+  origin: {
+    index: "01",
+    kicker: "L'origine",
+    lead: "Un plan peut être parfait sur le papier. Le jour J, la réalité a souvent changé.",
+    contrast: ["Une récupération différente.", "Une fatigue qui s'accumule.", "Une contrainte extérieure.", "Un mental qui n'est pas au rendez-vous."],
+    questionIntro: "La question n'est plus seulement :",
+    questionOld: "Qu'est-ce qui était prévu ?",
+    questionBridge: "Mais :",
+    questionNew: "Quelle est la meilleure décision aujourd'hui ?",
+  },
+
+  founder: {
+    index: "02",
+    kicker: "Le fondateur",
+    text: [
+      "Pilote de descente en compétition, Louis vit chaque jour ce que NALYNT cherche à résoudre : concilier la piste, la préparation physique, la récupération, le travail et les courses.",
+      "Il est le premier utilisateur de NALYNT et teste chaque évolution sur ses propres séances avant qu'elle n'arrive chez d'autres pilotes.",
+    ],
+    facts: [
+      { value: "Elite", label: "Pilote DH, Suisse" },
+      { value: "N° 1", label: "Premier utilisateur" },
+      { value: "Chaque jour", label: "Testé sur ses séances" },
+    ],
+    imageAlt: "Louis Giller en course sur une piste de VTT descente rocailleuse, dossard 86, nuage de poussière.",
+  },
+
+  downhill: {
+    index: "03",
+    kicker: "Pourquoi le Downhill",
+    titleLines: ["Un sport où chaque", "erreur se paie", "tout de suite."],
+    body: [
+      "En DH, une trajectoire imprécise ou une décision prise trop tard a des conséquences immédiates. La marge d'erreur est minuscule.",
+      "La fatigue y pèse directement sur la prise de risque et la qualité de pilotage. Progresser, c'est aussi savoir quand lever le pied.",
+      "C'est le terrain le plus exigeant pour construire un coach qui s'adapte. C'est pour ça que NALYNT est né ici.",
+    ],
+  },
+
+  today: {
+    index: "04",
+    kicker: "Aujourd'hui",
+    milestones: [
+      { label: "Au départ", title: "Un pilote, ses séances.", body: "NALYNT est construit et testé au quotidien par Louis, sur de vraies séances." },
+      { label: "Aujourd'hui", title: "Bêta ouverte.", body: "Les premiers pilotes DH et Enduro rejoignent NALYNT, gratuitement.", current: true },
+      { label: "Demain", title: "Plus de pilotes, plus de terrain.", body: "Chaque retour de pilote rend le coaching plus juste, toujours validé avant d'arriver dans l'app." },
+    ] satisfies Milestone[],
+    vision: ["Un bon coach ne sait pas seulement ce qui était prévu.", "Il comprend ce qui s'est vraiment passé."],
+  },
+
+  cta: {
+    index: "05",
+    titleLines: ["Rejoins", "l'aventure."],
+  },
+};
+
+export const contactPage = {
+  meta: {
+    title: "Contact — NALYNT",
+    description: "Une question, un retour ou envie de rejoindre la bêta NALYNT ? Écris-nous.",
+  },
+  hero: {
+    kicker: "Contact",
+    titleLines: ["Une question ?", "On t'écoute."],
+    intro: "Une question sur NALYNT, un retour après une séance ou envie de rejoindre la bêta : écris-nous.",
+  } satisfies PageHeroCopy,
+  email: "contact@nalynt.ch",
+  aside: {
+    emailLabel: "Écris-nous directement",
+    tryLabel: "Tu préfères essayer ?",
+    tryText: "Crée ton compte gratuitement et fais ton premier check-in dès demain matin.",
+  },
+};
