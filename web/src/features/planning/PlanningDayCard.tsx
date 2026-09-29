@@ -6,7 +6,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { Select } from "../../components/Select";
 // Coarse DbSessionType → French label — the canonical existing home for
-// this mapping (already used by CompletedSessionCard). Reused here, never
+// this mapping (already used by useCompletedSessionFlow (UX-08)). Reused here, never
 // duplicated, for the one legacy case a Planning row can be in: a pre-M2_003
 // row with intervention=NULL, where only the coarse session_type is known.
 import { SESSION_TYPE_LABELS } from "../completedSession/completedSessionTypes";

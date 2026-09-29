@@ -119,10 +119,10 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
   ),
 }));
 
-vi.mock("../features/completedSession/CompletedSessionCard", () => ({
-  CompletedSessionCard: ({ date, athleteId }: { date: string; athleteId: string }) => (
+vi.mock("../features/afterSession/AfterSessionEntry", () => ({
+  AfterSessionEntry: ({ date, athleteId }: { date: string; athleteId: string }) => (
     <div data-testid="completed-session-card-stub">
-      completed-session-card date={date} athleteId={athleteId}
+      Après ta séance · completed-session-card date={date} athleteId={athleteId}
     </div>
   ),
 }));
@@ -177,7 +177,7 @@ describe("TodayPage — UX-04 coach context", () => {
     expect(screen.getByRole("region", { name: "Prochaine étape" })).toHaveTextContent("Cap sur iXS Lenzerheide, dans 12 jours.");
   });
 
-  it("validated hierarchy: context banner → mission → next step → this week → regularity → after the session → plan detail (last)", async () => {
+  it("validated hierarchy (UX-05/UX-08): context banner → mission → after the session → next step → this week → regularity → plan detail (last)", async () => {
     const { container } = renderTodayPage();
     screen.getByText("simulate checkin available (load)").click();
     await screen.findByRole("region", { name: "Ta régularité" });
@@ -185,20 +185,20 @@ describe("TodayPage — UX-04 coach context", () => {
     const order = [
       screen.getByRole("region", { name: "Ton objectif" }),
       screen.getByTestId("daily-plan-panel-stub"),
+      screen.getByTestId("completed-session-card-stub"),
       screen.getByRole("region", { name: "Prochaine étape" }),
       screen.getByRole("region", { name: "Cette semaine" }),
       screen.getByRole("region", { name: "Ta régularité" }),
-      screen.getByText("Après ta séance"),
     ];
     for (let i = 1; i < order.length; i++) {
       expect(order[i - 1]!.compareDocumentPosition(order[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
-    // The collapsible plan detail's mount point is handed to the panel and sits after "Après ta séance".
+    // The collapsible plan detail's mount point is handed to the panel and sits last.
     await waitFor(() => expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("details=mounted"));
     const sheet = container.querySelector<HTMLElement>('[role="dialog"][aria-label="Check-in du jour"]')!;
     const detailsMount = sheet.previousElementSibling!;
     expect(detailsMount.tagName).toBe("DIV");
-    expect(screen.getByText("Après ta séance").compareDocumentPosition(detailsMount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Ta régularité" }).compareDocumentPosition(detailsMount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("regularity: today's check-in + the plain count of days with a check-in this week (Monday → today)", async () => {
@@ -338,10 +338,9 @@ describe("TodayPage (UX-03)", () => {
     );
   });
 
-  it("CompletedSessionCard is wired with the canonical date and athleteId, under 'Après ta séance' (V0.3_007B: no live decision context)", () => {
+  it("the after-session moment is wired with the canonical date and athleteId (V0.3_007B: no live decision context)", () => {
     renderTodayPage();
 
-    expect(screen.getByText("Après ta séance")).toBeInTheDocument();
     expect(screen.getByTestId("completed-session-card-stub")).toHaveTextContent(`completed-session-card date=${todayLocal()} athleteId=athlete-1`);
   });
 

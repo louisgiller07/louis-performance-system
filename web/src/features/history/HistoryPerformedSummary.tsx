@@ -1,5 +1,5 @@
 // V0.3_007D — compact read-only "Réalisé" summary for a linked
-// completed_sessions row. Deliberately mirrors CompletedSessionCard.tsx's
+// completed_sessions row. Deliberately mirrors useCompletedSessionFlow.ts's
 // own view-mode <dl> exactly (same labels, same null-guard-per-field
 // discipline) rather than reusing that component directly — this is a
 // simpler, permanently read-only rendering context (no edit affordance, no
@@ -7,7 +7,8 @@
 // smallest correct piece, not a duplication of logic. No new label maps:
 // every mapper here is imported from its single canonical source.
 import { TRAINING_KIND_LABELS, LOAD_PROFILE_LABELS } from "../dailyPlan/dailyPlanLabels";
-import { COMPLETION_STATUS_LABELS, SESSION_TYPE_LABELS, TECHNICAL_OUTCOME_LABELS, CHANGE_REASON_LABELS, type CompletedSessionRecord } from "../completedSession/completedSessionTypes";
+import { SESSION_TYPE_LABELS, TECHNICAL_OUTCOME_LABELS, CHANGE_REASON_LABELS, type CompletedSessionRecord } from "../completedSession/completedSessionTypes";
+import { OUTCOME_LABELS } from "../afterSession/afterSessionPresentation";
 
 export function HistoryPerformedSummary({ session }: { session: CompletedSessionRecord }) {
   // V0.3_007B — rich `intervention` is authoritative whenever present;
@@ -22,8 +23,9 @@ export function HistoryPerformedSummary({ session }: { session: CompletedSession
   return (
     <div className="flex flex-col gap-3">
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-        <dt className="text-muted">Statut</dt>
-        <dd className="text-ink">{COMPLETION_STATUS_LABELS[session.completion_status]}</dd>
+        {/* UX-08 — rider vocabulary: never "RPE" or "grip"; the facts are unchanged. */}
+        <dt className="text-muted">Séance</dt>
+        <dd className="text-ink">{OUTCOME_LABELS[session.completion_status]}</dd>
 
         {/* V0.3_007D presentation gate — for `skipped`, `intervention` is
             always NULL by contract (nothing was performed), so the coarse
@@ -50,21 +52,21 @@ export function HistoryPerformedSummary({ session }: { session: CompletedSession
 
         {session.rpe !== null && (
           <>
-            <dt className="text-muted">RPE</dt>
+            <dt className="text-muted">Ton effort</dt>
             <dd className="text-ink">{session.rpe}/10</dd>
           </>
         )}
 
         {session.post_leg_fatigue !== null && (
           <>
-            <dt className="text-muted">Fatigue jambes</dt>
+            <dt className="text-muted">Jambes après</dt>
             <dd className="text-ink">{session.post_leg_fatigue}/10</dd>
           </>
         )}
 
         {session.post_grip_fatigue !== null && (
           <>
-            <dt className="text-muted">Fatigue grip</dt>
+            <dt className="text-muted">Avant-bras après</dt>
             <dd className="text-ink">{session.post_grip_fatigue}/10</dd>
           </>
         )}
@@ -91,7 +93,7 @@ export function HistoryPerformedSummary({ session }: { session: CompletedSession
 
       {session.new_pain && (
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <p className="text-sm font-medium text-ink">Une nouvelle douleur avait été indiquée ce jour-là.</p>
+          <p className="text-sm font-medium text-ink">Un signal physique avait été signalé ce jour-là.</p>
           {session.new_pain_note && <p className="mt-1 text-sm text-ink/80">{session.new_pain_note}</p>}
         </div>
       )}

@@ -41,7 +41,7 @@ export function InsightsPage() {
     const result = await getInsights();
     if (!result.ok) {
       setState({ status: "error", error: result.error });
-      // Mirrors CompletedSessionCard's existing convention: a session_issue
+      // Mirrors useCompletedSessionFlow's existing convention: a session_issue
       // error is the app's one established signal that the JWT is no
       // longer valid.
       if (result.error.action === "session_issue") void signOut();

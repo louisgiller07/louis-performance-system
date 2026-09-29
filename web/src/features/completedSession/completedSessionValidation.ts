@@ -132,7 +132,7 @@ export function validateCompletedSessionForm(state: CompletedSessionFormState, s
   // V0.3_007C — debrief fields. Mirrors validation.ts's
   // validateDebriefFields coherence rules exactly (client-side mirror, not
   // authoritative). Deliberately does NOT enforce "required when
-  // applicable" here — that's a UI-only gate in CompletedSessionCard's own
+  // applicable" here — that's a UI-only gate in useCompletedSessionFlow's own
   // canSave (only the component knows whether the linked decision actually
   // carries an execution_task). This only rejects a PRESENT value that is
   // incoherent, exactly like the server.

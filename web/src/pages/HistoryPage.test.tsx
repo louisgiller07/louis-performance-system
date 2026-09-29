@@ -212,14 +212,20 @@ describe("HistoryPage — the journey (UX-07)", () => {
 
   it("an adapted day (UX-04 wording) and a recorded session", async () => {
     mockedLoad.mockResolvedValue([decision("m", "2026-09-28", "08:00", MODIFY_PLAN)]);
-    mockedLoadCompleted.mockResolvedValue([completed("2026-09-28", "done", 150)]);
+    mockedLoadCompleted.mockResolvedValue([{ ...completed("2026-09-28", "done", 140), decision_id: "m", rpe: 6, post_leg_fatigue: 5 }]);
     renderHistoryPage();
 
     const card = within(await screen.findByRole("region", { name: "Cette semaine" })).getByRole("article");
     expect(within(card).getByText("DH technique · charge modérée · 4 h")).toBeInTheDocument();
-    expect(within(card).getByText("DH technique · charge légère · 2 h 30")).toBeInTheDocument();
+    // The adapted line, and the realisation's "Prévu" (what NALYNT asked that day).
+    expect(within(card).getAllByText("DH technique · charge légère · 2 h 30")).toHaveLength(2);
     expect(within(card).getByText("Signal détecté : fatigue jambes élevée. NALYNT ajuste la charge pour préserver ton objectif.")).toBeInTheDocument();
-    expect(within(card).getByText("✓ Séance réalisée · 2 h 30")).toBeInTheDocument();
+    // UX-08 — the realisation, as facts: what was asked, what was done, effort, legs after.
+    expect(within(card).getByText("Réalisation")).toBeInTheDocument();
+    expect(within(card).getByText("✓ Séance réalisée")).toBeInTheDocument();
+    const rows = [...card.querySelectorAll("dl div")].map((row) => row.textContent?.replace(/ /g, " "));
+    expect(rows).toEqual(["PrévuDH technique · charge légère · 2 h 30", "RéaliséDH technique · 2 h 20", "Effort6/10", "Jambes après5/10"]);
+    expect(card.textContent).not.toMatch(/bonne séance|mauvaise séance|performance améliorée/i);
   });
 
   it("older days are compact lines grouped by month", async () => {

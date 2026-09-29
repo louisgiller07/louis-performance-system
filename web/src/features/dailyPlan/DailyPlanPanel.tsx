@@ -72,7 +72,7 @@ interface DailyPlanPanelProps {
 //
 // V0.3_007B — this component no longer reports its currently-displayed
 // decisionId/sessionType to its parent (the removed onLiveContextChange/
-// LiveDailyPlanContext): CompletedSessionCard now resolves which decision a
+// LiveDailyPlanContext): useCompletedSessionFlow (UX-08) now resolves which decision a
 // performed session corresponds to via its own explicit, athlete-scoped
 // lookup of every valid same-day decision (loadValidDecisionsForDate) —
 // deliberately never "whatever Today currently shows", which could

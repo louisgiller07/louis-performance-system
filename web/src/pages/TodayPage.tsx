@@ -5,7 +5,7 @@ import { useEffectiveToday } from "../lib/simulationClock";
 import { CheckinForm } from "../features/checkin/CheckinForm";
 import { TodayPlanningSummary } from "../features/planning/TodayPlanningSummary";
 import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
-import { CompletedSessionCard } from "../features/completedSession/CompletedSessionCard";
+import { AfterSessionEntry } from "../features/afterSession/AfterSessionEntry";
 import { PageShell } from "../components/PageShell";
 import { AppHeader } from "../components/AppHeader";
 import { Card } from "../components/Card";
@@ -148,10 +148,11 @@ export function TodayPage() {
   return (
     <PageShell header={<AppHeader />}>
       {/*
-       * UX-05 — validated hierarchy: Bonjour → race / objective → mission →
-       * what the coach retained → state of the day → next step → this week →
-       * regularity → after the session → [Voir les détails du plan]. The
-       * health follow-up banner stays right before the mission (safety first).
+       * UX-05 / UX-08 — validated hierarchy: Bonjour → race / objective →
+       * mission → what the coach retained → state of the day → after the
+       * session (UX-08: right after the mission block) → next step → this
+       * week → regularity → [Voir les détails du plan]. The health follow-up
+       * banner stays right before the mission (safety first).
        */}
       <TodayGreeting firstName={todayContext?.firstName ?? null} friendlyDate={friendlyDate} canonicalDate={canonicalDate} />
       {todayContext && <RaceBanner horizon={horizon} objective={todayContext.objective} />}
@@ -200,6 +201,9 @@ export function TodayPage() {
         />
       )}
 
+      {/* UX-08 — closing the loop: what was really done, right after the mission. */}
+      {athleteId && <AfterSessionEntry date={canonicalDate} athleteId={athleteId} />}
+
       {/* UX-04/05 — where today leads: next step, the week, and plain regularity. */}
       {todayContext && (
         <>
@@ -212,11 +216,6 @@ export function TodayPage() {
           />
         </>
       )}
-
-      <Card>
-        <SectionHeader title="Après ta séance" subtitle="Ce que tu as vraiment fait aujourd'hui." />
-        <div className="mt-4">{athleteId && <CompletedSessionCard date={canonicalDate} athleteId={athleteId} />}</div>
-      </Card>
 
       {/* UX-05 — the collapsible plan detail ("Voir les détails du plan") is rendered here, last. */}
       <div ref={setDetailsTarget} />
