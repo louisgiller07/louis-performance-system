@@ -1,7 +1,9 @@
 import { Card } from "../../../components/Card";
 import { Badge } from "../../../components/Badge";
 import type { TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
-import { humanizeLabel, formatShortDate } from "../trainingPlanReviewFormat";
+import { formatShortDate } from "../trainingPlanReviewFormat";
+// REV-015.3 — French exercise/drill names by catalogue id; an unknown id shows the neutral label, never the id.
+import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../../trainingLabels/exerciseLabels";
 import { translateExplanation } from "../trainingPlanExplanationLabels";
 import {
   formatRepetitionRange,
@@ -96,8 +98,8 @@ function formatStrengthDose(block: StrengthBlockLike): string | null {
  * exist in the real payload (StrengthPrescription/DhTechnicalPrescription,
  * planning-engine — mirrored here by convention, never imported); an
  * unrecognized/malformed shape renders nothing extra, never a fabricated
- * value. Exercise/drill names are humanized catalogue ids (no human-readable
- * name is available to web/ — see trainingPlanReviewFormat.ts's own doc).
+ * value. Exercise/drill names are the French labels of their catalogue ids
+ * (trainingLabels/exerciseLabels.ts, REV-015.3), never the raw id.
  */
 function PrescriptionStructure({ structure }: { structure: unknown }) {
   const domain = readDomain(structure);
@@ -110,7 +112,7 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
           const dose = formatStrengthDose(block);
           return (
             <li key={index} className="text-sm text-ink/90">
-              <p>{typeof block.exerciseId === "string" ? humanizeLabel(block.exerciseId) : "Exercice"}</p>
+              <p>{translateExercise(block.exerciseId) ?? UNKNOWN_EXERCISE_LABEL}</p>
               {dose && <p className="text-muted">{dose}</p>}
               {isFiniteNumber(block.restSeconds) && <p className="text-xs text-muted">Repos : {block.restSeconds} s</p>}
             </li>
@@ -125,7 +127,7 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
       <ul className="flex flex-col gap-1">
         {drills.map((drill, index) => (
           <li key={index} className="text-sm text-ink/90">
-            {typeof drill.drillId === "string" ? humanizeLabel(drill.drillId) : "Exercice technique"}
+            {translateDrill(drill.drillId) ?? UNKNOWN_DRILL_LABEL}
             {typeof drill.runs === "number" && <span className="text-muted"> — {drill.runs} passages</span>}
             {typeof drill.executionCue === "string" && <p className="text-xs text-muted">{drill.executionCue}</p>}
           </li>

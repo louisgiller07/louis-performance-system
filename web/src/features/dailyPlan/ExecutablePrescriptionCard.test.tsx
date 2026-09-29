@@ -14,7 +14,7 @@ const STRENGTH_PRESCRIPTION: ExecutablePrescription = {
     blocks: [
       {
         role: "work",
-        exerciseId: "back_squat",
+        exerciseId: "barbell_back_squat",
         sets: 4,
         repScheme: { type: "fixed", reps: 5 },
         intensity: { type: "percent_1rm", value: 80 },
@@ -36,7 +36,7 @@ const DH_PRESCRIPTION: ExecutablePrescription = {
     schemaVersion: "v1",
     drills: [
       {
-        drillId: "berm_carry_speed",
+        drillId: "cornering_berm_speed",
         skillTarget: "cornering",
         terrainRequirement: "flow_trail",
         runs: 6,
@@ -55,7 +55,7 @@ describe("ExecutablePrescriptionCard — strength domain", () => {
 
     expect(screen.getByText("Exercices")).toBeInTheDocument();
     expect(screen.getByText("Travail")).toBeInTheDocument();
-    expect(screen.getByText("Back Squat")).toBeInTheDocument();
+    expect(screen.getByText("Squat arrière à la barre")).toBeInTheDocument();
     expect(screen.getByText("4 × 5 répétitions — 80% 1RM")).toBeInTheDocument();
     expect(screen.getByText("Repos : 180 s")).toBeInTheDocument();
     expect(screen.getByText("Tempo : 31X1")).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe("ExecutablePrescriptionCard — strength domain", () => {
     render(<ExecutablePrescriptionCard prescription={withoutOptionals} />);
 
     expect(screen.getByText("Accessoire")).toBeInTheDocument();
-    expect(screen.getByText("Lat Pulldown")).toBeInTheDocument();
+    expect(screen.getByText("Tirage vertical à la poulie")).toBeInTheDocument();
     expect(screen.getByText("3 × 8-12 répétitions — RPE 8")).toBeInTheDocument();
     expect(screen.queryByText(/Tempo :/)).not.toBeInTheDocument();
     expect(screen.queryByText("Unilatéral")).not.toBeInTheDocument();
@@ -95,7 +95,7 @@ describe("ExecutablePrescriptionCard — dh_technical domain", () => {
     render(<ExecutablePrescriptionCard prescription={DH_PRESCRIPTION} />);
 
     expect(screen.getByText("Exercices")).toBeInTheDocument();
-    expect(screen.getByText("Berm Carry Speed")).toBeInTheDocument();
+    expect(screen.getByText("Garder la vitesse dans les virages relevés")).toBeInTheDocument();
     expect(screen.getByText("Virages · Flow trail")).toBeInTheDocument();
     expect(screen.getByText("6 passages")).toBeInTheDocument();
     expect(screen.getByText("Reste bas dans le virage.")).toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("ExecutablePrescriptionCard — dh_technical domain", () => {
         schemaVersion: "v1",
         drills: [
           {
-            drillId: "root_section_control",
+            drillId: "roots_rocks_rolling",
             skillTarget: "braking",
             terrainRequirement: "rock_garden",
             runs: 4,
@@ -124,7 +124,7 @@ describe("ExecutablePrescriptionCard — dh_technical domain", () => {
     };
     render(<ExecutablePrescriptionCard prescription={withoutOptionals} />);
 
-    expect(screen.getByText("Root Section Control")).toBeInTheDocument();
+    expect(screen.getByText("Rouler sur racines et rochers")).toBeInTheDocument();
     expect(screen.queryByText(/Progression :/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Régression :/)).not.toBeInTheDocument();
   });
@@ -138,7 +138,7 @@ describe("ExecutablePrescriptionCard — training vocabulary (REV-015.2)", () =>
       structure: {
         domain: "dh_technical",
         schemaVersion: "v1",
-        drills: [{ drillId: "root_section_control", skillTarget, terrainRequirement, runs: 4, executionCue: "Regarde loin devant.", successCriterion: "Aucune perte de contrôle." }],
+        drills: [{ drillId: "roots_rocks_rolling", skillTarget, terrainRequirement, runs: 4, executionCue: "Regarde loin devant.", successCriterion: "Aucune perte de contrôle." }],
       },
     };
   }
@@ -169,12 +169,57 @@ describe("ExecutablePrescriptionCard — training vocabulary (REV-015.2)", () =>
       structure: {
         domain: "strength",
         schemaVersion: "v1",
-        blocks: [{ role: "work", exerciseId: "back_squat", sets: 3, repScheme: { type: "fixed", reps: 1 }, intensity: { type: "rpe", target: 9 }, restSeconds: 180 }],
+        blocks: [{ role: "work", exerciseId: "barbell_back_squat", sets: 3, repScheme: { type: "fixed", reps: 1 }, intensity: { type: "rpe", target: 9 }, restSeconds: 180 }],
       },
     };
     const { container } = render(<ExecutablePrescriptionCard prescription={one} />);
 
     expect(screen.getByText("3 × 1 répétition — RPE 9")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/\breps\b/);
+  });
+});
+
+// REV-015.3 — exercise and drill names are French labels of their catalogue id; an unknown id is never shown.
+describe("ExecutablePrescriptionCard — exercise and drill names (REV-015.3)", () => {
+  it("unknown exercise and drill ids show the neutral labels, never the id", () => {
+    const strength: ExecutablePrescription = {
+      ...STRENGTH_PRESCRIPTION,
+      structure: {
+        domain: "strength",
+        schemaVersion: "v1",
+        blocks: [{ role: "work", exerciseId: "unknown_exercise_42", sets: 3, repScheme: { type: "fixed", reps: 5 }, intensity: { type: "rpe", target: 7 }, restSeconds: 90 }],
+      },
+    };
+    const dh: ExecutablePrescription = {
+      ...DH_PRESCRIPTION,
+      structure: {
+        domain: "dh_technical",
+        schemaVersion: "v1",
+        drills: [{ drillId: "unknown_drill_7", skillTarget: "braking", terrainRequirement: "flow_trail", runs: 4, executionCue: "Regarde loin devant.", successCriterion: "Aucune perte de contrôle." }],
+      },
+    };
+
+    const { container, unmount } = render(<ExecutablePrescriptionCard prescription={strength} />);
+    expect(screen.getByText("Exercice")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/unknown_exercise_42|Unknown Exercise/);
+    unmount();
+
+    const dhRender = render(<ExecutablePrescriptionCard prescription={dh} />);
+    expect(screen.getByText("Exercice technique")).toBeInTheDocument();
+    expect(dhRender.container.textContent).not.toMatch(/unknown_drill_7|Unknown Drill/);
+  });
+
+  it("kept sport terms are shown as validated (Goblet squat)", () => {
+    const goblet: ExecutablePrescription = {
+      ...STRENGTH_PRESCRIPTION,
+      structure: {
+        domain: "strength",
+        schemaVersion: "v1",
+        blocks: [{ role: "work", exerciseId: "goblet_squat", sets: 3, repScheme: { type: "range", min: 8, max: 12 }, intensity: { type: "rpe", target: 7 }, restSeconds: 90 }],
+      },
+    };
+    render(<ExecutablePrescriptionCard prescription={goblet} />);
+
+    expect(screen.getByText("Goblet squat")).toBeInTheDocument();
   });
 });

@@ -50,7 +50,7 @@ describe("TrainingPlanSessionCard", () => {
       />
     );
 
-    expect(screen.getByText("Bodyweight Squat")).toBeInTheDocument();
+    expect(screen.getByText("Squat au poids du corps")).toBeInTheDocument();
     expect(screen.getByText(/12 séries/)).toBeInTheDocument();
   });
 
@@ -76,7 +76,7 @@ describe("TrainingPlanSessionCard", () => {
   it("displays the complete strength prescription: sets × reps, RPE and rest (Today's format)", () => {
     render(<TrainingPlanSessionCard session={strengthSession(COMPLETE_BLOCK)} />);
 
-    expect(screen.getByText("Barbell Back Squat")).toBeInTheDocument();
+    expect(screen.getByText("Squat arrière à la barre")).toBeInTheDocument();
     expect(screen.getByText("3 × 8 répétitions — RPE 7")).toBeInTheDocument();
     expect(screen.getByText("Repos : 120 s")).toBeInTheDocument();
   });
@@ -126,7 +126,7 @@ describe("TrainingPlanSessionCard", () => {
       />
     );
 
-    expect(screen.getByText("Barbell Back Squat")).toBeInTheDocument();
+    expect(screen.getByText("Squat arrière à la barre")).toBeInTheDocument();
     expect(screen.queryByText(/séries|répétitions?|RPE|Repos|undefined|NaN/)).not.toBeInTheDocument();
   });
 
@@ -166,7 +166,7 @@ describe("TrainingPlanSessionCard", () => {
       />
     );
 
-    expect(screen.getByText("Cornering Flat Turn Precision")).toBeInTheDocument();
+    expect(screen.getByText("Précision de trajectoire en virage plat")).toBeInTheDocument();
     expect(screen.getByText(/6 passages/)).toBeInTheDocument();
     expect(screen.getByText("Look where you want to go.")).toBeInTheDocument();
   });
@@ -266,5 +266,63 @@ describe("TrainingPlanSessionCard — training vocabulary (REV-015.2)", () => {
 
     expect(screen.getByText("Exercice technique")).toBeInTheDocument();
     expect(screen.queryByText(/^Drill$/)).not.toBeInTheDocument();
+  });
+});
+
+// REV-015.3 — the exercise/drill ids actually stored in production plans (read-only audit, 2026-09-29)
+// render as French labels; unknown ids render the neutral labels.
+describe("TrainingPlanSessionCard — exercise and drill names (REV-015.3)", () => {
+  const STORED_EXERCISES: ReadonlyArray<readonly [string, string]> = [
+    ["barbell_back_squat", "Squat arrière à la barre"],
+    ["barbell_bench_press", "Développé couché à la barre"],
+    ["bodyweight_squat", "Squat au poids du corps"],
+    ["dumbbell_bench_press", "Développé couché aux haltères"],
+    ["goblet_squat", "Goblet squat"],
+    ["pushup", "Pompes"],
+  ];
+  const STORED_DRILLS: ReadonlyArray<readonly [string, string]> = [
+    ["braking_late_entry", "Freinage tardif, relâchement précoce"],
+    ["cornering_flat_turn_precision", "Précision de trajectoire en virage plat"],
+    ["line_choice_rock_garden", "Choix de ligne dans le pierrier"],
+    ["race_execution_full_run_sim", "Simulation de run complet"],
+    ["race_execution_split_pace", "Run fractionné à allure course"],
+    ["roots_rocks_committed", "Racines et rochers engagés, à vitesse"],
+  ];
+
+  it.each(STORED_EXERCISES)("existing plan exercise %s → %s", (exerciseId, label) => {
+    render(
+      <TrainingPlanSessionCard
+        session={session({ prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ role: "work", exerciseId, sets: 12 }] } } })}
+      />
+    );
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(exerciseId))).not.toBeInTheDocument();
+  });
+
+  it.each(STORED_DRILLS)("existing plan drill %s → %s", (drillId, label) => {
+    render(
+      <TrainingPlanSessionCard
+        session={session({
+          kind: "DH_TECHNICAL",
+          doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 },
+          prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ drillId, runs: 6 }] } },
+        })}
+      />
+    );
+
+    expect(screen.getByText(label)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(drillId))).not.toBeInTheDocument();
+  });
+
+  it("unknown ids show 'Exercice' / 'Exercice technique', never the id", () => {
+    const { container } = render(
+      <TrainingPlanSessionCard
+        session={session({ prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ exerciseId: "unknown_exercise_42", sets: 3 }] } } })}
+      />
+    );
+
+    expect(screen.getByText("Exercice")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/unknown_exercise_42|Unknown Exercise/);
   });
 });

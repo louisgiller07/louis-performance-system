@@ -1,6 +1,8 @@
 import { PlanSection } from "../../components/PlanSection";
 import type { ExecutableIntensity, ExecutablePrescription, ExecutableRepScheme } from "./dailyPlanTypes";
 import { formatRepetitionRange, formatRepetitions, translateSkill, translateTerrain } from "../trainingLabels/trainingLabels";
+// REV-015.3 — French exercise/drill names by catalogue id; an unknown id shows the neutral label, never the id.
+import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../trainingLabels/exerciseLabels";
 
 /** REV-015.2 — "Freinage · Sentier aménagé"; an unknown skill/terrain is left out, never shown raw. `null` when neither is known. */
 function formatDrillContext(skillTarget: string, terrainRequirement: string): string | null {
@@ -14,22 +16,6 @@ const ROLE_LABELS: Record<string, string> = {
   accessory: "Accessoire",
 };
 
-/**
- * Mechanical id -> label (lowercase, split "_", capitalize each word) — same
- * discipline as trainingPlanReview's own humanizeLabel, duplicated locally
- * rather than cross-imported (siblings across feature folders stay
- * decoupled, no shared build boundary — same precedent applied throughout
- * this codebase). No catalogue lookup exists on the web side; this is the
- * honest minimal fallback, never an invented translation.
- */
-function humanizeId(value: string): string {
-  return value
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 function formatRepScheme(repScheme: ExecutableRepScheme): string {
   switch (repScheme.type) {
@@ -84,7 +70,7 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
           {structure.blocks.map((block, index) => (
             <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
               {ROLE_LABELS[block.role] && <p className="text-xs uppercase tracking-wide text-muted">{ROLE_LABELS[block.role]}</p>}
-              <p className="font-medium text-ink">{humanizeId(block.exerciseId)}</p>
+              <p className="font-medium text-ink">{translateExercise(block.exerciseId) ?? UNKNOWN_EXERCISE_LABEL}</p>
               <p className="text-ink/80">
                 {block.sets} × {formatRepScheme(block.repScheme)} — {formatIntensity(block.intensity)}
               </p>
@@ -98,7 +84,7 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
         <ul className="flex flex-col gap-3">
           {structure.drills.map((drill, index) => (
             <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
-              <p className="font-medium text-ink">{humanizeId(drill.drillId)}</p>
+              <p className="font-medium text-ink">{translateDrill(drill.drillId) ?? UNKNOWN_DRILL_LABEL}</p>
               {formatDrillContext(drill.skillTarget, drill.terrainRequirement) && (
                 <p className="text-xs uppercase tracking-wide text-muted">{formatDrillContext(drill.skillTarget, drill.terrainRequirement)}</p>
               )}
