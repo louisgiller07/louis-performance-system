@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useEffectiveToday } from "../lib/simulationClock";
@@ -14,6 +14,10 @@ import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
 import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
 import { getActivePlanVersionId } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { SecondaryButton } from "../components/SecondaryButton";
+import { CheckinSheet } from "../features/checkin/CheckinSheet";
+import { CheckinHero } from "../features/checkin/CheckinHero";
+import { AnalysisSequence } from "../features/dailyPlan/AnalysisSequence";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -40,6 +44,26 @@ export function TodayPage() {
   // initial load of an existing row — see DailyPlanPanel's checkinRevision
   // prop doc for why that distinction matters.
   const [checkinRevision, setCheckinRevision] = useState(0);
+  // UX-03 — Today is state-driven: until CheckinForm has reported whether
+  // today's check-in exists, a skeleton holds the hero's place; then either
+  // the check-in invitation (no check-in yet) or the mission (DailyPlanPanel).
+  const [checkinKnown, setCheckinKnown] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const handleCheckinAvailability = useCallback((available: boolean) => {
+    setHasCheckin(available);
+    setCheckinKnown(true);
+  }, []);
+
+  // A real save: bump the revision (DailyPlanPanel then runs the analysis
+  // on its own — autoGenerateOnCheckinSave) and close the ritual.
+  const handleCheckinSaved = useCallback(() => {
+    setCheckinRevision((revision) => revision + 1);
+    setSheetOpen(false);
+    window.scrollTo?.({ top: 0 });
+  }, []);
+
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
 
   // V0.3_006A1 — read-only, independent of check-in/plan generation state:
   // a load failure here must never block the check-in/plan flow, and vice
@@ -90,17 +114,24 @@ export function TodayPage() {
     // treats a bare YYYY-MM-DD string as UTC midnight, which can render the
     // wrong weekday/day near a timezone boundary.
     const [year, month, day] = canonicalDate.split("-").map(Number);
-    return FRIENDLY_DATE_FORMAT.format(new Date(year, month - 1, day));
+    const formatted = FRIENDLY_DATE_FORMAT.format(new Date(year, month - 1, day));
+    // UX-03 — "Mardi 29 septembre": capitalized weekday, never the ISO date.
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   }, [canonicalDate]);
 
-  return (
-    <PageShell header={<AppHeader />}>
-      <Card className="px-5 py-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Aujourd'hui</p>
-        <p className="mt-2 text-2xl font-bold uppercase tracking-tight text-ink">{friendlyDate}</p>
-        <p className="mt-1 font-mono text-xs text-muted">{canonicalDate}</p>
-      </Card>
+  const heroSkeleton = (
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-6" aria-busy="true">
+      <p className="sr-only">Chargement de ta journée…</p>
+      <div className="ux-skeleton h-3 w-1/3 rounded" />
+      <div className="ux-skeleton h-12 w-4/5 rounded" />
+      <div className="ux-skeleton h-4 w-2/3 rounded" />
+      <div className="ux-skeleton mt-3 h-12 rounded" />
+    </div>
+  );
 
+  return (
+    <PageShell header={<AppHeader trailing={<time dateTime={canonicalDate}>{friendlyDate}</time>} />}>
+      {/* Safety first: an active health follow-up always sits above everything else. */}
       <HealthFlagBanner flags={openHealthFlags} />
 
       {hasActivePlan === false && (
@@ -115,42 +146,65 @@ export function TodayPage() {
         </Card>
       )}
 
+      {!checkinKnown && heroSkeleton}
+
+      {checkinKnown && !hasCheckin && (
+        <CheckinHero
+          onStart={() => setSheetOpen(true)}
+          planningSlot={athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
+        />
+      )}
+
       {/*
-       * V0.3 UX PREMIUM REDESIGN — hierarchy: Mission du jour -> Head
-       * Coach Decision -> Readiness -> Session Plan, all rendered inside
-       * DailyPlanPanel/DailyPlanResult/DailyPlanView (missionSlot/
-       * readinessSlot). No redundant section header here — DecisionHero
-       * already carries its own "Head Coach Decision" label; a generic
-       * "Plan du jour" label above it would only compete with it.
+       * The mission: restores today's current decision, or runs the analysis
+       * right after a check-in is saved ("NALYNT analyse…" → MissionHero).
        */}
-      <Card>
-        {athleteId && (
-          <DailyPlanPanel athleteId={athleteId} date={canonicalDate} hasCheckin={hasCheckin} checkinRevision={checkinRevision} />
-        )}
-      </Card>
+      {athleteId && (
+        <DailyPlanPanel
+          athleteId={athleteId}
+          date={canonicalDate}
+          hasCheckin={hasCheckin}
+          checkinRevision={checkinRevision}
+          hideIdleWithoutCheckin
+          autoGenerateOnCheckinSave
+          minAnalysisMs={1800}
+          runningSlot={<AnalysisSequence />}
+          loadingSlot={checkinKnown ? heroSkeleton : null}
+        />
+      )}
 
-      <Card>
-        <SectionHeader title="Check-in" subtitle="Ton rituel quotidien avant de rouler." />
-        <div className="mt-4">
-          {athleteId ? (
-            <CheckinForm
-              athleteId={athleteId}
-              date={canonicalDate}
-              onCheckinAvailabilityChange={setHasCheckin}
-              onSaved={() => setCheckinRevision((revision) => revision + 1)}
-            />
-          ) : (
-            <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>
-          )}
+      {hasCheckin && (
+        <div className="ux-enter flex items-center justify-between gap-3 rounded-lg border border-line bg-card px-4 py-3">
+          <p className="flex items-center gap-2.5 text-sm text-ink">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border border-gold/60 text-xs text-gold" aria-hidden="true">
+              ✓
+            </span>
+            Check-in du jour enregistré
+          </p>
+          <SecondaryButton onClick={() => setSheetOpen(true)} className="min-h-10 px-3 py-1.5 text-xs uppercase tracking-[0.12em]">
+            Modifier
+          </SecondaryButton>
         </div>
-      </Card>
-
-      {athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
+      )}
 
       <Card>
-        <SectionHeader title="Séance du jour" />
+        <SectionHeader title="Après ta séance" subtitle="Ce que tu as vraiment fait aujourd'hui." />
         <div className="mt-4">{athleteId && <CompletedSessionCard date={canonicalDate} athleteId={athleteId} />}</div>
       </Card>
+
+      {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}
+
+      <CheckinSheet open={sheetOpen} onClose={closeSheet}>
+        {athleteId && (
+          <CheckinForm
+            athleteId={athleteId}
+            date={canonicalDate}
+            mode="guided"
+            onCheckinAvailabilityChange={handleCheckinAvailability}
+            onSaved={handleCheckinSaved}
+          />
+        )}
+      </CheckinSheet>
     </PageShell>
   );
 }

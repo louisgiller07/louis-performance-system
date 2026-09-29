@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
@@ -32,6 +32,26 @@ interface DailyPlanPanelProps {
    * never keep being shown as if it were still current.
    */
   checkinRevision: number;
+  /**
+   * UX-03 — Today's guided flow (all opt-in; every default keeps the
+   * historical behavior covered by DailyPlanPanel.test.tsx):
+   * - hideIdleWithoutCheckin: render nothing while there is no check-in and
+   *   nothing to show (Today's check-in hero is the call to action instead
+   *   of a disabled button).
+   * - autoGenerateOnCheckinSave: after a check-in is actually saved (a new
+   *   checkinRevision), start the daily run right away — the same
+   *   handleGenerate() the button calls, same guards.
+   * - minAnalysisMs: keep the "analysis" state visible at least this long
+   *   before revealing the result (presentation pacing only; the request
+   *   itself is never delayed or retried).
+   * - runningSlot / loadingSlot: what to show while the run is in flight /
+   *   while today's decision is being restored, instead of the plain text.
+   */
+  hideIdleWithoutCheckin?: boolean;
+  autoGenerateOnCheckinSave?: boolean;
+  minAnalysisMs?: number;
+  runningSlot?: ReactNode;
+  loadingSlot?: ReactNode;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -49,7 +69,17 @@ interface DailyPlanPanelProps {
 // silently point to a DIFFERENT decision than the one the athlete actually
 // rode with if a new plan was generated after the fact. See
 // docs/11_DECISION_LOG.md V0.3_007B.
-export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }: DailyPlanPanelProps) {
+export function DailyPlanPanel({
+  athleteId,
+  date,
+  hasCheckin,
+  checkinRevision,
+  hideIdleWithoutCheckin = false,
+  autoGenerateOnCheckinSave = false,
+  minAnalysisMs = 0,
+  runningSlot,
+  loadingSlot,
+}: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
@@ -126,7 +156,12 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
     setResult(null);
     setError(null);
     setState("idle");
-  }, [checkinRevision]);
+    // UX-03 — opt-in: a freshly saved check-in goes straight into the run.
+    // handleGenerate (hoisted) is this render's own, so it carries the new
+    // checkinRevision; the revision guard above makes re-runs of this effect
+    // (handleGenerate is a new function every render) a no-op.
+    if (autoGenerateOnCheckinSave) void handleGenerate();
+  }, [checkinRevision, autoGenerateOnCheckinSave, handleGenerate]);
 
   async function handleGenerate() {
     if (inFlightRef.current) return;
@@ -144,8 +179,14 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
     setError(null);
     setInvalidatedNotice(null);
     setState("running");
+    const startedAt = Date.now();
     try {
       const outcome = await runDailyRun(date);
+
+      // UX-03 — presentation pacing only (0 by default): the analysis state
+      // stays visible at least minAnalysisMs before the reveal.
+      const remaining = minAnalysisMs - (Date.now() - startedAt);
+      if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
 
       if (latestRevisionRef.current !== requestRevision) {
         // The checkin was saved again while this request was in flight.
@@ -179,7 +220,7 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
   // is about to replace that state seconds later, and never treat a read
   // failure as "no decision, please generate one".
   if (restorePhase === "loading") {
-    return <p className="text-sm text-muted">Chargement de ton plan…</p>;
+    return loadingSlot !== undefined ? <>{loadingSlot}</> : <p className="text-sm text-muted">Chargement de ton plan…</p>;
   }
 
   if (restorePhase === "error") {
@@ -195,11 +236,21 @@ export function DailyPlanPanel({ athleteId, date, hasCheckin, checkinRevision }:
     );
   }
 
+  if (hideIdleWithoutCheckin && !hasCheckin && state === "idle" && result === null && error === null) {
+    return null;
+  }
+
+  if (runningSlot !== undefined && state === "running") {
+    return <>{runningSlot}</>;
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      {!(result && runningSlot !== undefined) && (
       <PrimaryButton onClick={() => void handleGenerate()} disabled={!hasCheckin || state === "running"}>
         {state === "running" ? "Analyse en cours…" : "Préparer ma séance du jour"}
       </PrimaryButton>
+      )}
 
       {!hasCheckin && <p className="text-xs text-muted">Enregistre d'abord ton check-in du jour.</p>}
 

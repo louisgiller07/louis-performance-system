@@ -199,3 +199,72 @@ input[type="range"].ux-range:focus-visible::-webkit-slider-thumb {
   outline-offset: 3px;
 }
 
+/*
+ * UX-03 — Today: guided check-in, analysis sequence, mission reveal.
+ * Final state by default (no-JS / reduced motion); motion only when allowed.
+ */
+.checkin-guided > fieldset:first-child > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.checkin-guided fieldset {
+  gap: 1.25rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mission-strike {
+    animation: ux-strike 0.5s var(--ease-premium) 0.7s both;
+  }
+  .mission-adapted {
+    animation: ux-slide-in 0.7s var(--ease-premium) 0.95s both;
+  }
+  .analysis-line {
+    animation: ux-line 0.5s ease calc(var(--i) * 380ms + 200ms) both;
+  }
+  .analysis-check {
+    animation: ux-pop 0.4s var(--ease-premium) calc(var(--i) * 380ms + 480ms) both;
+  }
+  .analysis-bar {
+    animation: ux-bar 1.8s var(--ease-premium) both;
+  }
+  .analysis-dot {
+    animation: ux-pulse 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes ux-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes ux-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0.75rem, 0, 0);
+  }
+}
+@keyframes ux-line {
+  from {
+    opacity: 0.3;
+  }
+}
+@keyframes ux-bar {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes ux-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .checkin-sheet:not([hidden]) .checkin-sheet-panel {
+    animation: ux-enter 0.5s var(--ease-premium) both;
+  }
+}

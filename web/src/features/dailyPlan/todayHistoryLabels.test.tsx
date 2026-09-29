@@ -140,6 +140,7 @@ describe("Today — full daily plan render (REV-015.1)", () => {
 
     expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     expect(screen.getByText("Intensité")).toBeInTheDocument();
-    expect(screen.getByText("Mission du jour")).toBeInTheDocument();
+    // UX-03 — Today leads with the unified MissionHero.
+    expect(screen.getByText("Ta mission du jour")).toBeInTheDocument();
   });
 });
