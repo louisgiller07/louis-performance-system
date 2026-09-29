@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { SubPageLink } from "../components/SubPageLink";
@@ -15,9 +15,15 @@ import {
 } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import { findAthleteModifiedProgramDates } from "../features/trainingPlanReview/athleteModifiedProgramDays";
 import type { TrainingPlanDraftSummary, TrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewTypes";
-import { TrainingPlanOverview } from "../features/trainingPlanReview/components/TrainingPlanOverview";
-import { TrainingPlanWeekCard } from "../features/trainingPlanReview/components/TrainingPlanWeekCard";
-import { DraftList } from "../features/trainingPlanReview/components/DraftList";
+import { useAuth } from "../auth/AuthContext";
+import { useEffectiveToday } from "../lib/simulationClock";
+import { raceHorizon } from "../features/today/todayContext";
+import { useProgramContext } from "../features/program/programContextRepo";
+import { ProgramHero } from "../features/program/ProgramHero";
+import { ProgramDraftSummary } from "../features/program/ProgramDraftSummary";
+import { ProgramWeekTimeline } from "../features/program/ProgramWeekTimeline";
+import { ProgramSessions } from "../features/program/ProgramSessions";
+import { ProgramCoachSummary } from "../features/program/ProgramCoachSummary";
 
 type PageState = "loading" | "empty" | "ready" | "error" | "not_found";
 
@@ -30,7 +36,7 @@ const NOT_FOUND_MESSAGE = "Ce plan est introuvable ou n'est plus accessible.";
  * acceptance. Page-level orchestration only: data access goes exclusively
  * through trainingPlanReviewRepo.ts (V0.5_027) and acceptTrainingPlan.ts,
  * never a direct Supabase call from this file or any child component — the
- * components (TrainingPlanOverview/WeekCard/SessionCard/DraftList/
+ * components (features/program/*, TrainingPlanOverview/WeekCard/SessionCard/
  * AcceptTrainingPlanButton) only ever receive already-assembled data as
  * props, never a table name, never a relation to reconstruct themselves
  * (ticket lock).
@@ -52,10 +58,12 @@ const NOT_FOUND_MESSAGE = "Ce plan est introuvable ou n'est plus accessible.";
  */
 export function TrainingPlanPreviewPage() {
   const { planVersionId: routePlanVersionId } = useParams<{ planVersionId: string }>();
+  const { athleteId } = useAuth();
+  // Same canonical "today" as Today (real date; simulated only for the simulation athlete).
+  const today = useEffectiveToday();
   const navigate = useNavigate();
   const [state, setState] = useState<PageState>("loading");
   const [drafts, setDrafts] = useState<TrainingPlanDraftSummary[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [review, setReview] = useState<TrainingPlanReview | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>(LOAD_ERROR_MESSAGE);
@@ -76,13 +84,11 @@ export function TrainingPlanPreviewPage() {
         // reads any lifecycle state).
         try {
           const loadedReview = await getTrainingPlanReview(routePlanVersionId);
-          setSelectedId(routePlanVersionId);
           setReview(loadedReview);
           setState("ready");
         } catch (err) {
           if (err instanceof TrainingPlanVersionNotFoundError) {
             setReview(null);
-            setSelectedId(null);
             setState("not_found");
             return;
           }
@@ -93,7 +99,6 @@ export function TrainingPlanPreviewPage() {
 
       if (draftList.length === 0) {
         setReview(null);
-        setSelectedId(null);
         setState("empty");
         return;
       }
@@ -102,7 +107,6 @@ export function TrainingPlanPreviewPage() {
       // assumes exactly one draft exists (ticket lock).
       const targetId = draftList[0]!.id;
       const loadedReview = await getTrainingPlanReview(targetId);
-      setSelectedId(targetId);
       setReview(loadedReview);
       setState("ready");
     } catch {
@@ -137,6 +141,14 @@ export function TrainingPlanPreviewPage() {
   const athleteModifiedDates =
     review && review.lifecycleState === "accepted" && modifications?.planVersionId === review.version.id ? modifications.dates : null;
 
+  // UX-06 — read-only facts around the plan (race / objective, completed
+  // sessions, the Head Coach decisions of today and past days). A draft is
+  // not the plan the athlete trained with, so only the race / objective are
+  // shown around it.
+  const context = useProgramContext(athleteId, review, today);
+  const horizon = useMemo(() => (context ? raceHorizon(context.races, today) : null), [context, today]);
+  const isAccepted = review?.lifecycleState === "accepted";
+
   function handleSelectDraft(planVersionId: string) {
     // Navigates rather than fetching locally — the URL becomes the one
     // source of truth for "which plan is shown" (V0.5_038), so a refresh or
@@ -157,7 +169,13 @@ export function TrainingPlanPreviewPage() {
   if (state === "loading") {
     return (
       <PageShell header={<AppHeader />}>
-        <p className="text-center text-sm text-muted">Chargement…</p>
+        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-6" aria-busy="true">
+          <p className="sr-only">Chargement…</p>
+          <div className="ux-skeleton h-3 w-1/4 rounded" />
+          <div className="ux-skeleton h-10 w-4/5 rounded" />
+          <div className="ux-skeleton h-4 w-1/2 rounded" />
+        </div>
+        <div className="ux-skeleton h-40 rounded-xl" aria-hidden="true" />
       </PageShell>
     );
   }
@@ -199,28 +217,30 @@ export function TrainingPlanPreviewPage() {
     );
   }
 
+  // UX-06 — validated order: where you are going (hero), a pending new version
+  // if any, this week, today (dominant), what is coming, what is done (folded),
+  // the coach summary (folded), then the way to adjust.
   return (
     <PageShell header={<AppHeader />}>
-      <SubPageLink to="/plan" label="Ma semaine" hint="· planning des 7 prochains jours" />
-      {drafts.length > 1 && selectedId && <DraftList drafts={drafts} selectedId={selectedId} onSelect={handleSelectDraft} />}
-
       {review && (
         <>
-          <TrainingPlanOverview
+          <ProgramHero review={review} horizon={horizon} objective={context?.objective ?? null} today={today} />
+          <ProgramDraftSummary drafts={drafts} review={review} hasActivePlan={hasActivePlan} onSelect={handleSelectDraft} onAccepted={handleAccepted} />
+          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} races={context?.races ?? []} />
+          <ProgramSessions
             review={review}
-            hasActivePlan={hasActivePlan}
-            onAccepted={handleAccepted}
-            athleteModifiedDates={athleteModifiedDates}
+            today={today}
+            completed={isAccepted ? (context?.completed ?? []) : []}
+            decisionsByDate={isAccepted && context ? context.decisionsByDate : new Map()}
+            modifiedDates={athleteModifiedDates ?? []}
           />
-          <div className="flex flex-col gap-4">
-            {review.blocks
-              .flatMap((block) => block.weeks)
-              .map((week) => (
-                <TrainingPlanWeekCard key={week.id} week={week} />
-              ))}
-          </div>
+          <ProgramCoachSummary review={review} athleteModifiedDates={athleteModifiedDates} />
         </>
       )}
+      <SubPageLink to="/plan" label="Ma semaine" hint="· planning des 7 prochains jours" />
+      <Link to="/performance-setup" className="ux-press inline-flex min-h-11 items-center justify-center rounded border border-line px-4 text-sm font-medium text-ink/85 hover:border-gold/60 hover:text-ink">
+        Modifier ma configuration
+      </Link>
     </PageShell>
   );
 }

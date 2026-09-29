@@ -57,7 +57,8 @@ interface RaceRow {
   race_format: string | null;
 }
 
-async function loadRaces(athleteId: string, fromDate: string, toDate: string): Promise<TodayRace[]> {
+/** Also used by Programme (UX-06). */
+export async function loadRaces(athleteId: string, fromDate: string, toDate: string): Promise<TodayRace[]> {
   const { data, error } = await supabase
     .from("race_calendar")
     .select("event_name, start_date, end_date, priority, location, race_format")
@@ -87,7 +88,8 @@ async function loadCheckinDates(athleteId: string, fromDate: string, toDate: str
   return ((data ?? []) as { checkin_date: string }[]).map((row) => row.checkin_date);
 }
 
-async function loadObjective(): Promise<string | null> {
+/** Also used by Programme (UX-06). */
+export async function loadObjective(): Promise<string | null> {
   const [setup, onboarding] = await Promise.allSettled([loadPerformanceSetupAnswers(), loadOnboardingAnswers()]);
   const seasonObjective = setup.status === "fulfilled" ? setup.value.seasonObjective?.trim() : undefined;
   if (seasonObjective) return seasonObjective;
