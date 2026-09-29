@@ -4,6 +4,8 @@ import type { TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
 import { formatShortDate } from "../trainingPlanReviewFormat";
 // REV-015.3 — French exercise/drill names by catalogue id; an unknown id shows the neutral label, never the id.
 import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../../trainingLabels/exerciseLabels";
+// REV-015.4b — French drill instruction only when the stored English matches its known source; otherwise the stored text is kept.
+import { translateDrillExecutionCue } from "../../trainingLabels/drillInstructionLabels";
 import { translateExplanation } from "../trainingPlanExplanationLabels";
 import {
   formatRepetitionRange,
@@ -129,7 +131,9 @@ function PrescriptionStructure({ structure }: { structure: unknown }) {
           <li key={index} className="text-sm text-ink/90">
             {translateDrill(drill.drillId) ?? UNKNOWN_DRILL_LABEL}
             {typeof drill.runs === "number" && <span className="text-muted"> — {drill.runs} passages</span>}
-            {typeof drill.executionCue === "string" && <p className="text-xs text-muted">{drill.executionCue}</p>}
+            {translateDrillExecutionCue(drill.drillId, drill.executionCue) && (
+              <p className="text-xs text-muted">{translateDrillExecutionCue(drill.drillId, drill.executionCue)}</p>
+            )}
           </li>
         ))}
       </ul>

@@ -3,6 +3,8 @@ import type { ExecutableIntensity, ExecutablePrescription, ExecutableRepScheme }
 import { formatRepetitionRange, formatRepetitions, translateSkill, translateTerrain } from "../trainingLabels/trainingLabels";
 // REV-015.3 — French exercise/drill names by catalogue id; an unknown id shows the neutral label, never the id.
 import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../trainingLabels/exerciseLabels";
+// REV-015.4b — French drill instruction/criterion only when the stored English matches its known source; otherwise the stored text is kept.
+import { translateDrillExecutionCue, translateDrillSuccessCriterion } from "../trainingLabels/drillInstructionLabels";
 
 /** REV-015.2 — "Freinage · Sentier aménagé"; an unknown skill/terrain is left out, never shown raw. `null` when neither is known. */
 function formatDrillContext(skillTarget: string, terrainRequirement: string): string | null {
@@ -89,8 +91,12 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
                 <p className="text-xs uppercase tracking-wide text-muted">{formatDrillContext(drill.skillTarget, drill.terrainRequirement)}</p>
               )}
               <p className="text-ink/80">{drill.runs} passages</p>
-              <p className="text-sm text-ink/70">{drill.executionCue}</p>
-              <p className="text-sm text-muted">Réussite : {drill.successCriterion}</p>
+              {translateDrillExecutionCue(drill.drillId, drill.executionCue) && (
+                <p className="text-sm text-ink/70">{translateDrillExecutionCue(drill.drillId, drill.executionCue)}</p>
+              )}
+              {translateDrillSuccessCriterion(drill.drillId, drill.successCriterion) && (
+                <p className="text-sm text-muted">Réussite : {translateDrillSuccessCriterion(drill.drillId, drill.successCriterion)}</p>
+              )}
               {drill.progressionCondition && <p className="text-sm text-muted">Progression : {drill.progressionCondition}</p>}
               {drill.regressionCondition && <p className="text-sm text-muted">Régression : {drill.regressionCondition}</p>}
             </li>

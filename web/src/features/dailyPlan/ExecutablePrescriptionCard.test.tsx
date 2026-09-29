@@ -223,3 +223,53 @@ describe("ExecutablePrescriptionCard — exercise and drill names (REV-015.3)", 
     expect(screen.getByText("Goblet squat")).toBeInTheDocument();
   });
 });
+
+// REV-015.4b — drill instruction and success criterion are French when the stored English is exactly the catalogue source.
+describe("ExecutablePrescriptionCard — drill instructions (REV-015.4b)", () => {
+  function drillWith(executionCue: string, successCriterion: string, drillId = "race_execution_split_pace"): ExecutablePrescription {
+    return {
+      ...DH_PRESCRIPTION,
+      structure: {
+        domain: "dh_technical",
+        schemaVersion: "v1",
+        drills: [{ drillId, skillTarget: "race_execution", terrainRequirement: "full_dh_track", runs: 4, executionCue, successCriterion }],
+      },
+    };
+  }
+  const SPLIT_CUE =
+    "Mark a 1–2 minute technical section with a midway split, ride it at race intent from a standing start, then compare the two splits and repeat, fixing the slower half.";
+  const SPLIT_CRITERION = "Rides the section at race intent with both splits within 3% of the best run on 2/3 runs.";
+
+  it("a stored plan with the catalogue English shows the French instruction and criterion, never the English", () => {
+    const { container } = render(<ExecutablePrescriptionCard prescription={drillWith(SPLIT_CUE, SPLIT_CRITERION)} />);
+
+    expect(
+      screen.getByText(
+        "Marque une section technique de 1 à 2 minutes avec un split à mi-parcours, roule-la en mode course depuis un départ arrêté, puis compare les deux splits et recommence en corrigeant la moitié la plus lente."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("Réussite : Tu roules la section en mode course, tes deux splits à moins de 3 % de ton meilleur run, sur 2 runs sur 3.")).toBeInTheDocument();
+    expect(container.textContent).not.toContain(SPLIT_CUE);
+    expect(container.textContent).not.toContain(SPLIT_CRITERION);
+  });
+
+  it("a drifted English text is kept as stored (the instruction stays available)", () => {
+    render(<ExecutablePrescriptionCard prescription={drillWith("Ride the section twice.", "Two clean runs.")} />);
+
+    expect(screen.getByText("Ride the section twice.")).toBeInTheDocument();
+    expect(screen.getByText("Réussite : Two clean runs.")).toBeInTheDocument();
+  });
+
+  it("an unknown drill keeps its stored instruction", () => {
+    render(<ExecutablePrescriptionCard prescription={drillWith("Instruction future.", "Critère futur.", "unknown_drill_7")} />);
+
+    expect(screen.getByText("Instruction future.")).toBeInTheDocument();
+    expect(screen.getByText("Réussite : Critère futur.")).toBeInTheDocument();
+  });
+
+  it("an empty criterion shows no 'Réussite' line, no crash", () => {
+    render(<ExecutablePrescriptionCard prescription={drillWith(SPLIT_CUE, "")} />);
+
+    expect(screen.queryByText(/Réussite :/)).not.toBeInTheDocument();
+  });
+});

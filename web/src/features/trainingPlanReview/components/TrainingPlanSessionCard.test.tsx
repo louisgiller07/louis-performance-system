@@ -326,3 +326,31 @@ describe("TrainingPlanSessionCard — exercise and drill names (REV-015.3)", () 
     expect(container.textContent).not.toMatch(/unknown_exercise_42|Unknown Exercise/);
   });
 });
+
+// REV-015.4b — Programme drill instruction is French when the stored English is exactly the catalogue source.
+describe("TrainingPlanSessionCard — drill instruction (REV-015.4b)", () => {
+  function dhSession(drillId: string, executionCue: unknown) {
+    return session({
+      kind: "DH_TECHNICAL",
+      doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 },
+      prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ drillId, runs: 6, executionCue }] } },
+    });
+  }
+
+  it("catalogue English → French instruction", () => {
+    const cue = "Ride the full track at race intent from the first gate to the finish line — treat every section like it counts.";
+    const { container } = render(<TrainingPlanSessionCard session={dhSession("race_execution_full_run_sim", cue)} />);
+
+    expect(screen.getByText("Roule la piste complète en mode course, du départ jusqu'à l'arrivée — traite chaque section comme si elle comptait.")).toBeInTheDocument();
+    expect(container.textContent).not.toContain(cue);
+  });
+
+  it("drifted text is kept as stored; a missing instruction renders nothing", () => {
+    const { unmount } = render(<TrainingPlanSessionCard session={dhSession("race_execution_full_run_sim", "Ride it all.")} />);
+    expect(screen.getByText("Ride it all.")).toBeInTheDocument();
+    unmount();
+
+    const { container } = render(<TrainingPlanSessionCard session={dhSession("race_execution_full_run_sim", undefined)} />);
+    expect(container.querySelectorAll("li p")).toHaveLength(0);
+  });
+});
