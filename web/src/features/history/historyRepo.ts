@@ -135,7 +135,7 @@ export async function loadLatestDecisionForDate(athleteId: string, date: string)
 /**
  * V0.3_007B — every VALID persisted decision for `athleteId` on exactly
  * `date`, oldest first (chronological, matches how a "which plan did you
- * follow" list should read). Used by CompletedSessionCard to disambiguate
+ * follow" list should read). Used by useCompletedSessionFlow (UX-08) to disambiguate
  * which decision a performed session actually corresponds to when several
  * exist the same day (e.g. the athlete regenerated a plan after already
  * riding) — see docs/11_DECISION_LOG.md V0.3_007B. An invalid/malformed row

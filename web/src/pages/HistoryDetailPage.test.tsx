@@ -152,7 +152,7 @@ describe("HistoryDetailPage", () => {
         },
       ]);
       renderDetailPage();
-      await waitFor(() => expect(screen.getByText("Faite")).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText("Réalisée")).toBeInTheDocument());
       expect(screen.getByText("Repos")).toBeInTheDocument();
     });
 

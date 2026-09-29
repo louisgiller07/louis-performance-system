@@ -480,14 +480,14 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
   it("CASE C: no completed session -> 'Pas de séance enregistrée.', never presented as skipped", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
     expect(within(realiseCard()).getByText("Pas de séance enregistrée.")).toBeInTheDocument();
-    expect(within(realiseCard()).queryByText("Non faite")).not.toBeInTheDocument();
+    expect(within(realiseCard()).queryByText("Non réalisée")).not.toBeInTheDocument();
   });
 
   // §26.E/§13 — a same-day session exists but is free/unlinked (decision_id null).
   it("CASE B (free/unlinked): a same-day session exists but decision_id is NULL -> neutral unassociated copy, never the session's own performed details", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "same_day_unassociated" }} />);
     expect(within(realiseCard()).getByText("Une séance a été enregistrée ce jour-là, mais elle n'est pas associée à ce plan.")).toBeInTheDocument();
-    expect(within(realiseCard()).queryByText("Faite")).not.toBeInTheDocument();
+    expect(within(realiseCard()).queryByText("Réalisée")).not.toBeInTheDocument();
   });
 
   // §26.F/§13 — decision B on a day where the completed session belongs to decision A.
@@ -500,7 +500,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
   it("CASE A, DONE: exact linked session renders rich intervention and status", () => {
     const session = makeSession({ completion_status: "done", intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } });
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "linked", session }} />);
-    expect(within(realiseCard()).getByText("Faite")).toBeInTheDocument();
+    expect(within(realiseCard()).getByText("Réalisée")).toBeInTheDocument();
     expect(within(realiseCard()).getByText(/DH technique/)).toBeInTheDocument();
     expect(within(realiseCard()).getByText(/charge modérée/)).toBeInTheDocument();
   });
@@ -515,7 +515,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     });
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "linked", session }} />);
     const card = realiseCard();
-    expect(within(card).getByText("Partielle")).toBeInTheDocument();
+    expect(within(card).getByText("Partiellement réalisée")).toBeInTheDocument();
     expect(within(card).getByText("En partie")).toBeInTheDocument();
     expect(within(card).queryByText("partial")).not.toBeInTheDocument();
     expect(within(card).getByText("Fatigue ou perte de contrôle")).toBeInTheDocument();
@@ -561,7 +561,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     const session = makeSession({ completion_status: "skipped", intervention: null, session_type: "DH_TECHNICAL", change_reason: "pain" });
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "linked", session }} />);
     const card = realiseCard();
-    expect(within(card).getByText("Non faite")).toBeInTheDocument();
+    expect(within(card).getByText("Non réalisée")).toBeInTheDocument();
     expect(within(card).getByText("Douleur")).toBeInTheDocument();
     expect(within(card).queryByText("Activité")).not.toBeInTheDocument();
     expect(within(card).queryByText("DH technique")).not.toBeInTheDocument();
@@ -575,7 +575,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     const session = makeSession({ completion_status: "done", intervention: null, session_type: "DH_TECHNICAL" });
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "linked", session }} />);
     const card = realiseCard();
-    expect(within(card).getByText("Faite")).toBeInTheDocument();
+    expect(within(card).getByText("Réalisée")).toBeInTheDocument();
     expect(within(card).getByText("Activité")).toBeInTheDocument();
     expect(within(card).getByText("DH technique")).toBeInTheDocument();
   });
@@ -585,7 +585,7 @@ describe("HistoryDetail — Réalisé (V0.3_007D)", () => {
     const session = makeSession({ completion_status: "done", intervention: { kind: "REST" }, actual_duration_min: null, rpe: null, session_type: "REST" });
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "linked", session }} />);
     const card = realiseCard();
-    expect(within(card).getByText("Faite")).toBeInTheDocument();
+    expect(within(card).getByText("Réalisée")).toBeInTheDocument();
     expect(within(card).getByText("Repos")).toBeInTheDocument();
     expect(within(card).queryByText("Durée")).not.toBeInTheDocument();
   });

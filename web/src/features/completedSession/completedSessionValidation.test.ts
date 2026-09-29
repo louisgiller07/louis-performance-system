@@ -278,7 +278,7 @@ describe("validateCompletedSessionForm", () => {
 
   // V0.3_007C — client-side mirror of validation.ts's validateDebriefFields.
   // Deliberately does NOT enforce "required when applicable" (that's a
-  // UI-only gate in CompletedSessionCard — only the component knows
+  // UI-only gate in useCompletedSessionFlow (UX-08) — only the component knows
   // whether the linked decision actually carries an execution_task); this
   // only rejects a PRESENT value that is incoherent, exactly like the server.
   describe("debrief fields (V0.3_007C)", () => {

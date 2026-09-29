@@ -4,6 +4,8 @@ import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from ".
 import { formatDuration } from "../dailyPlan/durationLabels";
 import { coachWhy, retainedSignals, SIGNAL_CHECKIN_FIELD } from "../dailyPlan/coachInsights";
 import { checkinTiles } from "../dailyPlan/checkinTiles";
+import { CHANGE_REASON_LABELS } from "../completedSession/completedSessionTypes";
+import { performedLine, plannedLine } from "../afterSession/afterSessionPresentation";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
@@ -53,7 +55,7 @@ const RECORDED: Record<CompletedSessionRecord["completion_status"], string> = {
   done: "✓ Séance réalisée",
   partial: "◐ Séance partiellement réalisée",
   replaced: "↻ Séance remplacée",
-  skipped: "Séance non faite",
+  skipped: "Séance non réalisée",
 };
 
 /** What was recorded for the day; null when there is nothing to say. */
@@ -65,6 +67,36 @@ function recordedLine(day: HistoryDay, today: string): { text: string; recorded:
   if (!day.dailyPlan || day.dailyPlan.planned_session_before === null) return null;
   // Validated wording: a day not yet passed is "à venir", never "non enregistrée".
   return { text: day.date < today ? "Séance non enregistrée" : "Séance à venir", recorded: false };
+}
+
+/** UX-08 — the recorded session, as facts: what was asked (the linked decision), what was done, effort, legs after, reason, a physical signal. */
+function Realisation({ day }: { day: HistoryDay }) {
+  const session = day.completed!;
+  const linked = day.decisions.find((row) => row.id === session.decision_id);
+  const planned = linked && isValidDailyPlan(linked.dailyPlan) ? linked.dailyPlan.final_session : null;
+  const rows: [string, string][] = [];
+  if (planned) rows.push(["Prévu", plannedLine(planned)]);
+  if (session.completion_status !== "skipped") rows.push(["Réalisé", performedLine(session)]);
+  if (session.rpe !== null) rows.push(["Effort", `${session.rpe}/10`]);
+  if (session.post_leg_fatigue !== null) rows.push(["Jambes après", `${session.post_leg_fatigue}/10`]);
+  if (session.change_reason) rows.push([session.completion_status === "skipped" ? "Ce qui a changé aujourd'hui" : "Ce qui a changé", CHANGE_REASON_LABELS[session.change_reason]]);
+  if (session.new_pain) rows.push(["Signal physique", "signalé"]);
+  return (
+    <div className="mt-4 border-t border-line pt-4">
+      <Kicker>Réalisation</Kicker>
+      <p className={`mt-1.5 text-sm ${session.completion_status === "skipped" ? "text-ink/80" : "text-gold"}`}>{RECORDED[session.completion_status]}</p>
+      {rows.length > 0 && (
+        <dl className="mt-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="flex items-baseline justify-between gap-4 border-b border-line py-2 last:border-b-0">
+              <dt className="text-[0.62rem] uppercase tracking-[0.14em] text-muted">{label}</dt>
+              <dd className="text-right text-sm text-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
 }
 
 function Kicker({ children, tone = "gold" }: { children: string; tone?: "gold" | "red" }) {
@@ -172,7 +204,11 @@ export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string 
         </>
       )}
 
-      {recorded && <p className={`mt-4 border-t border-line pt-3 text-sm ${recorded.recorded ? "text-gold" : "text-muted"}`}>{recorded.text}</p>}
+      {day.completed ? (
+        <Realisation day={day} />
+      ) : (
+        recorded && <p className="mt-4 border-t border-line pt-3 text-sm text-muted">{recorded.text}</p>
+      )}
 
       {day.decisions.length > 1 && <Reevaluations decisions={day.decisions} />}
 

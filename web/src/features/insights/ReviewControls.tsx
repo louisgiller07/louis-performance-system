@@ -14,7 +14,7 @@ interface ReviewControlsProps {
 // Exactly the three locked human decisions — no fourth action, no automatic
 // selection. `disabled` covers both "a submit for THIS candidate is already
 // in flight" and "this card's candidate just went stale/vanished" (the
-// parent decides when to pass true) — mirrors CompletedSessionCard's
+// parent decides when to pass true) — mirrors useCompletedSessionFlow's
 // disabled-while-saving convention.
 export function ReviewControls({ candidateKey, disabled, onReview }: ReviewControlsProps) {
   const [note, setNote] = useState("");
