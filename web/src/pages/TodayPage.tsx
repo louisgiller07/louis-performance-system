@@ -96,7 +96,7 @@ export function TodayPage() {
   return (
     <PageShell header={<AppHeader />}>
       <Card className="px-5 py-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Today</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Aujourd'hui</p>
         <p className="mt-2 text-2xl font-bold uppercase tracking-tight text-ink">{friendlyDate}</p>
         <p className="mt-1 font-mono text-xs text-muted">{canonicalDate}</p>
       </Card>

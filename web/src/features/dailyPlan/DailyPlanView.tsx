@@ -255,7 +255,7 @@ export function DailyPlanView({
       {isDhPrescription && (
         <>
           {showInlineMission && (
-            <PlanSection title="Today's Mission">
+            <PlanSection title="Mission du jour">
               {/*
                * V0.3_008B0 — focus (theme/attention) and execution_task
                * (today's concrete, kind-only execution instruction) can
@@ -299,7 +299,7 @@ export function DailyPlanView({
            * detailed session-window sentence + caption are kept, just
            * de-emphasized under the badges rather than the primary copy.
            */}
-          <PlanSection title="Session Plan">
+          <PlanSection title="Plan de séance">
             <p className="text-xl font-bold uppercase tracking-tight text-ink">
               {TRAINING_KIND_LABELS[dailyPlan.final_session.kind] ?? dailyPlan.final_session.kind}
             </p>
@@ -317,7 +317,7 @@ export function DailyPlanView({
             </div>
             {(dailyPlan.dh_or_technical.load_guidance || dailyPlan.final_session.load_profile) && (
               <div className="mt-3 border-t border-white/5 pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Focus</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Intensité</p>
                 {dailyPlan.dh_or_technical.load_guidance ? (
                   <p className="mt-1 text-ink/70">{dailyPlan.dh_or_technical.load_guidance}</p>
                 ) : (

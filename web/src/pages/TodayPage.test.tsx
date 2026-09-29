@@ -108,6 +108,13 @@ afterEach(() => {
 });
 
 describe("TodayPage", () => {
+  it("REV-015.1: the page header reads 'Aujourd'hui', never 'Today'", () => {
+    renderTodayPage();
+
+    expect(screen.getAllByText("Aujourd'hui").some((el) => el.tagName === "P")).toBe(true);
+    expect(screen.queryByText("Today")).not.toBeInTheDocument();
+  });
+
   it("renders the current canonical local date", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-19T09:00:00Z"));
