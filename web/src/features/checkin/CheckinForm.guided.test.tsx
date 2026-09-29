@@ -130,4 +130,30 @@ describe("CheckinForm — guided mode (UX-03)", () => {
     expect(screen.getAllByText("Réponds Oui ou Non.")).toHaveLength(3);
     expect(screen.getByText("Étape 4 / 4")).toBeInTheDocument();
   });
+
+  it("UX-04 onValuesChange: reports the check-in as loaded (null when none), then as saved — read-only", async () => {
+    mockedLoad.mockResolvedValue(EXISTING_ROW);
+    mockedSave.mockResolvedValue({ ...EXISTING_ROW, energy: 9 });
+    const onValuesChange = vi.fn();
+    const user = userEvent.setup();
+    render(<CheckinForm athleteId="athlete-1" date="2026-09-29" mode="guided" onValuesChange={onValuesChange} />);
+
+    await heading("Sommeil");
+    expect(onValuesChange).toHaveBeenLastCalledWith(EXISTING_ROW);
+    for (let i = 0; i < 3; i++) await user.click(screen.getByRole("button", { name: "Suivant" }));
+    await heading("Santé");
+    await user.click(screen.getByRole("button", { name: "Enregistrer le check-in" }));
+
+    await waitFor(() => expect(onValuesChange).toHaveBeenLastCalledWith(expect.objectContaining({ energy: 9 })));
+    expect(onValuesChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("UX-04 onValuesChange: null when no check-in exists yet", async () => {
+    mockedLoad.mockResolvedValue(null);
+    const onValuesChange = vi.fn();
+    render(<CheckinForm athleteId="athlete-1" date="2026-09-29" mode="guided" onValuesChange={onValuesChange} />);
+
+    await heading("Sommeil");
+    expect(onValuesChange).toHaveBeenCalledWith(null);
+  });
 });

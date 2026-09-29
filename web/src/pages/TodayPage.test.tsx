@@ -2,7 +2,7 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TodayPage } from "./TodayPage";
-import { todayLocal } from "../lib/date";
+import { addDays, todayLocal } from "../lib/date";
 import { writeSimulatedDate } from "../lib/simulationClock";
 
 function renderTodayPage(path = "/today") {
@@ -23,7 +23,15 @@ vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFl
 
 beforeEach(() => {
   getActivePlanVersionId.mockResolvedValue("plan-1");
+  todayContextValue.current = { firstName: "Louis", races: [], objective: "Performance en course", planned: [], completed: [] };
 });
+
+// UX-04 — Today's read-only coach context (its loading and rules are covered by
+// src/features/today/*.test.ts*). Mutable so a test can set a race or objective.
+const { todayContextValue } = vi.hoisted(() => ({
+  todayContextValue: { current: null as null | Record<string, unknown> },
+}));
+vi.mock("../features/today/todayContextRepo", () => ({ useTodayContext: () => todayContextValue.current }));
 
 vi.mock("../auth/AuthContext", () => ({
   useAuth: () => ({
@@ -44,17 +52,20 @@ vi.mock("../features/checkin/CheckinForm", () => ({
     mode,
     onCheckinAvailabilityChange,
     onSaved,
+    onValuesChange,
   }: {
     athleteId: string;
     date: string;
     mode?: string;
     onCheckinAvailabilityChange?: (hasCheckin: boolean) => void;
     onSaved?: () => void;
+    onValuesChange?: (row: unknown) => void;
   }) => (
     <div data-testid="checkin-form-stub">
       checkin-form athlete={athleteId} date={date} mode={mode}
       <button onClick={() => onCheckinAvailabilityChange?.(false)}>simulate no checkin (load)</button>
       <button onClick={() => onCheckinAvailabilityChange?.(true)}>simulate checkin available (load)</button>
+      <button onClick={() => onValuesChange?.({ sleep_hours: 7, energy: 6 })}>simulate checkin values</button>
       <button
         onClick={() => {
           onCheckinAvailabilityChange?.(true);
@@ -86,6 +97,7 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     hideIdleWithoutCheckin,
     autoGenerateOnCheckinSave,
     minAnalysisMs,
+    checkinSnapshot,
   }: {
     date: string;
     hasCheckin: boolean;
@@ -93,10 +105,12 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     hideIdleWithoutCheckin?: boolean;
     autoGenerateOnCheckinSave?: boolean;
     minAnalysisMs?: number;
+    checkinSnapshot?: { sleep_hours: number } | null;
   }) => (
     <div data-testid="daily-plan-panel-stub">
       daily-plan-panel date={date} hasCheckin={String(hasCheckin)} checkinRevision={checkinRevision} hideIdle={String(hideIdleWithoutCheckin)} autoGenerate=
-      {String(autoGenerateOnCheckinSave)} minAnalysisMs={minAnalysisMs}
+      {String(autoGenerateOnCheckinSave)} minAnalysisMs={minAnalysisMs} checkinSnapshot=
+      {checkinSnapshot === undefined ? "undefined" : checkinSnapshot === null ? "null" : `sleep:${checkinSnapshot.sleep_hours}`}
     </div>
   ),
 }));
@@ -122,6 +136,49 @@ const sheet = () => {
   if (!dialog) throw new Error("check-in sheet not rendered");
   return dialog;
 };
+
+describe("TodayPage — UX-04 coach context", () => {
+  it("greets the rider by first name, with the date, and the current objective when no race is within reach", () => {
+    renderTodayPage();
+
+    expect(screen.getByRole("heading", { name: "Bonjour Louis" })).toBeInTheDocument();
+    expect(screen.getByText("Objectif actuel")).toBeInTheDocument();
+    expect(screen.getAllByText("Performance en course").length).toBeGreaterThan(0);
+  });
+
+  it("a race within 120 days: J-XX + its name, in the greeting, the next step and the week", () => {
+    todayContextValue.current = {
+      firstName: "Louis",
+      races: [{ eventName: "iXS Lenzerheide", startDate: addDays(todayLocal(), 12), endDate: addDays(todayLocal(), 13), priority: "A" }],
+      objective: null,
+      planned: [],
+      completed: [],
+    };
+    renderTodayPage();
+
+    expect(screen.getByText("J-12")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Prochaine étape" })).toHaveTextContent("Cap sur iXS Lenzerheide, dans 12 jours.");
+    expect(screen.getByRole("region", { name: "Cette semaine" })).toHaveTextContent("Cap · iXS Lenzerheide · J-12");
+  });
+
+  it("no first name: the brand instead of a guessed greeting; while the context loads, no coach cards yet", () => {
+    todayContextValue.current = null;
+    renderTodayPage();
+
+    expect(screen.getByRole("heading", { name: "NALYNT" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Prochaine étape" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Cette semaine" })).not.toBeInTheDocument();
+  });
+
+  it("today's check-in values (as loaded / saved) are handed to the mission panel for 'Ton état du jour'", async () => {
+    renderTodayPage();
+    expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("checkinSnapshot=null");
+
+    screen.getByText("simulate checkin values").click();
+
+    await waitFor(() => expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("checkinSnapshot=sleep:7"));
+  });
+});
 
 describe("TodayPage (UX-03)", () => {
   describe("header", () => {
@@ -225,7 +282,7 @@ describe("TodayPage (UX-03)", () => {
     renderTodayPage();
 
     expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent(
-      `daily-plan-panel date=${todayLocal()} hasCheckin=false checkinRevision=0 hideIdle=true autoGenerate=true minAnalysisMs=1800`
+      `daily-plan-panel date=${todayLocal()} hasCheckin=false checkinRevision=0 hideIdle=true autoGenerate=true minAnalysisMs=1800 checkinSnapshot=null`
     );
   });
 

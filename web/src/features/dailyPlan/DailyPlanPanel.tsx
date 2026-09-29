@@ -9,6 +9,7 @@ import { loadLatestDecisionForDate } from "../history/historyRepo";
 import { loadDecisionCurrency, type DecisionStaleReason } from "./decisionCurrencyRepo";
 import type { DailyRunError } from "./dailyRunErrors";
 import type { DailyRunResponse } from "./dailyPlanTypes";
+import type { CheckinRow } from "../checkin/checkinTypes";
 
 type RequestState = "idle" | "running" | "success" | "error";
 /** NAL-003 — the persisted-decision restore lookup, independent of the generation RequestState above. */
@@ -52,6 +53,13 @@ interface DailyPlanPanelProps {
   minAnalysisMs?: number;
   runningSlot?: ReactNode;
   loadingSlot?: ReactNode;
+  /**
+   * UX-04 — opt-in Today presentation: when provided (even null), the result
+   * shows "Ce que ton coach a retenu" + "Ton état du jour" with these check-in
+   * values, and the longer reveal right after a fresh analysis. Undefined
+   * keeps the historical result rendering.
+   */
+  checkinSnapshot?: CheckinRow | null;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -79,12 +87,15 @@ export function DailyPlanPanel({
   minAnalysisMs = 0,
   runningSlot,
   loadingSlot,
+  checkinSnapshot,
 }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
   const [error, setError] = useState<DailyRunError | null>(null);
   const [invalidatedNotice, setInvalidatedNotice] = useState<string | null>(null);
+  // UX-04 — whether the result on screen comes from a run in this session (vs. a restore).
+  const [freshRun, setFreshRun] = useState(false);
 
   // NAL-003 — persisted-decision restore, entirely separate from the
   // generation RequestState above: reading what already happened today is
@@ -199,6 +210,7 @@ export function DailyPlanPanel({
 
       if (outcome.ok) {
         setResult(outcome.data);
+        setFreshRun(true);
         setState("success");
         return;
       }
@@ -262,7 +274,12 @@ export function DailyPlanPanel({
         </p>
       )}
 
-      {result && <DailyPlanResult result={result} />}
+      {result && (
+        <DailyPlanResult
+          result={result}
+          today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun } : undefined}
+        />
+      )}
     </div>
   );
 }

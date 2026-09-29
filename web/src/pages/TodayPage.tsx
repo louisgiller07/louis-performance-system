@@ -18,6 +18,12 @@ import { SecondaryButton } from "../components/SecondaryButton";
 import { CheckinSheet } from "../features/checkin/CheckinSheet";
 import { CheckinHero } from "../features/checkin/CheckinHero";
 import { AnalysisSequence } from "../features/dailyPlan/AnalysisSequence";
+import type { CheckinRow } from "../features/checkin/checkinTypes";
+import { useTodayContext } from "../features/today/todayContextRepo";
+import { nextPlannedSession, raceHorizon, weekSummary } from "../features/today/todayContext";
+import { TodayGreeting } from "../features/today/TodayGreeting";
+import { NextStepCard } from "../features/today/NextStepCard";
+import { WeekStrip } from "../features/today/WeekStrip";
 
 const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
   weekday: "long",
@@ -64,6 +70,9 @@ export function TodayPage() {
   }, []);
 
   const closeSheet = useCallback(() => setSheetOpen(false), []);
+
+  // UX-04 — today's check-in values as declared (loaded, then as saved), for "Ton état du jour".
+  const [checkinValues, setCheckinValues] = useState<CheckinRow | null>(null);
 
   // V0.3_006A1 — read-only, independent of check-in/plan generation state:
   // a load failure here must never block the check-in/plan flow, and vice
@@ -119,6 +128,10 @@ export function TodayPage() {
     return formatted.charAt(0).toUpperCase() + formatted.slice(1);
   }, [canonicalDate]);
 
+  // UX-04 — read-only coach context (first name, race / objective, week, next session). Best-effort.
+  const todayContext = useTodayContext(athleteId, canonicalDate);
+  const horizon = useMemo(() => (todayContext ? raceHorizon(todayContext.races, canonicalDate) : null), [todayContext, canonicalDate]);
+
   const heroSkeleton = (
     <div className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-6" aria-busy="true">
       <p className="sr-only">Chargement de ta journée…</p>
@@ -130,8 +143,17 @@ export function TodayPage() {
   );
 
   return (
-    <PageShell header={<AppHeader trailing={<time dateTime={canonicalDate}>{friendlyDate}</time>} />}>
-      {/* Safety first: an active health follow-up always sits above everything else. */}
+    <PageShell header={<AppHeader />}>
+      {/* UX-04 — the coach greets the rider and names what today is for (race or objective). */}
+      <TodayGreeting
+        firstName={todayContext?.firstName ?? null}
+        friendlyDate={friendlyDate}
+        canonicalDate={canonicalDate}
+        horizon={horizon}
+        objective={todayContext?.objective ?? null}
+      />
+
+      {/* Safety first: an active health follow-up always sits above the mission. */}
       <HealthFlagBanner flags={openHealthFlags} />
 
       {hasActivePlan === false && (
@@ -170,6 +192,7 @@ export function TodayPage() {
           minAnalysisMs={1800}
           runningSlot={<AnalysisSequence />}
           loadingSlot={checkinKnown ? heroSkeleton : null}
+          checkinSnapshot={checkinValues}
         />
       )}
 
@@ -192,6 +215,18 @@ export function TodayPage() {
         <div className="mt-4">{athleteId && <CompletedSessionCard date={canonicalDate} athleteId={athleteId} />}</div>
       </Card>
 
+      {/* UX-04 — where today leads: the next planned session and the week, always tied to the race / objective. */}
+      {todayContext && (
+        <>
+          <NextStepCard next={nextPlannedSession(todayContext.planned, canonicalDate)} today={canonicalDate} horizon={horizon} objective={todayContext.objective} />
+          <WeekStrip
+            week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races)}
+            horizon={horizon}
+            objective={todayContext.objective}
+          />
+        </>
+      )}
+
       {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}
 
       <CheckinSheet open={sheetOpen} onClose={closeSheet}>
@@ -202,6 +237,7 @@ export function TodayPage() {
             mode="guided"
             onCheckinAvailabilityChange={handleCheckinAvailability}
             onSaved={handleCheckinSaved}
+            onValuesChange={setCheckinValues}
           />
         )}
       </CheckinSheet>

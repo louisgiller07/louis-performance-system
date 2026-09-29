@@ -3164,3 +3164,21 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 - Les props de `DailyPlanPanel` sont toutes optionnelles avec défaut identique à l'existant (tests historiques inchangés).
 
 **Statut** : Accepted — tests web 1513/1513, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule), 320/390/768 px sans débordement. Non déployé.
+
+## 2026-09-29 — ADR UX-04 : Coach Intelligence Experience (Aujourd'hui)
+
+> **UX-04 introduces athlete-facing coaching explanations. All interpretations are presentation-only. No new training logic or decisions are created.**
+
+**Principe.** Le moteur décide, la présentation explique. `web/src/features/dailyPlan/coachInsights.ts` ne contient aucune logique de coaching : il lit les `signals_used` que le moteur M1 a déjà enregistrés sur les règles qui expliquent la décision finale (`decision_reasoning`, repli `triggered_rules`) et les formule pour un pilote. Il ne recalcule aucun signal depuis les valeurs du check-in, n'émet aucun jugement que le moteur n'a pas émis (jamais « ton sommeil est bon »), n'affiche jamais un identifiant inconnu. Moteur, règles, Supabase, Edge Functions et schéma inchangés.
+
+**« Pourquoi ? » (formulations validées).** Adapter : « [Signal] détecté. NALYNT ajuste la charge pour préserver ton objectif. » Maintenir sans signal : « Rien dans ton check-in ne demande d'adapter ta séance. Tu suis ton plan. » Remplacer : « [Signal] détecté. NALYNT propose une séance adaptée à ton état. » Repos, règle de sécurité (couche A), protocole de course (couche B ou override) et journée sans séance prévue : message moteur existant, nettoyé (`athleteSafeReasoning`), sans modèle. Le raisonnement complet du moteur reste visible dans « Pourquoi cette décision ? » dès que le hero affiche une formulation différente (transparence).
+
+**« Ce que ton coach a retenu » / « Ton état du jour ».** Signaux retenus par le moteur uniquement. Valeurs du check-in telles que déclarées, sans interprétation ; une valeur n'est mise en évidence que si le moteur a retenu un signal issu de cette réponse. L'état du corps (signal de santé serveur) et la note d'attention gardent la sémantique de `ReadinessCard`, qui reste utilisée par l'historique.
+
+**Contexte (lecture seule, affichage uniquement).** Prénom = premier mot de `athletes.name`, repli « NALYNT ». Course : en cours → « Course en cours · jour N » ; < 120 jours → « J-XX » ; 120–365 jours → « Prochain objectif » ; au-delà ou aucune → objectif actuel (`season_objective`, sinon libellé de `primary_goal`). Semaine lundi → dimanche : prévu = séances planifiées hors repos, réalisé = séances `done`/`partial`/`replaced` (`skipped` exclu). Simples comptages, aucun score. Prochaine étape = première séance planifiée après aujourd'hui (14 jours).
+
+**Garde-fou.** Un test lit les sources du moteur et échoue si un signal émis n'a pas de libellé pilote (`vite.config.ts` autorise la lecture du dossier parent en test uniquement ; le serveur de dev est inchangé).
+
+**À vérifier en production.** Rendu du prénom sur de vrais profils : prénom seul, nom complet (premier mot), nom d'équipe ou d'entreprise.
+
+**Statut** : Accepted — tests web 1557/1557, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Rendu vérifié en local sur le compte de test (lecture seule). Non déployé.

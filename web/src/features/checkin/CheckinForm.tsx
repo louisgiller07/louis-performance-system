@@ -6,7 +6,7 @@ import { SecondaryButton } from "../../components/SecondaryButton";
 import { Select } from "../../components/Select";
 import { loadCheckin, saveCheckin } from "./checkinRepo";
 import { validateCheckin, type CheckinFieldErrors } from "./checkinValidation";
-import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, rowToFormState, type CheckinFormState } from "./checkinTypes";
+import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, rowToFormState, type CheckinFormState, type CheckinRow } from "./checkinTypes";
 
 type LoadState = "loading" | "loaded" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
@@ -91,12 +91,17 @@ interface CheckinFormProps {
    * check-in ritual). Same data, validation and save in both modes.
    */
   mode?: "full" | "guided";
+  /**
+   * UX-04 — read-only: today's check-in as loaded, then as saved (null when
+   * none exists yet). Lets Today show the athlete's own declared values.
+   */
+  onValuesChange?: (row: CheckinRow | null) => void;
 }
 
 // M4_003 — real persistence, RLS-scoped. No daily-run call, no DailyPlan
 // rendering, no coaching/safety decision here — this component only
 // collects and saves facts.
-export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSaved, mode = "full" }: CheckinFormProps) {
+export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSaved, mode = "full", onValuesChange }: CheckinFormProps) {
   const guided = mode === "guided";
   const [step, setStep] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -114,6 +119,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
         setForm(rowToFormState(row));
         setLoadState("loaded");
         onCheckinAvailabilityChange?.(row !== null);
+        onValuesChange?.(row);
       })
       .catch(() => {
         if (!active) return;
@@ -196,6 +202,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       setForm(rowToFormState(saved));
       setSaveState("saved");
       if (guided) setStep(0);
+      onValuesChange?.(saved);
       onCheckinAvailabilityChange?.(true);
       onSaved?.();
     } catch (error) {
