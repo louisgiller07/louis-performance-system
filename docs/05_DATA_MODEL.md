@@ -32,6 +32,14 @@ athletes (1)
    └── athlete_coaching_profiles (0 ou 1 — V0.3_004A)
 ```
 
+Modèle d'exécution V1 (UX-11B, ADR acceptée, non migré — voir §Modèle d'exécution V1) :
+
+```
+training_plan_planned_prescriptions → decision_final_prescriptions → session_executions
+                                                                        ├── execution_events
+                                                                        └── exercise_set_results
+```
+
 13 tables (12 + `athlete_coaching_profiles`, V0.3_004A). Toutes justifiées par une requête du Head Coach.
 
 ---
@@ -103,6 +111,8 @@ Colonne ajoutée en V0.3_005A (NAL-001, migration `20260904100000`) :
 
 Séance réellement effectuée. Un enregistrement par jour.
 
+**UX-11B** : `completed_sessions` devient le **résumé** Après séance du jour et la compatibilité historique ; elle n'est plus la source de vérité détaillée de la réalisation (voir §Modèle d'exécution V1). Son contrat actuel (une ligne par jour, remplacement complet via `persist_completed_session`) reste une exception historique liée au contrat existant.
+
 Colonne `session_type` de type `DbSessionType`. `main_content` en JSONB pour la richesse (peut inclure `TrainingIntervention` précise, événements mécaniques, etc.).
 
 **Décision M2 (audit DDL 2026-08-14)** : `main_content` est un JSONB **libre**, table **vide**, sans convention canonique établie. La `TrainingIntervention` riche ne peut pas y vivre. Décision : migration **`M2_004` REQUIRED** ajoutant `completed_sessions.intervention JSONB NULL` (même logique que `planned_sessions.intervention`, mêmes règles d'inversion partielle pour les rows legacy). `main_content` reste disponible pour d'autres usages libres (événements mécaniques, notes, etc.), mais la `TrainingIntervention` riche vit dans `intervention` uniquement.
@@ -147,6 +157,51 @@ Les colonnes historiques (`final_session`, `planned_session_before`, `reason`, `
 **V0.3_005 (NAL-003, Persisted Daily Decision Restore) : COMPLETE (2026-09-08)** : `/today` restaure automatiquement la décision déjà persistée pour l'athlète et la date courante au lieu de la faire disparaître à chaque navigation/rechargement — `daily-run` n'est jamais invoqué merely pour afficher un plan déjà généré. `web/src/features/history/historyRepo.ts#loadLatestDecisionForDate` réutilise le chemin RLS existant (`decisions_own_select`) et implémente la sélection "plus récente valide" ci-dessus. Une erreur de lecture reste distincte d'une absence de décision (jamais présentée comme "aucun plan, génère-en un"). Voir `docs/11_DECISION_LOG.md` (V0.3_005, NAL-003).
 
 **Atomicité écriture (M2)** : la persistance d'une nouvelle row `decisions` et l'éventuel upsert du health flag associé sont effectués dans **le même appel** de la fonction PostgreSQL `persist_daily_run` (invoquée via RPC). Une fonction PostgreSQL s'exécute intrinsèquement dans une transaction unique : les deux écritures aboutissent ensemble, ou aucune ne persiste. Toute erreur non capturée fait échouer l'appel et annule les écritures de cet appel. Voir `06_ARCHITECTURE.md` §Persistance idempotente + atomique.
+
+### Modèle d'exécution V1 (UX-11B, ADR acceptée — non migré)
+
+> **Statut** : conception validée par l'ADR UX-11B.1 « NALYNT Execution Model V1 » (`11_DECISION_LOG.md`). **Aucune des nouvelles entités ci-dessous n'existe encore en base.** Les noms d'entités sont des noms conceptuels ; les noms de tables et les champs seront validés lors de UX-11B.2.
+>
+> **Règle** : NALYNT ne remplace jamais l'historique de décision par le résultat final. Le prévu, le demandé aujourd'hui et le réalisé restent trois couches séparées et immuables. Une correction crée un nouvel événement ou une nouvelle version, jamais un écrasement.
+
+```
+training_plan_planned_prescriptions   prévu (existe, immuable)
+        ↓ planned_prescription_id
+decision_final_prescriptions          demandé aujourd'hui (existe, immuable, jamais écrite à ce jour)
+        ↓ final_prescription_id (facultatif)
+session_executions                    exécution (nouvelle, insertion seule)
+        ├── execution_events                started / paused / resumed / completed / abandoned (nouvelle, insertion seule)
+        └── exercise_set_results            une ligne par série (nouvelle, insertion seule)
+
+completed_sessions                    résumé Après séance du jour (existe, inchangée)
+```
+
+**Tables existantes concernées** (V0.4, jusqu'ici non décrites dans ce document) :
+
+| Table | Rôle | Propriétés |
+|---|---|---|
+| `training_plan_planned_prescriptions` | Prescription d'une séance du plan (`structure` JSONB versionnée par `schema_version` et `catalog_version`) | Une par séance générée ; modification et suppression rejetées par trigger |
+| `decision_final_prescriptions` | Prescription du jour attachée à une décision : origine (`generated`, `manual_override_same_kind`, `manual_override_new_kind`, `no_canonical_plan`), action (`keep`, `modify`, `replace`), `adaptation_rule_ids`, `structure` | Référence la prescription du plan quand elle en dérive ; modification et suppression rejetées par trigger ; **aucun code ne l'écrit à ce jour** (écriture prévue en UX-11A.5) |
+
+**Identifiants d'éléments prescrits.** À partir du format de séance V1 (`03_COACHING_MODEL.md` §Modèle de séance NALYNT V1), chaque exercice prescrit dans `structure` porte un `prescription_item_id` (UUID) à côté de son `exercise_id` de catalogue. Un élément gardé ou réduit dans la prescription du jour conserve la référence de l'élément du plan dont il dérive. Les `structure` au format actuel n'ont pas d'identifiants et n'en reçoivent jamais a posteriori : anciennes séances → historique uniquement ; nouvelles prescriptions au format UX-11A → exécutables.
+
+**Une exécution référence la prescription du jour affichée au pilote, et non uniquement le plan d'origine** : si le plan prévoit squat 4 × 8 et que NALYNT adapte en 3 × 6, l'exécution pointe vers 3 × 6.
+
+**Nouvelles entités (conceptuelles)** :
+
+| Entité | Champs principaux | Règles |
+|---|---|---|
+| `session_executions` | `id` (UUID généré par l'appareil) · `athlete_id` · `session_date` · `final_prescription_id` (facultatif) · `decision_id` (facultatif) · `started_at` (appareil) · `recorded_at` (serveur) · `comment` (facultatif) | Insertion seule. 0 à N exécutions par prescription du jour ; les historiques peuvent contenir plusieurs tentatives, mais **une seule exécution peut être active pour une journée donnée** en V1 |
+| `execution_events` | `id` (UUID appareil) · `execution_id` · `event_type` (`started`, `paused`, `resumed`, `completed`, `abandoned`) · `occurred_at` (appareil) · `recorded_at` (serveur) | Insertion seule. L'état courant d'une exécution est celui de son dernier événement ; aucune colonne de statut modifiée |
+| `exercise_set_results` | `id` (UUID appareil) · `execution_id` · `prescription_item_id` (facultatif) · `other_exercise_name` + `comment` (quand ce n'est pas un élément prévu) · `set_number` · `done` · une seule mesure : `reps`, `duration_s`, `distance_m` ou passage DH · `load_kg` (facultatif, saisi par le pilote) · `rpe_actual` (facultatif) · `success` (facultatif, quand un critère existe) · `supersedes_id` (facultatif) · `occurred_at` (appareil) · `recorded_at` (serveur) | Insertion seule. Une correction est une nouvelle ligne avec `supersedes_id` ; la valeur courante est la dernière non remplacée. Aucun total stocké |
+
+**Intégrité.** `prescription_item_id` doit exister dans la `structure` de la prescription du jour de l'exécution ; une clé JSONB ne pouvant pas porter de clé étrangère, ce contrôle appartient au chemin d'écriture serveur. Une exécution sans prescription (séance libre, sans plan, format ancien) n'a que des événements et un commentaire, sans série liée à un élément.
+
+**Accès.** RLS : lecture par le pilote de ses propres lignes (politique standard). Écriture uniquement via un chemin serveur validé (RPC / Edge Function, même principe que `persist_completed_session`), jamais de privilège d'écriture direct.
+
+**Compatibilité future hors ligne (non implémentée)** : identifiants générés par l'appareil (un renvoi ne crée jamais de doublon), double horodatage appareil / serveur, données en ajout seulement (fusion par union). Seule la règle « une exécution active » demandera une résolution de conflit lors de la synchronisation.
+
+**Limites V1** : une séance principale par jour ; « autre exercice réalisé » en nom libre sans lien au catalogue ; résultats de série non lus par le moteur de décision (la charge récente reste calculée depuis `completed_sessions`) ; aucune progression automatique (UX-11E) ; suppression, anonymisation et conservation des données du pilote (RGPD) : sujet distinct, traité en UX-11B.2.
 
 ### `race_calendar`
 
@@ -348,6 +403,7 @@ L'`active_health_flags` du `RawContext` reste une liste structurée `HealthFlag[
 - **`bike_setups`, `maintenance`** — hors périmètre coach setup, jamais dans la DB
 - **`sponsor_crm`, `content_calendar`** — outil manager séparé, hors app athlète
 - **`documents`** — utiliser Supabase Storage directement
+- **Doubles séances** (UX-11B) — V1 supporte une séance principale par jour. Les doubles séances nécessitent une évolution du modèle de planification.
 
 Voir `01_PRODUCT_REQUIREMENTS.md` §Hors périmètre.
 
@@ -371,5 +427,6 @@ Voir `01_PRODUCT_REQUIREMENTS.md` §Hors périmètre.
 - Mapping déterministe : pour tout `(kind, load_profile)` valide → sortie unique
 - **Aucune donnée historique fabriquée.** Les colonnes ajoutées après le déploiement initial d'une table restent `NULL` sur les rows antérieures quand l'information réelle n'est pas connue. Les valeurs par défaut ne sont utilisées **que** quand elles reflètent une réalité factuelle (jamais pour combler un vide historique arbitraire).
 - **Inversion `DbSessionType → TrainingIntervention` limitée aux mappings mathématiquement non ambigus** (`REST`, `BIKE_MAINTENANCE`, `RACE_PREP`). Tous les autres `DbSessionType` (ambigus) → `planned_session = null` + warning adapter. Ne jamais inventer `kind` ou `load_profile`.
+- **Prescriptions et réalisations ne sont jamais écrasées (UX-11B).** Le prévu, le demandé aujourd'hui et le réalisé restent trois couches séparées ; une correction crée un nouvel événement ou une nouvelle version. Les nouvelles données détaillées sont append-only ; `completed_sessions` reste une exception historique liée au contrat existant.
 - **`decisions` est append-only.** Aucune contrainte d'unicité sur `(athlete_id, decision_date)`, aucun upsert destructif. La décision courante est la plus récente.
 - **`health_flag_to_create` produit par M1 est persisté** dans `health_flags` par la fonction PostgreSQL `persist_daily_run` (invoquée via RPC), **avant** l'insertion de la row `decisions`, dans le même appel de fonction (transaction unique implicite). Idempotence garantie par un index unique partiel PostgreSQL sur les flags ouverts **`(athlete_id, flag_type)`** (nom réel de la colonne discriminante confirmé par l'audit DDL 2026-08-14).
