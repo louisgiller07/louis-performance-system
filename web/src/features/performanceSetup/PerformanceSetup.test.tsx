@@ -3,21 +3,14 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { PerformanceSetup } from "./PerformanceSetup";
-import {
-  EQUIPMENT_OPTIONS,
-  EQUIPMENT_LABELS,
-  TERRAIN_OPTIONS,
-  TERRAIN_LABELS,
-  TECHNICAL_PRIORITY_OPTIONS,
-  TECHNICAL_PRIORITY_LABELS,
-  STRENGTH_EXPERIENCE_TIER_OPTIONS,
-  STRENGTH_EXPERIENCE_TIER_LABELS,
-} from "./performanceSetupOptions";
+import { EQUIPMENT_OPTIONS, TERRAIN_OPTIONS, TECHNICAL_PRIORITY_OPTIONS, STRENGTH_EXPERIENCE_TIER_OPTIONS } from "./performanceSetupOptions";
 
-// AppHeader renders AppNav, which reads route location via react-router
-// hooks — same requirement as every other page-level test in this codebase
-// (see PlanPage.test.tsx), never specific to this component.
-function renderPerformanceSetup() {
+// UX-10B-1 — "Affiner ton profil": six sections, each with what NALYNT
+// knows, one [Modifier] and its own save through the existing repositories.
+// The current plan is never modified; a new preparation is built on demand
+// (V0.5_036 / V0.5_045 gates kept).
+
+function renderPage() {
   return render(
     <MemoryRouter>
       <PerformanceSetup />
@@ -25,322 +18,266 @@ function renderPerformanceSetup() {
   );
 }
 
-const { loadPerformanceSetupAnswers, savePerformanceSetup } = vi.hoisted(() => ({
+const repo = vi.hoisted(() => ({
   loadPerformanceSetupAnswers: vi.fn(),
   savePerformanceSetup: vi.fn(),
-}));
-
-const { loadAvailabilityWindows, saveAvailabilityWindows } = vi.hoisted(() => ({
   loadAvailabilityWindows: vi.fn(),
   saveAvailabilityWindows: vi.fn(),
+  loadOnboardingAnswers: vi.fn(),
+  saveDiscipline: vi.fn(),
+  saveCompetitionLevel: vi.fn(),
+  savePrimaryGoal: vi.fn(),
+  saveWeeklyTrainingHours: vi.fn(),
+  saveRidingDays: vi.fn(),
+  getActivePlanVersionId: vi.fn(),
+  getTrainingPlanDrafts: vi.fn(),
 }));
 
 vi.mock("./performanceSetupRepo", async () => {
   const actual = await vi.importActual<typeof import("./performanceSetupRepo")>("./performanceSetupRepo");
-  return { ...actual, loadPerformanceSetupAnswers, savePerformanceSetup };
+  return { ...actual, loadPerformanceSetupAnswers: repo.loadPerformanceSetupAnswers, savePerformanceSetup: repo.savePerformanceSetup };
 });
-
 vi.mock("./availabilityRepo", async () => {
   const actual = await vi.importActual<typeof import("./availabilityRepo")>("./availabilityRepo");
-  return { ...actual, loadAvailabilityWindows, saveAvailabilityWindows };
+  return { ...actual, loadAvailabilityWindows: repo.loadAvailabilityWindows, saveAvailabilityWindows: repo.saveAvailabilityWindows };
 });
+vi.mock("../athleteOnboarding/athleteOnboardingRepo", async () => {
+  const actual = await vi.importActual<typeof import("../athleteOnboarding/athleteOnboardingRepo")>("../athleteOnboarding/athleteOnboardingRepo");
+  return {
+    ...actual,
+    loadOnboardingAnswers: repo.loadOnboardingAnswers,
+    saveDiscipline: repo.saveDiscipline,
+    saveCompetitionLevel: repo.saveCompetitionLevel,
+    savePrimaryGoal: repo.savePrimaryGoal,
+    saveWeeklyTrainingHours: repo.saveWeeklyTrainingHours,
+    saveRidingDays: repo.saveRidingDays,
+  };
+});
+vi.mock("../trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId: repo.getActivePlanVersionId, getTrainingPlanDrafts: repo.getTrainingPlanDrafts }));
+vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ athleteId: "athlete-1" }) }));
 
-vi.mock("../../auth/AuthContext", () => ({
-  useAuth: () => ({ athleteId: "athlete-1" }),
-}));
-
-const EMPTY_ANSWERS = {
-  equipment: [],
-  terrainAccess: [],
-  strengths: [],
-  weaknesses: [],
+const PROFILE = {
+  equipment: ["dumbbells"],
+  terrainAccess: ["flow_trail"],
+  strengths: ["braking"],
+  weaknesses: ["cornering"],
   priorityAreas: [],
-  strengthExperienceTier: null,
-  seasonObjective: null,
+  strengthExperienceTier: "intermediate",
+  seasonObjective: "Top 10 aux Championnats suisses",
 };
-
-// A pre-existing saved window — the default baseline for every test that
-// isn't specifically about availability itself, so those tests continue to
-// isolate the concern they actually test (V0.5_045: configurationReady now
-// also requires hasSavedAvailability, so tests about the profile's own
-// save gate must not be blocked by an unrelated, unsatisfied availability
-// precondition).
-const ONE_SAVED_WINDOW = [{ id: "w1", dayOfWeek: 1 as const, startTime: "18:00", endTime: "20:00", label: null }];
+const ONBOARDING = { discipline: "Downhill", competitionLevel: "Amateur racer", primaryGoal: "Race performance", weeklyTrainingHours: "5-10h", preferredRidingDays: ["Saturday", "Sunday"] };
+const WINDOWS = [
+  { id: "w1", dayOfWeek: 6 as const, startTime: "08:00", endTime: "18:00", label: null },
+  { id: "w2", dayOfWeek: 0 as const, startTime: "08:00", endTime: "18:00", label: null },
+  { id: "w3", dayOfWeek: 2 as const, startTime: "17:00", endTime: "21:00", label: null },
+];
 
 beforeEach(() => {
   vi.resetAllMocks();
-  loadPerformanceSetupAnswers.mockResolvedValue(EMPTY_ANSWERS);
-  savePerformanceSetup.mockResolvedValue(undefined);
-  loadAvailabilityWindows.mockResolvedValue(ONE_SAVED_WINDOW);
-  saveAvailabilityWindows.mockResolvedValue(ONE_SAVED_WINDOW);
+  repo.loadPerformanceSetupAnswers.mockResolvedValue(PROFILE);
+  repo.savePerformanceSetup.mockResolvedValue(undefined);
+  repo.loadAvailabilityWindows.mockResolvedValue(WINDOWS);
+  repo.saveAvailabilityWindows.mockResolvedValue(WINDOWS);
+  repo.loadOnboardingAnswers.mockResolvedValue(ONBOARDING);
+  for (const save of [repo.saveDiscipline, repo.saveCompetitionLevel, repo.savePrimaryGoal, repo.saveWeeklyTrainingHours, repo.saveRidingDays]) save.mockResolvedValue(undefined);
+  repo.getActivePlanVersionId.mockResolvedValue("active-plan");
+  repo.getTrainingPlanDrafts.mockResolvedValue([]);
 });
 
-describe("PerformanceSetup — loading and restoration", () => {
-  it("loads existing answers and pre-selects them", async () => {
-    loadPerformanceSetupAnswers.mockResolvedValue({
-      ...EMPTY_ANSWERS,
-      equipment: ["barbell"],
-      strengthExperienceTier: "intermediate",
-      seasonObjective: "Podium at nationals",
-    });
+const section = (name: string) => screen.getByRole("region", { name });
+const generate = () => screen.getByRole("button", { name: /Reconstruire ma préparation|Construire ma préparation/ });
 
-    renderPerformanceSetup();
+describe("Affiner ton profil — what NALYNT knows (summaries)", () => {
+  it("six sections, each summarising the saved answers in French — never a raw value", async () => {
+    const { container } = renderPage();
+    expect(await screen.findByRole("heading", { level: 1, name: "Affiner ton profil" })).toBeInTheDocument();
+    expect(screen.getByText("Ton plan actuel reste inchangé : tes réglages servent à construire ta prochaine préparation.")).toBeInTheDocument();
+    expect(screen.getByText("Plus ton profil est précis, plus ta préparation correspond à ta réalité.")).toBeInTheDocument();
 
-    const barbellChip = await screen.findByRole("button", { name: "Barre" });
-    expect(barbellChip).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByDisplayValue("Intermédiaire")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Podium at nationals")).toBeInTheDocument();
+    expect(within(section("Ta pratique")).getByText("Descente (DH) · Compétiteur amateur")).toBeInTheDocument();
+    expect(within(section("Ta pratique")).getByText("Objectif : Performance en course")).toBeInTheDocument();
+    expect(within(section("Ta pratique")).getByText("5 à 10 h par semaine · roule samedi, dimanche")).toBeInTheDocument();
+    expect(within(section("Ta pratique")).getByText("Objectif de saison : Top 10 aux Championnats suisses")).toBeInTheDocument();
+    expect(within(section("Ton terrain")).getByText("Flow trail")).toBeInTheDocument();
+    expect(within(section("Ton matériel")).getByText("Haltères")).toBeInTheDocument();
+    expect(within(section("Tes points forts")).getByText("Aucune priorité de pilotage : NALYNT fait tourner les thèmes techniques.")).toBeInTheDocument();
+    expect(within(section("Tes points forts")).getByText("Renfo : Intermédiaire")).toBeInTheDocument();
+    expect(within(section("Tes créneaux")).getByText("sam., dim. · 8 h – 18 h")).toBeInTheDocument();
+    expect(within(section("Tes créneaux")).getByText("mar. · 17 h – 21 h")).toBeInTheDocument();
+
+    const text = container.textContent ?? "";
+    for (const raw of ["Downhill", "Amateur racer", "flow_trail", "dumbbells", "braking", "intermediate", "5-10h", "Saturday"]) expect(text).not.toContain(raw);
   });
 
-  it("shows an error and stops loading when the read fails", async () => {
-    loadPerformanceSetupAnswers.mockRejectedValue(new Error("boom"));
-
-    renderPerformanceSetup();
-
-    expect(await screen.findByText(/Impossible de charger ton profil/)).toBeInTheDocument();
-  });
-});
-
-describe("PerformanceSetup — save gating", () => {
-  it("disables Save while the form is entirely empty", async () => {
-    renderPerformanceSetup();
-
-    const saveButton = await screen.findByRole("button", { name: "Enregistrer" });
-    expect(saveButton).toBeDisabled();
+  it("empty answers read honestly: bodyweight, no terrain yet, no slot yet", async () => {
+    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, equipment: [], terrainAccess: [] });
+    repo.loadAvailabilityWindows.mockResolvedValue([]);
+    renderPage();
+    expect(await within(await screen.findByRole("region", { name: "Ton matériel" })).findByText("Au poids du corps")).toBeInTheDocument();
+    expect(within(section("Ton terrain")).getByText(/Aucun terrain renseigné/)).toBeInTheDocument();
+    expect(within(section("Tes créneaux")).getByText(/Aucun créneau/)).toBeInTheDocument();
   });
 
-  it("enables Save once at least one field is set, and calls savePerformanceSetup with the current answers", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-
-    const barbellChip = await screen.findByRole("button", { name: "Barre" });
-    await user.click(barbellChip);
-
-    const saveButton = screen.getByRole("button", { name: "Enregistrer" });
-    expect(saveButton).not.toBeDisabled();
-
-    await user.click(saveButton);
-
-    await waitFor(() => expect(savePerformanceSetup).toHaveBeenCalledWith("athlete-1", expect.objectContaining({ equipment: ["barbell"] })));
-    expect(await screen.findByText("Profil enregistré.")).toBeInTheDocument();
-  });
-
-  it("shows an error message when saving fails, never a silent success", async () => {
-    savePerformanceSetup.mockRejectedValue(new Error("boom"));
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-
-    await user.click(await screen.findByRole("button", { name: "Barre" }));
-    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-
-    expect(await screen.findByText(/Une erreur inattendue/)).toBeInTheDocument();
-    expect(screen.queryByText("Profil enregistré.")).not.toBeInTheDocument();
+  it("a load failure shows an error, never an empty profile", async () => {
+    repo.loadOnboardingAnswers.mockRejectedValue(new Error("x"));
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger ton profil. Réessaie.");
   });
 });
 
-// V0.5_036 — a plan must never be generated from Performance Setup changes
-// that are visible but not yet saved. This exercises the real wiring
-// between PerformanceSetup's own dirty-tracking and
-// TrainingPlanGenerationPanel's configurationReady prop (not mocked here —
-// the panel itself is unit-tested in TrainingPlanGenerationPanel.test.tsx).
-describe("PerformanceSetup — training plan generation save gate", () => {
-  it("disables the generate button once the form has unsaved changes", async () => {
+describe("Affiner ton profil — one section at a time, its own save", () => {
+  it("terrain: at least one, saved merged with the rest of the profile (nothing else erased)", async () => {
     const user = userEvent.setup();
-    renderPerformanceSetup();
-    await screen.findByRole("button", { name: "Barre" });
-    // Availability is already satisfied (beforeEach default) — isolates
-    // the profile's own dirty gate as the only variable under test.
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier ton terrain" }));
+    const terrain = section("Ton terrain");
+    await user.click(within(terrain).getByRole("button", { name: "Flow trail" }));
+    expect(within(terrain).getByRole("button", { name: "Enregistrer" })).toBeDisabled();
+    await user.click(within(terrain).getByRole("button", { name: "Sentier technique" }));
+    await user.click(within(terrain).getByRole("button", { name: "Enregistrer" }));
 
-    await user.click(screen.getByRole("button", { name: "Barre" }));
-
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-    expect(screen.getByText(/Enregistre ta configuration/)).toBeInTheDocument();
+    await waitFor(() => expect(repo.savePerformanceSetup).toHaveBeenCalledWith("athlete-1", { ...PROFILE, terrainAccess: ["technical_trail"] }));
+    expect(await within(section("Ton terrain")).findByText("Sentier technique")).toBeInTheDocument();
+    expect(within(section("Ton terrain")).getByRole("status")).toHaveTextContent("Enregistré. Ton plan actuel reste inchangé. Reconstruis ta préparation pour en tenir compte.");
+    expect(within(section("Ton terrain")).getByRole("link", { name: "Aller à ta préparation ↓" })).toHaveAttribute("href", "#preparation");
   });
 
-  it("re-enables the generate button once the changes are saved", async () => {
+  it("points forts: strengths / to work on / priorities / renfo saved together", async () => {
     const user = userEvent.setup();
-    renderPerformanceSetup();
-
-    await user.click(await screen.findByRole("button", { name: "Barre" }));
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-
-    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await screen.findByText("Profil enregistré.");
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-  });
-});
-
-// V0.5_045 — availability now participates in the same generation gate,
-// via its own independent loading/dirty/saving state plus the real,
-// backend-mirrored hasSavedAvailability signal (never a looser rule).
-describe("PerformanceSetup — availability save gate (V0.5_045)", () => {
-  it("keeps generation disabled while availability is still loading", async () => {
-    loadAvailabilityWindows.mockReturnValue(new Promise(() => {})); // never resolves within this test
-    renderPerformanceSetup();
-
-    await screen.findByRole("button", { name: "Barre" });
-
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-  });
-
-  it("keeps generation disabled after load when no availability is saved, even if the profile is clean", async () => {
-    loadAvailabilityWindows.mockResolvedValue([]);
-    renderPerformanceSetup();
-
-    await screen.findByText(/Aucune disponibilité enregistrée pour le moment/);
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-  });
-
-  it("enables generation once availability is saved and the profile is clean", async () => {
-    loadAvailabilityWindows.mockResolvedValue(ONE_SAVED_WINDOW);
-    renderPerformanceSetup();
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-  });
-
-  it("disables generation while availability has unsaved edits", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-
-    await user.click(within(screen.getByRole("group", { name: "Mardi" })).getByRole("button", { name: "Non disponible" }));
-
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-  });
-
-  it("re-enables generation once an availability edit is saved successfully", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-
-    // Edit Monday's already-valid saved window (still valid after the
-    // edit) — simpler than toggling a new day, which would also require
-    // filling in fresh times to avoid a local validation error.
-    await user.clear(screen.getByLabelText("Heure de fin — Lundi"));
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "21:00");
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-
-    saveAvailabilityWindows.mockResolvedValue(ONE_SAVED_WINDOW);
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-    await screen.findByText("Disponibilités enregistrées.");
-
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-  });
-
-  it("keeps generation disabled when saving an availability edit fails", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-
-    await user.clear(screen.getByLabelText("Heure de fin — Lundi"));
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "21:00");
-    saveAvailabilityWindows.mockRejectedValue(new Error("boom"));
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-
-    await screen.findByText(/Une erreur inattendue/);
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-  });
-
-  it("blocks generation when the profile is dirty even though availability is already saved", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-    await waitFor(() => expect(screen.getByRole("button", { name: "Générer mon plan" })).not.toBeDisabled());
-
-    await user.click(screen.getByRole("button", { name: "Barre" }));
-
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-  });
-
-  it("blocks generation when availability is dirty even though the profile is already saved", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-    await user.click(await screen.findByRole("button", { name: "Barre" }));
-    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-    await screen.findByText("Profil enregistré.");
-
-    await user.click(within(screen.getByRole("group", { name: "Mardi" })).getByRole("button", { name: "Non disponible" }));
-
-    expect(screen.getByRole("button", { name: "Générer mon plan" })).toBeDisabled();
-  });
-});
-
-// PILOT_015 — athlete-facing French labels; the persisted/API values stay the technical enums.
-describe("PerformanceSetup — French labels, technical values (PILOT_015)", () => {
-  const RAW_VALUES = [
-    ...EQUIPMENT_OPTIONS,
-    ...TERRAIN_OPTIONS,
-    ...TECHNICAL_PRIORITY_OPTIONS,
-    ...STRENGTH_EXPERIENCE_TIER_OPTIONS,
-  ];
-
-  it("renders every option with its French label and never a raw technical value", async () => {
-    const { container } = renderPerformanceSetup();
-    await screen.findByRole("button", { name: "Rack à squat" });
-
-    for (const value of EQUIPMENT_OPTIONS) expect(screen.getByRole("button", { name: EQUIPMENT_LABELS[value] })).toBeInTheDocument();
-    for (const value of TERRAIN_OPTIONS) expect(screen.getByRole("button", { name: TERRAIN_LABELS[value] })).toBeInTheDocument();
-    for (const value of TECHNICAL_PRIORITY_OPTIONS) {
-      // Same vocabulary rendered three times: Points forts, Points faibles, Priorités pour ce plan.
-      expect(screen.getAllByRole("button", { name: TECHNICAL_PRIORITY_LABELS[value] })).toHaveLength(3);
-    }
-    for (const value of STRENGTH_EXPERIENCE_TIER_OPTIONS) {
-      expect(screen.getByRole("option", { name: STRENGTH_EXPERIENCE_TIER_LABELS[value] })).toHaveValue(value);
-    }
-    expect(screen.getByRole("heading", { name: "Affiner ton profil" })).toBeInTheDocument();
-
-    const visibleText = container.textContent ?? "";
-    for (const value of RAW_VALUES) expect(visibleText).not.toContain(value);
-  });
-
-  it("selecting French labels saves the technical values", async () => {
-    const user = userEvent.setup();
-    renderPerformanceSetup();
-
-    await user.click(await screen.findByRole("button", { name: "Rack à squat" }));
-    await user.click(screen.getByRole("button", { name: "Piste DH complète" }));
-    const [strengthVirages, , priorityVirages] = screen.getAllByRole("button", { name: "Virages" });
-    await user.click(strengthVirages!);
-    await user.click(screen.getAllByRole("button", { name: "Exécution en course" })[1]!);
-    await user.click(priorityVirages!);
-    await user.selectOptions(screen.getByRole("combobox"), "Intermédiaire");
-    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
-
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier tes points forts" }));
+    const strengths = section("Tes points forts");
+    await user.click(within(within(strengths).getByRole("group", { name: "Tes priorités de pilotage" })).getAllByRole("button")[0]!);
+    await user.click(within(strengths).getByRole("button", { name: "Avancé" }));
+    await user.click(within(strengths).getByRole("button", { name: "Enregistrer" }));
     await waitFor(() =>
-      expect(savePerformanceSetup).toHaveBeenCalledWith("athlete-1", {
-        equipment: ["squat_rack"],
-        terrainAccess: ["full_dh_track"],
-        strengths: ["cornering"],
-        weaknesses: ["race_execution"],
-        priorityAreas: ["cornering"],
-        strengthExperienceTier: "intermediate",
-        seasonObjective: null,
-      })
+      expect(repo.savePerformanceSetup).toHaveBeenCalledWith("athlete-1", { ...PROFILE, priorityAreas: [TECHNICAL_PRIORITY_OPTIONS[0]], strengthExperienceTier: "advanced" })
     );
   });
 
-  it("a reload restores the saved technical values under their French labels", async () => {
-    loadPerformanceSetupAnswers.mockResolvedValue({
-      ...EMPTY_ANSWERS,
-      equipment: ["squat_rack", "pull_up_bar"],
-      terrainAccess: ["bike_park_jump_line"],
-      strengths: ["cornering"],
-      weaknesses: ["race_execution"],
-      priorityAreas: ["race_execution"],
-      strengthExperienceTier: "advanced",
-    });
+  it("Annuler discards the changes; a save error keeps the section open with the message", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier ton matériel" }));
+    await user.click(within(section("Ton matériel")).getByRole("button", { name: "Barre" }));
+    await user.click(within(section("Ton matériel")).getByRole("button", { name: "Annuler" }));
+    expect(within(section("Ton matériel")).getByText("Haltères")).toBeInTheDocument();
+    expect(repo.savePerformanceSetup).not.toHaveBeenCalled();
 
-    renderPerformanceSetup();
+    repo.savePerformanceSetup.mockRejectedValue(new Error("boom"));
+    await user.click(screen.getByRole("button", { name: "Modifier ton matériel" }));
+    await user.click(within(section("Ton matériel")).getByRole("button", { name: "Barre" }));
+    await user.click(within(section("Ton matériel")).getByRole("button", { name: "Enregistrer" }));
+    expect(await within(section("Ton matériel")).findByRole("alert")).toHaveTextContent("Une erreur inattendue s'est produite. Réessaie.");
+    expect(within(section("Ton matériel")).getByRole("button", { name: "Enregistrer" })).toBeInTheDocument();
+  });
 
-    expect(await screen.findByRole("button", { name: "Rack à squat" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Barre de traction" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Barre" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Bike park / ligne de sauts" })).toHaveAttribute("aria-pressed", "true");
-    const [strength, weakness, priority] = screen.getAllByRole("button", { name: "Exécution en course" });
-    expect(strength).toHaveAttribute("aria-pressed", "false");
-    expect(weakness).toHaveAttribute("aria-pressed", "true");
-    expect(priority).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByDisplayValue("Avancé")).toBeInTheDocument();
+  it("every option is shown with its French label", async () => {
+    const user = userEvent.setup();
+    const { container } = renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier tes points forts" }));
+    for (const raw of [...TECHNICAL_PRIORITY_OPTIONS, ...STRENGTH_EXPERIENCE_TIER_OPTIONS]) expect(container.textContent).not.toContain(raw);
+    await user.click(within(section("Tes points forts")).getByRole("button", { name: "Annuler" }));
+    await user.click(screen.getByRole("button", { name: "Modifier ton terrain" }));
+    for (const raw of TERRAIN_OPTIONS) expect(container.textContent).not.toContain(raw);
+    await user.click(within(section("Ton terrain")).getByRole("button", { name: "Annuler" }));
+    await user.click(screen.getByRole("button", { name: "Modifier ton matériel" }));
+    for (const raw of EQUIPMENT_OPTIONS) expect(container.textContent).not.toContain(raw);
+  });
+});
+
+describe("Affiner ton profil — Ta pratique (the first-run answers, now editable)", () => {
+  it("only what changed is saved, through the onboarding repository; the season objective through the profile", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier ta pratique" }));
+    const practice = section("Ta pratique");
+    await user.click(within(practice).getByRole("button", { name: "Enduro" }));
+    await user.click(within(practice).getByRole("button", { name: "Mercredi" }));
+    const objective = within(practice).getByLabelText("Ton objectif de saison (facultatif)");
+    await user.clear(objective);
+    await user.type(objective, "Podium Enduro Series");
+    await user.click(within(practice).getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(repo.saveDiscipline).toHaveBeenCalledWith("athlete-1", "Enduro"));
+    expect(repo.saveRidingDays).toHaveBeenCalledWith("athlete-1", ["Saturday", "Sunday", "Wednesday"]);
+    expect(repo.saveCompetitionLevel).not.toHaveBeenCalled();
+    expect(repo.savePrimaryGoal).not.toHaveBeenCalled();
+    expect(repo.saveWeeklyTrainingHours).not.toHaveBeenCalled();
+    expect(repo.savePerformanceSetup).toHaveBeenCalledWith("athlete-1", { ...PROFILE, seasonObjective: "Podium Enduro Series" });
+    expect(await within(section("Ta pratique")).findByText("Enduro · Compétiteur amateur")).toBeInTheDocument();
+    expect(within(section("Ta pratique")).getByRole("status")).toHaveTextContent("Ton plan actuel reste inchangé");
+  });
+
+  it("at least one riding day", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier ta pratique" }));
+    const practice = section("Ta pratique");
+    await user.click(within(practice).getByRole("button", { name: "Samedi" }));
+    await user.click(within(practice).getByRole("button", { name: "Dimanche" }));
+    expect(within(practice).getByRole("button", { name: "Enregistrer" })).toBeDisabled();
+  });
+});
+
+describe("Affiner ton profil — wording", () => {
+  it("NALYNT uses what the rider declares: never 'te connaît', 'apprend', 'analyse' or 'intelligence'", async () => {
+    const copy = await import("./refinePresentation");
+    const all = JSON.stringify(Object.values(copy).filter((value) => typeof value !== "function"));
+    expect(all).not.toMatch(/te conna[iî]t|apprend|analys|intelligen/i);
+  });
+});
+
+describe("Affiner ton profil — Ta préparation (a new version, never the current plan)", () => {
+  it("with an active plan: 'Reconstruire ma préparation', 4/6/8/12 weeks with 6 preselected", async () => {
+    renderPage();
+    await waitFor(() => expect(generate()).toHaveTextContent("Reconstruire ma préparation"));
+    expect(screen.getByText(/Tu décides ensuite si tu la commences/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "6 semaines" })).toHaveAttribute("aria-pressed", "true");
+    for (const n of [4, 8, 12]) expect(screen.getByRole("button", { name: `${n} semaines` })).toHaveAttribute("aria-pressed", "false");
+    expect(generate()).toBeEnabled();
+  });
+
+  it("without an active plan: 'Construire ma préparation'", async () => {
+    repo.getActivePlanVersionId.mockResolvedValue(null);
+    renderPage();
+    await waitFor(() => expect(generate()).toHaveTextContent("Construire ma préparation"));
+  });
+
+  it("never while a section is being edited (unsaved changes), again once it is saved", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier ton terrain" }));
+    expect(generate()).toBeDisabled();
+    expect(screen.getByText("Enregistre ou annule ta modification en cours avant de construire ta préparation.")).toBeInTheDocument();
+    await user.click(within(section("Ton terrain")).getByRole("button", { name: "Sentier technique" }));
+    await user.click(within(section("Ton terrain")).getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(generate()).toBeEnabled());
+  });
+
+  it("never without a saved slot", async () => {
+    repo.loadAvailabilityWindows.mockResolvedValue([]);
+    renderPage();
+    await waitFor(() => expect(generate()).toBeDisabled());
+    expect(within(screen.getByRole("region", { name: "Ta préparation" })).getByText(/Aucun créneau/)).toBeInTheDocument();
+  });
+
+  it("slots: unsaved edits block, a successful save unblocks and refreshes the summary", async () => {
+    const user = userEvent.setup();
+    repo.saveAvailabilityWindows.mockResolvedValue([{ id: "w9", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null }]);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier tes créneaux" }));
+    const slots = section("Tes créneaux");
+    await waitFor(() => expect(within(slots).getByRole("group", { name: "Lundi" })).toBeInTheDocument());
+    await user.click(within(within(slots).getByRole("group", { name: "Lundi" })).getByRole("button"));
+    await waitFor(() => expect(generate()).toBeDisabled());
+
+    const monday = within(slots).getByRole("group", { name: "Lundi" });
+    await user.type(within(monday).getByLabelText("Heure de début — Lundi"), "18:00");
+    await user.type(within(monday).getByLabelText("Heure de fin — Lundi"), "20:00");
+    await user.click(within(slots).getByRole("button", { name: "Enregistrer mes disponibilités" }));
+    await waitFor(() => expect(generate()).toBeEnabled());
+    await user.click(within(slots).getByRole("button", { name: "Fermer" }));
+    expect(within(section("Tes créneaux")).getByText("lun. · 18 h – 20 h")).toBeInTheDocument();
   });
 });

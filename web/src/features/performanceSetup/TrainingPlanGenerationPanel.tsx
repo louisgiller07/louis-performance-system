@@ -17,6 +17,21 @@ export interface TrainingPlanGenerationPanelProps {
    * passes the already-computed result down.
    */
   configurationReady: boolean;
+  /**
+   * UX-10B-1 — optional presentation for "Affiner ton profil": the plan
+   * length as a few choices (one preselected) instead of a typed number, and
+   * the section's own words. Without them the panel is unchanged.
+   */
+  durationPresets?: readonly number[];
+  defaultDurationWeeks?: number;
+  title?: string;
+  description?: string;
+  generateLabel?: string;
+  durationQuestion?: string;
+  notReadyHint?: string;
+  weeksLabel?: (weeks: number) => string;
+  /** UX-10B-1 — the title in the section style of "Affiner ton profil". */
+  prominentTitle?: boolean;
 }
 
 const DRAFTS_CHECK_ERROR: GenerateTrainingPlanError = {
@@ -64,9 +79,20 @@ function parseDurationWeeks(raw: string): number | null {
  * check, an "existing draft" choice, a "Réessayer" retry of a retryable
  * error, and an "Annuler" — none of those are a new intention.
  */
-export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlanGenerationPanelProps) {
+export function TrainingPlanGenerationPanel({
+  configurationReady,
+  durationPresets,
+  defaultDurationWeeks,
+  title = "Créer mon plan",
+  description = "NALYNT utilisera ta configuration enregistrée, tes disponibilités et ton contexte sportif.",
+  generateLabel = "Générer mon plan",
+  durationQuestion = "Durée du plan",
+  notReadyHint = "Enregistre ta configuration avant de générer un plan.",
+  weeksLabel = (weeks: number) => `${weeks} semaines`,
+  prominentTitle = false,
+}: TrainingPlanGenerationPanelProps) {
   const navigate = useNavigate();
-  const [durationWeeksInput, setDurationWeeksInput] = useState("");
+  const [durationWeeksInput, setDurationWeeksInput] = useState(defaultDurationWeeks !== undefined ? String(defaultDurationWeeks) : "");
   const [durationWeeksError, setDurationWeeksError] = useState<string | null>(null);
   const [generationRequestId, setGenerationRequestId] = useState<string | null>(null);
   const [state, setState] = useState<PanelState>({ kind: "idle" });
@@ -189,10 +215,8 @@ export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlan
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <p className="text-sm font-medium text-ink">Créer mon plan</p>
-        <p className="text-sm text-ink/70">
-          NALYNT utilisera ta configuration enregistrée, tes disponibilités et ton contexte sportif.
-        </p>
+        <p className={prominentTitle ? "font-display text-2xl font-extrabold uppercase leading-none text-ink" : "text-sm font-medium text-ink"}>{title}</p>
+        <p className="text-sm text-ink/70">{description}</p>
       </div>
 
       {state.kind === "existing_draft_choice" ? (
@@ -209,6 +233,28 @@ export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlan
       ) : (
         <>
           <div className="flex flex-col gap-2">
+            {durationPresets ? (
+              <div role="group" aria-label={durationQuestion} className="flex flex-col gap-2">
+                <p className="text-sm font-medium text-ink">{durationQuestion}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {durationPresets.map((weeks) => (
+                    <button
+                      key={weeks}
+                      type="button"
+                      aria-pressed={durationWeeksInput === String(weeks)}
+                      disabled={busy}
+                      onClick={() => handleDurationWeeksChange(String(weeks))}
+                      className={`ux-press min-h-12 rounded-lg border font-display text-xl font-extrabold uppercase ${
+                        durationWeeksInput === String(weeks) ? "border-gold bg-gold/12 text-ink" : "border-line text-ink/80"
+                      }`}
+                    >
+                      {weeksLabel(weeks)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+            <>
             <label htmlFor="duration-weeks" className="text-sm font-medium text-ink">
               Durée du plan
             </label>
@@ -226,6 +272,8 @@ export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlan
               />
               <span className="text-sm text-ink/70">semaines</span>
             </div>
+            </>
+            )}
             {durationWeeksError && <p className="text-sm text-red-400">{durationWeeksError}</p>}
           </div>
 
@@ -236,7 +284,7 @@ export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlan
           )}
 
           {!configurationReady && (
-            <p className="text-sm text-muted">Enregistre ta configuration avant de générer un plan.</p>
+            <p className="text-sm text-muted">{notReadyHint}</p>
           )}
 
           <PrimaryButton onClick={() => void handleGenerateClick()} disabled={!configurationReady || busy} className="w-full">
@@ -246,7 +294,7 @@ export function TrainingPlanGenerationPanel({ configurationReady }: TrainingPlan
                 ? "Vérification…"
                 : canRetrySameIntention
                   ? "Réessayer"
-                  : "Générer mon plan"}
+                  : generateLabel}
           </PrimaryButton>
         </>
       )}

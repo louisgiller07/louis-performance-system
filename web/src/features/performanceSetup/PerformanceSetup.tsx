@@ -1,18 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { PageShell } from "../../components/PageShell";
 import { AppHeader } from "../../components/AppHeader";
-import { SectionHeader } from "../../components/SectionHeader";
-import { REFINE } from "../firstRun/firstRunPresentation";
-import { Card } from "../../components/Card";
-import { Select } from "../../components/Select";
 import { PrimaryButton } from "../../components/PrimaryButton";
-import {
-  loadPerformanceSetupAnswers,
-  savePerformanceSetup,
-  PerformanceSetupError,
-  type PerformanceSetupAnswers,
-} from "./performanceSetupRepo";
+import { SecondaryButton } from "../../components/SecondaryButton";
+import { loadPerformanceSetupAnswers, savePerformanceSetup, PerformanceSetupError, type PerformanceSetupAnswers } from "./performanceSetupRepo";
+import { loadAvailabilityWindows, type AvailabilityWindow } from "./availabilityRepo";
 import {
   EQUIPMENT_OPTIONS,
   EQUIPMENT_LABELS,
@@ -22,274 +15,506 @@ import {
   TECHNICAL_PRIORITY_LABELS,
   STRENGTH_EXPERIENCE_TIER_OPTIONS,
   STRENGTH_EXPERIENCE_TIER_LABELS,
+  type StrengthExperienceTier,
 } from "./performanceSetupOptions";
+import {
+  loadOnboardingAnswers,
+  saveDiscipline,
+  saveCompetitionLevel,
+  savePrimaryGoal,
+  saveWeeklyTrainingHours,
+  saveRidingDays,
+  AthleteOnboardingError,
+  type OnboardingAnswers,
+} from "../athleteOnboarding/athleteOnboardingRepo";
+import {
+  DISCIPLINE_OPTIONS,
+  COMPETITION_LEVEL_OPTIONS,
+  PRIMARY_GOAL_OPTIONS,
+  WEEKLY_TRAINING_HOURS_OPTIONS,
+  RIDING_DAY_OPTIONS,
+  type Discipline,
+  type CompetitionLevel,
+  type PrimaryGoal,
+  type WeeklyTrainingHours,
+  type RidingDay,
+} from "../athleteOnboarding/onboardingOptions";
+import {
+  DISCIPLINE_LABELS,
+  COMPETITION_LEVEL_LABELS,
+  PRIMARY_GOAL_LABELS,
+  WEEKLY_TRAINING_HOURS_LABELS,
+  RIDING_DAY_LABELS,
+} from "../athleteOnboarding/onboardingCopy";
+import { getActivePlanVersionId } from "../trainingPlanReview/trainingPlanReviewRepo";
 import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
 import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
+import {
+  ACTIONS,
+  DAY_SHORT,
+  DEFAULT_PLAN_WEEKS,
+  EQUIPMENT,
+  PLAN_DURATIONS,
+  PRACTICE,
+  PREPARATION,
+  REFINE_PAGE,
+  SECTION_TITLES,
+  SLOTS,
+  STRENGTHS,
+  TERRAIN,
+  hoursLabel,
+  type RefineSectionId,
+} from "./refinePresentation";
 
-const EMPTY_ANSWERS: PerformanceSetupAnswers = {
-  equipment: [],
-  terrainAccess: [],
-  strengths: [],
-  weaknesses: [],
-  priorityAreas: [],
-  strengthExperienceTier: null,
-  seasonObjective: null,
-};
+/**
+ * /performance-setup — UX-10B-1 "Affiner ton profil". Six sections, each
+ * showing what NALYNT already knows, with one [Modifier] and its own save,
+ * through the existing repositories only:
+ * - Ta pratique → athlete_onboarding_profiles (the answers of the first run,
+ *   now editable) + the season objective (athlete_performance_profiles);
+ * - Ton terrain / Ton matériel / Tes points forts → athlete_performance_profiles,
+ *   written whole (savePerformanceSetup) merged with what is already saved,
+ *   so a section never erases another one;
+ * - Tes créneaux → AvailabilitySection (athlete_availability_windows);
+ * - Ta préparation → TrainingPlanGenerationPanel (a NEW version; the current
+ *   plan is never modified automatically, V0.5_036 gate kept: nothing is
+ *   built while a section is being edited or without a saved window).
+ * `declaredLimitations` stays unexposed (no engine rule consumes it).
+ */
 
-/** Local toggle chip for multi-select fields — same visual family as AthleteOnboarding's own local ChoiceCard, adapted for multiple selection instead of one-of. Not a shared component: this exact toggle shape has no other consumer yet (same precedent as ChoiceCard staying local to its own feature). */
-function ToggleChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-        selected ? "border-gold bg-gold/10 text-ink" : "border-white/10 bg-bg text-ink/80 hover:border-white/25"
-      }`}
-    >
-      {label}
-    </button>
-  );
+interface Practice {
+  discipline: Discipline | null;
+  competitionLevel: CompetitionLevel | null;
+  primaryGoal: PrimaryGoal | null;
+  weeklyTrainingHours: WeeklyTrainingHours | null;
+  ridingDays: RidingDay[];
+  seasonObjective: string;
 }
 
-function ToggleGroup<T extends string>({
-  options,
-  labels,
-  selected,
-  onToggle,
-}: {
-  options: readonly T[];
-  /** Display label per persisted value — the value itself is never rendered. */
-  labels: Record<T, string>;
-  selected: readonly T[];
-  onToggle: (value: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((option) => (
-        <ToggleChip key={option} label={labels[option]} selected={selected.includes(option)} onClick={() => onToggle(option)} />
-      ))}
-    </div>
-  );
+interface Saved {
+  profile: PerformanceSetupAnswers;
+  onboarding: OnboardingAnswers;
+  windows: AvailabilityWindow[];
+  hasActivePlan: boolean;
 }
 
 function toggleValue<T>(list: readonly T[], value: T): T[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
 
-/**
- * /performance-setup (V0.5_021) — a single-page settings form, deliberately
- * NOT a step-by-step wizard like AthleteOnboarding: onboarding's per-step
- * saves exist specifically to let a refresh resume mid-wizard at the right
- * step (V0.3_008A); this page has no equivalent sequential flow to resume —
- * every field belongs to the same one row (athlete_performance_profiles)
- * and is saved together on a single explicit action. Collects data only: no
- * coaching logic, no catalogue/compatibility computation, no engine call —
- * `buildPlanInputSnapshot()`/planning-engine own the real validation
- * (GenerationBlockedError/PlanningEngineValidationError); this page only
- * prevents submitting a literally empty form (UX-level guard, never a
- * reimplementation of that validation, V0.5_021 lock).
- *
- * `declaredLimitations` is intentionally not exposed here — no
- * planning-engine/prescription-engine rule consumes it today (V0.5_017/018
- * audits) — exposing a field with no real effect on generation would be
- * misleading.
- */
+function joinLabels<T extends string>(values: readonly T[], labels: Record<T, string>): string {
+  return values.map((value) => labels[value]).join(", ");
+}
+
+function slotsSummary(windows: readonly AvailabilityWindow[]): string[] {
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const groups = new Map<string, number[]>();
+  for (const w of windows) {
+    const key = `${w.startTime}|${w.endTime}`;
+    groups.set(key, [...(groups.get(key) ?? []), w.dayOfWeek]);
+  }
+  return [...groups.entries()].map(([key, days]) => {
+    const [start, end] = key.split("|");
+    const dayList = order.filter((d) => days.includes(d)).map((d) => DAY_SHORT[d]).join(", ");
+    return `${dayList} · ${hoursLabel(start!)} – ${hoursLabel(end!)}`;
+  });
+}
+
+function Chips<T extends string>({ options, labels, selected, onToggle, label }: { options: readonly T[]; labels: Record<T, string>; selected: readonly T[]; onToggle: (value: T) => void; label: string }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const pressed = selected.includes(option);
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={pressed}
+            onClick={() => onToggle(option)}
+            className={`ux-press min-h-11 rounded-full border px-4 text-sm ${pressed ? "border-gold bg-gold text-bg" : "border-line text-ink/85 hover:border-gold/50"}`}
+          >
+            {labels[option]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium text-ink">{label}</p>
+      {hint && <p className="-mt-1 text-xs text-muted">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+function Section({
+  id,
+  summary,
+  open,
+  onEdit,
+  children,
+  footer,
+  justSaved,
+}: {
+  id: RefineSectionId;
+  summary: ReactNode;
+  open: boolean;
+  onEdit?: () => void;
+  children?: ReactNode;
+  footer?: ReactNode;
+  justSaved?: boolean;
+}) {
+  const titleId = `refine-${id}`;
+  return (
+    <section id={id} aria-labelledby={titleId} className={`ux-enter rounded-2xl border bg-card p-5 ${open ? "border-gold/50" : "border-line"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <h2 id={titleId} className="font-display text-2xl font-extrabold uppercase leading-none text-ink">
+          {SECTION_TITLES[id]}
+        </h2>
+        {!open && onEdit && (
+          <button type="button" onClick={onEdit} className="ux-press min-h-11 shrink-0 text-sm font-medium text-gold underline-offset-4 hover:underline" aria-label={`${ACTIONS.edit} ${SECTION_TITLES[id].toLowerCase()}`}>
+            {ACTIONS.edit}
+          </button>
+        )}
+      </div>
+      {!open && <div className="mt-3 flex flex-col gap-1 text-sm text-ink/80">{summary}</div>}
+      {!open && justSaved && (
+        <div role="status" className="mt-3 border-t border-line pt-3 text-sm">
+          <p className="text-gold">{`${ACTIONS.saved} ${ACTIONS.rebuildHint}`}</p>
+          <a href="#preparation" className="ux-press mt-1 inline-flex min-h-11 items-center text-ink/80 underline-offset-4 hover:text-gold hover:underline">
+            {ACTIONS.rebuildLink}
+          </a>
+        </div>
+      )}
+      {open && <div className="mt-4 flex flex-col gap-5">{children}</div>}
+      {open && footer && <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4">{footer}</div>}
+    </section>
+  );
+}
+
 export function PerformanceSetup() {
   const { athleteId } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState<Saved | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [open, setOpen] = useState<RefineSectionId | null>(null);
+  const [justSaved, setJustSaved] = useState<RefineSectionId | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [answers, setAnswers] = useState<PerformanceSetupAnswers>(EMPTY_ANSWERS);
-  // V0.5_036 — no existing dirty-tracking mechanism to reuse (confirmed:
-  // `saved` only ever flips true on success and is never reset on a later
-  // edit). This is the deliberately simple, component-local substitute the
-  // ticket asked for: every user-driven edit (never the initial load) marks
-  // the form dirty; only a successful save clears it. A plan must never be
-  // generated from unsaved changes — see TrainingPlanGenerationPanel's
-  // `configurationReady` prop below.
-  const [dirty, setDirty] = useState(false);
-  // V0.5_045 — availability lives in its own section/component with its own
-  // load/save lifecycle (AvailabilitySection.tsx); this page only tracks the
-  // small slice of its state the generation gate actually needs, reported
-  // via onGateStateChange. loading starts true so the gate never reads
-  // "ready" before the athlete's real saved availability is known.
-  const [availabilityGate, setAvailabilityGate] = useState<AvailabilityGateState>({
-    loading: true,
-    dirty: false,
-    saving: false,
-    hasSavedAvailability: false,
-  });
-
-  function updateAnswers(updater: (a: PerformanceSetupAnswers) => PerformanceSetupAnswers) {
-    setAnswers(updater);
-    setDirty(true);
-  }
+  const [profileDraft, setProfileDraft] = useState<PerformanceSetupAnswers | null>(null);
+  const [practiceDraft, setPracticeDraft] = useState<Practice | null>(null);
+  const [availabilityGate, setAvailabilityGate] = useState<AvailabilityGateState>({ loading: true, dirty: false, saving: false, hasSavedAvailability: false });
 
   useEffect(() => {
     if (!athleteId) return;
     let active = true;
-
-    loadPerformanceSetupAnswers()
-      .then((loaded) => {
-        if (!active) return;
-        setAnswers(loaded);
-        setLoading(false);
+    Promise.all([loadPerformanceSetupAnswers(), loadOnboardingAnswers(), loadAvailabilityWindows(), getActivePlanVersionId().catch(() => null)])
+      .then(([profile, onboarding, windows, activeId]) => {
+        if (active) setSaved({ profile, onboarding, windows, hasActivePlan: activeId !== null });
       })
       .catch(() => {
-        if (!active) return;
-        setError("Impossible de charger ton profil de performance. Réessaie.");
-        setLoading(false);
+        if (active) setLoadError(REFINE_PAGE.loadError);
       });
-
     return () => {
       active = false;
     };
   }, [athleteId]);
 
-  const isEmpty =
-    answers.equipment.length === 0 &&
-    answers.terrainAccess.length === 0 &&
-    answers.strengths.length === 0 &&
-    answers.weaknesses.length === 0 &&
-    answers.priorityAreas.length === 0 &&
-    answers.strengthExperienceTier === null &&
-    (answers.seasonObjective ?? "").trim().length === 0;
+  const onWindowsSaved = useCallback((windows: AvailabilityWindow[]) => {
+    setSaved((current) => (current ? { ...current, windows } : current));
+    setJustSaved("slots");
+  }, []);
 
-  async function handleSave() {
-    if (!athleteId || saving || isEmpty) return;
+  if (loadError) {
+    return (
+      <PageShell header={<AppHeader />}>
+        <p role="alert" className="text-sm text-red-400">
+          {loadError}
+        </p>
+      </PageShell>
+    );
+  }
+
+  if (!saved) {
+    return (
+      <PageShell header={<AppHeader />}>
+        <div className="flex flex-col gap-3" aria-busy="true">
+          <p className="sr-only">Chargement…</p>
+          <div className="ux-skeleton h-24 rounded-2xl" />
+          <div className="ux-skeleton h-32 rounded-2xl" />
+          <div className="ux-skeleton h-32 rounded-2xl" />
+        </div>
+      </PageShell>
+    );
+  }
+
+  const { profile, onboarding, windows } = saved;
+
+  function edit(id: RefineSectionId) {
     setError(null);
+    setJustSaved(null);
+    setProfileDraft(profile);
+    setPracticeDraft({
+      discipline: onboarding.discipline,
+      competitionLevel: onboarding.competitionLevel,
+      primaryGoal: onboarding.primaryGoal,
+      weeklyTrainingHours: onboarding.weeklyTrainingHours,
+      ridingDays: onboarding.preferredRidingDays,
+      seasonObjective: profile.seasonObjective ?? "",
+    });
+    setOpen(id);
+  }
+
+  function cancel() {
+    setOpen(null);
+    setError(null);
+  }
+
+  async function run(id: RefineSectionId, action: () => Promise<void>) {
+    if (!athleteId || saving) return;
     setSaving(true);
-    setSaved(false);
+    setError(null);
     try {
-      await savePerformanceSetup(athleteId, answers);
-      setSaved(true);
-      setDirty(false);
+      await action();
+      setOpen(null);
+      setJustSaved(id);
     } catch (err) {
-      setError(err instanceof PerformanceSetupError ? err.message : "Une erreur inattendue s'est produite. Réessaie.");
+      setError(err instanceof PerformanceSetupError || err instanceof AthleteOnboardingError ? err.message : ACTIONS.genericError);
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading) {
-    return (
-      <PageShell header={<AppHeader />}>
-        <p className="text-center text-sm text-muted">Chargement…</p>
-      </PageShell>
-    );
+  function saveProfile(id: RefineSectionId) {
+    const next = profileDraft!;
+    return run(id, async () => {
+      await savePerformanceSetup(athleteId!, next);
+      setSaved((current) => (current ? { ...current, profile: next } : current));
+    });
   }
+
+  function savePractice() {
+    const draft = practiceDraft!;
+    return run("practice", async () => {
+      const id = athleteId!;
+      if (draft.discipline !== onboarding.discipline) await saveDiscipline(id, draft.discipline!);
+      if (draft.competitionLevel !== onboarding.competitionLevel) await saveCompetitionLevel(id, draft.competitionLevel!);
+      if (draft.primaryGoal !== onboarding.primaryGoal) await savePrimaryGoal(id, draft.primaryGoal!);
+      if (draft.weeklyTrainingHours !== onboarding.weeklyTrainingHours) await saveWeeklyTrainingHours(id, draft.weeklyTrainingHours!);
+      if (draft.ridingDays.join() !== onboarding.preferredRidingDays.join()) await saveRidingDays(id, draft.ridingDays);
+      const objective = draft.seasonObjective.trim() || null;
+      const nextProfile = { ...profile, seasonObjective: objective };
+      if (objective !== (profile.seasonObjective?.trim() || null)) await savePerformanceSetup(id, nextProfile);
+      setSaved((current) =>
+        current
+          ? {
+              ...current,
+              profile: nextProfile,
+              onboarding: {
+                discipline: draft.discipline,
+                competitionLevel: draft.competitionLevel,
+                primaryGoal: draft.primaryGoal,
+                weeklyTrainingHours: draft.weeklyTrainingHours,
+                preferredRidingDays: draft.ridingDays,
+              },
+            }
+          : current
+      );
+    });
+  }
+
+  const footer = (canSave: boolean, onSave: () => void) => (
+    <>
+      {error && (
+        <p role="alert" className="text-sm text-red-400">
+          {error}
+        </p>
+      )}
+      <div className="flex gap-3">
+        <SecondaryButton onClick={cancel} disabled={saving} className="min-h-12 px-5">
+          {ACTIONS.cancel}
+        </SecondaryButton>
+        <PrimaryButton onClick={onSave} disabled={!canSave || saving} className="flex-1">
+          {saving ? ACTIONS.saving : ACTIONS.save}
+        </PrimaryButton>
+      </div>
+    </>
+  );
+
+  const p = practiceDraft;
+  const d = profileDraft;
+  const practiceComplete = !!p && !!p.discipline && !!p.competitionLevel && !!p.primaryGoal && !!p.weeklyTrainingHours && p.ridingDays.length > 0;
+  const availabilityReady = open === "slots" ? !availabilityGate.loading && !availabilityGate.dirty && !availabilityGate.saving && availabilityGate.hasSavedAvailability : windows.length > 0;
+  const configurationReady = (open === null || open === "slots" || open === "preparation") && !saving && availabilityReady;
 
   return (
     <PageShell header={<AppHeader />}>
-      {/* UX-09 — the first run asks the essentials; this page is where the rider refines everything else. */}
-      <SectionHeader title={REFINE.title} subtitle={REFINE.subtitle} />
+      <section aria-labelledby="refine-title" className="ux-enter">
+        <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
+          <span className="h-px w-5 bg-gold" aria-hidden="true" />
+          {REFINE_PAGE.kicker}
+        </p>
+        <h1 id="refine-title" className="mt-3 font-display text-[clamp(2.5rem,11vw,3.25rem)] font-extrabold uppercase leading-[0.92] text-ink">
+          {REFINE_PAGE.title}
+        </h1>
+        <p className="mt-2 text-base text-ink/80">{REFINE_PAGE.intro}</p>
+        <p className="mt-3 border-l border-gold/60 pl-3 text-sm text-ink/75">{REFINE_PAGE.planNote}</p>
+      </section>
 
-      <Card className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-ink">Équipement disponible</p>
-        <ToggleGroup
-          options={EQUIPMENT_OPTIONS}
-          labels={EQUIPMENT_LABELS}
-          selected={answers.equipment}
-          onToggle={(value) => updateAnswers((a) => ({ ...a, equipment: toggleValue(a.equipment, value) }))}
-        />
-      </Card>
-
-      <Card className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-ink">Terrain accessible</p>
-        <ToggleGroup
-          options={TERRAIN_OPTIONS}
-          labels={TERRAIN_LABELS}
-          selected={answers.terrainAccess}
-          onToggle={(value) => updateAnswers((a) => ({ ...a, terrainAccess: toggleValue(a.terrainAccess, value) }))}
-        />
-      </Card>
-
-      <Card className="flex flex-col gap-4">
-        <p className="text-sm font-medium text-ink">Priorités techniques</p>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-widest text-muted">Points forts</p>
-          <ToggleGroup
-            options={TECHNICAL_PRIORITY_OPTIONS}
-            labels={TECHNICAL_PRIORITY_LABELS}
-            selected={answers.strengths}
-            onToggle={(value) => updateAnswers((a) => ({ ...a, strengths: toggleValue(a.strengths, value) }))}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-widest text-muted">Points faibles</p>
-          <ToggleGroup
-            options={TECHNICAL_PRIORITY_OPTIONS}
-            labels={TECHNICAL_PRIORITY_LABELS}
-            selected={answers.weaknesses}
-            onToggle={(value) => updateAnswers((a) => ({ ...a, weaknesses: toggleValue(a.weaknesses, value) }))}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-widest text-muted">Priorités pour ce plan</p>
-          <ToggleGroup
-            options={TECHNICAL_PRIORITY_OPTIONS}
-            labels={TECHNICAL_PRIORITY_LABELS}
-            selected={answers.priorityAreas}
-            onToggle={(value) => updateAnswers((a) => ({ ...a, priorityAreas: toggleValue(a.priorityAreas, value) }))}
-          />
-        </div>
-      </Card>
-
-      <Card className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-ink">Expérience en préparation physique</p>
-        <Select
-          value={answers.strengthExperienceTier ?? ""}
-          onChange={(e) =>
-            updateAnswers((a) => ({
-              ...a,
-              strengthExperienceTier: e.target.value === "" ? null : (e.target.value as PerformanceSetupAnswers["strengthExperienceTier"]),
-            }))
-          }
-        >
-          <option value="">— Choisir —</option>
-          {STRENGTH_EXPERIENCE_TIER_OPTIONS.map((tier) => (
-            <option key={tier} value={tier}>
-              {STRENGTH_EXPERIENCE_TIER_LABELS[tier]}
-            </option>
-          ))}
-        </Select>
-      </Card>
-
-      <Card className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-ink">Objectif de saison (optionnel)</p>
-        <textarea
-          value={answers.seasonObjective ?? ""}
-          onChange={(e) => updateAnswers((a) => ({ ...a, seasonObjective: e.target.value }))}
-          rows={3}
-          className="rounded border border-white/10 bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted"
-          placeholder="Ex. Podium aux championnats nationaux"
-        />
-      </Card>
-
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      {saved && !error && <p className="text-sm text-gold">Profil enregistré.</p>}
-
-      <PrimaryButton onClick={() => void handleSave()} disabled={saving || isEmpty} className="w-full">
-        {saving ? "Enregistrement…" : "Enregistrer"}
-      </PrimaryButton>
-
-      <AvailabilitySection onGateStateChange={setAvailabilityGate} />
-
-      <TrainingPlanGenerationPanel
-        configurationReady={
-          !dirty &&
-          !saving &&
-          !availabilityGate.loading &&
-          !availabilityGate.dirty &&
-          !availabilityGate.saving &&
-          availabilityGate.hasSavedAvailability
+      <Section
+        id="practice"
+        open={open === "practice"}
+        onEdit={() => edit("practice")}
+        justSaved={justSaved === "practice"}
+        summary={
+          <>
+            <p className="font-medium text-ink">
+              {[onboarding.discipline && DISCIPLINE_LABELS[onboarding.discipline], onboarding.competitionLevel && COMPETITION_LEVEL_LABELS[onboarding.competitionLevel]].filter(Boolean).join(" · ")}
+            </p>
+            {onboarding.primaryGoal && <p>{PRACTICE.summaryGoal(PRIMARY_GOAL_LABELS[onboarding.primaryGoal])}</p>}
+            {onboarding.weeklyTrainingHours && (
+              <p>{PRACTICE.summaryHours(WEEKLY_TRAINING_HOURS_LABELS[onboarding.weeklyTrainingHours], joinLabels(onboarding.preferredRidingDays, RIDING_DAY_LABELS).toLowerCase())}</p>
+            )}
+            {profile.seasonObjective && <p>{PRACTICE.summarySeason(profile.seasonObjective)}</p>}
+          </>
         }
-      />
+        footer={footer(practiceComplete, () => void savePractice())}
+      >
+        {p && (
+          <>
+            <Field label={PRACTICE.discipline}>
+              <Chips options={DISCIPLINE_OPTIONS} labels={DISCIPLINE_LABELS} selected={p.discipline ? [p.discipline] : []} onToggle={(v) => setPracticeDraft({ ...p, discipline: v })} label={PRACTICE.discipline} />
+            </Field>
+            <Field label={PRACTICE.level}>
+              <Chips options={COMPETITION_LEVEL_OPTIONS} labels={COMPETITION_LEVEL_LABELS} selected={p.competitionLevel ? [p.competitionLevel] : []} onToggle={(v) => setPracticeDraft({ ...p, competitionLevel: v })} label={PRACTICE.level} />
+            </Field>
+            <Field label={PRACTICE.goal}>
+              <Chips options={PRIMARY_GOAL_OPTIONS} labels={PRIMARY_GOAL_LABELS} selected={p.primaryGoal ? [p.primaryGoal] : []} onToggle={(v) => setPracticeDraft({ ...p, primaryGoal: v })} label={PRACTICE.goal} />
+            </Field>
+            <Field label={PRACTICE.hours}>
+              <Chips options={WEEKLY_TRAINING_HOURS_OPTIONS} labels={WEEKLY_TRAINING_HOURS_LABELS} selected={p.weeklyTrainingHours ? [p.weeklyTrainingHours] : []} onToggle={(v) => setPracticeDraft({ ...p, weeklyTrainingHours: v })} label={PRACTICE.hours} />
+            </Field>
+            <Field label={PRACTICE.ridingDays} hint={PRACTICE.ridingDaysHint}>
+              <Chips options={RIDING_DAY_OPTIONS} labels={RIDING_DAY_LABELS} selected={p.ridingDays} onToggle={(v) => setPracticeDraft({ ...p, ridingDays: toggleValue(p.ridingDays, v) })} label={PRACTICE.ridingDays} />
+            </Field>
+            <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+              {PRACTICE.seasonObjective}
+              <input
+                type="text"
+                value={p.seasonObjective}
+                maxLength={200}
+                placeholder={PRACTICE.seasonObjectivePlaceholder}
+                onChange={(e) => setPracticeDraft({ ...p, seasonObjective: e.target.value })}
+                className="rounded-lg border border-line bg-bg px-4 py-3 text-base font-normal text-ink placeholder:text-muted"
+              />
+            </label>
+          </>
+        )}
+      </Section>
+
+      <Section
+        id="terrain"
+        open={open === "terrain"}
+        onEdit={() => edit("terrain")}
+        justSaved={justSaved === "terrain"}
+        summary={<p>{profile.terrainAccess.length > 0 ? joinLabels(profile.terrainAccess, TERRAIN_LABELS) : TERRAIN.none}</p>}
+        footer={footer(!!d && d.terrainAccess.length > 0, () => void saveProfile("terrain"))}
+      >
+        {d && (
+          <Field label={TERRAIN.question} hint={TERRAIN.hint}>
+            <Chips options={TERRAIN_OPTIONS} labels={TERRAIN_LABELS} selected={d.terrainAccess} onToggle={(v) => setProfileDraft({ ...d, terrainAccess: toggleValue(d.terrainAccess, v) })} label={TERRAIN.question} />
+          </Field>
+        )}
+      </Section>
+
+      <Section
+        id="equipment"
+        open={open === "equipment"}
+        onEdit={() => edit("equipment")}
+        justSaved={justSaved === "equipment"}
+        summary={<p>{profile.equipment.length > 0 ? joinLabels(profile.equipment, EQUIPMENT_LABELS) : EQUIPMENT.bodyweight}</p>}
+        footer={footer(true, () => void saveProfile("equipment"))}
+      >
+        {d && (
+          <Field label={EQUIPMENT.question} hint={EQUIPMENT.hint}>
+            <Chips options={EQUIPMENT_OPTIONS} labels={EQUIPMENT_LABELS} selected={d.equipment} onToggle={(v) => setProfileDraft({ ...d, equipment: toggleValue(d.equipment, v) })} label={EQUIPMENT.question} />
+          </Field>
+        )}
+      </Section>
+
+      <Section
+        id="strengths"
+        open={open === "strengths"}
+        onEdit={() => edit("strengths")}
+        justSaved={justSaved === "strengths"}
+        summary={
+          <>
+            {profile.strengths.length > 0 && <p>{STRENGTHS.summaryStrengths(joinLabels(profile.strengths, TECHNICAL_PRIORITY_LABELS))}</p>}
+            {profile.weaknesses.length > 0 && <p>{STRENGTHS.summaryWeaknesses(joinLabels(profile.weaknesses, TECHNICAL_PRIORITY_LABELS))}</p>}
+            <p>{profile.priorityAreas.length > 0 ? STRENGTHS.summaryPriorities(joinLabels(profile.priorityAreas, TECHNICAL_PRIORITY_LABELS)) : STRENGTHS.noPriorities}</p>
+            {profile.strengthExperienceTier && <p>{STRENGTHS.summaryTier(STRENGTH_EXPERIENCE_TIER_LABELS[profile.strengthExperienceTier])}</p>}
+          </>
+        }
+        footer={footer(true, () => void saveProfile("strengths"))}
+      >
+        {d && (
+          <>
+            <Field label={STRENGTHS.strengths}>
+              <Chips options={TECHNICAL_PRIORITY_OPTIONS} labels={TECHNICAL_PRIORITY_LABELS} selected={d.strengths} onToggle={(v) => setProfileDraft({ ...d, strengths: toggleValue(d.strengths, v) })} label={STRENGTHS.strengths} />
+            </Field>
+            <Field label={STRENGTHS.weaknesses}>
+              <Chips options={TECHNICAL_PRIORITY_OPTIONS} labels={TECHNICAL_PRIORITY_LABELS} selected={d.weaknesses} onToggle={(v) => setProfileDraft({ ...d, weaknesses: toggleValue(d.weaknesses, v) })} label={STRENGTHS.weaknesses} />
+            </Field>
+            <Field label={STRENGTHS.priorities}>
+              <Chips options={TECHNICAL_PRIORITY_OPTIONS} labels={TECHNICAL_PRIORITY_LABELS} selected={d.priorityAreas} onToggle={(v) => setProfileDraft({ ...d, priorityAreas: toggleValue(d.priorityAreas, v) })} label={STRENGTHS.priorities} />
+            </Field>
+            <Field label={STRENGTHS.tier}>
+              <Chips<StrengthExperienceTier>
+                options={STRENGTH_EXPERIENCE_TIER_OPTIONS}
+                labels={STRENGTH_EXPERIENCE_TIER_LABELS}
+                selected={d.strengthExperienceTier ? [d.strengthExperienceTier] : []}
+                onToggle={(v) => setProfileDraft({ ...d, strengthExperienceTier: v })}
+                label={STRENGTHS.tier}
+              />
+            </Field>
+          </>
+        )}
+      </Section>
+
+      <Section
+        id="slots"
+        open={open === "slots"}
+        onEdit={() => edit("slots")}
+        justSaved={justSaved === "slots"}
+        summary={windows.length > 0 ? slotsSummary(windows).map((line) => <p key={line}>{line}</p>) : <p>{SLOTS.none}</p>}
+        footer={
+          <SecondaryButton onClick={cancel} className="min-h-12">
+            {ACTIONS.close}
+          </SecondaryButton>
+        }
+      >
+        <AvailabilitySection bare onGateStateChange={setAvailabilityGate} onSaved={onWindowsSaved} />
+      </Section>
+
+      <section id="preparation" aria-labelledby="refine-preparation" className="ux-enter scroll-mt-4">
+        <h2 id="refine-preparation" className="sr-only">
+          {SECTION_TITLES.preparation}
+        </h2>
+        <TrainingPlanGenerationPanel
+          configurationReady={configurationReady}
+          durationPresets={PLAN_DURATIONS}
+          defaultDurationWeeks={DEFAULT_PLAN_WEEKS}
+          title={SECTION_TITLES.preparation}
+          prominentTitle
+          description={saved.hasActivePlan ? PREPARATION.description : PREPARATION.descriptionFirst}
+          generateLabel={saved.hasActivePlan ? PREPARATION.rebuild : PREPARATION.build}
+          durationQuestion={PREPARATION.question}
+          notReadyHint={windows.length === 0 ? SLOTS.none : PREPARATION.notReady}
+        />
+      </section>
     </PageShell>
   );
 }
