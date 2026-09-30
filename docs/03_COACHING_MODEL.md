@@ -118,6 +118,26 @@ Un pattern simple et robuste peut être confirmé avec relativement peu d'observ
 
 **Couche D vide en V0.2** — aucun pattern personnel actif.
 
+### Décisions de coaching validées (UX-11A)
+
+- Choix de coaching tirés d'une hypothèse (ex. « ajouter un travail de préhension deux fois par semaine »), pris **après validation sportive** et écrits dans ce document.
+- Tant qu'une décision n'est pas écrite ici, l'hypothèse qui la motive reste une hypothèse.
+
+### Règle d'usage par le moteur (UX-11A)
+
+**Une hypothèse ne devient jamais une règle moteur. Un pattern appris non plus, tant qu'il n'est pas défini comme une règle validée.**
+
+| Catégorie | Exemple | Utilisable par le moteur |
+|---|---|---|
+| Donnée connue | « Le pilote indique que ses avant-bras fatiguent rapidement. » | Oui, telle quelle |
+| Hypothèse de coaching | « Une faiblesse de préhension pourrait limiter la tenue sur les longues descentes. » | Jamais directement |
+| Décision de coaching validée | « Ajouter un travail de préhension deux fois par semaine. » | Oui, une fois écrite dans ce document |
+| Pattern appris (couche D) | « Chez ce pilote, la fatigue des avant-bras suit les week-ends DH chargés. » | Seulement une fois défini comme règle validée écrite dans ce document |
+
+Patterns : ❌ « NALYNT remarque que beaucoup de pilotes fatiguent des avant-bras, donc il ajoute du travail de préhension » (jamais de généralisation depuis d'autres pilotes, jamais d'action directe d'un pattern) ; ✅ « pour un pilote ayant choisi la priorité "endurance des avant-bras", ajouter un bloc de préhension selon la règle validée X ».
+
+Technique DH : ❌ « le pilote freine trop, donc NALYNT programme du freinage » ; ✅ « le pilote a choisi "freinage" comme priorité, donc NALYNT peut proposer des exercices associés ». Le moteur ne fait jamais de diagnostic technique caché.
+
 Exemples de patterns candidats à surveiller (dans l'ordre de probabilité de découverte) :
 - Effet de la coupure liquides 21h sur les réveils nocturnes
 - Récupération réelle post-DH weekend
@@ -238,6 +258,203 @@ Le suivi médical de référence de Louis est disponible (`02_ATHLETE_PROFILE.md
 
 ---
 
+## Modèle de séance NALYNT V1 (UX-11A, PROVISIONAL)
+
+> **Statut** : validé par l'architecture produit (UX-11A.1 révision 2, 2026-09-30). **Validation sportive externe à définir** : tous les chiffres de ce chapitre sont `PROVISIONAL` (voir §Contraintes canoniques 8).
+>
+> **Vocabulaire** : les termes *séance*, *bloc de séance*, *exercice prescrit*, *exercice réalisé*, *intention* et *famille de séance* devront entrer dans `07_GLOSSARY.md` après validation. D'ici là, ce chapitre fait foi : aucun autre document ne doit en écrire une définition différente.
+>
+> **Périmètre** : ce chapitre décrit le coaching, c'est-à-dire ce qu'est une séance et comment elle est construite, réduite et fait progresser le pilote. Il ne décrit ni modèle de données, ni tables, ni interface, ni mode séance : ces sujets relèvent d'UX-11B et suivants.
+
+### 1. Définition d'une séance
+
+Une séance NALYNT est une intervention d'entraînement **avec une intention explicite**. Elle répond pour le pilote à trois questions :
+
+- pourquoi il fait cette séance ;
+- ce qu'il cherche à améliorer ;
+- comment savoir si elle est réussie.
+
+Chaîne canonique : **intention → objectif → structure → exercices → dose → réalisation → retour pilote**.
+
+Chaque séance porte :
+
+| Élément | Contenu |
+|---|---|
+| Titre | Nom court orienté pilotage (ex. « Force jambes : relancer en sortie de virage ») |
+| Objectif | Une phrase |
+| Ce que tu travailles | 2 à 3 éléments |
+| Pourquoi aujourd'hui | Optionnel. Uniquement un fait connu du contexte du jour (ex. « pas de DH importante dans les 48 heures »), jamais une hypothèse |
+| Consigne principale | Une phrase |
+| Durée prévue · charge prévue | Reprises de la séance planifiée |
+
+La finalité reste la **performance en VTT de descente**. NALYNT n'est pas un générateur de musculation généraliste : chaque exercice doit servir le pilotage.
+
+### 2. Intentions : bibliothèque de textes validés
+
+Chaque intention est un texte **écrit à l'avance, validé, et identifié** :
+
+`corner_exit_power` → « Développer la capacité à accélérer après les sorties de virage. »
+
+Le moteur **sélectionne** une intention existante ; il ne rédige jamais de texte. Aucun LLM, aucune génération libre, aucun assemblage de phrases à la volée. Une nouvelle intention n'existe qu'après validation et ajout à la bibliothèque.
+
+### 3. Structure : Séance → Bloc de séance → Exercice
+
+La hiérarchie est fixe et commune à toutes les familles :
+
+```
+Séance
+└── Bloc de séance (échauffement / activation, principal, complémentaire, retour au calme)
+    └── Exercice
+        ├── Prescription
+        └── Exercice réalisé (plus tard, hors de ce chapitre)
+```
+
+*Vocabulaire* : « bloc de séance » désigne une partie d'une séance. Il ne doit pas être confondu avec le bloc d'un plan d'entraînement (période de plusieurs semaines).
+
+Chaque exercice a un **rôle** dans sa séance : principal, secondaire, unilatéral, prévention ou gainage (Force) ; explosif (Puissance) ; exercice technique ou application terrain (Technique DH).
+
+**Parties obligatoires et optionnelles par famille** (la structure reste souple : seules les parties obligatoires sont exigées) :
+
+| Famille | Obligatoire | Optionnel |
+|---|---|---|
+| Force | Échauffement · bloc principal | Exercice secondaire · unilatéral · prévention · retour au calme |
+| Puissance | Activation · exercice explosif | Force associée · technique |
+| Technique DH | Brief de l'objectif · exercice technique · application terrain | Analyse vidéo par le pilote · passages libres |
+| Endurance | Objectif · durée et intensité | Intervalles structurés |
+| Mobilité | Zones ciblées · durée | — |
+| Récupération | Objectif de récupération · durée · intensité faible | Mobilité · respiration · récupération active |
+
+### 4. Six familles de séances (V1)
+
+Aucune autre famille en V1. Chaque famille regroupe des `TrainingInterventionKind` existants ; **aucun nouveau kind n'est créé**.
+
+| Famille | Kinds existants |
+|---|---|
+| Force | `STRENGTH_LOWER` · `STRENGTH_UPPER` · `STRENGTH_FULL_LIGHT` · `GRIP_WORK` |
+| Puissance | `POWER` |
+| Technique DH | `DH_TECHNICAL` · `DH_PERFORMANCE` · `DH_LIGHT` · `PUMPTRACK` |
+| Endurance | `AEROBIC_BASE` · `AEROBIC_INTERVALS` |
+| Mobilité | `MOBILITY` |
+| Récupération | `RECOVERY_ACTIVE` · `REST` (pas de séance) |
+
+`BIKE_MAINTENANCE` et `RACE_ACTIVITY` n'ont pas de modèle de séance. La préhension appartient à la famille Force ; il n'existe pas de famille « grip » séparée.
+
+### 5. Prescription
+
+**Format d'un exercice prescrit** :
+
+| Champ | Règle |
+|---|---|
+| Séries | Nombre entier |
+| Volume par série | **Exactement une** mesure : répétitions (fixes ou plage, éventuellement par côté), durée, distance, ou passages (Technique DH, exercice technique uniquement) |
+| RPE cible | Valeur ou plage de 1 à 10 |
+| Repos | Entre les séries |
+| Consigne | 1 à 2 consignes clés |
+| Critère de réussite | Quand il est observable (toujours pour l'exercice technique DH) |
+
+**Aucune fausse précision en V1** : jamais de charge en kg, de % de 1RM, de zone de fréquence cardiaque ni de % de FTP, même si des valeurs déclarées existent au profil. La charge utilisée sera une donnée apportée par le pilote, pas une cible calculée.
+
+Le RPE cible appartient au modèle de séance et à la phase du plan. **Pour les séances de Force uniquement, le niveau d'intention de charge définit une plage de prescription attendue** (ci-dessous). Cette relation ne s'applique pas aux autres familles, notamment la DH (§Session Prescription V1, DH-first, « Aucun mapping RPE »). Le RPE reste une cible de séance, jamais une conversion : « charge modérée » ne signifie jamais automatiquement « RPE 7 ».
+
+**Règles par famille (PROVISIONAL)** :
+
+*Force* : 3 à 5 exercices de travail au maximum.
+
+**Niveau d'intention de charge en Force** (`LoadProfile` : léger, modéré, lourd). Ce sont des **niveaux d'intention de séance, jamais des kilogrammes** : « modéré » signifie un objectif physiologique et une plage de difficulté attendue, jamais « 70 kg ».
+
+| Niveau | Objectif | Séries | Répétitions | RPE |
+|---|---|---|---|---|
+| Léger | Technique, vitesse, récupération | 2–4 | 8–15 | 5–6 |
+| Modéré | Développement général | 3–5 | 6–12 | 6–8 |
+| Lourd | Force maximale (orientation future) | 3–5 | 3–6 | 8–9 |
+
+Le niveau fixe l'enveloppe de tous les exercices de travail, sauf prévention et gainage qui gardent leurs propres plages. Dans l'enveloppe, le mouvement principal prend le bas de la plage de répétitions et le haut de la plage de RPE. Le tableau des rôles ci-dessous est la **référence en charge modérée** :
+
+| Rôle | Séries | Volume | RPE | Repos |
+|---|---|---|---|---|
+| Principal | 3–5 | 6–8 répétitions | 7–8 | 2–3 min |
+| Secondaire | 3–4 | 8–12 répétitions | 7 | 90 s |
+| Unilatéral | 3–4 | 6–12 répétitions par côté | 7 | 60–90 s |
+| Prévention · gainage | 2–4 | 12–20 répétitions ou durée | 6–7 | 45–60 s |
+
+L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, respiration) ne comptent pas dans ce maximum. Le mouvement principal passe toujours en premier. La somme des parties tient dans la durée prévue. La préhension suit C3.2 et C3.5.
+
+*Puissance* : 3 à 4 exercices explosifs, 3–5 séries de 3–5 répétitions, qualité maximale, repos complet (2–3 min). La série s'arrête dès que la vitesse d'exécution baisse. Jamais après une séance fatigante.
+
+*Technique DH* :
+- une seule compétence par séance (C1.1), choisie parmi les **priorités de pilotage déclarées par le pilote**, en rotation ;
+- un exercice technique : 4 à 8 passages, une consigne, un critère de réussite observable, une condition pour progresser et une pour simplifier ;
+- application terrain : descentes complètes où la consigne est appliquée, **sans nombre de runs prescrit** ;
+- retour : une descente facile, le ressenti du pilote (facile, moyen, difficile), un contrôle du vélo ;
+- l'intensité suit `load_guidance` (§DH Execution Guidance) et la fenêtre de session DH existante reste inchangée.
+
+*Endurance* : l'intensité se règle au RPE et au test de la parole.
+- Endurance fondamentale : 45–90 min, RPE 3–4, le pilote peut parler en phrases complètes.
+- Intervalles : échauffement, séries structurées (ex. 6 × 3 min à RPE 8, 2 min faciles entre), retour au calme.
+- L'activité est au choix du pilote (vélo route, VTT roulant, home-trainer, course à pied).
+
+*Mobilité* : une routine par zones ciblées (hanches, chevilles, dos, poignets en léger), chaque exercice en durée, terminée par de la respiration. Jamais une séance réduite à « Mobilité · 30 min ».
+
+*Récupération* : objectif de récupération explicite, durée, intensité faible. Exemple, récupération active : « Favoriser la récupération sans ajouter de fatigue. » 20–40 min à RPE 2–3, mobilité et respiration en option. Le repos n'a pas de séance.
+
+### 6. Adaptation
+
+NALYNT **réduit une séance existante** (décision MODIFY, §Contraintes canoniques 7) sans en changer la nature :
+
+| Famille | Réduction type |
+|---|---|
+| Force · Puissance | Une série de moins par exercice, RPE cible −1, bloc complémentaire retiré |
+| Technique DH | Moins de passages, application terrain réduite, engagement réduit |
+| Endurance | Durée −30 à 40 %, RPE 2–3 |
+
+Règles :
+- le type de séance ne change (REPLACE, REST) **que si une règle explicite** du moteur de décision le décide ; la nouvelle séance suit alors le modèle de sa propre famille ;
+- le moteur n'invente jamais un exercice ni une séance sans prescription ;
+- cohérent avec §Contraintes canoniques 1 : aucune chaîne de downgrade générique.
+
+### 7. Progression
+
+Trois leviers seulement, **jamais les kilos** :
+
+| Levier | Exemple |
+|---|---|
+| Volume | 3 × 8 → 4 × 8 |
+| Intensité relative | RPE 7 → RPE 8 |
+| Complexité | Squat classique → squat tempo → squat explosif |
+
+**Tant que la réalisation n'est pas enregistrée**, la progression suit uniquement la semaine du plan, sa phase et son objectif :
+
+| Semaine | Phase | Exemple |
+|---|---|---|
+| 1 | Apprentissage | 3 × 8 · RPE 7 |
+| 2 | Volume | 4 × 8 · RPE 7 |
+| 3 | Intensité | 4 × 6 · RPE 8 |
+| 4 | Allègement | 3 × 6 · RPE 6 |
+
+Les semaines d'affûtage avant course gardent la structure et réduisent le volume. Jamais « tu as réussi, donc +10 kg ». Une progression fondée sur la performance réelle demandera des données de réalisation et une décision séparée.
+
+### 8. Données connues, hypothèses, décisions
+
+Voir §Séparation stricte des connaissances, « Règle d'usage par le moteur ». En Technique DH, le moteur ne fait **jamais de diagnostic technique caché** : c'est la priorité choisie par le pilote qui ouvre des exercices associés, jamais une interprétation de ses faiblesses.
+
+### 9. Fiche d'exercice (contenu de coaching)
+
+Chaque exercice du catalogue est décrit par : nom (en français), famille, objectif pour le pilote, discipline, matériel nécessaire, niveau, variantes, progressions possibles, consignes, erreurs fréquentes, **points de vigilance**.
+
+Les points de vigilance sont formulés comme de l'aide (« douleur au poignet : préfère la prise neutre », « matériel requis », « variante recommandée »), jamais comme une interdiction. Le moteur ne prend aucune décision médicale : SAFETY et §Contraintes canoniques 9 restent les seules références.
+
+### 10. Limites V1
+
+- Pas de charge en kg, de 1RM, de % de 1RM, de zone cardiaque ni de % de FTP. Les niveaux léger, modéré et lourd de la famille Force sont des intentions de séance, pas des charges.
+- Pas de progression fondée sur la performance réelle.
+- Pas de nombre total de runs ni de dénivelé en DH.
+- Pas de texte généré : seules les intentions validées sont affichées.
+- Pas de diagnostic technique, pas de décision médicale.
+- Pas de nouvelle famille ni de nouveau `TrainingInterventionKind`.
+- Hors de ce chapitre : modèle de données, tables, interface, mode séance, hors ligne.
+
+---
+
 ## Assemblage multi-domaines : intégration
 
 ### Cohérence
@@ -344,9 +561,9 @@ Corrige le constat du deuxième cycle de dogfood externe : une recommandation DH
 
 **LoadProfile ≠ duration** : HEAVY/MODERATE/LIGHT reste le concept qualitatif existant de charge globale d'entraînement, jamais redéfini comme une durée. La table choisit simplement une fenêtre de session typique pour une combinaison kind/charge finale donnée — une longue journée DH peut contenir une part importante de remontées/attente/récupération.
 
-**Aucun mapping RPE** : aucune correspondance canonique LoadProfile → RPE cible n'existe (ni dans ce document, ni dans le code) — V1 n'en invente aucune. `completed_sessions.rpe` reste exclusivement l'effort ressenti réel post-séance (NAL-006).
+**Aucun mapping RPE** : aucune correspondance canonique LoadProfile → RPE cible n'existe (ni dans ce document, ni dans le code) — V1 n'en invente aucune. *Précision UX-11A* : pour les séances de Force uniquement, le niveau d'intention de charge définit une plage de prescription attendue (§Modèle de séance NALYNT V1, 5) ; cette relation ne s'applique pas aux autres familles, notamment la DH, et n'est jamais une conversion automatique vers un RPE. `completed_sessions.rpe` reste exclusivement l'effort ressenti réel post-séance (NAL-006).
 
-**Aucun modèle de nombre de runs / dénivelé** : NALYNT ne connaît aujourd'hui ni la longueur de piste, ni la vitesse de remontée, ni l'affluence — un nombre de runs ou un dénivelé cible créerait une fausse précision. Différé.
+**Aucun modèle de nombre de runs / dénivelé** : NALYNT ne connaît aujourd'hui ni la longueur de piste, ni la vitesse de remontée, ni l'affluence — un nombre de runs ou un dénivelé cible créerait une fausse précision. Différé. *Précision UX-11A* : seul l'exercice technique d'une séance DH peut prescrire un nombre de passages (4 à 8), pour cet exercice uniquement — jamais un nombre total de runs ni un dénivelé pour la séance ou la journée (§Modèle de séance NALYNT V1).
 
 **Précédence de durée explicite (corrigée)** : la durée `planned_session.duration_min` explicitement fournie par l'athlète (exposée par l'interface Planning depuis V0.3_006C2, DH-family uniquement — voir ci-dessous) reste une **information de confiance**, jamais silencieusement écrasée par la table provisoire :
 - **Aucune durée explicite** → valeur provisoire générique pour la combinaison kind/charge **finale**.
@@ -368,7 +585,7 @@ Ne jamais interpréter la table provisoire comme une autorisation d'étendre une
 
 **Précédence Safety absolue** : la prescription est calculée sur la session finale entièrement arbitrée (après Training/douleur/contraintes soft/A5) — un A1 (REST) ne produit jamais de durée/focus/terrain DH ; un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse subsister aucune prescription DH périmée.
 
-**Wiring Planning (V0.3_006C2, implémentation locale)** : l'UNIQUE source de vérité pour la durée prévue par l'athlète est `planned_sessions.intervention.duration_min` — `planned_sessions.planned_duration_min` (colonne relationnelle séparée) reste délibérément dormante, aucune duplication. Champ athlète-facing "Durée prévue" (`web/src/features/planning/PlanningDayCard.tsx`), sélecteur fermé de 15 valeurs (1h à 8h par pas de 30 min, jamais de saisie numérique libre), exposé **uniquement** pour les 4 kinds DH-family — l'arbitrage moteur pour tout autre kind reste aujourd'hui non défini/accidentel, hors périmètre de ce jalon (voir `docs/06_ARCHITECTURE.md` §V0.3_006C2). Sémantique athlète explicite, jamais présentée comme une pure contrainte de disponibilité : "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. Le coach peut la réduire si ton état demande une adaptation." — exacte sur un vrai KEEP, borne supérieure après adaptation (précédence ci-dessus, inchangée). Aucun changement moteur : `resolveDhDuration` consommait déjà ce champ depuis V0.3_006B.
+**Wiring Planning (V0.3_006C2, implémentation locale)** : l'UNIQUE source de vérité pour la durée prévue par l'athlète est `planned_sessions.intervention.duration_min` — `planned_sessions.planned_duration_min` (colonne relationnelle séparée) reste délibérément dormante, aucune duplication. Champ athlète-facing "Durée prévue" (`web/src/features/planning/PlanningDayCard.tsx`), sélecteur fermé de 15 valeurs (1h à 8h par pas de 30 min, jamais de saisie numérique libre ; sélecteur − / + depuis UX-10B-2B), exposé **uniquement** pour les 4 kinds DH-family — l'arbitrage moteur pour tout autre kind reste aujourd'hui non défini/accidentel, hors périmètre de ce jalon (voir `docs/06_ARCHITECTURE.md` §V0.3_006C2). Sémantique athlète explicite, jamais présentée comme une pure contrainte de disponibilité : "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. NALYNT peut la réduire si ton état demande une adaptation." (libellé mis à jour en UX-10B-2B) — exacte sur un vrai KEEP, borne supérieure après adaptation (précédence ci-dessus, inchangée). Aucun changement moteur : `resolveDhDuration` consommait déjà ce champ depuis V0.3_006B.
 
 Voir `docs/06_ARCHITECTURE.md` §V0.3_006B et §V0.3_006C2 pour l'architecture complète.
 
