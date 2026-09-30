@@ -228,7 +228,7 @@ export function TrainingPlanPreviewPage() {
           <ProgramCoachSummary review={review} athleteModifiedDates={athleteModifiedDates} />
         </>
       )}
-      <SubPageLink to="/plan" label="Ma semaine" hint="· planning des 7 prochains jours" />
+      <SubPageLink to="/plan" label="Modifier ma semaine" hint="· tes 7 prochains jours" />
       <Link to="/performance-setup" className="ux-press inline-flex min-h-11 items-center justify-center rounded border border-line px-4 text-sm font-medium text-ink/85 hover:border-gold/60 hover:text-ink">
         Modifier ma configuration
       </Link>

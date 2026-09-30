@@ -5,8 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { PlanningDayCard } from "./PlanningDayCard";
 import { PlanningDeleteError, PlanningSaveError } from "./planningRepo";
 import { PLANNABLE_FIXED_LOAD_KINDS, PLANNABLE_LOAD_VARIABLE_KINDS } from "./planningTypes";
-import type { PlannedSessionRow } from "./planningTypes";
+import type { PlannedSessionRow, TrainingInterventionKind } from "./planningTypes";
 import type { RaceOverlayEvent } from "./raceOverlayRepo";
+import type { PlanDaySession } from "./weekPresentation";
+import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
 
 const { savePlannedSession, deletePlannedSession } = vi.hoisted(() => ({
   savePlannedSession: vi.fn(),
@@ -23,6 +25,36 @@ vi.mock("./planningRepo", async (importOriginal) => {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+type User = ReturnType<typeof userEvent.setup>;
+
+function kindButton(kind: TrainingInterventionKind) {
+  return within(screen.getByRole("group", { name: "Séance" })).getByRole("button", { name: TRAINING_KIND_LABELS[kind] });
+}
+
+async function pick(user: User, kind: TrainingInterventionKind) {
+  await user.click(kindButton(kind));
+}
+
+function pressedKinds(): string[] {
+  return within(screen.getByRole("group", { name: "Séance" }))
+    .getAllByRole("button")
+    .filter((button) => button.getAttribute("aria-pressed") === "true")
+    .map((button) => button.textContent ?? "");
+}
+
+function durationValue(): string {
+  return within(screen.getByRole("group", { name: "Durée prévue" })).getByRole("status").textContent ?? "";
+}
+
+async function stepTo(user: User, minutes: number) {
+  // From "Pas de durée", + starts at 1 h, then 30 min per step.
+  await user.click(screen.getByRole("button", { name: "Pas de durée" }));
+  await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
+  for (let current = 60; current < minutes; current += 30) {
+    await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
+  }
+}
 
 function restRow(): PlannedSessionRow {
   return {
@@ -44,6 +76,8 @@ function strengthHeavyRow(): PlannedSessionRow {
   };
 }
 
+const PLAN_DH: PlanDaySession = { kind: "DH_TECHNICAL", loadProfile: "MODERATE", durationMin: 90 };
+
 // Minimal stand-in for PlanPage: PlanningDayCard is a controlled component
 // (canonical row + expanded state always come from its parent), so a real
 // test needs something playing that parent role — never a copy of "what's
@@ -52,37 +86,62 @@ function Harness({
   initialRow = null,
   initialExpanded = false,
   races = [],
+  planSession = null,
+  planKnown = true,
   onRowChangeSpy,
 }: {
   initialRow?: PlannedSessionRow | null;
   initialExpanded?: boolean;
   races?: RaceOverlayEvent[];
-  onRowChangeSpy?: (date: string, row: PlannedSessionRow | null) => void;
+  planSession?: PlanDaySession | null;
+  planKnown?: boolean;
+  onRowChangeSpy?: (date: string, row: PlannedSessionRow | null, notice?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [row, setRow] = useState<PlannedSessionRow | null>(initialRow);
+  const [notice, setNotice] = useState<string | null>(null);
   return (
     <PlanningDayCard
       athleteId="athlete-1"
       date="2026-09-01"
       isToday={false}
       row={row}
+      planSession={planSession}
+      planKnown={planKnown}
+      notice={notice}
       races={races}
       isExpanded={expanded}
       onToggleExpand={() => setExpanded((e) => !e)}
-      onRowChange={(date, newRow) => {
+      onRowChange={(date, newRow, newNotice) => {
         setRow(newRow);
+        setNotice(newNotice ?? null);
         setExpanded(false);
-        onRowChangeSpy?.(date, newRow);
+        onRowChangeSpy?.(date, newRow, newNotice);
       }}
     />
   );
 }
 
-describe("PlanningDayCard — collapsed states", () => {
-  it("D: shows Non planifié when no row exists", () => {
+describe("PlanningDayCard — collapsed states (UX-10B-2B)", () => {
+  it("D: no row and nothing in the plan → Libre, with Ajouter une séance", () => {
     render(<Harness initialRow={null} />);
-    expect(screen.getByText("Non planifié")).toBeInTheDocument();
+    expect(screen.getByText("Libre")).toBeInTheDocument();
+    expect(screen.getByText("Ajouter une séance")).toBeInTheDocument();
+  });
+
+  it("no row but the plan has a session that day → the plan's session, Prévue par ton plan (never Libre)", () => {
+    render(<Harness initialRow={null} planSession={PLAN_DH} />);
+    expect(screen.getByText("DH technique")).toBeInTheDocument();
+    expect(screen.getByText("Prévue par ton plan")).toBeInTheDocument();
+    expect(screen.getByText("charge modérée")).toBeInTheDocument();
+    expect(screen.getByText("1 h 30")).toBeInTheDocument();
+    expect(screen.queryByText("Libre")).not.toBeInTheDocument();
+  });
+
+  it("no row and the plan could not be read → never claims Libre", () => {
+    render(<Harness initialRow={null} planKnown={false} />);
+    expect(screen.getByText("Aucune séance")).toBeInTheDocument();
+    expect(screen.queryByText("Libre")).not.toBeInTheDocument();
   });
 
   it("E: shows Repos for an explicit REST row", () => {
@@ -93,13 +152,11 @@ describe("PlanningDayCard — collapsed states", () => {
   it("shows kind + load for an explicit variable-load row", () => {
     render(<Harness initialRow={strengthHeavyRow()} />);
     expect(screen.getByText(/Renfo bas du corps/)).toBeInTheDocument();
-    // V0.3 UX PREMIUM — load is now a separate Badge, still the French
-    // LOAD_PROFILE_LABELS text, no longer combined into one string with the kind.
     expect(screen.getByText("charge lourde")).toBeInTheDocument();
   });
 });
 
-describe("PlanningDayCard — source, duration and commitment on the collapsed card (V06-02)", () => {
+describe("PlanningDayCard — source, duration and commitment on the collapsed card", () => {
   function dhRow(overrides: Partial<PlannedSessionRow> = {}): PlannedSessionRow {
     return {
       planned_date: "2026-09-01",
@@ -111,39 +168,39 @@ describe("PlanningDayCard — source, duration and commitment on the collapsed c
     };
   }
 
-  it("source generated → 'Programme' badge", () => {
+  it("source generated → 'Prévue par ton plan' badge", () => {
     render(<Harness initialRow={dhRow({ source: "generated" })} />);
-    expect(screen.getByText("Programme")).toBeInTheDocument();
+    expect(screen.getByText("Prévue par ton plan")).toBeInTheDocument();
     expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
   });
 
   it("source manual → 'Modifiée par toi' badge", () => {
     render(<Harness initialRow={dhRow({ source: "manual" })} />);
     expect(screen.getByText("Modifiée par toi")).toBeInTheDocument();
-    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévue par ton plan")).not.toBeInTheDocument();
   });
 
   it("source absent → no source badge at all", () => {
     render(<Harness initialRow={dhRow()} />);
-    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévue par ton plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
   });
 
   it("legacy row (intervention NULL, manual only through the DB default) → no source badge", () => {
     render(<Harness initialRow={dhRow({ source: "manual", session_type: "REST", intervention: null })} />);
-    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévue par ton plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
   });
 
   it("unused enum values (rule/template) → no source badge", () => {
     render(<Harness initialRow={dhRow({ source: "template" })} />);
-    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévue par ton plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
   });
 
   it("no row → no source badge", () => {
     render(<Harness initialRow={null} />);
-    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévue par ton plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Modifiée par toi")).not.toBeInTheDocument();
   });
 
@@ -161,75 +218,54 @@ describe("PlanningDayCard — source, duration and commitment on the collapsed c
     expect(screen.queryByText(/\d+ (h|min)/)).not.toBeInTheDocument();
   });
 
-  it("shows 'Activité engagée' only for a committed row", () => {
+  it("shows 'Séance engagée' only for a committed row", () => {
     const { unmount } = render(<Harness initialRow={dhRow({ is_committed: true })} />);
-    expect(screen.getByText("Activité engagée")).toBeInTheDocument();
+    expect(screen.getByText("Séance engagée")).toBeInTheDocument();
     unmount();
 
     render(<Harness initialRow={dhRow({ is_committed: false })} />);
-    expect(screen.queryByText("Activité engagée")).not.toBeInTheDocument();
+    expect(screen.queryByText("Séance engagée")).not.toBeInTheDocument();
   });
 
   it("a saved edit shows the returned row's own source (manual)", async () => {
     const user = userEvent.setup();
     savePlannedSession.mockResolvedValue(dhRow({ source: "manual", intervention: { kind: "REST" }, session_type: "REST" }));
-    render(<Harness initialRow={dhRow({ source: "generated" })} initialExpanded />);
+    render(<Harness initialRow={dhRow({ source: "generated" })} planSession={PLAN_DH} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pick(user, "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     expect(await screen.findByText("Modifiée par toi")).toBeInTheDocument();
-    expect(screen.queryByText("Programme")).not.toBeInTheDocument();
+    expect(screen.queryByText("Prévue par ton plan")).not.toBeInTheDocument();
   });
 });
 
 describe("PlanningDayCard — session picker (F, G)", () => {
-  it("F: offers exactly the 15 athlete-plannable kinds", () => {
+  it("F: offers exactly the 15 athlete-plannable kinds, as buttons (no dropdown)", () => {
     render(<Harness initialExpanded />);
-    const select = screen.getByLabelText("Séance");
-    // 15 real options + the "— Choisir —" placeholder.
-    expect(within(select).getAllByRole("option")).toHaveLength(16);
+    expect(within(screen.getByRole("group", { name: "Séance" })).getAllByRole("button")).toHaveLength(15);
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("G: never offers RACE_ACTIVITY", () => {
     render(<Harness initialExpanded />);
-    const select = screen.getByLabelText("Séance");
-    expect(within(select).queryByText("Activité course")).not.toBeInTheDocument();
-  });
-});
-
-describe("PlanningDayCard — load UI (H, I)", () => {
-  it("H: shows the load selector for a variable-load kind", async () => {
-    const user = userEvent.setup();
-    render(<Harness initialExpanded />);
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_TECHNICAL");
-    expect(screen.getByRole("group", { name: "Intensité" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Séance" })).queryByText("Activité course")).not.toBeInTheDocument();
   });
 
-  it("I: hides the load selector for a fixed-load kind", async () => {
-    const user = userEvent.setup();
+  it("nothing is preselected on a free day", () => {
     render(<Harness initialExpanded />);
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
-    expect(screen.queryByRole("group", { name: "Intensité" })).not.toBeInTheDocument();
-  });
-
-  it("requires an explicit load choice before Save is enabled for a variable kind", async () => {
-    const user = userEvent.setup();
-    render(<Harness initialExpanded />);
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_TECHNICAL");
+    expect(pressedKinds()).toEqual([]);
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "charge modérée" }));
-    expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
   });
 });
 
-describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
+describe("PlanningDayCard — create/edit and day actions (J, K, L, M, N)", () => {
   it("J: create calls savePlannedSession with the chosen kind and load", async () => {
     const user = userEvent.setup();
     savePlannedSession.mockResolvedValue(strengthHeavyRow());
     render(<Harness initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    await pick(user, "STRENGTH_LOWER");
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -243,21 +279,22 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     savePlannedSession.mockResolvedValue(restRow());
     render(<Harness initialRow={strengthHeavyRow()} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pick(user, "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false, null));
   });
 
-  it("L, M: delete calls deletePlannedSession and returns the card to Non planifié, never Repos", async () => {
+  it("L, M: the athlete's own session on a free day → Retirer cette séance deletes it, and the day is Libre again, never Repos", async () => {
     const user = userEvent.setup();
     deletePlannedSession.mockResolvedValue(undefined);
-    render(<Harness initialRow={restRow()} initialExpanded />);
+    render(<Harness initialRow={{ ...restRow(), source: "manual" }} initialExpanded />);
 
-    await user.click(screen.getByRole("button", { name: "Retirer du planning" }));
+    expect(screen.getByText("Le jour redevient libre.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retirer cette séance" }));
 
     await waitFor(() => expect(deletePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01"));
-    expect(await screen.findByText("Non planifié")).toBeInTheDocument();
+    expect(await screen.findByText("Libre")).toBeInTheDocument();
     expect(screen.queryByText("Repos")).not.toBeInTheDocument();
   });
 
@@ -266,25 +303,80 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     savePlannedSession.mockResolvedValue(restRow());
     render(<Harness initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pick(user, "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     expect(await screen.findByText("Repos")).toBeInTheDocument();
     expect(deletePlannedSession).not.toHaveBeenCalled();
   });
 
-  it("V0.3_005A: Activité engagée defaults unchecked for a new session and is passed through when checked", async () => {
+  it("a plan day offers Passer en repos (never a delete that the next update would undo), saved as the athlete's REST", async () => {
+    const user = userEvent.setup();
+    const onRowChangeSpy = vi.fn();
+    savePlannedSession.mockResolvedValue({ ...restRow(), source: "manual" });
+    render(<Harness initialRow={{ ...strengthHeavyRow(), source: "generated" }} planSession={PLAN_DH} initialExpanded onRowChangeSpy={onRowChangeSpy} />);
+
+    expect(screen.queryByRole("button", { name: "Retirer cette séance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Revenir au plan" })).not.toBeInTheDocument();
+    expect(screen.getByText("Cette journée sera conservée comme une modification de ton planning.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Passer en repos" }));
+
+    await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false, null));
+    expect(deletePlannedSession).not.toHaveBeenCalled();
+    expect(onRowChangeSpy).toHaveBeenCalledWith("2026-09-01", { ...restRow(), source: "manual" }, "Cette journée sera conservée comme une modification de ton planning.");
+    expect(await screen.findByText("Modifiée par toi")).toBeInTheDocument();
+  });
+
+  it("a plan day not written yet also offers Passer en repos", () => {
+    render(<Harness initialRow={null} planSession={PLAN_DH} initialExpanded />);
+    expect(screen.getByRole("button", { name: "Passer en repos" })).toBeInTheDocument();
+  });
+
+  it("a plan rest day offers no Passer en repos", () => {
+    render(<Harness initialRow={null} planSession={{ kind: "REST", loadProfile: null, durationMin: null }} initialExpanded />);
+    expect(screen.queryByRole("button", { name: "Passer en repos" })).not.toBeInTheDocument();
+  });
+
+  it("the athlete's change of a plan day → Revenir au plan deletes it and says the plan's session comes back at the next update (not instantly)", async () => {
+    const user = userEvent.setup();
+    deletePlannedSession.mockResolvedValue(undefined);
+    render(<Harness initialRow={{ ...restRow(), source: "manual" }} planSession={PLAN_DH} initialExpanded />);
+
+    expect(screen.queryByRole("button", { name: "Retirer cette séance" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Revenir au plan" }));
+
+    await waitFor(() => expect(deletePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01"));
+    expect(await screen.findByText("Prévue par ton plan")).toBeInTheDocument();
+    expect(screen.getByText("DH technique")).toBeInTheDocument();
+    expect(screen.getByText("NALYNT remettra la séance prévue par ton plan lors de la prochaine mise à jour.")).toBeInTheDocument();
+  });
+
+  it("plan unreadable: the athlete's session can be removed, but no Libre promise is made", () => {
+    render(<Harness initialRow={{ ...restRow(), source: "manual" }} planKnown={false} initialExpanded />);
+    expect(screen.getByRole("button", { name: "Retirer cette séance" })).toBeInTheDocument();
+    expect(screen.queryByText("Le jour redevient libre.")).not.toBeInTheDocument();
+  });
+
+  it("editing a plan day not written yet starts from the plan's own session", () => {
+    render(<Harness initialRow={null} planSession={PLAN_DH} initialExpanded />);
+    expect(pressedKinds()).toEqual(["DH technique"]);
+    expect(screen.getByRole("button", { name: "charge modérée" })).toHaveAttribute("aria-pressed", "true");
+    expect(durationValue()).toBe("1 h 30");
+  });
+
+  it("Séance engagée defaults off for a new session and is passed through when switched on", async () => {
     const user = userEvent.setup();
     savePlannedSession.mockResolvedValue(strengthHeavyRow());
     render(<Harness initialExpanded />);
 
-    const committedToggle = screen.getByRole("checkbox", { name: /Activité engagée/ });
-    expect(committedToggle).not.toBeChecked();
+    const committedToggle = screen.getByRole("switch", { name: /Séance engagée/ });
+    expect(committedToggle).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("Cette séance compte comme une priorité. NALYNT peut ensuite l'alléger ou l'adapter selon ton état.")).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    await pick(user, "STRENGTH_LOWER");
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
     await user.click(committedToggle);
-    expect(committedToggle).toBeChecked();
+    expect(committedToggle).toHaveAttribute("aria-checked", "true");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
@@ -292,33 +384,34 @@ describe("PlanningDayCard — create/edit/delete (J, K, L, M, N)", () => {
     );
   });
 
-  it("V0.3_005A: Activité engagée initializes from the persisted row and survives an unrelated kind change", async () => {
+  it("Séance engagée initializes from the persisted row and survives an unrelated kind change", async () => {
     const user = userEvent.setup();
     const committedRow = { ...strengthHeavyRow(), is_committed: true };
     savePlannedSession.mockResolvedValue(committedRow);
     render(<Harness initialRow={committedRow} initialExpanded />);
 
-    const committedToggle = screen.getByRole("checkbox", { name: /Activité engagée/ });
-    expect(committedToggle).toBeChecked();
+    const committedToggle = screen.getByRole("switch", { name: /Séance engagée/ });
+    expect(committedToggle).toHaveAttribute("aria-checked", "true");
 
-    // Changing the kind is an unrelated edit — commitment must survive it.
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
-    expect(committedToggle).toBeChecked();
+    await pick(user, "REST");
+    expect(committedToggle).toHaveAttribute("aria-checked", "true");
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
     await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, true, null));
   });
 
-  it("does not show the delete action when no row exists yet", () => {
+  it("a free day with no row shows no secondary action", () => {
     render(<Harness initialRow={null} initialExpanded />);
-    expect(screen.queryByRole("button", { name: "Retirer du planning" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retirer cette séance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Passer en repos" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Revenir au plan" })).not.toBeInTheDocument();
   });
 });
 
 describe("PlanningDayCard — stale load invariant (R, S, T)", () => {
   it("R: prefills the existing persisted load when editing without changing kind", () => {
     render(<Harness initialRow={strengthHeavyRow()} initialExpanded />);
-    expect(screen.getByLabelText("Séance")).toHaveValue("STRENGTH_LOWER");
+    expect(pressedKinds()).toEqual(["Renfo bas du corps"]);
     expect(screen.getByRole("button", { name: "charge lourde" })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -326,7 +419,7 @@ describe("PlanningDayCard — stale load invariant (R, S, T)", () => {
     const user = userEvent.setup();
     render(<Harness initialRow={strengthHeavyRow()} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_TECHNICAL");
+    await pick(user, "DH_TECHNICAL");
 
     expect(screen.getByRole("button", { name: "charge lourde" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "charge modérée" })).toHaveAttribute("aria-pressed", "false");
@@ -338,7 +431,7 @@ describe("PlanningDayCard — stale load invariant (R, S, T)", () => {
     savePlannedSession.mockResolvedValue(restRow());
     render(<Harness initialRow={strengthHeavyRow()} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "MOBILITY");
+    await pick(user, "MOBILITY");
     expect(screen.queryByRole("group", { name: "Intensité" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
@@ -356,75 +449,82 @@ function dhHeavyRow(durationMin?: number): PlannedSessionRow {
   };
 }
 
-// V0.3_006C2 — planned DH duration. DH-only in this slice; the ONE
-// authoritative source is intervention.duration_min.
-describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
+// V0.3_006C2 — planned DH duration. DH-only; the ONE authoritative source is
+// intervention.duration_min. UX-10B-2B: a − / + stepper over the same 15
+// values (1 h to 8 h, 30 min steps), plus "Pas de durée".
+describe("PlanningDayCard — planned duration (V0.3_006C2 / UX-10B-2B stepper)", () => {
   it("shows the Durée prévue control for a DH kind", async () => {
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
-    expect(screen.getByLabelText("Durée prévue")).toBeInTheDocument();
+    await pick(user, "DH_PERFORMANCE");
+    expect(screen.getByRole("group", { name: "Durée prévue" })).toBeInTheDocument();
   });
 
   it("hides the Durée prévue control for a non-DH kind", async () => {
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
-    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
-    expect(screen.queryByLabelText("Durée prévue")).not.toBeInTheDocument();
+    await pick(user, "STRENGTH_LOWER");
+    expect(screen.queryByRole("group", { name: "Durée prévue" })).not.toBeInTheDocument();
   });
 
   it("hides the Durée prévue control for every non-DH kind, shows it only for the 4 DH-family kinds", async () => {
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
     for (const kind of PLANNABLE_LOAD_VARIABLE_KINDS) {
-      await user.selectOptions(screen.getByLabelText("Séance"), kind);
+      await pick(user, kind);
       const isDh = (["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT", "PUMPTRACK"] as string[]).includes(kind);
       if (isDh) {
-        expect(screen.getByLabelText("Durée prévue")).toBeInTheDocument();
+        expect(screen.getByRole("group", { name: "Durée prévue" })).toBeInTheDocument();
       } else {
-        expect(screen.queryByLabelText("Durée prévue")).not.toBeInTheDocument();
+        expect(screen.queryByRole("group", { name: "Durée prévue" })).not.toBeInTheDocument();
       }
     }
   });
 
-  // V0.3_007C UI canary follow-up hotfix — PUMPTRACK shows the Durée prévue
-  // control (unchanged eligibility, §above) but must never claim uplifts:
-  // it is DH-family-plannable but not lift-served, unlike the other 3.
+  // V0.3_007C UI canary follow-up hotfix — PUMPTRACK shows the control but
+  // must never claim uplifts: it is DH-family-plannable but not lift-served.
   it("duration copy: only lift-served DH kinds (DH_PERFORMANCE/DH_TECHNICAL/DH_LIGHT) claim remontées/pauses — PUMPTRACK keeps the generic copy", async () => {
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
 
-    for (const kind of ["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT"]) {
-      await user.selectOptions(screen.getByLabelText("Séance"), kind);
+    for (const kind of ["DH_PERFORMANCE", "DH_TECHNICAL", "DH_LIGHT"] as const) {
+      await pick(user, kind);
       expect(screen.getByText(/Pour la DH, remontées et pauses comprises/)).toBeInTheDocument();
     }
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "PUMPTRACK");
-    expect(screen.getByLabelText("Durée prévue")).toBeInTheDocument();
+    await pick(user, "PUMPTRACK");
+    expect(screen.getByRole("group", { name: "Durée prévue" })).toBeInTheDocument();
     expect(screen.queryByText(/remontées/)).not.toBeInTheDocument();
-    expect(screen.getByText("Temps que tu prévois de consacrer à cette séance. Le coach peut la réduire si ton état demande une adaptation.")).toBeInTheDocument();
+    expect(screen.getByText("Temps que tu prévois de consacrer à cette séance. NALYNT peut la réduire si ton état demande une adaptation.")).toBeInTheDocument();
   });
 
-  it("offers 'Pas de durée prévue' plus exactly the 15 presets from 1h to 8h", async () => {
+  it("stepper: starts at Pas de durée, + goes to 1 h then 30 min per step, capped at 8 h; − never goes below 1 h", async () => {
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
-    const select = screen.getByLabelText("Durée prévue");
-    expect(within(select).getAllByRole("option")).toHaveLength(16);
-    expect(within(select).getByText("Pas de durée prévue")).toBeInTheDocument();
-    expect(within(select).getByText("1 h")).toBeInTheDocument();
-    expect(within(select).getByText("1 h 30")).toBeInTheDocument();
-    expect(within(select).getByText("8 h")).toBeInTheDocument();
+    await pick(user, "DH_PERFORMANCE");
+
+    expect(durationValue()).toBe("Pas de durée");
+    expect(screen.getByRole("button", { name: "Réduire la durée" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
+    expect(durationValue()).toBe("1 h");
+    expect(screen.getByRole("button", { name: "Réduire la durée" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
+    expect(durationValue()).toBe("1 h 30");
+
+    for (let i = 0; i < 20; i++) await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
+    expect(durationValue()).toBe("8 h");
+    expect(screen.getByRole("button", { name: "Augmenter la durée" })).toBeDisabled();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
-  it("create: selecting a duration passes the exact minute value to savePlannedSession", async () => {
+  it("create: a chosen duration passes the exact minute value to savePlannedSession", async () => {
     const user = userEvent.setup();
     savePlannedSession.mockResolvedValue(dhHeavyRow(120));
     render(<Harness initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    await pick(user, "DH_PERFORMANCE");
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
-    await user.selectOptions(screen.getByLabelText("Durée prévue"), "120");
+    await stepTo(user, 120);
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
@@ -432,12 +532,12 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
     );
   });
 
-  it("create: no duration selected passes null, exactly like before this ticket", async () => {
+  it("create: no duration chosen passes null", async () => {
     const user = userEvent.setup();
     savePlannedSession.mockResolvedValue(dhHeavyRow());
     render(<Harness initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
+    await pick(user, "DH_PERFORMANCE");
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -448,7 +548,7 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
 
   it("edit: prefills the exact persisted duration when reopening", () => {
     render(<Harness initialRow={dhHeavyRow(150)} initialExpanded />);
-    expect(screen.getByLabelText("Durée prévue")).toHaveValue("150");
+    expect(durationValue()).toBe("2 h 30");
   });
 
   it("edit: changing 2h to 3h persists 180, not 120", async () => {
@@ -456,8 +556,9 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
     savePlannedSession.mockResolvedValue(dhHeavyRow(180));
     render(<Harness initialRow={dhHeavyRow(120)} initialExpanded />);
 
-    expect(screen.getByLabelText("Durée prévue")).toHaveValue("120");
-    await user.selectOptions(screen.getByLabelText("Durée prévue"), "180");
+    expect(durationValue()).toBe("2 h");
+    await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
+    await user.click(screen.getByRole("button", { name: "Augmenter la durée" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
@@ -465,16 +566,16 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
     );
   });
 
-  // Critical JSONB clear semantics (§11 of the ticket): selecting "Pas de
-  // durée prévue" on a row that already has a persisted duration must pass
-  // null through the whole chain, never silently resend the old value.
-  it("clear: selecting 'Pas de durée prévue' on a row with a persisted duration passes null, not the stale value", async () => {
+  // Critical JSONB clear semantics: choosing "Pas de durée" on a row that
+  // already has a persisted duration must pass null, never resend the old value.
+  it("clear: Pas de durée on a row with a persisted duration passes null, not the stale value", async () => {
     const user = userEvent.setup();
     savePlannedSession.mockResolvedValue(dhHeavyRow());
     render(<Harness initialRow={dhHeavyRow(120)} initialExpanded />);
 
-    expect(screen.getByLabelText("Durée prévue")).toHaveValue("120");
-    await user.selectOptions(screen.getByLabelText("Durée prévue"), "Pas de durée prévue");
+    expect(durationValue()).toBe("2 h");
+    await user.click(screen.getByRole("button", { name: "Pas de durée" }));
+    expect(durationValue()).toBe("Pas de durée");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
@@ -482,22 +583,14 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
     );
   });
 
-  // §12 — the hidden DH-only control must never leave stale duration data
-  // behind when the kind changes away from DH.
   it("DH → non-DH: hides the control and saves without any duration, even though a DH duration was persisted", async () => {
     const user = userEvent.setup();
-    savePlannedSession.mockResolvedValue({
-      planned_date: "2026-09-01",
-      session_type: "STRENGTH_A",
-      intervention: { kind: "STRENGTH_LOWER", load_profile: "HEAVY" },
-      planned_intent: null,
-      is_committed: false,
-    });
+    savePlannedSession.mockResolvedValue(strengthHeavyRow());
     render(<Harness initialRow={dhHeavyRow(120)} initialExpanded />);
 
-    expect(screen.getByLabelText("Durée prévue")).toHaveValue("120");
-    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
-    expect(screen.queryByLabelText("Durée prévue")).not.toBeInTheDocument();
+    expect(durationValue()).toBe("2 h");
+    await pick(user, "STRENGTH_LOWER");
+    expect(screen.queryByRole("group", { name: "Durée prévue" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -506,14 +599,12 @@ describe("PlanningDayCard — planned duration (V0.3_006C2)", () => {
     );
   });
 
-  // §13 — non-DH → DH must never fabricate the engine's own generic
-  // duration; the athlete starts from "no duration" and chooses explicitly.
-  it("non-DH → DH: starts from 'Pas de durée prévue', never a fabricated default", async () => {
+  it("non-DH → DH: starts from 'Pas de durée', never a fabricated default", async () => {
     const user = userEvent.setup();
     render(<Harness initialRow={strengthHeavyRow()} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_PERFORMANCE");
-    expect(screen.getByLabelText("Durée prévue")).toHaveValue("");
+    await pick(user, "DH_PERFORMANCE");
+    expect(durationValue()).toBe("Pas de durée");
   });
 });
 
@@ -524,11 +615,11 @@ describe("PlanningDayCard — failure and draft isolation (O, W, X)", () => {
     savePlannedSession.mockRejectedValue(new PlanningSaveError());
     render(<Harness initialRow={null} initialExpanded onRowChangeSpy={onRowChangeSpy} />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pick(user, "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Impossible d'enregistrer");
-    expect(screen.getByLabelText("Séance")).toBeInTheDocument(); // editor still open
+    expect(screen.getByRole("group", { name: "Séance" })).toBeInTheDocument(); // editor still open
     expect(onRowChangeSpy).not.toHaveBeenCalled();
   });
 
@@ -537,7 +628,7 @@ describe("PlanningDayCard — failure and draft isolation (O, W, X)", () => {
     savePlannedSession.mockRejectedValue(new Error("Failed to fetch — some raw network/fetch-level detail"));
     render(<Harness initialRow={null} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pick(user, "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     const alert = await screen.findByRole("alert");
@@ -551,7 +642,7 @@ describe("PlanningDayCard — failure and draft isolation (O, W, X)", () => {
     deletePlannedSession.mockRejectedValue(new PlanningDeleteError());
     render(<Harness initialRow={restRow()} initialExpanded onRowChangeSpy={onRowChangeSpy} />);
 
-    await user.click(screen.getByRole("button", { name: "Retirer du planning" }));
+    await user.click(screen.getByRole("button", { name: "Retirer cette séance" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de supprimer");
     expect(onRowChangeSpy).not.toHaveBeenCalled();
@@ -561,12 +652,12 @@ describe("PlanningDayCard — failure and draft isolation (O, W, X)", () => {
     const user = userEvent.setup();
     render(<Harness initialRow={null} initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "DH_TECHNICAL");
+    await pick(user, "DH_TECHNICAL");
     await user.click(screen.getByRole("button", { name: "charge légère" }));
     // Collapse without saving — click the card header again.
     await user.click(screen.getByText(/septembre/i).closest("button")!);
 
-    expect(screen.getByText("Non planifié")).toBeInTheDocument();
+    expect(screen.getByText("Libre")).toBeInTheDocument();
     expect(screen.queryByText(/DH technique/)).not.toBeInTheDocument();
     expect(savePlannedSession).not.toHaveBeenCalled();
   });
@@ -598,7 +689,7 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
 
   it("B: opening it never fabricates/preselects a rich kind, and explains why", () => {
     render(<Harness initialRow={legacyRow()} initialExpanded />);
-    expect(screen.getByLabelText("Séance")).toHaveValue("");
+    expect(pressedKinds()).toEqual([]);
     expect(screen.getByText("Ancienne séance planifiée : Force A. Choisis une séance pour la modifier.")).toBeInTheDocument();
   });
 
@@ -608,10 +699,10 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
     deletePlannedSession.mockResolvedValue(undefined);
     render(<Harness initialRow={legacyRow()} initialExpanded onRowChangeSpy={onRowChangeSpy} />);
 
-    await user.click(screen.getByRole("button", { name: "Retirer du planning" }));
+    await user.click(screen.getByRole("button", { name: "Retirer cette séance" }));
 
     await waitFor(() => expect(deletePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01"));
-    expect(onRowChangeSpy).toHaveBeenCalledWith("2026-09-01", null);
+    expect(onRowChangeSpy).toHaveBeenCalledWith("2026-09-01", null, "Le jour redevient libre.");
   });
 
   it("D: replacing a legacy row requires an explicit rich athlete selection — Save is disabled until one is made", async () => {
@@ -621,7 +712,7 @@ describe("PlanningDayCard — legacy row with intervention=NULL", () => {
 
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pick(user, "REST");
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() => expect(savePlannedSession).toHaveBeenCalledWith("athlete-1", "2026-09-01", "REST", null, false, null));
@@ -654,15 +745,15 @@ describe("PlanningDayCard — NAL-007 race calendar overlay", () => {
     expect(screen.queryByText(/Course \/ événement/)).not.toBeInTheDocument();
   });
 
-  it("no row + a race present: shows 'Aucune séance ajoutée', never plain 'Non planifié' (never implies nothing is known)", () => {
+  it("no row + a race present: shows 'Aucune séance ajoutée', never plain 'Libre'", () => {
     render(<Harness initialRow={null} races={[A_PLUS_RACE]} />);
     expect(screen.getByText("Aucune séance ajoutée")).toBeInTheDocument();
-    expect(screen.queryByText("Non planifié")).not.toBeInTheDocument();
+    expect(screen.queryByText("Libre")).not.toBeInTheDocument();
   });
 
-  it("no row + no race: still shows plain 'Non planifié', unchanged from before NAL-007", () => {
+  it("no row + no race: Libre", () => {
     render(<Harness initialRow={null} races={[]} />);
-    expect(screen.getByText("Non planifié")).toBeInTheDocument();
+    expect(screen.getByText("Libre")).toBeInTheDocument();
   });
 
   it("F: planned_session + race coexist — both the race banner and the planned session are visible", () => {
@@ -676,7 +767,7 @@ describe("PlanningDayCard — NAL-007 race calendar overlay", () => {
     savePlannedSession.mockResolvedValue(strengthHeavyRow());
     render(<Harness initialExpanded races={[A_PLUS_RACE]} />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), "STRENGTH_LOWER");
+    await pick(user, "STRENGTH_LOWER");
     await user.click(screen.getByRole("button", { name: "charge lourde" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -686,15 +777,14 @@ describe("PlanningDayCard — NAL-007 race calendar overlay", () => {
   });
 
   it("H: merely rendering a day with a race overlay creates/mutates no planned_sessions row", () => {
-    render(<Harness races={[A_PLUS_RACE]} />);
+    render(<Harness races={[A_PLUS_RACE]} planSession={PLAN_DH} />);
     expect(savePlannedSession).not.toHaveBeenCalled();
     expect(deletePlannedSession).not.toHaveBeenCalled();
   });
 
   it("I: RACE_ACTIVITY is still never offered in the session picker on a race day (unchanged)", () => {
     render(<Harness initialExpanded races={[A_PLUS_RACE]} />);
-    const select = screen.getByLabelText("Séance");
-    expect(within(select).queryByText("Activité course")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Séance" })).queryByText("Activité course")).not.toBeInTheDocument();
   });
 
   it("multiple races the same day are all displayed", () => {
@@ -709,9 +799,9 @@ describe.each(PLANNABLE_LOAD_VARIABLE_KINDS)("PlanningDayCard — variable kind 
     const user = userEvent.setup();
     render(<Harness initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), kind);
+    await pick(user, kind);
 
-    expect(screen.getByLabelText("Séance")).toHaveValue(kind);
+    expect(kindButton(kind)).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("group", { name: "Intensité" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeDisabled();
 
@@ -726,9 +816,9 @@ describe.each(PLANNABLE_FIXED_LOAD_KINDS)("PlanningDayCard — fixed kind %s (F,
     savePlannedSession.mockResolvedValue(restRow());
     render(<Harness initialExpanded />);
 
-    await user.selectOptions(screen.getByLabelText("Séance"), kind);
+    await pick(user, kind);
 
-    expect(screen.getByLabelText("Séance")).toHaveValue(kind);
+    expect(kindButton(kind)).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("group", { name: "Intensité" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Enregistrer" })).toBeEnabled();
 

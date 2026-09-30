@@ -3,8 +3,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageShell } from "../components/PageShell";
 import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
-import { SectionHeader } from "../components/SectionHeader";
-import { SecondaryButton } from "../components/SecondaryButton";
+import { StateCard, StateSkeleton } from "../components/StateCard";
 import { addDays } from "../lib/date";
 import { useEffectiveToday } from "../lib/simulationClock";
 import { PlanningDayCard } from "../features/planning/PlanningDayCard";
@@ -12,6 +11,9 @@ import { loadPlannedSessions } from "../features/planning/planningRepo";
 import { loadRacesInRange, groupRacesByDate } from "../features/planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../features/planning/planningTypes";
 import type { RaceOverlayEvent } from "../features/planning/raceOverlayRepo";
+import { getActivePlanVersionId, getTrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewRepo";
+import { PAGE, planSessionsByDate } from "../features/planning/weekPresentation";
+import type { PlanDaySession } from "../features/planning/weekPresentation";
 
 type LoadState = "loading" | "loaded" | "error";
 // NAL-007 — entirely separate from LoadState above: a race-read failure
@@ -19,11 +21,17 @@ type LoadState = "loading" | "loaded" | "error";
 // versa. "error" here only ever suppresses the race overlay, never the
 // planning editor itself.
 type RaceLoadState = "loading" | "loaded" | "error";
+// UX-10B-2B — the active plan, read only to tell "Prévue par ton plan" from
+// "Libre" truthfully (a plan day the projection has not written yet is
+// still a plan day). Independent too: a plan-read failure never blocks the
+// week, it only withholds the "Libre" / "Revenir au plan" claims.
+type PlanLoadState = "loading" | "loaded" | "error";
 
 const HORIZON_DAYS = 7;
 
 /**
- * /plan — the athlete's rolling 7-day manual Planning workflow (V0.3_003C).
+ * /plan — "Modifier ma semaine" (UX-10B-2B), the athlete's rolling 7-day
+ * manual Planning workflow (V0.3_003C).
  * PlanPage is the sole in-memory source of truth for what is persisted for
  * each of the seven dates; PlanningDayCard only ever reads it via props and
  * reports mutations back through onRowChange. No persistent cache, no
@@ -52,6 +60,10 @@ export function PlanPage() {
   // planned_sessions above. Read-only: race_calendar is never written here.
   const [raceLoadState, setRaceLoadState] = useState<RaceLoadState>("loading");
   const [racesByDate, setRacesByDate] = useState<Record<string, RaceOverlayEvent[]>>({});
+
+  const [planLoadState, setPlanLoadState] = useState<PlanLoadState>("loading");
+  const [planByDate, setPlanByDate] = useState<Record<string, PlanDaySession>>({});
+  const [notices, setNotices] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!athleteId) return;
@@ -93,9 +105,32 @@ export function PlanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId]);
 
+  const loadPlan = useCallback(async () => {
+    if (!athleteId) return;
+    setPlanLoadState("loading");
+    try {
+      const planVersionId = await getActivePlanVersionId();
+      if (!planVersionId) {
+        setPlanByDate({});
+      } else {
+        const review = await getTrainingPlanReview(planVersionId);
+        const sessions = review.blocks.flatMap((block) => block.weeks.flatMap((week) => week.sessions));
+        setPlanByDate(planSessionsByDate(sessions, dates));
+      }
+      setPlanLoadState("loaded");
+    } catch {
+      setPlanLoadState("error");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [athleteId]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    void loadPlan();
+  }, [loadPlan]);
 
   useEffect(() => {
     void loadRaces();
@@ -105,37 +140,50 @@ export function PlanPage() {
     setExpandedDate((current) => (current === date ? null : date));
   }
 
-  function handleRowChange(date: string, row: PlannedSessionRow | null) {
+  function handleRowChange(date: string, row: PlannedSessionRow | null, notice?: string) {
     setRows((prev) => ({ ...prev, [date]: row }));
     // Only collapse the day that actually produced this mutation — if the
     // athlete already switched to a different day while this one's
     // save/delete was still in flight, that other day must stay open.
     setExpandedDate((current) => (current === date ? null : current));
+    setNotices((prev) => {
+      const next = { ...prev };
+      if (notice) next[date] = notice;
+      else delete next[date];
+      return next;
+    });
   }
+
+  const ready = loadState === "loaded" && planLoadState !== "loading";
 
   return (
     <PageShell header={<AppHeader />}>
-      <SubPageLink to="/training-plan" label="Programme" back />
-      <SectionHeader title="Planning" subtitle="7 prochains jours" />
+      <SubPageLink to="/training-plan" label={PAGE.back} back />
+      <section className="flex flex-col gap-2">
+        <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-ink">{PAGE.title}</h1>
+        <p className="text-base text-ink/85">{PAGE.subtitle}</p>
+        <p className="text-sm text-muted">{PAGE.role}</p>
+      </section>
 
-      {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}
+      {!athleteId && (
+        <StateCard tone="error" title="Profil introuvable">
+          Nous n'avons pas réussi à retrouver ton profil. Contacte le support si le problème continue.
+        </StateCard>
+      )}
 
-      {athleteId && loadState === "loading" && <p className="text-sm text-muted">Chargement…</p>}
+      {athleteId && loadState !== "error" && !ready && <StateSkeleton blocks={[22, 22, 22, 22]} />}
 
       {athleteId && loadState === "error" && (
-        <div className="flex flex-col items-start gap-2">
-          <p role="alert" className="text-sm text-red-400">
-            Impossible de charger le planning. Réessaie dans un instant.
-          </p>
-          <SecondaryButton onClick={() => void load()}>Réessayer</SecondaryButton>
-        </div>
+        <StateCard tone="error" title={PAGE.loadErrorTitle} action={{ label: PAGE.retry, onClick: () => void load() }}>
+          {PAGE.loadError}
+        </StateCard>
       )}
 
-      {athleteId && loadState === "loaded" && raceLoadState === "error" && (
-        <p className="text-xs text-muted">Événements du calendrier de courses indisponibles pour l'instant.</p>
-      )}
+      {athleteId && ready && planLoadState === "error" && <p className="text-xs text-muted">{PAGE.planUnavailable}</p>}
 
-      {athleteId && loadState === "loaded" && (
+      {athleteId && ready && raceLoadState === "error" && <p className="text-xs text-muted">{PAGE.racesUnavailable}</p>}
+
+      {athleteId && ready && (
         <div className="flex flex-col gap-2">
           {dates.map((date, index) => (
             <PlanningDayCard
@@ -143,6 +191,9 @@ export function PlanPage() {
               athleteId={athleteId}
               date={date}
               row={rows[date] ?? null}
+              planSession={planByDate[date] ?? null}
+              planKnown={planLoadState === "loaded"}
+              notice={notices[date] ?? null}
               races={racesByDate[date] ?? []}
               isToday={index === 0}
               isExpanded={expandedDate === date}

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 // UX-02 — the quiet in-page link to a secondary screen that no longer has
-// its own tab (Programme → Ma semaine, Historique → Insights, and the way
+// its own tab (Programme → Modifier ma semaine, Historique → Insights, and the way
 // back). One hairline row, arrow on the side it leads to.
 export function SubPageLink({ to, label, hint, back = false }: { to: string; label: string; hint?: string; back?: boolean }) {
   return (

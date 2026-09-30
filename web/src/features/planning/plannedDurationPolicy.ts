@@ -66,9 +66,9 @@ export const PLANNED_DURATION_LABEL = "Durée prévue";
 export const PLANNED_DURATION_NONE_LABEL = "Pas de durée prévue";
 
 const PLANNED_DURATION_HELPER_DH =
-  "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. Le coach peut la réduire si ton état demande une adaptation.";
+  "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. NALYNT peut la réduire si ton état demande une adaptation.";
 const PLANNED_DURATION_HELPER_GENERIC =
-  "Temps que tu prévois de consacrer à cette séance. Le coach peut la réduire si ton état demande une adaptation.";
+  "Temps que tu prévois de consacrer à cette séance. NALYNT peut la réduire si ton état demande une adaptation.";
 
 /** V0.3_007C UI canary follow-up hotfix — PUMPTRACK is DH-family-plannable but never lift-served, so it gets the generic copy; DH_PERFORMANCE/DH_TECHNICAL/DH_LIGHT keep the uplift-aware one. Canonical meaning unchanged either way: this is still the athlete-authored intended session window, never an availability ceiling. */
 export function getPlannedDurationHelper(kind: TrainingInterventionKind | ""): string {
