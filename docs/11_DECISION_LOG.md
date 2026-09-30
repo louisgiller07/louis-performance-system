@@ -3654,4 +3654,35 @@ Aucune règle structurelle ne manque dans 03 : les règles d'endurance, de mobil
 - le mollet unilatéral lent en mobilité : non retenu, car il se mesure en répétitions alors que la mobilité se mesure en durée ;
 - les deux écarts avec 03 ci-dessus.
 
-**Statut** : Accepted — contenu PROVISIONAL, implémenté sur `feat/ux11a5a3-session-protocols-v2` (lignée non fusionnée). Aucun moteur ne lit encore les protocoles V2.
+**Statut** : Accepted — contenu PROVISIONAL, implémenté sur `feat/ux11a5a3-session-protocols-v2` (lignée non fusionnée). Aucun moteur ne lit encore les protocoles V2. **Amendé** par l'ADR « UX-11A.5a.3 — verrouillage de cohérence » ci-dessous : les durées et le nombre d'exercices de l'échauffement indiqués plus haut sont remplacés par ceux de cet amendement.
+
+## 2026-09-30 — ADR UX-11A.5a.3 — verrouillage de cohérence des protocoles V2
+
+> **A protocol's declared total duration is exactly [sum of the required blocks' minimums, sum of every block's maximum]; an optional block contributes nothing to the minimum. The strength warm-up has 3–4 light exercises from mobility and activation; the ramp-up of the main movement stays outside that count.**
+
+**Contexte.** L'ancien test acceptait une durée totale plus étroite que celle des blocs (`somme des minimums ≤ total`). Il n'a donc détecté ni l'endurance fondamentale (40 min calculées contre 45 déclarées), ni la récupération (20 min réelles sans les blocs facultatifs contre 30 déclarées), ni la mobilité (22 min contre 25). Le nouveau contrôle strict échoue sur `09e94ba` et passe après correction.
+
+**Décisions verrouillées (architecture Louis + Head Coach ; contenu toujours PROVISIONAL — coaching validation required, aucune dose validée professionnellement).**
+1. **Endurance fondamentale** : échauffement 10 min à RPE 2–3, principal **30–75 min** à RPE 3–4 avec test de la parole, retour au calme 5 min à RPE 2, soit 45–90 min. Le passage de 25 à 30 min supprime seulement l'incohérence interne.
+2. **Récupération active** : activité très facile de 20–40 min à RPE 2–3 (obligatoire), mobilité légère de 5–10 min et respiration de 3–5 min (**facultatives**). Durée totale **20–55 min**. Aucune liste fermée d'activités : `activityOptions = []`, consigne « activité très facile ». La liste de l'endurance n'est jamais reprise par défaut.
+3. **Échauffement renfo** : **3 à 4 exercices légers au total**, pris entre mobilité (1–2) et activation (1–2). Combinaisons valides : 1 + 2, 2 + 1, 2 + 2 ; **1 + 1 n'est jamais valide**. Le choix concret appartient à UX-11A.5b, sans combinaison fixe imposée. Représenté par `exerciseCount: {3, 4}` sur le protocole, ajouté aux fourchettes de chaque choix : le générateur doit respecter les deux. La préparation du mouvement principal est **en dehors** de ces 3–4 exercices.
+4. **Séries de montée** : consigne inchangée, « une ou deux séries légères de ton mouvement principal, sans fatigue ». Pas de choix automatique entre une et deux ; aucun kg, %1RM, pourcentage de la charge de travail, RPE ni formule de charge. En UX-11A.5b, la prescription devra **rattacher** cette préparation à l'élément du mouvement principal (concept envisagé : `derivedFromItemId`) au lieu de créer un exercice sans lien. Les types de prescription ne sont pas modifiés ici ; la représentation exacte relève de l'audit UX-11A.5b.
+5. **Intervalles** : le protocole générable est **6 × 3 min à RPE 8, 2 min faciles entre les répétitions** (28 min, sans récupération après la dernière répétition). La variante 4 × 3 min reste documentée (`autoSelectable: false`) ; aucun moteur ne peut la choisir, aucun sélecteur 4 / 6 n'existe et aucune règle de fatigue, de niveau ou de phase ne doit être inventée.
+6. **RPE de l'échauffement et du retour au calme des intervalles** : volontairement **non définis** (durée et consignes seulement ; question ouverte `endurance_intervals.warm_up_cool_down_rpe`).
+7. **Mollet unilatéral** (`single_leg_calf_raise`) : reste dans son catalogue, jamais ajouté à `mobility_routine_v1` ni à `recovery_active_v1`. C'est une question de validation coaching future.
+
+**Correction dérivée, signalée : mobilité.** Le total audité de 25–30 min est conservé. Les minimums des blocs, qui n'avaient jamais été validés, sont relevés pour que leur somme fasse 25 min : hanches 9–11 → 10–11, chevilles 3–4 → 4–4, dos 5–7 → 6–7 ; poignets 2–3 et respiration 3–5 inchangés. Autre option possible : un total de 22–30 min. À confirmer.
+
+**Tests.** Les ajouts et modifications concernent `protocolCatalogV2.test.ts` :
+- contrôle strict de la durée totale (minimum = somme des blocs obligatoires, maximum = somme de tous les blocs) ;
+- valeurs verrouillées par protocole ;
+- arithmétique des intervalles (6 × 3 + 5 × 2 = 28) ;
+- RPE absent à l'échauffement et au retour au calme des intervalles ;
+- récupération sans liste d'activités ;
+- mollet absent de la mobilité et de la récupération ;
+- combinaisons valides de l'échauffement (exactement 1 + 2, 2 + 1 et 2 + 2) ;
+- cohérence de `exerciseCount` avec les choix.
+
+**03.** Aucune modification : 03 indique déjà 45–90 min en endurance fondamentale, 20–40 min avec mobilité et respiration « en option » en récupération, et « 3 à 4 exercices légers » d'échauffement. Il est donc cohérent avec ces décisions.
+
+**Statut** : Accepted — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée. Aucun moteur ne lit les protocoles ; aucune migration, aucune modification Supabase, Edge Function, M1 ni `prescription-engine`.

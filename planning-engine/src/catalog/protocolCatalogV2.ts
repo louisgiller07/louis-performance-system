@@ -68,7 +68,11 @@ export interface IntervalVariantV2 {
   autoSelectable: false;
 }
 
-/** Structured repeats: repetitions × work, with easy recovery between repetitions (not after the last). */
+/**
+ * Structured repeats: repetitions × work, with easy recovery between
+ * repetitions (not after the last). Only `repetitions` is generable;
+ * variants are documentation, never picked by an engine (no selector).
+ */
 export interface ProtocolIntervalsItemV2 {
   kind: "intervals";
   repetitions: number;
@@ -102,9 +106,23 @@ export interface SessionProtocolV2 {
   sessionKinds: readonly IntentSessionKindV2[];
   /** Existing intent (intentCatalogV2.ts); null for a block template. */
   intentId: string | null;
+  /**
+   * Exactly [sum of the REQUIRED timed blocks' minimums (an optional block
+   * contributes 0), sum of every timed block's maximum] (test-enforced).
+   */
   totalDurationMinutes: RangeV2;
-  /** Rider's choice of activity; [] when not applicable. */
+  /**
+   * Closed list of activities the rider chooses from. [] = no closed list:
+   * either not applicable, or (recovery) a free "very easy activity" — the
+   * endurance list is never reused by default.
+   */
   activityOptions: readonly EnduranceActivityV2[];
+  /**
+   * Total number of exercises picked across all "exercise_choice" items, when
+   * the family model constrains it (strength warm-up: 3–4). Each choice keeps
+   * its own count range; a generator must satisfy both.
+   */
+  exerciseCount?: RangeV2;
   blocks: readonly ProtocolBlockV2[];
   vigilanceIds: readonly string[];
   /** Sport questions explicitly left open (documented in the ADR), never decided by an engine. */
@@ -134,10 +152,9 @@ const ENTRIES: SessionProtocolV2[] = [
     activityOptions: ENDURANCE_ACTIVITIES_V2,
     blocks: [
       { role: "warm_up", optional: false, durationMinutes: r(10, 10), targetRpe: r(2, 3), instructionIds: ["instruction.endurance.activity_choice", "instruction.endurance.warm_up_easy"], items: [] },
-      { role: "main", optional: false, durationMinutes: r(25, 75), targetRpe: r(3, 4), talkTestId: "instruction.endurance.talk_test_full_sentences", instructionIds: [], items: [] },
+      { role: "main", optional: false, durationMinutes: r(30, 75), targetRpe: r(3, 4), talkTestId: "instruction.endurance.talk_test_full_sentences", instructionIds: [], items: [] },
       { role: "cool_down", optional: false, durationMinutes: r(5, 5), targetRpe: r(2, 2), instructionIds: ["instruction.endurance.cool_down_easy"], items: [] },
     ],
-    openQuestions: ["endurance_base.main_minimum_vs_total"],
   }),
 
   // Intervalles (03: échauffement, 6 × 3 min à RPE 8, 2 min faciles entre, retour au calme).
@@ -172,9 +189,9 @@ const ENTRIES: SessionProtocolV2[] = [
     intentId: "mobility_on_bike_range",
     totalDurationMinutes: r(25, 30),
     blocks: [
-      { role: "main", focus: "hips", optional: false, durationMinutes: r(9, 11), instructionIds: ["instruction.mobility.slow_and_breathe"], items: [ex("hip_90_90", "mobility"), ex("hip_flexor_mobility", "mobility"), ex("deep_squat_hold", "mobility")] },
-      { role: "main", focus: "ankles", optional: false, durationMinutes: r(3, 4), instructionIds: [], items: [ex("knee_to_wall_ankle", "mobility")] },
-      { role: "main", focus: "spine", optional: false, durationMinutes: r(5, 7), instructionIds: [], items: [ex("cat_cow", "mobility"), ex("thoracic_rotation_mobility", "mobility")] },
+      { role: "main", focus: "hips", optional: false, durationMinutes: r(10, 11), instructionIds: ["instruction.mobility.slow_and_breathe"], items: [ex("hip_90_90", "mobility"), ex("hip_flexor_mobility", "mobility"), ex("deep_squat_hold", "mobility")] },
+      { role: "main", focus: "ankles", optional: false, durationMinutes: r(4, 4), instructionIds: [], items: [ex("knee_to_wall_ankle", "mobility")] },
+      { role: "main", focus: "spine", optional: false, durationMinutes: r(6, 7), instructionIds: [], items: [ex("cat_cow", "mobility"), ex("thoracic_rotation_mobility", "mobility")] },
       { role: "main", focus: "wrists", optional: false, durationMinutes: r(2, 3), instructionIds: [], items: [ex("wrist_mobility", "mobility")] },
       { role: "cool_down", focus: "breathing", optional: false, durationMinutes: r(3, 5), instructionIds: [], items: [ex("breathing_long_exhale", "cool_down")] },
     ],
@@ -189,7 +206,7 @@ const ENTRIES: SessionProtocolV2[] = [
     family: "recovery",
     sessionKinds: ["RECOVERY_ACTIVE"],
     intentId: "recovery_without_fatigue",
-    totalDurationMinutes: r(30, 55),
+    totalDurationMinutes: r(20, 55),
     blocks: [
       { role: "main", optional: false, durationMinutes: r(20, 40), targetRpe: r(2, 3), instructionIds: ["instruction.recovery.very_easy_activity"], items: [] },
       {
@@ -207,8 +224,11 @@ const ENTRIES: SessionProtocolV2[] = [
   }),
 
   // Échauffement renfo (block template of a Force session; no intent of its own).
-  // The ramp-up sets of the main movement are NOT validated and the main
-  // movement is unknown here: they stay an untimed canonical directive.
+  // 3–4 light exercises in total from mobility + activation (1–2 each, so
+  // 1 + 1 is never valid): which combination is picked belongs to UX-11A.5b.
+  // The ramp-up sets of the main movement are NOT validated, stay outside
+  // that count and remain an untimed canonical directive ("une ou deux
+  // séries légères", never 1 or 2 picked automatically, no kg / %1RM / RPE).
   protocol({
     protocolId: "strength_warm_up_v1",
     scope: "block_template",
@@ -242,7 +262,8 @@ const ENTRIES: SessionProtocolV2[] = [
       },
       { role: "warm_up", focus: "main_movement_prep", optional: false, instructionIds: ["instruction.strength_warm_up.main_movement_ramp"], items: [] },
     ],
-    openQuestions: ["strength_warm_up.main_movement_ramp_sets", "strength_warm_up.candidates_by_session_kind", "strength_warm_up.exercise_count_vs_03"],
+    exerciseCount: r(3, 4),
+    openQuestions: ["strength_warm_up.main_movement_ramp_sets", "strength_warm_up.candidates_by_session_kind"],
   }),
 ];
 

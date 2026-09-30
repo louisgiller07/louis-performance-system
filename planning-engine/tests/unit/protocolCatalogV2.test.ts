@@ -142,16 +142,37 @@ describe("protocol catalogue V2 — durations, RPE and load", () => {
     }
   });
 
-  it("the total duration fits the blocks: required minimums ≤ total minimum ≤ total maximum ≤ sum of every block maximum", () => {
-    for (const p of P) {
+  // UX-11A.5a.3 lock — semantic duration check. The shortest executable
+  // session is made of the REQUIRED blocks at their minimum (an optional block
+  // contributes 0); the longest one runs EVERY block at its maximum. The
+  // declared total must be exactly that range, never a looser one.
+  it("the declared total is exactly [sum of required block minimums, sum of every block maximum]", () => {
+    const computed = P.map((p) => {
       const timed = p.blocks.filter((b) => b.durationMinutes !== undefined);
-      const requiredMin = timed.filter((b) => !b.optional).reduce((sum, b) => sum + b.durationMinutes!.min, 0);
+      const requiredMin = timed.reduce((sum, b) => sum + (b.optional ? 0 : b.durationMinutes!.min), 0);
       const allMax = timed.reduce((sum, b) => sum + b.durationMinutes!.max, 0);
-      expect(p.totalDurationMinutes.min, p.protocolId).toBeGreaterThan(0);
-      expect(requiredMin, p.protocolId).toBeLessThanOrEqual(p.totalDurationMinutes.min);
-      expect(p.totalDurationMinutes.min, p.protocolId).toBeLessThanOrEqual(p.totalDurationMinutes.max);
-      expect(p.totalDurationMinutes.max, p.protocolId).toBeLessThanOrEqual(allMax);
-    }
+      return [p.protocolId, { min: requiredMin, max: allMax }];
+    });
+    expect(Object.fromEntries(P.map((p) => [p.protocolId, p.totalDurationMinutes]))).toEqual(Object.fromEntries(computed));
+  });
+
+  it("locked totals: endurance base 45–90, intervals 53, mobility 25–30, recovery 20–55, strength warm-up 6–8 (ramp-up excluded)", () => {
+    const totals = Object.fromEntries(P.map((p) => [p.protocolId, p.totalDurationMinutes]));
+    expect(totals).toEqual({
+      endurance_base_continuous: { min: 45, max: 90 },
+      endurance_intervals_3min: { min: 53, max: 53 },
+      mobility_routine_v1: { min: 25, max: 30 },
+      recovery_active_v1: { min: 20, max: 55 },
+      strength_warm_up_v1: { min: 6, max: 8 },
+    });
+  });
+
+  it("6 × 3 min of work + 5 × 2 easy min between repetitions = 28 min; no easy part after the last repetition", () => {
+    const main = PROTOCOL_CATALOG_V2["endurance_intervals_3min"]!.blocks.find((b) => b.role === "main")!;
+    const item = main.items[0] as ProtocolIntervalsItemV2;
+    expect(item.repetitions * item.workSeconds).toBe(6 * 3 * 60);
+    expect((item.repetitions - 1) * item.easySeconds).toBe(5 * 2 * 60);
+    expect(main.durationMinutes).toEqual({ min: 28, max: 28 });
   });
 
   it("an intervals block lasts exactly its repetitions and the easy parts between them", () => {
@@ -209,7 +230,12 @@ describe("protocol catalogue V2 — family rules (03 §3, §5)", () => {
     const base = get("endurance_base_continuous");
     expect(base.totalDurationMinutes).toEqual({ min: 45, max: 90 });
     const main = base.blocks.find((b) => b.role === "main")!;
-    expect(main).toMatchObject({ durationMinutes: { min: 25, max: 75 }, targetRpe: { min: 3, max: 4 }, talkTestId: "instruction.endurance.talk_test_full_sentences" });
+    expect(main).toMatchObject({ durationMinutes: { min: 30, max: 75 }, targetRpe: { min: 3, max: 4 }, talkTestId: "instruction.endurance.talk_test_full_sentences" });
+    expect(base.blocks.map((b) => [b.durationMinutes, b.targetRpe])).toEqual([
+      [{ min: 10, max: 10 }, { min: 2, max: 3 }],
+      [{ min: 30, max: 75 }, { min: 3, max: 4 }],
+      [{ min: 5, max: 5 }, { min: 2, max: 2 }],
+    ]);
     expect(base.blocks.map((b) => b.role)).toEqual(["warm_up", "main", "cool_down"]);
     for (const p of [base, get("endurance_intervals_3min")]) expect([...p.activityOptions], p.protocolId).toEqual(["road_bike", "mtb_rolling", "home_trainer", "running"]);
   });
@@ -224,6 +250,16 @@ describe("protocol catalogue V2 — family rules (03 §3, §5)", () => {
     const item = p.blocks[1]!.items[0] as ProtocolIntervalsItemV2;
     expect(item).toMatchObject({ kind: "intervals", repetitions: 6, workSeconds: 180, workRpe: { min: 8, max: 8 }, easySeconds: 120 });
     expect(item.variants).toEqual([{ variantId: "4x3min", repetitions: 4, autoSelectable: false }]);
+  });
+
+  it("intervals: warm-up and cool-down RPE stay deliberately undefined (duration + instructions only), recorded as an open question", () => {
+    const p = get("endurance_intervals_3min");
+    for (const b of p.blocks.filter((x) => x.role !== "main")) {
+      expect(b.targetRpe, b.role).toBeUndefined();
+      expect(b.durationMinutes, b.role).toBeDefined();
+      expect(b.instructionIds.length, b.role).toBeGreaterThan(0);
+    }
+    expect(p.openQuestions).toContain("endurance_intervals.warm_up_cool_down_rpe");
   });
 
   it("mobility: one block per targeted zone (hips, ankles, spine, wrists), duration-measured exercises of that zone, ending with breathing", () => {
@@ -249,7 +285,21 @@ describe("protocol catalogue V2 — family rules (03 §3, §5)", () => {
     expect(required).toHaveLength(1);
     expect(required[0]).toMatchObject({ role: "main", durationMinutes: { min: 20, max: 40 }, targetRpe: { min: 2, max: 3 } });
     expect(p.blocks.filter((b) => b.optional).map((b) => b.focus)).toEqual(["mobility", "breathing"]);
-    expect(p.totalDurationMinutes).toEqual({ min: 30, max: 55 });
+    expect(p.totalDurationMinutes).toEqual({ min: 20, max: 55 });
+  });
+
+  it("recovery: no closed activity list (\"activité très facile\"), and never the endurance list by default", () => {
+    const p = get("recovery_active_v1");
+    expect(p.activityOptions).toEqual([]);
+    expect(p.blocks[0]!.instructionIds).toEqual(["instruction.recovery.very_easy_activity"]);
+    expect(p.openQuestions).toContain("recovery_active.activity_options");
+  });
+
+  it("single_leg_calf_raise is never part of the mobility routine or of active recovery", () => {
+    for (const id of ["mobility_routine_v1", "recovery_active_v1"]) {
+      const refs = get(id).blocks.flatMap((b) => exerciseRefs(b).map((r) => r.exerciseId));
+      expect(refs, id).not.toContain("single_leg_calf_raise");
+    }
   });
 
   it("strength warm-up: a block template with no intent — mobility then activation choices, then an untimed PROVISIONAL ramp-up directive (no dynamic exercise reference)", () => {
@@ -262,6 +312,35 @@ describe("protocol catalogue V2 — family rules (03 §3, §5)", () => {
     expect(p.blocks[1]!.items).toMatchObject([{ kind: "exercise_choice", exerciseRole: "activation", count: { min: 1, max: 2 } }]);
     expect(p.blocks[2]).toEqual({ role: "warm_up", focus: "main_movement_prep", optional: false, instructionIds: ["instruction.strength_warm_up.main_movement_ramp"], items: [] });
     expect(p.openQuestions).toContain("strength_warm_up.main_movement_ramp_sets");
+  });
+
+  it("strength warm-up: 3–4 light exercises in total from mobility + activation (1–2 each); 1 + 1 is never valid; the ramp-up is outside this count", () => {
+    const p = get("strength_warm_up_v1");
+    expect(p.exerciseCount).toEqual({ min: 3, max: 4 });
+    const choices = p.blocks.flatMap((b) => b.items.filter((i) => i.kind === "exercise_choice"));
+    expect(choices.map((c) => c.count)).toEqual([{ min: 1, max: 2 }, { min: 1, max: 2 }]);
+    const valid: string[] = [];
+    for (let mobility = choices[0]!.count.min; mobility <= choices[0]!.count.max; mobility++) {
+      for (let activation = choices[1]!.count.min; activation <= choices[1]!.count.max; activation++) {
+        const total = mobility + activation;
+        if (total >= p.exerciseCount!.min && total <= p.exerciseCount!.max) valid.push(`${mobility}+${activation}`);
+      }
+    }
+    expect(valid).toEqual(["1+2", "2+1", "2+2"]);
+    const ramp = p.blocks.find((b) => b.focus === "main_movement_prep")!;
+    expect(ramp.items).toEqual([]);
+  });
+
+  it("an exercise count, when declared, is reachable from the exercise choices of the protocol", () => {
+    for (const p of P) {
+      if (p.exerciseCount === undefined) continue;
+      const choices = p.blocks.flatMap((b) => b.items.filter((i) => i.kind === "exercise_choice"));
+      const min = choices.reduce((sum, c) => sum + c.count.min, 0);
+      const max = choices.reduce((sum, c) => sum + c.count.max, 0);
+      expect(p.exerciseCount.min, p.protocolId).toBeGreaterThanOrEqual(min);
+      expect(p.exerciseCount.max, p.protocolId).toBeLessThanOrEqual(max);
+      expect(p.exerciseCount.min, p.protocolId).toBeLessThanOrEqual(p.exerciseCount.max);
+    }
   });
 });
 
