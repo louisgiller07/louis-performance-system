@@ -8,6 +8,7 @@ import {
   SESSION_EXERCISE_ROLES_V2,
   SESSION_MEASURE_TYPES_V2,
   SESSION_TIERS_V2,
+  MOBILITY_ZONES_V2,
   type SessionExerciseRoleV2,
 } from "../../src/catalog/sessionExerciseCatalogV2.js";
 import { COACHING_TEXT_CATALOG, PROVISIONAL_NOTICE } from "../../src/catalog/coachingTextCatalog.js";
@@ -53,11 +54,18 @@ describe("Session Model V2 exercise catalogue — identity and isolation from V1
     }
   });
 
-  it("covers 19 enriched V1 exercises and 24 new V2-only exercises in this slice (mobility comes with UX-11A.5a.3)", () => {
-    expect(V2.filter((e) => e.origin === "v1_enriched")).toHaveLength(19);
-    expect(V2.filter((e) => e.origin === "v2_only")).toHaveLength(24);
-    expect(SESSION_EXERCISE_CATALOG_V2["hip_flexor_mobility"]).toBeUndefined();
-    expect(SESSION_EXERCISE_CATALOG_V2["thoracic_rotation_mobility"]).toBeUndefined();
+  it("covers 21 enriched V1 exercises and 31 V2-only exercises (UX-11A.5a.1 + UX-11A.5a.3 mobility / breathing)", () => {
+    expect(V2.filter((e) => e.origin === "v1_enriched")).toHaveLength(21);
+    expect(V2.filter((e) => e.origin === "v2_only")).toHaveLength(31);
+    // Every V1 exercise now has its V2 metadata.
+    expect([...V1_IDS].filter((id) => SESSION_EXERCISE_CATALOG_V2[id]?.origin !== "v1_enriched")).toEqual([]);
+  });
+
+  it("UX-11A.5a.3 — adds the two legacy mobility exercises (v1_enriched) and the seven new mobility / breathing ones (v2_only)", () => {
+    for (const id of ["hip_flexor_mobility", "thoracic_rotation_mobility"]) expect(SESSION_EXERCISE_CATALOG_V2[id]?.origin, id).toBe("v1_enriched");
+    for (const id of ["hip_90_90", "knee_to_wall_ankle", "deep_squat_hold", "cat_cow", "worlds_greatest_stretch", "wrist_mobility", "breathing_long_exhale"]) {
+      expect(SESSION_EXERCISE_CATALOG_V2[id]?.origin, id).toBe("v2_only");
+    }
   });
 });
 
@@ -136,5 +144,42 @@ describe("Session Model V2 exercise catalogue — metadata validity", () => {
       const hasBodyweight = V2.some((e) => e.roles.includes(role) && e.requiredEquipment.length === 0);
       expect(hasBodyweight, role).toBe(true);
     }
+  });
+});
+
+describe("Session Model V2 exercise catalogue — mobility and breathing (UX-11A.5a.3)", () => {
+  const MOBILITY = V2.filter((e) => e.family === "mobility" || e.family === "breathing");
+
+  it("mobility and breathing exercises are measured in duration, need no equipment and are open to every level", () => {
+    expect(MOBILITY).toHaveLength(9);
+    for (const e of MOBILITY) {
+      expect(e.measureType, e.exerciseId).toBe("duration");
+      expect(e.requiredEquipment, e.exerciseId).toEqual([]);
+      expect([...e.tiers], e.exerciseId).toEqual([...SESSION_TIERS_V2]);
+    }
+  });
+
+  it("only mobility exercises carry target zones, from the closed zone vocabulary", () => {
+    for (const e of V2) {
+      if (e.family === "mobility") {
+        expect(e.zones?.length, e.exerciseId).toBeGreaterThan(0);
+        for (const zone of e.zones!) expect(MOBILITY_ZONES_V2, e.exerciseId).toContain(zone);
+      } else {
+        expect(e.zones, e.exerciseId).toBeUndefined();
+      }
+    }
+  });
+
+  it("the mobility, cool_down and recovery exercise roles are held only by mobility or breathing exercises", () => {
+    for (const e of V2) {
+      if (e.roles.some((role) => role === "mobility" || role === "cool_down" || role === "recovery")) {
+        expect(["mobility", "breathing"], e.exerciseId).toContain(e.family);
+      }
+    }
+  });
+
+  it("every mobility exercise carries the no-forced-range vigilance; breathing carries its own", () => {
+    for (const e of MOBILITY.filter((x) => x.family === "mobility")) expect(e.vigilanceIds, e.exerciseId).toContain("vigilance.mobility_no_forced_range");
+    expect(SESSION_EXERCISE_CATALOG_V2["breathing_long_exhale"]!.vigilanceIds).toEqual(["vigilance.breathing_normal_if_dizzy"]);
   });
 });

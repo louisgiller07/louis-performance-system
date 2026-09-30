@@ -17,6 +17,7 @@ export {
   SESSION_EXERCISE_FAMILIES_V2,
   SESSION_TIERS_V2,
   SESSION_MEASURE_TYPES_V2,
+  MOBILITY_ZONES_V2,
 } from "./sessionExerciseCatalogV2.js";
 export type {
   SessionExerciseV2,
@@ -25,6 +26,7 @@ export type {
   SessionMeasureTypeV2,
   ReferencePrescriptionV2,
   RangeV2,
+  MobilityZoneV2,
 } from "./sessionExerciseCatalogV2.js";
 export {
   COACHING_TEXT_CATALOG_VERSION,
@@ -56,3 +58,25 @@ export {
 export type { SessionIntentV2, IntentSelectionV2, SessionFamilyV2, IntentSessionKindV2 } from "./intentCatalogV2.js";
 export { SESSION_BLOCK_ROLES_V2, DH_SESSION_FRAME_V2 } from "./sessionFrameV2.js";
 export type { SessionBlockRoleV2, DhFrameBlockV2 } from "./sessionFrameV2.js";
+
+// UX-11A.5a.3 — session protocols V2 (templates, not read by any engine yet).
+export {
+  PROTOCOL_CATALOG_V2_VERSION,
+  PROTOCOL_CATALOG_V2,
+  PROTOCOL_CATALOG_V2_ENTRIES,
+  PROTOCOL_SCOPES_V2,
+  ENDURANCE_ACTIVITIES_V2,
+  PROTOCOL_BLOCK_FOCUS_V2,
+} from "./protocolCatalogV2.js";
+export type {
+  SessionProtocolV2,
+  ProtocolBlockV2,
+  ProtocolItemV2,
+  ProtocolExerciseItemV2,
+  ProtocolExerciseChoiceItemV2,
+  ProtocolIntervalsItemV2,
+  IntervalVariantV2,
+  ProtocolScopeV2,
+  ProtocolBlockFocusV2,
+  EnduranceActivityV2,
+} from "./protocolCatalogV2.js";

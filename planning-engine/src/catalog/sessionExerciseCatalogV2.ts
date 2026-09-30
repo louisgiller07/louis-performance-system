@@ -15,14 +15,21 @@
  *   included (the four legacy AMRAP doses stay AMRAP for V1) — is untouched.
  *   Their required equipment must stay identical to V1.
  *
- * Mobility / breathing exercises used by protocols come with UX-11A.5a.3;
- * DH drills stay in drillCatalog.ts (UX-11A.5a.2).
+ * UX-11A.5a.3 adds the mobility / breathing exercises used by the session
+ * protocols (protocolCatalogV2.ts); DH drills stay in
+ * sessionDrillCatalogV2.ts (UX-11A.5a.2a).
  *
  * Vocabulary (docs/03_COACHING_MODEL.md §Modèle de séance NALYNT V1):
  * roles map to "échauffement" (warm_up), "activation", "principal",
  * "secondaire" (secondary), "unilatéral" (unilateral), "prévention ou
  * gainage" (prevention — grip belongs here, Force family) and "explosif"
- * (explosive).
+ * (explosive). UX-11A.5a.3 adds "mobility" (Mobilité routine), "cool_down"
+ * (retour au calme) and "recovery" (Récupération). These are EXERCISE roles,
+ * a vocabulary separate from the block roles of sessionFrameV2.ts even when
+ * a name is shared (warm_up, cool_down).
+ *
+ * Mobility and breathing exercises are always measured in duration (03:
+ * "chaque exercice en durée") and never carry a target RPE.
  *
  * referencePrescription = the exercise's reference dose for its FIRST role,
  * at "charge modérée", within the role envelope of 03 (checked by tests).
@@ -36,7 +43,18 @@ import type { ContentValidationStatus } from "./coachingTextCatalog.js";
 
 export const SESSION_EXERCISE_CATALOG_V2_VERSION = "session-exercises-v2.0";
 
-export const SESSION_EXERCISE_ROLES_V2 = ["warm_up", "activation", "principal", "secondary", "unilateral", "prevention", "explosive"] as const;
+export const SESSION_EXERCISE_ROLES_V2 = [
+  "warm_up",
+  "activation",
+  "principal",
+  "secondary",
+  "unilateral",
+  "prevention",
+  "explosive",
+  "mobility",
+  "cool_down",
+  "recovery",
+] as const;
 export type SessionExerciseRoleV2 = (typeof SESSION_EXERCISE_ROLES_V2)[number];
 
 export const SESSION_EXERCISE_FAMILIES_V2 = [
@@ -52,8 +70,14 @@ export const SESSION_EXERCISE_FAMILIES_V2 = [
   "lower_leg",
   "adductor",
   "plyometric",
+  "mobility",
+  "breathing",
 ] as const;
 export type SessionExerciseFamilyV2 = (typeof SESSION_EXERCISE_FAMILIES_V2)[number];
+
+/** Target zones of a mobility exercise (03: hanches, chevilles, dos, poignets). */
+export const MOBILITY_ZONES_V2 = ["hips", "ankles", "spine", "wrists"] as const;
+export type MobilityZoneV2 = (typeof MOBILITY_ZONES_V2)[number];
 
 export const SESSION_TIERS_V2: readonly StrengthExperienceTier[] = ["beginner", "intermediate", "advanced"];
 
@@ -88,6 +112,8 @@ export interface SessionExerciseV2 {
   requiredEquipment: readonly string[];
   optionalEquipment: readonly string[];
   measureType: SessionMeasureTypeV2;
+  /** Mobility family only: the zones this exercise targets. */
+  zones?: readonly MobilityZoneV2[];
   /** Volume expressed per side (unilateral work). */
   perSide: boolean;
   referencePrescription: ReferencePrescriptionV2;
@@ -107,6 +133,8 @@ const SECONDARY = { sets: r(3, 4), reps: r(8, 12), restSeconds: r(90, 90) };
 const UNILATERAL = { sets: r(3, 4), reps: r(8, 12), restSeconds: r(60, 90) };
 const PREVENTION_REPS = { sets: r(2, 4), reps: r(12, 20), restSeconds: r(45, 60) };
 const EXPLOSIVE = { sets: r(3, 5), reps: r(3, 5), restSeconds: r(120, 180) };
+// Mobility reference hold (UX-11A.5a.3): duration per set (per side when perSide), short transition.
+const MOBILITY_HOLD = { sets: r(1, 2), durationSeconds: r(45, 60), restSeconds: r(0, 15) };
 
 type EntryInput = Omit<SessionExerciseV2, "validationStatus" | "optionalEquipment" | "substitutions" | "vigilanceIds" | "perSide" | "cueId"> &
   Partial<Pick<SessionExerciseV2, "optionalEquipment" | "substitutions" | "vigilanceIds" | "perSide">>;
@@ -176,6 +204,19 @@ const ENTRIES: SessionExerciseV2[] = [
   entry({ exerciseId: "skater_jump", origin: "v2_only", family: "plyometric", roles: ["explosive"], tiers: ["intermediate"], requiredEquipment: [], measureType: "reps", perSide: true, referencePrescription: { ...EXPLOSIVE, sets: r(3, 3) }, vigilanceIds: ["vigilance.ankle_knee_landing", "vigilance.power_stop_on_quality_loss"] }),
   entry({ exerciseId: "dumbbell_swing", origin: "v2_only", family: "hinge", roles: ["explosive"], tiers: ["intermediate"], requiredEquipment: ["dumbbells"], measureType: "reps", referencePrescription: { ...EXPLOSIVE, sets: r(3, 4), reps: r(5, 5) }, vigilanceIds: ["vigilance.back_stable_technique", "vigilance.power_stop_on_quality_loss"] }),
   entry({ exerciseId: "plyo_pushup", origin: "v2_only", family: "plyometric", roles: ["explosive"], tiers: ["advanced"], requiredEquipment: [], measureType: "reps", referencePrescription: { ...EXPLOSIVE, sets: r(3, 3) }, vigilanceIds: ["vigilance.wrist_thumb_stop_on_pain", "vigilance.power_stop_on_quality_loss"], regressesTo: "pushup" }),
+
+  // ---------------------------------------------------------------- mobility / breathing (UX-11A.5a.3)
+  // Duration only, no RPE, every level, no equipment. The two v1_enriched
+  // entries keep their V1 entry (60 s / 45 s time flows) untouched.
+  entry({ exerciseId: "hip_flexor_mobility", origin: "v1_enriched", family: "mobility", zones: ["hips"], roles: ["mobility", "warm_up", "cool_down"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", perSide: true, referencePrescription: MOBILITY_HOLD, vigilanceIds: ["vigilance.mobility_no_forced_range"] }),
+  entry({ exerciseId: "thoracic_rotation_mobility", origin: "v1_enriched", family: "mobility", zones: ["spine"], roles: ["mobility", "warm_up", "cool_down", "recovery"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", perSide: true, referencePrescription: { ...MOBILITY_HOLD, durationSeconds: r(30, 45) }, vigilanceIds: ["vigilance.mobility_no_forced_range"] }),
+  entry({ exerciseId: "hip_90_90", origin: "v2_only", family: "mobility", zones: ["hips"], roles: ["mobility", "warm_up", "recovery"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", perSide: true, referencePrescription: MOBILITY_HOLD, vigilanceIds: ["vigilance.mobility_no_forced_range"], substitutions: ["hip_flexor_mobility"] }),
+  entry({ exerciseId: "deep_squat_hold", origin: "v2_only", family: "mobility", zones: ["hips", "ankles"], roles: ["mobility"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", referencePrescription: { ...MOBILITY_HOLD, durationSeconds: r(30, 60) }, vigilanceIds: ["vigilance.mobility_no_forced_range", "vigilance.knee_pain_free_range", "vigilance.balance_support_allowed"] }),
+  entry({ exerciseId: "knee_to_wall_ankle", origin: "v2_only", family: "mobility", zones: ["ankles"], roles: ["mobility", "warm_up"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", perSide: true, referencePrescription: { ...MOBILITY_HOLD, durationSeconds: r(30, 45) }, vigilanceIds: ["vigilance.mobility_no_forced_range", "vigilance.knee_pain_free_range"] }),
+  entry({ exerciseId: "cat_cow", origin: "v2_only", family: "mobility", zones: ["spine"], roles: ["mobility", "warm_up", "cool_down", "recovery"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", referencePrescription: MOBILITY_HOLD, vigilanceIds: ["vigilance.mobility_no_forced_range", "vigilance.wrist_support_alternative"] }),
+  entry({ exerciseId: "worlds_greatest_stretch", origin: "v2_only", family: "mobility", zones: ["hips", "spine"], roles: ["warm_up", "mobility"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", perSide: true, referencePrescription: { ...MOBILITY_HOLD, durationSeconds: r(30, 45) }, vigilanceIds: ["vigilance.mobility_no_forced_range", "vigilance.balance_support_allowed"] }),
+  entry({ exerciseId: "wrist_mobility", origin: "v2_only", family: "mobility", zones: ["wrists"], roles: ["mobility", "warm_up"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", referencePrescription: { sets: r(1, 1), durationSeconds: r(45, 60), restSeconds: r(0, 15) }, vigilanceIds: ["vigilance.mobility_no_forced_range", "vigilance.wrist_gentle_load"] }),
+  entry({ exerciseId: "breathing_long_exhale", origin: "v2_only", family: "breathing", roles: ["cool_down", "recovery"], tiers: SESSION_TIERS_V2, requiredEquipment: [], measureType: "duration", referencePrescription: { sets: r(1, 1), durationSeconds: r(180, 300), restSeconds: r(0, 0) }, vigilanceIds: ["vigilance.breathing_normal_if_dizzy"] }),
 ];
 
 export const SESSION_EXERCISE_CATALOG_V2_ENTRIES: readonly SessionExerciseV2[] = ENTRIES;

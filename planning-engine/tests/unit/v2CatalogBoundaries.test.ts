@@ -3,15 +3,15 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-// UX-11A.5a.1 / UX-11A.5a.2a — import boundary: the Session Model V2 content
+// UX-11A.5a.1 / UX-11A.5a.2a / UX-11A.5a.3 — import boundary: the Session Model V2 content
 // modules are not consumed by any engine yet. Only planning-engine's own
 // catalogue index (re-exports) and the V2 modules themselves may reference
 // them. Any engine starting to consume V2 content must be a deliberate,
 // separately validated change (UX-11A.5b).
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const V2_MODULES = ["sessionExerciseCatalogV2", "sessionDrillCatalogV2", "intentCatalogV2", "sessionFrameV2", "coachingTextCatalog"];
+const V2_MODULES = ["sessionExerciseCatalogV2", "sessionDrillCatalogV2", "intentCatalogV2", "sessionFrameV2", "coachingTextCatalog", "protocolCatalogV2"];
 const V2_SYMBOLS =
-  /\b(SESSION_EXERCISE_CATALOG_V2\w*|SESSION_DRILL_CATALOG_V2\w*|INTENT_CATALOG_V2\w*|DH_SKILL_TO_INTENT_V2|DH_SESSION_FRAME_V2|SESSION_BLOCK_ROLES_V2|COACHING_TEXT_CATALOG\w*)\b/;
+  /\b(SESSION_EXERCISE_CATALOG_V2\w*|SESSION_DRILL_CATALOG_V2\w*|INTENT_CATALOG_V2\w*|DH_SKILL_TO_INTENT_V2|DH_SESSION_FRAME_V2|SESSION_BLOCK_ROLES_V2|COACHING_TEXT_CATALOG\w*|PROTOCOL_CATALOG_V2\w*)\b/;
 const ALLOWED = new Set(
   ["planning-engine/src/catalog/index.ts", ...V2_MODULES.map((m) => `planning-engine/src/catalog/${m}.ts`)].map((p) => p.split("/").join(sep))
 );
@@ -54,5 +54,15 @@ describe("V2 content — import boundary", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("UX-11A.5a.3 — the protocol catalogue only imports types from sibling V2 catalogue modules (no web, no engine, no runtime dependency)", () => {
+    const text = readFileSync(join(REPO, "planning-engine", "src", "catalog", "protocolCatalogV2.ts"), "utf8");
+    const imports = [...text.matchAll(/^import\s+(type\s+)?[^;]*?from\s+"([^"]+)";/gm)].map((m) => ({ typeOnly: m[1] !== undefined, from: m[2]! }));
+    expect(imports.length).toBeGreaterThan(0);
+    for (const i of imports) {
+      expect(i.typeOnly, i.from).toBe(true);
+      expect(["./coachingTextCatalog.js", "./intentCatalogV2.js", "./sessionExerciseCatalogV2.js", "./sessionFrameV2.js"], i.from).toContain(i.from);
+    }
   });
 });

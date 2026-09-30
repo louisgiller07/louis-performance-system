@@ -3592,3 +3592,66 @@ Implémente l'ADR UX-11B.2.1 **en local uniquement** : migrations `2026093012000
 **Tests.** Base locale : contrainte, `NULL`, les 3 valeurs, refus des autres, modification, aucune inférence depuis le renfo ou le niveau de compétition, RLS (écriture de sa propre ligne seulement). Web : repository (lecture, fusion, écriture dédiée et ses refus), options (ordre, maximum, doublons), premier lancement (aucune présélection, obligations, ordre, maximum, contenu enregistré), Affiner ton profil (lecture, profil ancien, modification, préservation, plus de 3 priorités). Vérifié de bout en bout sur Supabase local à 320 et 390 px : ordre enregistré, `strengths`, `weaknesses` et une clé inconnue conservés.
 
 **Statut** : Accepted — implémenté en local sur `feat/ux11a5a2b-dh-profile-signal` (lignée non fusionnée). Migration non appliquée en production ; aucun moteur de génération, aucune Edge Function, aucune production modifiés.
+
+## 2026-09-30 — ADR UX-11A.5a.3 : protocoles de séance V2 (endurance, mobilité, récupération, échauffement renfo)
+
+> **Session protocols are validatable templates, not prescriptions. They reference V2 exercises and canonical texts by id, never carry a load in kg or a prescriptionItemId, and no engine reads them yet. Every dose is PROVISIONAL — coaching validation required.**
+
+**Exercices V2 (`sessionExerciseCatalogV2.ts`).** 9 exercices de mobilité et de respiration :
+- les 2 exercices V1 restants, avec le même `exerciseId` (`origin: v1_enriched`) : `hip_flexor_mobility`, `thoracic_rotation_mobility`. Leur entrée V1 dans `exerciseCatalog.ts` est inchangée (test d'égalité exacte en plus de l'instantané) ;
+- 7 nouveaux (`v2_only`) : `hip_90_90`, `knee_to_wall_ankle`, `deep_squat_hold`, `cat_cow`, `worlds_greatest_stretch`, `wrist_mobility`, `breathing_long_exhale`.
+
+Tous sont mesurés en durée (03 : « chaque exercice en durée »), sans matériel, ouverts aux trois niveaux et sans RPE. Tous portent un point de vigilance « tension confortable, sans forcer ». Nouvelles familles d'exercice : `mobility` et `breathing`. Les zones ciblées (`hips`, `ankles`, `spine`, `wrists`) ne sont portées que par la famille `mobility`. Tous les exercices V1 ont désormais leurs métadonnées V2 (21 `v1_enriched`, 31 `v2_only`).
+
+**Rôles d'exercice.** Ajout de `mobility`, `cool_down` et `recovery` au vocabulaire des rôles d'**exercice** (`warm_up` existait déjà). Ce vocabulaire reste distinct des rôles de **bloc** canoniques (`brief`, `warm_up`, `main`, `complementary`, `application`, `cool_down`), inchangés.
+
+**Catalogue de protocoles (`protocolCatalogV2.ts`, version `session-protocols-v2.0`).**
+- Un protocole contient : `protocolId`, `scope` (`session` ou `block_template`), `family`, `sessionKinds` (kinds existants), `intentId` (intention existante, `null` pour un bloc réutilisable), `totalDurationMinutes`, `activityOptions`, `blocks`, `vigilanceIds`, `openQuestions` et `validationStatus`.
+- Un bloc contient : le rôle de bloc canonique, `focus` (zone ou partie), `optional`, `durationMinutes`, `targetRpe`, `talkTestId` (endurance), `instructionIds` et `items`.
+- Trois types d'élément :
+  - `exercise` : exercice fixe dont la dose est sa `referencePrescription`, jamais recopiée ;
+  - `exercise_choice` : 1 à n exercices parmi des candidats. Le choix des candidats est une règle future (UX-11A.5b) ;
+  - `intervals` : répétitions × effort, récupération facile entre les répétitions, variantes `autoSelectable: false`.
+- Aucun `prescriptionItemId` : il sera créé lors de la construction d'une vraie prescription v2 (UX-11A.5b).
+- Pas de protocole DH : son cadre reste `sessionFrameV2.ts`. Aucune duplication (test).
+
+**Protocoles (tous PROVISIONAL).**
+
+| Protocole | Blocs | Durée totale |
+|---|---|---|
+| `endurance_base_continuous` (`aerobic_base_lucidity`) | échauffement 10 min RPE 2–3 · principal 25–75 min RPE 3–4 + test de la parole · retour au calme 5 min RPE 2 | 45–90 min |
+| `endurance_intervals_3min` (`aerobic_repeat_efforts`) | échauffement 15 min · principal 6 × 3 min RPE 8, 2 min faciles entre les répétitions (28 min) · retour au calme 10 min | 53 min |
+| `mobility_routine_v1` (`mobility_on_bike_range`) | hanches (`hip_90_90`, `hip_flexor_mobility`, `deep_squat_hold`) · chevilles (`knee_to_wall_ankle`) · dos (`cat_cow`, `thoracic_rotation_mobility`) · poignets (`wrist_mobility`) · respiration (`breathing_long_exhale`) | 25–30 min |
+| `recovery_active_v1` (`recovery_without_fatigue`) | principal : activité très facile 20–40 min RPE 2–3 · complémentaire facultatif : mobilité légère 5–10 min · retour au calme facultatif : respiration 3–5 min | 30–55 min |
+| `strength_warm_up_v1` (bloc réutilisable, sans intention) | mobilité : 1–2 exercices, 3–4 min · activation : 1–2 exercices, 3–4 min · préparation du mouvement principal : consigne seule | 6–8 min (hors préparation) |
+
+Pour l'endurance, l'activité est choisie par le pilote : vélo de route, VTT sur terrain roulant, home-trainer ou course à pied. Pour les intervalles, la variante 4 × 3 min est documentée mais jamais choisie automatiquement : aucune règle ne départage 6 × 3 et 4 × 3. En mobilité, aucune amplitude n'est imposée. En récupération, mobilité et respiration sont facultatives, conformément au tableau de 03 §3.
+
+**Échauffement renfo.** Les séries de montée sur le mouvement principal ne sont **pas validées** et le mouvement principal n'est pas connu du modèle. Elles restent donc une consigne canonique PROVISIONAL (« une ou deux séries légères de ton mouvement principal, sans fatigue »), sans durée ni référence d'exercice dynamique. Dette pour UX-11A.5b : représentation de la montée dans la prescription v2 (série d'échauffement liée à l'élément principal ?), choix des candidats selon le kind (haut ou bas du corps) et selon le matériel.
+
+**RPE, mesures et charge.** Vocabulaires existants réutilisés. Le RPE est une cible indépendante, jamais déduite d'un niveau de charge. Mobilité et échauffement renfo sans RPE ; récupération à RPE 3 au plus. Aucun kg, %1RM, zone cardiaque, % FTP ni puissance (test sur toutes les clés).
+
+**Textes (`coachingTextCatalog.ts`, fr-CH, PROVISIONAL).**
+- 9 consignes d'exercice.
+- 3 points de vigilance, descriptifs et sans contre-indication médicale : amplitude sans forcer, appui progressif sur les poignets, respiration normale en cas de vertige.
+- 12 consignes de protocole, sans chiffre : les durées, les RPE et les nombres viennent du modèle.
+- Aucun texte orphelin (test).
+
+**Écarts avec 03, signalés et non résolus (03 non modifié)** :
+1. Endurance fondamentale : avec un bloc principal de 25 min, la séance dure 40 min, alors que 03 et le total indiquent 45 min au minimum. Le total borne la séance ; à trancher (principal à 30 min au minimum ?).
+2. Échauffement renfo : 03 prévoit 3 à 4 exercices légers ; le protocole en prévoit 2 à 4, plus la préparation du mouvement principal.
+
+Aucune règle structurelle ne manque dans 03 : les règles d'endurance, de mobilité et de récupération y figurent déjà. Le catalogue n'est pas recopié dans 03.
+
+**Isolation.** Aucun moteur ne lit les protocoles ni les nouveaux exercices (test de frontière étendu à `protocolCatalogV2`, qui n'importe que des types des modules V2 voisins). `exerciseCatalog.ts`, la sélection V1 et tous les instantanés V1 sont inchangés. Aucune modification de M1, `prescription-engine`, génération de plan, `PlanInputSnapshot`, `runDailyFor`, `persist_daily_run`, Supabase, Edge Functions ni web.
+
+**Questions sportives ouvertes (`openQuestions`)** :
+- toutes les doses (aucune validée par un préparateur physique) ;
+- les séries de montée de l'échauffement renfo ;
+- la règle de choix de la variante 4 × 3 min ;
+- le RPE de l'échauffement et du retour au calme des intervalles ;
+- les activités proposées en récupération ;
+- le mollet unilatéral lent en mobilité : non retenu, car il se mesure en répétitions alors que la mobilité se mesure en durée ;
+- les deux écarts avec 03 ci-dessus.
+
+**Statut** : Accepted — contenu PROVISIONAL, implémenté sur `feat/ux11a5a3-session-protocols-v2` (lignée non fusionnée). Aucun moteur ne lit encore les protocoles V2.

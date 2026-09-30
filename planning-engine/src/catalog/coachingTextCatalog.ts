@@ -48,7 +48,11 @@ function criterion(id: string, fr: string): CoachingTextEntry {
   return { id, kind: "success_criterion", text: { "fr-CH": fr }, validationStatus: "PROVISIONAL" };
 }
 
-/** Uncounted session-frame instruction (brief, warm-up, application, cool-down): never a number of runs. */
+/**
+ * Uncounted instruction of a DH session frame block or of a session protocol
+ * block (UX-11A.5a.3): never a number of runs, never a digit — durations,
+ * RPE and counts come from the structured template, not from the text.
+ */
 function instruction(id: string, fr: string): CoachingTextEntry {
   return { id, kind: "instruction", text: { "fr-CH": fr }, validationStatus: "PROVISIONAL" };
 }
@@ -106,6 +110,16 @@ const ENTRIES: CoachingTextEntry[] = [
   cue("cue.skater_jump", "Réception stable sur une jambe."),
   cue("cue.dumbbell_swing", "La hanche lance, les bras suivent."),
   cue("cue.plyo_pushup", "Pousse le sol vite, réception bras souples."),
+  // --- cues: mobility / breathing (UX-11A.5a.3)
+  cue("cue.hip_flexor_mobility", "Genou arrière au sol, bassin rentré, avance doucement les hanches sans cambrer."),
+  cue("cue.thoracic_rotation_mobility", "Tourne depuis le haut du dos, bassin immobile, suis ta main du regard."),
+  cue("cue.hip_90_90", "Buste droit, bascule lentement les genoux d'un côté puis de l'autre."),
+  cue("cue.deep_squat_hold", "Talons au sol si possible, buste long ; tiens-toi à un appui si besoin."),
+  cue("cue.knee_to_wall_ankle", "Talon au sol, amène le genou vers le mur dans l'axe du pied."),
+  cue("cue.cat_cow", "Enroule puis creuse le dos lentement, au rythme de ta respiration."),
+  cue("cue.worlds_greatest_stretch", "Grande fente, coude vers le pied avant, puis ouvre le bras vers le ciel."),
+  cue("cue.wrist_mobility", "Cercles lents, puis appuis progressifs sur les mains."),
+  cue("cue.breathing_long_exhale", "Inspire par le nez, puis expire lentement, plus longtemps que l'inspiration."),
 
   // --- vigilance (help, never a prohibition, never a medical decision) ---
   vigilance("vigilance.knee_pain_free_range", "Genou : garde une amplitude sans douleur."),
@@ -120,6 +134,10 @@ const ENTRIES: CoachingTextEntry[] = [
   vigilance("vigilance.grip_race_week", "Semaine de course : pas de travail lourd de préhension."),
   vigilance("vigilance.power_stop_on_quality_loss", "Arrête la série dès que la hauteur ou la vitesse baisse."),
   vigilance("vigilance.ankle_knee_landing", "Cheville et genou : réception stable avant d'enchaîner."),
+  // mobility / breathing / endurance (UX-11A.5a.3) — descriptive, never a medical contraindication
+  vigilance("vigilance.mobility_no_forced_range", "Amplitude : va jusqu'à une tension confortable, sans forcer ni rebondir."),
+  vigilance("vigilance.wrist_gentle_load", "Poignet : mets du poids sur les mains progressivement, reste sans douleur."),
+  vigilance("vigilance.breathing_normal_if_dizzy", "Si la tête te tourne, reprends une respiration normale."),
 
   // --- DH drills (UX-11A.5a.2a): one cue + one per-passage criterion each.
   // No number of passages in any text (the count comes from the
@@ -177,6 +195,20 @@ const ENTRIES: CoachingTextEntry[] = [
   instruction("instruction.dh.warm_up_easy", "Commence par des descentes faciles, sans chercher la vitesse, jusqu'à te sentir à l'aise sur le vélo."),
   instruction("instruction.dh.apply_cue", "Roule des descentes complètes en appliquant la consigne de l'exercice partout où elle s'applique. Le nombre de descentes dépend du terrain et de ton temps."),
   instruction("instruction.dh.debrief_and_check", "Termine par une descente facile, note ton ressenti sur l'exercice (facile, moyen, difficile) et contrôle rapidement ton vélo."),
+
+  // --- session protocol instructions (UX-11A.5a.3, protocolCatalogV2.ts)
+  instruction("instruction.endurance.activity_choice", "Choisis ton activité : vélo de route, VTT sur terrain roulant, home-trainer ou course à pied."),
+  instruction("instruction.endurance.warm_up_easy", "Commence très facilement, puis augmente progressivement ton rythme."),
+  instruction("instruction.endurance.talk_test_full_sentences", "Tu dois pouvoir parler en phrases complètes pendant tout l'effort."),
+  instruction("instruction.endurance.cool_down_easy", "Termine à allure très facile pour revenir au calme."),
+  instruction("instruction.endurance.intervals_work", "Pendant chaque répétition, tiens un effort soutenu et régulier, le même du début à la fin."),
+  instruction("instruction.endurance.intervals_easy", "Entre les répétitions, continue très facilement pour récupérer."),
+  instruction("instruction.mobility.slow_and_breathe", "Enchaîne les zones dans l'ordre, lentement, en respirant calmement."),
+  instruction("instruction.recovery.very_easy_activity", "Choisis une activité très facile et garde ce rythme du début à la fin : cette séance ne doit pas ajouter de fatigue."),
+  instruction("instruction.recovery.light_mobility", "Mobilité légère, sans chercher à gagner de l'amplitude."),
+  instruction("instruction.strength_warm_up.mobility", "Mobilise les zones que ta séance va solliciter."),
+  instruction("instruction.strength_warm_up.activation", "Active les muscles de ta séance, sans te fatiguer."),
+  instruction("instruction.strength_warm_up.main_movement_ramp", "Avant tes séries de travail, fais une ou deux séries légères de ton mouvement principal, sans fatigue."),
 
   // --- intents (selected by intentCatalogV2.ts, never written on the fly)
   intent("intent.lower_body_strength_control", "Développer la force et la stabilité des jambes utiles au contrôle du vélo."),
