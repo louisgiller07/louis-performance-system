@@ -3702,3 +3702,73 @@ Aucune règle structurelle ne manque dans 03 : les règles d'endurance, de mobil
 **Tests.** Le contrôle strict des durées est conservé. Un test fige aussi les durées des blocs de mobilité, pour que toute modification de dose soit visible et relève d'une décision explicite.
 
 **Statut** : Accepted — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée.
+
+## 2026-09-30 — ADR UX-11A.5b.0.1 : verrouillage des contrats V2 avant génération
+
+> **The V2 prescription, snapshot, blocking and identity contracts are locked before any generator exists. A reader never interprets a V2 structure as V1. Two points stay OPEN until UX-11B is reconciled: the DH measure vocabulary and the endurance activity item.**
+
+**Contexte.** L'audit UX-11A.5b.0 a proposé les contrats ; le Head Coach et l'architecture en ont validé une partie. Ce document ne verrouille que les décisions validées. Aucun générateur, aucune prescription v2 en base, aucune migration.
+
+**Format de prescription v2 (verrouillé).**
+- `schemaVersion: "v2"`, `family`, `sessionKind`, `intentId`, `protocolId` facultatif, manifeste de catalogue, blocs ordonnés avec `blockId`.
+- Rôles de bloc : `brief`, `warm_up`, `main`, `complementary`, `application`, `cool_down`.
+- `sets` est un entier exact, fourni par le modèle de contenu. Une mesure peut être une plage. Aucune valeur n'est choisie automatiquement au milieu d'une plage.
+- Aucun kg, %1RM, zone cardiaque, FTP ni watt. Textes stockés par identifiant. Un plan est entièrement v1 ou entièrement v2.
+- **`rampUp`** sur l'élément principal de Force : `{ instructionId, sets: { min: 1, max: 2 } }`. Pas d'identifiant propre, pas de charge, pas de RPE, pas de `derivedFromItemId`. Présenté comme préparation, jamais enregistré série par série en UX-11C V1.
+- **`derivedFromItemId`** est réservé à UX-11A.5c : élément de la prescription du jour → élément du plan d'origine.
+- **Exercice technique DH** : `kind = "drill"`, sans rôle d'élément (**refus** du rôle `technical` proposé à l'audit). Le caractère technique vient de `kind` et du catalogue, la place dans la séance du bloc `main`. Aucun contrat existant n'exige de rôle d'élément : `record_session_execution` ne lit que `prescriptionItemId`, `exerciseId` et `measure.type`.
+
+**Snapshot v2 (verrouillé).**
+- `PlanInputSnapshotV2` ajoute `dhTechnicalTier: beginner | intermediate | advanced | null`. Il est nullable : un plan V2 sans DH reste générable.
+- `technicalPriorities.priorityAreas`, déjà figé dans son ordre, reste la seule source des priorités : pas de second champ `dhPriorityAreas`.
+- Le module Session Model V2 ne reçoit qu'une vue restreinte des données dont il a besoin. Il ne lit jamais `strengths` ni `weaknesses`, ni le profil vivant.
+
+**Blocages (verrouillés).** Ils bloquent la génération **complète** du plan V2 avant toute écriture. Pas de plan partiel, pas de repli, pas de passage à la priorité suivante, aucun écrêtage (ni 30 → 45 min, ni 3 → 4 passages). Ces limites sont acceptées temporairement en développement local.
+
+| Cas (plan contenant du DH, sauf mention) | Code |
+|---|---|
+| `dhTechnicalTier` null | `missing_dh_technical_tier` |
+| 0 priorité | `missing_dh_priority_areas` |
+| Plus de 3 priorités | `too_many_dh_priority_areas` |
+| Doublons | `duplicate_dh_priority_areas` |
+| Terrain incompatible avec l'exercice DH canonique | `unavailable_dh_drill_terrain` |
+| `AEROBIC_BASE` hors de la durée du protocole | `unsupported_protocol_duration` |
+| `focusedRunsCount` hors 4–8 | `dh_passes_out_of_range` |
+
+**Identifiants et empreinte (verrouillés).**
+- Le module sportif pur produit son contenu avant l'attribution des identifiants. `blockId` et `prescriptionItemId` sont des UUID aléatoires attribués par l'orchestration. Deux versions de plan peuvent avoir des identifiants différents.
+- Le déterminisme porte sur l'**empreinte sportive**, calculée avant les identifiants : même snapshot, même horizon, même version du planificateur et même manifeste donnent la même empreinte.
+- En UX-11A.5c : KEEP conserve les `prescriptionItemId` ; MODIFY crée de nouveaux identifiants et renseigne `derivedFromItemId`.
+
+**Manifeste de catalogue (verrouillé).** Une version agrégée Session Model V2 plus les versions de chaque composant : `catalog: { aggregate, exercises, drills, intents, protocols, texts, templates }`. Les versions legacy ne changent pas.
+
+**OPEN 1 — vocabulaire de la mesure DH (conflit signalé, rien n'est modifié).**
+- Code réel commité en local :
+  - `set_measure_type` = `'reps' | 'duration' | 'distance' | 'pass'` (`20260930120000_ux11b2_execution_schema.sql`) ;
+  - l'Edge Function `session-execution` accepte `"pass"` pour une série ;
+  - **mais** `record_session_execution` (`20260930120500_…`, l.332–338) lit la mesure prescrite avec `when 'passes' then 'pass'`. L'ADR UX-11B.2.1, l'ancienne rédaction de 05 et le test d'intégration (`measure: { type: "passes", count: 6 }`) utilisent aussi `"passes"`.
+- Conséquence : une prescription écrite avec `measure.type = "pass"` **ne serait pas rejetée**, mais la fonction ne la reconnaîtrait pas. Le contrôle `measure_mismatch` serait alors silencieusement désactivé pour cet élément.
+- Options :
+  - (a) garder `"passes"` côté prescription et `'pass'` côté série, comme aujourd'hui ;
+  - (b) passer la prescription à `"pass"` et amender la fonction locale UX-11B.2.2 (non fusionnée) ainsi que son test. Cette option exige une décision explicite, puisqu'elle modifie une migration existante.
+- La cardinalité reste séparée dans les deux cas (`count`, 4 à 8).
+
+**OPEN 2 — élément « activité » d'endurance.** Audit du code réel (`record_session_execution`, `exercise_set_results`, `session-execution`) :
+- **A.** L'élément n'a pas besoin d'`exerciseId`. La fonction fait `v_set_exercise_id := item ->> 'exerciseId'`, qui vaut `null` si le champ est absent. `exercise_set_results.exercise_id` est nullable, et la contrainte `exercise_id_only_with_item` n'impose que l'inverse (un `exercise_id` exige un élément).
+- **B.** Seul l'élément **référencé** par une série est lu, en le cherchant par `prescriptionItemId` dans `blocks[].items[]`, avec un `limit 1`. La structure n'est jamais validée en entier, et l'unicité des `prescriptionItemId` n'est pas contrôlée en SQL : c'est au générateur de la garantir.
+- **C.** Oui : une prescription peut contenir un élément sans `exerciseId`. Il peut même recevoir des séries, avec `exercise_id = null`.
+- **D.** Oui : `session_executions` + `execution_events` suffisent. Une exécution exige son événement `started` dans le même lot ; les séries sont facultatives ; `completed` termine. Un commentaire (≤ 500) est possible.
+- **E.** Stocker la réalisation d'endurance :
+  - **durée faite** : une ligne `exercise_set_results` rattachée à l'élément activité, `measure_type = 'duration'`, `set_number = 1`. C'est possible dès aujourd'hui, mais sémantiquement forcé : ce n'est pas une série ;
+  - **distance** : impossible sur le même élément si la mesure prescrite est une durée (`measure_mismatch`) ;
+  - **activité choisie** : aucun emplacement structuré, seulement le commentaire libre.
+- Options pour le Head Coach, avant UX-11C :
+  - (1) colonne additive nullable `activity_id` sur `session_executions` (une activité par exécution), durée dans `exercise_set_results` ;
+  - (2) table dédiée `activity_results` (exécution, élément, `activity_id`, durée, distance), migration additive et chemin d'écriture étendu ;
+  - (3) enregistrer seulement la durée en V1 et reporter l'activité choisie.
+- Refusé dans tous les cas : un faux `exerciseId` (« endurance_activity ») ou la surcharge d'`exerciseId` avec autre chose qu'un exercice.
+- Sélection d'activité proposée : `activitySelection: { mode: "restricted"; activityIds: [...] } | { mode: "free" }`. Une liste vide ne signifie jamais « libre ». Pour `endurance_base_continuous` : `restricted` avec les identifiants existants `road_bike`, `mtb_rolling`, `home_trainer` et `running` (`ENDURANCE_ACTIVITIES_V2`). Dette connue : `protocolCatalogV2.activityOptions = []` sur `recovery_active_v1` suit encore l'ancienne convention ; il sera converti quand le contrat sera tranché, sans changer les activités autorisées.
+
+**Documentation.** 05 est mis à jour avec les décisions verrouillées et les deux points OPEN. 03 est inchangé.
+
+**Statut** : Accepted (décisions verrouillées) / OPEN (mesure DH, élément activité) — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée.
