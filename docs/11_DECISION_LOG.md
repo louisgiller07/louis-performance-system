@@ -3524,3 +3524,26 @@ Implémente l'ADR UX-11B.2.1 **en local uniquement** : migrations `2026093012000
 **Règle de branche.** Les migrations UX-11B.2.2 restent hors de main jusqu'à validation UX-11C. Toute fusion anticipée nécessite une validation explicite car leur présence dans main permettrait une application involontaire lors d'un déploiement Supabase. Branche : `feat/ux11b2-execution-schema-local`. Checklist de mise en production : « Vérifier qu'aucune migration UX-11B.2.2 n'est fusionnée avant UX-11C ».
 
 **Statut** : Accepted — implémenté et validé en local (Louis + architecture produit, 2026-09-30), non fusionné. Aucune migration appliquée en production, aucune Edge Function déployée, aucun changement web ni moteur.
+
+## 2026-09-30 — ADR UX-11A.5a.1 : catalogue Session Model V2 (renfo, puissance) et bibliothèque de textes
+
+> **Session Model V2 content lives in its own catalogue, next to — never inside — the V1 catalogues. V1 plans keep being built from the unchanged V1 catalogue ("v3"), legacy doses included; no V2-only exercise can be selected by a V1 path. Sport-facing text is a domain library of stable ids, not web copy. All content is PROVISIONAL — coaching validation required.**
+
+**Cible de contenu (UX-11A.5a, rappel).** 52 exercices généraux dans le catalogue d'exercices (21 existants enrichis pour V2 + 31 nouveaux proposés), **plus** 21 exercices techniques DH conservés séparément dans `drillCatalog.ts`. Les 52 ne sont pas le total du contenu sportif.
+
+**Livré dans cette tranche (11A.5a.1).** 43 exercices V2 : 19 exercices V1 enrichis (mêmes `exerciseId`) + 24 nouveaux, pour la force bas et haut du corps, l'unilatéral, la chaîne postérieure secondaire, la prévention et le gainage, la préhension, l'activation et la puissance. Les 2 exercices de mobilité V1 et les 7 exercices de mobilité / respiration proposés arrivent avec 11A.5a.3.
+
+**Architecture.**
+- `planning-engine/src/catalog/sessionExerciseCatalogV2.ts` (version `session-exercises-v2.0`) : `exerciseId`, `origin` (`v1_enriched` | `v2_only`), famille, rôles (échauffement, activation, principal, secondaire, unilatéral, prévention, explosif ; le premier est le rôle de référence), niveaux explicites, matériel requis et optionnel (vocabulaire actuel, inchangé), type de mesure, « par côté », dose de référence en charge modérée (jamais de kg), `cueId`, `vigilanceIds`, progression / régression / substitutions, `validationStatus`.
+- `planning-engine/src/catalog/coachingTextCatalog.ts` (version `coaching-text-v1.0`) : textes à identifiants stables (`cue.*`, `vigilance.*` ; `criterion.*` et intentions prévus), locale canonique `fr-CH` dans une structure multi-locale, sans dépendance web. Les tables de traduction V1 du web sont inchangées.
+- Exports additifs dans `planning-engine/src/catalog/index.ts`. Aucun moteur ne lit ces fichiers.
+
+**Isolation V1.** `exerciseCatalog.ts` et `drillCatalog.ts` inchangés (versions `v3`) ; les 4 doses AMRAP historiques (`bodyweight_squat`, `pushup`, `pull_up`, `hanging_leg_raise`) restent AMRAP pour V1, leur profil V2 porte des plages. Un exercice enrichi garde exactement le matériel requis de V1.
+
+**Ajustements par rapport à la proposition 11A.5a phase 1** (pour respecter les enveloppes de `03`) : `dumbbell_swing` 3–4 × 5 (au lieu de 8–10, Puissance = 3–5 répétitions) ; `hanging_leg_raise` 12–15 en prévention (au lieu de 6–12, prévention = 12–20).
+
+**Tests.** Intégrité V2 (identifiants, isolation, vocabulaires, matériel, dose de référence dans l'enveloppe `03` du rôle, références, textes, aucun contenu VALIDATED, une option sans matériel par rôle) et bibliothèque de textes (unicité, locale, aucun texte orphelin, vigilance jamais formulée en interdiction). Non-régression V1 enregistrée **avant** l'ajout du contenu V2 : instantanés du catalogue et des exercices DH, des 4 doses AMRAP, de la sélection d'exercice pour chaque famille × sous-ensemble de matériel × niveau (aucun exercice V2 sélectionnable), et de la correspondance type de séance → famille.
+
+**Décidé pour 11A.5a.2 (non implémenté).** Le niveau DH V2 ne reposera jamais sur `strengthExperienceTier`, ni sur les résultats de course, la catégorie de compétition ou une faiblesse inférée : un signal dédié déclaré par le pilote (`dhTechnicalTier`), après audit du profil actuel.
+
+**Statut** : Accepted — implémenté en local sur `feat/ux11a5a1-catalog-v2` (lignée non fusionnée issue de `feat/ux11b2-execution-schema-local`). Aucun moteur, migration, Edge Function, web ni production modifié. Contenu : PROVISIONAL — coaching validation required.
