@@ -3471,7 +3471,7 @@ Consignes et critères sont des identifiants de textes validés, jamais du texte
 | Table | Rôle | Points clés |
 |---|---|---|
 | `session_executions` | Une tentative de réalisation | `id` généré par l'appareil ; `athlete_id` ; `session_date` ; `decision_id` et `final_prescription_id` facultatifs (clés composites avec `athlete_id`) ; `started_at` (appareil) ; `recorded_at` (serveur) ; `comment` ≤ 500 caractères |
-| `execution_events` | Historique d'état | `started`, `paused`, `resumed`, `completed`, `abandoned` ; un seul `started` par exécution (index unique partiel) |
+| `execution_events` | Historique d'état | `started`, `paused`, `resumed`, `completed`, `abandoned` ; **un seul événement `started` logique par exécution** : le renvoi du même événement (même identifiant) est accepté sans effet, un nouvel événement `started` est refusé |
 | `exercise_set_results` | Une ligne par série | `prescription_item_id` **ou** `other_exercise_name` (≤ 80 caractères) ; `exercise_id` recopié par le serveur ; `set_number` ; `done` ; `measure_type` + `measure_value` ; `load_kg`, `rpe_actual` (1–10), `success`, `comment` (≤ 500) facultatifs ; `supersedes_id` (remplaçable une seule fois) ; `occurred_at` / `recorded_at` |
 
 Ajout seul sur les trois tables (`reject_append_only_mutation` en modification et suppression). Clés vers `athletes` en `ON DELETE RESTRICT`, comme les autres tables en ajout seul. Seule modification d'une table existante : contrainte **ajoutée** `unique (id, athlete_id)` sur `decision_final_prescriptions`.
@@ -3485,10 +3485,11 @@ Ajout seul sur les trois tables (`reject_append_only_mutation` en modification e
 - la décision d'une exécution est celle de sa prescription du jour ;
 - une seule exécution active par pilote et par jour, vérifiée sous verrou par pilote et par jour ;
 - ordre des événements (rien après `completed` ou `abandoned`, pause et reprise alternées) ;
-- une correction (`supersedes_id`) porte sur la même exécution, le même élément et le même numéro de série ; aucune modification, jamais de suppression ;
+- une correction (`supersedes_id`) porte sur la même exécution, le même élément et le même numéro de série ; **une correction ne peut pas elle-même être corrigée** en V1 (série originale → une correction, jamais de chaîne) ; aucune modification, jamais de suppression ;
+- cycle de vie : `started` → `paused` / `completed` / `abandoned` ; `paused` → `resumed` / `completed` / `abandoned` ; `resumed` → `paused` / `completed` / `abandoned` ; aucun événement après `completed` ou `abandoned`. **Les résultats de série restent possibles après la fin** (saisie ou correction après coup) : les événements décrivent le cycle de vie, les séries les données réalisées ;
 - idempotence : même identifiant et même contenu → succès sans effet ; même identifiant et contenu différent → refus.
 
-**7. RLS et écriture.** Lecture : le pilote lit uniquement ses lignes (politique standard). Écriture : aucun droit direct pour `authenticated` ni `anon` ; le client appelle une Edge Function qui authentifie, retrouve le pilote et valide, puis appelle une fonction SQL exécutable côté serveur uniquement (modèle de `persist_completed_session`). Point d'écriture en **lot** (événements et séries) pour permettre une future file de synchronisation.
+**7. RLS et écriture.** Lecture : le pilote lit uniquement ses lignes (politique standard). Écriture : aucun droit direct pour `authenticated` ni `anon` ; le client appelle une Edge Function qui authentifie, retrouve le pilote et valide, puis appelle une fonction SQL exécutable côté serveur uniquement (modèle de `persist_completed_session`). Point d'écriture en **lot** (événements et séries) pour permettre une future file de synchronisation. **Consentement** : la vérification du consentement reste actuellement une responsabilité du client web ; une centralisation serveur pourra faire l'objet d'un ticket sécurité ultérieur. Les événements d'exécution sont des événements métier, distincts de l'observabilité pilote (ticket séparé si nécessaire).
 
 **8. Prescription du jour et décision : même transaction.** `persist_daily_run` écrit la décision et sa `decision_final_prescription` dans la même transaction (implémentation en UX-11A.5). Jamais une décision sans sa prescription du jour, jamais l'inverse.
 
@@ -3503,3 +3504,23 @@ Ajout seul sur les trois tables (`reject_append_only_mutation` en modification e
 **Hors périmètre.** Interface du mode séance ; progression ; synchronisation hors ligne ; substitutions liées au catalogue ; doubles séances ; procédure de purge (ticket séparé).
 
 **Statut** : Accepted (Louis + architecture produit, 2026-09-30). Documentation uniquement : aucune migration, aucun `CREATE TABLE`, aucune Edge Function, aucun code.
+
+## 2026-09-30 — ADR UX-11B.2.2 : schéma d'exécution, implémentation locale
+
+Implémente l'ADR UX-11B.2.1 **en local uniquement** : migrations `20260930120000_ux11b2_execution_schema.sql` (types, 3 tables, contraintes, index, RLS, protection « ajout seul », `unique (id, athlete_id)` ajoutée sur `decision_final_prescriptions`) et `20260930120500_ux11b2_record_session_execution.sql` (fonction d'écriture), Edge Function `supabase/functions/session-execution` (POST, validation pure dans `validation.ts`). **Rien n'est déployé en production** (ADR UX-11B.2.1 §12).
+
+**Choix d'implémentation.**
+- **Écriture par `SECURITY DEFINER`** (convention des tables V0.4 en ajout seul, ex. `generate_training_plan_version`) : les trois tables n'accordent que la lecture, y compris à `service_role` ; seule `record_session_execution` écrit, exécutable par `service_role` uniquement, `search_path` fixé.
+- **Rejets métier renvoyés, jamais levés** : `{ status: "rejected", code, target }` avec annulation complète du lot ; l'Edge Function convertit les codes stables en statuts HTTP (400 / 404 / 409 / 422) et n'interprète jamais un message PostgreSQL. Erreur inattendue → 500 `persistence_failed`.
+- **Verrou par pilote** (plus strict que « par pilote et par jour ») : sérialise toutes les écritures d'un même pilote, ce qui rend sûre la règle « une exécution active par jour ».
+- **Ordre du cycle de vie** évalué dans l'ordre d'insertion serveur (`event_seq`) ; les séries restent possibles après `completed` / `abandoned`.
+- **Mesure cohérente avec l'élément prescrit** (`measure_mismatch`) : une série d'un élément prescrit en répétitions ne peut pas être enregistrée comme un passage, et inversement.
+- **Un `null` JSON vaut une clé absente** (l'Edge Function envoie `execution: null`). Défaut trouvé par la vérification HTTP locale, corrigé avant commit, couvert par un test.
+
+**Tests (Supabase local).** Validation : 11 tests (`npm run test:session-execution`). Intégration : 6 scénarios (`tests/supabase/sessionExecution.integration.test.ts`) — création, idempotence, conflit, lot atomique, exécution active unique, cycle de vie, format v1 refusé, prescription d'un autre pilote, date, élément inconnu ou étranger, mesure, « autre exercice », corrections, bornes, RLS, aucune écriture directe, ajout seul même pour le propriétaire de la base. Suite complète `head-coach-engine` avec intégration locale : 954 / 954. Vérification HTTP de l'Edge Function sur le serveur de fonctions local : 7 cas conformes.
+
+**Limites connues.** Les prescriptions du jour de test sont insérées directement dans le conteneur Postgres local (aucun chemin d'écriture avant UX-11A.5). Les pilotes de test restent dans la base locale : leurs lignes en ajout seul ne peuvent pas être supprimées, même limite que les plans d'entraînement (sera levée par la procédure de purge, ticket séparé).
+
+**Règle de branche.** Les migrations UX-11B.2.2 restent hors de main jusqu'à validation UX-11C. Toute fusion anticipée nécessite une validation explicite car leur présence dans main permettrait une application involontaire lors d'un déploiement Supabase. Branche : `feat/ux11b2-execution-schema-local`. Checklist de mise en production : « Vérifier qu'aucune migration UX-11B.2.2 n'est fusionnée avant UX-11C ».
+
+**Statut** : Accepted — implémenté et validé en local (Louis + architecture produit, 2026-09-30), non fusionné. Aucune migration appliquée en production, aucune Edge Function déployée, aucun changement web ni moteur.
