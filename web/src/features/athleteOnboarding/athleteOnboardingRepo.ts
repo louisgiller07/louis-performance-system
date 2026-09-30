@@ -120,6 +120,11 @@ export async function saveWeeklyTrainingHours(athleteId: string, weeklyTrainingH
   await upsertOnboardingProfile(athleteId, { weekly_training_hours: weeklyTrainingHours });
 }
 
+/** UX-09 — riding days are saved on their own step, so a refresh resumes at the consent step. */
+export async function saveRidingDays(athleteId: string, preferredRidingDays: RidingDay[]): Promise<void> {
+  await upsertOnboardingProfile(athleteId, { preferred_riding_days: preferredRidingDays });
+}
+
 export interface CompletionAnswers {
   competitionLevel: CompetitionLevel;
   primaryGoal: PrimaryGoal;

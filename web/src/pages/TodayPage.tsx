@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { FIRST_DAY, TODAY_NO_PLAN } from "../features/firstRun/firstRunPresentation";
 import { useAuth } from "../auth/AuthContext";
 import { useEffectiveToday } from "../lib/simulationClock";
 import { CheckinForm } from "../features/checkin/CheckinForm";
@@ -8,8 +9,6 @@ import { DailyPlanPanel } from "../features/dailyPlan/DailyPlanPanel";
 import { AfterSessionEntry } from "../features/afterSession/AfterSessionEntry";
 import { PageShell } from "../components/PageShell";
 import { AppHeader } from "../components/AppHeader";
-import { Card } from "../components/Card";
-import { SectionHeader } from "../components/SectionHeader";
 import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
 import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
 import { getActivePlanVersionId } from "../features/trainingPlanReview/trainingPlanReviewRepo";
@@ -46,6 +45,8 @@ const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
 // be rendered from.
 export function TodayPage() {
   const { athleteId } = useAuth();
+  // UX-09 — arriving from the first run: this is the rider's first day.
+  const firstDay = (useLocation().state as { firstDay?: boolean } | null)?.firstDay === true;
   const [hasCheckin, setHasCheckin] = useState(false);
   // Bumped only on an actual save (CheckinForm's onSaved), never on the
   // initial load of an existing row — see DailyPlanPanel's checkinRevision
@@ -161,21 +162,23 @@ export function TodayPage() {
       <HealthFlagBanner flags={openHealthFlags} />
 
       {hasActivePlan === false && (
-        <Card className="flex flex-col gap-3">
-          <SectionHeader title="Ton plan d'entraînement" />
-          <p className="text-sm text-ink/80">
-            Complète ton profil et tes disponibilités pour créer ton premier plan d'entraînement.
-          </p>
-          <Link to="/performance-setup">
-            <PrimaryButton className="w-full">Configurer mon profil et générer mon plan</PrimaryButton>
+        // UX-09 — no plan yet: the first run builds it (/start).
+        <section aria-labelledby="no-plan-title" className="ux-enter rounded-2xl border border-gold/40 bg-card p-5">
+          <h2 id="no-plan-title" className="font-display text-3xl font-extrabold uppercase leading-none text-ink">
+            {TODAY_NO_PLAN.title}
+          </h2>
+          <p className="mt-2 text-sm text-ink/80">{TODAY_NO_PLAN.text}</p>
+          <Link to="/start" className="mt-4 block">
+            <PrimaryButton className="w-full">{`${TODAY_NO_PLAN.cta} →`}</PrimaryButton>
           </Link>
-        </Card>
+        </section>
       )}
 
       {!checkinKnown && heroSkeleton}
 
       {checkinKnown && !hasCheckin && (
         <CheckinHero
+          {...(firstDay ? { kicker: FIRST_DAY.kicker, title: FIRST_DAY.title, text: FIRST_DAY.text } : {})}
           onStart={() => setSheetOpen(true)}
           planningSlot={athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
         />

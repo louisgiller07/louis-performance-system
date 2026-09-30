@@ -185,8 +185,8 @@ export function TrainingPlanPreviewPage() {
       <PageShell header={<AppHeader />}>
         <SectionHeader title="Ton plan d'entraînement" />
         <p className="text-sm text-ink/80">Aucun plan généré pour le moment.</p>
-        <Link to="/performance-setup">
-          <PrimaryButton className="w-full">Configurer mon profil</PrimaryButton>
+        <Link to="/start">
+          <PrimaryButton className="w-full">Construire ma préparation</PrimaryButton>
         </Link>
       </PageShell>
     );

@@ -47,6 +47,14 @@ function renderProtected(
               </RequireAuth>
             }
           />
+          <Route
+            path="/start"
+            element={
+              <RequireAuth>
+                <div>First run setup</div>
+              </RequireAuth>
+            }
+          />
         </Routes>
       </AuthProvider>
     </MemoryRouter>
@@ -72,12 +80,13 @@ describe("RequireAuth", () => {
   it("V0.3_004B — unauthenticated: bootstrap is never shown, redirects to /login instead", async () => {
     renderProtected(null);
     await waitFor(() => expect(screen.getByText("Login page")).toBeInTheDocument());
-    expect(screen.queryByText("Bienvenue sur NALYNT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bienvenue dans NALYNT")).not.toBeInTheDocument();
   });
 
   it("V0.3_004B — authenticated with zero athlete rows: renders the AthleteBootstrap UI, not the dead-end message or the protected child", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, []);
-    await waitFor(() => expect(screen.getByText("Bienvenue sur NALYNT")).toBeInTheDocument());
+    // UX-09 — the first run lives on /start: redirected there, welcomed by the bootstrap.
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Bienvenue dans NALYNT" })).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     expect(screen.queryByText(/contacte le support/i)).not.toBeInTheDocument();
   });
@@ -85,20 +94,18 @@ describe("RequireAuth", () => {
   it("V0.3_004B — more than one athlete resolved: still the existing config-error message, bootstrap is NOT shown", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [{ id: "athlete-1" }, { id: "athlete-2" }]);
     await waitFor(() => expect(screen.getByText(/erreur de configuration/i)).toBeInTheDocument());
-    expect(screen.queryByText("Bienvenue sur NALYNT")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bienvenue dans NALYNT")).not.toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 
-  it("V0.3_008A — athlete resolved but onboarding not completed: renders the onboarding wizard (its own intro screen), not the protected child or AthleteBootstrap", async () => {
+  it("V0.3_008A / UX-09 — onboarding not completed: redirected to /start, the first-run onboarding (not the bootstrap, not the protected child)", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [
       { id: "athlete-1", athlete_onboarding_profiles: null },
     ]);
-    // Both AthleteOnboarding's fresh-start intro and AthleteBootstrap share
-    // the "Welcome to NALYNT" headline (same first-run branding) — disambiguate
-    // on each screen's own distinct copy instead.
-    await waitFor(() => expect(screen.getByText("Créer mon profil d'athlète")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Qui es-tu ?")).toBeInTheDocument());
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
-    expect(screen.queryByText("Créons ton profil d'athlète.")).not.toBeInTheDocument();
+    expect(screen.queryByText("First run setup")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Bienvenue dans NALYNT" })).not.toBeInTheDocument();
   });
 
   it("V0.3_008A — athlete resolved and onboarding completed: renders the protected child, not the onboarding wizard", async () => {
@@ -106,7 +113,7 @@ describe("RequireAuth", () => {
       { id: "athlete-1", athlete_onboarding_profiles: ONBOARDING_DONE },
     ]);
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
-    expect(screen.queryByText("Quelle discipline pratiques-tu ?")).not.toBeInTheDocument();
+    expect(screen.queryByText("Qui es-tu ?")).not.toBeInTheDocument();
   });
 
   describe("PILOT_012 — health-data consent gate", () => {

@@ -288,7 +288,7 @@ describe("PerformanceSetup — French labels, technical values (PILOT_015)", () 
     for (const value of STRENGTH_EXPERIENCE_TIER_OPTIONS) {
       expect(screen.getByRole("option", { name: STRENGTH_EXPERIENCE_TIER_LABELS[value] })).toHaveValue(value);
     }
-    expect(screen.getByRole("heading", { name: "Profil de performance" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Affiner ton profil" })).toBeInTheDocument();
 
     const visibleText = container.textContent ?? "";
     for (const value of RAW_VALUES) expect(visibleText).not.toContain(value);

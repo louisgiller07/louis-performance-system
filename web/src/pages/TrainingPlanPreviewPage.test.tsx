@@ -91,7 +91,7 @@ describe("TrainingPlanPreviewPage", () => {
     renderPage();
 
     expect(await screen.findByText("Aucun plan généré pour le moment.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Configurer mon profil" })).toHaveAttribute("href", "/performance-setup");
+    expect(screen.getByRole("link", { name: "Construire ma préparation" })).toHaveAttribute("href", "/start");
     expect(getTrainingPlanReview).not.toHaveBeenCalled();
   });
 
@@ -113,8 +113,9 @@ describe("TrainingPlanPreviewPage", () => {
 
     // The most recent (version-2) is loaded by default.
     expect(await screen.findByText("Plan régénéré après une modification manuelle.")).toBeInTheDocument();
-    expect(screen.getByText("Version non active")).toBeInTheDocument();
-    expect(screen.getByText("Générée le 22 septembre")).toBeInTheDocument();
+    // UX-09 — no active plan yet: a first plan, never "draft" / "version non active".
+    expect(screen.getByText("Ton premier plan est prêt")).toBeInTheDocument();
+    expect(screen.queryByText(/Version non active|Brouillon/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText("1 autre version"));
     await userEvent.click(screen.getByRole("button", { name: /Générée le 20 septembre/ }));
@@ -228,13 +229,13 @@ describe("TrainingPlanPreviewPage — acceptance (V0.5_050, UX-06)", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    expect(await screen.findByText("Version non active")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Accepter ce plan" }));
+    expect(await screen.findByText("Ton premier plan est prêt")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Commencer ma préparation" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
 
-    await waitFor(() => expect(screen.queryByText("Version non active")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Ton premier plan est prêt")).not.toBeInTheDocument());
     expect(await screen.findByText("Première génération de ton plan d'entraînement.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Commencer ma préparation" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Aller à Aujourd'hui" })).not.toBeInTheDocument();
     expect(acceptTrainingPlan).toHaveBeenCalledWith(DRAFT_1.id);
     expect(getTrainingPlanReview).toHaveBeenCalledTimes(2);
@@ -247,11 +248,11 @@ describe("TrainingPlanPreviewPage — acceptance (V0.5_050, UX-06)", () => {
 
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Accepter ce plan" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Commencer ma préparation" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
 
     expect(await screen.findByText("Erreur serveur.")).toBeInTheDocument();
-    expect(screen.getByText("Version non active")).toBeInTheDocument();
+    expect(screen.getByText("Ton premier plan est prêt")).toBeInTheDocument();
   });
 
   it("refresh on an accepted plan's exact URL shows it as the active plan from persisted data alone", async () => {

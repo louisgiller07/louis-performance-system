@@ -6,7 +6,7 @@ import { addDays, todayLocal } from "../lib/date";
 import { weekDates } from "../features/today/todayContext";
 import { writeSimulatedDate } from "../lib/simulationClock";
 
-function renderTodayPage(path = "/today") {
+function renderTodayPage(path: string | { pathname: string; state: unknown } = "/today") {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <TodayPage />
@@ -262,6 +262,27 @@ describe("TodayPage (UX-03)", () => {
       expect(screen.queryByRole("button", { name: "Commencer mon check-in" })).not.toBeInTheDocument();
     });
 
+    it("UX-09 — arriving from the first run: 'Ton premier jour avec NALYNT'", () => {
+      renderTodayPage({ pathname: "/today", state: { firstDay: true } });
+      screen.getByText("simulate no checkin (load)").click();
+
+      return waitFor(() => {
+        expect(screen.getByText("Ton premier jour avec NALYNT")).toBeInTheDocument();
+        expect(screen.getByText("Ton check-in permet à NALYNT d'adapter ta première séance à ton état.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Commencer mon check-in" })).toBeInTheDocument();
+      });
+    });
+
+    it("any other day: the usual check-in invitation, never 'premier jour'", () => {
+      renderTodayPage();
+      screen.getByText("simulate no checkin (load)").click();
+
+      return waitFor(() => {
+        expect(screen.getByText("Check-in du jour")).toBeInTheDocument();
+        expect(screen.queryByText("Ton premier jour avec NALYNT")).not.toBeInTheDocument();
+      });
+    });
+
     it("no check-in today: the check-in invitation, with what is planned today (TodayPlanningSummary wired with the canonical date)", () => {
       renderTodayPage();
       screen.getByText("simulate no checkin (load)").click();
@@ -386,13 +407,13 @@ describe("TodayPage (UX-03)", () => {
   });
 
   describe("PILOT_012 — guided entry for athletes without a training plan", () => {
-    it("no accepted plan: shows the setup CTA to /performance-setup, and Today keeps check-in, decision and completion", async () => {
+    it("no accepted plan (UX-09): invites to build the preparation on /start, and Today keeps check-in, decision and completion", async () => {
       getActivePlanVersionId.mockResolvedValue(null);
       renderTodayPage();
 
-      const cta = await screen.findByRole("link", { name: "Configurer mon profil et générer mon plan" });
-      expect(cta).toHaveAttribute("href", "/performance-setup");
-      expect(screen.getByText("Complète ton profil et tes disponibilités pour créer ton premier plan d'entraînement.")).toBeInTheDocument();
+      const cta = await screen.findByRole("link", { name: "Construire ma préparation →" });
+      expect(cta).toHaveAttribute("href", "/start");
+      expect(screen.getByText("Quelques questions sur ton entraînement, et NALYNT construit ton premier plan.")).toBeInTheDocument();
       expect(screen.getByTestId("checkin-form-stub")).toBeInTheDocument();
       expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
       expect(screen.getByTestId("completed-session-card-stub")).toBeInTheDocument();
@@ -402,7 +423,7 @@ describe("TodayPage (UX-03)", () => {
       renderTodayPage();
 
       await waitFor(() => expect(getActivePlanVersionId).toHaveBeenCalled());
-      expect(screen.queryByRole("link", { name: "Configurer mon profil et générer mon plan" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Construire ma préparation →" })).not.toBeInTheDocument();
       expect(screen.getByTestId("checkin-form-stub")).toBeInTheDocument();
       expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
     });
@@ -412,7 +433,7 @@ describe("TodayPage (UX-03)", () => {
       renderTodayPage();
 
       await waitFor(() => expect(getActivePlanVersionId).toHaveBeenCalled());
-      expect(screen.queryByRole("link", { name: "Configurer mon profil et générer mon plan" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Construire ma préparation →" })).not.toBeInTheDocument();
       expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
     });
   });

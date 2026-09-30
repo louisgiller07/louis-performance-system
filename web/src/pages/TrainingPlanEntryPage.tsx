@@ -25,7 +25,7 @@ export function TrainingPlanEntryPage() {
         return;
       }
       const drafts = await getTrainingPlanDrafts();
-      setDestination({ status: "redirect", to: drafts.length > 0 ? "/training-plan-preview" : "/performance-setup" });
+      setDestination({ status: "redirect", to: drafts.length > 0 ? "/training-plan-preview" : "/start" });
     } catch {
       setDestination({ status: "error" });
     }
