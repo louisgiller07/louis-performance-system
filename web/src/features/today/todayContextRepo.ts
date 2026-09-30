@@ -42,7 +42,8 @@ const RACE_LOOKAHEAD_DAYS = 366;
 /** Same "active" statuses as raceOverlayRepo (Semaine). */
 const ACTIVE_RACE_STATUSES = ["planned", "registered", "confirmed"] as const;
 
-async function loadFirstName(): Promise<string | null> {
+/** Also used by the first run (UX-09). */
+export async function loadFirstName(): Promise<string | null> {
   const { data, error } = await supabase.from("athletes").select("name");
   if (error || !data || data.length !== 1) return null;
   return firstNameFrom((data[0] as { name: string | null }).name);

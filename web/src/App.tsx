@@ -12,6 +12,7 @@ import { HistoryDetailPage } from "./pages/HistoryDetailPage";
 import { InsightsPage } from "./pages/InsightsPage";
 import { SimulationLabPage } from "./pages/SimulationLabPage";
 import { PerformanceSetup } from "./features/performanceSetup/PerformanceSetup";
+import { FirstRunSetup } from "./features/firstRun/FirstRunSetup";
 import { TrainingPlanPreviewPage } from "./pages/TrainingPlanPreviewPage";
 import { TrainingPlanEntryPage } from "./pages/TrainingPlanEntryPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -80,6 +81,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <SimulationLabPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/start"
+            element={
+              <RequireAuth>
+                <FirstRunSetup />
               </RequireAuth>
             }
           />

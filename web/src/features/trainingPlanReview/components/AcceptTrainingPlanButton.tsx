@@ -13,6 +13,8 @@ interface AcceptTrainingPlanButtonProps {
   /** Whether the athlete already has a different plan currently active — surfaced as a warning in the confirmation step, never a blocker. */
   hasActivePlan: boolean;
   onAccepted: (result: AcceptTrainingPlanResponse) => void;
+  /** UX-09 — "Commencer ma préparation" for a rider's first plan. */
+  label?: string;
 }
 
 /**
@@ -25,7 +27,7 @@ interface AcceptTrainingPlanButtonProps {
  * (TrainingPlanOverview) is responsible for showing the lifecycle state
  * itself.
  */
-export function AcceptTrainingPlanButton({ review, hasActivePlan, onAccepted }: AcceptTrainingPlanButtonProps) {
+export function AcceptTrainingPlanButton({ review, hasActivePlan, onAccepted, label = "Accepter ce plan" }: AcceptTrainingPlanButtonProps) {
   const [state, setState] = useState<ButtonState>("idle");
   const [error, setError] = useState<AcceptTrainingPlanError | null>(null);
 
@@ -46,7 +48,7 @@ export function AcceptTrainingPlanButton({ review, hasActivePlan, onAccepted }: 
   }
 
   if (state === "idle") {
-    return <PrimaryButton onClick={() => setState("confirming")}>Accepter ce plan</PrimaryButton>;
+    return <PrimaryButton onClick={() => setState("confirming")}>{label}</PrimaryButton>;
   }
 
   return (

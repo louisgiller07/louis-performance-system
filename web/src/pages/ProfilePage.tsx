@@ -10,8 +10,8 @@ import { AppHeader } from "../components/AppHeader";
 const ROWS = [
   {
     to: "/performance-setup",
-    title: "Configuration athlète",
-    description: "Discipline, objectifs, disponibilités et génération de ton plan.",
+    title: "Affiner ton profil",
+    description: "Matériel, terrain, priorités de pilotage, créneaux jour par jour et génération de ton plan.",
   },
   {
     to: "/privacy",

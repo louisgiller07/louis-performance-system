@@ -17,7 +17,7 @@ function renderEntry() {
         <Route path="/training-plan" element={<TrainingPlanEntryPage />} />
         <Route path="/training-plan-preview/:planVersionId" element={<ExactPreview />} />
         <Route path="/training-plan-preview" element={<div>Latest draft preview</div>} />
-        <Route path="/performance-setup" element={<div>Performance setup page</div>} />
+        <Route path="/start" element={<div>First run page</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -48,12 +48,12 @@ describe("TrainingPlanEntryPage — /training-plan (PILOT_012)", () => {
     expect(await screen.findByText("Latest draft preview")).toBeInTheDocument();
   });
 
-  it("no plan at all -> the Performance Setup to create a first plan", async () => {
+  it("no plan at all -> the first run (/start) to build a first plan (UX-09)", async () => {
     getActivePlanVersionId.mockResolvedValue(null);
     getTrainingPlanDrafts.mockResolvedValue([]);
     renderEntry();
 
-    expect(await screen.findByText("Performance setup page")).toBeInTheDocument();
+    expect(await screen.findByText("First run page")).toBeInTheDocument();
   });
 
   it("a lookup failure shows an error with a retry, never a fake plan", async () => {

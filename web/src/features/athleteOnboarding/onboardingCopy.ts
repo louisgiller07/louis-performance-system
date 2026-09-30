@@ -9,35 +9,7 @@
 // remain exactly what is written to the DB.
 import type { CompetitionLevel, Discipline, PrimaryGoal, RidingDay, WeeklyTrainingHours } from "./onboardingOptions";
 
-export const INTRO_COPY = {
-  title: "Bienvenue sur NALYNT",
-  subtitle: "Ton coach de performance commence par apprendre à te connaître.",
-  description:
-    "Chaque athlète est différent. Tes objectifs, ton emploi du temps et ta façon de rouler façonnent ta progression.",
-  cta: "Créer mon profil d'athlète",
-};
-
-export interface StepCopy {
-  title: string;
-  hint?: string;
-}
-
-export const STEP_COPY: Record<1 | 2 | 3 | 4 | 5, StepCopy> = {
-  1: { title: "Quelle discipline pratiques-tu ?", hint: "Ça aide NALYNT à comprendre ton environnement de pilotage." },
-  2: {
-    title: "Où en es-tu aujourd'hui ?",
-    hint: "Connaître ton niveau actuel aide NALYNT à fixer des objectifs de progression réalistes.",
-  },
-  3: { title: "Qu'est-ce que NALYNT doit t'aider à atteindre ?" },
-  4: {
-    title: "Combien de temps peux-tu consacrer à ta progression ?",
-    hint: "Ton temps disponible permet des recommandations réalistes.",
-  },
-  5: {
-    title: "Quels jours roules-tu habituellement ?",
-    hint: "Ton emploi du temps nous aide à construire des recommandations réalistes.",
-  },
-};
+// UX-09 — the step titles and questions now live in firstRun/firstRunPresentation.ts.
 
 export const DISCIPLINE_LABELS: Record<Discipline, string> = {
   Downhill: "Descente (DH)",
@@ -85,20 +57,4 @@ export const RIDING_DAY_LABELS: Record<RidingDay, string> = {
   Friday: "Vendredi",
   Saturday: "Samedi",
   Sunday: "Dimanche",
-};
-
-export const WIZARD_COPY = {
-  progress: (step: number, total: number) => `Étape ${step} sur ${total}`,
-  selectAll: "Sélectionne tous les jours qui s'appliquent.",
-  back: "Retour",
-  continue: "Continuer",
-  saving: "Enregistrement…",
-  loading: "Chargement…",
-};
-
-export const COMPLETION_COPY = {
-  title: "Ton profil d'athlète est prêt.",
-  checklist: ["Ta discipline", "Ton niveau", "Tes objectifs", "Tes disponibilités"],
-  text: "Prochaine étape : configure ton profil de performance et tes disponibilités pour générer ton premier plan d'entraînement.",
-  cta: "Configurer mon plan d'entraînement",
 };

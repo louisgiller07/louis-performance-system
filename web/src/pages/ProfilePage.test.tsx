@@ -24,7 +24,7 @@ describe("ProfilePage (UX-02)", () => {
 
   it("links to the athlete configuration and to the privacy notice", () => {
     renderPage();
-    expect(screen.getByRole("link", { name: /Configuration athlète/ })).toHaveAttribute("href", "/performance-setup");
+    expect(screen.getByRole("link", { name: /Affiner ton profil/ })).toHaveAttribute("href", "/performance-setup");
     expect(screen.getByRole("link", { name: /Confidentialité/ })).toHaveAttribute("href", "/privacy");
   });
 

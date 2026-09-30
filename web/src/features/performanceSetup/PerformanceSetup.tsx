@@ -3,6 +3,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PageShell } from "../../components/PageShell";
 import { AppHeader } from "../../components/AppHeader";
 import { SectionHeader } from "../../components/SectionHeader";
+import { REFINE } from "../firstRun/firstRunPresentation";
 import { Card } from "../../components/Card";
 import { Select } from "../../components/Select";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -182,7 +183,8 @@ export function PerformanceSetup() {
 
   return (
     <PageShell header={<AppHeader />}>
-      <SectionHeader title="Profil de performance" subtitle="Ces informations orientent la génération de ton plan d'entraînement." />
+      {/* UX-09 — the first run asks the essentials; this page is where the rider refines everything else. */}
+      <SectionHeader title={REFINE.title} subtitle={REFINE.subtitle} />
 
       <Card className="flex flex-col gap-3">
         <p className="text-sm font-medium text-ink">Équipement disponible</p>

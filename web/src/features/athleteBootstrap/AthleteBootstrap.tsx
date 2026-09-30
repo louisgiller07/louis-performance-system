@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { PrimaryButton } from "../../components/PrimaryButton";
+import { FirstRunShell } from "../firstRun/FirstRunShell";
+import { WELCOME } from "../firstRun/firstRunPresentation";
 import { createOwnAthlete, AthleteBootstrapError } from "./athleteBootstrapRepo";
 import { validateAthleteName } from "./athleteBootstrapValidation";
 
@@ -16,8 +17,7 @@ export function AthleteBootstrap() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function handleSubmit() {
     if (submitting) return;
     setError(null);
 
@@ -61,41 +61,50 @@ export function AthleteBootstrap() {
     }
   }
 
+  // UX-09 — the first screen of the first run: the promise before any
+  // question, then the one thing needed to create the profile.
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-8">
-      <div className="w-full max-w-105">
-        <p className="text-center text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-
-        <form
-          onSubmit={handleSubmit}
-          className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
-        >
-          <div>
-            <h1 className="text-xl font-bold text-ink">Bienvenue sur NALYNT</h1>
-            <p className="mt-1 text-sm text-muted">Créons ton profil d'athlète.</p>
-          </div>
-
-          <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-            Nom
-            <input
-              type="text"
-              autoComplete="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={100}
-              className="rounded border border-white/10 bg-bg px-3 py-3 text-base text-ink normal-case placeholder:text-muted focus:border-gold focus:outline-none"
-            />
-          </label>
-          {error && (
-            <p role="alert" className="text-sm text-red-400">
-              {error}
-            </p>
-          )}
-          <PrimaryButton type="submit" disabled={submitting} className="min-h-12.5 text-base tracking-wide">
-            {submitting ? "Création…" : "Continuer"}
-          </PrimaryButton>
-        </form>
+    <FirstRunShell
+      chapter={0}
+      title={WELCOME.kicker}
+      onNext={() => void handleSubmit()}
+      nextLabel={submitting ? WELCOME.creating : WELCOME.start}
+      busy={submitting}
+      error={error}
+      stepKey="welcome"
+    >
+      <div className="rounded-2xl border border-gold/40 bg-card p-5">
+        <p className="font-display text-3xl font-extrabold uppercase leading-none text-ink">
+          {WELCOME.title[0]}
+          <br />
+          <span className="text-gold">{WELCOME.title[1]}</span>
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-ink/80">{WELCOME.promise}</p>
+        <p className="mt-4 text-sm text-ink/70">{WELCOME.inMinutes}</p>
+        <ul className="mt-2 flex flex-col gap-2">
+          {WELCOME.essentials.map((item) => (
+            <li key={item} className="flex items-center gap-3 text-sm text-ink/90">
+              <span className="text-gold" aria-hidden="true">
+                ✓
+              </span>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 font-display text-lg font-extrabold uppercase leading-tight text-gold">{WELCOME.builds}</p>
       </div>
-    </div>
+      <label className="flex flex-col gap-2">
+        <span className="text-base text-ink">{WELCOME.nameQuestion}</span>
+        <input
+          type="text"
+          aria-label={WELCOME.nameLabel}
+          autoComplete="name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={100}
+          className="rounded-lg border border-line bg-card px-4 py-3.5 text-base text-ink placeholder:text-muted focus:border-gold focus:outline-none"
+        />
+      </label>
+    </FirstRunShell>
   );
 }

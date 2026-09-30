@@ -34,18 +34,24 @@ function renderBootstrap() {
 
 async function submitName(name: string) {
   const user = userEvent.setup();
-  const input = screen.getByLabelText("Nom");
+  const input = screen.getByLabelText("Ton prénom et ton nom");
   if (name) await user.type(input, name);
-  await user.click(screen.getByRole("button", { name: /continue|creating/i }));
+  await user.click(screen.getByRole("button", { name: /Commencer|Enregistrement/ }));
 }
 
 describe("AthleteBootstrap", () => {
-  it("renders the minimal setup surface: title, supporting text, one field, one button", () => {
+  it("UX-09 — the welcome: the promise first, then one field and one action", () => {
     renderBootstrap();
-    expect(screen.getByText("Bienvenue sur NALYNT")).toBeInTheDocument();
-    expect(screen.getByText("Créons ton profil d'athlète.")).toBeInTheDocument();
-    expect(screen.getByLabelText("Nom")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continuer" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Bienvenue dans NALYNT" })).toBeInTheDocument();
+    expect(screen.getByText("Ton objectif reste.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Ton plan s'adapte.")).toBeInTheDocument();
+    expect(screen.getByText("En quelques minutes :")).toBeInTheDocument();
+    for (const item of ["Ton objectif", "Ton niveau", "Ta réalité quotidienne"]) expect(screen.getByText(item)).toBeInTheDocument();
+    expect(screen.getByText("NALYNT construit ta préparation.")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Étape|étapes/);
+    expect(screen.getByText("Comment tu t'appelles ?")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ton prénom et ton nom")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Commencer" })).toBeInTheDocument();
   });
 
   it("B — empty name: submit rejected, never calls createOwnAthlete", async () => {
@@ -107,9 +113,9 @@ describe("AthleteBootstrap", () => {
 
     const user = userEvent.setup();
     renderBootstrap();
-    await user.type(screen.getByLabelText("Nom"), "Louis");
+    await user.type(screen.getByLabelText("Ton prénom et ton nom"), "Louis");
 
-    const button = screen.getByRole("button", { name: "Continuer" });
+    const button = screen.getByRole("button", { name: "Commencer" });
     await user.click(button);
     expect(button).toBeDisabled();
     await user.click(button); // second click while still in flight must be a no-op

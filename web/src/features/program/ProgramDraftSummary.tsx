@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { TrainingPlanDraftSummary, TrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewTypes";
 import { AcceptTrainingPlanButton } from "../trainingPlanReview/components/AcceptTrainingPlanButton";
 import type { AcceptTrainingPlanResponse } from "../trainingPlanReview/acceptTrainingPlan";
+import { READY } from "../firstRun/firstRunPresentation";
 
 // UX-06 — drafts, honestly. A draft is a new, complete generation of the plan
 // (created when the athlete runs "Générer mon plan"), never an adaptation
@@ -55,6 +56,26 @@ export function ProgramDraftSummary({
   onSelect: (planVersionId: string) => void;
   onAccepted: (result: AcceptTrainingPlanResponse) => void;
 }) {
+  if (review.lifecycleState === "draft" && !hasActivePlan) {
+    // UX-09 — a rider's very first plan is never a "draft" or a "version".
+    const others = drafts.filter((draft) => draft.id !== review.version.id);
+    return (
+      <section aria-labelledby="draft-title" className="ux-enter rounded-xl border border-gold/50 bg-card p-5">
+        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">{READY.kicker}</p>
+        <h2 id="draft-title" className="mt-2 font-display text-2xl font-extrabold uppercase leading-tight text-ink">
+          {READY.title}
+        </h2>
+        <p className="mt-3 font-display text-lg font-extrabold uppercase leading-tight text-ink">
+          {READY.promise[0]} <span className="text-gold">{READY.promise[1]}</span>
+        </p>
+        <div className="mt-4 flex flex-col gap-2">
+          <AcceptTrainingPlanButton review={review} hasActivePlan={false} onAccepted={onAccepted} label={READY.start} />
+        </div>
+        <OlderVersions drafts={others} onSelect={onSelect} label={`${others.length} autre${others.length > 1 ? "s" : ""} version${others.length > 1 ? "s" : ""}`} />
+      </section>
+    );
+  }
+
   if (review.lifecycleState === "draft") {
     const others = drafts.filter((draft) => draft.id !== review.version.id);
     return (

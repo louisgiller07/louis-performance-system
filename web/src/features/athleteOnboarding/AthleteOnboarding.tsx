@@ -1,15 +1,17 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { HealthDataConsentCheckbox } from "../privacy/HealthDataConsentCheckbox";
 import { PRIVACY_NOTICE_VERSION } from "../privacy/privacyNotice";
-import { PrimaryButton } from "../../components/PrimaryButton";
+import { loadFirstName } from "../today/todayContextRepo";
+import { FirstRunShell, ChoiceList } from "../firstRun/FirstRunShell";
+import { ONBOARDING_STEPS, SHELL, greeting } from "../firstRun/firstRunPresentation";
 import {
   loadOnboardingAnswers,
   saveDiscipline,
   saveCompetitionLevel,
   savePrimaryGoal,
   saveWeeklyTrainingHours,
+  saveRidingDays,
   completeOnboarding,
   AthleteOnboardingError,
 } from "./athleteOnboardingRepo";
@@ -26,109 +28,50 @@ import {
   type RidingDay,
 } from "./onboardingOptions";
 import {
-  INTRO_COPY,
-  STEP_COPY,
   PRIMARY_GOAL_DESCRIPTIONS,
-  COMPLETION_COPY,
   DISCIPLINE_LABELS,
   COMPETITION_LEVEL_LABELS,
   PRIMARY_GOAL_LABELS,
   WEEKLY_TRAINING_HOURS_LABELS,
   RIDING_DAY_LABELS,
-  WIZARD_COPY,
 } from "./onboardingCopy";
 
-const TOTAL_STEPS = 5;
+const STEP_IDS = ["discipline", "level", "goal", "hours", "ridingDays", "consent"] as const;
+type StepId = (typeof STEP_IDS)[number];
 
-/** First step whose answer is still missing — where the wizard resumes after a refresh. */
+/** First step whose answer is still missing — where the first run resumes after a refresh. */
 function firstUnansweredStep(answers: {
   discipline: string | null;
   competitionLevel: string | null;
   primaryGoal: string | null;
   weeklyTrainingHours: string | null;
+  preferredRidingDays: readonly string[];
 }): number {
-  if (!answers.discipline) return 1;
-  if (!answers.competitionLevel) return 2;
-  if (!answers.primaryGoal) return 3;
-  if (!answers.weeklyTrainingHours) return 4;
+  if (!answers.discipline) return 0;
+  if (!answers.competitionLevel) return 1;
+  if (!answers.primaryGoal) return 2;
+  if (!answers.weeklyTrainingHours) return 3;
+  if (answers.preferredRidingDays.length === 0) return 4;
   return 5;
 }
 
-interface ChoiceCardProps {
-  label: string;
-  description?: string;
-  selected: boolean;
-  onClick: () => void;
-}
-
-function ChoiceCard({ label, description, selected, onClick }: ChoiceCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-xl border px-4 py-3.5 text-left transition-colors ${
-        selected ? "border-gold bg-gold/10 text-ink" : "border-white/10 bg-bg text-ink hover:border-white/25"
-      }`}
-    >
-      <span className="block text-base">{label}</span>
-      {description && <span className="mt-1 block text-sm text-muted">{description}</span>}
-    </button>
-  );
-}
-
-/** Subtle, dependency-free fade/slide-in — re-triggers whenever its `key` changes (e.g. on step change). */
-function FadeIn({ children }: { children: ReactNode }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
-
-  return (
-    <div className={`transition-all duration-500 ease-out ${visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}>
-      {children}
-    </div>
-  );
-}
-
-function ProgressBar({ step }: { step: number }) {
-  return (
-    <div className="flex w-full flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-        {WIZARD_COPY.progress(step, TOTAL_STEPS)}
-      </p>
-      <div className="flex gap-1.5">
-        {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-          <div key={i} className={`h-1.5 flex-1 rounded-full ${i < step ? "bg-gold" : "bg-white/10"}`} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /**
- * V0.3_008A — Athlete Onboarding V1, Niveau 1 (obligatoire). Rendered by
- * RequireAuth exactly like AthleteBootstrap, one level further: once
- * `athleteResolution.status === "resolved"` but `!onboardingCompleted`. Each
- * step saves immediately on Continue (see athleteOnboardingRepo.ts) — no
- * local-only draft state — so a browser refresh resumes at the right step
- * instead of losing progress. Collects data only: no coaching logic, no
- * engine call.
+ * V0.3_008A / UX-09 — the "who you are" part of the first run, rendered by
+ * RequireAuth at /start while onboarding is not completed. Each step saves
+ * immediately (athleteOnboardingRepo), so a refresh resumes at the first
+ * unanswered step. The consent step completes onboarding (the DB requires the
+ * explicit health-data consent for it); RequireAuth then renders the rest of
+ * the first run (FirstRunSetup) on the same route, with no page in between.
+ * Collects data only: no coaching logic, no engine call.
  */
 export function AthleteOnboarding() {
   const { athleteId, refreshAthlete } = useAuth();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  // Explicit health-data consent — never pre-checked, required to complete onboarding.
   const [healthDataConsent, setHealthDataConsent] = useState(false);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-  // Only shown on a genuinely fresh start (nothing answered yet) — a
-  // returning athlete resuming mid-wizard skips straight to their step.
-  const [showIntro, setShowIntro] = useState(false);
+  const [firstName, setFirstName] = useState<string | null>(null);
 
   const [discipline, setDiscipline] = useState<Discipline | null>(null);
   const [competitionLevel, setCompetitionLevel] = useState<CompetitionLevel | null>(null);
@@ -139,7 +82,11 @@ export function AthleteOnboarding() {
   useEffect(() => {
     if (!athleteId) return;
     let active = true;
-
+    loadFirstName()
+      .then((name) => {
+        if (active) setFirstName(name);
+      })
+      .catch(() => {});
     loadOnboardingAnswers()
       .then((answers) => {
         if (!active) return;
@@ -148,9 +95,7 @@ export function AthleteOnboarding() {
         setPrimaryGoal(answers.primaryGoal);
         setWeeklyTrainingHours(answers.weeklyTrainingHours);
         setRidingDays(answers.preferredRidingDays);
-        const resumeStep = firstUnansweredStep(answers);
-        setStep(resumeStep);
-        setShowIntro(resumeStep === 1);
+        setStep(firstUnansweredStep(answers));
         setLoading(false);
       })
       .catch(() => {
@@ -158,7 +103,6 @@ export function AthleteOnboarding() {
         setError("Impossible de charger ton profil. Réessaie.");
         setLoading(false);
       });
-
     return () => {
       active = false;
     };
@@ -168,32 +112,38 @@ export function AthleteOnboarding() {
     setRidingDays((current) => (current.includes(day) ? current.filter((d) => d !== day) : [...current, day]));
   }
 
+  const id: StepId = STEP_IDS[step]!;
+  const canContinue =
+    (id === "discipline" && !!discipline) ||
+    (id === "level" && !!competitionLevel) ||
+    (id === "goal" && !!primaryGoal) ||
+    (id === "hours" && !!weeklyTrainingHours) ||
+    (id === "ridingDays" && ridingDays.length > 0) ||
+    (id === "consent" && ridingDays.length > 0 && !!competitionLevel && !!primaryGoal && !!weeklyTrainingHours && healthDataConsent);
+
   async function handleContinue() {
-    if (!athleteId || saving) return;
+    if (!athleteId || saving || !canContinue) return;
     setError(null);
     setSaving(true);
     try {
-      if (step === 1 && discipline) {
-        await saveDiscipline(athleteId, discipline);
-      } else if (step === 2 && competitionLevel) {
-        await saveCompetitionLevel(athleteId, competitionLevel);
-      } else if (step === 3 && primaryGoal) {
-        await savePrimaryGoal(athleteId, primaryGoal);
-      } else if (step === 4 && weeklyTrainingHours) {
-        await saveWeeklyTrainingHours(athleteId, weeklyTrainingHours);
-      } else if (step === 5 && ridingDays.length > 0 && competitionLevel && primaryGoal && weeklyTrainingHours && healthDataConsent) {
+      if (id === "discipline") await saveDiscipline(athleteId, discipline!);
+      else if (id === "level") await saveCompetitionLevel(athleteId, competitionLevel!);
+      else if (id === "goal") await savePrimaryGoal(athleteId, primaryGoal!);
+      else if (id === "hours") await saveWeeklyTrainingHours(athleteId, weeklyTrainingHours!);
+      else if (id === "ridingDays") await saveRidingDays(athleteId, ridingDays);
+      else {
         await completeOnboarding(athleteId, {
-          competitionLevel,
-          primaryGoal,
-          weeklyTrainingHours,
+          competitionLevel: competitionLevel!,
+          primaryGoal: primaryGoal!,
+          weeklyTrainingHours: weeklyTrainingHours!,
           preferredRidingDays: ridingDays,
           privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
         });
-        setDone(true);
-        setSaving(false);
+        // RequireAuth now renders the rest of the first run on this same route.
+        await refreshAthlete();
         return;
       }
-      setStep((s) => Math.min(s + 1, TOTAL_STEPS));
+      setStep((s) => Math.min(s + 1, STEP_IDS.length - 1));
     } catch (err) {
       setError(err instanceof AthleteOnboardingError ? err.message : "Une erreur inattendue s'est produite. Réessaie.");
     } finally {
@@ -203,199 +153,51 @@ export function AthleteOnboarding() {
 
   function handleBack() {
     setError(null);
-    setStep((s) => Math.max(1, s - 1));
-  }
-
-  async function handleEnter() {
-    await refreshAthlete();
-    // A brand-new athlete has no training plan yet: the next step is always the setup page.
-    navigate("/performance-setup", { replace: true });
+    setStep((s) => Math.max(0, s - 1));
   }
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-bg text-sm text-muted">{WIZARD_COPY.loading}</div>;
+    return <FirstRunShell chapter={0} title={SHELL.loading} />;
   }
 
-  if (showIntro) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-8 text-center">
-        <FadeIn>
-          <div className="w-full max-w-105">
-            <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">{INTRO_COPY.title}</p>
-            <p className="mt-4 text-lg font-semibold text-ink">{INTRO_COPY.subtitle}</p>
-            <p className="mt-4 text-sm leading-relaxed text-muted">{INTRO_COPY.description}</p>
-            <PrimaryButton
-              onClick={() => setShowIntro(false)}
-              className="mt-8 w-full min-h-12.5 text-base tracking-wide"
-            >
-              {INTRO_COPY.cta}
-            </PrimaryButton>
-          </div>
-        </FadeIn>
-      </div>
-    );
-  }
-
-  if (done) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 py-8 text-center">
-        <FadeIn>
-          <div className="w-full max-w-105">
-            <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-            <p className="mt-6 text-xl font-bold text-ink">{COMPLETION_COPY.title}</p>
-            <ul className="mt-6 flex flex-col gap-2 text-left">
-              {COMPLETION_COPY.checklist.map((item) => (
-                <li key={item} className="flex items-center gap-2 text-sm text-ink">
-                  <span className="text-gold" aria-hidden="true">
-                    ✓
-                  </span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-6 text-sm text-muted">{COMPLETION_COPY.text}</p>
-            <PrimaryButton onClick={() => void handleEnter()} className="mt-8 w-full min-h-12.5 text-base tracking-wide">
-              {COMPLETION_COPY.cta}
-            </PrimaryButton>
-          </div>
-        </FadeIn>
-      </div>
-    );
-  }
-
-  const canContinue =
-    (step === 1 && !!discipline) ||
-    (step === 2 && !!competitionLevel) ||
-    (step === 3 && !!primaryGoal) ||
-    (step === 4 && !!weeklyTrainingHours) ||
-    (step === 5 && ridingDays.length > 0 && !!competitionLevel && !!primaryGoal && !!weeklyTrainingHours && healthDataConsent);
-
+  const copy = ONBOARDING_STEPS[id];
   return (
-    <div className="flex min-h-screen flex-col items-center bg-bg px-4 py-8">
-      <div className="flex w-full max-w-105 flex-col gap-6">
-        <ProgressBar step={step} />
-
-        <FadeIn key={step}>
-          {step === 1 && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[1].title}</h1>
-                {STEP_COPY[1].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[1].hint}</p>}
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {DISCIPLINE_OPTIONS.map((option) => (
-                  <ChoiceCard key={option} label={DISCIPLINE_LABELS[option]} selected={discipline === option} onClick={() => setDiscipline(option)} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[2].title}</h1>
-                {STEP_COPY[2].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[2].hint}</p>}
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {COMPETITION_LEVEL_OPTIONS.map((option) => (
-                  <ChoiceCard
-                    key={option}
-                    label={COMPETITION_LEVEL_LABELS[option]}
-                    selected={competitionLevel === option}
-                    onClick={() => setCompetitionLevel(option)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[3].title}</h1>
-                {STEP_COPY[3].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[3].hint}</p>}
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {PRIMARY_GOAL_OPTIONS.map((option) => (
-                  <ChoiceCard
-                    key={option}
-                    label={PRIMARY_GOAL_LABELS[option]}
-                    description={PRIMARY_GOAL_DESCRIPTIONS[option]}
-                    selected={primaryGoal === option}
-                    onClick={() => setPrimaryGoal(option)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[4].title}</h1>
-                {STEP_COPY[4].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[4].hint}</p>}
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {WEEKLY_TRAINING_HOURS_OPTIONS.map((option) => (
-                  <ChoiceCard
-                    key={option}
-                    label={WEEKLY_TRAINING_HOURS_LABELS[option]}
-                    selected={weeklyTrainingHours === option}
-                    onClick={() => setWeeklyTrainingHours(option)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div className="flex flex-col gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-ink">{STEP_COPY[5].title}</h1>
-                {STEP_COPY[5].hint && <p className="mt-2 text-sm text-muted">{STEP_COPY[5].hint}</p>}
-                <p className="mt-1 text-sm text-muted">{WIZARD_COPY.selectAll}</p>
-              </div>
-              <div className="flex flex-col gap-2.5">
-                {RIDING_DAY_OPTIONS.map((option) => (
-                  <ChoiceCard
-                    key={option}
-                    label={RIDING_DAY_LABELS[option]}
-                    selected={ridingDays.includes(option)}
-                    onClick={() => toggleRidingDay(option)}
-                  />
-                ))}
-              </div>
-              <HealthDataConsentCheckbox checked={healthDataConsent} onChange={setHealthDataConsent} disabled={saving} />
-            </div>
-          )}
-        </FadeIn>
-
-        {error && (
-          <p role="alert" className="text-sm text-red-400">
-            {error}
-          </p>
-        )}
-
-        <div className="flex gap-3">
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={handleBack}
-              disabled={saving}
-              className="min-h-12.5 flex-1 rounded border border-white/10 text-sm font-semibold uppercase tracking-wide text-muted hover:border-white/25 disabled:opacity-40"
-            >
-              {WIZARD_COPY.back}
-            </button>
-          )}
-          <PrimaryButton
-            onClick={() => void handleContinue()}
-            disabled={!canContinue || saving}
-            className="min-h-12.5 flex-1 text-base tracking-wide"
-          >
-            {saving ? WIZARD_COPY.saving : WIZARD_COPY.continue}
-          </PrimaryButton>
-        </div>
-      </div>
-    </div>
+    <FirstRunShell
+      chapter={copy.chapter}
+      title={copy.title}
+      question={copy.question}
+      hint={"hint" in copy ? copy.hint : undefined}
+      onBack={step > 0 ? handleBack : undefined}
+      onNext={() => void handleContinue()}
+      nextDisabled={!canContinue}
+      busy={saving}
+      error={error}
+      stepKey={id}
+    >
+      {id === "discipline" && (
+        <>
+          <p className="-mt-3 font-display text-xl font-extrabold uppercase leading-tight text-gold">{greeting(firstName)}</p>
+          <ChoiceList options={DISCIPLINE_OPTIONS} labels={DISCIPLINE_LABELS} selected={discipline ? [discipline] : []} onToggle={setDiscipline} label={copy.question} />
+        </>
+      )}
+      {id === "level" && (
+        <ChoiceList options={COMPETITION_LEVEL_OPTIONS} labels={COMPETITION_LEVEL_LABELS} selected={competitionLevel ? [competitionLevel] : []} onToggle={setCompetitionLevel} label={copy.question} />
+      )}
+      {id === "goal" && (
+        <ChoiceList
+          options={PRIMARY_GOAL_OPTIONS}
+          labels={PRIMARY_GOAL_LABELS}
+          descriptions={PRIMARY_GOAL_DESCRIPTIONS}
+          selected={primaryGoal ? [primaryGoal] : []}
+          onToggle={setPrimaryGoal}
+          label={copy.question}
+        />
+      )}
+      {id === "hours" && (
+        <ChoiceList options={WEEKLY_TRAINING_HOURS_OPTIONS} labels={WEEKLY_TRAINING_HOURS_LABELS} selected={weeklyTrainingHours ? [weeklyTrainingHours] : []} onToggle={setWeeklyTrainingHours} label={copy.question} />
+      )}
+      {id === "ridingDays" && <ChoiceList options={RIDING_DAY_OPTIONS} labels={RIDING_DAY_LABELS} selected={ridingDays} onToggle={toggleRidingDay} label={copy.question} columns={2} />}
+      {id === "consent" && <HealthDataConsentCheckbox checked={healthDataConsent} onChange={setHealthDataConsent} disabled={saving} />}
+    </FirstRunShell>
   );
 }

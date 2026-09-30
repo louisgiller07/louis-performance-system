@@ -5,19 +5,32 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 // long form. `planningSlot` shows what is planned for today (read-only).
 const STEPS = ["Sommeil", "Énergie", "Fatigue", "Santé"];
 
-export function CheckinHero({ onStart, planningSlot }: { onStart: () => void; planningSlot?: ReactNode }) {
+// UX-09 — `kicker` / `title` / `text` let the rider's very first day say so ("Ton premier jour avec NALYNT").
+export function CheckinHero({
+  onStart,
+  planningSlot,
+  kicker = "Check-in du jour",
+  title = "Comment tu te sens aujourd'hui ?",
+  text = "Quatre étapes rapides. NALYNT prépare ensuite ta séance du jour.",
+}: {
+  onStart: () => void;
+  planningSlot?: ReactNode;
+  kicker?: string;
+  title?: string;
+  text?: string;
+}) {
   return (
     <section aria-labelledby="checkin-hero-title" className="ux-grain relative overflow-hidden rounded-2xl border border-gold/45 bg-card p-6">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-linear-to-br from-gold/10 via-transparent to-transparent" aria-hidden="true" />
       <p className="ux-enter flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
-        Check-in du jour
+        {kicker}
       </p>
       <h2 id="checkin-hero-title" className="ux-enter mt-4 font-display text-[clamp(2.5rem,11vw,3.25rem)] font-extrabold uppercase leading-[0.92] text-ink" style={{ ["--d" as string]: "80ms" }}>
-        Comment tu te sens aujourd'hui&nbsp;?
+        {title}
       </h2>
       <p className="ux-enter mt-3 text-base leading-relaxed text-ink/75" style={{ ["--d" as string]: "160ms" }}>
-        Quatre étapes rapides. NALYNT prépare ensuite ta séance du jour.
+        {text}
       </p>
       <ol className="ux-enter mt-5 flex flex-wrap gap-2" style={{ ["--d" as string]: "220ms" }} aria-label="Étapes du check-in">
         {STEPS.map((step, index) => (
