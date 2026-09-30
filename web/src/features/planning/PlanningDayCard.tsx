@@ -4,7 +4,6 @@ import { LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPla
 import { Badge } from "../../components/Badge";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
-import { Select } from "../../components/Select";
 // Coarse DbSessionType → French label — the canonical existing home for
 // this mapping (already used by useCompletedSessionFlow (UX-08)). Reused here, never
 // duplicated, for the one legacy case a Planning row can be in: a pre-M2_003
@@ -12,27 +11,19 @@ import { Select } from "../../components/Select";
 import { SESSION_TYPE_LABELS } from "../completedSession/completedSessionTypes";
 import { deletePlannedSession, InvalidPlannedInterventionError, PlanningDeleteError, PlanningSaveError, savePlannedSession } from "./planningRepo";
 import { PLANNING_KIND_GROUPS } from "./planningKindGroups";
-import { isPlannableFixedLoadKind, isPlannableLoadVariableKind } from "./planningTypes";
+import { isPlannableFixedLoadKind, isPlannableLoadVariableKind, PLANNABLE_KINDS } from "./planningTypes";
 import type { LoadProfile, PlannedSessionRow, TrainingInterventionKind } from "./planningTypes";
 import type { RaceOverlayEvent, RacePriority } from "./raceOverlayRepo";
-import {
-  formatPlannedDuration,
-  getPlannedDurationHelper,
-  isDhFamilyPlannableKind,
-  PLANNED_DURATION_LABEL,
-  PLANNED_DURATION_NONE_LABEL,
-  PLANNED_DURATION_PRESETS_MIN,
-} from "./plannedDurationPolicy";
+import { getPlannedDurationHelper, isDhFamilyPlannableKind, PLANNED_DURATION_PRESETS_MIN } from "./plannedDurationPolicy";
+import { DAY, dayBadge, dayState, EDITOR, formatDuration, kindLabel, loadLabel } from "./weekPresentation";
+import type { PlanDaySession } from "./weekPresentation";
 
-// NAL-007 — compact, French, only for the two priorities worth flagging at
-// a glance (A_PLUS/A) — B/C races still show their name, just no badge, to
-// avoid cluttering every lower-priority local ride with a chip.
+// NAL-007 — compact, only for the two priorities worth flagging at a glance
+// (A_PLUS/A) — B/C races still show their name, just no badge.
 const RACE_PRIORITY_BADGE: Partial<Record<RacePriority, string>> = {
   A_PLUS: "A+",
   A: "A",
 };
-
-const GENERIC_ERROR_MESSAGE = "Une erreur est survenue. Réessaie dans un instant.";
 
 // Only ever surfaces the known, already-curated (never-raw-PostgREST)
 // Planning error messages. Any other exception (e.g. a rejected fetch from
@@ -42,7 +33,7 @@ function safeErrorMessage(error: unknown): string {
   if (error instanceof PlanningSaveError || error instanceof PlanningDeleteError || error instanceof InvalidPlannedInterventionError) {
     return error.message;
   }
-  return GENERIC_ERROR_MESSAGE;
+  return EDITOR.genericError;
 }
 
 const WEEKDAY_FORMAT = new Intl.DateTimeFormat("fr-CH", { weekday: "short" });
@@ -53,25 +44,12 @@ function weekdayLabel(dateISO: string): string {
 }
 
 const LOAD_CHOICES: readonly LoadProfile[] = ["HEAVY", "MODERATE", "LIGHT"];
+const MIN_DURATION = PLANNED_DURATION_PRESETS_MIN[0];
+const MAX_DURATION = PLANNED_DURATION_PRESETS_MIN[PLANNED_DURATION_PRESETS_MIN.length - 1];
+const DURATION_STEP = 30;
 
-/**
- * V06-02 — where this day's session comes from, straight from
- * `planned_sessions.source`. "Programme" only for a row the projection
- * wrote (`generated`); "Modifiée par toi" only for an athlete-authored row
- * that carries a real intervention. A legacy row (intervention=NULL, which
- * reads `manual` only through the column's DB default), `rule`/`template`,
- * or a missing source get no badge — never a guessed origin.
- */
-function sourceBadgeLabel(row: PlannedSessionRow | null): string | null {
-  if (row?.source === "generated") return "Programme";
-  if (row?.source === "manual" && row.intervention !== null) return "Modifiée par toi";
-  return null;
-}
-
-/** Collapsed-card duration, from the persisted `intervention.duration_min` only — nothing shown when absent or malformed. */
-function formatCardDuration(durationMin: unknown): string | null {
-  if (typeof durationMin !== "number" || !Number.isFinite(durationMin) || durationMin <= 0) return null;
-  return durationMin < 60 ? `${durationMin} min` : formatPlannedDuration(durationMin);
+function asPlannableKind(kind: string | undefined): TrainingInterventionKind | "" {
+  return kind && (PLANNABLE_KINDS as readonly string[]).includes(kind) ? (kind as TrainingInterventionKind) : "";
 }
 
 interface PlanningDayCardProps {
@@ -79,6 +57,12 @@ interface PlanningDayCardProps {
   date: string;
   /** Canonical persisted row for this date, owned by PlanPage — this component never keeps its own copy of "what's persisted". */
   row: PlannedSessionRow | null;
+  /** UX-10B-2B — the active plan's session for this date (read-only), `null` when the plan has none. */
+  planSession?: PlanDaySession | null;
+  /** UX-10B-2B — false when the active plan could not be read: no "Libre" / "Revenir au plan" claim is made then. */
+  planKnown?: boolean;
+  /** UX-10B-2B — one-line confirmation of the last action on this day (owned by PlanPage). */
+  notice?: string | null;
   /**
    * NAL-007 — read-only race/event context for this date, from
    * race_calendar (the canonical source, never duplicated into
@@ -90,18 +74,32 @@ interface PlanningDayCardProps {
   isToday: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  /** Called only after a successful save/delete, with the new persisted row (or null after a delete) — PlanPage updates its canonical state and collapses the editor. */
-  onRowChange: (date: string, row: PlannedSessionRow | null) => void;
+  /** Called only after a successful save/delete, with the new persisted row (or null after a delete) and an optional confirmation — PlanPage updates its canonical state and collapses the editor. */
+  onRowChange: (date: string, row: PlannedSessionRow | null, notice?: string) => void;
 }
 
 /**
- * One day of the /plan weekly view. Owns only its own draft/editor state
- * (draft kind, draft load, save/error state) — the persisted `row` always
- * comes from PlanPage as a prop. REST is not a special case here: it is
- * just another selectable kind, saved through the normal savePlannedSession
- * path, and formatIntervention already renders it as "Repos".
+ * One day of "Modifier ma semaine" (UX-10B-2B). Owns only its own draft
+ * state — the persisted `row` and the plan's session always come from
+ * PlanPage. The editor mirrors "Après ta séance": session chips, three
+ * intensity buttons, a − / + duration for DH-family kinds, a "Séance
+ * engagée" switch. The secondary action depends on where the day stands:
+ * "Passer en repos" (plan day), "Revenir au plan" (athlete's change of a
+ * plan day), "Retirer cette séance" (athlete's own session on a free day).
  */
-export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpanded, onToggleExpand, onRowChange }: PlanningDayCardProps) {
+export function PlanningDayCard({
+  athleteId,
+  date,
+  row,
+  planSession = null,
+  planKnown = true,
+  notice = null,
+  races,
+  isToday,
+  isExpanded,
+  onToggleExpand,
+  onRowChange,
+}: PlanningDayCardProps) {
   const [draftKind, setDraftKind] = useState<TrainingInterventionKind | "">("");
   const [draftLoad, setDraftLoad] = useState<LoadProfile | null>(null);
   // V0.3_006C2 — DH-only planned duration, source of truth intervention.duration_min.
@@ -113,255 +111,287 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
   // Re-initializes the draft only at the collapsed→expanded transition —
   // deliberately keyed on `isExpanded` alone (not `row`), so a parent
   // re-render while the editor stays open can never clobber an
-  // in-progress, unsaved draft.
+  // in-progress, unsaved draft. Prefilled from the persisted row, else from
+  // the plan's own session for this day (real data, never a fabricated
+  // default), else empty.
   useEffect(() => {
     if (!isExpanded) return;
-    setDraftKind(row?.intervention?.kind ?? "");
-    setDraftLoad(row?.intervention?.load_profile ?? null);
-    // V0.3_006C2 — prefills the exact persisted value (§10 EDIT), never a
-    // fabricated/generic value (§14 — Planning expresses athlete intent
-    // only, the Head Coach's own generic session window is never mirrored
-    // back here).
-    setDraftDurationMin(row?.intervention?.duration_min ?? null);
+    if (row) {
+      setDraftKind(row.intervention?.kind ?? "");
+      setDraftLoad(row.intervention?.load_profile ?? null);
+      setDraftDurationMin(row.intervention?.duration_min ?? null);
+    } else if (planSession) {
+      const kind = asPlannableKind(planSession.kind);
+      setDraftKind(kind);
+      setDraftLoad(kind !== "" && isPlannableLoadVariableKind(kind) ? ((planSession.loadProfile as LoadProfile | null) ?? null) : null);
+      setDraftDurationMin(isDhFamilyPlannableKind(kind) && PLANNED_DURATION_PRESETS_MIN.includes(planSession.durationMin ?? -1) ? planSession.durationMin : null);
+    } else {
+      setDraftKind("");
+      setDraftLoad(null);
+      setDraftDurationMin(null);
+    }
     // Preserved across unrelated edits (kind/load changes) within the same
     // editing session — only an explicit toggle by the athlete changes it.
     setDraftCommitted(row?.is_committed ?? false);
     setSaveState("idle");
     setSaveError(null);
-    // Intentionally omits `row` from deps — see comment above.
+    // Intentionally omits `row`/`planSession` from deps — see comment above.
   }, [isExpanded]);
 
   const isVariableKind = draftKind !== "" && isPlannableLoadVariableKind(draftKind);
   const isFixedKind = draftKind !== "" && isPlannableFixedLoadKind(draftKind);
   const canSave = draftKind !== "" && (isFixedKind || (isVariableKind && draftLoad !== null));
+  const showDuration = isDhFamilyPlannableKind(draftKind);
 
-  function handleKindChange(value: string) {
-    setDraftKind(value as TrainingInterventionKind | "");
+  function handleKindChange(kind: TrainingInterventionKind) {
+    setDraftKind(kind);
     // Stale-load invariant: any kind change clears a previously chosen
     // load — never silently carried over to a different intervention.
     setDraftLoad(null);
     // V0.3_006C2 — stale-duration invariant, same reasoning: a duration
-    // chosen for a DH kind must never survive a change to a different kind
-    // (DH or not) — the athlete re-selects it explicitly if still relevant.
-    // This is also what guarantees a DH → non-DH change never persists a
-    // stale duration_min (§12): by the time handleSave runs, the draft is
-    // already null for any kind other than the one it was set for.
+    // chosen for a DH kind must never survive a change to a different kind.
     setDraftDurationMin(null);
     setSaveState("idle");
     setSaveError(null);
   }
 
-  const showDuration = isDhFamilyPlannableKind(draftKind);
+  function stepDuration(delta: number) {
+    setDraftDurationMin((current) => {
+      if (current === null) return delta > 0 ? MIN_DURATION : null;
+      return Math.min(MAX_DURATION, Math.max(MIN_DURATION, current + delta));
+    });
+  }
 
-  async function handleSave() {
-    // canSave already encodes draftKind !== "" (see its definition above).
-    if (!canSave) return;
+  async function run(action: () => Promise<PlannedSessionRow | null>, confirmation?: string) {
     setSaveState("saving");
     setSaveError(null);
     try {
-      const saved = await savePlannedSession(
+      const next = await action();
+      onRowChange(date, next, confirmation);
+    } catch (error) {
+      setSaveState("error");
+      setSaveError(safeErrorMessage(error));
+    }
+  }
+
+  function handleSave() {
+    // canSave already encodes draftKind !== "" (see its definition above).
+    if (!canSave) return;
+    void run(() =>
+      savePlannedSession(
         athleteId,
         date,
         draftKind,
         isVariableKind ? draftLoad : null,
         draftCommitted,
         showDuration && draftDurationMin !== null ? String(draftDurationMin) : null
-      );
-      onRowChange(date, saved);
-    } catch (error) {
-      setSaveState("error");
-      setSaveError(safeErrorMessage(error));
-    }
+      )
+    );
   }
 
-  async function handleDelete() {
-    setSaveState("saving");
-    setSaveError(null);
-    try {
-      await deletePlannedSession(athleteId, date);
-      onRowChange(date, null);
-    } catch (error) {
-      setSaveState("error");
-      setSaveError(safeErrorMessage(error));
-    }
-  }
+  const state = dayState(row, planSession, planKnown);
 
   // A legacy row (written before M2_003, or by any other pre-Planning path)
   // can have intervention=NULL — only the coarse session_type is known.
-  // Never reverse-inferred into a fabricated rich TrainingIntervention: the
-  // coarse label is displayed as-is, and the picker below always starts
-  // unselected for this case (draftKind initializes from
-  // row?.intervention?.kind, which is undefined here).
+  // Never reverse-inferred into a fabricated rich TrainingIntervention, and
+  // never the raw DbSessionType enum on screen.
   const isLegacyRow = row !== null && row.intervention === null;
-  // Never falls back to the raw row.session_type value — an internal
-  // DbSessionType enum must never reach the athlete-facing UI, even for a
-  // legacy row whose coarse type somehow isn't in SESSION_TYPE_LABELS
-  // despite the typed contract (same discipline as TodayPlanningSummary.tsx).
-  const legacyLabel = row ? (SESSION_TYPE_LABELS[row.session_type] ?? "Séance planifiée (ancienne)") : null;
-  // NAL-007 — "Non planifié" would misleadingly suggest nothing is known
-  // about this day when a race actually is; "Aucune séance ajoutée" is used
-  // instead specifically when a race overlay is present but no
-  // planned_session exists — the ordinary empty-day copy is unchanged.
-  const noPlanLabel = races.length > 0 ? "Aucune séance ajoutée" : "Non planifié";
-  // V0.3 UX PREMIUM — kind and load are now shown separately (headline +
-  // Badge) instead of formatIntervention's single combined "kind · charge"
-  // string — same underlying row.intervention fields, no new data.
-  const kindLabel = row ? (row.intervention ? (TRAINING_KIND_LABELS[row.intervention.kind] ?? row.intervention.kind) : legacyLabel) : noPlanLabel;
-  const loadProfile = row?.intervention?.load_profile ?? null;
-  const sourceLabel = sourceBadgeLabel(row);
-  const durationLabel = formatCardDuration(row?.intervention?.duration_min);
+  const legacyLabel = row ? (SESSION_TYPE_LABELS[row.session_type] ?? DAY.legacyFallback) : null;
+
+  const shown = row
+    ? { title: row.intervention ? kindLabel(row.intervention.kind) : legacyLabel, load: row.intervention?.load_profile ?? null, duration: row.intervention?.duration_min }
+    : planSession
+      ? { title: kindLabel(planSession.kind), load: planSession.loadProfile, duration: planSession.durationMin }
+      : null;
+  const emptyLabel = races.length > 0 ? DAY.noSessionOnRaceDay : state === "unknown" ? DAY.unknown : DAY.free;
+  const badge = dayBadge(state, row);
+  const load = loadLabel(shown?.load);
+  const duration = formatDuration(shown?.duration);
   const isCommitted = row?.is_committed === true;
+  const planIsRest = (row?.intervention?.kind ?? planSession?.kind) === "REST";
+
+  const remove = async () => {
+    await deletePlannedSession(athleteId, date);
+    return null;
+  };
+  const secondary =
+    state === "plan" && !planIsRest
+      ? { label: EDITOR.toRest, hint: EDITOR.toRestHint, act: () => run(() => savePlannedSession(athleteId, date, "REST", null, false, null), EDITOR.toRestHint) }
+      : state === "modified"
+        ? { label: EDITOR.backToPlan, hint: EDITOR.backToPlanHint, act: () => run(remove, EDITOR.backToPlanHint) }
+        : state === "added" || state === "manual-unknown"
+          ? {
+              label: EDITOR.remove,
+              hint: state === "added" ? EDITOR.removeHint : null,
+              act: () => run(remove, state === "added" ? EDITOR.removeHint : undefined),
+            }
+          : null;
 
   return (
-    <div className={`rounded-lg border bg-card ${isToday ? "border-gold" : "border-white/10"}`}>
+    <div className={`overflow-hidden rounded-2xl border bg-card ${isToday ? "border-gold/70" : "border-line"}`}>
       {races.length > 0 && (
-        <div className="flex flex-col gap-1 rounded-t-lg border-b border-amber-100 bg-amber-50 px-3 py-2">
+        <div className="flex flex-col gap-1 border-b border-gold/25 bg-gold/10 px-4 py-2">
           {races.map((race) => (
-            <p key={`${race.eventName}-${race.startDate}`} className="flex items-center gap-1.5 text-xs text-amber-900">
+            <p key={`${race.eventName}-${race.startDate}`} className="flex flex-wrap items-center gap-1.5 text-xs text-gold-light">
               <span aria-hidden="true">🏁</span>
-              <span className="font-medium">{race.eventName}</span>
+              <span className="font-semibold">{race.eventName}</span>
               {RACE_PRIORITY_BADGE[race.priority] && (
-                <span className="rounded bg-amber-200 px-1 text-xs font-semibold text-amber-900">
-                  {RACE_PRIORITY_BADGE[race.priority]}
-                </span>
+                <span className="rounded bg-gold px-1 text-xs font-bold text-bg">{RACE_PRIORITY_BADGE[race.priority]}</span>
               )}
-              <span className="text-amber-700">· Course / événement</span>
+              <span className="text-muted">· {DAY.race}</span>
             </p>
           ))}
         </div>
       )}
-      <button type="button" onClick={onToggleExpand} className="min-h-11 w-full p-3 text-left active:bg-white/5">
-        <div className="flex items-center justify-between gap-2">
+      <button type="button" onClick={onToggleExpand} aria-expanded={isExpanded} className="ux-press min-h-11 w-full px-4 py-3 text-left">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
           {isToday ? (
-            <p className="text-xs font-semibold uppercase tracking-widest text-gold">Aujourd'hui</p>
+            <p className="whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-gold">{DAY.today}</p>
           ) : (
-            <p className="text-xs font-medium uppercase tracking-wide text-muted">
+            <p className="whitespace-nowrap text-xs font-medium uppercase tracking-wide text-muted">
               {weekdayLabel(date)} {formatCalendarDate(date)}
             </p>
           )}
-          {sourceLabel && <Badge>{sourceLabel}</Badge>}
+          {badge && (
+            <span className="whitespace-nowrap">
+              <Badge tone={state === "plan" ? "muted" : "gold"}>{badge}</Badge>
+            </span>
+          )}
         </div>
-        <p className={`mt-1.5 font-semibold uppercase tracking-tight ${row ? "text-ink" : "text-muted"}`}>{kindLabel}</p>
-        {(loadProfile || durationLabel || isCommitted) && (
+        <p className={`mt-1.5 font-display text-xl font-extrabold uppercase leading-tight ${shown ? "text-ink" : "text-muted"}`}>
+          {shown ? shown.title : emptyLabel}
+        </p>
+        {(load || duration || isCommitted) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {loadProfile && <Badge tone="gold">{LOAD_PROFILE_LABELS[loadProfile]}</Badge>}
-            {durationLabel && <span className="text-xs text-ink/80">{durationLabel}</span>}
-            {isCommitted && <Badge tone="green">Activité engagée</Badge>}
+            {load && <Badge tone="gold">{load}</Badge>}
+            {duration && <span className="text-xs text-ink/80">{duration}</span>}
+            {isCommitted && <Badge tone="green">{DAY.committed}</Badge>}
           </div>
         )}
+        {!shown && state === "free" && !isExpanded && <p className="mt-1 text-sm font-medium text-gold">{DAY.addSession}</p>}
+        {notice && !isExpanded && <p className="mt-2 text-xs text-ink/70">{notice}</p>}
       </button>
 
       {isExpanded && (
-        <div className="flex flex-col gap-3 border-t border-white/5 p-3">
-          {isLegacyRow && (
-            <p className="text-xs text-muted">
-              Ancienne séance planifiée : {legacyLabel}. Choisis une séance pour la modifier.
-            </p>
-          )}
+        <div className="flex flex-col gap-4 border-t border-line px-4 py-4">
+          {isLegacyRow && legacyLabel && <p className="text-xs text-muted">{DAY.legacy(legacyLabel)}</p>}
 
-          <label className="flex flex-col gap-1 text-sm text-ink/80">
-            Séance
-            <Select value={draftKind} onChange={(event) => handleKindChange(event.target.value)}>
-              <option value="" disabled>
-                — Choisir —
-              </option>
-              {PLANNING_KIND_GROUPS.map((group) => (
-                <optgroup key={group.label} label={group.label}>
+          <div role="group" aria-label={EDITOR.session} className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-ink">{EDITOR.session}</p>
+            {PLANNING_KIND_GROUPS.map((group) => (
+              <div key={group.label}>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">{group.label}</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
                   {group.kinds.map((kind) => (
-                    <option key={kind} value={kind}>
+                    <button
+                      key={kind}
+                      type="button"
+                      aria-pressed={draftKind === kind}
+                      onClick={() => handleKindChange(kind)}
+                      className={`ux-press min-h-11 rounded-full border px-3.5 text-sm ${draftKind === kind ? "border-gold bg-gold text-bg" : "border-line text-ink/80 hover:border-gold/50"}`}
+                    >
                       {TRAINING_KIND_LABELS[kind]}
-                    </option>
+                    </button>
                   ))}
-                </optgroup>
-              ))}
-            </Select>
-          </label>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {isVariableKind && (
-            <div role="group" aria-label="Intensité" className="flex gap-2">
-              {LOAD_CHOICES.map((load) => (
+            <div role="group" aria-label={EDITOR.intensity} className="flex gap-2">
+              {LOAD_CHOICES.map((choice) => (
                 <button
-                  key={load}
+                  key={choice}
                   type="button"
-                  aria-pressed={draftLoad === load}
-                  onClick={() => setDraftLoad(load)}
-                  className={`min-h-11 flex-1 rounded border px-2 py-2 text-xs font-medium ${
-                    draftLoad === load ? "border-gold bg-gold text-bg" : "border-white/10 bg-transparent text-ink/70"
-                  }`}
+                  aria-pressed={draftLoad === choice}
+                  onClick={() => setDraftLoad(choice)}
+                  className={`ux-press min-h-11 flex-1 rounded border px-2 text-xs font-medium ${draftLoad === choice ? "border-gold bg-gold text-bg" : "border-line text-ink/70"}`}
                 >
-                  {LOAD_PROFILE_LABELS[load]}
+                  {LOAD_PROFILE_LABELS[choice]}
                 </button>
               ))}
             </div>
           )}
 
           {/*
-           * V0.3_006C2 — DH-only planned duration. Athlete-authored session
-           * window, exact on KEEP, an upper bound after Head Coach
-           * adaptation (V0.3_006B semantics, unchanged) — never presented as
-           * a pure availability ceiling. Hidden entirely for non-DH kinds
-           * (§4 — non-DH duration arbitration is undefined in the engine
-           * today) and reset to "no duration" on every kind change
-           * (handleKindChange), so it can never leak a stale value into a
-           * different/non-DH kind.
+           * V0.3_006C2 — DH-only planned duration (athlete-authored session
+           * window, exact on KEEP, an upper bound after adaptation). Same 15
+           * values as before (1 h to 8 h, 30 min steps), now a − / + stepper;
+           * reset to "Pas de durée" on every kind change.
            */}
           {showDuration && (
-            <div className="flex flex-col gap-1">
-              <label className="flex flex-col gap-1 text-sm text-ink/80">
-                {PLANNED_DURATION_LABEL}
-                <Select
-                  value={draftDurationMin ?? ""}
-                  onChange={(event) => setDraftDurationMin(event.target.value === "" ? null : Number(event.target.value))}
+            <div role="group" aria-label={EDITOR.duration} className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-ink">{EDITOR.duration}</p>
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  aria-label={EDITOR.shorter}
+                  onClick={() => stepDuration(-DURATION_STEP)}
+                  disabled={draftDurationMin === null || draftDurationMin <= MIN_DURATION}
+                  className="ux-press flex h-12 w-12 items-center justify-center rounded-full border border-line text-2xl text-ink disabled:opacity-30"
                 >
-                  <option value="">{PLANNED_DURATION_NONE_LABEL}</option>
-                  {PLANNED_DURATION_PRESETS_MIN.map((min) => (
-                    <option key={min} value={min}>
-                      {formatPlannedDuration(min)}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              {/* Sibling of the label, not nested inside it — an implicit
-                  <label> match resolves by the label's own accessible text
-                  (with the nested control's content stripped), so extra
-                  descendant text here would otherwise corrupt that match. */}
-              <span className="text-xs text-muted">{getPlannedDurationHelper(draftKind)}</span>
+                  −
+                </button>
+                <output aria-live="polite" className={`font-display font-extrabold uppercase ${draftDurationMin === null ? "text-xl text-muted" : "text-4xl text-ink"}`}>
+                  {draftDurationMin === null ? EDITOR.noDuration : formatDuration(draftDurationMin)}
+                </output>
+                <button
+                  type="button"
+                  aria-label={EDITOR.longer}
+                  onClick={() => stepDuration(DURATION_STEP)}
+                  disabled={draftDurationMin !== null && draftDurationMin >= MAX_DURATION}
+                  className="ux-press flex h-12 w-12 items-center justify-center rounded-full border border-line text-2xl text-ink disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+              <button
+                type="button"
+                aria-pressed={draftDurationMin === null}
+                onClick={() => setDraftDurationMin(null)}
+                className={`ux-press min-h-11 self-center rounded-full border px-4 text-sm ${draftDurationMin === null ? "border-gold/60 text-gold" : "border-line text-ink/70"}`}
+              >
+                {EDITOR.noDuration}
+              </button>
+              <p className="text-xs text-muted">{getPlannedDurationHelper(draftKind)}</p>
             </div>
           )}
 
-          <label className="flex items-start gap-2 text-sm text-ink/80">
-            <input
-              type="checkbox"
-              checked={draftCommitted}
-              onChange={(event) => setDraftCommitted(event.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-gold"
-            />
-            <span>
-              <span className="font-medium text-ink">Activité engagée</span>
-              <br />
-              <span className="text-xs text-muted">
-                Je compte réellement faire cette activité. Le coach peut l'alléger ou l'adapter, mais évitera de la
-                remplacer sauf raison importante.
-              </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={draftCommitted}
+            onClick={() => setDraftCommitted((value) => !value)}
+            className="ux-press flex items-start gap-3 rounded-xl border border-line p-3 text-left"
+          >
+            <span aria-hidden="true" className={`mt-0.5 flex h-6 w-10 shrink-0 items-center rounded-full p-0.5 transition-colors ${draftCommitted ? "bg-gold" : "bg-line"}`}>
+              <span className={`h-5 w-5 rounded-full bg-ink transition-transform ${draftCommitted ? "translate-x-4" : ""}`} />
             </span>
-          </label>
+            <span>
+              <span className="block text-sm font-medium text-ink">{EDITOR.committed}</span>
+              <span className="block text-xs text-muted">{EDITOR.committedHint}</span>
+            </span>
+          </button>
 
           {saveState === "error" && saveError && (
-            <p role="alert" className="text-sm text-red-400">
+            <p role="alert" className="rounded-lg border border-red-400/40 px-3 py-2 text-sm text-red-400">
               {saveError}
             </p>
           )}
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <PrimaryButton onClick={() => void handleSave()} disabled={!canSave || saveState === "saving"} className="sm:flex-1">
-              {saveState === "saving" ? "Enregistrement…" : "Enregistrer"}
-            </PrimaryButton>
-            {row && (
-              <SecondaryButton onClick={() => void handleDelete()} disabled={saveState === "saving"}>
-                Retirer du planning
+          <PrimaryButton onClick={handleSave} disabled={!canSave || saveState === "saving"} className="w-full">
+            {saveState === "saving" ? EDITOR.saving : EDITOR.save}
+          </PrimaryButton>
+
+          {secondary && (
+            <div className="flex flex-col gap-1.5">
+              <SecondaryButton onClick={() => void secondary.act()} disabled={saveState === "saving"} className="w-full">
+                {secondary.label}
               </SecondaryButton>
-            )}
-          </div>
+              {secondary.hint && <p className="text-center text-xs text-muted">{secondary.hint}</p>}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -49,11 +49,11 @@ export function AppNav() {
         {TABS.map((tab) => {
           const active = isTabActive(tab, pathname);
           return (
-            <li key={tab.to} className="flex-1">
+            <li key={tab.to} className="min-w-0 flex-1">
               <Link
                 to={tab.to}
                 aria-current={active ? "page" : undefined}
-                className={`ux-press relative flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold uppercase tracking-widest ${
+                className={`ux-press relative flex min-h-16 flex-col items-center justify-center gap-1 px-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] min-[400px]:text-xs min-[400px]:tracking-widest ${
                   active ? "text-gold" : "text-muted hover:text-ink"
                 }`}
               >

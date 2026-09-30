@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { PlanPage } from "./PlanPage";
@@ -28,9 +28,23 @@ vi.mock("../features/planning/raceOverlayRepo", async (importOriginal) => {
   return { ...actual, loadRacesInRange };
 });
 
+// UX-10B-2B — the active plan is read (never written) to tell "Prévue par ton
+// plan" from "Libre". No active plan by default.
+const { getActivePlanVersionId, getTrainingPlanReview } = vi.hoisted(() => ({
+  getActivePlanVersionId: vi.fn(),
+  getTrainingPlanReview: vi.fn(),
+}));
+vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId, getTrainingPlanReview }));
+
+type User = ReturnType<typeof userEvent.setup>;
+async function pickRest(user: User) {
+  await user.click(within(screen.getByRole("group", { name: "Séance" })).getByRole("button", { name: "Repos" }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   loadRacesInRange.mockResolvedValue([]);
+  getActivePlanVersionId.mockResolvedValue(null);
   mockAthleteId = "athlete-1";
 });
 
@@ -57,7 +71,9 @@ describe("PlanPage — A", () => {
   it("renders the /plan page with its title and nav", async () => {
     loadPlannedSessions.mockResolvedValue([]);
     renderPage();
-    expect(screen.getByRole("heading", { name: "Planning" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Modifier ma semaine" })).toBeInTheDocument();
+    expect(screen.getByText("Ajuste tes 7 prochains jours. NALYNT adapte ensuite chaque séance à ton état du matin.")).toBeInTheDocument();
+    expect(screen.getByText("Ici, tu ajustes ton planning. Tes décisions du jour restent prises avec ton état réel.")).toBeInTheDocument();
     // UX-02 — /plan lives under the Programme tab (former "Semaine" tab), with a way back to Programme.
     expect(screen.getByRole("link", { name: "Programme" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Retour à Programme" })).toHaveAttribute("href", "/training-plan");
@@ -66,7 +82,7 @@ describe("PlanPage — A", () => {
 });
 
 describe("PlanPage — B, D", () => {
-  it("renders exactly seven dates, today through J+6, each Non planifié with no persisted rows", async () => {
+  it("renders exactly seven dates, today through J+6, each Libre with no persisted rows", async () => {
     loadPlannedSessions.mockResolvedValue([]);
     renderPage();
 
@@ -78,7 +94,7 @@ describe("PlanPage — B, D", () => {
     for (const date of dates.slice(1)) {
       expect(await screen.findByText(new RegExp(formatCalendarDate(date)))).toBeInTheDocument();
     }
-    expect(screen.getAllByText("Non planifié")).toHaveLength(7);
+    expect(screen.getAllByText("Libre")).toHaveLength(7);
     expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
   });
 });
@@ -132,7 +148,7 @@ describe("PlanPage — C, E", () => {
 
     expect(await screen.findByText("Repos")).toBeInTheDocument();
     expect(screen.getByText(/DH technique/)).toBeInTheDocument();
-    expect(screen.getAllByText("Non planifié")).toHaveLength(5);
+    expect(screen.getAllByText("Libre")).toHaveLength(5);
   });
 });
 
@@ -151,15 +167,15 @@ describe("PlanPage — U, V: canonical persisted state ownership", () => {
 
     const todayCard = await screen.findByRole("button", { name: /Aujourd'hui/ });
     await user.click(todayCard);
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pickRest(user);
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     expect(await screen.findByText("Repos")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Séance")).not.toBeInTheDocument(); // editor collapsed
+    expect(screen.queryByRole("group", { name: "Séance" })).not.toBeInTheDocument(); // editor collapsed
     expect(loadPlannedSessions).toHaveBeenCalledTimes(1); // no refetch
   });
 
-  it("V: a successful delete clears the page's canonical row to Non planifié and collapses the editor", async () => {
+  it("V: a successful delete clears the page's canonical row to Libre and collapses the editor", async () => {
     const user = userEvent.setup();
     const dates = horizonDates();
     loadPlannedSessions.mockResolvedValue([
@@ -170,13 +186,13 @@ describe("PlanPage — U, V: canonical persisted state ownership", () => {
 
     const todayCard = await screen.findByRole("button", { name: /Aujourd'hui/ });
     await user.click(todayCard);
-    await user.click(screen.getByRole("button", { name: "Retirer du planning" }));
+    await user.click(screen.getByRole("button", { name: "Retirer cette séance" }));
 
-    // All seven cards (today's included) now show Non planifié — confirms
+    // All seven cards (today's included) now show Libre — confirms
     // today's card specifically flipped, not merely that six others already did.
-    expect(await screen.findAllByText("Non planifié")).toHaveLength(7);
-    expect(screen.getByRole("button", { name: /Aujourd'hui/ })).toHaveTextContent("Non planifié");
-    expect(screen.queryByRole("button", { name: "Retirer du planning" })).not.toBeInTheDocument();
+    expect(await screen.findAllByText("Libre")).toHaveLength(7);
+    expect(screen.getByRole("button", { name: /Aujourd'hui/ })).toHaveTextContent("Libre");
+    expect(screen.queryByRole("button", { name: "Retirer cette séance" })).not.toBeInTheDocument();
     expect(loadPlannedSessions).toHaveBeenCalledTimes(1); // no refetch
   });
 });
@@ -201,13 +217,13 @@ describe("PlanPage — cross-day async collapse race", () => {
     // Open day A (today) and start a save that will not resolve yet.
     const dayA = await screen.findByRole("button", { name: /Aujourd'hui/ });
     await user.click(dayA);
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pickRest(user);
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     // Before A's save resolves, the athlete switches to day B.
     const dayB = screen.getByText(new RegExp(formatCalendarDate(dates[1]))).closest("button")!;
     await user.click(dayB);
-    expect(screen.getByLabelText("Séance")).toBeInTheDocument(); // B's editor is now the one open
+    expect(screen.getByRole("group", { name: "Séance" })).toBeInTheDocument(); // B's editor is now the one open
 
     // Now A's save resolves.
     resolveSave({ planned_date: dates[0], session_type: "REST", intervention: { kind: "REST" }, planned_intent: null, is_committed: false });
@@ -215,7 +231,7 @@ describe("PlanPage — cross-day async collapse race", () => {
     // A's canonical row updated (visible on its now-collapsed card)...
     await waitFor(() => expect(screen.getByText("Repos")).toBeInTheDocument());
     // ...but B's editor must still be open — A's resolution must not collapse it.
-    expect(screen.getByLabelText("Séance")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Séance" })).toBeInTheDocument();
   });
 });
 
@@ -229,7 +245,7 @@ describe("PlanPage — loading/error", () => {
   it("shows a safe error state with a retry action on load failure", async () => {
     loadPlannedSessions.mockRejectedValue(new Error("boom"));
     renderPage();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger le planning");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger tes 7 prochains jours");
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();
   });
 });
@@ -276,12 +292,12 @@ describe("PlanPage — NAL-007 race calendar overlay", () => {
     expect(deletePlannedSession).not.toHaveBeenCalled();
   });
 
-  it("K: no events -> Planning behaves exactly as before (all seven days Non planifié)", async () => {
+  it("K: no events -> Planning behaves exactly as before (all seven days Libre)", async () => {
     loadPlannedSessions.mockResolvedValue([]);
     loadRacesInRange.mockResolvedValue([]);
     renderPage();
 
-    expect(await screen.findAllByText("Non planifié")).toHaveLength(7);
+    expect(await screen.findAllByText("Libre")).toHaveLength(7);
   });
 
   it("L: a race-read failure shows a small non-blocking note but never breaks planned-session usage", async () => {
@@ -292,8 +308,8 @@ describe("PlanPage — NAL-007 race calendar overlay", () => {
     renderPage();
 
     // Planned sessions loaded fine — no alert, normal empty state.
-    expect(await screen.findAllByText("Non planifié")).toHaveLength(7);
-    expect(screen.getByText(/Événements du calendrier de courses indisponibles/)).toBeInTheDocument();
+    expect(await screen.findAllByText("Libre")).toHaveLength(7);
+    expect(screen.getByText(/calendrier de courses est indisponible/)).toBeInTheDocument();
 
     // Planning CRUD is entirely unaffected by the race-read failure.
     savePlannedSession.mockResolvedValue({
@@ -305,8 +321,37 @@ describe("PlanPage — NAL-007 race calendar overlay", () => {
     });
     const todayCard = screen.getByRole("button", { name: /Aujourd'hui/ });
     await user.click(todayCard);
-    await user.selectOptions(screen.getByLabelText("Séance"), "REST");
+    await pickRest(user);
     await user.click(screen.getByRole("button", { name: "Enregistrer" }));
     expect(await screen.findByText("Repos")).toBeInTheDocument();
+  });
+});
+
+describe("PlanPage — UX-10B-2B active plan read", () => {
+  it("a plan day the projection has not written yet shows the plan's session, never Libre", async () => {
+    const dates = horizonDates();
+    loadPlannedSessions.mockResolvedValue([]);
+    getActivePlanVersionId.mockResolvedValue("plan-1");
+    getTrainingPlanReview.mockResolvedValue({
+      blocks: [{ weeks: [{ sessions: [{ date: dates[2], kind: "STRENGTH_LOWER", loadProfile: "MODERATE", durationMin: 60 }] }] }],
+    });
+    renderPage();
+
+    expect(await screen.findByText("Renfo bas du corps")).toBeInTheDocument();
+    expect(screen.getByText("Prévue par ton plan")).toBeInTheDocument();
+    expect(screen.getAllByText("Libre")).toHaveLength(6);
+    expect(getTrainingPlanReview).toHaveBeenCalledWith("plan-1");
+    expect(savePlannedSession).not.toHaveBeenCalled();
+  });
+
+  it("a plan-read failure never blocks the week, but withholds every Libre claim", async () => {
+    loadPlannedSessions.mockResolvedValue([]);
+    getActivePlanVersionId.mockRejectedValue(new Error("boom"));
+    renderPage();
+
+    expect(await screen.findAllByText("Aucune séance")).toHaveLength(7);
+    expect(screen.queryByText("Libre")).not.toBeInTheDocument();
+    expect(screen.getByText(/Ton plan n'a pas pu être lu/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

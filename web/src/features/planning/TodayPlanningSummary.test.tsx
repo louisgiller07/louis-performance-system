@@ -76,7 +76,7 @@ describe("TodayPlanningSummary", () => {
   it("G: links to /plan", async () => {
     loadPlannedSessions.mockResolvedValue([]);
     renderSummary();
-    expect(await screen.findByRole("link", { name: "Modifier dans Plan" })).toHaveAttribute("href", "/plan");
+    expect(await screen.findByRole("link", { name: "Modifier ma semaine" })).toHaveAttribute("href", "/plan");
   });
 
   it("H: never renders inline Planning mutation controls", async () => {
@@ -101,6 +101,6 @@ describe("TodayPlanningSummary", () => {
     expect(await screen.findByText("Planning indisponible.")).toBeInTheDocument();
     expect(screen.queryByText(/boom/)).not.toBeInTheDocument();
     // The /plan link stays available even on a read failure.
-    expect(screen.getByRole("link", { name: "Modifier dans Plan" })).toHaveAttribute("href", "/plan");
+    expect(screen.getByRole("link", { name: "Modifier ma semaine" })).toHaveAttribute("href", "/plan");
   });
 });

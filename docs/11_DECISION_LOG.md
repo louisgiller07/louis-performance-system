@@ -3332,3 +3332,23 @@ Presentation-only: no engine, longitudinal-engine, Supabase, Edge Function or sc
 **Hors UX-10B-2A (UX-10B-2B).** « Modifier ma semaine » (/plan), ses états et « Libre ».
 
 **Statut** : Accepted — tests web 1640/1640, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données du compte de test en lecture seule (écritures bloquées, 0 tentative), Historique / Ce que NALYNT remarque (vide et erreur simulée) / Programme / Plan introuvable / Aujourd'hui à 320 et 390 px : aucun terme interdit, aucun débordement, aucune erreur. Non déployé.
+
+## 2026-09-30 — ADR UX-10B-2B : Modifier ma semaine
+
+> **The week editor must never promise what the projection does not do. A plan day cannot be freed by deletion (the daily projection re-creates any missing plan day); it can only be replaced by an athlete modification, which the projection never overwrites.**
+
+Presentation-only: no engine, projection, Supabase, Edge Function or schema change. Writes go through the existing `savePlannedSession` / `deletePlannedSession`; the active plan is read with the existing `getActivePlanVersionId` / `getTrainingPlanReview` (read only, date matching only).
+
+**Constat (audit).** `runDailyFor` exécute la projection (V0.4_015, `TRAINING_PLAN_PROJECTION_WINDOW_DAYS` configuré en production) avant chaque décision : `project_training_plan` réinsère toute journée du plan sans ligne et ignore les lignes dont la source n'est pas `generated`.
+
+**/plan → « Modifier ma semaine ».** Sous-titre « Ajuste tes 7 prochains jours. NALYNT adapte ensuite chaque séance à ton état du matin. » et « Ici, tu ajustes ton planning. Tes décisions du jour restent prises avec ton état réel. » Points d'entrée renommés (Programme, Aujourd'hui).
+
+**Trois états vrais.** « Prévue par ton plan » (ligne de la projection, ou journée du plan actif pas encore projetée — affichée depuis le plan), « Modifiée par toi » (ligne de l'athlète avec intervention), « Libre » (le plan actif n'a rien ce jour-là) + « Ajouter une séance ». Plan illisible : jamais « Libre » (« Aucune séance » + note), la semaine reste utilisable.
+
+**Actions.** Jour du plan : [Passer en repos] — enregistre « Repos » comme modification de l'athlète (« Cette journée sera conservée comme une modification de ton planning. ») ; absent si le plan prévoit déjà du repos. Jour du plan modifié : [Revenir au plan] — supprime la modification (« NALYNT remettra la séance prévue par ton plan lors de la prochaine mise à jour. »). Séance ajoutée un jour libre : [Retirer cette séance] (« Le jour redevient libre. »).
+
+**Éditeur.** Pastilles groupées (comme « Après ta séance ») au lieu de la liste déroulante, 3 boutons d'intensité, durée DH en sélecteur − / + (mêmes 15 valeurs, 1 h à 8 h, « Pas de durée » séparé), interrupteur « Séance engagée » (« Cette séance compte comme une priorité. NALYNT peut ensuite l'alléger ou l'adapter selon ton état. »). Journée du plan non projetée : l'éditeur part de la séance du plan. Invariants conservés (charge et durée remises à zéro à chaque changement de séance, ancienne ligne jamais devinée, erreurs jamais brutes).
+
+**États et navigation.** Chargement en placeholders, erreurs en `StateCard`, bandeau course en or sur fond sombre. Barre basse : libellés 10 px, espacement réduit sous 400 px, onglets rétrécissables — 4 × 80 px à 320, 4 × 90 px à 360, sans chevauchement.
+
+**Statut** : Accepted — tests web 1658/1658, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données du compte de test en lecture seule (écritures bloquées, 0 tentative, comptes inchangés) à 320, 360 et 390 px : jours du plan, jour modifié, jours libres ouverts, aucune liste déroulante, aucun débordement, aucune erreur. Non déployé.
