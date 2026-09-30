@@ -3352,3 +3352,37 @@ Presentation-only: no engine, projection, Supabase, Edge Function or schema chan
 **États et navigation.** Chargement en placeholders, erreurs en `StateCard`, bandeau course en or sur fond sombre. Barre basse : libellés 10 px, espacement réduit sous 400 px, onglets rétrécissables — 4 × 80 px à 320, 4 × 90 px à 360, sans chevauchement.
 
 **Statut** : Accepted — tests web 1658/1658, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données du compte de test en lecture seule (écritures bloquées, 0 tentative, comptes inchangés) à 320, 360 et 390 px : jours du plan, jour modifié, jours libres ouverts, aucune liste déroulante, aucun débordement, aucune erreur. Non déployé.
+
+## 2026-09-30 — ADR UX-11A : NALYNT Session Model V1
+
+> **A NALYNT session is an intention-driven training intervention structured as Session → Session block → Exercise. The engine selects validated content (intentions, exercises, dose rules); it never generates text, never turns a hypothesis or an unvalidated pattern into a rule, and never prescribes false precision (no kg, no 1RM, no heart-rate zones, no FTP).**
+
+**Contexte.** L'audit UX-11 (2026-09-30) a montré que la séance reçue par le pilote n'avait pas de profondeur : une séance de force = un seul exercice en 12 × AMRAP, une séance DH = toujours le même exercice, aucune prescription pour l'endurance, la mobilité et la récupération, aucune intention. Décision produit : définir le modèle de coaching d'une séance **avant** tout code, tout moteur et toute table.
+
+**Décidé** (écrit dans `docs/03_COACHING_MODEL.md` §Modèle de séance NALYNT V1 et §Séparation stricte des connaissances) :
+1. **Définition** : chaque séance a une intention explicite (titre, objectif, ce que tu travailles, consigne principale ; « pourquoi aujourd'hui » seulement à partir d'un fait connu).
+2. **Intentions** : bibliothèque de textes validés à identifiant (ex. `corner_exit_power`). Le moteur sélectionne, il ne rédige jamais. Aucun LLM.
+3. **Structure** : Séance → Bloc de séance → Exercice, parties obligatoires / optionnelles par famille.
+4. **Six familles V1** (Force, Puissance, Technique DH, Endurance, Mobilité, Récupération), regroupant les `TrainingInterventionKind` existants. Aucun nouveau kind. Préhension dans Force.
+5. **Prescription** : séries, une seule mesure de volume par série (répétitions, durée, distance ou passages DH), RPE cible, repos, consigne, critère de réussite. Force : 3 à 5 exercices de travail. Pour les séances de Force uniquement, le niveau d'intention de charge (léger / modéré / lourd) définit une plage de prescription attendue — jamais des kilogrammes, jamais une conversion automatique vers un RPE. Cette relation ne s'applique pas aux autres familles, notamment la DH (« aucun mapping LoadProfile → RPE » reste valable).
+6. **Adaptation** : réduire une séance existante ; changer de type seulement via une règle explicite ; jamais d'exercice ni de séance inventés.
+7. **Progression** : volume, intensité relative, complexité ; jamais les kilos. Tant que la réalisation n'est pas enregistrée, progression selon la semaine du plan, sa phase et son objectif uniquement.
+8. **Connaissances** : donnée connue utilisable ; hypothèse jamais directement ; décision validée utilisable une fois écrite dans 03 ; pattern appris seulement une fois défini comme règle validée. Aucun diagnostic technique caché en DH.
+9. **DH** : passages (4 à 8) pour l'exercice technique uniquement ; jamais de total de runs ni de dénivelé.
+10. **Fiche d'exercice** : nom, famille, objectif, discipline, matériel, niveau, variantes, progressions, consignes, erreurs fréquentes, points de vigilance (jamais « interdit », aucune décision médicale).
+11. **Validation** : Louis = vision produit et athlète ; validation sportive externe à définir ; développeur = application. Tous les chiffres sont `PROVISIONAL`.
+
+**Ajustement validé.** Plages V1 en Force : léger 8–15 répétitions, RPE 5–6 ; modéré — principal 3–5 × 6–8 à RPE 7–8, secondaire 8–12 à RPE 7, prévention 12–20 à RPE 6–7 ; lourd 3–6 répétitions, RPE 8–9 (orientation future). Le principal modéré passe de 3–8 à 6–8 répétitions par rapport à la proposition UX-11A.1 révision 2 (3 répétitions relève déjà de la force maximale). Les séances d'exemple du document UX-11A.1 (squat 4 × 5–8) sont à aligner lors de sa prochaine révision.
+
+**Remplace en principe.** V0.4_119 (aucune prescription pour les séances aérobie, repos, récupération) : endurance, mobilité et récupération auront un contenu. L'implémentation reste à faire dans un ticket moteur dédié.
+
+**Hors périmètre.**
+- *Durées entre moteurs* : UX-11A définit la structure de séance. Les incohérences de durée entre moteurs existants ne sont pas résolues dans ce changement (ex. `planning-engine` prévoit 90 min pour une séance DH technique, la fenêtre de session DH du Head Coach est de 4 h en charge modérée).
+- Modèle de données, tables, réalisation série par série (UX-11B) ; mode séance, minuteur, cases à cocher (UX-11C) ; adaptation de la prescription du jour (UX-11D) ; progression fondée sur la performance réelle (UX-11E) ; hors ligne.
+- Moteur de décision M1 : inchangé. `planning-engine`, `prescription-engine` et le catalogue : inchangés par cette ADR.
+
+**Vocabulaire.** Séance, bloc de séance, exercice prescrit, exercice réalisé, intention, famille de séance : à ajouter à `07_GLOSSARY.md` après validation ; d'ici là, 03 fait foi.
+
+**Ordre imposé.** Aucune table n'est créée avant la validation de cette ADR. Ensuite seulement : UX-11B (modèle de données).
+
+**Statut** : Accepted (Louis + architecture produit, 2026-09-30). Documentation uniquement : aucun code, moteur, schéma ni donnée modifié.
