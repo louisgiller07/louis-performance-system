@@ -10,6 +10,7 @@ import {
   type AvailabilityFormDay,
   type AvailabilityDayOfWeek,
   type SaveAvailabilityWindowInput,
+  type AvailabilityWindow,
 } from "./availabilityRepo";
 
 const DAY_LABELS: Record<AvailabilityDayOfWeek, string> = {
@@ -37,6 +38,10 @@ export interface AvailabilityGateState {
 export interface AvailabilitySectionProps {
   /** Reports this section's gate-relevant state up to PerformanceSetup.tsx, which owns the actual generation gate — no global context, no lifted form state (V0.5_044 lock: "callbacks/props ou pattern local simple"). */
   onGateStateChange: (state: AvailabilityGateState) => void;
+  /** UX-10B-1 — told after a successful save (the section's summary refreshes). */
+  onSaved?: (windows: AvailabilityWindow[]) => void;
+  /** UX-10B-1 — inside "Tes créneaux": no own card or title. */
+  bare?: boolean;
 }
 
 /** Local toggle — same visual language as PerformanceSetup.tsx's own ToggleChip, not imported (siblings in the same feature folder, kept decoupled — same reasoning as TrainingPlanGenerationPanel.tsx staying self-contained). */
@@ -80,7 +85,7 @@ function validateDays(days: readonly AvailabilityFormDay[]): string | null {
  * locked dates are out of scope (V0.5_044 decision) — not represented here
  * even as disabled/placeholder UI.
  */
-export function AvailabilitySection({ onGateStateChange }: AvailabilitySectionProps) {
+export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }: AvailabilitySectionProps) {
   const { athleteId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -160,6 +165,7 @@ export function AvailabilitySection({ onGateStateChange }: AvailabilitySectionPr
       setDays(deriveAvailabilityForm(result));
       setDirty(false);
       setSaved(true);
+      onSaved?.(result);
     } catch (err) {
       setError(err instanceof AvailabilityError ? err.message : "Une erreur inattendue s'est produite. Réessaie.");
     } finally {
@@ -167,12 +173,15 @@ export function AvailabilitySection({ onGateStateChange }: AvailabilitySectionPr
     }
   }
 
+  const Wrapper = bare ? "div" : Card;
   return (
-    <Card className="flex flex-col gap-4">
-      <div>
-        <p className="text-sm font-medium text-ink">Disponibilités</p>
-        <p className="text-sm text-ink/70">Indique les jours où tu peux généralement t'entraîner.</p>
-      </div>
+    <Wrapper className="flex flex-col gap-4">
+      {!bare && (
+        <div>
+          <p className="text-sm font-medium text-ink">Disponibilités</p>
+          <p className="text-sm text-ink/70">Indique les jours où tu peux généralement t'entraîner.</p>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted">Chargement…</p>
@@ -226,6 +235,6 @@ export function AvailabilitySection({ onGateStateChange }: AvailabilitySectionPr
           </PrimaryButton>
         </>
       )}
-    </Card>
+    </Wrapper>
   );
 }

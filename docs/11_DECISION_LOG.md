@@ -3290,3 +3290,25 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 **Hors UX-10A (UX-10B).** Affiner ton profil (sections), Ma semaine, Insights, leurs états vides, consentement mis à jour.
 
 **Statut** : Accepted — tests web 1632/1632, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données de production du compte de test en lecture seule (écritures bloquées, 0 tentative), connexion / inscription / mot de passe oublié / Aujourd'hui / Programme / Historique / détail / Profil à 320 et 390 px : aucun terme moteur visible, aucun débordement, aucune erreur. Non déployé.
+
+## 2026-09-30 — ADR UX-10B-1 : Affiner ton profil, en sections
+
+> **UX-10B-1 keeps profile changes separated from active plans. Updating athlete preferences never modifies an existing training plan automatically. A new preparation must be explicitly rebuilt and accepted by the athlete.**
+
+Presentation-only: no engine, Supabase, Edge Function or schema change; every write goes through the existing repositories.
+
+**Six sections** sur `/performance-setup` (« Affiner ton profil »), chacune avec un résumé de ce qui est enregistré, [Modifier], [Annuler] / [Enregistrer] et une sauvegarde indépendante :
+- **Ta pratique** — discipline, niveau, objectif principal, temps par semaine, jours de roulage (au moins un) : les réponses du premier lancement, désormais modifiables via les fonctions existantes de `athleteOnboardingRepo` (seuls les champs changés sont écrits) ; objectif de saison via le profil de performance.
+- **Ton terrain** (au moins un), **Ton matériel** (aucun = « Au poids du corps », vrai avec les données existantes), **Tes points forts** (points forts, à travailler, priorités de pilotage, expérience en renfo ; sans priorité : « NALYNT fait tourner les thèmes techniques »).
+- **Tes créneaux** — l'écran de disponibilités existant, résumé « sam., dim. · 8 h – 18 h ».
+- **Ta préparation** — 4 / 6 / 8 / 12 semaines (6 présélectionné) ; « Construire ma préparation » sans plan actif, « Reconstruire ma préparation » avec un plan actif (« Tu décides ensuite si tu la commences »).
+
+**Profil ≠ plan.** Après chaque enregistrement : « Enregistré. Ton plan actuel reste inchangé. Reconstruis ta préparation pour en tenir compte. » Une reconstruction crée une nouvelle version (brouillon), que l'athlète accepte ou non depuis Programme (« Nouvelle version disponible », UX-06) ; le plan actif n'est jamais recalculé ni remplacé automatiquement.
+
+**Fusion avant écriture.** Le profil de performance s'écrit d'un bloc (`savePerformanceSetup`) : chaque section fusionne ses changements avec le profil déjà enregistré — aucune section n'en écrase une autre, une modification partielle reste partielle (couvert par tests).
+
+**Garde-fous conservés (V0.5_036 / V0.5_045).** Aucune construction pendant qu'une section est en cours d'édition, ni sans créneau enregistré, avec l'explication affichée.
+
+**Vocabulaire.** « Plus ton profil est précis, plus ta préparation correspond à ta réalité. » — NALYNT utilise ce que l'athlète déclare ; jamais « te connaît », « apprend », « analyse » (test de formulation). Aucune donnée inventée : pas de vélo, suspension, spots ni conditions (aucune donnée stockée).
+
+**Statut** : Accepted — tests web 1629/1629, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données du compte de test en lecture seule (écritures bloquées, 0 tentative), 320 et 390 px, chaque section ouverte puis annulée. Non déployé.
