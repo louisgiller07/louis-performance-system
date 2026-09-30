@@ -26,7 +26,7 @@ export function ProfilePage() {
   return (
     <PageShell header={<AppHeader />}>
       <section className="ux-enter pt-2">
-        <p className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+        <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
           <span className="h-px w-5 bg-gold" aria-hidden="true" />
           Profil
         </p>

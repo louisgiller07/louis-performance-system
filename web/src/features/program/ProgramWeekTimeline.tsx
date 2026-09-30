@@ -52,7 +52,7 @@ export function ProgramWeekTimeline({
           ‹
         </button>
         <div className="text-center">
-          <h2 id="program-week-title" className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+          <h2 id="program-week-title" className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">
             {monday === currentMonday ? "Cette semaine" : weekOfLabel(monday)}
           </h2>
           {phase && <p className="mt-1 font-display text-xl font-extrabold uppercase leading-none text-ink">{phase}</p>}
@@ -73,7 +73,7 @@ export function ProgramWeekTimeline({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <p className="text-[0.68rem] text-muted">✓ réalisée · ● aujourd'hui · ○ prévue · ⚑ course</p>
+        <p className="text-xs text-muted">✓ réalisée · ● aujourd'hui · ○ prévue · ⚑ course</p>
         {monday !== currentMonday && todayInPlan && (
           <Link to="/today" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
             Voir la séance du jour →

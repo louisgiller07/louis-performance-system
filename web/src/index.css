@@ -268,3 +268,13 @@ input[type="range"].ux-range:focus-visible::-webkit-slider-thumb {
     animation: ux-enter 0.5s var(--ease-premium) both;
   }
 }
+
+/*
+ * UX-10A — one visible keyboard focus for every control (choice cards,
+ * chips, 0–10 scales, links), gold on carbon. Zero specificity (:where), so
+ * a control's own focus style (e.g. an input's gold border) still wins.
+ */
+:where(button, a, [role="button"], summary, input[type="checkbox"]):focus-visible {
+  outline: 2px solid var(--color-gold-light);
+  outline-offset: 2px;
+}

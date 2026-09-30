@@ -50,7 +50,7 @@ export function NextStepCard({
 
   return (
     <section aria-labelledby="next-step-title" className="ux-enter rounded-xl border border-line bg-card p-5">
-      <h2 id="next-step-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <h2 id="next-step-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         Prochaine étape
       </h2>
@@ -65,7 +65,7 @@ export function NextStepCard({
       )}
       {context && <p className="mt-3 text-sm leading-relaxed text-ink/80">{context}</p>}
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
-        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-gold">Ton objectif reste. Ton plan s'adapte.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold">Ton objectif reste. Ton plan s'adapte.</p>
         <Link to="/training-plan" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
           Programme →
         </Link>

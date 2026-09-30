@@ -89,7 +89,7 @@ function Realisation({ day }: { day: HistoryDay }) {
         <dl className="mt-2">
           {rows.map(([label, value]) => (
             <div key={label} className="flex items-baseline justify-between gap-4 border-b border-line py-2 last:border-b-0">
-              <dt className="text-[0.62rem] uppercase tracking-[0.14em] text-muted">{label}</dt>
+              <dt className="text-xs uppercase tracking-[0.14em] text-muted">{label}</dt>
               <dd className="text-right text-sm text-ink">{value}</dd>
             </div>
           ))}
@@ -100,7 +100,7 @@ function Realisation({ day }: { day: HistoryDay }) {
 }
 
 function Kicker({ children, tone = "gold" }: { children: string; tone?: "gold" | "red" }) {
-  return <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.2em] ${tone === "red" ? "text-red-400" : "text-gold"}`}>{children}</p>;
+  return <p className={`text-xs font-semibold uppercase tracking-[0.2em] ${tone === "red" ? "text-red-400" : "text-gold"}`}>{children}</p>;
 }
 
 function Reevaluations({ decisions }: { decisions: DecisionHistoryRow[] }) {
@@ -152,7 +152,7 @@ export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string 
           {dayTitle(day.date, today)}
         </h3>
         {plan && (
-          <p className={`shrink-0 text-[0.68rem] font-semibold uppercase tracking-[0.16em] ${health ? "text-red-400" : "text-gold"}`}>{health ? "Signal actif" : "Prêt"}</p>
+          <p className={`shrink-0 text-xs font-semibold uppercase tracking-[0.16em] ${health ? "text-red-400" : "text-gold"}`}>{health ? "Signal actif" : "Prêt"}</p>
         )}
       </header>
       {day.race && <p className="mt-1 text-sm text-gold">{`⚑ ${day.race.eventName}`}</p>}
@@ -194,7 +194,7 @@ export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string 
               <dl className="mt-3 grid grid-cols-2 gap-3">
                 {tiles.map((tile) => (
                   <div key={tile.field}>
-                    <dt className="text-[0.62rem] uppercase tracking-[0.14em] text-muted">{tile.label}</dt>
+                    <dt className="text-xs uppercase tracking-[0.14em] text-muted">{tile.label}</dt>
                     <dd className={`mt-1 font-display text-2xl font-extrabold leading-none ${retainedFields.has(tile.field) ? "text-gold" : "text-ink"}`}>{tile.value}</dd>
                   </div>
                 ))}

@@ -14,7 +14,7 @@ function describe(intervention: TrainingIntervention): string {
 export function ProgramAdaptationCard({ adaptation, compact = false }: { adaptation: Adaptation; compact?: boolean }) {
   return (
     <div className={`rounded-lg border border-gold/40 bg-gold/5 ${compact ? "mt-2 p-3" : "mt-4 p-4"}`}>
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-gold">Adaptée par NALYNT</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Adaptée par NALYNT</p>
       <dl className={`grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 ${compact ? "mt-1.5 text-xs" : "mt-2 text-sm"}`}>
         <dt className="text-muted">Prévu</dt>
         <dd className="text-ink/70 line-through decoration-muted/70">{describe(adaptation.planned)}</dd>

@@ -98,7 +98,7 @@ describe("DailyPlanPanel", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
 
-    expect(screen.getByRole("button", { name: /Analyse en cours/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Préparation en cours/ })).toBeDisabled();
     resolveRun({ ok: true, data: SUCCESS_RESPONSE });
   });
 
@@ -109,8 +109,9 @@ describe("DailyPlanPanel", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
 
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
-    expect(screen.getByText(/Confiance moyenne/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
+    // UX-10A — the engine's confidence is never shown to the rider.
+    expect(screen.queryByText(/Confiance/)).not.toBeInTheDocument();
     expect(screen.getByText(/En saison/)).toBeInTheDocument();
     expect(screen.getByText("Tout va bien.")).toBeInTheDocument();
   });
@@ -137,7 +138,7 @@ describe("DailyPlanPanel", () => {
     expect(mockedRun).toHaveBeenCalledTimes(1);
 
     resolveRun({ ok: true, data: SUCCESS_RESPONSE });
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
     expect(mockedRun).toHaveBeenCalledTimes(1);
   });
 
@@ -176,11 +177,11 @@ describe("DailyPlanPanel", () => {
 
     const { rerender } = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
 
     rerender(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={1} />);
 
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
     expect(screen.getByText(/Ton check-in a changé/)).toBeInTheDocument();
   });
 
@@ -190,7 +191,7 @@ describe("DailyPlanPanel", () => {
 
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
 
     let resolveSecond!: (value: unknown) => void;
     mockedRun.mockReturnValueOnce(
@@ -202,10 +203,10 @@ describe("DailyPlanPanel", () => {
 
     // The old plan must be gone the instant the new attempt starts, not
     // only once the new response arrives.
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
 
     resolveSecond({ ok: true, data: SUCCESS_RESPONSE_2 });
-    await waitFor(() => expect(screen.getByText("Adapter")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("NALYNT a adapté ton plan")).toBeInTheDocument());
   });
 
   it("does not leave the old plan visible when the next generation fails", async () => {
@@ -214,7 +215,7 @@ describe("DailyPlanPanel", () => {
 
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
 
     mockedRun.mockResolvedValueOnce({
       ok: false,
@@ -223,7 +224,7 @@ describe("DailyPlanPanel", () => {
     await user.click(screen.getByRole("button", { name: /Préparer ma séance du jour/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
   });
 
   it("ignores a stale in-flight response once checkinRevision has moved on before it resolves", async () => {
@@ -246,7 +247,7 @@ describe("DailyPlanPanel", () => {
     // Give the pending .then/await a tick to run, then assert the stale
     // result was never rendered.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
   });
 
   it("rejects a malformed success response with invalid_response and never renders invented data", async () => {
@@ -264,7 +265,7 @@ describe("DailyPlanPanel", () => {
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/invalide/));
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
   });
 });
 
@@ -286,7 +287,7 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByRole("button", { name: /Préparer ma séance du jour/ })).toBeInTheDocument();
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });
 
@@ -294,7 +295,7 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(await screen.findByText("Ta séance reste conforme au plan")).toBeInTheDocument();
     expect(screen.getByText("Plan déjà généré aujourd'hui.")).toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });
@@ -313,18 +314,18 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     expect(screen.getByText(/Chargement de ton plan/)).toBeInTheDocument();
 
     resolveRestore(RESTORED_ROW);
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
   });
 
   it("C, D: remounting (navigate away/back, or a reload) restores the same persisted plan without ever calling daily-run", async () => {
     loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
 
     const first = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
     first.unmount();
 
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(await screen.findByText("Ta séance reste conforme au plan")).toBeInTheDocument();
     expect(screen.getByText("Plan déjà généré aujourd'hui.")).toBeInTheDocument();
 
     expect(mockedRun).not.toHaveBeenCalled();
@@ -360,7 +361,7 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByRole("button", { name: /Préparer ma séance du jour/ })).toBeInTheDocument();
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
   });
 
@@ -371,7 +372,7 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
 
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
     await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument());
     const generatedText = screen.getByText("Tout va bien.");
     expect(generatedText).toBeInTheDocument();
   });
@@ -397,7 +398,8 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
     });
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    // No planned session to keep: NALYNT proposes one (UX-10A).
+    expect(await screen.findByText("NALYNT te propose cette séance")).toBeInTheDocument();
     expect(screen.getByText("Plan déjà généré aujourd'hui.")).toBeInTheDocument();
     expect(screen.queryByText(/Réponse du serveur invalide/)).not.toBeInTheDocument();
     expect(mockedRun).not.toHaveBeenCalled();
@@ -576,7 +578,7 @@ describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByText("Ton check-in a changé. Génère un nouveau plan.")).toBeInTheDocument();
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
     expect(screen.queryByText("Plan déjà généré aujourd'hui.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Préparer ma séance du jour/ })).toBeEnabled();
     expect(loadDecisionCurrency).toHaveBeenCalledWith(RESTORED_ROW.id);
@@ -588,11 +590,11 @@ describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
     loadDecisionCurrency.mockResolvedValue({ isCurrent: true, staleReason: null });
 
     const first = render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
-    await screen.findByText("Maintenir");
+    await screen.findByText("Ta séance reste conforme au plan");
     first.unmount();
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
-    expect(await screen.findByText("Maintenir")).toBeInTheDocument();
+    expect(await screen.findByText("Ta séance reste conforme au plan")).toBeInTheDocument();
     expect(screen.queryByText(/Génère un nouveau plan/)).not.toBeInTheDocument();
   });
 
@@ -603,7 +605,7 @@ describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByText("Ta séance prévue a changé. Génère un nouveau plan.")).toBeInTheDocument();
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
   });
 
   it("freshness cannot be verified -> retryable error, the decision is never assumed current", async () => {
@@ -613,7 +615,7 @@ describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
     render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger ton plan du jour. Réessaie.");
-    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ta séance reste conforme au plan")).not.toBeInTheDocument();
   });
 
   it("explicit recalculation after a stale restore shows the new decision", async () => {
@@ -626,7 +628,7 @@ describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
     await screen.findByText("Ton check-in a changé. Génère un nouveau plan.");
     await user.click(screen.getByRole("button", { name: /Préparer ma séance du jour/ }));
 
-    expect(await screen.findByText("Adapter")).toBeInTheDocument();
+    expect(await screen.findByText("NALYNT a adapté ton plan")).toBeInTheDocument();
     expect(screen.queryByText(/Génère un nouveau plan/)).not.toBeInTheDocument();
   });
 });

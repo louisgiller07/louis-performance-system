@@ -65,14 +65,20 @@ export function HistoryDetailPage() {
         <header className="flex items-center gap-3 border-b border-white/5 bg-bg px-2 py-2">
           <Link
             to="/history"
-            className="inline-flex min-h-11 items-center rounded px-2 text-sm font-medium text-muted active:bg-white/5 active:text-ink"
+            className="ux-press inline-flex min-h-11 items-center rounded px-2 text-sm font-medium text-ink/80 hover:text-gold"
           >
             ← Historique
           </Link>
         </header>
       }
     >
-      {state === "loading" && <p className="text-sm text-muted">Chargement…</p>}
+      {state === "loading" && (
+        <div className="flex flex-col gap-3" aria-busy="true">
+          <p className="sr-only">Chargement…</p>
+          <div className="ux-skeleton h-8 w-2/3 rounded" />
+          <div className="ux-skeleton h-56 rounded-2xl" />
+        </div>
+      )}
 
       {state === "error" && (
         <p role="alert" className="text-sm text-red-400">
@@ -80,13 +86,20 @@ export function HistoryDetailPage() {
         </p>
       )}
 
-      {state === "not_found" && <p className="text-sm text-muted">Décision introuvable.</p>}
+      {state === "not_found" && (
+        <div className="rounded-2xl border border-line bg-card p-5">
+          <p className="font-display text-2xl font-extrabold uppercase leading-tight text-ink">Journée introuvable</p>
+          <p className="mt-2 text-sm text-ink/80">Elle n'existe plus ou n'est pas accessible depuis ce compte.</p>
+        </div>
+      )}
 
       {state === "success" && row && (
         <>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            {formatCalendarDate(row.decisionDate)} · {formatLocalTime(row.createdAt)}
-          </p>
+          {/* UX-10A — the day as a title; the time of this decision stays as a detail. */}
+          <div>
+            <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-ink">{formatCalendarDate(row.decisionDate)}</h1>
+            <p className="mt-1 text-sm text-muted">{`Décision de ${formatLocalTime(row.createdAt)}`}</p>
+          </div>
           <HistoryDetail row={row} performedMatch={performedMatch} />
         </>
       )}

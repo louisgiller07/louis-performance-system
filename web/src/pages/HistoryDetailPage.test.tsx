@@ -79,7 +79,7 @@ describe("HistoryDetailPage", () => {
   it("shows a not-found state when no row is returned", async () => {
     mockedLoad.mockResolvedValue(null);
     renderDetailPage();
-    await waitFor(() => expect(screen.getByText("Décision introuvable.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Journée introuvable")).toBeInTheDocument());
   });
 
   it("shows the fixed generic error message on the repo's own HistoryLoadError", async () => {
@@ -100,7 +100,7 @@ describe("HistoryDetailPage", () => {
   it("renders the stored DailyPlan via HistoryDetail on success, with the decision date and time", async () => {
     mockedLoad.mockResolvedValue(VALID_ROW);
     renderDetailPage();
-    await waitFor(() => expect(screen.getByText("Maintenir")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("NALYNT te propose cette séance")).toBeInTheDocument());
     expect(screen.getByText(/19 août/)).toBeInTheDocument();
   });
 

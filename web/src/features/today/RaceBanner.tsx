@@ -58,7 +58,7 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
 
   return (
     <section aria-label={kicker} className="ux-enter ux-grain relative overflow-hidden border-l-2 border-gold py-1 pl-4" style={{ ["--d" as string]: "100ms" }}>
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">{kicker}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">{kicker}</p>
       {big && <p className="mt-2 font-display text-6xl font-extrabold uppercase leading-[0.85] text-gold">{big}</p>}
       <p className={`font-display font-extrabold uppercase leading-[0.95] text-ink ${big ? "mt-2 text-3xl" : "mt-2 text-4xl"}`}>{title}</p>
       {details.length > 0 && <p className="mt-2 text-sm text-ink/75">{details.join(" · ")}</p>}

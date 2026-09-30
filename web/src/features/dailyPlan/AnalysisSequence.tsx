@@ -9,11 +9,11 @@ const LINES = ["Sommeil et récupération", "Énergie et fatigue", "Santé", "Ta
 export function AnalysisSequence() {
   return (
     <section role="status" aria-live="polite" className="ux-grain ux-enter relative overflow-hidden rounded-2xl border border-gold/40 bg-card p-6">
-      <p className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="analysis-dot h-1.5 w-1.5 rounded-full bg-gold" aria-hidden="true" />
         Analyse
       </p>
-      <p className="mt-4 font-display text-4xl font-extrabold uppercase leading-none text-ink">NALYNT analyse…</p>
+      <p className="mt-4 font-display text-4xl font-extrabold uppercase leading-none text-ink">NALYNT prépare ta séance…</p>
       <ul className="mt-6 flex flex-col gap-3" aria-hidden="true">
         {LINES.map((line, index) => (
           <li key={line} className="analysis-line flex items-center justify-between border-b border-line pb-3 text-sm text-ink/80" style={{ ["--i" as string]: index }}>

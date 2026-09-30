@@ -22,7 +22,7 @@ export function CheckinHero({
   return (
     <section aria-labelledby="checkin-hero-title" className="ux-grain relative overflow-hidden rounded-2xl border border-gold/45 bg-card p-6">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-linear-to-br from-gold/10 via-transparent to-transparent" aria-hidden="true" />
-      <p className="ux-enter flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <p className="ux-enter flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         {kicker}
       </p>
@@ -34,7 +34,7 @@ export function CheckinHero({
       </p>
       <ol className="ux-enter mt-5 flex flex-wrap gap-2" style={{ ["--d" as string]: "220ms" }} aria-label="Étapes du check-in">
         {STEPS.map((step, index) => (
-          <li key={step} className="rounded-sm border border-line px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-ink/75">
+          <li key={step} className="rounded-sm border border-line px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink/75">
             <span className="text-gold">{index + 1}</span> {step}
           </li>
         ))}

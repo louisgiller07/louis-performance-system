@@ -6,6 +6,7 @@ import type { CompletedSessionRecord } from "../completedSession/completedSessio
 // Same cross-boundary direct engine import pattern as dailyPlan/DailyPlanView.enriched.test.tsx.
 import { buildDailyPlan } from "../../../../head-coach-engine/src/engine/buildDailyPlan.js";
 import { baseRawContext } from "../../../../head-coach-engine/fixtures/louis.js";
+import { missionStatus } from "../dailyPlan/missionStatus";
 
 const VALID_DAILY_PLAN = {
   active_mode: "IN_SEASON",
@@ -67,7 +68,10 @@ function makeSession(overrides: Partial<CompletedSessionRecord> = {}): Completed
 describe("HistoryDetail", () => {
   it("renders the stored DailyPlan via the shared DailyPlanView for a valid row", () => {
     render(<HistoryDetail row={makeRow()} performedMatch={{ kind: "none" }} />);
-    expect(screen.getByText("Maintenir")).toBeInTheDocument();
+    // UX-10A — "Ta mission" and the decision in a coach's words, never "Prescrit" / "Maintenir".
+    expect(screen.getByText("Ta mission")).toBeInTheDocument();
+    expect(screen.getByText("NALYNT te propose cette séance")).toBeInTheDocument();
+    expect(screen.queryByText(/Prescrit|Maintenir/)).not.toBeInTheDocument();
     expect(screen.getByText("Tout va bien.")).toBeInTheDocument();
   });
 
@@ -113,12 +117,14 @@ describe("HistoryDetail", () => {
       <HistoryDetail row={makeRow({ confidenceLevelDb: "HIGH", dailyPlan: stored as unknown as DecisionHistoryRow["dailyPlan"] })} performedMatch={{ kind: "none" }} />
     );
 
-    expect(screen.getByText("Décision du Head Coach")).toBeInTheDocument();
+    expect(screen.queryByText("Décision du Head Coach")).not.toBeInTheDocument();
+    expect(screen.getByText(missionStatus(stored))).toBeInTheDocument();
     expect(screen.getByText("Mission du jour")).toBeInTheDocument();
     expect(screen.getByText("Plan de séance")).toBeInTheDocument();
     expect(screen.getByText("Intensité")).toBeInTheDocument();
     expect(stored.confidence).toBe("MEDIUM");
-    expect(screen.getByText("Confiance moyenne")).toBeInTheDocument(); // stored enum rendered as its French label
+    // UX-10A — the stored confidence stays in the data, never on screen.
+    expect(screen.queryByText(/Confiance/)).not.toBeInTheDocument();
     // The dev-only technical JSON dump (import.meta.env.DEV) intentionally shows the raw stored plan: check the rest only.
     const visible = container.cloneNode(true) as HTMLElement;
     visible.querySelectorAll("details").forEach((d) => {
@@ -188,7 +194,7 @@ describe("HistoryDetail", () => {
     expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });
 
-  it("enriches the degraded fallback with the real activeModeDb/confidenceLevelDb DB columns when present", () => {
+  it("enriches the degraded fallback with the real phase when present — never the confidence (UX-10A)", () => {
     render(
       <HistoryDetail
         row={makeRow({ dailyPlan: { decision: "NOT_A_REAL_ENUM" }, activeModeDb: "RACE_WEEK", confidenceLevelDb: "HIGH" })}
@@ -196,13 +202,13 @@ describe("HistoryDetail", () => {
       />
     );
     expect(screen.getByText(/Semaine de course/)).toBeInTheDocument();
-    expect(screen.getByText(/Élevée/)).toBeInTheDocument();
+    expect(screen.queryByText(/Élevée|Confiance/)).not.toBeInTheDocument();
   });
 
   it("omits mode/confidence from the degraded fallback for a pre-M2 row where both are null, never fabricating them", () => {
     render(<HistoryDetail row={makeRow({ dailyPlan: null, activeModeDb: null, confidenceLevelDb: null })} performedMatch={{ kind: "none" }} />);
     expect(screen.getByText(/ne peut pas être affichée complètement/)).toBeInTheDocument();
-    expect(screen.queryByText(/Mode :/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mode :|Phase :/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Confiance :/)).not.toBeInTheDocument();
   });
 
@@ -221,7 +227,8 @@ describe("HistoryDetail", () => {
       />
     );
     expect(screen.queryByText(/ne peut pas être affichée complètement/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Phase non configurée/)).toBeInTheDocument();
+    // UX-10A — an unset phase says nothing to the rider: hidden.
+    expect(screen.queryByText(/Phase non configurée/)).not.toBeInTheDocument();
     expect(screen.queryByText("UNSPECIFIED")).not.toBeInTheDocument();
   });
 

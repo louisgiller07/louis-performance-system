@@ -35,19 +35,21 @@ function makeResult(planOverrides: Partial<DailyPlan> = {}, responseOverrides: P
 }
 
 describe("DailyPlanResult", () => {
-  it("renders a KEEP decision with its French label", () => {
+  it("renders a KEEP decision in a coach's words (UX-10A)", () => {
     render(<DailyPlanResult result={makeResult({ decision: "KEEP" })} />);
-    expect(screen.getByText("Maintenir")).toBeInTheDocument();
+    expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument();
+    expect(screen.queryByText("Maintenir")).not.toBeInTheDocument();
   });
 
-  it("renders a MODIFY decision with its French label", () => {
+  it("renders a MODIFY decision in a coach's words (UX-10A)", () => {
     render(<DailyPlanResult result={makeResult({ decision: "MODIFY" })} />);
-    expect(screen.getByText("Adapter")).toBeInTheDocument();
+    expect(screen.getByText("NALYNT a adapté ton plan")).toBeInTheDocument();
+    expect(screen.queryByText("Adapter")).not.toBeInTheDocument();
   });
 
-  it("displays the confidence level", () => {
+  it("never displays the engine's confidence level (UX-10A)", () => {
     render(<DailyPlanResult result={makeResult({ confidence: "HIGH" })} />);
-    expect(screen.getByText(/Confiance élevée/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Confiance/i)).not.toBeInTheDocument();
   });
 
   it("displays the active_mode as a human-readable label, not the raw enum", () => {
@@ -412,8 +414,8 @@ describe("DailyPlanResult", () => {
       />
     );
     expect(screen.queryByText("Séance")).not.toBeInTheDocument();
-    // training/final_session/decision are still shown as usual.
-    expect(screen.getByText("Maintenir")).toBeInTheDocument();
+    // training/final_session/decision are still shown as usual — no plan to keep: NALYNT proposes it.
+    expect(screen.getByText("NALYNT te propose cette séance")).toBeInTheDocument();
   });
 
   it("gates the technical debug details behind decisionId/engine_version, not invented UI copy", () => {

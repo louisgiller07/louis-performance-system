@@ -11,7 +11,7 @@ const UPCOMING_VISIBLE = 4;
 
 function SectionTitle({ id, children }: { id: string; children: string }) {
   return (
-    <h2 id={id} className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+    <h2 id={id} className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
       <span className="h-px w-5 bg-gold" aria-hidden="true" />
       {children}
     </h2>

@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GoogleAuthButton, readOAuthCallbackError } from "./GoogleAuthButton";
 import { AUTH_OR, EMAIL_LABEL, PASSWORD_LABEL } from "./authCopy";
+import { BrandMark } from "../components/BrandMark";
 
 export function LoginPage() {
   const { session } = useAuth();
@@ -58,11 +59,9 @@ export function LoginPage() {
       />
 
       <div className="relative flex w-full max-w-105 flex-col items-center">
-        <p className="text-3xl font-bold uppercase tracking-[0.3em] text-gold">Nalynt</p>
-        <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted">Ton coach de performance IA</p>
-        <p className="mt-4 max-w-70 text-center text-sm text-ink/70">
-          Ton coach IA pour l'entraînement, la récupération et la performance en course.
-        </p>
+        {/* UX-10A — the site's identity: the mark, the promise, one line on what NALYNT is. */}
+        <BrandMark promise />
+        <h1 className="mt-4 max-w-72 text-center text-sm text-ink/75">Ton coach de performance DH &amp; Enduro : ta préparation, ajustée chaque jour à ton état.</h1>
 
         <div className="mt-8 flex w-full flex-col gap-4">
           <GoogleAuthButton onError={setError} />
@@ -127,7 +126,7 @@ export function LoginPage() {
         </form>
 
         <div className="mt-8 flex flex-col items-center gap-1.5 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">Conçu pour</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Conçu pour</p>
           <p className="text-xs font-semibold uppercase tracking-wide text-ink/70">
             DH <span className="text-gold">•</span> Enduro <span className="text-gold">•</span> Gravity
           </p>

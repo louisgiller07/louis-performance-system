@@ -46,7 +46,7 @@ export function RatingSlider({ label, value, min = 0, max = 10, onChange, error,
       <span className="flex items-center justify-between text-sm text-ink/80">
         <span>{label}</span>
         <span className="flex items-baseline gap-2">
-          {valueLabel && <span className="text-[10px] font-semibold uppercase tracking-wide text-gold">{valueLabel}</span>}
+          {valueLabel && <span className="text-xs font-semibold uppercase tracking-wide text-gold">{valueLabel}</span>}
           <span key={String(value)} className="ux-pop font-display text-2xl font-extrabold leading-none text-ink">
             {value === "" ? "—" : value}
           </span>
@@ -64,7 +64,7 @@ export function RatingSlider({ label, value, min = 0, max = 10, onChange, error,
         style={{ background: `linear-gradient(to right, var(--color-gold) ${percent}%, var(--color-line) ${percent}%)` }}
       />
       {(lowLabel || highLabel) && (
-        <span className="flex items-center justify-between text-[11px] text-muted">
+        <span className="flex items-center justify-between text-xs text-muted">
           <span>
             {min} · {lowLabel}
           </span>

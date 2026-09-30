@@ -51,7 +51,7 @@ export function FirstRunShell({
             <span key={label} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${index <= chapter ? "bg-gold" : "bg-line"}`} />
           ))}
         </div>
-        <p className="mt-4 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">{CHAPTERS[chapter]}</p>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.22em] text-muted">{CHAPTERS[chapter]}</p>
 
         <div key={stepKey ?? title} className="ux-enter mt-2 flex flex-1 flex-col gap-6">
           <div>

@@ -17,7 +17,7 @@ function monthLabel(key: string, today: string): string {
 function Zone({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
-      <h2 id={id} className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <h2 id={id} className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         {title}
       </h2>
@@ -35,7 +35,7 @@ export function HistoryTimeline({ days, today }: { days: HistoryDay[]; today: st
           <HistoryDayCard day={zones.today} today={today} />
         ) : (
           <div className="rounded-xl border border-line bg-card p-5">
-            <p className="text-sm text-ink/80">Ta journée n'a pas encore été analysée.</p>
+            <p className="text-sm text-ink/80">Ta journée avec NALYNT n'a pas encore commencé.</p>
             <Link to="/today" className="ux-press mt-2 inline-flex min-h-11 items-center text-sm text-gold underline-offset-4 hover:underline">
               Faire mon check-in →
             </Link>

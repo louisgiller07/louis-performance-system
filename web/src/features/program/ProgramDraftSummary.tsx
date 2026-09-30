@@ -61,7 +61,7 @@ export function ProgramDraftSummary({
     const others = drafts.filter((draft) => draft.id !== review.version.id);
     return (
       <section aria-labelledby="draft-title" className="ux-enter rounded-xl border border-gold/50 bg-card p-5">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">{READY.kicker}</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">{READY.kicker}</p>
         <h2 id="draft-title" className="mt-2 font-display text-2xl font-extrabold uppercase leading-tight text-ink">
           {READY.title}
         </h2>
@@ -80,7 +80,7 @@ export function ProgramDraftSummary({
     const others = drafts.filter((draft) => draft.id !== review.version.id);
     return (
       <section aria-labelledby="draft-title" className="ux-enter rounded-xl border border-gold/50 bg-card p-5">
-        <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">Version non active</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">Version non active</p>
         <h2 id="draft-title" className="mt-2 font-display text-2xl font-extrabold uppercase leading-tight text-ink">
           Nouvelle version de ton plan
         </h2>
@@ -103,7 +103,7 @@ export function ProgramDraftSummary({
   const [latest, ...older] = drafts;
   return (
     <section aria-labelledby="draft-title" className="ux-enter rounded-xl border border-line bg-card p-5">
-      <p className="text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">Nouvelle version disponible</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gold">Nouvelle version disponible</p>
       <h2 id="draft-title" className="mt-2 font-display text-2xl font-extrabold uppercase leading-tight text-ink">
         Nouvelle version de ton plan prête
       </h2>

@@ -32,7 +32,7 @@ export function AfterSessionEntry({ date, athleteId }: { date: string; athleteId
         <AfterSessionSummary record={flow.record} planned={flow.recordPlanned} fresh={fresh} onEdit={open} />
       ) : (
         <section aria-labelledby="after-session-title" className="ux-enter rounded-2xl border border-line bg-card p-5">
-          <p className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+          <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
             <span className="h-px w-5 bg-gold" aria-hidden="true" />
             {ENTRY.kicker}
           </p>

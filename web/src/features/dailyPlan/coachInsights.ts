@@ -87,7 +87,8 @@ function detected(signals: RetainedSignal[]): string {
  * wording, UX-04):
  * - safety (layer A), race protocol (layer B), REST, or no planned session
  *   to compare against → the engine's own sanitized reasoning, unchanged;
- * - KEEP without retained signal → "Rien dans ton check-in ne demande…";
+ * - KEEP without retained signal → "Rien dans ton état du jour ne nécessite…"
+ *   (UX-10A wording, as MODIFY / REPLACE below);
  * - KEEP / MODIFY / REPLACE with retained signals → the signals, then what
  *   NALYNT does about them;
  * - anything else → the engine's sanitized reasoning.
@@ -105,14 +106,14 @@ export function coachWhy(dailyPlan: DailyPlan): string {
   const signals = retainedSignals(dailyPlan);
   if (dailyPlan.decision === "KEEP") {
     return signals.length === 0
-      ? "Rien dans ton check-in ne demande d'adapter ta séance. Tu suis ton plan."
+      ? "Rien dans ton état du jour ne nécessite d'adaptation. Tu suis ton plan."
       : `${detected(signals)} NALYNT ajuste la façon de faire, ta séance reste la même.`;
   }
   if (signals.length > 0 && dailyPlan.decision === "MODIFY") {
-    return `${detected(signals)} NALYNT ajuste la charge pour préserver ton objectif.`;
+    return `${detected(signals)} La charge est ajustée pour préserver ton objectif.`;
   }
   if (signals.length > 0 && dailyPlan.decision === "REPLACE") {
-    return `${detected(signals)} NALYNT propose une séance adaptée à ton état.`;
+    return `${detected(signals)} Ton état du jour demande une autre approche.`;
   }
   return athleteSafeReasoning(dailyPlan);
 }

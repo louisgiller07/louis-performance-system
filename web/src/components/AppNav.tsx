@@ -53,7 +53,7 @@ export function AppNav() {
               <Link
                 to={tab.to}
                 aria-current={active ? "page" : undefined}
-                className={`ux-press relative flex min-h-16 flex-col items-center justify-center gap-1 text-[0.68rem] font-semibold uppercase tracking-widest ${
+                className={`ux-press relative flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-semibold uppercase tracking-widest ${
                   active ? "text-gold" : "text-muted hover:text-ink"
                 }`}
               >

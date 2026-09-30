@@ -4,6 +4,7 @@ import type { AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { EMAIL_LABEL } from "./authCopy";
+import { BrandMark } from "../components/BrandMark";
 
 /** Same discipline as LoginPage.tsx/SignupPage.tsx — never raw `.message`, branch on the stable documented `.code`. */
 function resetErrorMessage(error: AuthError): string {
@@ -51,8 +52,8 @@ export function ForgotPasswordPage() {
   if (sent) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-center">
-        <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-        <p className="mt-6 max-w-sm text-ink">Vérifie ta boîte mail.</p>
+        <BrandMark size="md" />
+        <h1 className="mt-6 max-w-sm font-display text-2xl font-extrabold uppercase leading-tight text-ink">Vérifie ta boîte mail.</h1>
         <p className="mt-2 max-w-sm text-sm text-muted">
           Si un compte existe pour <span className="text-ink">{email}</span>, nous t'avons envoyé les instructions pour réinitialiser ton mot de passe.
         </p>
@@ -69,14 +70,14 @@ export function ForgotPasswordPage() {
       />
 
       <div className="relative flex w-full max-w-105 flex-col items-center">
-        <p className="text-3xl font-bold uppercase tracking-[0.3em] text-gold">Nalynt</p>
+        <BrandMark promise />
 
         <form
           onSubmit={handleSubmit}
           className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
-            <p className="text-xl font-bold text-ink">Réinitialise ton mot de passe</p>
+            <h1 className="font-display text-3xl font-extrabold uppercase leading-none text-ink">Réinitialise ton mot de passe</h1>
             <p className="mt-1 text-sm text-muted">Nous t'enverrons un lien de réinitialisation par e-mail.</p>
           </div>
 

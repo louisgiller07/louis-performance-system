@@ -5,6 +5,8 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { PASSWORDS_MISMATCH } from "./authCopy";
+import { BrandMark } from "../components/BrandMark";
+import { BrandLoading } from "../components/BrandScreen";
 
 /** Same discipline as LoginPage.tsx/SignupPage.tsx — never raw `.message`, branch on the stable documented `.code`. */
 function updatePasswordErrorMessage(error: AuthError): string {
@@ -60,7 +62,7 @@ export function ResetPasswordPage() {
   }
 
   if (loading) {
-    return <div className="flex min-h-screen items-center justify-center bg-bg text-sm text-muted">Chargement…</div>;
+    return <BrandLoading />;
   }
 
   // No session means the recovery link is missing, invalid, or already
@@ -68,8 +70,8 @@ export function ResetPasswordPage() {
   if (!session) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-bg px-4 text-center">
-        <p className="text-2xl font-bold uppercase tracking-[0.2em] text-gold">Nalynt</p>
-        <p className="mt-6 max-w-sm text-ink">Ce lien de réinitialisation est invalide ou a expiré.</p>
+        <BrandMark size="md" />
+        <h1 className="mt-6 max-w-sm font-display text-2xl font-extrabold uppercase leading-tight text-ink">Ce lien de réinitialisation est invalide ou a expiré.</h1>
         <Link to="/forgot-password" className="mt-4 text-sm font-medium text-gold hover:underline">
           Demander un nouveau lien
         </Link>
@@ -86,14 +88,14 @@ export function ResetPasswordPage() {
       />
 
       <div className="relative flex w-full max-w-105 flex-col items-center">
-        <p className="text-3xl font-bold uppercase tracking-[0.3em] text-gold">Nalynt</p>
+        <BrandMark promise />
 
         <form
           onSubmit={handleSubmit}
           className="mt-8 flex w-full flex-col gap-4 rounded-2xl border border-white/10 bg-card p-6 shadow-xl"
         >
           <div>
-            <p className="text-xl font-bold text-ink">Choisis un nouveau mot de passe</p>
+            <h1 className="font-display text-3xl font-extrabold uppercase leading-none text-ink">Choisis un nouveau mot de passe</h1>
           </div>
 
           <label className="flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">

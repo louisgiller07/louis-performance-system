@@ -1,6 +1,7 @@
-import { DECISION_LABELS, formatConfidence, LOAD_PROFILE_LABELS, PRIOR_TECHNICAL_OUTCOME_COPY, TRAINING_KIND_LABELS, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
+import { LOAD_PROFILE_LABELS, PRIOR_TECHNICAL_OUTCOME_COPY, TRAINING_KIND_LABELS, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
 import { athleteSafeReasoning, athleteSafeTrainingObjective } from "./safetyPresentation";
 import { coachWhy } from "./coachInsights";
+import { missionStatus } from "./missionStatus";
 import { formatDuration } from "./durationLabels";
 import type { DailyPlan, TrainingIntervention } from "./dailyPlanTypes";
 
@@ -44,7 +45,7 @@ function AdaptationCompare({ before, after }: { before: TrainingIntervention; af
   return (
     <div className="mission-compare mt-6 grid grid-cols-[1fr_auto_1fr] items-stretch overflow-hidden rounded-lg border border-line bg-bg/40">
       <div className="p-4">
-        <p className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-muted">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
           <span aria-hidden="true">✕</span> Prévu
         </p>
         <p className="relative mt-2 inline-block font-display text-3xl font-extrabold uppercase leading-none text-muted">
@@ -57,7 +58,7 @@ function AdaptationCompare({ before, after }: { before: TrainingIntervention; af
         →
       </div>
       <div className="mission-adapted p-4">
-        <p className="flex items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-gold">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-gold">
           <span aria-hidden="true">✓</span> Adapté
         </p>
         <p className="mt-2 font-display text-3xl font-extrabold uppercase leading-none text-gold">{adapted.primary}</p>
@@ -76,8 +77,8 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   const final = dailyPlan.final_session;
   const before = dailyPlan.planned_session_before;
   const tone = DECISION_TONE[dailyPlan.decision] ?? DECISION_TONE.KEEP!;
-  const decisionLabel = DECISION_LABELS[dailyPlan.decision] ?? null;
-  const confidenceLabel = formatConfidence(dailyPlan.confidence);
+  // UX-10A — the decision in a coach's words; the confidence level is never shown.
+  const status = missionStatus(dailyPlan);
   const adapted = dailyPlan.decision !== "KEEP" && before !== null;
 
   const isDh = dailyPlan.dh_or_technical.active;
@@ -107,11 +108,11 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
     >
       <div className={`pointer-events-none absolute inset-0 -z-10 bg-linear-to-br ${tone.glow} via-transparent to-transparent`} aria-hidden="true" />
       <div className="ux-enter flex items-start justify-between gap-3">
-        <p className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+        <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
           <span className="h-px w-5 bg-gold" aria-hidden="true" />
           Ta mission du jour
         </p>
-        {modeLabel && <p className="shrink-0 text-right text-[0.65rem] font-medium uppercase tracking-[0.16em] text-muted">{modeLabel}</p>}
+        {modeLabel && <p className="shrink-0 text-right text-xs font-medium uppercase tracking-[0.16em] text-muted">{modeLabel}</p>}
       </div>
       <h2 id="mission-title" className="ux-enter mt-4 font-display text-[clamp(2.75rem,13vw,3.75rem)] font-extrabold uppercase leading-[0.9] text-ink" style={{ ["--d" as string]: "80ms" }}>
         {kindLabel(final)}
@@ -130,17 +131,12 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
       )}
 
       <div className="ux-enter mt-5 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ ["--d" as string]: "240ms" }}>
-        {decisionLabel && (
-          <span className={`inline-flex items-center rounded-sm border px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] ${tone.chip}`}>
-            {decisionLabel}
-          </span>
-        )}
-        {confidenceLabel && <span className="text-sm text-muted">Confiance {confidenceLabel.toLowerCase()}</span>}
+        <span className={`inline-flex items-center rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${tone.chip}`}>{status}</span>
       </div>
 
       {(headline || body || spotHint) && (
         <div className="ux-enter mt-5 border-t border-line pt-5" style={{ ["--d" as string]: "320ms" }}>
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">Objectif</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Objectif</p>
           {headline && <p className="mt-1.5 text-lg font-medium leading-snug text-ink">{headline}</p>}
           {body && <p className="mt-1.5 text-sm leading-relaxed text-ink/75">{body}</p>}
           {spotHint && <p className="mt-1.5 text-sm leading-relaxed text-ink/75">{spotHint}</p>}
@@ -148,12 +144,12 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
       )}
 
       <div className="ux-enter mt-5 border-l border-gold/60 pl-4" style={{ ["--d" as string]: "400ms" }}>
-        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-gold">Pourquoi ?</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">Pourquoi ?</p>
         <p className="mt-1.5 text-base leading-relaxed text-ink/90">{why}</p>
       </div>
 
       {adapted && (
-        <p className="ux-enter mt-5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted" style={{ ["--d" as string]: "480ms" }}>
+        <p className="ux-enter mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-muted" style={{ ["--d" as string]: "480ms" }}>
           Ton objectif reste. Ton plan s'adapte.
         </p>
       )}
@@ -165,7 +161,7 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
        */}
       {priorTask && (
         <div className="mt-5 border-t border-line pt-4">
-          <p className="text-[0.68rem] uppercase tracking-[0.2em] text-muted">Tâche précédente</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-muted">Tâche précédente</p>
           <p className="mt-1 italic text-ink/70">« {priorTask.execution_task} »</p>
           <p className="text-sm text-ink/70">{PRIOR_TECHNICAL_OUTCOME_COPY[priorTask.technical_outcome]}</p>
         </div>
