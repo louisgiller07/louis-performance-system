@@ -5,7 +5,7 @@ import type { PerformanceSetupAnswers } from "../performanceSetup/performanceSet
 import { plan, session } from "../program/programFixtures";
 
 const window = (dayOfWeek: AvailabilityWindow["dayOfWeek"], startTime = "17:00", endTime = "21:00"): AvailabilityWindow => ({ id: `w-${dayOfWeek}`, dayOfWeek, startTime, endTime, label: null });
-const PROFILE: PerformanceSetupAnswers = { equipment: [], terrainAccess: [], strengths: [], weaknesses: [], priorityAreas: [], strengthExperienceTier: null, seasonObjective: null };
+const PROFILE: PerformanceSetupAnswers = { equipment: [], terrainAccess: [], strengths: [], weaknesses: [], priorityAreas: [], strengthExperienceTier: null, dhTechnicalTier: null, seasonObjective: null };
 
 describe("training days and the typical window", () => {
   it("prefills the training days with the riding days, Monday first", () => {
@@ -39,7 +39,7 @@ describe("training days and the typical window", () => {
 });
 
 describe("resumeStep", () => {
-  const base = { hasActivePlan: false, latestDraftId: null, windows: [window(1)], profile: { ...PROFILE, terrainAccess: ["flow_trail"], strengthExperienceTier: "beginner" } as PerformanceSetupAnswers };
+  const base = { hasActivePlan: false, latestDraftId: null, windows: [window(1)], profile: { ...PROFILE, terrainAccess: ["flow_trail"], dhTechnicalTier: "intermediate", priorityAreas: ["cornering"], strengthExperienceTier: "beginner" } as PerformanceSetupAnswers };
 
   it("an active plan: nothing to do here", () => {
     expect(resumeStep({ ...base, hasActivePlan: true })).toBe("done");
@@ -52,6 +52,9 @@ describe("resumeStep", () => {
   it("otherwise the first missing answer", () => {
     expect(resumeStep({ ...base, windows: [] })).toBe("training");
     expect(resumeStep({ ...base, profile: { ...base.profile, terrainAccess: [] } })).toBe("terrain");
+    // UX-11A.5a.2b — a first run in progress asks the declared DH tier and 1–3 priorities before the renfo.
+    expect(resumeStep({ ...base, profile: { ...base.profile, dhTechnicalTier: null } })).toBe("technique");
+    expect(resumeStep({ ...base, profile: { ...base.profile, priorityAreas: [] } })).toBe("technique");
     expect(resumeStep({ ...base, profile: { ...base.profile, strengthExperienceTier: null } })).toBe("strength");
     expect(resumeStep(base)).toBe("preparation");
   });

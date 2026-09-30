@@ -3570,3 +3570,25 @@ Implémente l'ADR UX-11B.2.1 **en local uniquement** : migrations `2026093012000
 **Décisions verrouillées pour 11A.5a.2b (non implémentées).** `dh_technical_tier` / `dhTechnicalTier` (beginner, intermediate, advanced), nullable, dans `athlete_performance_profiles` ; sans valeur, NALYNT demande de compléter le profil avant un plan V2 avec DH ; le premier lancement demandera 1 à 3 priorités ordonnées ; rotation déterministe selon l'ordinal des séances DH du plan versionné.
 
 **Statut** : Accepted — implémenté en local sur `feat/ux11a5a2a-dh-v2-catalog` (lignée non fusionnée). Aucun moteur, sélection DH, profil, migration, Supabase, Edge Function, écran web ni production modifié. Contenu : PROVISIONAL — coaching validation required.
+
+## 2026-09-30 — ADR UX-11A.5a.2b : niveau technique DH déclaré et priorités ordonnées
+
+> **The DH technical tier is a signal declared by the rider, never inferred. It is nullable for legacy profiles, has no default and no backfill. The first run collects it with 1 to 3 ordered priorities; no engine consumes it yet.**
+
+**Données (local uniquement).** Migration additive `20260930130000_ux11a5a2b_dh_technical_tier.sql` : `athlete_performance_profiles.dh_technical_tier text null`, contrainte `NULL` ou `beginner` / `intermediate` / `advanced`, sans valeur par défaut, sans rattrapage, sans déclencheur. Vérifié en local : les 140 lignes existantes restent `NULL`. Les priorités gardent `technical_priorities.priorityAreas` (ordre = rang). `05_DATA_MODEL.md` ne documente pas encore `athlete_performance_profiles` : pas de modification de 05 dans ce ticket.
+
+**Contrat.** Base `dh_technical_tier`, TypeScript `dhTechnicalTier` (`beginner | intermediate | advanced | null`). Lu par le repository de profil du moteur (`athletePerformanceProfileRepo`) et par le web ; **non** transmis à `PlanInputSnapshot`, `INPUT_SNAPSHOT_SCHEMA_VERSION` inchangé, `buildPlanInputSnapshot`, `prescription-engine` et la sélection DH V1 inchangés (test de frontière : aucun moteur ne lit le signal).
+
+**Premier lancement.** Nouvelle étape « Ton pilotage » après « Ton terrain » : « Ton niveau technique en descente ? » (Débutant / Intermédiaire / Avancé, avec description) et « Sur quoi veux-tu progresser en priorité ? » (1 à 3, ordre des clics affiché 1 / 2 / 3, pas de doublon, 4e choix désactivé). Aucun niveau présélectionné, jamais déduit du renfo, du niveau de compétition ni de la discipline ; les deux réponses sont obligatoires pour continuer. L'étape est commune à toutes les disciplines, comme « Ton terrain » (même logique de premier lancement qu'aujourd'hui). Enregistrement par `saveDhTechnicalProfile` : seuls `dh_technical_tier` et `technical_priorities.priorityAreas` sont écrits, l'objet `technical_priorities` étant relu et fusionné (`strengths`, `weaknesses` et toute autre clé conservés).
+
+**Affiner ton profil.** Section « Tes points forts » : niveau technique DH (modifiable ; « pas encore renseigné » pour un profil ancien) et priorités ordonnées, 3 au maximum (un profil ancien avec plus de 3 priorités doit en retirer pour enregistrer ; 0 reste possible pour ne forcer aucun ancien compte). `savePerformanceSetup` fusionne désormais aussi dans l'objet `technical_priorities` relu. Modifier le profil ne modifie jamais un plan existant : aucune régénération, aucun appel moteur.
+
+**Anciens comptes.** `dhTechnicalTier = null` et / ou `priorityAreas = []` restent tels quels : pas de rattrapage, pas de réouverture du premier lancement (un compte avec un plan actif ou un premier plan prêt ne revient jamais sur l'étape).
+
+**Reporté à UX-11A.5b.** Précondition avant toute génération ou régénération d'un plan V2 contenant du DH : niveau technique déclaré **et** au moins une priorité déclarée, sinon demander de compléter le profil (aucun repli). `PlanInputSnapshot` v2 avec `dhTechnicalTier` ; rotation des priorités ; sélection DH V2.
+
+**Textes.** Question, titres et descriptions des niveaux : PROVISIONAL — coaching validation required.
+
+**Tests.** Base locale : contrainte, `NULL`, les 3 valeurs, refus des autres, modification, aucune inférence depuis le renfo ou le niveau de compétition, RLS (écriture de sa propre ligne seulement). Web : repository (lecture, fusion, écriture dédiée et ses refus), options (ordre, maximum, doublons), premier lancement (aucune présélection, obligations, ordre, maximum, contenu enregistré), Affiner ton profil (lecture, profil ancien, modification, préservation, plus de 3 priorités). Vérifié de bout en bout sur Supabase local à 320 et 390 px : ordre enregistré, `strengths`, `weaknesses` et une clé inconnue conservés.
+
+**Statut** : Accepted — implémenté en local sur `feat/ux11a5a2b-dh-profile-signal` (lignée non fusionnée). Migration non appliquée en production ; aucun moteur de génération, aucune Edge Function, aucune production modifiés.

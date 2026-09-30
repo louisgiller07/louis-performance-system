@@ -12,6 +12,14 @@ import {
   STRENGTH_EXPERIENCE_TIER_OPTIONS,
   TERRAIN_LABELS,
   TERRAIN_OPTIONS,
+  DH_TECHNICAL_TIER_OPTIONS,
+  DH_TECHNICAL_TIER_LABELS,
+  DH_TECHNICAL_TIER_DESCRIPTIONS,
+  TECHNICAL_PRIORITY_OPTIONS,
+  TECHNICAL_PRIORITY_LABELS,
+  MAX_PRIORITY_AREAS,
+  toggleOrderedPriority,
+  type DhTechnicalTier,
   type Equipment,
   type StrengthExperienceTier,
   type Terrain,
@@ -41,7 +49,8 @@ import {
 
 // UX-09 — "your training → your plan", the second half of the first run
 // (/start once onboarding is completed): training days + one typical window,
-// terrain, strength experience (+ optional equipment), how long to prepare,
+// terrain, DH technical tier + 1–3 ordered priorities (UX-11A.5a.2b),
+// strength experience (+ optional equipment), how long to prepare,
 // then NALYNT builds the first plan and the rider starts it. Resumes where it
 // stopped; every finer setting waits for "Affiner ton profil".
 const BUILD_MIN_MS = 2800;
@@ -178,7 +187,15 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
         onNext={() =>
           void run(async () => {
             setWindows(await setup.saveTraining(days, slot!, windows));
-            setStep(profile.terrainAccess.length === 0 ? "terrain" : profile.strengthExperienceTier === null ? "strength" : "preparation");
+            setStep(
+              profile.terrainAccess.length === 0
+                ? "terrain"
+                : profile.dhTechnicalTier === null || profile.priorityAreas.length === 0
+                  ? "technique"
+                  : profile.strengthExperienceTier === null
+                    ? "strength"
+                    : "preparation"
+            );
           })
         }
         nextDisabled={!valid}
@@ -260,7 +277,7 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
         question={copy.question}
         hint={copy.hint}
         onBack={() => setStep("training")}
-        onNext={() => setStep("strength")}
+        onNext={() => setStep("technique")}
         nextDisabled={profile.terrainAccess.length === 0}
         stepKey="terrain"
       >
@@ -276,6 +293,68 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
     );
   }
 
+  if (step === "technique") {
+    const copy = SETUP_STEPS.technique;
+    const tier = profile.dhTechnicalTier;
+    const priorities = profile.priorityAreas;
+    const complete = tier !== null && priorities.length >= 1 && priorities.length <= MAX_PRIORITY_AREAS;
+    return (
+      <FirstRunShell
+        chapter={copy.chapter}
+        title={copy.title}
+        question={copy.question}
+        onBack={() => setStep("terrain")}
+        onNext={() =>
+          void run(async () => {
+            await setup.saveTechnique({ dhTechnicalTier: tier!, priorityAreas: priorities });
+            setStep("strength");
+          })
+        }
+        nextDisabled={!complete}
+        busy={busy}
+        error={error}
+        stepKey="technique"
+      >
+        <ChoiceList<DhTechnicalTier>
+          options={DH_TECHNICAL_TIER_OPTIONS}
+          labels={DH_TECHNICAL_TIER_LABELS}
+          descriptions={DH_TECHNICAL_TIER_DESCRIPTIONS}
+          selected={tier ? [tier] : []}
+          onToggle={(value) => setProfile((p) => ({ ...p, dhTechnicalTier: value }))}
+          label={copy.question}
+        />
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          <p className="text-base text-ink">{copy.prioritiesQuestion}</p>
+          <p className="text-xs text-muted">{copy.prioritiesHint}</p>
+          <div role="group" aria-label={copy.prioritiesQuestion} className="flex flex-wrap gap-2">
+            {TECHNICAL_PRIORITY_OPTIONS.map((item) => {
+              const rank = priorities.indexOf(item) + 1;
+              const full = rank === 0 && priorities.length >= MAX_PRIORITY_AREAS;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={rank > 0}
+                  aria-label={rank > 0 ? `${TECHNICAL_PRIORITY_LABELS[item]}, ${copy.rank(rank)}` : TECHNICAL_PRIORITY_LABELS[item]}
+                  disabled={full}
+                  onClick={() => setProfile((p) => ({ ...p, priorityAreas: toggleOrderedPriority(p.priorityAreas, item) }))}
+                  className={`ux-press flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm disabled:opacity-40 ${rank > 0 ? "border-gold bg-gold text-bg" : "border-line text-ink/85 hover:border-gold/50"}`}
+                >
+                  {rank > 0 && (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bg text-xs font-bold text-gold" aria-hidden="true">
+                      {rank}
+                    </span>
+                  )}
+                  {TECHNICAL_PRIORITY_LABELS[item]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </FirstRunShell>
+    );
+  }
+
   if (step === "strength") {
     const copy = SETUP_STEPS.strength;
     return (
@@ -283,7 +362,7 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
         chapter={copy.chapter}
         title={copy.title}
         question={copy.question}
-        onBack={() => setStep("terrain")}
+        onBack={() => setStep("technique")}
         onNext={() =>
           void run(async () => {
             await setup.saveProfile(profile);

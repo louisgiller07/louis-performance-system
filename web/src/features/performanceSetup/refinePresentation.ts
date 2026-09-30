@@ -69,6 +69,14 @@ export const STRENGTHS = {
   summaryStrengths: (list: string) => `Points forts : ${list}`,
   summaryWeaknesses: (list: string) => `À travailler : ${list}`,
   summaryPriorities: (list: string) => `Priorités : ${list}`,
+  // UX-11A.5a.2b — declared DH technical tier and ordered priorities.
+  // Self-assessment wording: PROVISIONAL — coaching validation required.
+  dhTier: "Ton niveau technique en descente",
+  summaryDhTier: (tier: string) => `Niveau technique : ${tier}`,
+  noDhTier: "Niveau technique : pas encore renseigné.",
+  prioritiesHint: "Jusqu'à 3, dans l'ordre : ton premier choix est ta priorité n°1.",
+  tooManyPriorities: "3 priorités au maximum : retire-en une pour enregistrer.",
+  rank: (n: number) => `Priorité n°${n}`,
   summaryTier: (tier: string) => `Renfo : ${tier}`,
   noPriorities: "Aucune priorité de pilotage : NALYNT fait tourner les thèmes techniques.",
 } as const;

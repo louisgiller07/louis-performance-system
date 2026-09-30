@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { loadAvailabilityWindows, saveAvailabilityWindows, type AvailabilityDayOfWeek, type AvailabilityWindow } from "../performanceSetup/availabilityRepo";
-import { loadPerformanceSetupAnswers, savePerformanceSetup, type PerformanceSetupAnswers } from "../performanceSetup/performanceSetupRepo";
+import {
+  loadPerformanceSetupAnswers,
+  saveDhTechnicalProfile,
+  savePerformanceSetup,
+  type PerformanceSetupAnswers,
+  type SaveDhTechnicalProfileInput,
+} from "../performanceSetup/performanceSetupRepo";
 import { loadOnboardingAnswers } from "../athleteOnboarding/athleteOnboardingRepo";
 import type { PrimaryGoal, RidingDay } from "../athleteOnboarding/onboardingOptions";
 import { loadFirstName } from "../today/todayContextRepo";
@@ -69,6 +75,8 @@ export function useFirstRunSetup() {
       saveTraining: (days: readonly AvailabilityDayOfWeek[], slot: Slot, existing: readonly AvailabilityWindow[]): Promise<AvailabilityWindow[]> =>
         saveAvailabilityWindows(athleteId!, availabilityWindows(days, slot), existing.map((w) => w.id)),
       saveProfile: (profile: PerformanceSetupAnswers): Promise<void> => savePerformanceSetup(athleteId!, profile),
+      // UX-11A.5a.2b — writes only the DH tier and priorityAreas (strengths / weaknesses kept).
+      saveTechnique: (input: SaveDhTechnicalProfileInput): Promise<void> => saveDhTechnicalProfile(athleteId!, input),
       generate: (generationRequestId: string, durationWeeks: number): Promise<GenerateTrainingPlanResult> => generateTrainingPlan({ generationRequestId, durationWeeks }),
       loadPlan: (planVersionId: string): Promise<TrainingPlanReview> => getTrainingPlanReview(planVersionId),
       start: (planVersionId: string): Promise<AcceptTrainingPlanResult> => acceptTrainingPlan(planVersionId),

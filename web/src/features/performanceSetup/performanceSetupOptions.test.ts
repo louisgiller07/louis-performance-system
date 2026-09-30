@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  DH_TECHNICAL_TIER_OPTIONS,
+  DH_TECHNICAL_TIER_LABELS,
+  DH_TECHNICAL_TIER_DESCRIPTIONS,
+  MAX_PRIORITY_AREAS,
+  toggleOrderedPriority,
   EQUIPMENT_OPTIONS,
   TERRAIN_OPTIONS,
   TECHNICAL_PRIORITY_OPTIONS,
@@ -55,5 +60,27 @@ describe("performanceSetupOptions", () => {
   ] as const)("%s is non-empty with no duplicate values", (_name, options) => {
     expect(options.length).toBeGreaterThan(0);
     expect(new Set(options).size).toBe(options.length);
+  });
+});
+
+describe("UX-11A.5a.2b — declared DH tier and ordered priorities", () => {
+
+  it("offers exactly beginner / intermediate / advanced, each with a label and a description", () => {
+    expect(DH_TECHNICAL_TIER_OPTIONS).toEqual(["beginner", "intermediate", "advanced"]);
+    for (const tier of DH_TECHNICAL_TIER_OPTIONS) {
+      expect(DH_TECHNICAL_TIER_LABELS[tier].length).toBeGreaterThan(0);
+      expect(DH_TECHNICAL_TIER_DESCRIPTIONS[tier].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("appends in click order, re-ranks on removal, never duplicates, never exceeds 3", () => {
+    expect(MAX_PRIORITY_AREAS).toBe(3);
+    let list = toggleOrderedPriority([], "cornering");
+    list = toggleOrderedPriority(list, "braking");
+    list = toggleOrderedPriority(list, "jumps");
+    expect(list).toEqual(["cornering", "braking", "jumps"]);
+    expect(toggleOrderedPriority(list, "roots_rocks")).toEqual(["cornering", "braking", "jumps"]);
+    expect(toggleOrderedPriority(list, "cornering")).toEqual(["braking", "jumps"]);
+    expect(toggleOrderedPriority(["braking"], "braking")).toEqual([]);
   });
 });

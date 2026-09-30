@@ -63,6 +63,7 @@ const PROFILE = {
   weaknesses: ["cornering"],
   priorityAreas: [],
   strengthExperienceTier: "intermediate",
+  dhTechnicalTier: null,
   seasonObjective: "Top 10 aux Championnats suisses",
 };
 const ONBOARDING = { discipline: "Downhill", competitionLevel: "Amateur racer", primaryGoal: "Race performance", weeklyTrainingHours: "5-10h", preferredRidingDays: ["Saturday", "Sunday"] };
@@ -102,6 +103,7 @@ describe("Affiner ton profil — what NALYNT knows (summaries)", () => {
     expect(within(section("Ton matériel")).getByText("Haltères")).toBeInTheDocument();
     expect(within(section("Tes points forts")).getByText("Aucune priorité de pilotage : NALYNT fait tourner les thèmes techniques.")).toBeInTheDocument();
     expect(within(section("Tes points forts")).getByText("Renfo : Intermédiaire")).toBeInTheDocument();
+    expect(within(section("Tes points forts")).getByText("Niveau technique : pas encore renseigné.")).toBeInTheDocument();
     expect(within(section("Tes créneaux")).getByText("sam., dim. · 8 h – 18 h")).toBeInTheDocument();
     expect(within(section("Tes créneaux")).getByText("mar. · 17 h – 21 h")).toBeInTheDocument();
 
@@ -279,5 +281,64 @@ describe("Affiner ton profil — Ta préparation (a new version, never the curre
     await waitFor(() => expect(generate()).toBeEnabled());
     await user.click(within(slots).getByRole("button", { name: "Fermer" }));
     expect(within(section("Tes créneaux")).getByText("lun. · 18 h – 20 h")).toBeInTheDocument();
+  });
+});
+
+describe("Affiner ton profil — declared DH tier and ordered priorities (UX-11A.5a.2b)", () => {
+  it("shows the saved tier and the priorities in their declared order", async () => {
+    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, dhTechnicalTier: "advanced", priorityAreas: ["cornering", "braking"] });
+    renderPage();
+    const strengths = await screen.findByRole("region", { name: "Tes points forts" });
+    expect(within(strengths).getByText("Niveau technique : Avancé")).toBeInTheDocument();
+    expect(within(strengths).getByText("Priorités : 1. Virages, 2. Freinage")).toBeInTheDocument();
+  });
+
+  it("a legacy profile (no tier, no priority) opens without forcing anything and saves as it is", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier tes points forts" }));
+    const strengths = section("Tes points forts");
+    for (const name of [/^Débutants*Je/, /^Intermédiaires*Je/, /^Avancés*Je/]) expect(within(strengths).getByRole("button", { name })).toHaveAttribute("aria-pressed", "false");
+    await user.click(within(strengths).getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(repo.savePerformanceSetup).toHaveBeenCalledWith("athlete-1", PROFILE));
+  });
+
+  it("edits the tier and 1–3 ordered priorities; strengths, weaknesses and the renfo tier are kept", async () => {
+    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, dhTechnicalTier: "beginner", priorityAreas: ["cornering"] });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier tes points forts" }));
+    const strengths = section("Tes points forts");
+    expect(within(strengths).getByRole("button", { name: /^Débutants*Je/ })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(strengths).getByRole("button", { name: /^Intermédiaires*Je/ }));
+
+    const priorities = within(strengths).getByRole("group", { name: "Tes priorités de pilotage" });
+    expect(within(priorities).getByRole("button", { name: "Virages, Priorité n°1" })).toBeInTheDocument();
+    await user.click(within(priorities).getByRole("button", { name: "Sauts" }));
+    await user.click(within(priorities).getByRole("button", { name: "Freinage" }));
+    expect(within(priorities).getByRole("button", { name: "Freinage, Priorité n°3" })).toBeInTheDocument();
+    expect(within(priorities).getByRole("button", { name: "Terrain raide" })).toBeDisabled();
+
+    await user.click(within(strengths).getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() =>
+      expect(repo.savePerformanceSetup).toHaveBeenCalledWith("athlete-1", {
+        ...PROFILE,
+        dhTechnicalTier: "intermediate",
+        priorityAreas: ["cornering", "jumps", "braking"],
+      })
+    );
+    expect(repo.savePerformanceSetup.mock.calls[0]![1]).toMatchObject({ strengths: ["braking"], weaknesses: ["cornering"], strengthExperienceTier: "intermediate" });
+  });
+
+  it("a legacy profile with more than 3 priorities cannot be saved until one is removed", async () => {
+    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, priorityAreas: ["cornering", "braking", "jumps", "roots_rocks"] });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Modifier tes points forts" }));
+    const strengths = section("Tes points forts");
+    expect(within(strengths).getByText("3 priorités au maximum : retire-en une pour enregistrer.")).toBeInTheDocument();
+    expect(within(strengths).getByRole("button", { name: "Enregistrer" })).toBeDisabled();
+    await user.click(within(strengths).getByRole("button", { name: "Racines et rochers, Priorité n°4" }));
+    expect(within(strengths).getByRole("button", { name: "Enregistrer" })).toBeEnabled();
   });
 });

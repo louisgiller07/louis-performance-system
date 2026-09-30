@@ -20,6 +20,12 @@ export interface AthletePerformanceProfileRawRow {
   declared_limitations: unknown;
   season_objective: string | null;
   technical_priorities: unknown;
+  /**
+   * UX-11A.5a.2b — rider-declared DH technical tier ("beginner" | "intermediate" | "advanced"),
+   * NULL for legacy rows. Read only: not transmitted to PlanInputSnapshot nor used by any
+   * selection until UX-11A.5b. Never inferred from strength_experience_tier or competition level.
+   */
+  dh_technical_tier?: string | null;
 }
 
 /**
@@ -35,7 +41,7 @@ export async function getPerformanceProfileFor(
 ): Promise<AthletePerformanceProfileRawRow | null> {
   const { data, error } = await client
     .from("athlete_performance_profiles")
-    .select("equipment, terrain_access, strength_experience_tier, declared_limitations, season_objective, technical_priorities")
+    .select("equipment, terrain_access, strength_experience_tier, declared_limitations, season_objective, technical_priorities, dh_technical_tier")
     .eq("athlete_id", athleteId)
     .maybeSingle();
 

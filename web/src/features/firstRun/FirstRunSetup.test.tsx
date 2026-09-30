@@ -17,6 +17,7 @@ const repo = vi.hoisted(() => ({
   saveAvailabilityWindows: vi.fn(),
   loadPerformanceSetupAnswers: vi.fn(),
   savePerformanceSetup: vi.fn(),
+  saveDhTechnicalProfile: vi.fn(),
   loadOnboardingAnswers: vi.fn(),
   loadFirstName: vi.fn(),
   generateTrainingPlan: vi.fn(),
@@ -26,7 +27,11 @@ const repo = vi.hoisted(() => ({
   getTrainingPlanReview: vi.fn(),
 }));
 vi.mock("../performanceSetup/availabilityRepo", () => ({ loadAvailabilityWindows: repo.loadAvailabilityWindows, saveAvailabilityWindows: repo.saveAvailabilityWindows }));
-vi.mock("../performanceSetup/performanceSetupRepo", () => ({ loadPerformanceSetupAnswers: repo.loadPerformanceSetupAnswers, savePerformanceSetup: repo.savePerformanceSetup }));
+vi.mock("../performanceSetup/performanceSetupRepo", () => ({
+  loadPerformanceSetupAnswers: repo.loadPerformanceSetupAnswers,
+  savePerformanceSetup: repo.savePerformanceSetup,
+  saveDhTechnicalProfile: repo.saveDhTechnicalProfile,
+}));
 vi.mock("../athleteOnboarding/athleteOnboardingRepo", () => ({ loadOnboardingAnswers: repo.loadOnboardingAnswers }));
 vi.mock("../today/todayContextRepo", () => ({ loadFirstName: repo.loadFirstName }));
 vi.mock("../trainingPlanGeneration/generateTrainingPlan", () => ({ generateTrainingPlan: repo.generateTrainingPlan }));
@@ -37,7 +42,7 @@ vi.mock("../trainingPlanReview/trainingPlanReviewRepo", () => ({
   getTrainingPlanReview: repo.getTrainingPlanReview,
 }));
 
-const PROFILE = { equipment: [], terrainAccess: [], strengths: ["braking"], weaknesses: [], priorityAreas: ["cornering"], strengthExperienceTier: null, seasonObjective: null };
+const PROFILE = { equipment: [], terrainAccess: [], strengths: ["braking"], weaknesses: ["jumps"], priorityAreas: ["cornering"], strengthExperienceTier: null, dhTechnicalTier: null, seasonObjective: null };
 const REVIEW = plan([session("2026-10-20"), session("2026-10-22"), session("2026-10-24", { kind: "STRENGTH_LOWER", durationMin: 60 }), session("2026-10-27")], { lifecycleState: "draft" });
 
 function Today() {
@@ -70,6 +75,7 @@ beforeEach(() => {
     windows.map((w, i) => ({ id: `w-${i}`, label: null, ...w }))
   );
   repo.savePerformanceSetup.mockResolvedValue(undefined);
+  repo.saveDhTechnicalProfile.mockResolvedValue(undefined);
   repo.getTrainingPlanReview.mockResolvedValue(REVIEW);
 });
 
@@ -113,7 +119,7 @@ describe("FirstRunSetup — the essentials", () => {
     expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
   });
 
-  it("terrain (at least one), then renfo; the profile is saved merged — earlier fine settings are kept", async () => {
+  it("terrain (at least one), then pilotage, then renfo; the profile is saved merged — earlier fine settings are kept", async () => {
     repo.loadAvailabilityWindows.mockResolvedValue([{ id: "w-1", dayOfWeek: 6, startTime: "08:00", endTime: "18:00", label: null }]);
     const user = userEvent.setup();
     renderSetup();
@@ -121,6 +127,14 @@ describe("FirstRunSetup — the essentials", () => {
     expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Flow trail" }));
     await user.click(screen.getByRole("button", { name: "Continuer" }));
+
+    await waitFor(() => expect(heading()).toHaveTextContent("Ton pilotage"));
+    await user.click(screen.getByRole("button", { name: /^Intermédiaire/ }));
+    await user.click(screen.getByRole("button", { name: "Sauts" }));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    await waitFor(() =>
+      expect(repo.saveDhTechnicalProfile).toHaveBeenCalledWith("athlete-1", { dhTechnicalTier: "intermediate", priorityAreas: ["cornering", "jumps"] })
+    );
 
     await waitFor(() => expect(heading()).toHaveTextContent("Ton renfo"));
     expect(screen.getByText("Rien de coché : tes séances de renfo se font au poids du corps.")).toBeInTheDocument();
@@ -132,6 +146,8 @@ describe("FirstRunSetup — the essentials", () => {
       expect(repo.savePerformanceSetup).toHaveBeenCalledWith("athlete-1", {
         ...PROFILE,
         terrainAccess: ["flow_trail"],
+        dhTechnicalTier: "intermediate",
+        priorityAreas: ["cornering", "jumps"],
         strengthExperienceTier: "beginner",
         equipment: ["dumbbells"],
       })
@@ -143,7 +159,7 @@ describe("FirstRunSetup — the essentials", () => {
 describe("FirstRunSetup — the first plan", () => {
   beforeEach(() => {
     repo.loadAvailabilityWindows.mockResolvedValue([{ id: "w-1", dayOfWeek: 6, startTime: "08:00", endTime: "18:00", label: null }]);
-    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, terrainAccess: ["flow_trail"], strengthExperienceTier: "beginner" });
+    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, terrainAccess: ["flow_trail"], dhTechnicalTier: "advanced", strengthExperienceTier: "beginner" });
   });
 
   it("how long to prepare (6 weeks preselected), NALYNT builds the plan, the first plan is shown, 'Commencer ma préparation' starts it and opens the first day", async () => {
@@ -219,5 +235,67 @@ describe("FirstRunSetup — resume", () => {
     repo.getActivePlanVersionId.mockResolvedValue("active");
     renderSetup();
     expect(await screen.findByText("Today page · firstDay=undefined")).toBeInTheDocument();
+  });
+});
+
+describe("FirstRunSetup — pilotage: declared DH tier and ordered priorities (UX-11A.5a.2b)", () => {
+  beforeEach(() => {
+    repo.loadAvailabilityWindows.mockResolvedValue([{ id: "w-1", dayOfWeek: 6, startTime: "08:00", endTime: "18:00", label: null }]);
+  });
+
+  async function openPilotage(profile: Record<string, unknown>) {
+    repo.loadPerformanceSetupAnswers.mockResolvedValue({ ...PROFILE, terrainAccess: ["flow_trail"], ...profile });
+    const user = userEvent.setup();
+    renderSetup();
+    await waitFor(() => expect(heading()).toHaveTextContent("Ton pilotage"));
+    return user;
+  }
+
+  it("never preselects a tier — not from the strength tier, not from the competition level", async () => {
+    repo.loadOnboardingAnswers.mockResolvedValue({ discipline: "Downhill", competitionLevel: "World Cup", primaryGoal: "Race performance", weeklyTrainingHours: "15h+", preferredRidingDays: ["Saturday"] });
+    await openPilotage({ strengthExperienceTier: "advanced", priorityAreas: [] });
+    expect(screen.getByText("Ton niveau technique en descente ?")).toBeInTheDocument();
+    for (const tier of [/^Débutant/, /^Intermédiaire/, /^Avancé/]) expect(screen.getByRole("button", { name: tier })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText("Je suis à l’aise sur des pistes techniques connues, avec racines, rochers, virages et sauts modérés.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
+  });
+
+  it("requires an explicit tier AND at least one priority to continue", async () => {
+    const user = await openPilotage({ priorityAreas: [] });
+    await user.click(screen.getByRole("button", { name: /^Avancé/ }));
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Freinage" }));
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeEnabled();
+  });
+
+  it("keeps the click order as the priority order, at most 3, never a duplicate, and re-ranks on removal", async () => {
+    const user = await openPilotage({ priorityAreas: [] });
+    await user.click(screen.getByRole("button", { name: "Virages" }));
+    await user.click(screen.getByRole("button", { name: "Freinage" }));
+    await user.click(screen.getByRole("button", { name: "Sauts" }));
+    expect(screen.getByRole("button", { name: "Virages, Priorité n°1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Freinage, Priorité n°2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sauts, Priorité n°3" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Terrain raide" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Virages, Priorité n°1" }));
+    expect(screen.getByRole("button", { name: "Freinage, Priorité n°1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sauts, Priorité n°2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Terrain raide" })).toBeEnabled();
+  });
+
+  it("saves only the tier and the ordered priorities (strengths and weaknesses are left to the repository's merge)", async () => {
+    const user = await openPilotage({ priorityAreas: [] });
+    await user.click(screen.getByRole("button", { name: /^Débutant/ }));
+    await user.click(screen.getByRole("button", { name: "Terrain raide" }));
+    await user.click(screen.getByRole("button", { name: "Virages" }));
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    await waitFor(() => expect(repo.saveDhTechnicalProfile).toHaveBeenCalledWith("athlete-1", { dhTechnicalTier: "beginner", priorityAreas: ["steep_terrain", "cornering"] }));
+    expect(repo.savePerformanceSetup).not.toHaveBeenCalled();
+    await waitFor(() => expect(heading()).toHaveTextContent("Ton renfo"));
+  });
+
+  it("a first run in progress without a declared tier resumes on pilotage; a rider with an active plan is never sent back", async () => {
+    await openPilotage({ dhTechnicalTier: null, priorityAreas: ["cornering"], strengthExperienceTier: "beginner" });
   });
 });

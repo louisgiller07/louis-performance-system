@@ -14,10 +14,13 @@ import {
   TERRAIN_OPTIONS,
   TECHNICAL_PRIORITY_OPTIONS,
   STRENGTH_EXPERIENCE_TIER_OPTIONS,
+  DH_TECHNICAL_TIER_OPTIONS,
+  MAX_PRIORITY_AREAS,
   type Equipment,
   type Terrain,
   type TechnicalPriority,
   type StrengthExperienceTier,
+  type DhTechnicalTier,
 } from "./performanceSetupOptions";
 
 export class PerformanceSetupError extends Error {
@@ -34,6 +37,8 @@ export interface PerformanceSetupAnswers {
   weaknesses: TechnicalPriority[];
   priorityAreas: TechnicalPriority[];
   strengthExperienceTier: StrengthExperienceTier | null;
+  /** UX-11A.5a.2b — declared by the rider, never inferred; null for legacy profiles. */
+  dhTechnicalTier: DhTechnicalTier | null;
   seasonObjective: string | null;
 }
 
@@ -66,7 +71,7 @@ function asOption<T extends string>(options: readonly T[], value: unknown): T | 
 export async function loadPerformanceSetupAnswers(): Promise<PerformanceSetupAnswers> {
   const { data, error } = await supabase
     .from("athlete_performance_profiles")
-    .select("equipment, terrain_access, strength_experience_tier, season_objective, technical_priorities");
+    .select("equipment, terrain_access, strength_experience_tier, season_objective, technical_priorities, dh_technical_tier");
 
   if (error) {
     console.error("performanceSetupRepo.loadPerformanceSetupAnswers failed", error.code);
@@ -80,6 +85,7 @@ export async function loadPerformanceSetupAnswers(): Promise<PerformanceSetupAns
         strength_experience_tier: unknown;
         season_objective: unknown;
         technical_priorities: unknown;
+        dh_technical_tier: unknown;
       }
     | undefined;
   const technicalPriorities = (row?.technical_priorities ?? {}) as Record<string, unknown>;
@@ -91,6 +97,7 @@ export async function loadPerformanceSetupAnswers(): Promise<PerformanceSetupAns
     weaknesses: filterKnown(TECHNICAL_PRIORITY_OPTIONS, technicalPriorities.weaknesses),
     priorityAreas: filterKnown(TECHNICAL_PRIORITY_OPTIONS, technicalPriorities.priorityAreas),
     strengthExperienceTier: asOption(STRENGTH_EXPERIENCE_TIER_OPTIONS, row?.strength_experience_tier),
+    dhTechnicalTier: asOption(DH_TECHNICAL_TIER_OPTIONS, row?.dh_technical_tier),
     seasonObjective: typeof row?.season_objective === "string" ? row.season_objective : null,
   };
 }
@@ -102,7 +109,24 @@ export interface SavePerformanceSetupInput {
   weaknesses: TechnicalPriority[];
   priorityAreas: TechnicalPriority[];
   strengthExperienceTier: StrengthExperienceTier | null;
+  dhTechnicalTier: DhTechnicalTier | null;
   seasonObjective: string | null;
+}
+
+/**
+ * UX-11A.5a.2b — the RAW technical_priorities object currently saved (the
+ * caller's own row through RLS), so a write can update some of its keys and
+ * keep everything else exactly as it is: keys unknown to this UI, and values
+ * the load filtered out as no longer known, are never silently dropped.
+ */
+async function loadRawTechnicalPriorities(): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.from("athlete_performance_profiles").select("technical_priorities");
+  if (error) {
+    console.error("performanceSetupRepo.loadRawTechnicalPriorities failed", error.code);
+    throw new PerformanceSetupError();
+  }
+  const raw = (data?.[0] as { technical_priorities?: unknown } | undefined)?.technical_priorities;
+  return raw !== null && typeof raw === "object" && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
 }
 
 /**
@@ -122,6 +146,7 @@ export interface SavePerformanceSetupInput {
  */
 export async function savePerformanceSetup(athleteId: string, answers: SavePerformanceSetupInput): Promise<void> {
   const trimmedObjective = answers.seasonObjective?.trim() ?? "";
+  const rawPriorities = await loadRawTechnicalPriorities();
 
   const { error } = await supabase.from("athlete_performance_profiles").upsert(
     {
@@ -129,8 +154,11 @@ export async function savePerformanceSetup(athleteId: string, answers: SavePerfo
       equipment: answers.equipment,
       terrain_access: answers.terrainAccess,
       strength_experience_tier: answers.strengthExperienceTier,
+      dh_technical_tier: answers.dhTechnicalTier,
       season_objective: trimmedObjective.length > 0 ? trimmedObjective : null,
+      // UX-11A.5a.2b — merged into the saved object: any other key is kept.
       technical_priorities: {
+        ...rawPriorities,
         strengths: answers.strengths,
         weaknesses: answers.weaknesses,
         priorityAreas: answers.priorityAreas,
@@ -141,6 +169,49 @@ export async function savePerformanceSetup(athleteId: string, answers: SavePerfo
 
   if (error) {
     console.error("performanceSetupRepo.savePerformanceSetup failed", error.code);
+    throw new PerformanceSetupError();
+  }
+}
+
+export interface SaveDhTechnicalProfileInput {
+  dhTechnicalTier: DhTechnicalTier;
+  /** Ordered: index 0 is priority n°1. 1 to 3 distinct known priorities. */
+  priorityAreas: TechnicalPriority[];
+}
+
+/**
+ * UX-11A.5a.2b — first run: saves the declared DH technical tier and the 1–3
+ * ordered priorities, and ONLY those. `technical_priorities` is read back
+ * raw and only its `priorityAreas` key is replaced: `strengths`,
+ * `weaknesses` and any other key stay exactly as saved. No other column is
+ * written (a first write gets the columns' own defaults). Nothing is
+ * derived from the strength tier, the competition level or the discipline.
+ */
+export async function saveDhTechnicalProfile(athleteId: string, input: SaveDhTechnicalProfileInput): Promise<void> {
+  const unique = new Set(input.priorityAreas);
+  const known = input.priorityAreas.every((p) => (TECHNICAL_PRIORITY_OPTIONS as readonly string[]).includes(p));
+  if (
+    !(DH_TECHNICAL_TIER_OPTIONS as readonly string[]).includes(input.dhTechnicalTier) ||
+    input.priorityAreas.length < 1 ||
+    input.priorityAreas.length > MAX_PRIORITY_AREAS ||
+    unique.size !== input.priorityAreas.length ||
+    !known
+  ) {
+    throw new PerformanceSetupError();
+  }
+
+  const rawPriorities = await loadRawTechnicalPriorities();
+  const { error } = await supabase.from("athlete_performance_profiles").upsert(
+    {
+      athlete_id: athleteId,
+      dh_technical_tier: input.dhTechnicalTier,
+      technical_priorities: { ...rawPriorities, priorityAreas: [...input.priorityAreas] },
+    },
+    { onConflict: "athlete_id" }
+  );
+
+  if (error) {
+    console.error("performanceSetupRepo.saveDhTechnicalProfile failed", error.code);
     throw new PerformanceSetupError();
   }
 }

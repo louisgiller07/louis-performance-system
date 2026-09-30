@@ -124,3 +124,40 @@ export const STRENGTH_EXPERIENCE_TIER_LABELS: Record<StrengthExperienceTier, str
   intermediate: "Intermédiaire",
   advanced: "Avancé",
 };
+
+/**
+ * UX-11A.5a.2b — the rider's DECLARED DH technical tier
+ * (athlete_performance_profiles.dh_technical_tier). A distinct signal from
+ * the strength tier above: never prefilled from it, from the competition
+ * level, from the discipline or from anything else. Nullable (legacy).
+ */
+export const DH_TECHNICAL_TIER_OPTIONS = ["beginner", "intermediate", "advanced"] as const;
+export type DhTechnicalTier = (typeof DH_TECHNICAL_TIER_OPTIONS)[number];
+
+// PROVISIONAL — coaching validation required (self-assessment wording).
+export const DH_TECHNICAL_TIER_LABELS: Record<DhTechnicalTier, string> = {
+  beginner: "Débutant",
+  intermediate: "Intermédiaire",
+  advanced: "Avancé",
+};
+
+// PROVISIONAL — coaching validation required (self-assessment wording).
+export const DH_TECHNICAL_TIER_DESCRIPTIONS: Record<DhTechnicalTier, string> = {
+  beginner: "Je privilégie encore le contrôle et j’apprends sur les terrains raides, cassants ou les sauts.",
+  intermediate: "Je suis à l’aise sur des pistes techniques connues, avec racines, rochers, virages et sauts modérés.",
+  advanced: "Je suis à l’aise à vitesse élevée sur des terrains raides et cassants et sur des passages techniques engagés que je connais.",
+};
+
+/** UX-11A.5a.2b — declared technical priorities are ordered: index 0 is priority n°1. At most 3. */
+export const MAX_PRIORITY_AREAS = 3;
+
+/**
+ * Ordered toggle: a new priority is appended (its rank is the click order);
+ * removing one re-ranks the rest; never a duplicate; never more than `max`
+ * (a click beyond the limit is ignored).
+ */
+export function toggleOrderedPriority(list: readonly TechnicalPriority[], value: TechnicalPriority, max = MAX_PRIORITY_AREAS): TechnicalPriority[] {
+  if (list.includes(value)) return list.filter((item) => item !== value);
+  if (list.length >= max) return [...list];
+  return [...list, value];
+}

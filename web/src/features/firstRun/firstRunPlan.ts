@@ -10,7 +10,7 @@ import { TIME_SLOTS } from "./firstRunPresentation";
 // already declared and turns one typical window into the availability
 // windows the planner already reads (athlete_availability_windows).
 
-export type SetupStep = "training" | "terrain" | "strength" | "preparation" | "building" | "ready";
+export type SetupStep = "training" | "terrain" | "technique" | "strength" | "preparation" | "building" | "ready";
 
 const RIDING_DAY_TO_DOW: Record<RidingDay, AvailabilityDayOfWeek> = {
   Sunday: 0,
@@ -68,6 +68,10 @@ export function resumeStep(state: SetupState): SetupStep | "done" {
   if (state.latestDraftId) return "ready";
   if (state.windows.length === 0) return "training";
   if (state.profile.terrainAccess.length === 0) return "terrain";
+  // UX-11A.5a.2b — a first run in progress asks the declared DH tier and the
+  // ordered priorities. A completed first run (active plan / first plan
+  // ready) never comes back here: legacy accounts are not forced.
+  if (state.profile.dhTechnicalTier === null || state.profile.priorityAreas.length === 0) return "technique";
   if (state.profile.strengthExperienceTier === null) return "strength";
   return "preparation";
 }

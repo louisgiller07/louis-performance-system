@@ -16,7 +16,13 @@ import {
   TECHNICAL_PRIORITY_LABELS,
   STRENGTH_EXPERIENCE_TIER_OPTIONS,
   STRENGTH_EXPERIENCE_TIER_LABELS,
+  DH_TECHNICAL_TIER_OPTIONS,
+  DH_TECHNICAL_TIER_LABELS,
+  DH_TECHNICAL_TIER_DESCRIPTIONS,
+  MAX_PRIORITY_AREAS,
+  toggleOrderedPriority,
   type StrengthExperienceTier,
+  type TechnicalPriority,
 } from "./performanceSetupOptions";
 import {
   loadOnboardingAnswers,
@@ -140,6 +146,40 @@ function Chips<T extends string>({ options, labels, selected, onToggle, label }:
       })}
     </div>
   );
+}
+
+/** UX-11A.5a.2b — ordered priorities: the rank is the click order, shown as 1 / 2 / 3. */
+function OrderedPriorities({ selected, onToggle, label, rankLabel }: { selected: readonly TechnicalPriority[]; onToggle: (value: TechnicalPriority) => void; label: string; rankLabel: (n: number) => string }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
+      {TECHNICAL_PRIORITY_OPTIONS.map((option) => {
+        const rank = selected.indexOf(option) + 1;
+        const full = rank === 0 && selected.length >= MAX_PRIORITY_AREAS;
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={rank > 0}
+            aria-label={rank > 0 ? `${TECHNICAL_PRIORITY_LABELS[option]}, ${rankLabel(rank)}` : TECHNICAL_PRIORITY_LABELS[option]}
+            disabled={full}
+            onClick={() => onToggle(option)}
+            className={`ux-press flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm disabled:opacity-40 ${rank > 0 ? "border-gold bg-gold text-bg" : "border-line text-ink/85 hover:border-gold/50"}`}
+          >
+            {rank > 0 && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bg text-xs font-bold text-gold" aria-hidden="true">
+                {rank}
+              </span>
+            )}
+            {TECHNICAL_PRIORITY_LABELS[option]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function orderedLabels(values: readonly TechnicalPriority[]): string {
+  return values.map((value, index) => `${index + 1}. ${TECHNICAL_PRIORITY_LABELS[value]}`).join(", ");
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -455,11 +495,12 @@ export function PerformanceSetup() {
           <>
             {profile.strengths.length > 0 && <p>{STRENGTHS.summaryStrengths(joinLabels(profile.strengths, TECHNICAL_PRIORITY_LABELS))}</p>}
             {profile.weaknesses.length > 0 && <p>{STRENGTHS.summaryWeaknesses(joinLabels(profile.weaknesses, TECHNICAL_PRIORITY_LABELS))}</p>}
-            <p>{profile.priorityAreas.length > 0 ? STRENGTHS.summaryPriorities(joinLabels(profile.priorityAreas, TECHNICAL_PRIORITY_LABELS)) : STRENGTHS.noPriorities}</p>
+            <p>{profile.priorityAreas.length > 0 ? STRENGTHS.summaryPriorities(orderedLabels(profile.priorityAreas)) : STRENGTHS.noPriorities}</p>
+            <p>{profile.dhTechnicalTier ? STRENGTHS.summaryDhTier(DH_TECHNICAL_TIER_LABELS[profile.dhTechnicalTier]) : STRENGTHS.noDhTier}</p>
             {profile.strengthExperienceTier && <p>{STRENGTHS.summaryTier(STRENGTH_EXPERIENCE_TIER_LABELS[profile.strengthExperienceTier])}</p>}
           </>
         }
-        footer={footer(true, () => void saveProfile("strengths"))}
+        footer={footer(!!d && d.priorityAreas.length <= MAX_PRIORITY_AREAS, () => void saveProfile("strengths"))}
       >
         {d && (
           <>
@@ -469,8 +510,28 @@ export function PerformanceSetup() {
             <Field label={STRENGTHS.weaknesses}>
               <Chips options={TECHNICAL_PRIORITY_OPTIONS} labels={TECHNICAL_PRIORITY_LABELS} selected={d.weaknesses} onToggle={(v) => setProfileDraft({ ...d, weaknesses: toggleValue(d.weaknesses, v) })} label={STRENGTHS.weaknesses} />
             </Field>
-            <Field label={STRENGTHS.priorities}>
-              <Chips options={TECHNICAL_PRIORITY_OPTIONS} labels={TECHNICAL_PRIORITY_LABELS} selected={d.priorityAreas} onToggle={(v) => setProfileDraft({ ...d, priorityAreas: toggleValue(d.priorityAreas, v) })} label={STRENGTHS.priorities} />
+            <Field label={STRENGTHS.priorities} hint={STRENGTHS.prioritiesHint}>
+              <OrderedPriorities selected={d.priorityAreas} onToggle={(v) => setProfileDraft({ ...d, priorityAreas: toggleOrderedPriority(d.priorityAreas, v) })} label={STRENGTHS.priorities} rankLabel={STRENGTHS.rank} />
+              {d.priorityAreas.length > MAX_PRIORITY_AREAS && <p className="text-xs text-gold">{STRENGTHS.tooManyPriorities}</p>}
+            </Field>
+            <Field label={STRENGTHS.dhTier}>
+              <div role="group" aria-label={STRENGTHS.dhTier} className="flex flex-col gap-2">
+                {DH_TECHNICAL_TIER_OPTIONS.map((tier) => {
+                  const pressed = d.dhTechnicalTier === tier;
+                  return (
+                    <button
+                      key={tier}
+                      type="button"
+                      aria-pressed={pressed}
+                      onClick={() => setProfileDraft({ ...d, dhTechnicalTier: tier })}
+                      className={`ux-press rounded-lg border px-4 py-3 text-left ${pressed ? "border-gold bg-gold/12" : "border-line hover:border-gold/50"}`}
+                    >
+                      <span className="block text-sm font-medium text-ink">{DH_TECHNICAL_TIER_LABELS[tier]}</span>
+                      <span className="block text-xs text-muted">{DH_TECHNICAL_TIER_DESCRIPTIONS[tier]}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </Field>
             <Field label={STRENGTHS.tier}>
               <Chips<StrengthExperienceTier>

@@ -40,4 +40,19 @@ describe("V2 content — import boundary", () => {
     }
     expect(offenders).toEqual([]);
   });
+
+  it("UX-11A.5a.2b — no engine reads the declared DH tier yet (only the profile repository may select the column)", () => {
+    const roots = ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src"].map((r) => join(REPO, r));
+    // The profile repository reads the column; the V2 catalogue modules (already isolated above) only document it.
+    const allowed = new Set([join("head-coach-engine", "src", "supabase", "repositories", "athletePerformanceProfileRepo.ts"), ...ALLOWED]);
+    const offenders: string[] = [];
+    for (const root of roots) {
+      for (const file of sourceFiles(root)) {
+        const rel = relative(REPO, file);
+        if (allowed.has(rel)) continue;
+        if (/dhTechnicalTier|dh_technical_tier/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
 });

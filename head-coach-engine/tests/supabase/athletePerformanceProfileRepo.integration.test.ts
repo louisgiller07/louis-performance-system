@@ -60,6 +60,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.4_101 — athletePerformanceProfileRep
       declared_limitations: ["left knee"],
       season_objective: "Podium at nationals",
       technical_priorities: { strengths: ["cornering"], weaknesses: ["braking"], priorityAreas: ["braking"] },
+      // UX-11A.5a.2b — read by the repository, NULL when never declared (no default, never inferred).
+      dh_technical_tier: null,
     });
   });
 

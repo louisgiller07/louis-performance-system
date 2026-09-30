@@ -54,6 +54,16 @@ export const SETUP_STEPS = {
     later: "Tu pourras régler chaque jour plus tard.",
   },
   terrain: { chapter: 2 as Chapter, title: "Ton terrain", question: "Sur quels terrains peux-tu rouler ?", hint: "Au moins un. Ta première séance technique en dépend." },
+  // UX-11A.5a.2b — declared DH technical tier + 1–3 ordered priorities.
+  // Self-assessment wording: PROVISIONAL — coaching validation required.
+  technique: {
+    chapter: 2 as Chapter,
+    title: "Ton pilotage",
+    question: "Ton niveau technique en descente ?",
+    prioritiesQuestion: "Sur quoi veux-tu progresser en priorité ?",
+    prioritiesHint: "1 à 3 choix. L'ordre compte : ton premier choix est ta priorité n°1.",
+    rank: (n: number) => `Priorité n°${n}`,
+  },
   strength: {
     chapter: 2 as Chapter,
     title: "Ton renfo",
