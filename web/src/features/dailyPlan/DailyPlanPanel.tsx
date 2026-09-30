@@ -263,7 +263,7 @@ export function DailyPlanPanel({
     <div className="flex flex-col gap-3">
       {!(result && runningSlot !== undefined) && (
       <PrimaryButton onClick={() => void handleGenerate()} disabled={!hasCheckin || state === "running"}>
-        {state === "running" ? "Analyse en cours…" : "Préparer ma séance du jour"}
+        {state === "running" ? "Préparation en cours…" : "Préparer ma séance du jour"}
       </PrimaryButton>
       )}
 

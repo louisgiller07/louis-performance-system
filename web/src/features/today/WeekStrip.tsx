@@ -15,7 +15,7 @@ function plural(count: number, singular: string, pluralForm: string): string {
 export function WeekStrip({ week }: { week: WeekSummary }) {
   return (
     <section aria-labelledby="week-title" className="ux-enter rounded-xl border border-line bg-card p-5">
-      <h2 id="week-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <h2 id="week-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         Cette semaine
       </h2>
@@ -27,7 +27,7 @@ export function WeekStrip({ week }: { week: WeekSummary }) {
       <WeekDaysPicker days={week.days} />
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-[0.68rem] text-muted">✓ réalisée · ● aujourd'hui · ○ prévue · ⚑ course</p>
+        <p className="text-xs text-muted">✓ réalisée · ● aujourd'hui · ○ prévue · ⚑ course</p>
         <Link to="/training-plan" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
           Programme →
         </Link>

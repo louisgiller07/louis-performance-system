@@ -221,7 +221,7 @@ export function PlanningDayCard({ athleteId, date, row, races, isToday, isExpand
               <span aria-hidden="true">🏁</span>
               <span className="font-medium">{race.eventName}</span>
               {RACE_PRIORITY_BADGE[race.priority] && (
-                <span className="rounded bg-amber-200 px-1 text-[10px] font-semibold text-amber-900">
+                <span className="rounded bg-amber-200 px-1 text-xs font-semibold text-amber-900">
                   {RACE_PRIORITY_BADGE[race.priority]}
                 </span>
               )}

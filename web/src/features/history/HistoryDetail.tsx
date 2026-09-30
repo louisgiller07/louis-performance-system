@@ -1,6 +1,6 @@
 import { DailyPlanView } from "../dailyPlan/DailyPlanView";
-import { CONFIDENCE_LABELS, TRAINING_MODE_LABELS } from "../dailyPlan/dailyPlanLabels";
-import type { Confidence, TrainingMode } from "../dailyPlan/dailyPlanTypes";
+import { TRAINING_MODE_LABELS } from "../dailyPlan/dailyPlanLabels";
+import type { TrainingMode } from "../dailyPlan/dailyPlanTypes";
 import { summarizeDecision } from "./historySummary";
 import type { DecisionHistoryRow } from "./historyTypes";
 import { NO_COMPLETED_SESSION_COPY, SAME_DAY_UNASSOCIATED_COPY, type PerformedMatch } from "./historyPerformedMatch";
@@ -30,7 +30,8 @@ export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow
 
   return (
     <div className="flex flex-col gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Prescrit</h2>
+      {/* UX-10A — rider words: "Ta mission" / "Réalisé", never "Prescrit". */}
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Ta mission</h2>
 
       {!summary.valid ? (
         // active_mode/confidence_level are real, DAL-written DB columns (M2)
@@ -40,20 +41,15 @@ export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow
         <div className="rounded-xl border border-white/5 bg-card p-4">
           <p className="text-sm text-ink/80">Cette ancienne décision ne peut pas être affichée complètement.</p>
           <dl className="mt-3 flex flex-col gap-1 text-xs text-muted">
-            {row.activeModeDb && (
+            {/* UX-10A — the phase only when set, never the confidence. */}
+            {row.activeModeDb && row.activeModeDb !== "UNSPECIFIED" && Object.prototype.hasOwnProperty.call(TRAINING_MODE_LABELS, row.activeModeDb) && (
               <div>
-                <dt className="inline font-medium">Mode : </dt>
-                <dd className="inline">{TRAINING_MODE_LABELS[row.activeModeDb as TrainingMode] ?? row.activeModeDb}</dd>
-              </div>
-            )}
-            {row.confidenceLevelDb && (
-              <div>
-                <dt className="inline font-medium">Confiance : </dt>
-                <dd className="inline">{CONFIDENCE_LABELS[row.confidenceLevelDb as Confidence] ?? row.confidenceLevelDb}</dd>
+                <dt className="inline font-medium">Phase : </dt>
+                <dd className="inline">{TRAINING_MODE_LABELS[row.activeModeDb as TrainingMode]}</dd>
               </div>
             )}
             <div>
-              <dt className="inline font-medium">Séance enregistrée (ancien format) : </dt>
+              <dt className="inline font-medium">Séance : </dt>
               {/* UX-07 — French label, never the raw legacy enum. */}
               <dd className="inline">{Object.prototype.hasOwnProperty.call(SESSION_TYPE_LABELS, row.finalSessionDb) ? SESSION_TYPE_LABELS[row.finalSessionDb as SessionType] : "Séance"}</dd>
             </div>

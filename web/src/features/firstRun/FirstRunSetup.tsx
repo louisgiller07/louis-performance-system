@@ -407,20 +407,20 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
           <dl className="flex flex-col">
             {objective && (
               <div className="border-b border-line pb-3">
-                <dt className="text-[0.68rem] uppercase tracking-[0.18em] text-muted">{READY.preparation}</dt>
+                <dt className="text-xs uppercase tracking-[0.18em] text-muted">{READY.preparation}</dt>
                 <dd className="mt-1 font-display text-2xl font-extrabold uppercase leading-tight text-ink">{objective}</dd>
                 <dd className="text-sm text-ink/70">{READY.weeks(planWeekCount(review))}</dd>
               </div>
             )}
             {firstWeek && translateWeekType(firstWeek.weekType) && (
               <div className="border-b border-line py-3">
-                <dt className="text-[0.68rem] uppercase tracking-[0.18em] text-muted">{READY.week1}</dt>
+                <dt className="text-xs uppercase tracking-[0.18em] text-muted">{READY.week1}</dt>
                 <dd className="mt-1 font-display text-2xl font-extrabold uppercase leading-tight text-gold">{translateWeekType(firstWeek.weekType)}</dd>
               </div>
             )}
             {sessions.length > 0 && (
               <div className="pt-3">
-                <dt className="text-[0.68rem] uppercase tracking-[0.18em] text-muted">{READY.nextSessions}</dt>
+                <dt className="text-xs uppercase tracking-[0.18em] text-muted">{READY.nextSessions}</dt>
                 <dd>
                   <ul className="mt-1">
                     {sessions.map((session) => (

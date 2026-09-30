@@ -48,8 +48,10 @@ describe("auth pages — no English visible (REV-015.5)", () => {
   it("LoginPage: French copy (tagline, e-mail label, links, Google)", () => {
     const { container } = renderAt(<LoginPage />);
 
-    expect(screen.getByText("Ton coach de performance IA")).toBeInTheDocument();
-    expect(screen.getByText("Ton coach IA pour l'entraînement, la récupération et la performance en course.")).toBeInTheDocument();
+    // UX-10A — the site's promise and one line on what NALYNT is.
+    expect(screen.getByText("Ton objectif reste.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Ton plan s'adapte.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ton coach de performance DH & Enduro : ta préparation, ajustée chaque jour à ton état.");
     expect(screen.getByLabelText("Adresse e-mail")).toBeInTheDocument();
     expect(screen.getByLabelText("Mot de passe")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mot de passe oublié ?" })).toBeInTheDocument();

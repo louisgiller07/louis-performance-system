@@ -1,4 +1,5 @@
-import { DECISION_LABELS, formatConfidence, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
+import { TRAINING_MODE_LABELS } from "./dailyPlanLabels";
+import { missionStatus } from "./missionStatus";
 import { athleteSafeReasoning } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
 
@@ -39,10 +40,9 @@ const DECISION_ACCENT: Record<string, { border: string; text: string; ring: stri
 // same four underlying DailyPlan fields (decision, confidence, active_mode,
 // reasoning) — no new data, presentation only.
 export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
-  const decisionLabel = DECISION_LABELS[dailyPlan.decision] ?? dailyPlan.decision;
-  // REV-015.1 — never the raw enum; an unknown value hides the line.
-  const confidenceLabel = formatConfidence(dailyPlan.confidence);
-  const modeLabel = TRAINING_MODE_LABELS[dailyPlan.active_mode] ?? dailyPlan.active_mode;
+  // UX-10A — the decision in a coach's words; never the confidence, never an unset phase.
+  const status = missionStatus(dailyPlan);
+  const modeLabel = dailyPlan.active_mode !== "UNSPECIFIED" ? (TRAINING_MODE_LABELS[dailyPlan.active_mode] ?? null) : null;
   // V0.3_006A1 — the always-visible hero reasoning must never leak internal
   // Safety provenance (e.g. the raw HealthFlagType slug inside A5's
   // triggered_rule.detail); see safetyPresentation.ts.
@@ -52,11 +52,10 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   return (
     <div className={`rounded-xl border bg-card p-5 ${accent.border} ${accent.ring}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted">Décision du Head Coach</p>
-        <p className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted">{modeLabel}</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted">Le choix de ton coach</p>
+        {modeLabel && <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted">{modeLabel}</p>}
       </div>
-      <p className={`mt-2 text-3xl font-bold uppercase tracking-tight ${accent.text}`}>{decisionLabel}</p>
-      {confidenceLabel && <p className="mt-1.5 text-sm text-muted">Confiance {confidenceLabel.toLowerCase()}</p>}
+      <p className={`mt-2 font-display text-3xl font-extrabold uppercase leading-tight ${accent.text}`}>{status}</p>
       <p className="mt-4 text-sm leading-relaxed text-ink/90">{reasoning}</p>
       {accent.tagline && (
         <p className={`mt-4 text-xs font-semibold uppercase tracking-wide ${accent.text}`}>✓ {accent.tagline}</p>

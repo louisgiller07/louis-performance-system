@@ -34,7 +34,7 @@ interface BadgeProps {
 // day cards, Insights) don't reinvent it.
 export function Badge({ children, tone = "muted" }: BadgeProps) {
   return (
-    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] ${TONE_CLASS[tone]}`}>
+    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] ${TONE_CLASS[tone]}`}>
       {children}
     </span>
   );

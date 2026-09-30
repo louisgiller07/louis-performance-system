@@ -27,14 +27,15 @@ const BASE_PLAN: DailyPlan = {
 const hero = () => screen.getByRole("region");
 
 describe("MissionHero (UX-03)", () => {
-  it("MODIFY with a planned session: the mission title, then Prévu 4 h → Adapté 2 h 30, the decision and confidence", () => {
+  it("MODIFY with a planned session: the mission title, then Prévu 4 h → Adapté 2 h 30, and the decision in a coach's words (never the confidence)", () => {
     render(<MissionHero dailyPlan={BASE_PLAN} />);
 
     expect(screen.getByText("Ta mission du jour")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DH technique" })).toBeInTheDocument();
     expect(hero().textContent).toContain("Prévu : 4 h (charge modérée). Adapté : 2 h 30 (charge modérée).");
-    expect(within(hero()).getByText("Adapter")).toBeInTheDocument();
-    expect(within(hero()).getByText("Confiance élevée")).toBeInTheDocument();
+    expect(within(hero()).getByText("NALYNT a adapté ton plan")).toBeInTheDocument();
+    // UX-10A — never the engine's vocabulary or confidence.
+    expect(hero().textContent).not.toMatch(/Adapter|Maintenir|Remplacer|Confiance/);
     expect(within(hero()).getByText("Précision des lignes")).toBeInTheDocument();
     expect(within(hero()).getByText("Fatigue jambes élevée : volume réduit.")).toBeInTheDocument();
   });
@@ -59,7 +60,15 @@ describe("MissionHero (UX-03)", () => {
 
     expect(within(hero()).queryByText(/Prévu/)).not.toBeInTheDocument();
     expect(hero().textContent).toContain("4 h");
-    expect(within(hero()).getByText("Maintenir")).toBeInTheDocument();
+    expect(within(hero()).getByText("Ta séance reste conforme au plan")).toBeInTheDocument();
+  });
+
+  it("REPLACE and an unplanned day, in a coach's words", () => {
+    const { unmount } = render(<MissionHero dailyPlan={{ ...BASE_PLAN, decision: "REPLACE" }} />);
+    expect(within(hero()).getByText("NALYNT propose une séance adaptée")).toBeInTheDocument();
+    unmount();
+    render(<MissionHero dailyPlan={{ ...BASE_PLAN, decision: "KEEP", planned_session_before: null }} />);
+    expect(within(hero()).getByText("NALYNT te propose cette séance")).toBeInTheDocument();
   });
 
   it("no planned session to compare against: no comparison even when the decision is not KEEP", () => {
@@ -73,7 +82,7 @@ describe("MissionHero (UX-03)", () => {
     render(<MissionHero dailyPlan={{ ...BASE_PLAN, decision: "REST", final_session: { kind: "REST" }, dh_or_technical: { active: false } }} />);
 
     expect(hero().className).toContain("border-red-500");
-    expect(within(hero()).getByText("Repos", { selector: "span" }).className).toContain("text-red-300");
+    expect(within(hero()).getByText("NALYNT te propose de récupérer").className).toContain("text-red-300");
   });
 
   it("the training phase is a French label, hidden when UNSPECIFIED ('Phase non configurée' says nothing to the rider)", () => {

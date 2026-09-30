@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import { BrandLoading, BrandMessage } from "../components/BrandScreen";
 import { AthleteBootstrap } from "../features/athleteBootstrap/AthleteBootstrap";
 import { AthleteOnboarding } from "../features/athleteOnboarding/AthleteOnboarding";
 import { ConsentGate } from "../features/privacy/ConsentGate";
@@ -11,7 +12,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
 
   if (loading || (session && athleteResolution.status === "loading")) {
-    return <div className="p-6 text-center text-sm text-gray-500">Chargement…</div>;
+    return <BrandLoading />;
   }
 
   if (!session) {
@@ -41,9 +42,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (athleteResolution.status === "config_error") {
     return (
-      <div className="p-6 text-center text-sm text-red-600">
+      <BrandMessage title="Profil introuvable" tone="error">
         Erreur de configuration : impossible de résoudre ton profil athlète. Contacte le support.
-      </div>
+      </BrandMessage>
     );
   }
 

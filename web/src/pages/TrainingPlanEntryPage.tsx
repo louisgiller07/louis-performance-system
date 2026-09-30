@@ -42,7 +42,11 @@ export function TrainingPlanEntryPage() {
   return (
     <PageShell header={<AppHeader />}>
       {destination.status === "loading" ? (
-        <p className="text-center text-sm text-muted">Chargement…</p>
+        <div className="flex flex-col gap-3" aria-busy="true">
+          <p className="sr-only">Chargement…</p>
+          <div className="ux-skeleton h-44 rounded-2xl" />
+          <div className="ux-skeleton h-28 rounded-xl" />
+        </div>
       ) : (
         <>
           <p role="alert" className="text-sm text-red-400">

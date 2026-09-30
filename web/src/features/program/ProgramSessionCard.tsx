@@ -36,7 +36,7 @@ function metaLine(session: TrainingPlanReviewSession): string {
 
 function Chip({ children, tone = "muted" }: { children: string; tone?: "gold" | "muted" }) {
   return (
-    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[0.62rem] font-semibold uppercase tracking-[0.14em] ${tone === "gold" ? "border-gold/60 text-gold" : "border-line text-ink/75"}`}>
+    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] ${tone === "gold" ? "border-gold/60 text-gold" : "border-line text-ink/75"}`}>
       {children}
     </span>
   );
@@ -58,7 +58,7 @@ export function ProgramSessionCard({ session, today, variant, completion = null,
   if (variant === "today") {
     return (
       <section aria-labelledby={`session-${session.id}`} className="ux-enter ux-grain relative overflow-hidden rounded-2xl border border-gold/45 bg-card p-6">
-        <p className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+        <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
           <span className="h-px w-5 bg-gold" aria-hidden="true" />
           Aujourd'hui
         </p>
@@ -72,7 +72,7 @@ export function ProgramSessionCard({ session, today, variant, completion = null,
         </div>
         {focus && (
           <div className="mt-4 border-t border-line pt-4">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">Focus</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Focus</p>
             <p className="mt-1 text-lg font-medium leading-snug text-ink">{focus}</p>
           </div>
         )}
@@ -102,7 +102,7 @@ export function ProgramSessionCard({ session, today, variant, completion = null,
     <li className="ux-enter rounded-xl border border-line bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm text-muted">{dayLabel(session.date, today)}</p>
-        <p className={`text-[0.68rem] font-semibold uppercase tracking-[0.14em] ${variant === "past" && completion && completion !== "skipped" ? "text-gold" : "text-muted"}`}>{status}</p>
+        <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${variant === "past" && completion && completion !== "skipped" ? "text-gold" : "text-muted"}`}>{status}</p>
       </div>
       <p className="mt-1 font-display text-2xl font-extrabold uppercase leading-tight text-ink">{sessionTitle(session)}</p>
       {meta && <p className="text-sm text-ink/75">{meta}</p>}

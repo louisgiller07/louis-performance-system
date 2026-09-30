@@ -12,7 +12,7 @@ function plural(count: number, singular: string, pluralForm: string): string {
 export function HistoryJourneySummary({ facts }: { facts: JourneyFacts }) {
   const [y, m, d] = facts.since.split("-").map(Number);
   const lines: [number, string][] = [
-    [facts.analysedDays, plural(facts.analysedDays, "journée analysée", "journées analysées")],
+    [facts.analysedDays, plural(facts.analysedDays, "journée accompagnée", "journées accompagnées")],
     [facts.adaptations, plural(facts.adaptations, "adaptation", "adaptations")],
   ];
   if (facts.safetyRests > 0) lines.push([facts.safetyRests, plural(facts.safetyRests, "repos sécurité", "repos sécurité")]);
@@ -21,7 +21,7 @@ export function HistoryJourneySummary({ facts }: { facts: JourneyFacts }) {
 
   return (
     <section aria-labelledby="journey-title" className="ux-enter rounded-2xl border border-line bg-card p-5">
-      <h2 id="journey-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <h2 id="journey-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         Ton parcours
       </h2>

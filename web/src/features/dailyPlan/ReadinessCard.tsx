@@ -1,4 +1,3 @@
-import { formatConfidence } from "./dailyPlanLabels";
 import { athleteSafeMonitoring } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
 
@@ -14,24 +13,16 @@ import type { DailyPlan } from "./dailyPlanTypes";
 // text — through the same athleteSafeMonitoring as DailyPlanView's "À
 // surveiller" (REV-014b: PAIN_NON_SAFETY embeds the raw pain_location_code,
 // e.g. "(knee_R, intensité 4/10)", which must render as its French label).
-// UX-03 — `hideConfidence`: Today's MissionHero already states the confidence next to the decision.
-export function ReadinessCard({ dailyPlan, hasHealthSignal, hideConfidence = false }: { dailyPlan: DailyPlan; hasHealthSignal: boolean; hideConfidence?: boolean }) {
+// UX-10A — the engine's confidence level is never shown to the rider.
+export function ReadinessCard({ dailyPlan, hasHealthSignal }: { dailyPlan: DailyPlan; hasHealthSignal: boolean }) {
   const attention = athleteSafeMonitoring(dailyPlan)[0];
-  // REV-015.1 — French label only; the raw LOW/MEDIUM/HIGH enum is never rendered.
-  const confidenceLabel = hideConfidence ? null : formatConfidence(dailyPlan.confidence);
 
   return (
     <div className="rounded-lg border border-line bg-card p-4">
-      <h3 className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">État de préparation</h3>
-      <div className={`mt-3 grid divide-x divide-line ${confidenceLabel ? "grid-cols-2" : "grid-cols-1"}`}>
-        {confidenceLabel && (
-          <div className="pr-4">
-            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">Confiance</p>
-            <p className="mt-1 font-display text-2xl font-extrabold uppercase leading-none text-ink">{confidenceLabel}</p>
-          </div>
-        )}
-        <div className={confidenceLabel ? "pl-4" : ""}>
-          <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">État du corps</p>
+      <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">État de préparation</h3>
+      <div className="mt-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">État du corps</p>
           <p className={`mt-1 font-display text-2xl font-extrabold uppercase leading-none ${hasHealthSignal ? "text-red-400" : "text-gold"}`}>
             {hasHealthSignal ? "Signal actif" : "Prêt"}
           </p>
@@ -39,7 +30,7 @@ export function ReadinessCard({ dailyPlan, hasHealthSignal, hideConfidence = fal
       </div>
       {attention && (
         <div className="mt-4 border-t border-line pt-3">
-          <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">Attention</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">Attention</p>
           <p className="mt-1 text-sm text-ink/90">{attention}</p>
         </div>
       )}

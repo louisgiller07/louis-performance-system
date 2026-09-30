@@ -69,21 +69,21 @@ describe("retainedSignals", () => {
 
 describe("coachWhy — validated wording (UX-04)", () => {
   it("Maintenir without a retained signal", () => {
-    expect(coachWhy({ ...BASE, decision: "KEEP" })).toBe("Rien dans ton check-in ne demande d'adapter ta séance. Tu suis ton plan.");
+    expect(coachWhy({ ...BASE, decision: "KEEP" })).toBe("Rien dans ton état du jour ne nécessite d'adaptation. Tu suis ton plan.");
   });
 
   it("Adapter: the detected signal(s), then the charge is adjusted to preserve the objective", () => {
     expect(coachWhy({ ...BASE, decision: "MODIFY", decision_reasoning: [rule("C", ["leg_fatigue_high"])] })).toBe(
-      "Signal détecté : fatigue jambes élevée. NALYNT ajuste la charge pour préserver ton objectif."
+      "Signal détecté : fatigue jambes élevée. La charge est ajustée pour préserver ton objectif."
     );
     expect(coachWhy({ ...BASE, decision: "MODIFY", decision_reasoning: [rule("C", ["sleep_deficit", "energy_low"])] })).toBe(
-      "Signaux détectés : nuit trop courte, énergie basse. NALYNT ajuste la charge pour préserver ton objectif."
+      "Signaux détectés : nuit trop courte, énergie basse. La charge est ajustée pour préserver ton objectif."
     );
   });
 
   it("Remplacer: the detected signal, then an adapted session", () => {
     expect(coachWhy({ ...BASE, decision: "REPLACE", decision_reasoning: [rule("C", ["grip_fatigue_high"])] })).toBe(
-      "Signal détecté : avant-bras fatigués. NALYNT propose une séance adaptée à ton état."
+      "Signal détecté : avant-bras fatigués. Ton état du jour demande une autre approche."
     );
   });
 

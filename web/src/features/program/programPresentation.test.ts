@@ -112,7 +112,7 @@ describe("decisions and adaptations (today and past only)", () => {
     expect(adaptationFrom(DECISION)).toEqual({
       planned: DECISION.planned_session_before,
       adapted: DECISION.final_session,
-      why: "Signal détecté : fatigue jambes élevée. NALYNT ajuste la charge pour préserver ton objectif.",
+      why: "Signal détecté : fatigue jambes élevée. La charge est ajustée pour préserver ton objectif.",
     });
   });
 

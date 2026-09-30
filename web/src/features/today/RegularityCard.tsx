@@ -8,7 +8,7 @@ export function RegularityCard({ checkedInToday, weekCount, onEditCheckin }: { c
 
   return (
     <section aria-labelledby="regularity-title" className="ux-enter rounded-xl border border-line bg-card px-5 py-4">
-      <h2 id="regularity-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <h2 id="regularity-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         Ta régularité
       </h2>

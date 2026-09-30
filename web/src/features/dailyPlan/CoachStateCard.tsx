@@ -35,7 +35,7 @@ export function CoachStateCard({
   return (
     <>
       <section aria-labelledby="coach-state-title" className={`rounded-xl border border-line bg-card p-5 ${revealed ? "coach-revealed" : ""}`}>
-        <h2 id="coach-state-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+        <h2 id="coach-state-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
           <span className="h-px w-5 bg-gold" aria-hidden="true" />
           Ce que ton coach a retenu
         </h2>
@@ -61,7 +61,7 @@ export function CoachStateCard({
       </section>
 
       <section aria-labelledby="day-state-title" className="rounded-xl border border-line bg-card p-5">
-        <h2 id="day-state-title" className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+        <h2 id="day-state-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
           <span className="h-px w-5 bg-gold" aria-hidden="true" />
           Ton état du jour
         </h2>
@@ -75,7 +75,7 @@ export function CoachStateCard({
                   className={`ux-enter rounded-lg border p-3 ${retained ? "border-gold/60 bg-gold/6" : "border-line"}`}
                   style={{ ["--d" as string]: `${baseDelay + (signals.length + index) * 120}ms` }}
                 >
-                  <dt className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">{tile.label}</dt>
+                  <dt className="text-xs uppercase tracking-[0.16em] text-muted">{tile.label}</dt>
                   <dd className={`mt-1 font-display text-3xl font-extrabold leading-none ${retained ? "text-gold" : "text-ink"}`}>{tile.value}</dd>
                   {tile.detail && <dd className="mt-1 text-xs text-muted">{tile.detail}</dd>}
                 </div>
@@ -85,14 +85,14 @@ export function CoachStateCard({
         )}
 
         <div className={`flex items-center justify-between gap-3 ${tiles.length > 0 ? "mt-4 border-t border-line pt-3" : "mt-3"}`}>
-          <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">État du corps</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-muted">État du corps</p>
           <p className={`font-display text-lg font-extrabold uppercase leading-none ${hasHealthSignal ? "text-red-400" : "text-gold"}`}>
             {hasHealthSignal ? "Signal actif" : "Prêt"}
           </p>
         </div>
         {attention && (
           <div className="mt-3 border-t border-line pt-3">
-            <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">Attention</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">Attention</p>
             <p className="mt-1 text-sm text-ink/90">{attention}</p>
           </div>
         )}

@@ -39,7 +39,7 @@ export function DailyPlanResult({ result, today }: { result: DailyRunResponse; t
           // UX-04 — Today's coach reading: retained signals + the athlete's declared state.
           <CoachStateCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} checkin={today.checkin} revealed={today.revealed} />
         ) : (
-          <ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} hideConfidence />
+          <ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} />
         )
       }
       missionSlot={<MissionHero dailyPlan={dailyPlan} />}

@@ -6,6 +6,7 @@ import { baseRawContext } from "../../../../head-coach-engine/fixtures/louis.js"
 import { isValidDailyPlan } from "./dailyPlanValidation";
 import { formatConfidence } from "./dailyPlanLabels";
 import { DailyPlanResult } from "./DailyPlanResult";
+import { missionStatus } from "./missionStatus";
 import { DecisionHero } from "./DecisionHero";
 import { ReadinessCard } from "./ReadinessCard";
 import type { DailyPlan } from "./dailyPlanTypes";
@@ -55,14 +56,15 @@ describe("DecisionHero (REV-015.1)", () => {
     ["KEEP", DH_KEEP, "✓ Prêt à performer"],
     ["MODIFY", DH_MODIFY, "✓ Ajusté — prêt à performer"],
     ["REPLACE", DH_REPLACE, "✓ Nouveau plan — prêt à performer"],
-  ] as const)("%s: French title, confidence and tagline", (decision, overrides, tagline) => {
+  ] as const)("%s: 'Ta mission', the decision in a coach's words and the tagline — never the confidence (UX-10A)", (decision, overrides, tagline) => {
     const plan = planFor(overrides);
     expect(plan.decision).toBe(decision);
 
     const { container } = render(<DecisionHero dailyPlan={plan} />);
 
-    expect(screen.getByText("Décision du Head Coach")).toBeInTheDocument();
-    expect(screen.getByText(`Confiance ${formatConfidence(plan.confidence)!.toLowerCase()}`)).toBeInTheDocument();
+    expect(screen.getByText("Le choix de ton coach")).toBeInTheDocument();
+    expect(screen.getByText(missionStatus(plan))).toBeInTheDocument();
+    expect(screen.queryByText(/Confiance|Décision du Head Coach|Maintenir|Adapter|Remplacer|Phase non configurée/)).not.toBeInTheDocument();
     expect(screen.getByText(tagline)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(ENGLISH_LABELS);
   });
@@ -73,7 +75,7 @@ describe("DecisionHero (REV-015.1)", () => {
 
     const { container } = render(<DecisionHero dailyPlan={plan} />);
 
-    expect(screen.getByText("Décision du Head Coach")).toBeInTheDocument();
+    expect(screen.getByText("NALYNT te propose de récupérer")).toBeInTheDocument();
     expect(screen.queryByText(/prêt à performer/)).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(ENGLISH_LABELS);
   });
@@ -89,14 +91,14 @@ describe("DecisionHero (REV-015.1)", () => {
 });
 
 describe("ReadinessCard (REV-015.1)", () => {
-  it.each(["HIGH", "MEDIUM", "LOW"] as const)("confidence %s shows its French label, never the enum", (confidence) => {
+  it.each(["HIGH", "MEDIUM", "LOW"] as const)("confidence %s is never shown to the rider (UX-10A)", (confidence) => {
     const plan = { ...planFor(DH_KEEP), confidence };
 
     const { container } = render(<ReadinessCard dailyPlan={plan} hasHealthSignal={false} />);
 
     expect(screen.getByText("État de préparation")).toBeInTheDocument();
-    expect(screen.getByText("Confiance")).toBeInTheDocument();
-    expect(screen.getByText(formatConfidence(confidence)!)).toBeInTheDocument();
+    expect(screen.queryByText("Confiance")).not.toBeInTheDocument();
+    expect(screen.queryByText(formatConfidence(confidence)!)).not.toBeInTheDocument();
     expect(screen.getByText("État du corps")).toBeInTheDocument();
     expect(screen.getByText("Prêt")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(ENGLISH_LABELS);

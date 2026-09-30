@@ -457,7 +457,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
           <span key={guidedStep.id} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${index <= step ? "bg-gold" : "bg-line"}`} />
         ))}
       </div>
-      <p className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">
+      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
         Étape {step + 1} / {GUIDED_STEPS.length}
       </p>
 

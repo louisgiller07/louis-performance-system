@@ -53,7 +53,7 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
   if (loadState === "loading") {
     return (
       <section>
-        <h2 className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
         <p className="mt-1 text-sm text-muted">Chargement…</p>
       </section>
     );
@@ -64,7 +64,7 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
   if (loadState === "error") {
     return (
       <section>
-        <h2 className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
         <p className="mt-1 text-sm text-muted">Planning indisponible.</p>
         <Link to="/plan" className="mt-2 inline-flex min-h-8 items-center text-xs font-medium text-gold underline-offset-4 hover:underline">
           Modifier dans Plan
@@ -81,7 +81,7 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
 
   return (
     <section>
-      <h2 className="text-[0.68rem] font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
       <p className={`mt-1 text-sm font-medium ${row ? "text-ink" : "text-muted"}`}>{displayLabel}</p>
       <Link to="/plan" className="mt-2 inline-flex min-h-8 items-center text-xs font-medium text-gold underline-offset-4 hover:underline">
         Modifier dans Plan

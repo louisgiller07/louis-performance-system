@@ -219,7 +219,7 @@ describe("HistoryPage — the journey (UX-07)", () => {
     expect(within(card).getByText("DH technique · charge modérée · 4 h")).toBeInTheDocument();
     // The adapted line, and the realisation's "Prévu" (what NALYNT asked that day).
     expect(within(card).getAllByText("DH technique · charge légère · 2 h 30")).toHaveLength(2);
-    expect(within(card).getByText("Signal détecté : fatigue jambes élevée. NALYNT ajuste la charge pour préserver ton objectif.")).toBeInTheDocument();
+    expect(within(card).getByText("Signal détecté : fatigue jambes élevée. La charge est ajustée pour préserver ton objectif.")).toBeInTheDocument();
     // UX-08 — the realisation, as facts: what was asked, what was done, effort, legs after.
     expect(within(card).getByText("Réalisation")).toBeInTheDocument();
     expect(within(card).getByText("✓ Séance réalisée")).toBeInTheDocument();
@@ -248,7 +248,7 @@ describe("HistoryPage — the journey (UX-07)", () => {
 
     const summary = await screen.findByRole("region", { name: "Ton parcours" });
     expect(within(summary).getByText("depuis le 24 septembre")).toBeInTheDocument();
-    expect(summary).toHaveTextContent("3journées analysées");
+    expect(summary).toHaveTextContent("3journées accompagnées");
     expect(summary).toHaveTextContent("0adaptations");
     expect(summary).toHaveTextContent("1repos sécurité");
     expect(summary).toHaveTextContent("0séances enregistrées");
@@ -271,7 +271,7 @@ describe("HistoryPage — the journey (UX-07)", () => {
     renderHistoryPage();
 
     const todayZone = await screen.findByRole("region", { name: "Aujourd'hui" });
-    expect(within(todayZone).getByText("Ta journée n'a pas encore été analysée.")).toBeInTheDocument();
+    expect(within(todayZone).getByText("Ta journée avec NALYNT n'a pas encore commencé.")).toBeInTheDocument();
     expect(within(todayZone).getByRole("link", { name: "Faire mon check-in →" })).toHaveAttribute("href", "/today");
     expect(screen.getByRole("region", { name: "Cette semaine" })).toBeInTheDocument();
   });

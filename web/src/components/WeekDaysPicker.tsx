@@ -46,7 +46,7 @@ export function WeekDaysPicker({ days, initialIndex }: { days: WeekDay[]; initia
                 isSelected ? "border-gold/70 bg-gold/8" : "border-transparent hover:border-line"
               }`}
             >
-              <span className={`text-[0.7rem] font-semibold uppercase ${entry.isToday ? "text-gold" : "text-muted"}`}>{DAY_LETTERS[index]}</span>
+              <span className={`text-xs font-semibold uppercase ${entry.isToday ? "text-gold" : "text-muted"}`}>{DAY_LETTERS[index]}</span>
               <span
                 className={`text-lg leading-none ${entry.race || entry.isToday || entry.performed ? "text-gold" : entry.planned ? "text-ink/80" : "text-muted/50"}`}
                 aria-hidden="true"

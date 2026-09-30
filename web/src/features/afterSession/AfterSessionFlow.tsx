@@ -163,7 +163,7 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
           <div role="group" aria-label={ACTIVITY.pick} className="flex flex-col gap-3">
             {PERFORMED_KIND_GROUPS.map((group) => (
               <div key={group.label}>
-                <p className="text-[0.68rem] uppercase tracking-[0.16em] text-muted">{group.label}</p>
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">{group.label}</p>
                 <div className="mt-1.5 flex flex-wrap gap-2">
                   {group.kinds.map((kind) => (
                     <button
@@ -366,7 +366,7 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
           <span key={id} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${position <= index ? "bg-gold" : "bg-line"}`} />
         ))}
       </div>
-      <p className="mt-5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-muted">{`Étape ${Math.min(index, steps.length - 1) + 1} / ${steps.length}`}</p>
+      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted">{`Étape ${Math.min(index, steps.length - 1) + 1} / ${steps.length}`}</p>
 
       <div key={step} className="ux-enter mt-2 flex flex-1 flex-col gap-6">
         <div>

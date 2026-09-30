@@ -34,7 +34,7 @@ export function ProgramHero({
   return (
     <section aria-labelledby="program-title" className="ux-enter ux-grain relative overflow-hidden rounded-2xl border border-gold/40 bg-card p-6">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-linear-to-br from-gold/10 via-transparent to-transparent" aria-hidden="true" />
-      <p className="flex items-center gap-2.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">
+      <p className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
         <span className="h-px w-5 bg-gold" aria-hidden="true" />
         Programme
       </p>

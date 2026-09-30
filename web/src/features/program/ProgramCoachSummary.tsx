@@ -11,7 +11,7 @@ export function ProgramCoachSummary({ review, athleteModifiedDates }: { review: 
     <details className="group rounded-xl border border-line bg-card/60">
       <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3 [&::-webkit-details-marker]:hidden">
         <span>
-          <span className="block text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-gold">Résumé du coach</span>
+          <span className="block text-xs font-semibold uppercase tracking-[0.22em] text-gold">Résumé du coach</span>
           <span className="mt-1 block text-sm text-ink/80">Voir les détails du plan</span>
         </span>
         <span className="text-gold transition-transform duration-300 group-open:rotate-90" aria-hidden="true">

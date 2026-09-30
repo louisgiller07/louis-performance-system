@@ -120,7 +120,7 @@ describe("ProgramSessions", () => {
     expect(within(today).getByText("Adaptée par NALYNT")).toBeInTheDocument();
     expect(within(today).getByText("Prévu")).toBeInTheDocument();
     expect(within(today).getByText("Adapté")).toBeInTheDocument();
-    expect(within(today).getByText("Signal détecté : fatigue jambes élevée. NALYNT ajuste la charge pour préserver ton objectif.")).toBeInTheDocument();
+    expect(within(today).getByText("Signal détecté : fatigue jambes élevée. La charge est ajustée pour préserver ton objectif.")).toBeInTheDocument();
   });
 
   it("upcoming sessions are always 'Prévue', never adapted, 4 visible and the rest one tap away", () => {
