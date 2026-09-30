@@ -1,3 +1,4 @@
+import { StateCard } from "../components/StateCard";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -81,16 +82,15 @@ export function HistoryDetailPage() {
       )}
 
       {state === "error" && (
-        <p role="alert" className="text-sm text-red-400">
+        <StateCard tone="error" title="Journée indisponible">
           {GENERIC_ERROR_MESSAGE}
-        </p>
+        </StateCard>
       )}
 
       {state === "not_found" && (
-        <div className="rounded-2xl border border-line bg-card p-5">
-          <p className="font-display text-2xl font-extrabold uppercase leading-tight text-ink">Journée introuvable</p>
-          <p className="mt-2 text-sm text-ink/80">Elle n'existe plus ou n'est pas accessible depuis ce compte.</p>
-        </div>
+        <StateCard title="Journée introuvable" action={{ label: "Revenir à l'historique", to: "/history" }}>
+          Elle n'existe plus ou n'est pas accessible depuis ce compte.
+        </StateCard>
       )}
 
       {state === "success" && row && (

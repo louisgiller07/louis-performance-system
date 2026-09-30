@@ -96,7 +96,7 @@ describe("HistoryPage — states", () => {
     mockedLoad.mockReturnValue(new Promise(() => {}));
     renderHistoryPage();
     expect(screen.queryByText("Déconnexion")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Insights/ })).toHaveAttribute("href", "/insights");
+    expect(screen.getByRole("link", { name: /Ce que NALYNT remarque/ })).toHaveAttribute("href", "/insights");
     expect(screen.getByRole("link", { name: "Historique" })).toHaveAttribute("aria-current", "page");
   });
 });

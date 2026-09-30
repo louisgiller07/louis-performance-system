@@ -1,3 +1,4 @@
+import { StateCard } from "../components/StateCard";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
@@ -63,9 +64,9 @@ export function HistoryPage() {
       )}
 
       {state.status === "error" && (
-        <p role="alert" className="text-sm text-red-400">
+        <StateCard tone="error" title="Historique indisponible">
           {GENERIC_ERROR_MESSAGE}
-        </p>
+        </StateCard>
       )}
 
       {journey && journey.days.length === 0 && (
@@ -80,7 +81,7 @@ export function HistoryPage() {
       {journey && journey.days.length > 0 && <HistoryTimeline days={journey.days} today={today} />}
       {facts && <HistoryJourneySummary facts={facts} />}
 
-      <SubPageLink to="/insights" label="Insights" hint="· tendances à valider" />
+      <SubPageLink to="/insights" label="Ce que NALYNT remarque" hint="· tendances observées" />
     </PageShell>
   );
 }

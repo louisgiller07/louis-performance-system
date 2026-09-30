@@ -91,9 +91,10 @@ describe("RequireAuth", () => {
     expect(screen.queryByText(/contacte le support/i)).not.toBeInTheDocument();
   });
 
-  it("V0.3_004B — more than one athlete resolved: still the existing config-error message, bootstrap is NOT shown", async () => {
+  it("V0.3_004B — more than one athlete resolved: still the config-error state (UX-10B-2A wording), bootstrap is NOT shown", async () => {
     renderProtected({ user: { id: "user-1", email: "louis@example.test" } }, [{ id: "athlete-1" }, { id: "athlete-2" }]);
-    await waitFor(() => expect(screen.getByText(/erreur de configuration/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Profil introuvable")).toBeInTheDocument());
+    expect(screen.getByText(/Contacte le support si le problème continue/)).toBeInTheDocument();
     expect(screen.queryByText("Bienvenue dans NALYNT")).not.toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });

@@ -43,7 +43,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   if (athleteResolution.status === "config_error") {
     return (
       <BrandMessage title="Profil introuvable" tone="error">
-        Erreur de configuration : impossible de résoudre ton profil athlète. Contacte le support.
+        Nous n'avons pas réussi à retrouver ton profil. Contacte le support si le problème continue.
       </BrandMessage>
     );
   }

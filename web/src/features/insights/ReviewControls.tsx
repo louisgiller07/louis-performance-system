@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ALLOWED_REVIEW_DECISIONS } from "./insightsValidation";
-import { REVIEW_DECISION_LABELS } from "./insightsLabels";
+import { RESPONSE, RESPONSES } from "./insightsPresentation";
 import type { PatternInsightReviewDecision } from "./insightsTypes";
 
 const MAX_NOTE_LENGTH = 2000;
@@ -12,16 +12,16 @@ interface ReviewControlsProps {
 }
 
 // Exactly the three locked human decisions — no fourth action, no automatic
-// selection. `disabled` covers both "a submit for THIS candidate is already
-// in flight" and "this card's candidate just went stale/vanished" (the
-// parent decides when to pass true) — mirrors useCompletedSessionFlow's
-// disabled-while-saving convention.
+// selection — worded for a rider (UX-10B-2A: "Ça me parle / Pas vraiment /
+// Pas encore sûr", same values sent). A response is feedback only: it
+// changes no plan, and the controls say so. `disabled` covers both "a submit
+// for THIS candidate is already in flight" and "this card's candidate just
+// went stale/vanished" (the parent decides when to pass true).
 export function ReviewControls({ candidateKey, disabled, onReview }: ReviewControlsProps) {
   const [note, setNote] = useState("");
 
   // Whitespace-only input is never silently submitted as a reviewerNote —
-  // it normalizes to null, matching the backend's own reviewerNote
-  // contract (never blank/whitespace-only, always already trimmed).
+  // it normalizes to null, matching the backend's own reviewerNote contract.
   function normalizedNote(): string | null {
     const trimmed = note.trim();
     return trimmed.length === 0 ? null : trimmed;
@@ -33,9 +33,24 @@ export function ReviewControls({ candidateKey, disabled, onReview }: ReviewContr
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <label className="flex flex-col gap-1 text-sm text-gray-700" htmlFor={`reviewer-note-${candidateKey}`}>
-        Note (optionnelle)
+    <div className="flex flex-col gap-3 border-t border-line pt-4">
+      <p className="text-sm font-medium text-ink">{RESPONSE.question}</p>
+      <div role="group" aria-label={RESPONSE.question} className="grid grid-cols-3 gap-2">
+        {ALLOWED_REVIEW_DECISIONS.map((decision) => (
+          <button
+            key={decision}
+            type="button"
+            disabled={disabled}
+            onClick={() => handleClick(decision)}
+            className="ux-press min-h-12 rounded-lg border border-line px-2 py-2 text-sm font-medium text-ink/85 hover:border-gold/60 disabled:opacity-40"
+          >
+            {RESPONSES[decision]}
+          </button>
+        ))}
+      </div>
+      <p className="text-xs text-muted">{RESPONSE.keep}</p>
+      <label className="flex flex-col gap-1.5 text-sm text-ink/80" htmlFor={`reviewer-note-${candidateKey}`}>
+        {RESPONSE.noteLabel}
         <textarea
           id={`reviewer-note-${candidateKey}`}
           value={note}
@@ -43,22 +58,10 @@ export function ReviewControls({ candidateKey, disabled, onReview }: ReviewContr
           disabled={disabled}
           rows={2}
           maxLength={MAX_NOTE_LENGTH}
-          className="rounded border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
+          className="rounded-lg border border-line bg-bg px-3 py-2 text-base text-ink disabled:opacity-50"
         />
+        <span className="text-xs text-muted">{RESPONSE.noteHint}</span>
       </label>
-      <div className="flex flex-wrap gap-2">
-        {ALLOWED_REVIEW_DECISIONS.map((decision) => (
-          <button
-            key={decision}
-            type="button"
-            disabled={disabled}
-            onClick={() => handleClick(decision)}
-            className="min-h-11 flex-1 rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 active:bg-gray-100 disabled:opacity-50"
-          >
-            {REVIEW_DECISION_LABELS[decision]}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

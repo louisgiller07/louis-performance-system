@@ -90,7 +90,7 @@ describe("TrainingPlanPreviewPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Aucun plan généré pour le moment.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Ta préparation commence ici" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Construire ma préparation" })).toHaveAttribute("href", "/start");
     expect(getTrainingPlanReview).not.toHaveBeenCalled();
   });
@@ -192,10 +192,11 @@ describe("TrainingPlanPreviewPage — targeted /:planVersionId route", () => {
 
     renderPage("/training-plan-preview/missing-id");
 
-    expect(await screen.findByText("Ce plan est introuvable ou n'est plus accessible.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Plan introuvable" })).toBeInTheDocument();
+    expect(screen.getByText("Ce plan est introuvable ou n'est plus accessible.")).toBeInTheDocument();
     expect(screen.queryByText("Première génération de ton plan d'entraînement.")).not.toBeInTheDocument();
     expect(screen.queryByText("Plan régénéré après une modification manuelle.")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Voir les plans disponibles" })).toHaveAttribute("href", "/training-plan-preview");
+    expect(screen.getByRole("link", { name: "Revenir à Programme" })).toHaveAttribute("href", "/training-plan");
   });
 
   it("still works for a plan whose lifecycle is no longer 'draft' (accepted/superseded/abandoned) — getTrainingPlanReview reads any state", async () => {

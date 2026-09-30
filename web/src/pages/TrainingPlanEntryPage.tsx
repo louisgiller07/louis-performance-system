@@ -1,8 +1,8 @@
+import { StateCard } from "../components/StateCard";
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { AppHeader } from "../components/AppHeader";
-import { SecondaryButton } from "../components/SecondaryButton";
 import { getActivePlanVersionId, getTrainingPlanDrafts } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 
 type Destination = { status: "loading" } | { status: "error" } | { status: "redirect"; to: string };
@@ -48,14 +48,9 @@ export function TrainingPlanEntryPage() {
           <div className="ux-skeleton h-28 rounded-xl" />
         </div>
       ) : (
-        <>
-          <p role="alert" className="text-sm text-red-400">
-            Impossible de charger ton plan d'entraînement. Réessaie.
-          </p>
-          <SecondaryButton onClick={() => void resolve()} className="self-start">
-            Réessayer
-          </SecondaryButton>
-        </>
+        <StateCard tone="error" title="Programme indisponible" action={{ label: "Réessayer", onClick: () => void resolve() }}>
+          Impossible de charger ton plan d'entraînement pour le moment.
+        </StateCard>
       )}
     </PageShell>
   );

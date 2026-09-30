@@ -54,7 +54,10 @@ export function TodayPlanningSummary({ athleteId, date }: TodayPlanningSummaryPr
     return (
       <section>
         <h2 className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Prévu aujourd'hui</h2>
-        <p className="mt-1 text-sm text-muted">Chargement…</p>
+        <div className="mt-2" aria-busy="true">
+          <p className="sr-only">Chargement…</p>
+          <div className="ux-skeleton h-5 w-2/3 rounded" />
+        </div>
       </section>
     );
   }

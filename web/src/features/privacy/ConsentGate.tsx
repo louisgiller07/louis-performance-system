@@ -1,3 +1,4 @@
+import { BrandMark } from "../../components/BrandMark";
 import { useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -29,11 +30,12 @@ export function ConsentGate() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center bg-bg px-4 py-8">
-      <div className="flex w-full max-w-105 flex-col gap-6">
+    <div className="flex min-h-screen flex-col items-center bg-bg px-5 py-8">
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <BrandMark size="md" />
         <div>
-          <h1 className="text-2xl font-bold text-ink">Tes données de santé</h1>
-          <p className="mt-2 text-sm text-muted">
+          <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-ink">Tes données de santé</h1>
+          <p className="mt-3 text-base text-ink/75">
             Tes check-ins peuvent contenir des informations de santé. Avant de continuer, lis les informations de confidentialité et
             donne ton accord.
           </p>
