@@ -1,11 +1,9 @@
+import { StateCard } from "../components/StateCard";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "../components/PageShell";
 import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
-import { SectionHeader } from "../components/SectionHeader";
-import { PrimaryButton } from "../components/PrimaryButton";
-import { SecondaryButton } from "../components/SecondaryButton";
 import {
   getTrainingPlanDrafts,
   getTrainingPlanReview,
@@ -183,11 +181,9 @@ export function TrainingPlanPreviewPage() {
   if (state === "empty") {
     return (
       <PageShell header={<AppHeader />}>
-        <SectionHeader title="Ton plan d'entraînement" />
-        <p className="text-sm text-ink/80">Aucun plan généré pour le moment.</p>
-        <Link to="/start">
-          <PrimaryButton className="w-full">Construire ma préparation</PrimaryButton>
-        </Link>
+        <StateCard title="Ta préparation commence ici" action={{ label: "Construire ma préparation", to: "/start" }}>
+          Quelques questions sur ton entraînement, et NALYNT construit ton premier plan.
+        </StateCard>
       </PageShell>
     );
   }
@@ -195,12 +191,9 @@ export function TrainingPlanPreviewPage() {
   if (state === "error") {
     return (
       <PageShell header={<AppHeader />}>
-        <p role="alert" className="text-sm text-red-400">
+        <StateCard tone="error" title="Programme indisponible" action={{ label: "Réessayer", onClick: () => void load() }}>
           {errorMessage}
-        </p>
-        <SecondaryButton onClick={() => void load()} className="self-start">
-          Réessayer
-        </SecondaryButton>
+        </StateCard>
       </PageShell>
     );
   }
@@ -208,11 +201,9 @@ export function TrainingPlanPreviewPage() {
   if (state === "not_found") {
     return (
       <PageShell header={<AppHeader />}>
-        <SectionHeader title="Ton plan d'entraînement" />
-        <p className="text-sm text-ink/80">{NOT_FOUND_MESSAGE}</p>
-        <Link to="/training-plan-preview">
-          <SecondaryButton className="w-full">Voir les plans disponibles</SecondaryButton>
-        </Link>
+        <StateCard title="Plan introuvable" action={{ label: "Revenir à Programme", to: "/training-plan" }}>
+          {NOT_FOUND_MESSAGE}
+        </StateCard>
       </PageShell>
     );
   }

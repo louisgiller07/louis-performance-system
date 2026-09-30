@@ -1,3 +1,4 @@
+import { StateCard } from "../../components/StateCard";
 import { useState } from "react";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { CheckinSheet } from "../checkin/CheckinSheet";
@@ -22,7 +23,11 @@ export function AfterSessionEntry({ date, athleteId }: { date: string; athleteId
 
   if (flow.loadState === "loading") return <div className="ux-skeleton h-28 rounded-2xl" aria-hidden="true" />;
   if (flow.loadState === "error") {
-    return <p className="text-sm text-red-400">{flow.loadError?.message ?? ENTRY.loadError}</p>;
+    return (
+      <StateCard tone="error" title={ENTRY.kicker}>
+        {flow.loadError?.message ?? ENTRY.loadError}
+      </StateCard>
+    );
   }
 
   const editing = flow.mode === "editing";

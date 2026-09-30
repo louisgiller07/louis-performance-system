@@ -60,7 +60,8 @@ describe("TrainingPlanEntryPage — /training-plan (PILOT_012)", () => {
     getActivePlanVersionId.mockRejectedValue(new Error("network"));
     renderEntry();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Impossible de charger ton plan d'entraînement. Réessaie.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Programme indisponible");
+    expect(screen.getByRole("alert")).toHaveTextContent("Impossible de charger ton plan d'entraînement pour le moment.");
     expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();
   });
 });

@@ -3,8 +3,8 @@ import { useAuth } from "../auth/AuthContext";
 import { PageShell } from "../components/PageShell";
 import { SubPageLink } from "../components/SubPageLink";
 import { AppHeader } from "../components/AppHeader";
-import { SectionHeader } from "../components/SectionHeader";
-import { SecondaryButton } from "../components/SecondaryButton";
+import { StateCard, StateSkeleton } from "../components/StateCard";
+import { PAGE, RESPONSE } from "../features/insights/insightsPresentation";
 import { InsightCard, type InsightCardNotice } from "../features/insights/InsightCard";
 import { buildSubmitReviewBody, getInsights, submitReview } from "../features/insights/insightsRepo";
 import type { GetInsightsResponse, PatternInsightCandidate, PatternInsightReviewDecision } from "../features/insights/insightsTypes";
@@ -91,7 +91,7 @@ export function InsightsPage() {
       // Authoritative state comes ONLY from a fresh read — never from
       // {action, reviewNumber} alone (never locally set reviewState here).
       await load();
-      setCardNotice(key, { kind: "success", message: "Revue enregistrée." });
+      setCardNotice(key, { kind: "success", message: RESPONSE.saved });
       setSubmitting(key, false);
       return;
     }
@@ -101,14 +101,14 @@ export function InsightsPage() {
       // never trusted directly, and reviewerNote/decision are never
       // resubmitted automatically. A new explicit human click is required.
       await load();
-      setCardNotice(key, { kind: "stale", message: "Cet insight a changé depuis ta dernière visite. Vérifie la nouvelle version puis revote si besoin." });
+      setCardNotice(key, { kind: "stale", message: "Cette tendance a changé depuis ta dernière visite. Relis-la, puis réponds à nouveau si besoin." });
       setSubmitting(key, false);
       return;
     }
 
     if (result.kind === "candidate_not_found") {
       await load();
-      setPageNotices((prev) => [...prev, { id: newNoticeId(), message: "Cet insight n'est plus disponible." }]);
+      setPageNotices((prev) => [...prev, { id: newNoticeId(), message: "Cette tendance n'est plus disponible." }]);
       setSubmitting(key, false);
       return;
     }
@@ -120,32 +120,33 @@ export function InsightsPage() {
 
   return (
     <PageShell header={<AppHeader />}>
-      <SubPageLink to="/history" label="Historique" back />
-      <SectionHeader title="Insights" />
+      <SubPageLink to="/history" label={PAGE.back} back />
+      {/* UX-10B-2A — what NALYNT observed, in a rider's words; responses never change the plan. */}
+      <section aria-labelledby="insights-title" className="ux-enter">
+        <h1 id="insights-title" className="font-display text-[clamp(2.25rem,10vw,3rem)] font-extrabold uppercase leading-[0.95] text-ink">
+          {PAGE.title}
+        </h1>
+        <p className="mt-2 text-base text-ink/80">{PAGE.subtitle}</p>
+      </section>
 
       {pageNotices.map((notice) => (
-        <div key={notice.id} role="status" className="flex items-center justify-between gap-2 rounded border border-white/10 bg-card px-3 py-2 text-sm text-ink/80">
+        <div key={notice.id} role="status" className="flex items-center justify-between gap-2 rounded-lg border border-line bg-card px-4 py-3 text-sm text-ink/85">
           <span>{notice.message}</span>
-          <button type="button" onClick={() => dismissPageNotice(notice.id)} className="shrink-0 text-xs font-medium text-muted">
-            Fermer
+          <button type="button" onClick={() => dismissPageNotice(notice.id)} className="ux-press min-h-11 shrink-0 px-2 text-sm font-medium text-gold">
+            {PAGE.close}
           </button>
         </div>
       ))}
 
-      {state.status === "loading" && <p className="text-sm text-muted">Chargement…</p>}
+      {state.status === "loading" && <StateSkeleton blocks={[48, 48]} />}
 
       {state.status === "error" && (
-        <div className="flex flex-col items-start gap-2">
-          <p role="alert" className="text-sm text-red-400">
-            {state.error.message}
-          </p>
-          <SecondaryButton onClick={() => void load()}>Réessayer</SecondaryButton>
-        </div>
+        <StateCard tone="error" title={PAGE.loadErrorTitle} action={{ label: PAGE.retry, onClick: () => void load() }}>
+          {state.error.message}
+        </StateCard>
       )}
 
-      {state.status === "loaded" && state.response.candidates.length === 0 && (
-        <p className="text-sm text-muted">Aucun insight à examiner pour le moment.</p>
-      )}
+      {state.status === "loaded" && state.response.candidates.length === 0 && <StateCard title={PAGE.emptyTitle}>{PAGE.empty}</StateCard>}
 
       {state.status === "loaded" &&
         state.response.candidates.map((candidate) => (

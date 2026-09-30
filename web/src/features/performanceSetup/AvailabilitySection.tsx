@@ -184,7 +184,10 @@ export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }
       )}
 
       {loading ? (
-        <p className="text-sm text-muted">Chargement…</p>
+        <div aria-busy="true">
+          <p className="sr-only">Chargement…</p>
+          <div className="ux-skeleton h-40 rounded-xl" />
+        </div>
       ) : (
         <>
           <div className="flex flex-col gap-3">

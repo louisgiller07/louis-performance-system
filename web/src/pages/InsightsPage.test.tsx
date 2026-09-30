@@ -77,7 +77,7 @@ describe("InsightsPage — loading/empty/error states", () => {
   it("shows a normal (non-error) empty state when there are zero candidates", async () => {
     getInsights.mockResolvedValue(okInsights([]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Aucun insight à examiner pour le moment.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Quand des tendances sont observées dans tes check-ins et tes séances, elles apparaissent ici.")).toBeInTheDocument());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -88,7 +88,7 @@ describe("InsightsPage — loading/empty/error states", () => {
 
     getInsights.mockResolvedValueOnce(okInsights([]));
     await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
-    await waitFor(() => expect(screen.getByText("Aucun insight à examiner pour le moment.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Quand des tendances sont observées dans tes check-ins et tes séances, elles apparaissent ici.")).toBeInTheDocument());
     expect(getInsights).toHaveBeenCalledTimes(2);
   });
 
@@ -103,15 +103,20 @@ describe("InsightsPage — candidate rendering", () => {
   it("renders title, statement, and evidence summary counts", async () => {
     getInsights.mockResolvedValue(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
-    expect(screen.getByText("Les séances recommandées sont réalisées comme prévu.")).toBeInTheDocument();
-    expect(screen.getByText(/1 au total/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
+    // UX-10B-2A — the web's rider sentence for kind × direction, observations (never days), caveats kept.
+    expect(screen.getByText("Tes séances recommandées sont le plus souvent réalisées comme prévu.")).toBeInTheDocument();
+    expect(screen.getByText(/^1 observation · du /)).toBeInTheDocument();
+    expect(screen.getByText("Décrit l'exécution observée.")).toBeInTheDocument();
+    expect(screen.getByText("Des tendances observées dans tes check-ins et tes séances. Elles ne changent pas ton plan.")).toBeInTheDocument();
+    expect(screen.getByText("Ta réponse est gardée ; elle ne modifie pas ton plan.")).toBeInTheDocument();
+    expect(screen.getByText("Ta précision ne modifie pas ton plan.")).toBeInTheDocument();
   });
 
   it("never dumps raw sourceEvidenceRefs JSON or identity/revision UUIDs into the page", async () => {
     getInsights.mockResolvedValue(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
     expect(screen.queryByText(/id-1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/rev-1/)).not.toBeInTheDocument();
   });
@@ -119,8 +124,8 @@ describe("InsightsPage — candidate rendering", () => {
   it("unreviewed state shows the unreviewed badge and no prior-review block", async () => {
     getInsights.mockResolvedValue(okInsights([candidate({ reviewState: "unreviewed", currentReview: null })]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Non revu")).toBeInTheDocument());
-    expect(screen.queryByText(/Revue précédente/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
+    expect(screen.queryByText(/Tu as répondu/)).not.toBeInTheDocument();
   });
 
   it("reviewed_current state shows the current badge and the prior decision", async () => {
@@ -130,11 +135,9 @@ describe("InsightsPage — candidate rendering", () => {
     });
     getInsights.mockResolvedValue(okInsights([reviewed]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Revu — à jour")).toBeInTheDocument());
-    expect(screen.getByText(/Revue précédente/)).toBeInTheDocument();
-    // "Accepter comme insight" legitimately appears twice — once as the
-    // prior-decision label, once as the review button.
-    expect(screen.getAllByText("Accepter comme insight")).toHaveLength(2);
+    // UX-10B-2A — the rider's own answer, in their words.
+    await waitFor(() => expect(screen.getByText("Tu as répondu : Ça me parle")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Ça me parle" })).toBeInTheDocument();
   });
 
   it("reviewed_stale state visually distinguishes staleness and keeps the prior review visible, never hides it", async () => {
@@ -144,25 +147,25 @@ describe("InsightsPage — candidate rendering", () => {
     });
     getInsights.mockResolvedValue(okInsights([stale]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Revu — l'insight a changé depuis")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Cette tendance a changé depuis ta réponse. Tu peux répondre à nouveau.")).toBeInTheDocument());
+    expect(screen.getByText("Tu as répondu : Pas vraiment")).toBeInTheDocument();
     expect(screen.getByText("old note")).toBeInTheDocument();
-    expect(screen.getByText(/nouvelle revue est nécessaire/)).toBeInTheDocument();
   });
 
   it("exposes exactly the three review action buttons, no fourth", async () => {
     getInsights.mockResolvedValue(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Accepter comme insight" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Rejeter" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Besoin de plus de données" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Ça me parle" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pas vraiment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pas encore sûr" })).toBeInTheDocument();
   });
 
   it("has a usable optional note field", async () => {
     getInsights.mockResolvedValue(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
-    const note = screen.getByLabelText("Note (optionnelle)");
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
+    const note = screen.getByLabelText(/Ajouter une précision \(facultatif\)/);
     await userEvent.type(note, "ma note");
     expect(note).toHaveValue("ma note");
   });
@@ -172,32 +175,32 @@ describe("InsightsPage — submitting a review", () => {
   it("submits exactly the built body including a trimmed note, and disables controls while in flight", async () => {
     getInsights.mockResolvedValue(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
 
     let resolveSubmit: (value: unknown) => void = () => {};
     submitReview.mockReturnValue(new Promise((resolve) => (resolveSubmit = resolve)));
 
-    await userEvent.type(screen.getByLabelText("Note (optionnelle)"), "  ma note  ");
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
+    await userEvent.type(screen.getByLabelText(/Ajouter une précision \(facultatif\)/), "  ma note  ");
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
 
     expect(submitReview).toHaveBeenCalledTimes(1);
     expect(submitReview).toHaveBeenCalledWith(expect.objectContaining({ decision: "accepted_as_insight", reviewerNote: "ma note" }));
-    expect(screen.getByRole("button", { name: "Accepter comme insight" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Rejeter" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ça me parle" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Pas vraiment" })).toBeDisabled();
 
     getInsights.mockResolvedValue(okInsights([candidate({ reviewState: "reviewed_current" })]));
     resolveSubmit({ ok: true, data: { action: "inserted", reviewNumber: 1 } });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Accepter comme insight" })).not.toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Ça me parle" })).not.toBeDisabled());
   });
 
   it("whitespace-only note is submitted as null, never as blank/whitespace content", async () => {
     getInsights.mockResolvedValue(okInsights([candidate()]));
     submitReview.mockResolvedValue({ ok: true, data: { action: "inserted", reviewNumber: 1 } });
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
 
-    await userEvent.type(screen.getByLabelText("Note (optionnelle)"), "   ");
-    await userEvent.click(screen.getByRole("button", { name: "Dismiss".replace("Dismiss", "Rejeter") }));
+    await userEvent.type(screen.getByLabelText(/Ajouter une précision \(facultatif\)/), "   ");
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss".replace("Dismiss", "Pas vraiment") }));
     expect(submitReview).toHaveBeenCalledWith(expect.objectContaining({ reviewerNote: null }));
   });
 
@@ -205,7 +208,7 @@ describe("InsightsPage — submitting a review", () => {
     getInsights.mockResolvedValueOnce(okInsights([candidate({ reviewState: "unreviewed" })]));
     submitReview.mockResolvedValue({ ok: true, data: { action: "inserted", reviewNumber: 1 } });
     renderPage();
-    await waitFor(() => expect(screen.getByText("Non revu")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
 
     // Deliberately something the client could NEVER safely infer from a
     // bare "inserted" success: reviewed_stale immediately after insertion
@@ -218,10 +221,10 @@ describe("InsightsPage — submitting a review", () => {
     });
     getInsights.mockResolvedValueOnce(okInsights([refetched]));
 
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
-    await waitFor(() => expect(screen.getByText("Revu — l'insight a changé depuis")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
+    await waitFor(() => expect(screen.getByText("Cette tendance a changé depuis ta réponse. Tu peux répondre à nouveau.")).toBeInTheDocument());
     expect(getInsights).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("Revue enregistrée.")).toBeInTheDocument();
+    expect(screen.getByText("Réponse enregistrée.")).toBeInTheDocument();
   });
 
   it("unchanged success also triggers a refetch (not treated differently from inserted/superseded)", async () => {
@@ -229,8 +232,8 @@ describe("InsightsPage — submitting a review", () => {
     submitReview.mockResolvedValue({ ok: true, data: { action: "unchanged", reviewNumber: 1 } });
     getInsights.mockResolvedValueOnce(okInsights([candidate({ reviewState: "reviewed_current" })]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Non revu")).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
     await waitFor(() => expect(getInsights).toHaveBeenCalledTimes(2));
   });
 });
@@ -239,7 +242,7 @@ describe("InsightsPage — stale_candidate (§29: must never auto-resubmit)", ()
   it("shows the fresh candidate via refetch, displays a message, and requires a brand-new human click before any second submitReview call", async () => {
     getInsights.mockResolvedValueOnce(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
 
     const staleCandidate = candidate({ snapshot: snapshot({ evidenceCount: 2, sourceEvidenceRefs: [] }) });
     submitReview.mockResolvedValueOnce({
@@ -251,20 +254,20 @@ describe("InsightsPage — stale_candidate (§29: must never auto-resubmit)", ()
     const refetched = okInsights([staleCandidate]);
     getInsights.mockResolvedValueOnce(refetched);
 
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
 
-    await waitFor(() => expect(screen.getByText(/Cet insight a changé depuis ta dernière visite/)).toBeInTheDocument());
-    expect(screen.getByText(/2 au total/)).toBeInTheDocument(); // the fresh (C2) evidenceCount, from the refetch — never the stale C1 count
+    await waitFor(() => expect(screen.getByText(/Cette tendance a changé depuis ta dernière visite/)).toBeInTheDocument());
+    expect(screen.getByText(/^2 observations · du /)).toBeInTheDocument(); // the fresh (C2) evidenceCount, from the refetch — never the stale C1 count
 
     // submit-review call count = 1 — no automatic resubmit occurred.
     expect(submitReview).toHaveBeenCalledTimes(1);
     // Controls are usable again — a NEW explicit click is required, never
     // auto-approved.
-    expect(screen.getByRole("button", { name: "Accepter comme insight" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ça me parle" })).not.toBeDisabled();
 
     submitReview.mockResolvedValueOnce({ ok: true, data: { action: "inserted", reviewNumber: 1 } });
     getInsights.mockResolvedValueOnce(okInsights([candidate({ reviewState: "reviewed_current" })]));
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
     await waitFor(() => expect(submitReview).toHaveBeenCalledTimes(2));
   });
 });
@@ -273,16 +276,16 @@ describe("InsightsPage — candidate_not_found", () => {
   it("refetches, the candidate disappears per fresh server state, and shows a non-fatal page message", async () => {
     getInsights.mockResolvedValueOnce(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
 
-    submitReview.mockResolvedValueOnce({ ok: false, kind: "candidate_not_found", error: { code: "candidate_not_found", message: "Cet insight n'est plus disponible.", retryable: false, action: "user_fixable" } });
+    submitReview.mockResolvedValueOnce({ ok: false, kind: "candidate_not_found", error: { code: "candidate_not_found", message: "Cette tendance n'est plus disponible.", retryable: false, action: "user_fixable" } });
     getInsights.mockResolvedValueOnce(okInsights([])); // vanished from the fresh authoritative response
 
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
 
-    await waitFor(() => expect(screen.queryByText("Exécution des recommandations")).not.toBeInTheDocument());
-    expect(screen.getByText("Cet insight n'est plus disponible.")).toBeInTheDocument();
-    expect(screen.getByText("Aucun insight à examiner pour le moment.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Réalisation de tes séances")).not.toBeInTheDocument());
+    expect(screen.getByText("Cette tendance n'est plus disponible.")).toBeInTheDocument();
+    expect(screen.getByText("Quand des tendances sont observées dans tes check-ins et tes séances, elles apparaissent ici.")).toBeInTheDocument();
   });
 });
 
@@ -290,11 +293,11 @@ describe("InsightsPage — generic submit error", () => {
   it("shows a sanitized per-card error message without refetching or crashing", async () => {
     getInsights.mockResolvedValueOnce(okInsights([candidate()]));
     renderPage();
-    await waitFor(() => expect(screen.getByText("Exécution des recommandations")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Réalisation de tes séances")).toBeInTheDocument());
 
     submitReview.mockResolvedValueOnce({ ok: false, kind: "other", error: { code: "internal_error", message: "Une erreur inattendue s'est produite côté serveur. Réessaie.", retryable: true, action: "retry" } });
 
-    await userEvent.click(screen.getByRole("button", { name: "Accepter comme insight" }));
+    await userEvent.click(screen.getByRole("button", { name: "Ça me parle" }));
     await waitFor(() => expect(screen.getByText("Une erreur inattendue s'est produite côté serveur. Réessaie.")).toBeInTheDocument());
     expect(getInsights).toHaveBeenCalledTimes(1); // no refetch on a generic failure — nothing changed server-side
   });

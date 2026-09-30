@@ -1,3 +1,4 @@
+import { StateCard } from "../../components/StateCard";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { PageShell } from "../../components/PageShell";
@@ -231,9 +232,9 @@ export function PerformanceSetup() {
   if (loadError) {
     return (
       <PageShell header={<AppHeader />}>
-        <p role="alert" className="text-sm text-red-400">
+        <StateCard tone="error" title="Profil indisponible">
           {loadError}
-        </p>
+        </StateCard>
       </PageShell>
     );
   }

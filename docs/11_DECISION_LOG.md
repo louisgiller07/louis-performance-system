@@ -3312,3 +3312,23 @@ Presentation-only: no engine, Supabase, Edge Function or schema change; every wr
 **Vocabulaire.** « Plus ton profil est précis, plus ta préparation correspond à ta réalité. » — NALYNT utilise ce que l'athlète déclare ; jamais « te connaît », « apprend », « analyse » (test de formulation). Aucune donnée inventée : pas de vélo, suspension, spots ni conditions (aucune donnée stockée).
 
 **Statut** : Accepted — tests web 1629/1629, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données du compte de test en lecture seule (écritures bloquées, 0 tentative), 320 et 390 px, chaque section ouverte puis annulée. Non déployé.
+
+## 2026-09-30 — ADR UX-10B-2A : Ce que NALYNT remarque, états vides et techniques
+
+> **Insight responses are athlete feedback only. They do not modify training plans, coaching decisions, or future recommendations.**
+>
+> **Insight presentation may translate engine output into athlete language but must not introduce causal claims or interpretations beyond available data.**
+
+Presentation-only: no engine, longitudinal-engine, Supabase, Edge Function or schema change. The server keeps its data (kind, direction, counts, period, caveats); the web only chooses the words (`features/insights/insightsPresentation.ts`).
+
+**Insights → « Ce que NALYNT remarque ».** Sous-titre : « Des tendances observées dans tes check-ins et tes séances. Elles ne changent pas ton plan. » Chaque tendance : un titre par type (Réalisation de tes séances / Sommeil et énergie / Douleur d'un check-in à l'autre), une phrase de pilote par type × direction (ex. « Tes nuits de meilleure qualité vont le plus souvent avec plus d'énergie le jour même. » — association, jamais cause), « N observations · du X au Y », les réserves du moteur verbatim. Type inconnu → titre et phrase du serveur. Jamais d'identifiants ni de références de preuves.
+
+**Réponses.** « Ça me parle / Pas vraiment / Pas encore sûr » (mêmes trois décisions envoyées), « Ta réponse est gardée ; elle ne modifie pas ton plan. », précision facultative (« Ta précision ne modifie pas ton plan. »). Interdits (test de formulation) : apprend, analyse, intelligence, cause, grâce à, améliore, plus précis, journées.
+
+**États vides.** Insights : « Rien à te montrer pour l'instant » — aucun délai promis (le rafraîchissement longitudinal reste déclenché par l'opérateur). Programme sans brouillon : « Ta préparation commence ici » + [Construire ma préparation] (/start). Course absente : rien d'affiché. « Libre » (jour vide) relève d'UX-10B-2B.
+
+**États techniques.** Composant `StateCard` (titre, une phrase, au plus une action ; `role="alert"` en erreur) : Programme / Historique / Journée / Profil indisponibles avec [Réessayer] ; « Plan introuvable » + [Revenir à Programme] ; « Journée introuvable » + [Revenir à l'historique] ; « Profil introuvable — Nous n'avons pas réussi à retrouver ton profil. Contacte le support si le problème continue. » Les « Chargement… » dans les pages deviennent des placeholders (`StateSkeleton`, texte conservé pour les lecteurs d'écran). Écran de consentement aux couleurs NALYNT, texte de consentement inchangé.
+
+**Hors UX-10B-2A (UX-10B-2B).** « Modifier ma semaine » (/plan), ses états et « Libre ».
+
+**Statut** : Accepted — tests web 1640/1640, typecheck sans nouvelle erreur, build OK, lint sans nouvel avertissement. Vérifié en local sur les données du compte de test en lecture seule (écritures bloquées, 0 tentative), Historique / Ce que NALYNT remarque (vide et erreur simulée) / Programme / Plan introuvable / Aujourd'hui à 320 et 390 px : aucun terme interdit, aucun débordement, aucune erreur. Non déployé.

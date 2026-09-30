@@ -1,3 +1,4 @@
+import { StateCard } from "../components/StateCard";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { FIRST_DAY, TODAY_NO_PLAN } from "../features/firstRun/firstRunPresentation";
@@ -223,7 +224,11 @@ export function TodayPage() {
       {/* UX-05 — the collapsible plan detail ("Voir les détails du plan") is rendered here, last. */}
       <div ref={setDetailsTarget} />
 
-      {!athleteId && <p className="text-sm text-red-400">Erreur de configuration : aucun athlète résolu.</p>}
+      {!athleteId && (
+        <StateCard tone="error" title="Profil introuvable">
+          Nous n'avons pas réussi à retrouver ton profil. Contacte le support si le problème continue.
+        </StateCard>
+      )}
 
       <CheckinSheet open={sheetOpen} onClose={closeSheet}>
         {athleteId && (
