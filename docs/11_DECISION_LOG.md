@@ -3386,3 +3386,56 @@ Presentation-only: no engine, projection, Supabase, Edge Function or schema chan
 **Ordre imposé.** Aucune table n'est créée avant la validation de cette ADR. Ensuite seulement : UX-11B (modèle de données).
 
 **Statut** : Accepted (Louis + architecture produit, 2026-09-30). Documentation uniquement : aucun code, moteur, schéma ni donnée modifié.
+
+## 2026-09-30 — ADR UX-11B.1 : NALYNT Execution Model V1
+
+> **NALYNT never replaces decision history with the final result. What the plan prescribed, what NALYNT asked for today, and what the rider actually did are kept as three separate, immutable layers. Historical prescriptions and executions are never overwritten: a correction creates a new event or a new version.**
+
+**Contexte.** L'audit UX-11B (2026-09-30) montre que la prescription du plan est déjà immuable (`training_plan_planned_prescriptions`), qu'une table de prescription du jour existe mais n'est jamais écrite (`decision_final_prescriptions`), que les exercices affichés sur Aujourd'hui ne sont pas enregistrés (perdus au rechargement, absents de l'historique), et que la réalisation se limite à une ligne par jour remplacée à chaque envoi (`completed_sessions`), sans aucun détail par exercice ni par série.
+
+**Entités conceptuelles.** Les noms d'entités sont des noms conceptuels. Les noms de tables seront validés lors de UX-11B.2 ; aucune migration dans cette ADR.
+
+| Couche | Entité | État | Question à laquelle elle répond |
+|---|---|---|---|
+| Prévu | `training_plan_planned_prescriptions` | Existe, immuable | Qu'est-ce que le plan prévoyait ? |
+| Demandé aujourd'hui | `decision_final_prescriptions` | Existe, immuable, jamais écrite à ce jour | Qu'est-ce que NALYNT a demandé aujourd'hui, et pourquoi (origine, garder / adapter / remplacer, règles appliquées) ? |
+| Réalisé | `session_executions` | Nouvelle | Le pilote a-t-il commencé, terminé, abandonné, repris ? |
+| Réalisé | `execution_events` | Nouvelle | Historique de l'exécution : `started`, `paused`, `resumed`, `completed`, `abandoned` (même philosophie que les décisions et les versions de plan : jamais de colonne de statut modifiée) |
+| Réalisé | `exercise_set_results` | Nouvelle | Qu'a-t-il fait, série par série ? |
+| Résumé | `completed_sessions` | Existe, inchangée | Résumé Après séance du jour et compatibilité historique ; plus la source du détail |
+
+**Relations.**
+- Prescription du jour → prescription du plan quand elle en dérive (clé existante `planned_prescription_id`), jamais de copie qui écrase l'originale.
+- **Une exécution référence la prescription du jour affichée au pilote, et non uniquement le plan d'origine.** Exemple : le plan prévoit squat 4 × 8, NALYNT adapte en 3 × 6, le pilote démarre : l'exécution pointe vers 3 × 6, jamais vers 4 × 8, sinon l'historique ment. Elle référence aussi la décision affichée au démarrage. La prescription est facultative : une exécution peut exister sans prescription.
+- Événement → exécution ; l'état courant d'une exécution est celui de son dernier événement. Résultat de série → exécution et → élément prescrit (`prescription_item_id`), sauf pour « autre exercice réalisé ».
+- `completed_sessions` reste relié par pilote, date et `decision_id`, comme aujourd'hui. Aucun lien obligatoire vers une exécution en V1.
+
+**Décisions.**
+1. **Trois couches conservées** : prévu, demandé aujourd'hui, réalisé. Une prescription adaptée ne remplace jamais l'originale ; elle la référence et liste les règles qui l'ont modifiée.
+2. **Identifiants stables** : chaque élément prescrit porte un `prescription_item_id` (UUID) dans le contenu de la prescription, à côté de l'`exercise_id` du catalogue. Un élément gardé ou réduit dans la prescription du jour conserve la trace de l'élément du plan dont il dérive. Les prescriptions existantes au format actuel n'ont pas d'identifiants d'éléments et n'en reçoivent jamais a posteriori (aucune donnée fabriquée) : **anciennes séances → historique uniquement ; nouvelles prescriptions au format UX-11A → exécutables**.
+3. **0 à N exécutions** par prescription du jour (abandon, reprise, erreur réseau, changement de contexte). **Les historiques peuvent contenir plusieurs tentatives, mais une seule exécution peut être active pour une journée donnée en V1** (un pilote, un jour, une exécution active). Une nouvelle exécution exige que l'active soit d'abord terminée ou abandonnée.
+4. **Une ligne par série** : faite ou non, répétitions, durée, distance ou passage DH (une seule mesure par série, comme la prescription), charge libre facultative saisie par le pilote, RPE réel, « réussi / pas encore » quand un critère existe. Aucun total stocké : les résumés se calculent à partir des séries.
+5. **Séance sans séries** : une exécution peut n'avoir aucune série (DH libre, récupération, séance sans prescription). Son commentaire et son statut suffisent.
+6. **Autre exercice réalisé** : en V1, le pilote peut indiquer qu'il a fait autre chose qu'un exercice prévu, avec un nom libre et un commentaire, sans lien au catalogue. Les substitutions liées au catalogue relèvent d'UX-11D/11E.
+7. **Une séance principale par jour en V1** : cohérent avec les contraintes actuelles (`planned_sessions` et `completed_sessions` uniques par pilote et par jour). Les doubles séances nécessitent une évolution du modèle de planification.
+8. **Les résultats par série servent à afficher, historiser et comprendre** ; ils ne modifient pas le coaching en V1. Le moteur de décision continue de lire la charge récente dans `completed_sessions`.
+
+**Immuabilité.**
+- Prescriptions (plan et jour) : déjà protégées contre toute modification ou suppression par la base.
+- `session_executions`, `execution_events`, `exercise_set_results` : insertion seulement, même protection (`reject_append_only_mutation`).
+- Correction d'une série : une nouvelle ligne qui référence celle qu'elle remplace ; la valeur courante est la dernière non remplacée. Rien n'est effacé.
+- **Les nouvelles données détaillées sont append-only. `completed_sessions` reste une exception historique liée au contrat existant** (une ligne par jour, remplacement complet, contrat gelé) : résumé compatible, jamais la source du détail.
+
+**Compatibilité future hors ligne** (non implémentée) :
+- identifiants générés par l'appareil : renvoyer une même exécution, un même événement ou une même série ne crée jamais de doublon ;
+- double horodatage : heure de l'appareil et heure d'enregistrement serveur ;
+- données en ajout seulement : une synchronisation future fusionne par union, sans état unique à réconcilier ;
+- seule la règle « une exécution active » demandera une résolution de conflit, à traiter avec la synchronisation.
+
+**Accès.** Lecture par le pilote de ses propres données (RLS, même politique que le reste). Écriture uniquement par un chemin serveur validé, comme `persist_completed_session`, jamais par un accès direct aux tables.
+
+**Ordre imposé.** UX-11B.1 (cette ADR + `05_DATA_MODEL.md`) → UX-11B.2 (schéma réel, migrations, chemin d'écriture) → UX-11A.5 (les moteurs produisent le format de séance V1 avec identifiants et écrivent `decision_final_prescriptions`) → UX-11C (mode séance).
+
+**Hors périmètre.** Interface du mode séance ; progression (UX-11E) ; modifications des moteurs ; synchronisation et hors ligne ; substitutions liées au catalogue ; doubles séances ; toute consommation des séries par le moteur de décision ; politique de suppression, d'anonymisation et de conservation des données du pilote (RGPD, suppression de compte) : sujet distinct, traité en UX-11B.2.
+
+**Statut** : Accepted (Louis + architecture produit, 2026-09-30). Documentation uniquement : aucune migration, aucun code, aucun moteur modifié.
