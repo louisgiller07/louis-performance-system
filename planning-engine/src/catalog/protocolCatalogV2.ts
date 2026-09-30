@@ -187,16 +187,16 @@ const ENTRIES: SessionProtocolV2[] = [
     family: "mobility",
     sessionKinds: ["MOBILITY"],
     intentId: "mobility_on_bike_range",
-    totalDurationMinutes: r(25, 30),
+    totalDurationMinutes: r(22, 30),
     blocks: [
-      { role: "main", focus: "hips", optional: false, durationMinutes: r(10, 11), instructionIds: ["instruction.mobility.slow_and_breathe"], items: [ex("hip_90_90", "mobility"), ex("hip_flexor_mobility", "mobility"), ex("deep_squat_hold", "mobility")] },
-      { role: "main", focus: "ankles", optional: false, durationMinutes: r(4, 4), instructionIds: [], items: [ex("knee_to_wall_ankle", "mobility")] },
-      { role: "main", focus: "spine", optional: false, durationMinutes: r(6, 7), instructionIds: [], items: [ex("cat_cow", "mobility"), ex("thoracic_rotation_mobility", "mobility")] },
+      { role: "main", focus: "hips", optional: false, durationMinutes: r(9, 11), instructionIds: ["instruction.mobility.slow_and_breathe"], items: [ex("hip_90_90", "mobility"), ex("hip_flexor_mobility", "mobility"), ex("deep_squat_hold", "mobility")] },
+      { role: "main", focus: "ankles", optional: false, durationMinutes: r(3, 4), instructionIds: [], items: [ex("knee_to_wall_ankle", "mobility")] },
+      { role: "main", focus: "spine", optional: false, durationMinutes: r(5, 7), instructionIds: [], items: [ex("cat_cow", "mobility"), ex("thoracic_rotation_mobility", "mobility")] },
       { role: "main", focus: "wrists", optional: false, durationMinutes: r(2, 3), instructionIds: [], items: [ex("wrist_mobility", "mobility")] },
       { role: "cool_down", focus: "breathing", optional: false, durationMinutes: r(3, 5), instructionIds: [], items: [ex("breathing_long_exhale", "cool_down")] },
     ],
     vigilanceIds: ["vigilance.mobility_no_forced_range"],
-    openQuestions: ["mobility_routine.slow_calf_raise"],
+    openQuestions: ["mobility_routine.slow_calf_raise", "mobility_routine.total_25_min_pending_dose_validation"],
   }),
 
   // Récupération active (03: objectif, durée, intensité faible ; mobilité et respiration en option).

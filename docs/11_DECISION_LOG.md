@@ -3671,7 +3671,7 @@ Aucune règle structurelle ne manque dans 03 : les règles d'endurance, de mobil
 6. **RPE de l'échauffement et du retour au calme des intervalles** : volontairement **non définis** (durée et consignes seulement ; question ouverte `endurance_intervals.warm_up_cool_down_rpe`).
 7. **Mollet unilatéral** (`single_leg_calf_raise`) : reste dans son catalogue, jamais ajouté à `mobility_routine_v1` ni à `recovery_active_v1`. C'est une question de validation coaching future.
 
-**Correction dérivée, signalée : mobilité.** Le total audité de 25–30 min est conservé. Les minimums des blocs, qui n'avaient jamais été validés, sont relevés pour que leur somme fasse 25 min : hanches 9–11 → 10–11, chevilles 3–4 → 4–4, dos 5–7 → 6–7 ; poignets 2–3 et respiration 3–5 inchangés. Autre option possible : un total de 22–30 min. À confirmer.
+**Correction dérivée, signalée : mobilité — REFUSÉE, remplacée par la correction ci-dessous.** Le commit `b7db5a3` avait relevé les minimums des blocs (hanches 9 → 10, chevilles 3 → 4, dos 5 → 6) pour que leur somme atteigne le total de 25 min. Cette modification de doses est refusée.
 
 **Tests.** Les ajouts et modifications concernent `protocolCatalogV2.test.ts` :
 - contrôle strict de la durée totale (minimum = somme des blocs obligatoires, maximum = somme de tous les blocs) ;
@@ -3685,4 +3685,20 @@ Aucune règle structurelle ne manque dans 03 : les règles d'endurance, de mobil
 
 **03.** Aucune modification : 03 indique déjà 45–90 min en endurance fondamentale, 20–40 min avec mobilité et respiration « en option » en récupération, et « 3 à 4 exercices légers » d'échauffement. Il est donc cohérent avec ces décisions.
 
-**Statut** : Accepted — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée. Aucun moteur ne lit les protocoles ; aucune migration, aucune modification Supabase, Edge Function, M1 ni `prescription-engine`.
+**Statut** : Accepted — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée. Aucun moteur ne lit les protocoles ; aucune migration, aucune modification Supabase, Edge Function, M1 ni `prescription-engine`. Amendé par la correction ci-dessous (mobilité).
+
+## 2026-09-30 — ADR UX-11A.5a.3 — correction du verrouillage : durée de la mobilité
+
+> **An arithmetic inconsistency never justifies inventing or adjusting a sport dose. When a declared total disagrees with its blocks, the declared total is corrected, never the blocks.**
+
+**Constat.** Le contrôle strict des durées a montré que la somme des minimums des blocs obligatoires de `mobility_routine_v1` fait **22 min** (hanches 9, chevilles 3, dos 5, poignets 2, respiration 3), contre 25 min déclarées.
+
+**Décision (Louis + architecture).**
+- Les doses des blocs sont **préservées** : hanches 9–11, chevilles 3–4, dos 5–7, poignets 2–3, respiration 3–5 min. Les relèvements du commit `b7db5a3` sont annulés : ils n'avaient aucune validation coaching et ne servaient qu'à retrouver le total.
+- Le **total déclaré est corrigé** : `mobility_routine_v1` dure **22–30 min**.
+- Le total de 25–30 min ne pourra revenir qu'après validation des doses internes (question ouverte `mobility_routine.total_25_min_pending_dose_validation`).
+- Contenu : PROVISIONAL — coaching validation required.
+
+**Tests.** Le contrôle strict des durées est conservé. Un test fige aussi les durées des blocs de mobilité, pour que toute modification de dose soit visible et relève d'une décision explicite.
+
+**Statut** : Accepted — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée.

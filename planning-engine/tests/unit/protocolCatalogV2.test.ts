@@ -156,12 +156,12 @@ describe("protocol catalogue V2 — durations, RPE and load", () => {
     expect(Object.fromEntries(P.map((p) => [p.protocolId, p.totalDurationMinutes]))).toEqual(Object.fromEntries(computed));
   });
 
-  it("locked totals: endurance base 45–90, intervals 53, mobility 25–30, recovery 20–55, strength warm-up 6–8 (ramp-up excluded)", () => {
+  it("locked totals: endurance base 45–90, intervals 53, mobility 22–30, recovery 20–55, strength warm-up 6–8 (ramp-up excluded)", () => {
     const totals = Object.fromEntries(P.map((p) => [p.protocolId, p.totalDurationMinutes]));
     expect(totals).toEqual({
       endurance_base_continuous: { min: 45, max: 90 },
       endurance_intervals_3min: { min: 53, max: 53 },
-      mobility_routine_v1: { min: 25, max: 30 },
+      mobility_routine_v1: { min: 22, max: 30 },
       recovery_active_v1: { min: 20, max: 55 },
       strength_warm_up_v1: { min: 6, max: 8 },
     });
@@ -264,7 +264,16 @@ describe("protocol catalogue V2 — family rules (03 §3, §5)", () => {
 
   it("mobility: one block per targeted zone (hips, ankles, spine, wrists), duration-measured exercises of that zone, ending with breathing", () => {
     const p = get("mobility_routine_v1");
-    expect(p.totalDurationMinutes).toEqual({ min: 25, max: 30 });
+    expect(p.totalDurationMinutes).toEqual({ min: 22, max: 30 });
+    // Block doses are content (PROVISIONAL), never adjusted to satisfy a total (ADR UX-11A.5a.3 lock, correction).
+    expect(p.blocks.map((b) => b.durationMinutes)).toEqual([
+      { min: 9, max: 11 },
+      { min: 3, max: 4 },
+      { min: 5, max: 7 },
+      { min: 2, max: 3 },
+      { min: 3, max: 5 },
+    ]);
+    expect(p.openQuestions).toContain("mobility_routine.total_25_min_pending_dose_validation");
     expect(p.blocks.map((b) => b.focus)).toEqual([...MOBILITY_ZONES_V2, "breathing"]);
     for (const b of p.blocks.slice(0, -1)) {
       for (const ref of exerciseRefs(b)) {
