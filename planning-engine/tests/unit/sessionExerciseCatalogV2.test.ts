@@ -10,17 +10,11 @@ import {
   SESSION_TIERS_V2,
   type SessionExerciseRoleV2,
 } from "../../src/catalog/sessionExerciseCatalogV2.js";
-import {
-  CANONICAL_COACHING_LOCALE,
-  COACHING_TEXT_CATALOG,
-  COACHING_TEXT_CATALOG_ENTRIES,
-  COACHING_TEXT_CATALOG_VERSION,
-  PROVISIONAL_NOTICE,
-} from "../../src/catalog/coachingTextCatalog.js";
+import { COACHING_TEXT_CATALOG, PROVISIONAL_NOTICE } from "../../src/catalog/coachingTextCatalog.js";
 import { assertValidEquipment } from "../../src/validation/validatePlanInputSnapshot.js";
 
-// UX-11A.5a.1 — integrity of the Session Model V2 exercise catalogue and of
-// the canonical coaching text library. All content is PROVISIONAL —
+// UX-11A.5a.1 — integrity of the Session Model V2 exercise catalogue (the
+// coaching text library has its own test file since UX-11A.5a.2a). All content is PROVISIONAL —
 // coaching validation required (ADR UX-11A.5a.1).
 
 const V1_IDS = new Set(EXERCISE_CATALOG_ENTRIES.map((e) => e.id));
@@ -141,34 +135,6 @@ describe("Session Model V2 exercise catalogue — metadata validity", () => {
     for (const role of SESSION_EXERCISE_ROLES_V2) {
       const hasBodyweight = V2.some((e) => e.roles.includes(role) && e.requiredEquipment.length === 0);
       expect(hasBodyweight, role).toBe(true);
-    }
-  });
-});
-
-describe("coaching text library", () => {
-  it("has its own version and fr-CH as canonical locale", () => {
-    expect(COACHING_TEXT_CATALOG_VERSION.length).toBeGreaterThan(0);
-    expect(CANONICAL_COACHING_LOCALE).toBe("fr-CH");
-  });
-
-  it("has unique ids, a non-empty canonical text for each, and every entry is PROVISIONAL", () => {
-    const ids = COACHING_TEXT_CATALOG_ENTRIES.map((t) => t.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const t of COACHING_TEXT_CATALOG_ENTRIES) {
-      expect(t.text[CANONICAL_COACHING_LOCALE].trim().length, t.id).toBeGreaterThan(0);
-      expect(t.validationStatus, t.id).toBe("PROVISIONAL");
-      expect(t.id.startsWith(`${t.kind === "success_criterion" ? "criterion" : t.kind}.`), t.id).toBe(true);
-    }
-  });
-
-  it("has no orphan text: every cue and vigilance is used by at least one V2 exercise", () => {
-    const used = new Set(V2.flatMap((e) => [e.cueId, ...e.vigilanceIds]));
-    for (const t of COACHING_TEXT_CATALOG_ENTRIES) expect(used.has(t.id), t.id).toBe(true);
-  });
-
-  it("vigilance texts are help, never a prohibition", () => {
-    for (const t of COACHING_TEXT_CATALOG_ENTRIES.filter((x) => x.kind === "vigilance")) {
-      expect(t.text["fr-CH"], t.id).not.toMatch(/interdit|contre-indiqué|jamais/i);
     }
   });
 });

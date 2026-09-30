@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`V1 DH selection — frozen by UX-11A.5a.2a > keeps every priority × terrain subset × tier × session selection identical 1`] = `
+{
+  "fingerprint": "f2a051d6d1eec5640264d2a2a8103982f9a7f83f15a5d1b66391e539ef1e7ff5",
+  "size": 19968,
+}
+`;
+
+exports[`V1 DH selection — frozen by UX-11A.5a.2a > readable samples stay identical 1`] = `
+{
+  "cornering_all_intermediate": "cornering>cornering_berm_speed",
+  "first_priority_only": "cornering>cornering_off_camber",
+  "no_priority_rotation_a": "line_choice>line_choice_two_line_scan",
+  "no_priority_rotation_b": "steep_terrain>steep_terrain_controlled_roll_in",
+  "no_terrain": "jumps>error:NoCompatibleDrillError",
+}
+`;

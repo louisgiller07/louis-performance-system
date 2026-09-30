@@ -3547,3 +3547,26 @@ Implémente l'ADR UX-11B.2.1 **en local uniquement** : migrations `2026093012000
 **Décidé pour 11A.5a.2 (non implémenté).** Le niveau DH V2 ne reposera jamais sur `strengthExperienceTier`, ni sur les résultats de course, la catégorie de compétition ou une faiblesse inférée : un signal dédié déclaré par le pilote (`dhTechnicalTier`), après audit du profil actuel.
 
 **Statut** : Accepted — implémenté en local sur `feat/ux11a5a1-catalog-v2` (lignée non fusionnée issue de `feat/ux11b2-execution-schema-local`). Aucun moteur, migration, Edge Function, web ni production modifié. Contenu : PROVISIONAL — coaching validation required.
+
+## 2026-09-30 — ADR UX-11A.5a.2a : catalogue DH V2, textes canoniques, intentions et cadre de séance DH
+
+> **DH V2 content: the declared priority chooses the skill, the declared DH technical tier and compatible terrain choose the drill, the skill determines the intent. The intent never selects content. Only the technical drill is counted (4–8 passes); a criterion describes one passage, with no aggregated threshold and no stopwatch requirement.**
+
+**Livré (catalogues seulement, aucun moteur ne les lit).**
+- `planning-engine/src/catalog/sessionDrillCatalogV2.ts` (`session-drills-v2.0`) : les 21 `drillId` V1 enrichis (`origin: v1_enriched`), compétence, `technicalTier` explicite, terrain requis — identiques à V1 —, mesure `passes` (4–8), `cueId`, `criterionId`, `vigilanceIds`, progression / régression, `validationStatus`.
+- `planning-engine/src/catalog/intentCatalogV2.ts` (`session-intents-v2.0`) : 18 intentions ; règle de sélection `session_kind`, `declared_priority` (DH), `candidate` (non sélectionnable) ou `inactive_until_validated_rule` ; table unique `DH_SKILL_TO_INTENT_V2` (7 compétences → 7 intentions DH).
+- `planning-engine/src/catalog/sessionFrameV2.ts` : rôles de bloc canoniques (`brief`, `warm_up`, `main`, `complementary`, `application`, `cool_down`) et cadre DH (seul `main` est compté).
+- `coachingTextCatalog.ts` étendu : `cue.*` × 21 et `criterion.*` × 21 (DH), 3 vigilances DH, 4 `instruction.dh.*`, 18 `intent.*` (nouveaux types de texte `instruction` et `intent`). Tous fr-CH, PROVISIONAL.
+- `03_COACHING_MODEL.md` : rôles de bloc canoniques et « Technique DH — règles V2 » (cadre, compétence depuis priorités déclarées avec rotation déterministe sans pondération, niveau technique déclaré, critère par passage, chrono facultatif, textes sans nombre, intention par compétence).
+
+**Intentions de force bas du corps.** Une seule intention sélectionnable en V1 : `lower_body_strength_control` (« Développer la force et la stabilité des jambes utiles au contrôle du vélo. ») ; `leg_strength_corner_exit` et `leg_stability_rough_terrain` restent des candidates non sélectionnables tant qu'aucune règle validée ne les départage. `grip_endurance_full_run` : inactive, jamais sélectionnée depuis une hypothèse ni une faiblesse déclarée.
+
+**Textes DH retravaillés.** Critères décrivant un passage, sans seuil agrégé (les critères V1 contenaient « sur 4 runs sur 5 ») ; consignes sans nombre de passages ; « passages » au lieu de « runs ». Exercices chronométrés réécrits pour être réalisables et réussis sans chrono (`race_execution_section_consistency`, `race_execution_split_pace`, `race_execution_full_run_sim`, `line_choice_fast_line_compare`) ; le chrono n'apparaît que comme observation facultative dans une consigne.
+
+**Progression DH V2.** Chaîne de niveau dans chaque compétence (débutant → intermédiaire → avancé). Écart constaté dans V1, laissé intact : pour `roots_rocks` et `jumps`, les liens V1 sautent le niveau intermédiaire ajouté en PILOT_017.
+
+**Isolation V1 (tests).** Instantanés enregistrés avant tout ajout : sélection DH V1 (empreinte SHA-256 de toutes les combinaisons priorité × sous-ensemble de terrains × niveau × séance, plus des exemples lisibles) et traductions web V1 (`drillInstructionLabels`, `exerciseLabels`, fichier de test uniquement côté web). Catalogue DH V1 déjà figé depuis 11A.5a.1. Test de frontière d'import : aucun fichier de `planning-engine/src` (hors index du catalogue et modules V2), `prescription-engine/src`, `head-coach-engine/src` ni `longitudinal-engine/src` ne référence un module ou un symbole V2.
+
+**Décisions verrouillées pour 11A.5a.2b (non implémentées).** `dh_technical_tier` / `dhTechnicalTier` (beginner, intermediate, advanced), nullable, dans `athlete_performance_profiles` ; sans valeur, NALYNT demande de compléter le profil avant un plan V2 avec DH ; le premier lancement demandera 1 à 3 priorités ordonnées ; rotation déterministe selon l'ordinal des séances DH du plan versionné.
+
+**Statut** : Accepted — implémenté en local sur `feat/ux11a5a2a-dh-v2-catalog` (lignée non fusionnée). Aucun moteur, sélection DH, profil, migration, Supabase, Edge Function, écran web ni production modifié. Contenu : PROVISIONAL — coaching validation required.

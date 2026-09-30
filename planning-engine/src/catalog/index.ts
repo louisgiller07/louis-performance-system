@@ -34,3 +34,25 @@ export {
   PROVISIONAL_NOTICE,
 } from "./coachingTextCatalog.js";
 export type { CoachingTextEntry, CoachingTextKind, CoachingLocale, ContentValidationStatus } from "./coachingTextCatalog.js";
+
+// UX-11A.5a.2a — DH drills V2, intents V2, block roles and DH frame (not read by any engine yet).
+export {
+  SESSION_DRILL_CATALOG_V2_VERSION,
+  SESSION_DRILL_CATALOG_V2,
+  SESSION_DRILL_CATALOG_V2_ENTRIES,
+  DH_SKILLS_V2,
+  DH_TECHNICAL_TIERS_V2,
+  DH_DRILL_PASSES_RANGE_V2,
+} from "./sessionDrillCatalogV2.js";
+export type { SessionDrillV2, DhSkillV2, DhTechnicalTierV2 } from "./sessionDrillCatalogV2.js";
+export {
+  INTENT_CATALOG_V2_VERSION,
+  INTENT_CATALOG_V2,
+  INTENT_CATALOG_V2_ENTRIES,
+  DH_SKILL_TO_INTENT_V2,
+  SESSION_FAMILIES_V2,
+  INTENT_SESSION_KINDS_V2,
+} from "./intentCatalogV2.js";
+export type { SessionIntentV2, IntentSelectionV2, SessionFamilyV2, IntentSessionKindV2 } from "./intentCatalogV2.js";
+export { SESSION_BLOCK_ROLES_V2, DH_SESSION_FRAME_V2 } from "./sessionFrameV2.js";
+export type { SessionBlockRoleV2, DhFrameBlockV2 } from "./sessionFrameV2.js";

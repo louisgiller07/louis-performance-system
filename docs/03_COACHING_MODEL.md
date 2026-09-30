@@ -303,13 +303,15 @@ La hiérarchie est fixe et commune à toutes les familles :
 
 ```
 Séance
-└── Bloc de séance (échauffement / activation, principal, complémentaire, retour au calme)
+└── Bloc de séance (brief, échauffement / activation, principal, complémentaire, application, retour au calme)
     └── Exercice
         ├── Prescription
         └── Exercice réalisé (plus tard, hors de ce chapitre)
 ```
 
 *Vocabulaire* : « bloc de séance » désigne une partie d'une séance. Il ne doit pas être confondu avec le bloc d'un plan d'entraînement (période de plusieurs semaines).
+
+*Rôles de bloc canoniques (UX-11A.5a.2a)* : `brief`, `warm_up` (échauffement / activation), `main` (principal), `complementary` (complémentaire), `application` (application terrain), `cool_down` (retour au calme). `brief` et `application` servent à la Technique DH ; le retour d'une séance DH utilise `cool_down` (pas de rôle « debrief » séparé en V1).
 
 Chaque exercice a un **rôle** dans sa séance : principal, secondaire, unilatéral, prévention ou gainage (Force) ; explosif (Puissance) ; exercice technique ou application terrain (Technique DH).
 
@@ -387,6 +389,15 @@ L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, res
 - application terrain : descentes complètes où la consigne est appliquée, **sans nombre de runs prescrit** ;
 - retour : une descente facile, le ressenti du pilote (facile, moyen, difficile), un contrôle du vélo ;
 - l'intensité suit `load_guidance` (§DH Execution Guidance) et la fenêtre de session DH existante reste inchangée.
+
+*Technique DH — règles V2 (UX-11A.5a.2a, décisions validées ; sélection moteur non encore implémentée)* :
+- **cadre** : `brief` → `warm_up` → `main` → `application` → `cool_down`. Seul `main` contient un élément compté (l'exercice technique, 4 à 8 passages) ; les autres blocs ne portent que des instructions, sans aucun nombre de descentes ;
+- **compétence** : uniquement depuis une priorité **explicitement déclarée** (1 à 3 priorités ordonnées). Rotation déterministe entre toutes les priorités déclarées, selon l'ordinal des séances DH du plan versionné, sans pondération (toute pondération est une règle sportive future à valider). Les points forts et points à travailler déclarés restent du contexte : ils ne choisissent jamais un exercice ;
+- **niveau de l'exercice** : uniquement le niveau technique DH **déclaré** par le pilote (`dh_technical_tier` : beginner, intermediate, advanced), jamais l'expérience en renfo, le niveau ou la catégorie de compétition, les résultats ni une faiblesse inférée. Sans niveau déclaré, NALYNT demande de compléter le profil avant de générer un plan V2 contenant du DH : aucun niveau par défaut, aucune séance DH vide de repli ;
+- **critère de réussite** : il décrit **un** passage (réussi / pas encore). Aucun seuil de réussite de l'exercice en V1 ; le nombre de passages réussis peut être affiché mais n'alimente aucune règle de progression ;
+- **chrono** : toujours facultatif. Aucun exercice ne nécessite un chrono pour être réalisé ou réussi ;
+- **textes** : les consignes ne contiennent aucun nombre de passages (il vient de la prescription) ; « passages », jamais « runs » ;
+- **intention** : la compétence retenue détermine l'intention par une table unique compétence → intention ; l'intention ne choisit jamais l'exercice.
 
 *Endurance* : l'intensité se règle au RPE et au test de la parole.
 - Endurance fondamentale : 45–90 min, RPE 3–4, le pilote peut parler en phrases complètes.
