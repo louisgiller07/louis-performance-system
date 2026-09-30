@@ -201,6 +201,32 @@ completed_sessions                    résumé Après séance du jour (existe, i
 
 **Compatibilité future hors ligne (non implémentée)** : identifiants générés par l'appareil (un renvoi ne crée jamais de doublon), double horodatage appareil / serveur, données en ajout seulement (fusion par union). Seule la règle « une exécution active » demandera une résolution de conflit lors de la synchronisation.
 
+**Schéma d'exécution V1 (ADR UX-11B.2.1 acceptée, non migré).** Traduction du modèle ci-dessus en schéma ; migration en UX-11B.2.2, mise en production seulement avec UX-11C.
+
+*Source de l'exécution* : `decision_final_prescriptions` (option A). Une ligne par décision = une version de la prescription du jour ; aucune table de versions dédiée.
+
+*Format de prescription v2* : les détails restent dans `structure` (`schema_version = 'v2'`) — famille, `intentId`, blocs de séance (`warm_up`, `main`, `complementary`, `cool_down`), éléments (`prescriptionItemId`, `exerciseId`, rôle, séries, mesure `reps` / `duration` / `distance` / `passes`, repos, RPE cible, `cueId`, `successCriterionId`, `derivedFromItemId`). Consignes et critères = identifiants de textes validés. Les lignes v1 restent inchangées et non exécutables.
+
+| Table | Colonnes | Contraintes |
+|---|---|---|
+| `session_executions` | `id` uuid (appareil) · `athlete_id` · `session_date` · `decision_id` · `final_prescription_id` · `started_at` · `recorded_at` · `comment` (≤ 500) | Clés composites `(decision_id, athlete_id)` → `decisions`, `(final_prescription_id, athlete_id)` → `decision_final_prescriptions` ; prescription ⇒ décision |
+| `execution_events` | `id` uuid (appareil) · `execution_id` · `athlete_id` · `event_type` (`started`, `paused`, `resumed`, `completed`, `abandoned`) · `occurred_at` · `recorded_at` | Un seul `started` par exécution |
+| `exercise_set_results` | `id` uuid (appareil) · `execution_id` · `athlete_id` · `prescription_item_id` ou `other_exercise_name` (≤ 80) · `exercise_id` (recopié par le serveur) · `set_number` · `done` · `measure_type` (`reps`, `duration`, `distance`, `pass`) · `measure_value` · `load_kg` · `rpe_actual` (1–10) · `success` · `comment` (≤ 500) · `supersedes_id` · `occurred_at` · `recorded_at` | Élément prescrit **ou** autre exercice ; une ligne remplacée au plus une fois |
+
+Les trois tables sont en ajout seul (`reject_append_only_mutation`) et référencent `athletes` en `ON DELETE RESTRICT`. Seule évolution d'une table existante : `unique (id, athlete_id)` **ajoutée** sur `decision_final_prescriptions`.
+
+*Vérifié par la fonction d'écriture* : le client ne choisit jamais librement `prescription_item_id` (chaîne exécution → prescription du jour → élément vérifiée par le serveur, `exercise_id` recopié depuis l'élément) ; décision cohérente avec la prescription ; une seule exécution active par pilote et par jour (sous verrou) ; ordre des événements ; corrections par `supersedes_id` sur la même série ; idempotence (même identifiant et même contenu → sans effet ; contenu différent → refus).
+
+*Charge* : la charge observée appartient à l'exécution, pas à la prescription. `load_kg` est une donnée réalisée, facultative, saisie par le pilote ; jamais une prescription, un objectif automatique ni une charge calculée par NALYNT.
+
+*Mesure* : le modèle permet l'ajout futur de nouvelles mesures (réussite technique, côté gauche / droit, amplitude, score qualitatif…) sans migration destructrice : uniquement par ajouts (valeurs d'énumération, colonnes facultatives), jamais en réinterprétant un champ existant.
+
+*Identité d'une exécution* : un pilote + un jour + la prescription affichée, pas uniquement une décision. *Règle client* : le client ne choisit jamais un exercice ou un `prescriptionItemId` arbitraire ; toute référence est validée côté serveur. *Historique* : les anciennes prescriptions ne deviennent jamais des séances exécutables. *Progression* : ces données préparent la progression, mais aucune adaptation du moteur ne les utilise encore.
+
+*Écriture* : Edge Function (authentification, pilote, validation) → fonction SQL exécutable côté serveur uniquement, en lot (événements et séries). Aucun droit d'écriture direct pour `authenticated` ni `anon`.
+
+*Prescription du jour* : écrite par `persist_daily_run` dans la même transaction que la décision (UX-11A.5).
+
 **Limites V1** : une séance principale par jour ; « autre exercice réalisé » en nom libre sans lien au catalogue ; résultats de série non lus par le moteur de décision (la charge récente reste calculée depuis `completed_sessions`) ; aucune progression automatique (UX-11E) ; suppression, anonymisation et conservation des données du pilote (RGPD) : sujet distinct, traité en UX-11B.2.
 
 ### `race_calendar`
@@ -414,6 +440,7 @@ Voir `01_PRODUCT_REQUIREMENTS.md` §Hors périmètre.
 - **RLS activée** sur toutes les tables
 - Politique unique : `athlete_id IN (SELECT id FROM athletes WHERE user_id = auth.uid())`
 - `health_flags` séparée pour permettre plus tard une politique de rétention différente si besoin
+- **Suppression des données d'un pilote (ADR UX-11B.2.1)** : suppression physique de toutes ses lignes, sans anonymisation ni conservation agrégée en V1, par une procédure de purge unique réservée au serveur qui lève la protection « ajout seul » uniquement pendant sa transaction. **Non implémentée** (ticket séparé, après UX-11C) : aujourd'hui, les tables en ajout seul existantes empêchent toute suppression sans intervention manuelle en base.
 
 ---
 

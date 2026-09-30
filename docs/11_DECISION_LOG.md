@@ -3439,3 +3439,67 @@ Presentation-only: no engine, projection, Supabase, Edge Function or schema chan
 **Hors périmètre.** Interface du mode séance ; progression (UX-11E) ; modifications des moteurs ; synchronisation et hors ligne ; substitutions liées au catalogue ; doubles séances ; toute consommation des séries par le moteur de décision ; politique de suppression, d'anonymisation et de conservation des données du pilote (RGPD, suppression de compte) : sujet distinct, traité en UX-11B.2.
 
 **Statut** : Accepted (Louis + architecture produit, 2026-09-30). Documentation uniquement : aucune migration, aucun code, aucun moteur modifié.
+
+## 2026-09-30 — ADR UX-11B.2.1 : NALYNT Execution Schema V1
+
+> **The day's final prescription (`decision_final_prescriptions`) is the authority an execution refers to. Prescription details stay in an immutable, versioned JSON document; results go into append-only tables. The client never chooses which prescribed item a result belongs to: the server verifies it. A load field records what the rider did; NALYNT never prescribes a load in kg.**
+
+**Contexte.** Suite de l'ADR UX-11B.1 (modèle d'exécution) et de l'audit UX-11B.2 (2026-09-30), qui a inventorié le schéma réel : chaîne `training_plan_versions → blocks → weeks → training_plan_generated_sessions → training_plan_planned_prescriptions` (1:1), `planned_sessions` reliée à la séance du plan par `source_plan_version_id` / `source_generated_session_id`, `decisions` immuables avec `unique (id, athlete_id)`, `decision_final_prescriptions` immuable et jamais écrite, `completed_sessions` une ligne par jour remplacée à chaque envoi. Écriture actuelle : Edge Function → fonction SQL exécutée côté serveur ; le pilote n'a que la lecture de ses lignes.
+
+**Règles explicites.**
+- **Identité d'une exécution** : une exécution appartient à un pilote + un jour + la prescription affichée (`athlete_id`, `session_date`, `final_prescription_id`), pas uniquement à une `decision_id`.
+- **Règle client** : le client ne peut jamais choisir un exercice ou un `prescriptionItemId` arbitraire. Toute référence est validée côté serveur contre la prescription associée.
+- **Règle historique** : les anciennes prescriptions ne sont jamais transformées en séances exécutables. Elles restent consultables uniquement comme historique.
+- **Règle progression future** : UX-11B prépare les données nécessaires à la progression, mais aucune adaptation du moteur n'utilise encore les résultats détaillés.
+
+**1. Source de l'exécution : option A.** `decision_final_prescriptions` porte la prescription du jour affichée au pilote et devient la source de toute exécution. Chaque décision crée déjà une ligne immuable : c'est une version par décision. Option B (table de versions de prescription dédiée) **rejetée** : elle dupliquerait ce mécanisme.
+
+**2. Format de prescription v2 (JSON versionné).** Les détails d'une prescription (intention, blocs de séance, exercices, séries prescrites, mesure, repos, RPE cible, consigne, critère DH) restent dans `structure`, avec `schema_version = 'v2'`. Pas de tables `prescribed_exercises` / `prescribed_sets` : une prescription est un document figé, produit et lu d'un bloc. Forme cible :
+
+```
+{ schemaVersion: "v2", family, intentId,
+  blocks: [ { blockId, role: warm_up | main | complementary | cool_down, durationMin?,
+      items: [ { prescriptionItemId (uuid), exerciseId, role, sets,
+                 measure: reps {min, max, perSide?} | duration {seconds} | distance {meters} | passes {count},
+                 restSeconds?, rpeTarget? {min, max}, cueId?, successCriterionId?, derivedFromItemId? } ] } ] }
+```
+
+Consignes et critères sont des identifiants de textes validés, jamais du texte libre. Les lignes v1 restent inchangées et lisibles ; les lecteurs choisissent selon `schema_version` ; seules les prescriptions v2 sont exécutables.
+
+**3. Tables** (noms proposés pour la migration UX-11B.2.2) :
+
+| Table | Rôle | Points clés |
+|---|---|---|
+| `session_executions` | Une tentative de réalisation | `id` généré par l'appareil ; `athlete_id` ; `session_date` ; `decision_id` et `final_prescription_id` facultatifs (clés composites avec `athlete_id`) ; `started_at` (appareil) ; `recorded_at` (serveur) ; `comment` ≤ 500 caractères |
+| `execution_events` | Historique d'état | `started`, `paused`, `resumed`, `completed`, `abandoned` ; un seul `started` par exécution (index unique partiel) |
+| `exercise_set_results` | Une ligne par série | `prescription_item_id` **ou** `other_exercise_name` (≤ 80 caractères) ; `exercise_id` recopié par le serveur ; `set_number` ; `done` ; `measure_type` + `measure_value` ; `load_kg`, `rpe_actual` (1–10), `success`, `comment` (≤ 500) facultatifs ; `supersedes_id` (remplaçable une seule fois) ; `occurred_at` / `recorded_at` |
+
+Ajout seul sur les trois tables (`reject_append_only_mutation` en modification et suppression). Clés vers `athletes` en `ON DELETE RESTRICT`, comme les autres tables en ajout seul. Seule modification d'une table existante : contrainte **ajoutée** `unique (id, athlete_id)` sur `decision_final_prescriptions`.
+
+**4. Mesure d'une série.** `measure_type` (`reps`, `duration`, `distance`, `pass`) + `measure_value`. **Le modèle doit permettre l'ajout futur de nouvelles mesures sans migration destructrice** (réussite technique, côté gauche / droit, amplitude, score qualitatif…) : uniquement par ajouts (nouvelles valeurs d'énumération, nouvelles colonnes facultatives), jamais en réinterprétant un champ existant. Le côté gauche / droit est la première extension probable (exercices « par côté »).
+
+**5. Charge.** **La charge observée appartient à l'exécution, pas à la prescription.** `load_kg` est une donnée réalisée, facultative, saisie par le pilote. Elle ne représente jamais une prescription, un objectif automatique ni une charge calculée par NALYNT ; aucune prescription ne contient de kg (`03_COACHING_MODEL.md` §Modèle de séance NALYNT V1).
+
+**6. Règles vérifiées par la fonction d'écriture** (impossibles en SQL pur) :
+- **le client ne choisit jamais librement `prescription_item_id`** : le serveur vérifie la chaîne exécution → prescription du jour → élément prescrit, et recopie `exercise_id` depuis l'élément ;
+- la décision d'une exécution est celle de sa prescription du jour ;
+- une seule exécution active par pilote et par jour, vérifiée sous verrou par pilote et par jour ;
+- ordre des événements (rien après `completed` ou `abandoned`, pause et reprise alternées) ;
+- une correction (`supersedes_id`) porte sur la même exécution, le même élément et le même numéro de série ; aucune modification, jamais de suppression ;
+- idempotence : même identifiant et même contenu → succès sans effet ; même identifiant et contenu différent → refus.
+
+**7. RLS et écriture.** Lecture : le pilote lit uniquement ses lignes (politique standard). Écriture : aucun droit direct pour `authenticated` ni `anon` ; le client appelle une Edge Function qui authentifie, retrouve le pilote et valide, puis appelle une fonction SQL exécutable côté serveur uniquement (modèle de `persist_completed_session`). Point d'écriture en **lot** (événements et séries) pour permettre une future file de synchronisation.
+
+**8. Prescription du jour et décision : même transaction.** `persist_daily_run` écrit la décision et sa `decision_final_prescription` dans la même transaction (implémentation en UX-11A.5). Jamais une décision sans sa prescription du jour, jamais l'inverse.
+
+**9. Anciennes données.** Aucune migration de données, aucune série ni exécution inventée. Prescriptions v1 et `completed_sessions` existantes : historique et résumé, non exécutables.
+
+**10. Compatibilité.** `completed_sessions`, `persist_completed_session`, `persist_daily_run` (jusqu'à UX-11A.5), le moteur de décision et le web (jusqu'à UX-11C) sont inchangés. Le moteur continue de lire la charge récente dans `completed_sessions` ; la lecture des séries relève d'UX-11E.
+
+**11. Suppression des données du pilote.** Décision d'architecture : **suppression physique** de toutes les lignes du pilote ; pas d'anonymisation en V1 (des séries d'une seule personne restent ré-identifiables) ; aucune conservation agrégée en V1. Mise en œuvre par **une procédure de purge unique**, réservée au serveur, qui lève la protection « ajout seul » uniquement pendant sa transaction et supprime dans l'ordre des dépendances. **Ticket séparé**, après stabilisation du modèle d'exécution (après UX-11C) ; il couvre aussi les tables en ajout seul existantes, qui empêchent déjà aujourd'hui toute suppression sans intervention manuelle en base.
+
+**12. Déploiement.** Pas de mise en production en UX-11B.2 seul (des tables vides en production seraient de la dette, des chemins inutilisés et une surface RLS de plus). Ordre : UX-11B.2.2 (migrations, fonction d'écriture, Edge Function, tests sur Supabase local) → UX-11A.5 (moteurs au format v2, écriture de la prescription du jour) → UX-11C (mode séance) → production.
+
+**Hors périmètre.** Interface du mode séance ; progression ; synchronisation hors ligne ; substitutions liées au catalogue ; doubles séances ; procédure de purge (ticket séparé).
+
+**Statut** : Accepted (Louis + architecture produit, 2026-09-30). Documentation uniquement : aucune migration, aucun `CREATE TABLE`, aucune Edge Function, aucun code.
