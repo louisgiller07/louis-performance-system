@@ -16,9 +16,12 @@ export default defineConfig({
     globals: true,
     // Dummy, non-secret defaults so importing src/lib/supabase.ts doesn't
     // throw in tests that don't specifically exercise the config-guard
-    // (which stub these to empty via vi.stubEnv instead).
+    // (which stub these to empty via vi.stubEnv instead). Vitest runs in
+    // development mode, so the local-dev guard applies here too: the dummy
+    // is a LOCAL, closed port — an unmocked call fails fast and never leaves
+    // the machine.
     env: {
-      VITE_SUPABASE_URL: 'https://test.supabase.co',
+      VITE_SUPABASE_URL: 'http://127.0.0.1:54399',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
     },
   },

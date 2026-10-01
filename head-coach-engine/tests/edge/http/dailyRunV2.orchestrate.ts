@@ -5,7 +5,8 @@
  * environment, SUPABASE_SECRET_KEY / SUPABASE_PUBLISHABLE_KEY from
  * `npx supabase status -o env` (never hardcoded, never logged).
  *
- * Starts `supabase functions serve` (same as test:m3:http) and drives the real
+ * Reuses the running local Edge runtime, or starts `supabase functions serve`
+ * and stops only what it started (functionsRuntime.ts), and drives the real
  * daily-run function over HTTP: V2 plan → KEEP created (document compared to
  * the stored planned prescription, ids and Node fingerprint), KEEP without
  * planned session → blocked no_lineage, REST → not_required, unknown plan
@@ -13,7 +14,7 @@
  * module is resolved by the Deno runtime from the bundle. Scratch athletes
  * stay in the local database (their append-only rows cannot be deleted).
  */
-import { execSync, spawn, type ChildProcess } from "node:child_process";
+import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { sportFingerprint } from "planning-engine/session-model-v2";
@@ -24,13 +25,13 @@ import { buildPlanInputSnapshotV2 } from "../../../src/supabase/buildPlanInputSn
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import type { GenerateTrainingPlanVersionPayloadV2 } from "../../../src/generation/v2/planV2PersistencePayload.js";
 import { acceptTrainingPlanVersion } from "../../../src/supabase/acceptTrainingPlanVersion.js";
+import { acquireFunctionsRuntime, EDGE_CONTAINER, localFunctionsRuntimeDeps, serveLogTail } from "./functionsRuntime.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1/daily-run`;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
 if (!ANON_KEY) throw new Error("Set SUPABASE_PUBLISHABLE_KEY (npx supabase status -o env). No key is hardcoded here.");
-const EDGE_CONTAINER = "supabase_edge_runtime_louis-performance-system";
 const TODAY = "2026-10-05";
 
 const results: { name: string; pass: boolean; detail?: string }[] = [];
@@ -45,20 +46,31 @@ function sortKeys(v: unknown): unknown {
   return v;
 }
 
+/** Every daily-run response of this run (status + body), printed only when a scenario fails. */
+const responses: { date: string; status: number; body: string }[] = [];
+
+/** On any failure: the failing scenarios, every HTTP status/body of the run, and the edge-runtime logs (runtime + function). */
+function captureFailureContext(failedNames: string[]): void {
+  console.log(`\n--- failure context (${failedNames.length} failing) ---`);
+  for (const name of failedNames) console.log(`failing scenario: ${name}`);
+  for (const r of responses) console.log(`response ${r.date}: status=${r.status} body=${r.body.slice(0, 600)}`);
+  try {
+    console.log(`--- ${EDGE_CONTAINER} logs (last 200 lines) ---`);
+    console.log(execSync(`docker logs --tail 200 ${EDGE_CONTAINER}`, { stdio: ["ignore", "pipe", "pipe"] }).toString());
+  } catch (e) {
+    console.log(`edge-runtime logs unavailable: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`);
+  }
+}
+
 async function post(token: string, date: string): Promise<{ status: number; json: Record<string, any> | null }> {
   const res = await fetch(FUNCTIONS_URL, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ date }) });
   const text = await res.text();
+  responses.push({ date, status: res.status, body: text });
   try {
     return { status: res.status, json: JSON.parse(text) };
   } catch {
     return { status: res.status, json: null };
   }
-}
-
-const containerRunning = () => execSync(`docker ps --filter "name=${EDGE_CONTAINER}" --format "{{.Names}}"`).toString().trim() !== "";
-
-function startFunctionsServer(): ChildProcess {
-  return spawn("npx supabase functions serve", [], { cwd: REPO_ROOT, stdio: ["ignore", "ignore", "ignore"], shell: true });
 }
 
 async function waitForFunctionsReady(timeoutMs = 60000): Promise<void> {
@@ -74,20 +86,13 @@ async function waitForFunctionsReady(timeoutMs = 60000): Promise<void> {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error("daily-run did not become ready");
-}
-
-function stopFunctionsServer(child: ChildProcess, wasRunningBefore: boolean): void {
-  if (child.pid != null && child.exitCode === null) {
-    try {
-      if (process.platform === "win32") execSync(`taskkill /T /PID ${child.pid}`, { stdio: "ignore" });
-      else child.kill("SIGTERM");
-    } catch {
-      /* already gone */
-    }
+  console.log(`--- functions serve log (tail) ---\n${serveLogTail()}`);
+  try {
+    console.log(`--- ${EDGE_CONTAINER} logs (tail) ---\n${execSync(`docker logs --tail 80 ${EDGE_CONTAINER}`, { stdio: ["ignore", "pipe", "pipe"] }).toString()}`);
+  } catch {
+    console.log(`--- ${EDGE_CONTAINER}: no container logs ---`);
   }
-  // Leave the stack as found: the edge-runtime container is stopped only if it was not running before.
-  if (!wasRunningBefore && containerRunning()) execSync(`docker stop ${EDGE_CONTAINER}`, { stdio: "ignore" });
+  throw new Error("daily-run did not become ready");
 }
 
 async function scratchToken(admin: SupabaseClient, userId: string): Promise<string> {
@@ -128,8 +133,8 @@ async function withV2Plan(admin: SupabaseClient, athleteId: string, tamper?: (p:
 async function main(): Promise<void> {
   const admin = createTestClient();
   await admin.auth.admin.listUsers({ perPage: 1 }); // the local stack must be up
-  const wasRunning = containerRunning();
-  const server = startFunctionsServer();
+  const runtime = acquireFunctionsRuntime(localFunctionsRuntimeDeps(REPO_ROOT));
+  console.log(runtime.owned ? "Edge runtime: started by this harness (stopped at the end)." : "Edge runtime: already running, reused (left running).");
   try {
     await waitForFunctionsReady();
 
@@ -190,8 +195,10 @@ async function main(): Promise<void> {
       legacy.status === 200 && !("finalPrescriptionStatus" in (legacy.json ?? {})) && !("finalPrescription" in (legacy.json ?? {})) && v1Row?.final_prescription_status === null,
       JSON.stringify(legacy.json).slice(0, 200)
     );
+    const failedSoFar = results.filter((r) => !r.pass);
+    if (failedSoFar.length > 0) captureFailureContext(failedSoFar.map((r) => r.name));
   } finally {
-    stopFunctionsServer(server, wasRunning);
+    runtime.release();
   }
 
   const failed = results.filter((r) => !r.pass);

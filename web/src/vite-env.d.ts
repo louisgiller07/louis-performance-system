@@ -11,6 +11,8 @@ interface ImportMetaEnv {
   // against its own (server-only) secret. Not sensitive to expose in the
   // client bundle — knowing this UUID grants no access on its own.
   readonly VITE_SIMULATION_ATHLETE_ID?: string;
+  // Local dev safety (supabaseTarget.ts): "true" explicitly allows a remote Supabase in development mode.
+  readonly VITE_ALLOW_REMOTE_SUPABASE_IN_DEV?: string;
 }
 
 interface ImportMeta {

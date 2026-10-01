@@ -19,6 +19,8 @@ export default defineConfig({
       "tests/edge/sessionExecution/**/*.test.ts",
       // UX-11A.5c.3.1 — the daily-run V2 Deno bundle runs the same source as Node.
       "tests/edge/dailyRunV2Bundle.test.ts",
+      // Harness safety — the HTTP harnesses only clean up an Edge runtime they started.
+      "tests/edge/http/functionsRuntime.test.ts",
     ],
   },
 });

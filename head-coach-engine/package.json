@@ -8,8 +8,8 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "build:edge": "esbuild dist/edge/generateTrainingPlanEdgeEntry.js --bundle --format=esm --platform=neutral --external:node:* --outfile=dist/edge/generateTrainingPlan.bundle.js && esbuild dist/edge/dailyRunV2EdgeEntry.js --bundle --format=esm --platform=neutral --external:node:* --outfile=dist/edge/dailyRunV2.bundle.js && node -e \"require('fs').copyFileSync('dist/edge/dailyRunV2EdgeEntry.d.ts','dist/edge/dailyRunV2.bundle.d.ts')\"",
+    "build": "node scripts/build.mjs",
+    "build:edge": "node scripts/build.mjs --edge",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:edge": "npm run build && npm run build:edge && vitest run --config vitest.edge.config.ts",

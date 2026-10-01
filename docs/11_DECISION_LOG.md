@@ -4654,3 +4654,30 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 - Contrôle Chrome headless réel à 390×844 via le protocole DevTools, script jetable hors dépôt, Supabase local seulement, toute requête vers `*.supabase.co` bloquée et comptée (0).
 
 **Statut** : Accepted — `feat/ux11c3-guided-dh-passes`, local, non poussé.
+
+## 2026-10-02 — ADR : sécurité du développement local et harnais Edge (aucun changement métier)
+
+> **A development frontend never talks to a remote Supabase by accident, and the local Edge harnesses never tear down a runtime they did not start nor rewrite unchanged build artefacts under a running runtime.**
+
+**Constat.**
+- `web/.env.local` (ignoré par git, propre à la machine) pointait vers le projet Supabase distant : un `npm run dev` sans surcharge utilisait la production.
+- `test:daily-run:v2:http` (comme `test:m3:http` et `test:m5:completed-session:http`) arrêtait le conteneur Edge à la sortie, même s'il tournait avant.
+- `npm run build` réécrivait tout `head-coach-engine/dist`. Le watcher de `supabase functions serve` redémarrait alors le runtime au milieu de la rafale d'écritures, et la CLI mourait : « could not find an appropriate entrypoint », ou conflit de nom de conteneur. Reproduit en rejouant l'ancien build pendant le service.
+
+**Décisions.**
+- **Garde au point de création du client** (`web/src/lib/supabaseTarget.ts`, appelée par `supabase.ts` avant `createClient`).
+  - En mode développement (`import.meta.env.DEV`, donc `npm run dev` et vitest), toute URL non locale est refusée (`localhost`, `127.0.0.1`, `::1` et `*.localhost` sont acceptés). La règle est générale, pas une liste de domaines de production.
+  - Message : « Le frontend est lancé en mode développement avec un backend Supabase distant. Configuration refusée par sécurité. »
+  - Opt-in explicite : `VITE_ALLOW_REMOTE_SUPABASE_IN_DEV=true`, exactement.
+  - Les builds de production ne sont pas concernés.
+  - La valeur factice de vitest devient une URL locale sur un port fermé.
+- **`.env.example` et `web/README.md`** recommandent le Supabase local. La copie `web/.env.local` est passée en local sur la machine, non versionnée ; les anciennes valeurs distantes sont commentées.
+- **Propriété du runtime Edge** (`tests/edge/http/functionsRuntime.ts`) : `test:daily-run:v2:http` réutilise un runtime déjà actif sans jamais l'arrêter. S'il n'y en a pas, il démarre `functions serve`, puis arrête ce qu'il a démarré. En cas d'échec, il affiche le contexte : scénarios, statuts et corps HTTP, logs du runtime et de `functions serve`.
+- **Build non destructif** (`head-coach-engine/scripts/build.mjs`) : `npm run build` et `npm run build:edge` construisent en staging. Seuls les fichiers dont le contenu change sont copiés dans `dist`, chacun atomiquement (fichier temporaire, puis renommage). Un rebuild inchangé n'écrit rien ; le contenu de `dist` est identique à avant.
+
+**Non corrigé, signalé.**
+- `test:m3:http` et `test:m5:completed-session:http` gardent l'ancien arrêt systématique : leur contrat vérifie explicitement la suppression du conteneur.
+- La CLI `functions serve` peut redémarrer le runtime sur des événements de fichiers parasites au premier chargement (observé sous Windows/Docker), ce qui coupe des requêtes en cours (503).
+- Un démarrage par le harnais n'est pas devenu prêt en 60 s une fois sur 11 : non reproduit, capture de diagnostic ajoutée.
+
+**Statut** : Accepted — `feat/harness-local-dev-safety`, local, non poussé.

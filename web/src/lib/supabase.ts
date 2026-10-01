@@ -2,6 +2,7 @@
 // or legacy anon). Never import a secret/service_role key here: everything
 // in this module ends up in the browser bundle.
 import { createClient } from "@supabase/supabase-js";
+import { assertSupabaseTargetAllowed } from "./supabaseTarget";
 
 export class MissingSupabaseConfigError extends Error {
   constructor(missing: string) {
@@ -28,6 +29,9 @@ export function resolvePublicKey(env: ImportMetaEnv): string {
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 if (!url) throw new MissingSupabaseConfigError("VITE_SUPABASE_URL");
+
+// Local dev safety: refused BEFORE any client exists (no request can be made).
+assertSupabaseTargetAllowed(import.meta.env);
 
 const publicKey = resolvePublicKey(import.meta.env);
 
