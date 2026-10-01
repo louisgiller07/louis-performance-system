@@ -138,8 +138,15 @@ describe("REJECTION_STATUS — stable codes", () => {
         "missing_start_event",
         "not_executable",
         "prescription_not_found",
+        "execution_terminal",
+        "result_slot_out_of_range",
+        "result_slot_exists",
       ].sort()
     );
+    // UX-11B.2.6 — frozen terminal results and an existing original are conflicts; an ordinal outside the prescription is unprocessable.
+    expect(REJECTION_STATUS.execution_terminal).toBe(409);
+    expect(REJECTION_STATUS.result_slot_exists).toBe(409);
+    expect(REJECTION_STATUS.result_slot_out_of_range).toBe(422);
     // UX-11A.5c.2 — a superseded final prescription is a conflict with the current state.
     expect(REJECTION_STATUS.final_prescription_not_current).toBe(409);
     for (const status of Object.values(REJECTION_STATUS)) {

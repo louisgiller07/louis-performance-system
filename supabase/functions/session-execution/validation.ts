@@ -345,4 +345,8 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   activity_not_allowed_by_prescription: 422,
   activity_result_exists: 409,
   activity_result_required: 422,
+  // UX-11B.2.6 — result integrity: frozen results of a terminal execution, bounded ordinal, one original per slot.
+  execution_terminal: 409,
+  result_slot_out_of_range: 422,
+  result_slot_exists: 409,
 };

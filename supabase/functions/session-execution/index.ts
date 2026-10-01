@@ -38,6 +38,9 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   activity_not_allowed_by_prescription: "This activity is not one of the activities the prescription allows.",
   activity_result_exists: "An activity was already recorded for this session; send a correction instead.",
   activity_result_required: "Record the activity performed before completing this session.",
+  execution_terminal: "This session is already completed or stopped: its results can no longer change.",
+  result_slot_out_of_range: "This set or pass number is outside what the prescription plans.",
+  result_slot_exists: "A result was already recorded for this set or pass; send a correction instead.",
 };
 
 export default {

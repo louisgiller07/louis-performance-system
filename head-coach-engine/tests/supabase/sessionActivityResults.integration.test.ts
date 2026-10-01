@@ -105,19 +105,28 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.5 — session activity results (
     expect(await record({ activities: [act] })).toMatchObject({ status: "ok", unchanged: { activities: [act.id] } });
     expect(await record({ activities: [{ ...act, duration_seconds: 2581 }] })).toEqual({ status: "rejected", code: "id_conflict", target: "activities[0]" });
 
-    // One activity per session: a second original is refused; a correction replaces it; never a correction of a correction.
-    expect(await record({ activities: [activity(e.id, { activity_id: "road_bike" })] })).toEqual({ status: "rejected", code: "activity_result_exists", target: "activities[0]" });
-    const correction = activity(e.id, { duration_seconds: 2640, supersedes_id: act.id });
+    // UX-11B.2.6 — e is completed: its results are frozen (no second original, no correction); a replay stays unchanged.
+    expect(await record({ activities: [activity(e.id, { activity_id: "road_bike" })] })).toEqual({ status: "rejected", code: "execution_terminal", target: "activities[0]" });
+    expect(await record({ activities: [activity(e.id, { duration_seconds: 2640, supersedes_id: act.id })] })).toEqual({ status: "rejected", code: "execution_terminal", target: "activities[0]" });
+
+    // One activity per session (on an open execution): a second original is refused; a correction replaces it; never a correction of a correction.
+    const e2 = start(ENDURANCE_DAY, enduranceFp);
+    expect(await record({ execution: e2.execution, events: [e2.started] })).toMatchObject({ status: "ok" });
+    const act2 = activity(e2.id);
+    expect(await record({ activities: [act2] })).toMatchObject({ status: "ok" });
+    expect(await record({ activities: [activity(e2.id, { activity_id: "road_bike" })] })).toEqual({ status: "rejected", code: "activity_result_exists", target: "activities[0]" });
+    const correction = activity(e2.id, { duration_seconds: 2640, supersedes_id: act2.id });
     expect(await record({ activities: [correction] })).toMatchObject({ status: "ok", inserted: { activities: [correction.id] } });
-    expect(await record({ activities: [activity(e.id, { supersedes_id: correction.id })] })).toEqual({ status: "rejected", code: "invalid_correction", target: "activities[0]" });
-    expect(await record({ activities: [activity(e.id, { supersedes_id: act.id })] })).toEqual({ status: "rejected", code: "invalid_correction", target: "activities[0]" });
+    expect(await record({ activities: [activity(e2.id, { supersedes_id: correction.id })] })).toEqual({ status: "rejected", code: "invalid_correction", target: "activities[0]" });
+    expect(await record({ activities: [activity(e2.id, { supersedes_id: act2.id })] })).toEqual({ status: "rejected", code: "invalid_correction", target: "activities[0]" });
 
     // Active result = the row nobody supersedes (the original stays as history).
-    const { data: all } = await admin.from("session_activity_results").select("id, supersedes_id, duration_seconds").eq("execution_id", e.id);
+    const { data: all } = await admin.from("session_activity_results").select("id, supersedes_id, duration_seconds").eq("execution_id", e2.id);
     const superseded = new Set(all!.map((r) => r.supersedes_id).filter(Boolean));
     const active = all!.filter((r) => !superseded.has(r.id));
     expect(all).toHaveLength(2);
-    expect(active).toEqual([{ id: correction.id, supersedes_id: act.id, duration_seconds: 2640 }]);
+    expect(active).toEqual([{ id: correction.id, supersedes_id: act2.id, duration_seconds: 2640 }]);
+    expect(await record({ events: [e2.event("abandoned", 59)] })).toMatchObject({ status: "ok" });
 
     // Append-only, even for the database owner.
     expect(() => execLocalSql(`update public.session_activity_results set duration_seconds = 1 where id = ${sqlLiteral(act.id)};`)).toThrow();

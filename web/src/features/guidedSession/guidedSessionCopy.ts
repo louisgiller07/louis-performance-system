@@ -30,6 +30,8 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   refused: "Action refusée. L'état affiché est celui enregistré.",
   id_conflict: "Cette série a déjà été enregistrée avec d'autres valeurs : les valeurs enregistrées sont affichées.",
   invalid_correction: "Cette série a déjà été corrigée : une série ne se corrige qu'une fois.",
+  result_slot_exists: "Un résultat a déjà été enregistré pour cette série (autre appareil) : la valeur enregistrée est affichée.",
+  execution_terminal: "Cette séance est terminée : ses résultats ne peuvent plus changer.",
 };
 
 export const PARTIAL_COMPLETION_MESSAGE =

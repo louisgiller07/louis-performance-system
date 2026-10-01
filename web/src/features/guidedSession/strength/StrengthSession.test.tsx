@@ -258,7 +258,7 @@ describe("Guided Force session — recording sets", () => {
     expect(b.executions[0]!.exercise_set_results).toHaveLength(3);
   });
 
-  it("two tabs: both read the same execution; distinct originals are both accepted by the backend and each tab shows the confirmed latest after its write", async () => {
+  it("two tabs: both read the same execution; the second original for the same set is refused (result_slot_exists) and that tab reloads the confirmed value", async () => {
     const b = fakeBackend({ prescription: LOWER });
     const tabA = render(<Harness deps={b.deps} />);
     await userEvent.click(await within(tabA.container).findByRole("button", { name: "Commencer la séance" }));
@@ -273,8 +273,9 @@ describe("Guided Force session — recording sets", () => {
     };
     await save(tabA, "8");
     await save(tabB, "9"); // B still showed set 1 empty
-    await waitFor(() => expect(within(tabB.container).getAllByTestId("slot-result")[0]).toHaveTextContent("Réalisé : 9 répétitions"));
-    expect(b.executions[0]!.exercise_set_results.map((r) => r.measure_value)).toEqual([8, 9]);
+    await waitFor(() => expect(within(tabB.container).getByRole("alert")).toHaveAttribute("data-code", "result_slot_exists"));
+    expect(within(tabB.container).getAllByTestId("slot-result")[0]).toHaveTextContent("Réalisé : 8 répétitions");
+    expect(b.executions[0]!.exercise_set_results.map((r) => r.measure_value)).toEqual([8]);
   });
 });
 

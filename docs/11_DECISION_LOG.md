@@ -4605,3 +4605,29 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 - Aucun navigateur réel : le dépôt n'a pas de harnais Playwright/Cypress.
 
 **Statut** : Accepted — `feat/ux11c2-guided-strength-sets`, local, non poussé.
+
+## 2026-10-02 — ADR UX-11B.2.6 : intégrité des résultats d'exécution
+
+> **The execution contract itself guarantees that a terminal execution's results are frozen, that a result ordinal stays within the prescription, and that each slot has at most one original. Results and the terminal event may still travel in one batch.**
+
+**Constat avant modification** (test `executionResultIntegrity.integration.test.ts`, lancé avant la migration) :
+- série après `completed` : acceptée ; série après `abandoned` : acceptée ;
+- activité ou correction d'activité après la fin : acceptée ;
+- `set_number = 0` : déjà refusé (`invalid_payload`) ;
+- ordinal au-delà de `sets` : accepté ; passage au-delà de `count` : accepté ;
+- deux originaux sur un même emplacement : acceptés ;
+- dernier résultat + `completed` dans le même lot : accepté.
+
+**Décisions** (migration locale `20261002090000_ux11b26_execution_result_integrity.sql`, additive, nouvelle version de la fonction) :
+- `execution_terminal` (409) : l'exécution était terminale avant le lot (un événement terminal inséré par ce lot ne compte pas).
+- `result_slot_out_of_range` (422) : ordinal au-delà de `sets` ou de `measure.count` (`pass`) ; borne absente ou invalide → `invalid_prescribed_measure`.
+- `result_slot_exists` (409) : autre identifiant sur un emplacement qui a déjà son original. Index unique partiel en filet.
+- Une correction après l'état terminal est refusée ; un futur flux de correction après séance serait un contrat séparé.
+
+**Migration.**
+- Elle vérifie d'abord l'absence de doublons et refuse avec un message clair sinon. Elle ne supprime rien.
+- En local, le test de constat avait créé 4 doublons sur des athlètes de test. Ils ont été supprimés à la main, avec accord explicite, avant d'appliquer la migration.
+
+**Tests mis à jour** : deux tests figeaient l'ancien comportement (une série acceptée après `completed`, une seconde activité refusée sur une exécution terminée). Ils suivent désormais le nouveau contrat. Le test web C.2 qui documentait l'écart vérifie maintenant le refus.
+
+**Statut** : Accepted — `feat/ux11b26-execution-result-integrity`, local, non poussé.

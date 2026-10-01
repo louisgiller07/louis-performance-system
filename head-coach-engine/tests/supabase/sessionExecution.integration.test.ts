@@ -230,8 +230,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     });
     expect(await record(a.athleteId, { events: [exec.event("started", 41)] })).toMatchObject({ code: "invalid_transition" });
 
-    // Sets stay recordable after the end of the lifecycle.
-    expect((await record(a.athleteId, { sets: [squatSet(exec.id, 2)] })).status).toBe("ok");
+    // UX-11B.2.6 — once terminal, the execution's results are frozen.
+    expect(await record(a.athleteId, { sets: [squatSet(exec.id, 2)] })).toMatchObject({ status: "rejected", code: "execution_terminal" });
 
     // Once completed, a new execution is allowed the same day; paused → completed is allowed.
     const next = newExecution(fpA);

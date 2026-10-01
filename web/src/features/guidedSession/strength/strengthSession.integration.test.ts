@@ -163,11 +163,11 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11C.2 — guided Force sets (real loca
     expect(rawContext.recent_sessions.filter((s) => s.date === day)).toEqual([{ date: day, intervention: expect.objectContaining({ kind: prescription.sessionKind }), completion_status: "done" }]);
   }, 60_000);
 
-  it("documents a backend/UI gap: the backend still accepts a set result after `completed` (the UI blocks it)", async () => {
+  it("UX-11B.2.6 — the backend refuses any new set result after `completed` (frozen terminal results)", async () => {
     const { day, prescription } = forceDays[0]!;
     const e1 = (await executionSnapshot(day)).execution.id;
     const late = set(e1, workItems(prescription)[0]!.item.prescriptionItemId, 4, 8);
-    expect((await ok({ events: [], sets: [late] })).inserted.sets).toEqual([late.id]);
+    expect(await client.postSessionExecutionBatch({ events: [], sets: [late] })).toEqual({ ok: false, error: { code: "execution_terminal", status: 409, retryable: false } });
   });
 
   it("E2: one set → abandoned (not counted as completed) → restart E3 while the prescription is current (new execution, E2 kept)", async () => {

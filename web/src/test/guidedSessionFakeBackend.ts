@@ -3,7 +3,9 @@
 // batch = one transaction; idempotent device ids; one open execution per day;
 // current final prescription checked at start only; events before sets; set
 // item / measure checked against the execution's OWN prescription; a
-// correction supersedes one original, once, never a correction) and the
+// correction supersedes one original, once, never a correction; UX-11B.2.6:
+// frozen results once terminal before the batch, ordinal bounded by the
+// prescription, one original per slot) and the
 // loader's reading of the day (open execution with its frozen prescription,
 // else the current decision; abandoned attempt restartable while current).
 // The real rules are covered against the real database by the integration
@@ -13,7 +15,7 @@ import type { GuidedSessionDeps } from "../features/guidedSession/useGuidedSessi
 import { isTerminal, phaseOf, selectDayExecution, type ExecutionRow, type SetResultRow } from "../features/guidedSession/executionState";
 import type { GuidedSessionSnapshot } from "../features/guidedSession/guidedSessionLoader";
 import type { SessionExecutionBatch, SessionExecutionResult } from "../features/guidedSession/sessionExecutionClient";
-import type { ExerciseItemView, FinalPrescriptionV2View } from "../features/finalPrescriptionV2/finalPrescriptionV2Types";
+import type { DrillItemView, ExerciseItemView, FinalPrescriptionV2View } from "../features/finalPrescriptionV2/finalPrescriptionV2Types";
 import { decodeFinalPrescriptionV2 } from "../features/finalPrescriptionV2/decodeFinalPrescriptionV2";
 import { keepFinalPrescription, type FixtureKind } from "./fixtures/finalPrescriptionV2Fixtures";
 
@@ -56,10 +58,15 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
   const prescriptions = new Map<string, FinalPrescriptionV2View>();
   for (const p of [initial.prescription, ...extra]) if (p) prescriptions.set(p.id, p);
 
-  const itemOf = (fpId: string | null, itemId: string): ExerciseItemView | undefined =>
-    fpId === null ? undefined : (prescriptions.get(fpId)?.blocks.flatMap((b) => b.items).find((i) => i.prescriptionItemId === itemId && i.kind === "exercise") as ExerciseItemView | undefined);
+  const itemOf = (fpId: string | null, itemId: string): ExerciseItemView | DrillItemView | undefined =>
+    fpId === null ? undefined : prescriptions.get(fpId)?.blocks.flatMap((b) => b.items).find((i) => i.prescriptionItemId === itemId);
+  /** UX-11B.2.6 — measure and ordinal bound of a prescribed item (a drill pass: measure.count). */
+  const measureOf = (item: ExerciseItemView | DrillItemView) => (item.kind === "drill" ? "pass" : item.measure.type);
+  const slotMaxOf = (item: ExerciseItemView | DrillItemView) => (item.kind === "drill" ? item.passes : item.sets);
 
   function applyOrThrow(batch: SessionExecutionBatch) {
+    // UX-11B.2.6 — terminal BEFORE the batch (a terminal event of this batch does not count).
+    const terminalBefore = new Set(executions.filter((e) => isTerminal(phaseOf(e))).map((e) => e.id));
     const inserted: Record<string, string[]> = { executions: [], events: [], sets: [] };
     const unchanged: Record<string, string[]> = { executions: [], events: [], sets: [] };
     if (batch.execution) {
@@ -110,9 +117,14 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       }
       const exec = executions.find((e) => e.id === set.execution_id);
       if (!exec) throw new Rejected(refuse("execution_not_found", 404));
+      if (terminalBefore.has(exec.id)) throw new Rejected(refuse("execution_terminal"));
       const item = itemOf(exec.final_prescription_id, set.prescription_item_id);
       if (!item) throw new Rejected(refuse("invalid_item", 422));
-      if (item.measure.type !== set.measure_type) throw new Rejected(refuse("measure_mismatch", 422));
+      if (measureOf(item) !== set.measure_type) throw new Rejected(refuse("measure_mismatch", 422));
+      if (set.set_number > slotMaxOf(item)) throw new Rejected(refuse("result_slot_out_of_range", 422));
+      if (!set.supersedes_id && exec.exercise_set_results.some((r) => r.supersedes_id === null && r.prescription_item_id === set.prescription_item_id && r.set_number === set.set_number)) {
+        throw new Rejected(refuse("result_slot_exists"));
+      }
       if (set.supersedes_id) {
         const target = exec.exercise_set_results.find((r) => r.id === set.supersedes_id);
         if (!target || target.supersedes_id !== null || target.prescription_item_id !== set.prescription_item_id || target.set_number !== set.set_number || all.some((r) => r.supersedes_id === set.supersedes_id)) {
