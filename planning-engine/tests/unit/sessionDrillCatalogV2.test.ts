@@ -58,7 +58,7 @@ describe("Session Model V2 DH drill catalogue — metadata validity", () => {
   it("measures passes within the Session Model 4–8 rule", () => {
     expect(DH_DRILL_PASSES_RANGE_V2).toEqual({ min: 4, max: 8 });
     for (const d of V2) {
-      expect(d.measureType, d.drillId).toBe("passes");
+      expect(d.measureType, d.drillId).toBe("pass");
       expect(d.passes.min, d.drillId).toBeGreaterThanOrEqual(4);
       expect(d.passes.max, d.drillId).toBeLessThanOrEqual(8);
       expect(d.passes.min, d.drillId).toBeLessThanOrEqual(d.passes.max);

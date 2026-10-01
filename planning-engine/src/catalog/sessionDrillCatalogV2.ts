@@ -43,7 +43,8 @@ export interface SessionDrillV2 {
   /** The drill's own difficulty, matched later against the rider's declared dhTechnicalTier. */
   technicalTier: DhTechnicalTierV2;
   requiredTerrain: string;
-  measureType: "passes";
+  // UX-11B.2.3 — single measure vocabulary with recorded sets: "pass", never "passes".
+  measureType: "pass";
   passes: { min: number; max: number };
   cueId: string;
   criterionId: string;
@@ -67,7 +68,7 @@ function drill(
     skill,
     technicalTier,
     requiredTerrain,
-    measureType: "passes",
+    measureType: "pass",
     passes: { ...DH_DRILL_PASSES_RANGE_V2 },
     cueId: `cue.${drillId}`,
     criterionId: `criterion.${drillId}`,

@@ -3820,3 +3820,64 @@ Non concernés : `record_session_execution` et `session-execution`, qui exigent 
 **Documentation.** 05 aligné. Le point OPEN « vocabulaire de la mesure DH » de l'ADR UX-11A.5b.0.1 est **clos** : `"pass"`.
 
 **Statut** : Accepted — `feat/ux11a5b1-v2-reader-guards`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5b.2 : types, validateur et primitives déterministes de la Prescription V2
+
+> **The Prescription V2 contract now exists as pure types, a structural validator, a catalogue manifest builder, an id-assignment seam and a sport fingerprint, in an isolated planning-engine module. Nothing generates, persists or reads a V2 prescription yet.**
+
+**Module.** `planning-engine/src/sessionModelV2/` est le seul module métier autorisé à importer les catalogues V2 (et les futurs modèles de contenu). Il n'est pas réexporté par l'index public de planning-engine. Un test de frontière vérifie qu'aucune source de moteur en dehors de ce dossier ne le référence (planning, prescription, head-coach, longitudinal). M1, `generationEngine`, `PlanInputSnapshot` v1 et le pipeline de génération sont inchangés.
+
+**Types.**
+- Deux couches. Le contenu sportif (`…Content`) est sans identifiants. Les types identifiés (`PrescriptionV2`, `BlockV2`, `…ItemV2`) y ajoutent `blockId` et `prescriptionItemId`. Ceux-ci sont attribués par `assignPrescriptionIds(content, mintId)` : la stratégie d'identifiants est injectée par l'orchestrateur (UUID aléatoires). `derivedFromItemId` n'est permis que sur une prescription du jour (UX-11A.5c).
+- **Exercice** : `exerciseId`, rôle d'exercice du catalogue, `sets` entier exact. Mesure `reps {min, max, perSide}`, `duration {minSeconds, maxSeconds, perSide}` ou `distance {minMeters, maxMeters}`. Repos, RPE, `cueId`, vigilances, `rampUp` facultatif.
+- **Exercice technique DH** : `drillId`, sans rôle d'élément, `{ type: "pass", count }`, `cueId`, `successCriterionId`, vigilances.
+- **Activité** : `activitySelection { mode: "restricted", activityIds }`, `{ type: "duration", minSeconds, maxSeconds }`, RPE et test de la parole facultatifs, jamais d'`exerciseId`. Le mode `free` n'est **pas** dans le type : OPEN, non générable. `recovery_active_v1` reste inchangé (`activityOptions = []`, OPEN).
+- **`rampUp`** : `{ instructionId, sets: { min: 1, max: 2 } }`. Uniquement sur l'exercice `principal` d'une séance de famille `strength`.
+
+**Décision `drillId` / `exerciseId`.** `record_session_execution` lit la clé JSON `exerciseId` de l'élément pour la recopier dans `exercise_set_results.exercise_id`. Pour ne modifier ni le contrat UX-11B ni le domaine :
+- le domaine utilise `drillId` ;
+- un mapper pur, `toExecutionCompatibleDocument`, ajoute `exerciseId = drillId` aux seuls éléments DH du document **stocké** ;
+- les activités ne reçoivent jamais d'`exerciseId`.
+
+Aucune persistance ne l'appelle encore.
+
+**Validateur** (`validatePrescriptionV2`, pur, renvoie toutes les anomalies avec chemin et code stable).
+- **Contrat** :
+  - `schemaVersion` exactement `"v2"` ; famille, type de séance et intention connus et cohérents ; protocole connu ;
+  - manifeste complet (7 clés, `templates` peut être null) ;
+  - identifiants non vides ; `blockId` et `prescriptionItemId` uniques dans toute la prescription ;
+  - rôles de bloc et sortes d'élément fermés ; aucun rôle d'élément sur un exercice DH ;
+  - types de mesure fermés (`passes` refusé) ; `sets` entier strictement positif ; plages `min ≤ max` et valeurs positives ; RPE de 1 à 10 ; passages entiers de 4 à 8 ;
+  - activité « restricted » avec une liste non vide, connue et sans doublon ; pas d'`exerciseId` sur une activité ;
+  - `rampUp` refusé sur une activité, un exercice DH, un exercice non principal ou hors Force, et sa forme est verrouillée ;
+  - aucun champ de charge (kg, %1RM, FTP, watts, zone cardiaque), à toute profondeur ;
+  - `derivedFromItemId` refusé sur une prescription du plan.
+- **Intégrité référentielle** : exercices, exercices DH et textes existants, avec le bon type de texte.
+- **Hors champ** : la compatibilité coaching (niveau, matériel, composition, modèle de contenu).
+
+**Manifeste.** `buildSessionModelV2CatalogManifest()` se construit à partir des constantes réelles :
+- `aggregate: "session-model-v2.0"` ;
+- `exercises`, `drills`, `intents`, `protocols`, `texts` : les versions actuelles de chaque catalogue ;
+- `templates: null`, **OPEN** : aucun catalogue de modèles de contenu n'existe, et aucun faux catalogue n'est créé. Un générateur qui a besoin de modèles devra refuser de tourner tant que cette valeur est null.
+
+Un test fige le manifeste. Toute nouvelle version de composant impose une nouvelle version agrégée. Les versions legacy sont inchangées.
+
+**Empreinte sportive.** `sportFingerprint` est le SHA-256 d'une forme canonique : clés triées, ordre des tableaux conservé, valeurs indéfinies retirées. Elle exclut à toute profondeur les identifiants et horodatages : `planVersionId`, `blockId`, `weekId`, `generatedPlanSessionId`, `plannedPrescriptionId`, `finalPrescriptionId`, `prescriptionId`, `prescriptionItemId`, `derivedFromItemId`, `generationRequestId`, `decisionId` et les champs `*At`. Le contexte de séance passé par l'appelant (date…) est inclus. Elle n'est branchée sur aucune écriture.
+
+**Snapshot V2 (types seulement).**
+- `PlanInputSnapshotV2 = PlanInputSnapshot + dhTechnicalTier (nullable)`.
+- `toSessionModelV2Input` en tire la vue restreinte : niveau DH, priorités dans l'ordre déclaré (copie de `technicalPriorities.priorityAreas`), terrain, matériel, niveau de renfo. Jamais de points forts ni de points faibles.
+
+**Codes de blocage** (définis, non branchés) : `missing_dh_technical_tier`, `missing_dh_priority_areas`, `too_many_dh_priority_areas`, `duplicate_dh_priority_areas`, `unavailable_dh_drill_terrain`, `unsupported_protocol_duration`, `dh_passes_out_of_range`.
+
+**Alignement de vocabulaire.** Le catalogue `sessionDrillCatalogV2` déclarait encore `measureType: "passes"`. Il passe à `"pass"`, comme décidé en UX-11B.2.3. C'est un vocabulaire seulement : aucun contenu sportif ne change.
+
+**Décision d'architecture — réalisation d'une activité d'endurance (documentée, non implémentée).**
+- Elle ne sera **pas** enregistrée artificiellement comme une série d'exercice.
+- Une future extension UX-11B ajoutera une structure en ajout seul dédiée, `session_activity_results` (nom conceptuel), liée à : pilote, exécution, `prescriptionItemId`.
+- Contenu : activité réellement choisie (`activityId`), durée réellement faite (`durationSeconds`), distance facultative (`distanceMeters`), RPE ressenti facultatif, commentaire facultatif, `supersedesId`, horodatages appareil et serveur.
+- Correction en ajout seul, comme `exercise_set_results`.
+- Le serveur vérifiera que l'activité choisie fait partie de la sélection de la prescription du jour.
+- Pas de table créée maintenant, pas de colonne `activity_id` sur `session_executions`.
+
+**Statut** : Accepted — `feat/ux11a5b2-v2-core-types`, lignée non fusionnée. Aucune prescription V2 générée ni persistée.

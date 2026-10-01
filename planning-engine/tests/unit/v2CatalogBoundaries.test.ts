@@ -8,6 +8,9 @@ import { describe, expect, it } from "vitest";
 // catalogue index (re-exports) and the V2 modules themselves may reference
 // them. Any engine starting to consume V2 content must be a deliberate,
 // separately validated change (UX-11A.5b).
+// UX-11A.5b.2 — the Session Model V2 module (planning-engine/src/sessionModelV2/)
+// is the only business module allowed to read the V2 catalogues and the DH
+// tier; no other engine source may import that module.
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const V2_MODULES = ["sessionExerciseCatalogV2", "sessionDrillCatalogV2", "intentCatalogV2", "sessionFrameV2", "coachingTextCatalog", "protocolCatalogV2"];
 const V2_SYMBOLS =
@@ -15,6 +18,8 @@ const V2_SYMBOLS =
 const ALLOWED = new Set(
   ["planning-engine/src/catalog/index.ts", ...V2_MODULES.map((m) => `planning-engine/src/catalog/${m}.ts`)].map((p) => p.split("/").join(sep))
 );
+const SESSION_MODEL_V2_DIR = ["planning-engine", "src", "sessionModelV2"].join(sep) + sep;
+const isSessionModelV2 = (rel: string) => rel.startsWith(SESSION_MODEL_V2_DIR);
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
@@ -33,7 +38,7 @@ describe("V2 content — import boundary", () => {
     for (const root of roots) {
       for (const file of sourceFiles(root)) {
         const rel = relative(REPO, file);
-        if (ALLOWED.has(rel)) continue;
+        if (ALLOWED.has(rel) || isSessionModelV2(rel)) continue;
         const text = readFileSync(file, "utf8");
         if (V2_MODULES.some((m) => text.includes(`/${m}`)) || V2_SYMBOLS.test(text)) offenders.push(rel);
       }
@@ -49,7 +54,7 @@ describe("V2 content — import boundary", () => {
     for (const root of roots) {
       for (const file of sourceFiles(root)) {
         const rel = relative(REPO, file);
-        if (allowed.has(rel)) continue;
+        if (allowed.has(rel) || isSessionModelV2(rel)) continue;
         if (/dhTechnicalTier|dh_technical_tier/.test(readFileSync(file, "utf8"))) offenders.push(rel);
       }
     }
@@ -64,5 +69,19 @@ describe("V2 content — import boundary", () => {
       expect(i.typeOnly, i.from).toBe(true);
       expect(["./coachingTextCatalog.js", "./intentCatalogV2.js", "./sessionExerciseCatalogV2.js", "./sessionFrameV2.js"], i.from).toContain(i.from);
     }
+  });
+
+  it("UX-11A.5b.2 — no engine source outside sessionModelV2 imports the Session Model V2 module, and planning-engine's public index does not expose it", () => {
+    const roots = ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src"].map((r) => join(REPO, r));
+    const offenders: string[] = [];
+    for (const root of roots) {
+      for (const file of sourceFiles(root)) {
+        const rel = relative(REPO, file);
+        if (isSessionModelV2(rel)) continue;
+        if (/sessionModelV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+    expect(sourceFiles(join(REPO, "planning-engine", "src", "sessionModelV2")).length).toBeGreaterThan(0);
   });
 });
