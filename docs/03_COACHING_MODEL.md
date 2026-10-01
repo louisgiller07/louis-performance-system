@@ -398,8 +398,8 @@ L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, res
 
   Prévention et gainage (UX-11A.5a.4.1) : séries, RPE et repos viennent de ce tableau ; la **mesure** (répétitions ou durée, par côté le cas échéant) vient de la dose de référence de l'exercice choisi, sans aucune conversion. Lourd : hors périmètre. Une mesure en durée n'est jamais convertie en répétitions. En V2, les doses ne viennent que de ce tableau : `setVolume` et `targetRpeOrRir` (cible de séance V1) ne fixent ni les séries ni le RPE.
 - **Politique de dose du plan V2** — PROVISIONAL :
-  - semaine de développement : Force modérée en 60 min, 6 passages DH, endurance fondamentale 45 min ;
-  - semaine d'affûtage : Force légère en 45 min, 4 passages DH, endurance fondamentale 45 min ;
+  - semaine de développement : Force modérée en 60 min, DH 90 min et 6 passages, endurance fondamentale 45 min ;
+  - semaine d'affûtage : Force légère en 45 min, DH 60 min et 4 passages, endurance fondamentale 45 min ;
   - semaine de course : aucune séance normale.
 
   Les réductions génériques liées à l'historique (V1) et les durées d'affûtage V1 ne sont pas reprises en V2.

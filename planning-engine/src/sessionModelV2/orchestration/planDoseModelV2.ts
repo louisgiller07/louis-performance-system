@@ -4,8 +4,9 @@
  *
  * Week type → plan dose policy → FINAL duration → placement:
  * - Force: policy load and duration (development MODERATE 60, taper LIGHT 45);
- * - DH: the planner's structural reference duration (90 / 60, unchanged and
- *   never history-adjusted in V2) and the policy's passages (6 / 4);
+ * - DH: the policy duration (90 / 60) and passages (6 / 4) — since v2.2 the
+ *   policy is the single authority; the legacy LoadDerivation figure is
+ *   never read by V2;
  * - AEROBIC_BASE: the policy duration (45 / 45);
  * - race: no session (template with zero slots).
  *
@@ -15,7 +16,7 @@
  * baseline and are never read by the V2 builders.
  */
 import { PLAN_DOSE_POLICY_V2, PLAN_DOSE_POLICY_V2_VERSION, type PlanWeekDoseV2 } from "../../catalog/planDosePolicyV2.js";
-import { referenceDurationMinFor, type LoadDerivationOutput } from "../../pipeline/loadDerivation.js";
+import type { LoadDerivationOutput } from "../../pipeline/loadDerivation.js";
 import type { SessionDoseModel } from "../../pipeline/sessionDoseModel.js";
 import type { WeekType } from "../../types/planWeek.js";
 import { SessionModelV2ContractError } from "../generationErrors.js";
@@ -35,7 +36,7 @@ export const PLAN_DOSE_MODEL_V2: SessionDoseModel = {
     if (dose === null) return null;
     return {
       strength: dose.forceDurationMin,
-      dh_technical: referenceDurationMinFor("dh_technical", weekType),
+      dh_technical: dose.dhDurationMin,
       aerobic: dose.aerobicBaseDurationMin,
     };
   },
@@ -50,7 +51,7 @@ export const PLAN_DOSE_MODEL_V2: SessionDoseModel = {
       case "DH_TECHNICAL":
         if (baseline.doseTarget.domain !== "dh_technical") throw new SessionModelV2ContractError(`DH session without a DH dose target`);
         return {
-          durationMin: referenceDurationMinFor("dh_technical", weekType),
+          durationMin: dose.dhDurationMin,
           doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: dose.dhFocusedPasses },
         };
       case "AEROBIC_BASE":

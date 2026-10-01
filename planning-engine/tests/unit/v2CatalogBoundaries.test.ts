@@ -124,4 +124,9 @@ describe("V2 content — import boundary", () => {
     // The public planning-engine index still does not expose the module.
     expect(readFileSync(join(REPO, "planning-engine", "src", "index.ts"), "utf8")).not.toMatch(/sessionModelV2|session-model-v2/);
   });
+
+  it("UX-11A.5a.4.3 — the V2 dose model never reads the legacy LoadDerivation durations", () => {
+    const text = readFileSync(join(REPO, "planning-engine", "src", "sessionModelV2", "orchestration", "planDoseModelV2.ts"), "utf8");
+    expect(text).not.toMatch(/referenceDurationMinFor|BASE_DURATION_MIN|TAPER_DURATION_MIN/);
+  });
 });

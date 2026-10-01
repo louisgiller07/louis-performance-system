@@ -4167,3 +4167,20 @@ Le reste est inchangé (DH 6 / 4 passages, endurance fondamentale 45 / 45 min, a
 **Aucune persistance** : RPC `generate_training_plan_version`, migrations, tables, `training_plan_planned_prescriptions` et Edge Functions inchangés. Prochaine étape : UX-11A.5b.5b, persistance V2 locale.
 
 **Statut** : Accepted — `feat/ux11a5b5a-v2-in-memory-orchestration`, lignée non fusionnée. Valeurs de dose PROVISIONAL — coaching validation required.
+
+## 2026-10-01 — ADR UX-11A.5a.4.3 : durée DH dans la politique de dose V2
+
+> **For a V2 plan, every sport dose and placement duration has a single authority, the plan dose policy: the DH duration no longer depends on the legacy LoadDerivation placeholder.**
+
+**Décision.** `plan-dose-policy-v2.2` ajoute `dhDurationMin` (valeurs PROVISIONAL — coaching validation required) :
+- développement : **90 min** ;
+- affûtage : **60 min** ;
+- course : aucune séance.
+
+Les autres valeurs sont inchangées (Force MODERATE 60 / LIGHT 45, DH 6 / 4 passages, endurance fondamentale 45 / 45 min, aucune réduction liée à l'historique).
+
+Le modèle de dose V2 prend la durée DH, au placement comme pour la séance, **dans la politique uniquement**. Il n'importe plus `referenceDurationMinFor` (vérifié par un test de frontière). Une base legacy arbitraire ne change pas la durée V2 (test). Les valeurs 90 / 60 sont aujourd'hui identiques à celles de `loadDerivation` : le résultat ne change pas, seule l'autorité change. V1 est inchangé.
+
+**Manifeste.** `planDosePolicy` : `plan-dose-policy-v2.2` ; version agrégée : `session-model-v2.4`. Les autres composants sont inchangés.
+
+**Statut** : Accepted — `feat/ux11a5b5a-v2-in-memory-orchestration`, lignée non fusionnée.

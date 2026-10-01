@@ -43,7 +43,7 @@ describe("runInMemoryPlanGenerationV2", () => {
     const sessions = result.plan.weeks.flatMap((w) => w.sessions);
     expect(sessions.length).toBe(10);
     expect(sessions.every((s) => s.plannedPrescription.schemaVersion === "v2")).toBe(true);
-    expect(result.plan).toMatchObject({ planningModel: "v2", inputSnapshotSchemaVersion: "v2", prescriptionSchemaVersion: "v2", catalogVersion: "session-model-v2.3" });
+    expect(result.plan).toMatchObject({ planningModel: "v2", inputSnapshotSchemaVersion: "v2", prescriptionSchemaVersion: "v2", catalogVersion: "session-model-v2.4" });
   });
 
   it("returns the locked block instead of a plan when DH data is missing", async () => {

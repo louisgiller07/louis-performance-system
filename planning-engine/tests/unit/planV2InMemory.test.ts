@@ -63,9 +63,9 @@ describe("A — development plan: every session kind gets a valid V2 prescriptio
       inputSnapshotSchemaVersion: "v2",
       prescriptionSchemaVersion: "v2",
       plannerVersion: "v2",
-      catalogVersion: "session-model-v2.3",
+      catalogVersion: "session-model-v2.4",
     });
-    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.1");
+    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.2");
   });
 
   it("Force MODERATE 60 min, DH 6 passages, AEROBIC_BASE 45 min; N sessions → N V2 prescriptions", () => {
@@ -210,6 +210,19 @@ describe("F — placement uses the V2 duration (policy before placement)", () =>
       ["2026-10-14", expect.stringMatching(/^STRENGTH_/), 45],
       ["2026-10-16", "AEROBIC_BASE", 30],
     ]);
+  });
+
+  it("UX-11A.5a.4.3 — the V2 DH duration comes from the plan dose policy only, never from the legacy LoadDerivation figure", () => {
+    // A baseline carrying an arbitrary legacy DH duration does not change the V2 result.
+    for (const [weekType, expected] of [["development", 90], ["taper", 60]] as const) {
+      const resolved = PLAN_DOSE_MODEL_V2.resolveSessionLoad({
+        kind: "DH_TECHNICAL",
+        domain: "dh_technical",
+        weekType,
+        baseline: { durationMin: 999, doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 99 } },
+      });
+      expect([resolved.durationMin, (resolved.doseTarget as { focusedRunsCount: number }).focusedRunsCount]).toEqual([expected, weekType === "development" ? 6 : 4]);
+    }
   });
 
   it("the V2 dose model gives the final durations before placement", () => {
