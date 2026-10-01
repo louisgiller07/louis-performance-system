@@ -25,7 +25,8 @@ import type { StrengthExperienceTier } from "../types/planInputSnapshot.js";
 import type { ContentValidationStatus } from "./coachingTextCatalog.js";
 import type { SessionExerciseFamilyV2 } from "./sessionExerciseCatalogV2.js";
 
-export const STRENGTH_TEMPLATE_CATALOG_V2_VERSION = "strength-templates-v2.0";
+// v2.1 (UX-11A.5a.4.1): warm-up items carry their exact number of sets.
+export const STRENGTH_TEMPLATE_CATALOG_V2_VERSION = "strength-templates-v2.1";
 
 export const STRENGTH_TEMPLATE_SESSION_KINDS_V2 = ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const;
 export type StrengthTemplateSessionKindV2 = (typeof STRENGTH_TEMPLATE_SESSION_KINDS_V2)[number];
@@ -50,11 +51,21 @@ export interface StrengthWorkSlotV2 {
   candidates: readonly string[];
 }
 
+/**
+ * One warm-up exercise: its exact number of sets is template content (a
+ * builder never picks inside the exercise's reference range); measure,
+ * perSide, rest, cue and vigilances come from the exercise catalogue.
+ */
+export interface StrengthWarmUpItemV2 {
+  exerciseId: string;
+  sets: number;
+}
+
 /** Explicit warm-up of the template, within the strength_warm_up_v1 protocol constraints. */
 export interface StrengthWarmUpV2 {
   protocolId: "strength_warm_up_v1";
-  mobility: readonly string[];
-  activation: readonly string[];
+  mobility: readonly StrengthWarmUpItemV2[];
+  activation: readonly StrengthWarmUpItemV2[];
 }
 
 export interface StrengthTemplateV2 {
@@ -66,8 +77,22 @@ export interface StrengthTemplateV2 {
   validationStatus: ContentValidationStatus;
 }
 
-const LOWER_WARM_UP: StrengthWarmUpV2 = { protocolId: "strength_warm_up_v1", mobility: ["hip_90_90", "knee_to_wall_ankle"], activation: ["bird_dog"] };
-const UPPER_WARM_UP: StrengthWarmUpV2 = { protocolId: "strength_warm_up_v1", mobility: ["thoracic_rotation_mobility", "wrist_mobility"], activation: ["bear_crawl"] };
+const LOWER_WARM_UP: StrengthWarmUpV2 = {
+  protocolId: "strength_warm_up_v1",
+  mobility: [
+    { exerciseId: "hip_90_90", sets: 1 },
+    { exerciseId: "knee_to_wall_ankle", sets: 1 },
+  ],
+  activation: [{ exerciseId: "bird_dog", sets: 2 }],
+};
+const UPPER_WARM_UP: StrengthWarmUpV2 = {
+  protocolId: "strength_warm_up_v1",
+  mobility: [
+    { exerciseId: "thoracic_rotation_mobility", sets: 1 },
+    { exerciseId: "wrist_mobility", sets: 1 },
+  ],
+  activation: [{ exerciseId: "bear_crawl", sets: 2 }],
+};
 
 const main = (...candidates: string[]): StrengthWorkSlotV2 => ({ blockRole: "main", role: "principal", candidates });
 const secondary = (...candidates: string[]): StrengthWorkSlotV2 => ({ blockRole: "complementary", role: "secondary", candidates });
@@ -98,9 +123,8 @@ const ENTRIES: StrengthTemplateV2[] = [
     unilateral("bulgarian_split_squat", "step_up", "single_leg_romanian_deadlift", "reverse_lunge"),
   ]),
   // ---------------------------------------------------------------- UPPER
-  // The secondary lists end with floor_ytw_raise, whose catalogue roles are
-  // warm_up / prevention, not secondary: an OPEN role question kept visible
-  // (ADR UX-11A.5a.4), never silently resolved.
+  // The secondary lists end with floor_ytw_raise, which holds the `secondary`
+  // role since session-exercises-v2.1 (UX-11A.5a.4.1).
   template("STRENGTH_UPPER", "beginner", UPPER_WARM_UP, [main("pushup"), secondary("resistance_band_row", "floor_ytw_raise"), prevention("dead_bug")]),
   template("STRENGTH_UPPER", "intermediate", UPPER_WARM_UP, [
     main("dumbbell_bench_press", "pushup"),

@@ -9,7 +9,8 @@ import {
 } from "../../src/catalog/strengthTemplateCatalogV2.js";
 import { STRENGTH_DOSE_CATALOG_V2, STRENGTH_DOSE_CATALOG_V2_VERSION, STRENGTH_LOAD_LEVELS_V2 } from "../../src/catalog/strengthDoseCatalogV2.js";
 import { PLAN_DOSE_POLICY_V2, PLAN_DOSE_POLICY_V2_VERSION } from "../../src/catalog/planDosePolicyV2.js";
-import { SESSION_EXERCISE_CATALOG_V2 } from "../../src/catalog/sessionExerciseCatalogV2.js";
+import { SESSION_EXERCISE_CATALOG_V2, SESSION_EXERCISE_CATALOG_V2_VERSION } from "../../src/catalog/sessionExerciseCatalogV2.js";
+import { EXERCISE_CATALOG } from "../../src/catalog/exerciseCatalog.js";
 import {
   allowedExerciseTiersV2,
   exerciseMinimumTierV2,
@@ -58,7 +59,7 @@ describe("Strength template catalogue V2", () => {
   const get = (kind: "STRENGTH_LOWER" | "STRENGTH_UPPER", tier: string) => T.find((t) => t.sessionKind === kind && t.athleteTier === tier)!;
 
   it("has its own version and exactly six templates, one per session kind × athlete tier", () => {
-    expect(STRENGTH_TEMPLATE_CATALOG_V2_VERSION).toBe("strength-templates-v2.0");
+    expect(STRENGTH_TEMPLATE_CATALOG_V2_VERSION).toBe("strength-templates-v2.1");
     expect(T).toHaveLength(6);
     expect(Object.keys(STRENGTH_TEMPLATE_CATALOG_V2).sort()).toEqual([
       "strength_lower_advanced_v1",
@@ -88,19 +89,24 @@ describe("Strength template catalogue V2", () => {
     });
     expect(STRENGTH_TRANSVERSAL_FAMILIES_V2).toEqual(["core"]);
     expect(STRENGTH_EXCLUDED_FAMILIES_V2).toEqual(["grip", "plyometric"]);
-    const used = T.flatMap((t) => [...t.warmUp.mobility, ...t.warmUp.activation, ...t.workSlots.flatMap((s) => s.candidates)]);
+    const used = T.flatMap((t) => [...t.warmUp.mobility.map((w) => w.exerciseId), ...t.warmUp.activation.map((w) => w.exerciseId), ...t.workSlots.flatMap((s) => s.candidates)]);
     for (const id of used) expect(["grip", "plyometric"], id).not.toContain(ex(id).family);
   });
 
-  it("integrity: exactly the known OPEN role question, nothing else (ids, tiers, families, warm-up protocol, duplicates)", () => {
-    const issues = validateStrengthTemplatesV2(T);
-    expect(issues).toEqual(
-      ["strength_upper_beginner_v1", "strength_upper_intermediate_v1", "strength_upper_advanced_v1"].map((templateId) => ({
-        templateId,
-        code: "role_not_held",
-        detail: expect.stringContaining("floor_ytw_raise has no role secondary"),
-      }))
+  it("integrity: the six official templates have ZERO anomaly (ids, tiers, families, roles, warm-up protocol and sets, duplicates)", () => {
+    expect(validateStrengthTemplatesV2(T)).toEqual([]);
+  });
+
+  it("warm-up sets are exact template content, inside each exercise's reference range", () => {
+    const warmUps = Object.fromEntries(
+      T.map((t) => [t.templateId, [...t.warmUp.mobility, ...t.warmUp.activation].map((w) => [w.exerciseId, w.sets])])
     );
+    for (const id of ["strength_lower_beginner_v1", "strength_lower_intermediate_v1", "strength_lower_advanced_v1"]) {
+      expect(warmUps[id]).toEqual([["hip_90_90", 1], ["knee_to_wall_ankle", 1], ["bird_dog", 2]]);
+    }
+    for (const id of ["strength_upper_beginner_v1", "strength_upper_intermediate_v1", "strength_upper_advanced_v1"]) {
+      expect(warmUps[id]).toEqual([["thoracic_rotation_mobility", 1], ["wrist_mobility", 1], ["bear_crawl", 2]]);
+    }
   });
 
   it("the validator catches a broken template (tier, family, role, duplicate, warm-up)", () => {
@@ -108,7 +114,15 @@ describe("Strength template catalogue V2", () => {
     const broken = {
       ...base,
       templateId: "broken",
-      warmUp: { ...base.warmUp, activation: ["bird_dog", "dead_bug", "bear_crawl"] },
+      warmUp: {
+        ...base.warmUp,
+        mobility: [{ exerciseId: "hip_90_90", sets: 3 }],
+        activation: [
+          { exerciseId: "bird_dog", sets: 2 },
+          { exerciseId: "dead_bug", sets: 2 },
+          { exerciseId: "bear_crawl", sets: 2 },
+        ],
+      },
       workSlots: [
         { blockRole: "main" as const, role: "principal" as const, candidates: ["barbell_back_squat"] },
         { blockRole: "complementary" as const, role: "secondary" as const, candidates: ["dead_hang", "glute_bridge"] },
@@ -117,10 +131,12 @@ describe("Strength template catalogue V2", () => {
     };
     const codes = validateStrengthTemplatesV2([...T.filter((t) => t !== base), broken]).filter((i) => i.templateId === "broken").map((i) => i.code);
     expect(codes).toEqual(expect.arrayContaining(["invalid_warm_up", "tier_not_allowed", "family_not_allowed", "role_not_held", "duplicate_exercise"]));
+    const sets = validateStrengthTemplatesV2([...T.filter((t) => t !== base), { ...base, templateId: "sets", warmUp: { ...base.warmUp, mobility: [{ exerciseId: "hip_90_90", sets: 3 }, { exerciseId: "knee_to_wall_ankle", sets: 1 }] } }]);
+    expect(sets.filter((i) => i.templateId === "sets").map((i) => i.code)).toEqual(["invalid_warm_up_sets"]);
   });
 
   it("exact templates and candidate order (versioned content, never derived from the exercise catalogue)", () => {
-    const shape = (t: (typeof T)[number]) => ({ warmUp: [...t.warmUp.mobility, ...t.warmUp.activation], slots: t.workSlots.map((s) => [s.role, ...s.candidates]) });
+    const shape = (t: (typeof T)[number]) => ({ warmUp: [...t.warmUp.mobility, ...t.warmUp.activation].map((w) => w.exerciseId), slots: t.workSlots.map((s) => [s.role, ...s.candidates]) });
     expect(shape(get("STRENGTH_LOWER", "beginner"))).toEqual({
       warmUp: ["hip_90_90", "knee_to_wall_ankle", "bird_dog"],
       slots: [["principal", "bodyweight_squat"], ["secondary", "glute_bridge"], ["unilateral", "reverse_lunge"]],
@@ -162,7 +178,7 @@ describe("Strength template catalogue V2", () => {
 
 describe("Strength dose catalogue V2", () => {
   it("has its own version, LIGHT and MODERATE only (HEAVY absent)", () => {
-    expect(STRENGTH_DOSE_CATALOG_V2_VERSION).toBe("strength-doses-v2.0");
+    expect(STRENGTH_DOSE_CATALOG_V2_VERSION).toBe("strength-doses-v2.1");
     expect([...STRENGTH_LOAD_LEVELS_V2]).toEqual(["LIGHT", "MODERATE"]);
     expect(Object.keys(STRENGTH_DOSE_CATALOG_V2).sort()).toEqual(["LIGHT", "MODERATE"]);
     expect("HEAVY" in STRENGTH_DOSE_CATALOG_V2).toBe(false);
@@ -174,36 +190,51 @@ describe("Strength dose catalogue V2", () => {
   };
 
   it("MODERATE exact", () => {
-    expect(row("MODERATE", "principal")).toEqual({ sets: 4, volume: { reps: { min: 6, max: 8 } }, rpe: { min: 7, max: 8 }, rest: { min: 120, max: 180 } });
-    expect(row("MODERATE", "secondary")).toEqual({ sets: 3, volume: { reps: { min: 8, max: 12 } }, rpe: { min: 7, max: 7 }, rest: { min: 90, max: 90 } });
-    expect(row("MODERATE", "unilateral")).toEqual({ sets: 3, volume: { reps: { min: 8, max: 10 } }, rpe: { min: 7, max: 7 }, rest: { min: 60, max: 90 } });
-    expect(row("MODERATE", "prevention")).toEqual({ sets: 2, volume: {}, rpe: { min: 6, max: 7 }, rest: { min: 45, max: 60 } });
+    expect(row("MODERATE", "principal")).toEqual({ sets: 4, volume: { source: "dose_catalog", reps: { min: 6, max: 8 } }, rpe: { min: 7, max: 8 }, rest: { min: 120, max: 180 } });
+    expect(row("MODERATE", "secondary")).toEqual({ sets: 3, volume: { source: "dose_catalog", reps: { min: 8, max: 12 } }, rpe: { min: 7, max: 7 }, rest: { min: 90, max: 90 } });
+    expect(row("MODERATE", "unilateral")).toEqual({ sets: 3, volume: { source: "dose_catalog", reps: { min: 8, max: 10 } }, rpe: { min: 7, max: 7 }, rest: { min: 60, max: 90 } });
+    expect(row("MODERATE", "prevention")).toEqual({ sets: 2, volume: { source: "exercise_reference" }, rpe: { min: 6, max: 7 }, rest: { min: 45, max: 60 } });
   });
 
   it("LIGHT exact", () => {
-    expect(row("LIGHT", "principal")).toEqual({ sets: 3, volume: { reps: { min: 8, max: 10 } }, rpe: { min: 5, max: 6 }, rest: { min: 90, max: 120 } });
-    expect(row("LIGHT", "secondary")).toEqual({ sets: 2, volume: { reps: { min: 10, max: 12 } }, rpe: { min: 5, max: 6 }, rest: { min: 60, max: 90 } });
-    expect(row("LIGHT", "unilateral")).toEqual({ sets: 2, volume: { reps: { min: 8, max: 10 } }, rpe: { min: 5, max: 6 }, rest: { min: 60, max: 60 } });
-    expect(row("LIGHT", "prevention")).toEqual({ sets: 2, volume: {}, rpe: { min: 5, max: 6 }, rest: { min: 45, max: 60 } });
+    expect(row("LIGHT", "principal")).toEqual({ sets: 3, volume: { source: "dose_catalog", reps: { min: 8, max: 10 } }, rpe: { min: 5, max: 6 }, rest: { min: 90, max: 120 } });
+    expect(row("LIGHT", "secondary")).toEqual({ sets: 2, volume: { source: "dose_catalog", reps: { min: 10, max: 12 } }, rpe: { min: 5, max: 6 }, rest: { min: 60, max: 90 } });
+    expect(row("LIGHT", "unilateral")).toEqual({ sets: 2, volume: { source: "dose_catalog", reps: { min: 8, max: 10 } }, rpe: { min: 5, max: 6 }, rest: { min: 60, max: 60 } });
+    expect(row("LIGHT", "prevention")).toEqual({ sets: 2, volume: { source: "exercise_reference" }, rpe: { min: 5, max: 6 }, rest: { min: 45, max: 60 } });
   });
 
-  it("sets are exact positive integers; the prevention volume is an explicit OPEN question (never invented); everything PROVISIONAL", () => {
+  it("sets are exact positive integers; prevention takes its measure from the exercise reference explicitly (no empty object); everything PROVISIONAL", () => {
     for (const level of STRENGTH_LOAD_LEVELS_V2) {
       for (const [role, d] of Object.entries(STRENGTH_DOSE_CATALOG_V2[level])) {
         expect(Number.isInteger(d.sets) && d.sets > 0, `${level}/${role}`).toBe(true);
         expect(d.validationStatus).toBe("PROVISIONAL");
-        expect(d.openQuestions, `${level}/${role}`).toEqual(role === "prevention" ? ["strength_doses.prevention_volume_not_defined"] : []);
+        expect(d.volume.source, `${level}/${role}`).toBe(role === "prevention" ? "exercise_reference" : "dose_catalog");
       }
     }
   });
 
-  it("a duration exercise never gets a reps volume: the volume is keyed by measure type, and no work-slot dose defines duration yet", () => {
-    for (const level of STRENGTH_LOAD_LEVELS_V2) {
-      for (const d of Object.values(STRENGTH_DOSE_CATALOG_V2[level])) expect(d.volume.durationSeconds).toBeUndefined();
+  it("every prevention candidate of the templates has a usable reference measure (no conversion needed)", () => {
+    const prevention = STRENGTH_TEMPLATE_CATALOG_V2_ENTRIES.flatMap((t) => t.workSlots.filter((s) => s.role === "prevention").flatMap((s) => s.candidates));
+    expect([...new Set(prevention)].sort()).toEqual(["dead_bug", "hanging_leg_raise", "pallof_press"]);
+    for (const id of prevention) {
+      const ref = ex(id).referencePrescription;
+      expect(ex(id).measureType === "reps" ? ref.reps : ref.durationSeconds, id).toBeDefined();
     }
-    // Every work-slot candidate of the current templates is measured in reps.
-    const candidates = STRENGTH_TEMPLATE_CATALOG_V2_ENTRIES.flatMap((t) => t.workSlots.flatMap((s) => s.candidates));
-    expect(new Set(candidates.map((id) => ex(id).measureType))).toEqual(new Set(["reps"]));
+    // dose-catalog rows only define reps: every principal / secondary / unilateral candidate is measured in reps.
+    const others = STRENGTH_TEMPLATE_CATALOG_V2_ENTRIES.flatMap((t) => t.workSlots.filter((s) => s.role !== "prevention").flatMap((s) => s.candidates));
+    expect(new Set(others.map((id) => ex(id).measureType))).toEqual(new Set(["reps"]));
+  });
+});
+
+describe("UX-11A.5a.4.1 — floor_ytw_raise holds `secondary` in V2 only", () => {
+  it("V2 roles: warm_up, prevention and secondary; first role (reference dose) unchanged; catalogue version bumped", () => {
+    expect(ex("floor_ytw_raise").roles).toEqual(["warm_up", "prevention", "secondary"]);
+    expect(SESSION_EXERCISE_CATALOG_V2_VERSION).toBe("session-exercises-v2.1");
+  });
+
+  it("the V1 exercise is unchanged", () => {
+    expect(EXERCISE_CATALOG["floor_ytw_raise"]).toMatchObject({ id: "floor_ytw_raise", movementCategory: "pull" });
+    expect(JSON.stringify(EXERCISE_CATALOG["floor_ytw_raise"])).not.toMatch(/secondary/);
   });
 });
 

@@ -41,7 +41,8 @@
 import type { StrengthExperienceTier } from "../types/planInputSnapshot.js";
 import type { ContentValidationStatus } from "./coachingTextCatalog.js";
 
-export const SESSION_EXERCISE_CATALOG_V2_VERSION = "session-exercises-v2.0";
+// v2.1 (UX-11A.5a.4.1): floor_ytw_raise also holds the `secondary` role.
+export const SESSION_EXERCISE_CATALOG_V2_VERSION = "session-exercises-v2.1";
 
 export const SESSION_EXERCISE_ROLES_V2 = [
   "warm_up",
@@ -172,7 +173,7 @@ const ENTRIES: SessionExerciseV2[] = [
   entry({ exerciseId: "copenhagen_plank_short", origin: "v2_only", family: "adductor", roles: ["prevention"], tiers: ["intermediate"], requiredEquipment: ["bench"], measureType: "duration", perSide: true, referencePrescription: { sets: r(2, 3), durationSeconds: r(15, 30), restSeconds: r(45, 60) }, vigilanceIds: ["vigilance.groin_stop_on_pain"] }),
 
   // ---------------------------------------------------------------- upper body
-  entry({ exerciseId: "floor_ytw_raise", origin: "v1_enriched", family: "shoulder_health", roles: ["warm_up", "prevention"], tiers: ["beginner"], requiredEquipment: [], measureType: "reps", referencePrescription: { sets: r(1, 2), reps: r(8, 8), restSeconds: r(0, 30) }, vigilanceIds: ["vigilance.shoulder_pain_free"], progressesTo: "band_face_pull" }),
+  entry({ exerciseId: "floor_ytw_raise", origin: "v1_enriched", family: "shoulder_health", roles: ["warm_up", "prevention", "secondary"], tiers: ["beginner"], requiredEquipment: [], measureType: "reps", referencePrescription: { sets: r(1, 2), reps: r(8, 8), restSeconds: r(0, 30) }, vigilanceIds: ["vigilance.shoulder_pain_free"], progressesTo: "band_face_pull" }),
   entry({ exerciseId: "band_pull_apart", origin: "v2_only", family: "shoulder_health", roles: ["warm_up", "prevention"], tiers: ["beginner"], requiredEquipment: ["resistance_bands"], measureType: "reps", referencePrescription: { sets: r(1, 2), reps: r(15, 20), restSeconds: r(0, 30) } }),
   entry({ exerciseId: "band_face_pull", origin: "v2_only", family: "shoulder_health", roles: ["prevention"], tiers: ["beginner"], requiredEquipment: ["resistance_bands"], measureType: "reps", referencePrescription: { ...PREVENTION_REPS, reps: r(12, 15) }, vigilanceIds: ["vigilance.shoulder_pain_free"], regressesTo: "floor_ytw_raise" }),
   entry({ exerciseId: "resistance_band_row", origin: "v1_enriched", family: "pull", roles: ["secondary"], tiers: ["beginner"], requiredEquipment: ["resistance_bands"], measureType: "reps", referencePrescription: { ...SECONDARY, reps: r(12, 12) }, progressesTo: "lat_pulldown", substitutions: ["inverted_row"] }),

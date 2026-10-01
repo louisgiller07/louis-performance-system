@@ -92,8 +92,8 @@ export {
   STRENGTH_EXCLUDED_FAMILIES_V2,
   STRENGTH_WORK_SLOT_ROLES_V2,
 } from "./strengthTemplateCatalogV2.js";
-export type { StrengthTemplateV2, StrengthWorkSlotV2, StrengthWarmUpV2, StrengthWorkSlotRoleV2, StrengthTemplateSessionKindV2 } from "./strengthTemplateCatalogV2.js";
+export type { StrengthTemplateV2, StrengthWorkSlotV2, StrengthWarmUpV2, StrengthWarmUpItemV2, StrengthWorkSlotRoleV2, StrengthTemplateSessionKindV2 } from "./strengthTemplateCatalogV2.js";
 export { STRENGTH_DOSE_CATALOG_V2_VERSION, STRENGTH_DOSE_CATALOG_V2, STRENGTH_LOAD_LEVELS_V2 } from "./strengthDoseCatalogV2.js";
-export type { StrengthRoleDoseV2, StrengthLoadLevelV2 } from "./strengthDoseCatalogV2.js";
+export type { StrengthRoleDoseV2, StrengthLoadLevelV2, StrengthDoseVolumeV2 } from "./strengthDoseCatalogV2.js";
 export { PLAN_DOSE_POLICY_V2_VERSION, PLAN_DOSE_POLICY_V2 } from "./planDosePolicyV2.js";
 export type { PlanDosePolicyV2, PlanWeekDoseV2 } from "./planDosePolicyV2.js";

@@ -371,18 +371,19 @@ describe("Prescription V2 — validator invariants", () => {
 });
 
 describe("Catalogue manifest", () => {
-  it("is built from the real component versions (UX-11A.5a.4: real templates and strengthDoses, aggregate v2.1)", () => {
+  it("is built from the real component versions (UX-11A.5a.4.1: planDosePolicy traced, aggregate v2.2)", () => {
     expect(buildSessionModelV2CatalogManifest()).toEqual({
-      aggregate: "session-model-v2.1",
-      exercises: "session-exercises-v2.0",
+      aggregate: "session-model-v2.2",
+      exercises: "session-exercises-v2.1",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
       protocols: "session-protocols-v2.0",
       texts: "coaching-text-v1.0",
-      templates: "strength-templates-v2.0",
-      strengthDoses: "strength-doses-v2.0",
+      templates: "strength-templates-v2.1",
+      strengthDoses: "strength-doses-v2.1",
+      planDosePolicy: "plan-dose-policy-v2.0",
     });
-    expect(Object.keys(buildSessionModelV2CatalogManifest())).toEqual(["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses"]);
+    expect(Object.keys(buildSessionModelV2CatalogManifest())).toEqual(["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses", "planDosePolicy"]);
   });
 
   it("the aggregate version is distinct from every legacy version", () => {
@@ -436,7 +437,10 @@ describe("Sport fingerprint", () => {
     ["rampUp", (d) => delete d.blocks[1].items[0].rampUp],
     ["block order", (d) => d.blocks.reverse()],
     ["intent", (d) => (d.intentId = "leg_strength_corner_exit")],
-    ["catalog version", (d) => (d.catalog.exercises = "session-exercises-v2.1")],
+    ["catalog version", (d) => (d.catalog.exercises = "session-exercises-v9.9")],
+    ["plan dose policy version", (d) => (d.catalog.planDosePolicy = "plan-dose-policy-v9.9")],
+    ["strength template version", (d) => (d.catalog.templates = "strength-templates-v9.9")],
+    ["strength dose version", (d) => (d.catalog.strengthDoses = "strength-doses-v9.9")],
     ["drill", (d) => (d.blocks[1].items[0].drillId = "cornering_berm_speed"), DH],
     ["passes", (d) => (d.blocks[1].items[0].measure.count = 7), DH],
     ["allowed activity list", (d) => d.activitySelection.activityIds.pop(), ENDURANCE],

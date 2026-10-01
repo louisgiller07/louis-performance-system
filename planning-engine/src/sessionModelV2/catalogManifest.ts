@@ -10,6 +10,9 @@
  * UX-11A.5a.4: `templates` is the strength template catalogue version and
  * `strengthDoses` the strength dose catalogue version (kept separate, never
  * hidden inside templates); aggregate bumped to session-model-v2.1.
+ * UX-11A.5a.4.1: `planDosePolicy` (it shapes sport content, so it must be
+ * traceable); exercises v2.1, templates v2.1, strengthDoses v2.1; aggregate
+ * session-model-v2.2.
  *
  * Any component version change must come with a new aggregate version
  * (locked by test).
@@ -21,8 +24,9 @@ import { PROTOCOL_CATALOG_V2_VERSION } from "../catalog/protocolCatalogV2.js";
 import { COACHING_TEXT_CATALOG_VERSION } from "../catalog/coachingTextCatalog.js";
 import { STRENGTH_TEMPLATE_CATALOG_V2_VERSION } from "../catalog/strengthTemplateCatalogV2.js";
 import { STRENGTH_DOSE_CATALOG_V2_VERSION } from "../catalog/strengthDoseCatalogV2.js";
+import { PLAN_DOSE_POLICY_V2_VERSION } from "../catalog/planDosePolicyV2.js";
 
-export const SESSION_MODEL_V2_AGGREGATE_VERSION = "session-model-v2.1";
+export const SESSION_MODEL_V2_AGGREGATE_VERSION = "session-model-v2.2";
 
 export interface SessionModelV2CatalogManifest {
   aggregate: string;
@@ -33,9 +37,10 @@ export interface SessionModelV2CatalogManifest {
   texts: string;
   templates: string;
   strengthDoses: string;
+  planDosePolicy: string;
 }
 
-export const SESSION_MODEL_V2_MANIFEST_KEYS = ["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses"] as const;
+export const SESSION_MODEL_V2_MANIFEST_KEYS = ["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses", "planDosePolicy"] as const;
 
 export function buildSessionModelV2CatalogManifest(): SessionModelV2CatalogManifest {
   return {
@@ -47,5 +52,6 @@ export function buildSessionModelV2CatalogManifest(): SessionModelV2CatalogManif
     texts: COACHING_TEXT_CATALOG_VERSION,
     templates: STRENGTH_TEMPLATE_CATALOG_V2_VERSION,
     strengthDoses: STRENGTH_DOSE_CATALOG_V2_VERSION,
+    planDosePolicy: PLAN_DOSE_POLICY_V2_VERSION,
   };
 }

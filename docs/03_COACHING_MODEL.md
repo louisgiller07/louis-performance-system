@@ -385,18 +385,18 @@ L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, res
 - **Niveaux cumulatifs (V2 uniquement)** — validé architecture. Le niveau d'un exercice est le niveau **minimum** nécessaire. Un pilote débutant n'utilise que des exercices débutant ; intermédiaire, débutant + intermédiaire ; avancé, tous. La règle V1 (position dans la chaîne de progression) est inchangée.
 - **Familles par type de séance** — PROVISIONAL. LOWER : squat, hinge, lunge, lower_leg, adductor, carry. UPPER : push, pull, shoulder_health. Gainage (core) transversal : prévention et contrôle du tronc. Préhension (grip) et pliométrie exclues pour l'instant. Le mapping V1 n'est pas modifié.
 - **Structure** — validé architecture. Un modèle par type de séance (`STRENGTH_LOWER`, `STRENGTH_UPPER`) et par niveau :
-  - un échauffement explicite de 3 exercices (2 mobilité + 1 activation, dans le cadre de l'échauffement Force) ;
+  - un échauffement explicite de 3 exercices (2 mobilité + 1 activation, dans le cadre de l'échauffement Force), chacun avec un **nombre exact de séries** fixé par le modèle (UX-11A.5a.4.1, PROVISIONAL : 1 série par exercice de mobilité, 2 pour l'activation) ;
   - **exactement trois exercices de travail** : principal (bloc `main`), puis deux exercices complémentaires ;
   - chaque exercice a une **liste ordonnée de candidats** : contenu versionné, jamais dérivé de l'ordre du catalogue, des progressions, des régressions ni des substitutions. Le premier candidat autorisé pour le niveau et dont le matériel est déclaré sera retenu ; sans candidat compatible, le plan est bloqué (pas de repli caché).
-  - Les modèles actuels (choix et ordre des exercices) sont PROVISIONAL.
+  - Les modèles actuels (choix et ordre des exercices) sont PROVISIONAL. Les modèles LOWER n'ont pas d'exercice de prévention ou de gainage : le gainage est transversal (il **peut** être utilisé dans plusieurs types de séance), pas obligatoire partout.
 - **Doses Force V2** — PROVISIONAL. Séries **exactes** :
 
 | Niveau de charge | Principal | Secondaire | Unilatéral | Prévention · gainage |
 |---|---|---|---|---|
-| Modéré | 4 × 6–8, RPE 7–8, repos 120–180 s | 3 × 8–12, RPE 7, repos 90 s | 3 × 8–10 par côté, RPE 7, repos 60–90 s | 2 séries, RPE 6–7, repos 45–60 s, **volume à définir** |
-| Léger | 3 × 8–10, RPE 5–6, repos 90–120 s | 2 × 10–12, RPE 5–6, repos 60–90 s | 2 × 8–10 par côté, RPE 5–6, repos 60 s | 2 séries, RPE 5–6, repos 45–60 s, **volume à définir** |
+| Modéré | 4 × 6–8, RPE 7–8, repos 120–180 s | 3 × 8–12, RPE 7, repos 90 s | 3 × 8–10 par côté, RPE 7, repos 60–90 s | 2 séries, RPE 6–7, repos 45–60 s, mesure de référence de l'exercice |
+| Léger | 3 × 8–10, RPE 5–6, repos 90–120 s | 2 × 10–12, RPE 5–6, repos 60–90 s | 2 × 8–10 par côté, RPE 5–6, repos 60 s | 2 séries, RPE 5–6, repos 45–60 s, mesure de référence de l'exercice |
 
-  Lourd : hors périmètre. Une mesure en durée n'est jamais convertie en répétitions. En V2, les doses ne viennent que de ce tableau : `setVolume` et `targetRpeOrRir` (cible de séance V1) ne fixent ni les séries ni le RPE.
+  Prévention et gainage (UX-11A.5a.4.1) : séries, RPE et repos viennent de ce tableau ; la **mesure** (répétitions ou durée, par côté le cas échéant) vient de la dose de référence de l'exercice choisi, sans aucune conversion. Lourd : hors périmètre. Une mesure en durée n'est jamais convertie en répétitions. En V2, les doses ne viennent que de ce tableau : `setVolume` et `targetRpeOrRir` (cible de séance V1) ne fixent ni les séries ni le RPE.
 - **Politique de dose du plan V2** — PROVISIONAL :
   - semaine de développement : Force modérée, 6 passages DH, endurance fondamentale 45 min ;
   - semaine d'affûtage : Force légère, 4 passages DH, endurance fondamentale 45 min ;

@@ -23,6 +23,7 @@ export type StrengthTemplateIssueCode =
   | "duplicate_template"
   | "invalid_warm_up"
   | "warm_up_not_in_protocol"
+  | "invalid_warm_up_sets"
   | "invalid_work_slots"
   | "empty_candidates"
   | "unknown_exercise"
@@ -80,14 +81,19 @@ export function validateStrengthTemplatesV2(templates: readonly StrengthTemplate
     ) {
       add(t.templateId, "invalid_warm_up", `mobility ${t.warmUp.mobility.length} + activation ${t.warmUp.activation.length}`);
     } else {
-      for (const id of t.warmUp.mobility) if (!mobility.candidates.includes(id)) add(t.templateId, "warm_up_not_in_protocol", `${id} (mobility)`);
-      for (const id of t.warmUp.activation) if (!activation.candidates.includes(id)) add(t.templateId, "warm_up_not_in_protocol", `${id} (activation)`);
+      for (const w of t.warmUp.mobility) if (!mobility.candidates.includes(w.exerciseId)) add(t.templateId, "warm_up_not_in_protocol", `${w.exerciseId} (mobility)`);
+      for (const w of t.warmUp.activation) if (!activation.candidates.includes(w.exerciseId)) add(t.templateId, "warm_up_not_in_protocol", `${w.exerciseId} (activation)`);
     }
-    for (const id of [...t.warmUp.mobility, ...t.warmUp.activation]) {
-      const e = SESSION_EXERCISE_CATALOG_V2[id];
-      if (!e) add(t.templateId, "unknown_exercise", id);
-      else if (!isExerciseAllowedForTierV2(e, t.athleteTier)) add(t.templateId, "tier_not_allowed", `${id} (warm-up)`);
-      note(id, "warm-up");
+    for (const w of [...t.warmUp.mobility, ...t.warmUp.activation]) {
+      const e = SESSION_EXERCISE_CATALOG_V2[w.exerciseId];
+      if (!e) add(t.templateId, "unknown_exercise", w.exerciseId);
+      else {
+        if (!isExerciseAllowedForTierV2(e, t.athleteTier)) add(t.templateId, "tier_not_allowed", `${w.exerciseId} (warm-up)`);
+        // Exact sets, inside the exercise's own reference range (content consistency, never a pick).
+        const ref = e.referencePrescription.sets;
+        if (!Number.isInteger(w.sets) || w.sets < ref.min || w.sets > ref.max) add(t.templateId, "invalid_warm_up_sets", `${w.exerciseId}: ${w.sets} (reference ${ref.min}–${ref.max})`);
+      }
+      note(w.exerciseId, "warm-up");
     }
 
     // Exactly three work slots, principal first in `main`.

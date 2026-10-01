@@ -4006,3 +4006,40 @@ Chaque contenu produit est validé par `validatePrescriptionV2` après `assignPr
 **Hors périmètre** : builder Force, résolution du matériel à l'exécution, `generationEngine`, persistance V2, snapshot V2 runtime, 5c, UX-11C, UX-11E, `session_activity_results`, récupération, puissance, préhension.
 
 **Statut** : Accepted (architecture) / PROVISIONAL (contenu) — `feat/ux11a5a4-strength-templates-v2`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5a.4.1 : verrouillage de la cohérence du contenu Force V2
+
+> **No known inconsistency remains in the canonical Force V2 content: the six official templates validate with zero anomaly. Every value that shapes a V2 prescription is versioned and traceable in the manifest.**
+
+**Amende l'ADR UX-11A.5a.4** sur les points ci-dessous, dont les questions ouvertes 1 à 4. Le reste est inchangé.
+
+**1. `floor_ytw_raise` (contenu PROVISIONAL).** Le catalogue d'exercices **V2** lui ajoute le rôle `secondary`, en plus de `warm_up` et `prevention` ; son premier rôle et sa dose de référence ne changent pas. Les templates UPPER l'utilisent volontairement en dernier candidat secondaire. L'exercice V1 est inchangé. Version `session-exercises-v2.1`.
+
+**2. Volume de la prévention / du gainage (architecture validée, valeurs PROVISIONAL).**
+- Chaque ligne du catalogue de doses porte une source de volume **explicite** :
+  - `{ source: "dose_catalog", reps }` pour principal, secondaire et unilatéral, réservé à un exercice mesuré en répétitions ;
+  - `{ source: "exercise_reference" }` pour la prévention.
+- Pour la prévention, la **mesure** (répétitions ou durée, et `perSide`) vient de la dose de référence de l'exercice retenu. Séries, RPE et repos restent dans le catalogue de doses ; ils ne sont jamais repris de la référence.
+- Aucune conversion durée ↔ répétitions. Un exercice sans mesure de référence exploitable est une erreur de contrat.
+- Plus d'objet vide porteur de sens caché. Version `strength-doses-v2.1`.
+
+**3. Séries de l'échauffement (contenu PROVISIONAL).** Chaque exercice d'échauffement d'un template porte son nombre **exact** de séries : `{ exerciseId, sets }`. Le builder ne choisit jamais dans la plage de référence.
+- LOWER : `hip_90_90` 1, `knee_to_wall_ankle` 1, `bird_dog` 2.
+- UPPER : `thoracic_rotation_mobility` 1, `wrist_mobility` 1, `bear_crawl` 2.
+
+Mesure, `perSide`, repos, consigne et vigilances viennent du catalogue d'exercices. Le validateur vérifie que chaque valeur reste dans la plage de séries de référence de l'exercice. Version `strength-templates-v2.1`.
+
+**4. Manifeste.** Nouveau composant `planDosePolicy` (`plan-dose-policy-v2.0`) : la politique façonne le contenu, elle doit donc être traçable, sans être cachée dans `templates`, `protocols` ou `strengthDoses`. Version agrégée `session-model-v2.2`. Un changement de version de la politique, des templates, des doses ou des exercices change l'empreinte sportive (test).
+
+**5. Invariant de placement (décision d'architecture ferme, prérequis de UX-11A.5b.5).** Pour un **plan V2**, toute valeur qui influence la durée réelle d'une séance doit être connue **avant** le placement de cette séance dans les disponibilités.
+- Interdit : durée legacy de 30 min → placement dans un créneau de 30 min → remplacement par une séance V2 de 45 min.
+- L'orchestration V2 devra appliquer, dans l'ordre : type de semaine → politique de dose V2 → durée réelle de la séance → placement → prescription.
+- V1 conserve son comportement actuel. Rien n'est implémenté ici ; le planificateur est inchangé.
+
+**6. Historique legacy (décision volontaire).** La politique de dose V2 initiale ne consomme **pas** les réductions de `historyAdjuster`. L'historique legacy ne transforme pas MODERATE → LIGHT, 45 → 35 min, 6 → 5 passages, etc. Cela ne veut pas dire que NALYNT n'utilisera jamais l'historique réel : la progression et l'adaptation longitudinales V2 relèvent d'UX-11E. `historyAdjuster` est inchangé.
+
+**7. LOWER sans prévention.** Les templates LOWER V2 initiaux restent principal + secondaire + unilatéral, sans quatrième exercice de prévention ou de gainage. `core` transversal signifie qu'il **peut** servir dans plusieurs types de séance, pas qu'il **doit** y figurer.
+
+**Validation.** Les 6 templates officiels passent `validateStrengthTemplatesV2` avec **zéro anomalie**. Aucun test n'attend plus d'anomalie connue.
+
+**Statut** : Accepted — `feat/ux11a5a4-strength-templates-v2`, lignée non fusionnée.
