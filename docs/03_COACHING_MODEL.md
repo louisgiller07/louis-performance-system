@@ -441,6 +441,18 @@ NALYNT **réduit une séance existante** (décision MODIFY, §Contraintes canoni
 | Technique DH | Moins de passages, application terrain réduite, engagement réduit |
 | Endurance | Durée −30 à 40 %, RPE 2–3 |
 
+Ce tableau reste **PROVISIONAL et non implémenté** : aucune prescription du jour ne l'applique (ADR UX-11A.5c.0).
+
+*Prescription du jour V2 (ADR UX-11A.5c.0)* — la décision du moteur (KEEP / MODIFY / REPLACE / REST) et la prescription du jour sont deux choses distinctes :
+- **KEEP** : la prescription du jour est la **copie** de la prescription prévue, seulement si la séance vient réellement du plan courant et que type, charge et durée sont identiques. Un KEEP sans séance prévue (récupération par défaut, protocole avant course) n'a pas de prescription du jour : aucune séance n'est inventée ;
+- **REST** : aucune prescription du jour ;
+- **MODIFY Force** (implémentation future) : séance prévue MODERATE, décision LIGHT → doses Force **LIGHT** du catalogue V2, sur les mêmes exercices, la même composition et le même template. Ni « une série de moins », ni « RPE −1 », ni retrait automatique d'un bloc. Une séance déjà LIGHT n'a pas de dose inférieure : adaptation non définie ;
+- **jamais de hausse automatique** de la dose au-dessus de la prescription prévue ;
+- **MODIFY DH et endurance** (charge, passages, durée) : non définis tant qu'aucune règle n'est validée ;
+- **REPLACE** : aucune prescription du jour tant que la politique de remplacement n'est pas validée.
+
+Dans tous les cas non définis, la décision du moteur est conservée telle quelle, sans prescription du jour, et la raison est tracée.
+
 Règles :
 - le type de séance ne change (REPLACE, REST) **que si une règle explicite** du moteur de décision le décide ; la nouvelle séance suit alors le modèle de sa propre famille ;
 - le moteur n'invente jamais un exercice ni une séance sans prescription ;

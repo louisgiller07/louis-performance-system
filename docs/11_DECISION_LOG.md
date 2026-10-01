@@ -4267,3 +4267,53 @@ Un plan bloqué (par exemple `missing_dh_technical_tier`) ou une prescription in
 **Amende** l'ADR UX-11A.5b.5b, paragraphe « `loadProfile` de DH et AEROBIC_BASE » : la charge n'est plus la charge de base, c'est une valeur de la politique.
 
 **Statut** : Accepted — `feat/ux11a5b5b-v2-local-persistence`, lignée non fusionnée. V2 non livrée.
+
+## 2026-10-01 — ADR UX-11A.5c.0 : contrat de la prescription du jour V2
+
+> **A Head Coach decision label is not a prescription. A daily final prescription is only ever a faithful copy (KEEP with real plan lineage) or, later, an explicitly validated adaptation. Every other case keeps M1's decision and persists no final prescription, with a durable, explicit reason.**
+
+**Contexte.** Audit 5c : `decision = KEEP` ne garantit ni une séance prévue (repli `RECOVERY_ACTIVE`, recommandation T-X sans séance), ni une séance identique (`sameIntervention` ignore la durée). M1 ne produit que `kind` / `load_profile` / durée DH : aucune série, aucun RPE, aucun passage. `decision_final_prescriptions` existe mais n'est écrite par personne (aucun droit d'insertion, même pour `service_role`).
+
+**1. KEEP copiable.** Conditions, toutes requises :
+- séance prévue issue de la version générée courante, `source_generated_session_id` présent ;
+- prescription prévue v2 disponible, liée à cette même séance générée ;
+- `final_session.kind` et `final_session.load_profile` identiques à ceux prévus ;
+- toute durée portée par `final_session` égale à la durée prévue.
+
+Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final_prescription_adaptation_not_defined` (le libellé KEEP cache un écart).
+
+**2. Action de réconciliation (première implémentation).** KEEP avec lignée → prescription du jour. REST → aucune. MODIFY et REPLACE → aucune avant 5c.5. Aucun repli : ni v2 → v1, ni MODIFY → KEEP, ni REPLACE → prescription prévue.
+
+**3. Identité des éléments (règle canonique).**
+- KEEP : `blockId` et `prescriptionItemId` conservés, aucun `derivedFromItemId`.
+- MODIFY : **tous** les éléments présents reçoivent un nouveau `prescriptionItemId` ; tout élément ayant un correspondant prévu porte `derivedFromItemId` = l'identifiant prévu, même inchangé, pour ne jamais mélanger deux identités dans un même document. Nouvel élément : pas de `derivedFromItemId`. Élément retiré : absent.
+- REPLACE : identifiants tous nouveaux, aucun `derivedFromItemId`, aucune lignée d'élément.
+
+**4. `blockId`.** KEEP (5c.1) : conservés. MODIFY : **proposition à valider avant tout code MODIFY** — nouveaux `blockId` pour tous les blocs, sans champ de lignée de bloc. Raisons : `blockId` n'est référencé par aucune table d'exécution (seul `prescription_item_id` l'est) ; il est exclu de l'empreinte ; la correspondance de bloc se retrouve par les `derivedFromItemId` de ses éléments ; même règle « une seule identité par document » que les éléments. Limite : un bloc sans élément (endurance, `items: []`) perd sa correspondance ; s'il faut la garder, il faudra un `derivedFromBlockId` (non créé).
+
+**5. MODIFY Force (décision future verrouillée).** Prévu MODERATE, final M1 LIGHT → 5c.5 utilisera les doses **LIGHT** de `strengthDoseCatalogV2`, sur les mêmes exercices, composition et template. Pas la règle 03 §6 (−1 série, RPE −1, retrait d'un bloc), qui reste PROVISIONAL et non implémentée. Prévu déjà LIGHT et règle M1 qui baisse encore : aucune dose inférieure → adaptation non définie.
+
+**6. MODIFY vers le haut.** Jamais d'augmentation automatique au-dessus de la prescription prévue (ex. prévu LIGHT, final M1 MODERATE à T-6) : `final_prescription_adaptation_not_defined`, détail `upward_modify_not_supported`. La décision M1 est persistée, sans prescription du jour.
+
+**7. Autres MODIFY** (charge DH, passages DH, charge ou durée d'endurance…) : non définis, aucune règle inventée, implémentés seulement après validation explicite.
+
+**8. REPLACE.** Aucun REPLACE n'obtient de prescription du jour avant 5c.5, même STRENGTH_LOWER → STRENGTH_UPPER (builder existant) : le contrat de durée, d'origine et la politique de remplacement ne sont pas verrouillés.
+
+**9. Manifeste.** KEEP : copie exacte du manifeste prévu. MODIFY : manifeste prévu ; interdit d'adapter une ancienne prescription avec les catalogues courants ; sinon `final_prescription_catalog_mismatch`. REPLACE : pourra utiliser le manifeste courant.
+
+**10. Empreinte.** Même algorithme ; KEEP : empreinte finale = empreinte prévue (invariant testé). Aucune colonne, aucune migration.
+
+**11. Statut durable sans prescription du jour (recommandation, à valider avant 5c.2).**
+- *Audit de `decisions`* : aucun champ extensible sûr. `daily_plan` est la sortie M1 (seul `reasoning` est enrichi) et le web la valide strictement ; `reason`, `do_not_do`, `triggered_rules` sont des projections de M1 ; `stop_conditions` doit rester `NULL` ; `session_content_ref` et `outcome_note` sont des colonnes legacy de sens différent ; les avertissements de `runDailyFor` ne sont pas persistés (seulement dans `pilot_observability_events`, observabilité best-effort).
+- *Options* : A (champ existant) → détournement de sens, refusée ; C (table dédiée) → une table et une jointure de plus pour une seule valeur par décision ; D (`pilot_observability_events`) → best-effort, non lisible comme état produit ; **B (recommandée)** : deux colonnes additives, nullables, sur `decisions`, écrites par la même RPC : `final_prescription_status` (texte avec CHECK : `created`, `not_required`, `final_prescription_no_lineage`, `final_prescription_adaptation_not_defined`, `final_prescription_catalog_mismatch`) et `final_prescription_status_detail` (jsonb, ex. `{ "reason": "upward_modify_not_supported" }`, `modify_not_supported`, `replace_not_supported`).
+- *Lecture après rechargement* : statut bloquant → « sans prescription par design » ; `created` sans ligne → bug ; `NULL` → décision du chemin V1 ou antérieure (non évaluée). REST reste lisible par `decision = 'REST'` ; son statut est `not_required`, pas un code d'erreur.
+
+**12. Prescription courante.** Une prescription du jour périmée ne doit pas rester exécutable. `record_session_execution` vérifie aujourd'hui existence, schéma v2 et date, pas l'appartenance à la décision courante. Exigence 5c.2 (avant UX-11C) : la décision de la prescription doit être la décision courante du pilote pour cette date — la plus récente (`created_at` décroissant) **et** `is_current` selon la logique de `daily_decision_currency` (même logique en SQL dans la fonction `SECURITY DEFINER`). Code : `final_prescription_not_current`.
+
+**13. Atomicité (contrat 5c.2).** Nouvelle RPC `SECURITY DEFINER` : health flag éventuel + décision + prescription du jour éventuelle + statut durable, tout ou rien. REST : décision, aucune prescription. KEEP copiable : décision + exactement une prescription. Cas bloqué : décision + aucune prescription + statut explicite. `persist_daily_run` (V1) inchangée.
+
+**14. Unicité.** `decision_final_prescriptions` recevra `unique (decision_id)` en 5c.2 : au plus une prescription du jour par décision.
+
+**15. `completed_sessions` / `session_executions` (bloquant avant production UX-11C, pas avant 5c.1).** M1 calcule la charge récente depuis `completed_sessions` ; l'exécution détaillée V2 écrit `session_executions` / `exercise_set_results`, qui restent la vérité détaillée future. Avant la production d'UX-11C, il faudra une projection ou un résumé compatible, ou un autre point d'intégration. M1 inchangé ; UX-11E non traité.
+
+**Statut** : Accepted (points 1–3, 5–10, 12–15) ; points 4 (MODIFY) et 11 : propositions à valider avant 5c.2 / 5c.5. Aucun code runtime, aucune migration.
