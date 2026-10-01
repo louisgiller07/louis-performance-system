@@ -4381,3 +4381,30 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Inchangés** : `runDailyFor`, `persist_daily_run`, M1, V1, web, prescription-engine, production. Aucun `db push`.
 
 **Statut** : Accepted — `feat/ux11a5c2-v2-daily-persistence`, lignée non fusionnée, migration locale non poussée.
+
+## 2026-10-01 — ADR : snapshot de génération déterministe (correctif V1)
+
+> **The generation snapshot no longer depends on the order PostgreSQL returns rows in: collections whose position has no meaning are put in one canonical business order before the snapshot is built, so the persisted snapshot and its hash are reproducible.**
+
+**Bug (préexistant, V1 et V2).** Les fenêtres, exceptions, dates verrouillées et séances récentes étaient lues sans `ORDER BY`. Les mêmes données pouvaient donc donner un autre JSON, un autre hash, et un refus d'idempotence pour le même `generation_request_id` (« different generation environment »). Reproduit sous charge en 5c.2 (snapshot stocké avec les jours 1,4,3,0,5,6,2).
+
+**Audit des collections du snapshot** :
+
+| Collection | Source | Classe | Décision |
+|---|---|---|---|
+| `availability.windows` | `athlete_availability_windows`, sans ordre | B : le planificateur n'en fait qu'un ensemble de jours et une capacité maximale par jour | jour → début → fin → libellé (absent d'abord) |
+| `availability.exceptions` | `athlete_availability_exceptions`, sans ordre | B : table par date (date unique) | date → disponibilité → note |
+| `lockedDates` | `athlete_locked_dates`, sans ordre | B : ensemble de dates (date unique) | date → raison |
+| `recentHistory` | `completed_sessions`, sans ordre | B : seuls le compteur et la somme sont lus ; `recentSessionKinds` n'est consommé par aucune règle | lignes par `session_date` (unique par pilote et jour) |
+| `races` | `race_calendar` | déjà ordonnée par la requête (début, fin, création, id) | inchangée |
+| `equipment`, `terrainAccess`, `declaredLimitations`, `technicalPriorities` | jsonb du profil | ordre stocké, stable ; `priorityAreas` : ordre significatif (A) | inchangés |
+
+**Mise en œuvre.** Une seule autorité, à la frontière du snapshot (`buildPlanInputSnapshot`, donc aussi `buildPlanInputSnapshotV2`), avec des comparateurs explicites sur les champs métier, sans tri générique. La lecture `getRecentSessions` alimente aussi le contexte M1 : elle n'est pas modifiée ; le snapshot trie sa propre copie. Le snapshot persisté est l'objet canonique haché.
+
+**Résultat sportif.** Inchangé : mêmes semaines, dates, types, charges, durées, doses et prescriptions en V1, même empreinte sportive en V2, que les collections soient dans l'ordre canonique ou inversées (tests). Aucun snapshot de non-régression modifié.
+
+**Anciens `generation_request_id` (audit).** Les versions historiques ne sont pas réécrites. Une version dont le snapshot stocké n'était pas dans l'ordre canonique aura un hash différent si sa demande est rejouée après le correctif : la RPC refuse alors (« different generation environment ») au lieu de renvoyer la version. Localement : 188 versions sur 693 ont des fenêtres hors ordre canonique (dates verrouillées : 0). Compatible pour toute version dont l'ordre stocké était déjà canonique. Le rejeu d'une demande n'existe que pour les reprises d'un même appel ; le comportement de la RPC n'est pas modifié pour masquer ce cas.
+
+**Tests.** `planInputSnapshotDeterminism.test.ts` (ordre canonique, quatre ordres de lecture fixés → même JSON et même hash, tableaux du profil inchangés, plan V1 et empreinte V2 identiques) ; `planInputSnapshotDeterminism.integration.test.ts` (fenêtres insérées dans le désordre → snapshot stocké canonique ; cinq rejeux du même identifiant idempotents, V1 et V2). Suite head-coach complète verte trois fois de suite.
+
+**Statut** : Accepted — `feat/ux11a5c2-v2-daily-persistence`, non fusionné.

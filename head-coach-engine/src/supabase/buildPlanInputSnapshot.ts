@@ -131,6 +131,38 @@ function mapRace(row: RaceCalendarRawRow): PlanInputRace {
  * may each be individually absent. Structural normalization only (missing
  * key -> empty array), never a coaching default — V0.5_008 §5.
  */
+/**
+ * Deterministic generation snapshot (fix of a pre-existing bug, see
+ * docs/11_DECISION_LOG.md "Snapshot de génération déterministe"). The
+ * collections below are read without a guaranteed SQL order, and their
+ * position carries no meaning for any planner rule (windows: set of
+ * days + longest window per day; exceptions: map by date; locked dates: set;
+ * recent sessions: counts and sums only). Their DB order used to leak into
+ * the persisted snapshot and its hash, so the same data could produce a
+ * different hash and break `generation_request_id` idempotence. They are
+ * put in one canonical order, on their business fields, before the
+ * snapshot is built (so the persisted and the hashed snapshot are the same
+ * canonical object). Ordered collections are untouched: races (already
+ * ordered by the query) and every profile array (stored JSONB order;
+ * priorityAreas order is meaningful).
+ */
+const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Day of week → start time → end time → label (absent first). */
+export function compareAvailabilityWindows(a: PlanInputAvailabilityWindow, b: PlanInputAvailabilityWindow): number {
+  return a.dayOfWeek - b.dayOfWeek || compareText(a.startTime, b.startTime) || compareText(a.endTime, b.endTime) || compareText(a.label ?? "", b.label ?? "");
+}
+
+/** Date (unique per athlete) → availability → note (absent first). */
+export function compareAvailabilityExceptions(a: PlanInputAvailabilityException, b: PlanInputAvailabilityException): number {
+  return compareText(a.date, b.date) || Number(a.available) - Number(b.available) || compareText(a.note ?? "", b.note ?? "");
+}
+
+/** Date (unique per athlete) → reason (absent first). */
+export function compareLockedDates(a: PlanInputLockedDate, b: PlanInputLockedDate): number {
+  return compareText(a.date, b.date) || compareText(a.reason ?? "", b.reason ?? "");
+}
+
 function normalizeTechnicalPriorities(raw: unknown): PlanInputTechnicalPriorities {
   const obj = (raw !== null && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return {
@@ -205,14 +237,14 @@ export async function buildPlanInputSnapshot(
     deps.getAvailabilityExceptionsFor(client, athleteId),
   ]);
   const availability: PlanInputAvailability = {
-    windows: windowRows.map(mapAvailabilityWindow),
-    exceptions: exceptionRows.map(mapAvailabilityException),
+    windows: windowRows.map(mapAvailabilityWindow).sort(compareAvailabilityWindows),
+    exceptions: exceptionRows.map(mapAvailabilityException).sort(compareAvailabilityExceptions),
   };
   assertAvailabilityDeclared(availability);
 
   // --- Locked dates (athleteLockedDatesRepo) — empty table is legitimate, never blocking ---
   const lockedDateRows = await deps.getLockedDatesFor(client, athleteId);
-  const lockedDates = lockedDateRows.map(mapLockedDate);
+  const lockedDates = lockedDateRows.map(mapLockedDate).sort(compareLockedDates);
 
   // --- Races (raceCalendarRepo) — never blocking, an empty calendar is
   // legitimate. Horizon-aware (V0.5_041/042): loads exactly
@@ -224,7 +256,10 @@ export async function buildPlanInputSnapshot(
 
   // --- Recent history (completedSessionsRepo + mapPlanInputRecentHistory, V0.5_006/007) ---
   const recentSessionRows = await deps.getRecentSessions(client, athleteId, today);
-  const recentHistory = mapPlanInputRecentHistory(recentSessionRows);
+  // Chronological (session_date is unique per athlete): only the order of
+  // recentSessionKinds depends on it. The shared read (also used by M1's
+  // context) is left untouched; the snapshot canonicalizes its own copy.
+  const recentHistory = mapPlanInputRecentHistory([...recentSessionRows].sort((a, b) => compareText(String(a.session_date), String(b.session_date))));
 
   return {
     discipline,
