@@ -202,6 +202,14 @@ export function TodayPage() {
           loadingSlot={checkinKnown ? heroSkeleton : null}
           checkinSnapshot={checkinValues}
           detailsTarget={detailsTarget}
+          guidedSessionEntry={
+            <Link
+              to="/today/session"
+              className="ux-press flex min-h-12 items-center justify-center rounded bg-gold px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-bg hover:bg-gold-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
+            >
+              Ouvrir la séance guidée
+            </Link>
+          }
         />
       )}
 

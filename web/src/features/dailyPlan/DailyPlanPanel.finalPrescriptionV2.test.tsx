@@ -54,7 +54,9 @@ function restoredRow(id: string, decision: string, v2: Record<string, unknown>) 
   return { id, decisionDate: "2026-10-07", createdAt: "2026-10-07T07:00:00Z", finalSessionDb: "STRENGTH_A", activeModeDb: null, confidenceLevelDb: "MEDIUM", dailyPlan: plan(decision), ...v2 };
 }
 
-const renderPanel = () => render(<DailyPlanPanel athleteId="a" date="2026-10-07" hasCheckin checkinRevision={0} />);
+const ENTRY = <a href="/today/session">Ouvrir la séance guidée</a>;
+const renderPanel = () => render(<DailyPlanPanel athleteId="a" date="2026-10-07" hasCheckin checkinRevision={0} guidedSessionEntry={ENTRY} />);
+const entry = () => screen.queryByRole("link", { name: "Ouvrir la séance guidée" });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -128,5 +130,71 @@ describe("Today — V2 final prescription", () => {
     await waitFor(() => expect(loadDecisionCurrency).toHaveBeenCalled());
     expect(screen.queryByText("Ta séance")).toBeNull();
     expect(from).not.toHaveBeenCalled();
+  });
+});
+
+// UX-11C.1 — the guided-session entry exists only for a current V2 decision
+// whose final prescription was created (never REST, blocked, missing, V1, stale).
+describe("Today — guided session entry", () => {
+  it("created (live) → entry shown", async () => {
+    mockedRun.mockResolvedValue({
+      ok: true,
+      data: { dailyPlan: plan("KEEP"), decisionId: D1, healthFlagId: null, warnings: [], executablePrescription: null, executablePrescriptionStatus: "unsupported_schema_version", finalPrescriptionStatus: "created", finalPrescription: force.live },
+    });
+    renderPanel();
+    await userEvent.click(await screen.findByRole("button", { name: "Préparer ma séance du jour" }));
+    await screen.findByText("Goblet squat");
+    expect(entry()).toHaveAttribute("href", "/today/session");
+  });
+
+  it("created (restored) → entry shown", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }));
+    eq.mockResolvedValue({ data: [force.row], error: null });
+    renderPanel();
+    await screen.findByText("Goblet squat");
+    expect(entry()).toBeInTheDocument();
+  });
+
+  it.each([
+    ["REST", restoredRow("d-rest", "REST", { finalPrescriptionStatus: "not_required", isLatestOfDay: true }), REST_MESSAGE],
+    ["blocked", restoredRow("d-mod", "MODIFY", { finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_adaptation_not_defined", finalPrescriptionStatusDetail: { reason: "modify_not_supported" }, isLatestOfDay: true }), "L'adaptation détaillée n'est pas disponible pour cette recommandation."],
+  ])("%s → no entry", async (_label, row, text) => {
+    loadLatestDecisionForDate.mockResolvedValue(row);
+    renderPanel();
+    await screen.findByText(text);
+    expect(entry()).toBeNull();
+  });
+
+  it("created but the final row is missing → no entry", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }));
+    eq.mockResolvedValue({ data: [], error: null });
+    renderPanel();
+    await screen.findByText("Le détail de ta séance est momentanément indisponible.");
+    expect(entry()).toBeNull();
+  });
+
+  it("unsupported catalogue → no entry", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }));
+    eq.mockResolvedValue({ data: [{ ...force.row, catalog_version: "session-model-v2.6" }], error: null });
+    renderPanel();
+    await waitFor(() => expect(eq).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText("Goblet squat")).toBeNull());
+    expect(entry()).toBeNull();
+  });
+
+  it("stale created decision → no entry (not restored as today's plan)", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }));
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "checkin_changed" });
+    eq.mockResolvedValue({ data: [force.row], error: null });
+    renderPanel();
+    await waitFor(() => expect(loadDecisionCurrency).toHaveBeenCalled());
+    expect(entry()).toBeNull();
+  });
+
+  it("V1 decision → no entry (V1 unchanged)", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(restoredRow("d-v1", "KEEP", {}));
+    renderPanel();
+    await waitFor(() => expect(loadDecisionCurrency).toHaveBeenCalled());
+    expect(entry()).toBeNull();
   });
 });

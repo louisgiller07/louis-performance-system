@@ -64,6 +64,13 @@ interface DailyPlanPanelProps {
   checkinSnapshot?: CheckinRow | null;
   /** UX-05 — with checkinSnapshot: where the collapsible plan detail goes (bottom of Today). */
   detailsTarget?: HTMLElement | null;
+  /**
+   * UX-11C.1 — entry into the guided session, rendered ONLY when today's V2
+   * final prescription state is `created` (never for REST, blocked, V1,
+   * missing or unsupported). The guided-session page re-checks everything
+   * from the database before any start.
+   */
+  guidedSessionEntry?: ReactNode;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -93,6 +100,7 @@ export function DailyPlanPanel({
   loadingSlot,
   checkinSnapshot,
   detailsTarget,
+  guidedSessionEntry,
 }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
@@ -294,6 +302,8 @@ export function DailyPlanPanel({
           today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun, detailsTarget } : undefined}
         />
       )}
+
+      {result && finalPrescriptionV2?.kind === "created" && guidedSessionEntry}
     </div>
   );
 }

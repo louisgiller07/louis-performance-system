@@ -1,3 +1,4 @@
+import { GuidedSessionPage } from "./pages/GuidedSessionPage";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
@@ -33,6 +34,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <TodayPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/today/session"
+            element={
+              <RequireAuth>
+                <GuidedSessionPage />
               </RequireAuth>
             }
           />
