@@ -59,6 +59,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // than reinventing them (same proven cross-package boundary as
 // planningMappingParity.test.ts / DailyPlanView.enriched.test.tsx).
 import { createTestClient, deleteTestAthlete, type TestAthlete } from "../../../../head-coach-engine/tests/supabase/testDb.js";
+import { assertLocalDbReady, execLocalSql, sqlLiteral } from "../../../../head-coach-engine/tests/supabase/localDb.js";
 
 /** True only for an explicit loopback-local Supabase URL (http://127.0.0.1 or http://localhost, any port). Never true for a production/hosted project URL, however it was supplied. */
 export function isLoopbackSupabaseUrl(url: string): boolean {
@@ -223,6 +224,17 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
     if (error) throw new Error(`signInAs failed: ${error.message}`);
   }
 
+  /**
+   * Seeds another athlete's row through the SUPPORTED write path: that
+   * athlete's own authenticated session under RLS (savePlannedSession).
+   * service_role can no longer write planned_sessions (V0.4_002D hardening,
+   * 20260921094500), so an admin insert here would fail and silently seed nothing.
+   */
+  async function seedOwnPlannedSession(athlete: SignedInTestAthlete, date: string, committed = false): Promise<void> {
+    await signInAs(athlete);
+    await repo.savePlannedSession(athlete.athleteId, date, "REST", null, committed);
+  }
+
   it("A. returns an empty array for the caller's own athlete when nothing is planned yet", async () => {
     await signInAs(athleteA);
     const rows = await repo.loadPlannedSessions(athleteA.athleteId, "2026-09-01", "2026-09-01");
@@ -274,12 +286,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
   });
 
   it("E. cannot load another athlete's planned session (RLS filters silently, no error)", async () => {
-    await admin.from("planned_sessions").insert({
-      athlete_id: athleteB.athleteId,
-      planned_date: "2026-09-05",
-      session_type: "REST",
-      intervention: { kind: "REST" },
-    });
+    await seedOwnPlannedSession(athleteB, "2026-09-05");
 
     await signInAs(athleteA);
     const rows = await repo.loadPlannedSessions(athleteB.athleteId, "2026-09-05", "2026-09-05");
@@ -302,12 +309,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
   });
 
   it("G. cannot delete another athlete's planned session (matches zero rows, no error, row survives)", async () => {
-    await admin.from("planned_sessions").insert({
-      athlete_id: athleteB.athleteId,
-      planned_date: "2026-09-07",
-      session_type: "REST",
-      intervention: { kind: "REST" },
-    });
+    await seedOwnPlannedSession(athleteB, "2026-09-07");
 
     await signInAs(athleteA);
     await expect(repo.deletePlannedSession(athleteB.athleteId, "2026-09-07")).resolves.not.toThrow();
@@ -345,13 +347,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
     const [loadedA] = await repo.loadPlannedSessions(athleteA.athleteId, "2026-09-11", "2026-09-11");
     expect(loadedA.is_committed).toBe(true);
 
-    await admin.from("planned_sessions").insert({
-      athlete_id: athleteB.athleteId,
-      planned_date: "2026-09-11",
-      session_type: "REST",
-      intervention: { kind: "REST" },
-      is_committed: false,
-    });
+    await seedOwnPlannedSession(athleteB, "2026-09-11", false);
+    await signInAs(athleteA);
 
     // A's commitment on their own row never leaks into B's, even on the same date.
     const rowsA = await repo.loadPlannedSessions(athleteA.athleteId, "2026-09-11", "2026-09-11");
@@ -380,34 +377,23 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
 
   describe("OMIT AND PRESERVE — the five engine-inert columns survive an authenticated save untouched", () => {
     it("primary_objective, planned_duration_min, planned_time_of_day, training_block_id, notes are never cleared by savePlannedSession", async () => {
-      const { data: block, error: blockError } = await admin
-        .from("training_blocks")
-        .insert({
-          athlete_id: athleteA.athleteId,
-          name: "OMIT/PRESERVE fixture block",
-          start_date: "2026-01-01",
-          end_date: "2026-12-31",
-          primary_focus: "test",
-          is_current: false,
-          mode: "IN_SEASON",
-        })
-        .select("id")
-        .single();
-      if (blockError || !block) throw new Error(`training_blocks fixture insert failed: ${blockError?.message}`);
-
+      // These engine-inert columns (and a training block) are written by no
+      // supported API path an athlete or the server can call for a manual
+      // row, and service_role lost its write grants (V0.4_002D). The fixture
+      // is therefore an explicitly privileged LOCAL setup (owner SQL in the
+      // local container, test-only harness), never a grant relaxation.
+      assertLocalDbReady();
       const date = "2026-09-09";
-      const { error: seedError } = await admin.from("planned_sessions").insert({
-        athlete_id: athleteA.athleteId,
-        planned_date: date,
-        session_type: "REST",
-        intervention: { kind: "REST" },
-        primary_objective: "Pre-existing objective — must survive",
-        planned_duration_min: 45,
-        planned_time_of_day: "07:30:00",
-        training_block_id: block.id,
-        notes: "Pre-existing note — must survive",
-      });
-      if (seedError) throw new Error(`OMIT/PRESERVE seed insert failed: ${seedError.message}`);
+      const blockId = execLocalSql(`
+        insert into public.training_blocks (athlete_id, name, start_date, end_date, primary_focus, is_current, mode)
+        values (${sqlLiteral(athleteA.athleteId)}, 'OMIT/PRESERVE fixture block', '2026-01-01', '2026-12-31', 'test', false, 'IN_SEASON')
+        returning id;
+      `).trim().split(/\r?\n/)[0]!;
+      execLocalSql(`
+        insert into public.planned_sessions (athlete_id, planned_date, session_type, intervention, primary_objective, planned_duration_min, planned_time_of_day, training_block_id, notes)
+        values (${sqlLiteral(athleteA.athleteId)}, '${date}', 'REST', '{"kind":"REST"}'::jsonb, 'Pre-existing objective — must survive', 45, '07:30:00', ${sqlLiteral(blockId)}, 'Pre-existing note — must survive');
+      `);
+      const block = { id: blockId };
 
       await signInAs(athleteA);
       await repo.savePlannedSession(athleteA.athleteId, date, "DH_PERFORMANCE", "HEAVY");
@@ -426,7 +412,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("planningRepo — real local Supabase RLS 
       expect(after?.training_block_id).toBe(block.id);
       expect(after?.notes).toBe("Pre-existing note — must survive");
 
-      await admin.from("training_blocks").delete().eq("id", block.id);
+      execLocalSql(`delete from public.training_blocks where id = ${sqlLiteral(block.id)};`);
     });
   });
 

@@ -4563,3 +4563,13 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Tests** : chargeur (projection, sélection, indisponibilités, E1 avec sa prescription malgré une décision plus récente, catalogue non pris en charge) ; écran contre un serveur en mémoire (démarrer, double clic, erreur réseau + nouvel essai identique, rafraîchir, pause, reprise, arrêt + focus, terminal, décision plus récente, démarrage périmé, indisponibilités, mobile) ; entrée Today (created seul) ; intégration réelle locale (Edge + RPC + RLS : démarrer, rejeu, second démarrage refusé, pause, décision D2, reprise, arrêt, transition après terminal refusée, démarrage périmé refusé, jour REST).
 
 **Statut** : Accepted — `feat/ux11c1-guided-session-shell`, local, non poussé.
+
+## 2026-10-01 — ADR : fixtures d'intégration planning après le durcissement service_role
+
+> **Integration fixtures never relax grants: rows are seeded through the supported path (the athlete's own authenticated session under RLS), or, for a state no API path can produce, through explicit owner-level SQL on the local container (test harness only).**
+
+**Cause.** La migration `20260921094500` (V0.4_002D) retire à `service_role` toute écriture sur `planned_sessions` et `training_blocks` (lecture conservée). Quatre fixtures de `planningRepo.integration.test.ts` inséraient encore avec le client serveur : trois échouaient (G, I, OMIT/PRESERVE) et E passait à vide (insertion refusée, rien à cacher).
+
+**Solution.** Lignes d'un autre pilote (E, G, I) : semées par ce pilote lui-même, connecté, via `savePlannedSession` (chemin réel, RLS). OMIT/PRESERVE : les colonnes inertes (`primary_objective`, `planned_duration_min`, `planned_time_of_day`, `training_block_id`, `notes`) et un bloc d'entraînement ne sont écrits par aucun chemin pris en charge pour une ligne manuelle : SQL propriétaire sur la base locale (`execLocalSql`, harnais UX-11B.2.4c), hors code d'exécution. Aucun droit, aucune RLS, aucun comportement planning modifiés.
+
+**Statut** : Accepted — test seulement.
