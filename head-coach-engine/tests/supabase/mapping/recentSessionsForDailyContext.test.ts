@@ -46,6 +46,16 @@ describe("mergeRecentSessionsForDailyContext", () => {
     expect(warnings[0]).toContain(RECENT_HISTORY_V2_CONFLICT_WARNING);
   });
 
+  it("validated rule (UX-11B.2.5): conflicting completions on a day without legacy row → neither the latest nor the heaviest is chosen, none is counted, warning", () => {
+    const earlierLight = v2("e1", "2026-10-07", { kind: "AEROBIC_BASE", load_profile: "LIGHT" });
+    const laterHeavy = v2("e9", "2026-10-07", { kind: "STRENGTH_LOWER", load_profile: "HEAVY" });
+    for (const order of [[earlierLight, laterHeavy], [laterHeavy, earlierLight]]) {
+      const { sessions, warnings } = mergeRecentSessionsForDailyContext([], order);
+      expect(sessions).toEqual([]);
+      expect(warnings).toEqual([expect.stringContaining(RECENT_HISTORY_V2_CONFLICT_WARNING)]);
+    }
+  });
+
   it("a day with a legacy summary takes no V2 entry (one main session per day; never counted twice)", () => {
     const { sessions } = mergeRecentSessionsForDailyContext([legacy("2026-10-07")], [v2("e1", "2026-10-07")]);
     expect(sessions).toEqual([{ date: "2026-10-07", intervention: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" }, completion_status: "done" }]);

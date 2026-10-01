@@ -35,6 +35,9 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   measure_mismatch: "This measure does not match the prescribed exercise.",
   invalid_prescribed_measure: "The prescribed exercise has no valid measure.",
   final_prescription_not_current: "This prescription is no longer today's current prescription.",
+  activity_not_allowed_by_prescription: "This activity is not one of the activities the prescription allows.",
+  activity_result_exists: "An activity was already recorded for this session; send a correction instead.",
+  activity_result_required: "Record the activity performed before completing this session.",
 };
 
 export default {

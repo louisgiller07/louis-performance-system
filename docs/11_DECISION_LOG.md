@@ -4521,3 +4521,27 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Stabilité** : 10 exécutions complètes en mode intégration, dans les mêmes conditions : 10 réussites (98 fichiers, 1077 tests), 0 échec, 0 test sauté.
 
 **Statut** : Accepted — `feat/ux11b24-v2-recent-history-bridge`.
+
+## 2026-10-01 — ADR UX-11B.2.5 : résultat d'activité des séances d'endurance V2
+
+> **The endurance activity actually performed is recorded in an append-only `session_activity_results` row tied to the execution, validated against that execution's own final prescription `activitySelection`, through the existing write path. Completing such an execution requires it.**
+
+**Audit du contrat d'exécution.** `record_session_execution(p_athlete_id, p_payload)` (SECURITY DEFINER, service_role seul, appelée par l'Edge `session-execution`) traite un lot dans une sous-transaction : exécution (création avec événement `started` dans le même lot ; prescription du jour courante exigée à la création, UX-11A.5c.2), événements (machine d'état `started → paused / resumed → completed | abandoned`, terminal), séries (à tout moment, élément prescrit vérifié, mesure identique). Idempotence par identifiant d'appareil (même contenu → inchangé, autre contenu → `id_conflict`) ; correction = `supersedes_id` d'un original, une seule fois ; tables en ajout seul ; RLS lecture du pilote ; un rejet métier annule tout le lot.
+
+**Choix : extension compatible de la RPC existante (option A).** Clé facultative `activities` dans le même lot : atomicité avec l'événement `completed` (nécessaire pour l'invariant), aucune signature modifiée, réponse étendue par `inserted.activities` / `unchanged.activities` (clés ajoutées). Une RPC dédiée aurait laissé une fenêtre où l'exécution est terminée sans activité.
+
+**Table** `session_activity_results` (migration locale `20261001140000_ux11b25_session_activity_results.sql`) : conventions de `exercise_set_results` (identifiant d'appareil, clé composite pilote, `supersedes_id` unique, triggers d'ajout seul, RLS, aucun droit d'écriture direct). Durée réelle en secondes (entier > 0) ; distance en mètres (entier ≥ 0) ; RPE 1–10 (échelle des séries) ; commentaire ≤ 500.
+
+**Règles** : activité autorisée seulement si la prescription du jour de **cette** exécution est v2 et contient `activitySelection` (`restricted`) qui la liste (`activity_not_allowed_by_prescription`) ; une activité réalisée par séance (le pilote choisit une activité pour toute la séance, ADR UX-11A.5b.2.1) : un seul original par exécution (`activity_result_exists`, index unique) ; corrections comme les séries ; une exécution déjà commencée n'est jamais revérifiée contre la décision courante ; **invariant** : `completed` exige un résultat d'activité quand la prescription propose un choix (`activity_result_required`, lot annulé). Aucune exécution d'endurance n'avait pu enregistrer d'activité avant cette migration ; l'invariant s'applique aux nouvelles fins.
+
+**Codes Edge** : `activity_not_allowed_by_prescription` 422, `activity_result_exists` 409, `activity_result_required` 422 ; validation de forme (`activities[]`, refus de `prescription_item_id` / `exercise_id`).
+
+**Pont M1** : inchangé — il repose sur l'événement `completed` et le `final_session` de la décision ; les détails d'activité ne sont pas lus (test).
+
+**Règle validée — complétions conflictuelles** (amende l'ADR UX-11B.2.4 « décision à valider ») : si plusieurs exécutions terminées le même jour correspondent à des interventions différentes et qu'aucune ligne `completed_sessions` ne représente cette date, le pont ne choisit ni la plus récente ni la plus lourde, ne compte pas les deux et n'en compte aucune ; il émet `recent_history_v2_conflicting_completions`. Fermeture d'intégrité, pas une règle de coaching.
+
+**Statut `done`** : valeur de compatibilité transmise uniquement au contexte M1 legacy pour une exécution ayant un événement `completed` ; elle n'est pas persistée dans `session_executions` et n'est pas une nouvelle machine d'état.
+
+**Tests** : intégration (endurance réelle : `completed` refusé sans activité puis accepté dans le même lot avec `mtb_rolling`, ligne, lignée, idempotence, conflit d'identifiant, second original refusé, correction, correction de correction refusée, résultat actif, ajout seul ; activité hors liste et inconnue refusées ; Force et DH refusent une activité, séries et passages inchangés ; exécution commencée avant une nouvelle décision acceptée ; RLS ; pont M1 inchangé) ; Edge (codes, formes).
+
+**Statut** : Accepted — `feat/ux11b25-v2-session-activity-results`, migration locale non poussée.

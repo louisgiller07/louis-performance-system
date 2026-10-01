@@ -21,6 +21,7 @@ export type SetMeasureType = (typeof SET_MEASURE_TYPES)[number];
 export const MAX_BATCH_ITEMS = 200;
 export const MAX_COMMENT_LENGTH = 500;
 export const MAX_OTHER_EXERCISE_NAME_LENGTH = 80;
+export const MAX_ACTIVITY_ID_LENGTH = 64;
 
 export interface ExecutionInput {
   id: string;
@@ -54,10 +55,31 @@ export interface SetResultInput {
   occurred_at: string;
 }
 
+/**
+ * UX-11B.2.5 — the endurance activity actually performed (session_activity_results).
+ * Not a prescription item: no prescription_item_id, no exercise_id. Whether
+ * activity_id is allowed is decided by the server from the execution's own
+ * final prescription (activitySelection).
+ */
+export interface ActivityResultInput {
+  id: string;
+  execution_id: string;
+  activity_id: string;
+  /** Actual performed duration, seconds. */
+  duration_seconds: number;
+  /** Actual distance, metres. */
+  distance_m: number | null;
+  rpe_actual: number | null;
+  comment: string | null;
+  supersedes_id: string | null;
+  occurred_at: string;
+}
+
 export interface SessionExecutionBatch {
   execution: ExecutionInput | null;
   events: ExecutionEventInput[];
   sets: SetResultInput[];
+  activities: ActivityResultInput[];
 }
 
 export interface ValidationError {
@@ -212,9 +234,53 @@ function validateSet(raw: unknown, index: number): ValidationResult<SetResultInp
   };
 }
 
+const MAX_INT = 2147483647;
+
+function validateActivity(raw: unknown, index: number): ValidationResult<ActivityResultInput> {
+  const at = `activities[${index}]`;
+  if (!isObject(raw)) return fail(`${at} must be an object.`);
+  if (!isUuid(raw.id)) return fail(`${at}.id must be a UUID.`);
+  if (!isUuid(raw.execution_id)) return fail(`${at}.execution_id must be a UUID.`);
+  if ("prescription_item_id" in raw || "exercise_id" in raw) return fail(`${at} is not a prescription item: no prescription_item_id or exercise_id.`);
+  if (typeof raw.activity_id !== "string" || raw.activity_id.trim().length === 0 || raw.activity_id.length > MAX_ACTIVITY_ID_LENGTH) {
+    return fail(`${at}.activity_id must be a non-empty string of at most ${MAX_ACTIVITY_ID_LENGTH} characters.`);
+  }
+  if (!Number.isInteger(raw.duration_seconds) || (raw.duration_seconds as number) < 1 || (raw.duration_seconds as number) > MAX_INT) {
+    return fail(`${at}.duration_seconds must be a positive integer (actual duration in seconds).`);
+  }
+  const distance = raw.distance_m ?? null;
+  if (distance !== null && (!Number.isInteger(distance) || (distance as number) < 0 || (distance as number) > MAX_INT)) {
+    return fail(`${at}.distance_m must be a non-negative integer (metres) or null.`);
+  }
+  const rpe = raw.rpe_actual ?? null;
+  if (rpe !== null && (typeof rpe !== "number" || !Number.isFinite(rpe) || rpe < 1 || rpe > 10 || !hasDecimalsAtMost(rpe, 1))) {
+    return fail(`${at}.rpe_actual must be a number between 1 and 10 with at most 1 decimal, or null.`);
+  }
+  const comment = optionalText(raw.comment, MAX_COMMENT_LENGTH);
+  if (!comment.ok) return fail(`${at}.comment must be a non-empty string of at most ${MAX_COMMENT_LENGTH} characters, or null.`);
+  const supersedes = raw.supersedes_id ?? null;
+  if (supersedes !== null && !isUuid(supersedes)) return fail(`${at}.supersedes_id must be a UUID or null.`);
+  if (supersedes !== null && supersedes === raw.id) return fail(`${at}.supersedes_id must not reference the result itself.`);
+  if (!isTimestamp(raw.occurred_at)) return fail(`${at}.occurred_at must be an ISO-8601 date-time with an offset.`);
+  return {
+    ok: true,
+    value: {
+      id: raw.id,
+      execution_id: raw.execution_id,
+      activity_id: raw.activity_id,
+      duration_seconds: raw.duration_seconds as number,
+      distance_m: distance as number | null,
+      rpe_actual: rpe as number | null,
+      comment: comment.value,
+      supersedes_id: supersedes as string | null,
+      occurred_at: raw.occurred_at,
+    },
+  };
+}
+
 export function validateSessionExecutionBody(raw: unknown): ValidationResult<SessionExecutionBatch> {
   if (!isObject(raw)) return fail("Request body must be a JSON object.");
-  const allowedKeys = new Set(["execution", "events", "sets"]);
+  const allowedKeys = new Set(["execution", "events", "sets", "activities"]);
   const unknownKey = Object.keys(raw).find((key) => !allowedKeys.has(key));
   if (unknownKey) return fail(`Unknown field "${unknownKey}".`);
 
@@ -227,11 +293,14 @@ export function validateSessionExecutionBody(raw: unknown): ValidationResult<Ses
 
   const rawEvents = raw.events ?? [];
   const rawSets = raw.sets ?? [];
+  const rawActivities = raw.activities ?? [];
   if (!Array.isArray(rawEvents)) return fail("events must be an array.");
   if (!Array.isArray(rawSets)) return fail("sets must be an array.");
+  if (!Array.isArray(rawActivities)) return fail("activities must be an array.");
   if (rawEvents.length > MAX_BATCH_ITEMS) return fail(`events must contain at most ${MAX_BATCH_ITEMS} items.`);
   if (rawSets.length > MAX_BATCH_ITEMS) return fail(`sets must contain at most ${MAX_BATCH_ITEMS} items.`);
-  if (execution === null && rawEvents.length === 0 && rawSets.length === 0) return fail("The batch is empty.");
+  if (rawActivities.length > MAX_BATCH_ITEMS) return fail(`activities must contain at most ${MAX_BATCH_ITEMS} items.`);
+  if (execution === null && rawEvents.length === 0 && rawSets.length === 0 && rawActivities.length === 0) return fail("The batch is empty.");
 
   const events: ExecutionEventInput[] = [];
   for (const [index, item] of rawEvents.entries()) {
@@ -245,7 +314,13 @@ export function validateSessionExecutionBody(raw: unknown): ValidationResult<Ses
     if (!result.ok) return result;
     sets.push(result.value);
   }
-  return { ok: true, value: { execution, events, sets } };
+  const activities: ActivityResultInput[] = [];
+  for (const [index, item] of rawActivities.entries()) {
+    const result = validateActivity(item, index);
+    if (!result.ok) return result;
+    activities.push(result.value);
+  }
+  return { ok: true, value: { execution, events, sets, activities } };
 }
 
 /** record_session_execution's stable rejection codes → HTTP status. Anything else is unexpected (500). */
@@ -266,4 +341,8 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   invalid_prescribed_measure: 422,
   // UX-11A.5c.2 — the final prescription belongs to a decision that is no longer the day's current one.
   final_prescription_not_current: 409,
+  // UX-11B.2.5 — activity results (session_activity_results).
+  activity_not_allowed_by_prescription: 422,
+  activity_result_exists: 409,
+  activity_result_required: 422,
 };

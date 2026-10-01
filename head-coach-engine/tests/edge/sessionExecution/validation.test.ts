@@ -125,6 +125,9 @@ describe("REJECTION_STATUS — stable codes", () => {
         "date_mismatch",
         "execution_not_found",
         "final_prescription_not_current",
+        "activity_not_allowed_by_prescription",
+        "activity_result_exists",
+        "activity_result_required",
         "id_conflict",
         "invalid_correction",
         "invalid_item",
@@ -143,5 +146,40 @@ describe("REJECTION_STATUS — stable codes", () => {
       expect(status).toBeGreaterThanOrEqual(400);
       expect(status).toBeLessThan(500);
     }
+  });
+});
+
+describe("UX-11B.2.5 — activities (session_activity_results)", () => {
+  const EXEC = "3f1c2b8e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
+  const activity = (extra: Record<string, unknown> = {}) => ({
+    id: "6a1c2b8e-1a2b-4c3d-8e9f-0a1b2c3d4e5f",
+    execution_id: EXEC,
+    activity_id: "mtb_rolling",
+    duration_seconds: 2700,
+    occurred_at: "2026-10-09T18:00:00Z",
+    ...extra,
+  });
+
+  it("an activity-only batch is valid; optional fields default to null", () => {
+    const result = validateSessionExecutionBody({ activities: [activity()] });
+    expect(result).toMatchObject({ ok: true, value: { execution: null, events: [], sets: [], activities: [{ activity_id: "mtb_rolling", duration_seconds: 2700, distance_m: null, rpe_actual: null, comment: null, supersedes_id: null }] } });
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["a zero duration", { duration_seconds: 0 }],
+    ["a fractional duration", { duration_seconds: 12.5 }],
+    ["a fractional distance (metres are integers)", { distance_m: 12.5 }],
+    ["a negative distance", { distance_m: -1 }],
+    ["an RPE out of the 1-10 scale", { rpe_actual: 11 }],
+    ["an empty activity id", { activity_id: "" }],
+    ["a fake prescription item", { prescription_item_id: "6a1c2b8e-1a2b-4c3d-8e9f-0a1b2c3d4e5f" }],
+    ["an exercise id", { exercise_id: "goblet_squat" }],
+    ["a self correction", { supersedes_id: "6a1c2b8e-1a2b-4c3d-8e9f-0a1b2c3d4e5f" }],
+  ])("refuses %s", (_label, extra) => {
+    expect(validateSessionExecutionBody({ activities: [activity(extra)] }).ok).toBe(false);
+  });
+
+  it("the duration is the actual one: any positive integer is accepted (never compared with the prescription here)", () => {
+    expect(validateSessionExecutionBody({ activities: [activity({ duration_seconds: 7 })] }).ok).toBe(true);
   });
 });
