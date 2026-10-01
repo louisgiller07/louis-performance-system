@@ -128,6 +128,7 @@ describe("REJECTION_STATUS — stable codes", () => {
         "invalid_correction",
         "invalid_item",
         "invalid_payload",
+        "invalid_prescribed_measure",
         "invalid_transition",
         "measure_mismatch",
         "missing_start_event",

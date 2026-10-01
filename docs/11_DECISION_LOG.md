@@ -3797,3 +3797,26 @@ Non concernés : `record_session_execution` et `session-execution`, qui exigent 
 **Hors périmètre, inchangés :** génération, `GenerationEngine`, `PlanInputSnapshot`, catalogues, migrations, Supabase, règles M1. Aucune prescription v2 n'est générée ni persistée.
 
 **Statut** : Accepted — `feat/ux11a5b1-v2-reader-guards`, empilée sur la lignée UX-11 non fusionnée.
+
+## 2026-10-01 — ADR UX-11B.2.3 : contrat de mesure `pass` unique, contrôle sans échappatoire
+
+> **The prescription and the recorded set share one measure vocabulary: reps, duration, distance, pass. A prescribed item with a missing or unknown measure type rejects the set; it never switches the measure check off.**
+
+**Défaut corrigé.** La fonction locale UX-11B.2.2 traduisait `measure.type = 'passes'` (prescription) en `'pass'` (série) et laissait passer **sans contrôle** toute autre valeur : un type absent, inconnu ou déjà écrit `'pass'` désactivait `measure_mismatch`.
+
+**Décision.**
+- Le vocabulaire est unique : `reps`, `duration`, `distance`, `pass`, dans la prescription v2, les types TypeScript, la validation serveur et `exercise_set_results.measure_type`. Le type `'passes'` et sa traduction sont abandonnés.
+- Fail-closed : un élément prescrit sans `measure.type`, ou avec une valeur hors de ce vocabulaire (dont `'passes'`), fait rejeter la série avec le nouveau code stable `invalid_prescribed_measure` (HTTP 422 via l'Edge Function `session-execution`).
+- Migration **additive** `20261001090000_ux11b23_pass_measure_contract.sql` : `create or replace` de `record_session_execution`, identique sauf ce contrôle. Les migrations UX-11B.2.1 et 11B.2.2 ne sont pas réécrites. Appliquée en local uniquement, lignée non fusionnée, jamais poussée. Aucune prescription v2 n'existe nulle part, donc rien à préserver.
+- Un élément « activité » sans `exerciseId` reste accepté par le chemin d'écriture : sa mesure `duration` est contrôlée et `exercise_id` reste `null`. Aucun faux `exerciseId`.
+
+**Tests (intégration locale).**
+- `pass` + `pass` accepté ; `pass` + `reps` → `measure_mismatch`.
+- `passes`, `unknown` ou mesure absente → `invalid_prescribed_measure`, quelle que soit la série.
+- `reps`, `duration` et `distance` inchangés.
+- Élément activité sans `exerciseId` accepté, avec `exercise_id` null.
+- Le nouveau test échouait contre la fonction précédente (`pass` + `reps` accepté sans contrôle).
+
+**Documentation.** 05 aligné. Le point OPEN « vocabulaire de la mesure DH » de l'ADR UX-11A.5b.0.1 est **clos** : `"pass"`.
+
+**Statut** : Accepted — `feat/ux11a5b1-v2-reader-guards`, lignée non fusionnée.

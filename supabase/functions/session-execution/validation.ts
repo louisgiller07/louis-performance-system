@@ -262,4 +262,6 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   date_mismatch: 422,
   invalid_item: 422,
   measure_mismatch: 422,
+  // UX-11B.2.3 — the prescribed item carries a missing or unknown measure type (fail-closed).
+  invalid_prescribed_measure: 422,
 };

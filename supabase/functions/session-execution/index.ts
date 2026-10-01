@@ -33,6 +33,7 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   date_mismatch: "The prescription does not belong to this day.",
   invalid_item: "This exercise is not part of the prescription.",
   measure_mismatch: "This measure does not match the prescribed exercise.",
+  invalid_prescribed_measure: "The prescribed exercise has no valid measure.",
 };
 
 export default {

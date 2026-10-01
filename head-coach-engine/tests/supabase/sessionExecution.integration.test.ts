@@ -157,7 +157,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
       "v2",
       v2Structure([
         { id: itemSquat, exerciseId: "goblet_squat", measure: { type: "reps", min: 6, max: 8 } },
-        { id: itemPass, exerciseId: "cornering_drill", measure: { type: "passes", count: 6 } },
+        { id: itemPass, exerciseId: "cornering_drill", measure: { type: "pass", count: 6 } },
       ])
     );
     fpV1 = insertFinalPrescription(a.athleteId, decisionAv1, "v1", { domain: "strength", schemaVersion: "v1", blocks: [] });
@@ -295,5 +295,90 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     expect(() => execLocalSql(`update public.exercise_set_results set measure_value = 1 where id = ${id};`)).toThrow(/append-only violation/);
     expect(() => execLocalSql(`delete from public.exercise_set_results where id = ${id};`)).toThrow(/append-only violation/);
     expect(() => execLocalSql(`delete from public.session_executions where athlete_id = ${sqlLiteral(a.athleteId)};`)).toThrow(/append-only violation/);
+  });
+
+  // UX-11B.2.3 — single 'pass' vocabulary and fail-closed measure check.
+  it("UX-11B.2.3 — prescribed measure types are exactly reps / duration / distance / pass; anything else is rejected, never unchecked", async () => {
+    const PASS_DAY = "2026-10-07";
+    const decision = await insertDecision(admin, a.athleteId, PASS_DAY);
+    const ids = {
+      pass: randomUUID(),
+      passes: randomUUID(),
+      unknown: randomUUID(),
+      missing: randomUUID(),
+      reps: randomUUID(),
+      duration: randomUUID(),
+      distance: randomUUID(),
+      activity: randomUUID(),
+    };
+    const structure = {
+      schemaVersion: "v2",
+      family: "strength",
+      intentId: "lower_body_strength_control",
+      blocks: [
+        {
+          blockId: "main",
+          role: "main",
+          items: [
+            { prescriptionItemId: ids.pass, kind: "drill", exerciseId: "cornering_flat_turn_precision", measure: { type: "pass", count: 6 } },
+            { prescriptionItemId: ids.passes, kind: "drill", exerciseId: "cornering_flat_turn_precision", measure: { type: "passes", count: 6 } },
+            { prescriptionItemId: ids.unknown, kind: "exercise", exerciseId: "goblet_squat", sets: 3, measure: { type: "unknown" } },
+            { prescriptionItemId: ids.missing, kind: "exercise", exerciseId: "goblet_squat", sets: 3 },
+            { prescriptionItemId: ids.reps, kind: "exercise", exerciseId: "goblet_squat", sets: 3, measure: { type: "reps", min: 6, max: 8 } },
+            { prescriptionItemId: ids.duration, kind: "exercise", exerciseId: "plank", sets: 2, measure: { type: "duration", minSeconds: 30, maxSeconds: 45 } },
+            { prescriptionItemId: ids.distance, kind: "exercise", exerciseId: "farmer_carry", sets: 2, measure: { type: "distance", minMeters: 20, maxMeters: 30 } },
+            // Endurance activity item: no exerciseId at all (never a fake one).
+            { prescriptionItemId: ids.activity, kind: "activity", activitySelection: { mode: "restricted", activityIds: ["road_bike"] }, measure: { type: "duration", minSeconds: 1800, maxSeconds: 4500 } },
+          ],
+        },
+      ],
+    };
+    const fp = insertFinalPrescription(a.athleteId, decision, "v2", structure);
+    const exec = newExecution(fp, PASS_DAY);
+    expect((await record(a.athleteId, { execution: exec.execution, events: [exec.started] })).status).toBe("ok");
+
+    const set = (item: string, measure_type: string, measure_value: number | null, set_number = 1) => ({
+      id: randomUUID(),
+      execution_id: exec.id,
+      prescription_item_id: item,
+      set_number,
+      done: true,
+      measure_type,
+      measure_value,
+      occurred_at: `${PASS_DAY}T17:05:00Z`,
+    });
+
+    // pass + pass → accepted; pass + reps → measure_mismatch.
+    const passSet = set(ids.pass, "pass", null);
+    expect((await record(a.athleteId, { sets: [passSet] })).status).toBe("ok");
+    expect(await record(a.athleteId, { sets: [set(ids.pass, "reps", 8, 2)] })).toMatchObject({ status: "rejected", code: "measure_mismatch", target: "sets[0]" });
+
+    // 'passes', an unknown type or a missing measure on the prescribed item → explicit rejection, whatever the set says.
+    for (const item of [ids.passes, ids.unknown, ids.missing]) {
+      for (const [type, value] of [["pass", null], ["reps", 8]] as const) {
+        expect(await record(a.athleteId, { sets: [set(item, type, value)] })).toMatchObject({ status: "rejected", code: "invalid_prescribed_measure", target: "sets[0]" });
+      }
+    }
+
+    // reps / duration / distance behave as before: same type accepted, another type rejected.
+    expect((await record(a.athleteId, { sets: [set(ids.reps, "reps", 8)] })).status).toBe("ok");
+    expect(await record(a.athleteId, { sets: [set(ids.reps, "duration", 30, 2)] })).toMatchObject({ code: "measure_mismatch" });
+    expect((await record(a.athleteId, { sets: [set(ids.duration, "duration", 40)] })).status).toBe("ok");
+    expect(await record(a.athleteId, { sets: [set(ids.duration, "reps", 8, 2)] })).toMatchObject({ code: "measure_mismatch" });
+    expect((await record(a.athleteId, { sets: [set(ids.distance, "distance", 25)] })).status).toBe("ok");
+    expect(await record(a.athleteId, { sets: [set(ids.distance, "duration", 30, 2)] })).toMatchObject({ code: "measure_mismatch" });
+
+    // An activity item without exerciseId is not broken by the hardening: its duration is checked, exercise_id stays null.
+    const activitySet = set(ids.activity, "duration", 2400);
+    expect((await record(a.athleteId, { sets: [activitySet] })).status).toBe("ok");
+    expect(await record(a.athleteId, { sets: [set(ids.activity, "distance", 20000, 2)] })).toMatchObject({ code: "measure_mismatch" });
+    const { data: stored } = await admin.from("exercise_set_results").select("exercise_id, measure_type").in("id", [passSet.id, activitySet.id]);
+    expect(stored).toEqual(
+      expect.arrayContaining([
+        { exercise_id: "cornering_flat_turn_precision", measure_type: "pass" },
+        { exercise_id: null, measure_type: "duration" },
+      ])
+    );
+    await completeExecution(exec.id);
   });
 });
