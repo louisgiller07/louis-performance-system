@@ -28,6 +28,11 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   active_execution_exists: "Une séance est déjà en cours aujourd'hui : elle est affichée ici.",
   network_error: "Ton action n'a pas été confirmée (connexion). L'état affiché est le dernier enregistré.",
   refused: "Action refusée. L'état affiché est celui enregistré.",
+  id_conflict: "Cette série a déjà été enregistrée avec d'autres valeurs : les valeurs enregistrées sont affichées.",
+  invalid_correction: "Cette série a déjà été corrigée : une série ne se corrige qu'une fois.",
 };
+
+export const PARTIAL_COMPLETION_MESSAGE =
+  "Certaines séries prévues n'ont pas de résultat enregistré. Terminer quand même la séance avec les résultats actuellement enregistrés ?";
 
 export const COMPLETION_NOT_READY_MESSAGE = "Tu pourras terminer la séance une fois tes résultats saisis.";

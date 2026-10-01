@@ -1,104 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
-import { GuidedSessionView } from "./GuidedSessionView";
-import { useGuidedSession, type GuidedSessionDeps } from "./useGuidedSession";
-import { selectDayExecution, isTerminal, type ExecutionRow } from "./executionState";
-import type { GuidedSessionSnapshot } from "./guidedSessionLoader";
-import type { SessionExecutionBatch, SessionExecutionResult } from "./sessionExecutionClient";
-import { keepFinalPrescription } from "../../test/fixtures/finalPrescriptionV2Fixtures";
-import { decodeFinalPrescriptionV2 } from "../finalPrescriptionV2/decodeFinalPrescriptionV2";
 import { UNAVAILABLE_MESSAGES, UNSUPPORTED_SESSION_MESSAGE } from "./guidedSessionCopy";
+import { fakeBackend, prescriptionView } from "../../test/guidedSessionFakeBackend";
+import { GuidedSessionHarness as Harness } from "../../test/GuidedSessionHarness";
 
 // UX-11C.1 — shell + lifecycle against an in-memory backend that reproduces
 // the record_session_execution rules the shell relies on: idempotent ids,
 // one open execution per day, current final prescription at start only.
 
-const view = (kind: "STRENGTH_LOWER" | "DH_TECHNICAL") => {
-  const r = decodeFinalPrescriptionV2(keepFinalPrescription(kind).record);
-  if (!r.ok) throw new Error(r.reason);
-  return r.view;
-};
-const FORCE = view("STRENGTH_LOWER");
-const DH = view("DH_TECHNICAL");
-
-function fakeBackend(current: { prescription: typeof FORCE | null; unavailable?: GuidedSessionSnapshot & { kind: "unavailable" } }) {
-  const executions: ExecutionRow[] = [];
-  let seq = 0;
-  const events = new Map<string, string>();
-  const state = { current, networkFailures: 0, posts: [] as SessionExecutionBatch[] };
-  const prescriptions = new Map([[FORCE.id, FORCE], [DH.id, DH]]);
-
-  const post = vi.fn(async (batch: SessionExecutionBatch): Promise<SessionExecutionResult> => {
-    state.posts.push(batch);
-    if (state.networkFailures > 0) {
-      state.networkFailures -= 1;
-      // The request may or may not have reached the server: here it did (worst case for duplicates).
-      apply(batch);
-      return { ok: false, error: { code: "network_error", status: null, retryable: true } };
-    }
-    return apply(batch);
-  });
-  function apply(batch: SessionExecutionBatch): SessionExecutionResult {
-    const inserted: Record<string, string[]> = { executions: [], events: [] };
-    const unchanged: Record<string, string[]> = { executions: [], events: [] };
-    if (batch.execution) {
-      const existing = executions.find((e) => e.id === batch.execution!.id);
-      if (existing) unchanged.executions!.push(existing.id);
-      else {
-        if (batch.execution.final_prescription_id !== state.current.prescription?.id) return { ok: false, error: { code: "final_prescription_not_current", status: 409, retryable: false } };
-        const open = executions.some((e) => !isTerminal(selectDayExecution([e])!.phase));
-        if (open) return { ok: false, error: { code: "active_execution_exists", status: 409, retryable: false } };
-        executions.push({ id: batch.execution.id, session_date: "2026-10-09", final_prescription_id: batch.execution.final_prescription_id, started_at: batch.execution.started_at, recorded_at: `2026-10-09T17:00:0${executions.length}Z`, execution_events: [] });
-        inserted.executions!.push(batch.execution.id);
-      }
-    }
-    for (const ev of batch.events) {
-      if (events.has(ev.id)) {
-        unchanged.events!.push(ev.id);
-        continue;
-      }
-      events.set(ev.id, ev.event_type);
-      executions.find((e) => e.id === ev.execution_id)!.execution_events.push({ event_type: ev.event_type, event_seq: ++seq });
-      inserted.events!.push(ev.id);
-    }
-    return { ok: true, value: { inserted, unchanged } };
-  }
-  const load = vi.fn(async (): Promise<GuidedSessionSnapshot> => {
-    const day = selectDayExecution(executions);
-    if (day && !isTerminal(day.phase)) {
-      const p = prescriptions.get(day.execution.final_prescription_id!);
-      return { kind: "execution", ...day, prescription: p ? { kind: "created", prescription: p } : { kind: "unsupported_schema_or_catalog", reason: "old catalogue" } };
-    }
-    if (state.current.unavailable) return state.current.unavailable;
-    const cur = state.current.prescription!;
-    if (day && day.execution.final_prescription_id === cur.id) return { kind: "execution", ...day, prescription: { kind: "created", prescription: cur } };
-    return { kind: "ready_to_start", finalPrescriptionId: cur.id, prescription: cur };
-  });
-  let n = 0;
-  const deps: GuidedSessionDeps = { load, post, newId: () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`, now: () => "2026-10-09T17:00:00Z" };
-  return { deps, state, executions, post, load, prescriptions };
-}
-
-function Harness({ deps }: { deps: GuidedSessionDeps }) {
-  const s = useGuidedSession("a", "2026-10-09", deps);
-  return (
-    <MemoryRouter>
-      <GuidedSessionView
-        load={s.load}
-        busy={s.busy}
-        actionError={s.actionError}
-        onStart={(id) => void s.start(id)}
-        onPause={(id) => void s.pause(id)}
-        onResume={(id) => void s.resume(id)}
-        onAbandon={(id) => void s.abandon(id)}
-        onRetry={() => void s.retry()}
-        onReload={() => void s.reload()}
-      />
-    </MemoryRouter>
-  );
-}
+const FORCE = prescriptionView("STRENGTH_LOWER");
+const DH = prescriptionView("DH_TECHNICAL");
 
 const phase = () => screen.getByRole("status").getAttribute("data-phase");
 
@@ -133,7 +45,7 @@ describe("Guided session shell (UX-11C.1)", () => {
 
   it("network error → last confirmed state kept, retry re-sends the SAME ids → no second execution", async () => {
     const b = fakeBackend({ prescription: FORCE });
-    b.state.networkFailures = 1;
+    b.state.networkFailures = ["landed"];
     render(<Harness deps={b.deps} />);
     await userEvent.click(await screen.findByRole("button", { name: "Commencer la séance" }));
     expect(await screen.findByRole("alert")).toHaveAttribute("data-code", "network_error");
@@ -195,7 +107,7 @@ describe("Guided session shell (UX-11C.1)", () => {
     await waitFor(() => expect(phase()).toBe("active"));
     first.unmount();
 
-    b.state.current = { prescription: DH }; // D2 becomes current
+    b.setCurrent({ prescription: DH }); // D2 becomes current
     render(<Harness deps={b.deps} />);
     await waitFor(() => expect(phase()).toBe("active"));
     expect(screen.getByText("Goblet squat")).toBeInTheDocument(); // E1's Force prescription, never D2's DH
@@ -206,7 +118,7 @@ describe("Guided session shell (UX-11C.1)", () => {
     const b = fakeBackend({ prescription: FORCE });
     render(<Harness deps={b.deps} />);
     const start = await screen.findByRole("button", { name: "Commencer la séance" });
-    b.state.current = { prescription: DH }; // the daily decision changed after the page loaded
+    b.setCurrent({ prescription: DH }); // the daily decision changed after the page loaded
     const loadsBefore = b.load.mock.calls.length;
     await userEvent.click(start);
     expect(await screen.findByRole("alert")).toHaveAttribute("data-code", "final_prescription_not_current");
@@ -227,7 +139,7 @@ describe("Guided session shell (UX-11C.1)", () => {
   it("unsupported catalogue on an existing execution: no partial rendering, explicit message, the execution is kept", async () => {
     const b = fakeBackend({ prescription: FORCE });
     b.prescriptions.delete(FORCE.id); // the linked prescription is not decodable by this version
-    b.executions.push({ id: "e-old", session_date: "2026-10-09", final_prescription_id: FORCE.id, started_at: "x", recorded_at: "2026-10-09T16:00:00Z", execution_events: [{ event_type: "started", event_seq: 0 }] });
+    b.executions.push({ id: "e-old", session_date: "2026-10-09", final_prescription_id: FORCE.id, started_at: "x", recorded_at: "2026-10-09T16:00:00Z", execution_events: [{ event_type: "started", event_seq: 0 }], exercise_set_results: [] });
     render(<Harness deps={b.deps} />);
     expect(await screen.findByText(UNSUPPORTED_SESSION_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByText("Goblet squat")).toBeNull();

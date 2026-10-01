@@ -29,6 +29,7 @@ const execution = (id: string, fp: string | null, events: string[], recorded = "
   started_at: recorded,
   recorded_at: recorded,
   execution_events: events.map((event_type, i) => ({ event_type, event_seq: i + 1 })),
+  exercise_set_results: [],
 });
 
 beforeEach(() => {
@@ -105,5 +106,26 @@ describe("loadGuidedSession", () => {
     loadDayExecutions.mockResolvedValue([execution("e1", force.prescription.id, ["started", "abandoned"])]);
     loadFinalPrescriptionV2State.mockResolvedValue(force);
     expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "abandoned" });
+  });
+
+  it("UX-11C.2 — an abandoned attempt of the CURRENT prescription is restartable (new execution); a completed one is not", async () => {
+    const force = created("STRENGTH_LOWER");
+    loadFinalPrescriptionV2State.mockResolvedValue(force);
+    loadDayExecutions.mockResolvedValue([execution("e1", force.prescription.id, ["started", "abandoned"])]);
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "abandoned", restartFinalPrescriptionId: force.prescription.id });
+    loadDayExecutions.mockResolvedValue([execution("e1", force.prescription.id, ["started", "completed"])]);
+    expect(await loadGuidedSession("a", "2026-10-09")).not.toHaveProperty("restartFinalPrescriptionId");
+    loadDayExecutions.mockResolvedValue([
+      execution("e1", force.prescription.id, ["started", "completed"], "2026-10-09T16:00:00Z"),
+      execution("e2", force.prescription.id, ["started", "abandoned"], "2026-10-09T17:00:00Z"),
+    ]);
+    expect(await loadGuidedSession("a", "2026-10-09")).not.toHaveProperty("restartFinalPrescriptionId");
+  });
+
+  it("UX-11C.2 — an abandoned attempt of a prescription that is no longer current is not restartable: the current one is offered", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadFinalPrescriptionV2State.mockResolvedValue(dh);
+    loadDayExecutions.mockResolvedValue([execution("e1", "f-old", ["started", "abandoned"])]);
+    expect(await loadGuidedSession("a", "2026-10-09")).toEqual({ kind: "ready_to_start", finalPrescriptionId: dh.prescription.id, prescription: dh.prescription });
   });
 });

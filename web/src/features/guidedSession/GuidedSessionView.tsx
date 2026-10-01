@@ -1,17 +1,22 @@
-// UX-11C.1 — guided-session screen (shell only): header, the session
-// module's content, lifecycle actions. Mobile first: full-width 48 px
-// actions, the state written in words (never only a colour), the stop
-// confirmation takes the keyboard focus.
+// UX-11C.1 — guided-session screen (shell): header, the session module's
+// content, lifecycle actions. Mobile first: full-width 48 px actions, the
+// state written in words (never only a colour), confirmations take the
+// keyboard focus and Escape cancels them.
+// UX-11C.2 — completion is decided by the session module (≥ 1 work result
+// for Force; partial results need a confirmation) and carries the module's
+// not-yet-sent results in the same batch; an abandoned attempt whose
+// prescription is still current can be restarted (new execution).
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
-import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, PHASE_LABELS, COMPLETION_NOT_READY_MESSAGE } from "./guidedSessionCopy";
-import { resolveSessionModule } from "./sessionModules";
+import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, PHASE_LABELS, PARTIAL_COMPLETION_MESSAGE } from "./guidedSessionCopy";
+import { resolveSessionModule, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
 import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 import type { ExecutionPhase } from "./executionState";
+import type { SessionExecutionBatch, SetResultInput } from "./sessionExecutionClient";
 
 export interface GuidedSessionViewProps {
   load: GuidedLoadState;
@@ -21,8 +26,12 @@ export interface GuidedSessionViewProps {
   onPause: (executionId: string) => void;
   onResume: (executionId: string) => void;
   onAbandon: (executionId: string) => void;
+  onComplete: (executionId: string, pendingSets: SetResultInput[]) => void;
+  onSubmit: (action: string, batch: SessionExecutionBatch) => Promise<SubmitOutcome>;
   onRetry: () => void;
   onReload: () => void;
+  newId: () => string;
+  now: () => string;
 }
 
 function Header({ prescription, phase }: { prescription: FinalPrescriptionV2View | null; phase: ExecutionPhase }) {
@@ -44,27 +53,29 @@ function Header({ prescription, phase }: { prescription: FinalPrescriptionV2View
   );
 }
 
-function StopConfirmation({ onConfirm, onCancel, disabled }: { onConfirm: () => void; onCancel: () => void; disabled: boolean }) {
+/** A confirmation: focus on the safe choice, Escape cancels. */
+function Confirmation({ id, message, confirmLabel, cancelLabel, onConfirm, onCancel, disabled }: { id: string; message: string; confirmLabel: string; cancelLabel: string; onConfirm: () => void; onCancel: () => void; disabled: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Keyboard focus moves into the confirmation, on the safe choice (continue).
   useEffect(() => containerRef.current?.querySelector<HTMLButtonElement>("[data-autofocus]")?.focus(), []);
   return (
-    <div ref={containerRef} role="alertdialog" aria-labelledby="stop-title" className="flex flex-col gap-2 rounded-lg border border-line bg-card p-4" onKeyDown={(e) => e.key === "Escape" && onCancel()}>
-      <p id="stop-title" className="text-sm text-ink">
-        Arrêter la séance ? Elle sera enregistrée comme arrêtée et ne pourra plus être reprise.
+    <div ref={containerRef} role="alertdialog" aria-labelledby={id} className="flex flex-col gap-2 rounded-lg border border-line bg-card p-4" onKeyDown={(e) => e.key === "Escape" && onCancel()}>
+      <p id={id} className="text-sm text-ink">
+        {message}
       </p>
-      <SecondaryButton onClick={onConfirm} disabled={disabled} className="w-full">
-        Confirmer l'arrêt
+      <SecondaryButton onClick={onConfirm} disabled={disabled} className="min-h-12 w-full">
+        {confirmLabel}
       </SecondaryButton>
       <PrimaryButton data-autofocus onClick={onCancel} className="w-full">
-        Continuer la séance
+        {cancelLabel}
       </PrimaryButton>
     </div>
   );
 }
 
-export function GuidedSessionView({ load, busy, actionError, onStart, onPause, onResume, onAbandon, onRetry, onReload }: GuidedSessionViewProps) {
-  const [confirmingStop, setConfirmingStop] = useState(false);
+export function GuidedSessionView({ load, busy, actionError, onStart, onPause, onResume, onAbandon, onComplete, onSubmit, onRetry, onReload, newId, now }: GuidedSessionViewProps) {
+  const [confirming, setConfirming] = useState<"stop" | "complete" | null>(null);
+  // Module-owned UI state (e.g. the set being entered), opaque to the shell.
+  const [moduleState, setModuleState] = useState<unknown>(null);
 
   if (load.status === "loading") return <p className="text-sm text-muted">Chargement de ta séance…</p>;
   if (load.status === "error") {
@@ -73,7 +84,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
         <p role="alert" className="text-sm text-red-400">
           Impossible de charger ta séance. Réessaie.
         </p>
-        <SecondaryButton onClick={onReload} className="w-full">
+        <SecondaryButton onClick={onReload} className="min-h-12 w-full">
           Réessayer
         </SecondaryButton>
       </div>
@@ -82,7 +93,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
 
   const snapshot = load.snapshot;
   const backToToday = (
-    <Link to="/today" className="ux-press inline-flex min-h-11 items-center text-sm text-ink/80 underline-offset-4 hover:underline">
+    <Link to="/today" className="ux-press inline-flex min-h-12 items-center text-sm text-ink/80 underline-offset-4 hover:underline">
       Retour à Aujourd'hui
     </Link>
   );
@@ -102,8 +113,20 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
   const prescription = snapshot.kind === "ready_to_start" ? snapshot.prescription : snapshot.prescription.kind === "created" ? snapshot.prescription.prescription : null;
   const phase: ExecutionPhase = snapshot.kind === "ready_to_start" ? "not_started" : snapshot.phase;
   const executionId = snapshot.kind === "execution" ? snapshot.execution.id : null;
-  const module = prescription ? resolveSessionModule(prescription) : null;
+  const setResults = snapshot.kind === "execution" ? snapshot.execution.exercise_set_results : [];
+  const restartId = snapshot.kind === "execution" ? snapshot.restartFinalPrescriptionId : undefined;
   const open = phase === "active" || phase === "paused";
+  const module = prescription ? resolveSessionModule(prescription) : null;
+  const context = prescription ? { prescription, executionId, phase, setResults, uiState: moduleState } : null;
+  const completion = module && context ? module.completion(context, now) : null;
+  const canComplete = open && executionId !== null && completion?.canComplete === true;
+
+  const completeNow = () => {
+    if (!executionId || !module || !context) return;
+    // Rebuilt at the moment of completing: the pending results carry their own stable ids.
+    setConfirming(null);
+    onComplete(executionId, module.completion(context, now).pendingSets);
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -113,15 +136,15 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
         <div role="alert" className="flex flex-col gap-2 rounded-lg border border-line bg-card p-3" data-code={actionError.code}>
           <p className="text-sm text-ink">{ACTION_ERROR_MESSAGES[actionError.code] ?? (actionError.retryable ? ACTION_ERROR_MESSAGES.network_error : ACTION_ERROR_MESSAGES.refused)}</p>
           {actionError.retryable && (
-            <SecondaryButton onClick={onRetry} disabled={busy} className="w-full">
+            <SecondaryButton onClick={onRetry} disabled={busy} className="min-h-12 w-full">
               Réessayer
             </SecondaryButton>
           )}
         </div>
       )}
 
-      {module && prescription ? (
-        <module.Content prescription={prescription} executionId={executionId} />
+      {module && context ? (
+        <module.Content {...context} editable={open} busy={busy} setUiState={setModuleState} submit={onSubmit} newId={newId} now={now} />
       ) : (
         <p className="text-ink/80" data-reason="unsupported">
           {UNSUPPORTED_SESSION_MESSAGE}
@@ -134,6 +157,11 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             {busy ? "Démarrage…" : "Commencer la séance"}
           </PrimaryButton>
         )}
+        {phase === "abandoned" && restartId && (
+          <PrimaryButton onClick={() => onStart(restartId)} disabled={busy} className="w-full">
+            Recommencer la séance
+          </PrimaryButton>
+        )}
         {phase === "active" && executionId && (
           <PrimaryButton onClick={() => onPause(executionId)} disabled={busy} className="w-full">
             Mettre en pause
@@ -144,28 +172,49 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             Reprendre
           </PrimaryButton>
         )}
-        {open && (
+        {open && confirming !== "complete" && (
           <>
-            {/* Completion stays with the session module (UX-11C.2+): never forced without the required results. */}
-            <SecondaryButton disabled aria-describedby="completion-not-ready" className="w-full">
+            <SecondaryButton
+              disabled={!canComplete || busy}
+              aria-describedby={canComplete ? undefined : "completion-not-ready"}
+              onClick={() => (completion?.completionNeedsConfirmation ? setConfirming("complete") : completeNow())}
+              className="min-h-12 w-full"
+            >
               Terminer la séance
             </SecondaryButton>
-            <p id="completion-not-ready" className="text-xs text-muted">
-              {module?.canComplete ? "" : COMPLETION_NOT_READY_MESSAGE}
-            </p>
+            {!canComplete && completion && (
+              <p id="completion-not-ready" className="text-xs text-muted">
+                {completion.hint}
+              </p>
+            )}
           </>
         )}
-        {open && executionId && !confirmingStop && (
-          <SecondaryButton onClick={() => setConfirmingStop(true)} disabled={busy} className="w-full">
+        {open && confirming === "complete" && (
+          <Confirmation
+            id="complete-title"
+            message={PARTIAL_COMPLETION_MESSAGE}
+            confirmLabel="Terminer quand même"
+            cancelLabel="Revenir à la séance"
+            disabled={busy}
+            onCancel={() => setConfirming(null)}
+            onConfirm={completeNow}
+          />
+        )}
+        {open && executionId && confirming !== "stop" && (
+          <SecondaryButton onClick={() => setConfirming("stop")} disabled={busy} className="min-h-12 w-full">
             Arrêter la séance
           </SecondaryButton>
         )}
-        {open && executionId && confirmingStop && (
-          <StopConfirmation
+        {open && executionId && confirming === "stop" && (
+          <Confirmation
+            id="stop-title"
+            message="Arrêter la séance ? Elle sera enregistrée comme arrêtée et ne pourra plus être reprise. Les séries déjà enregistrées restent dans l'historique."
+            confirmLabel="Confirmer l'arrêt"
+            cancelLabel="Continuer la séance"
             disabled={busy}
-            onCancel={() => setConfirmingStop(false)}
+            onCancel={() => setConfirming(null)}
             onConfirm={() => {
-              setConfirmingStop(false);
+              setConfirming(null);
               onAbandon(executionId);
             }}
           />

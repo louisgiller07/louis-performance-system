@@ -2,12 +2,18 @@
 // database after a confirmed write (no optimistic state). Each logical action
 // builds its batch ONCE (device ids + timestamps); a retry re-sends exactly
 // the same batch, so the backend's idempotence absorbs replays and a network
-// error never creates a second execution or event.
+// error never creates a second execution, event or set result.
+// UX-11C.2 — the session modules write through the same `submit` (set
+// results), and completion carries the module's not-yet-sent results in the
+// SAME batch as `completed` (one transaction: never "completed" while the
+// last result failed).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadGuidedSession, type GuidedSessionSnapshot } from "./guidedSessionLoader";
-import { postSessionExecutionBatch, type ExecutionEventType, type SessionExecutionBatch } from "./sessionExecutionClient";
+import { postSessionExecutionBatch, type ExecutionEventType, type SessionExecutionBatch, type SetResultInput } from "./sessionExecutionClient";
+import type { SubmitOutcome } from "./sessionModules";
 
-export type GuidedActionKind = "start" | "pause" | "resume" | "abandon";
+/** start / pause / resume / abandon / complete, or a module action (e.g. `set:<item>#<n>`). */
+export type GuidedActionKind = string;
 
 export interface GuidedActionError {
   action: GuidedActionKind;
@@ -60,27 +66,25 @@ export function useGuidedSession(athleteId: string, date: string, deps: GuidedSe
   }, [athleteId, date, deps]);
 
   const send = useCallback(
-    async (action: GuidedActionKind, batch: SessionExecutionBatch) => {
-      if (inFlight.current) return; // double click: the first send owns the action
+    async (action: GuidedActionKind, batch: SessionExecutionBatch): Promise<SubmitOutcome> => {
+      if (inFlight.current) return "ignored"; // double click: the first send owns the action
       inFlight.current = true;
       pending.current = { action, batch };
       setBusy(true);
       setActionError(null);
       try {
         const result = await deps.post(batch);
-        if (result.ok) {
-          pending.current = null;
-        } else if (result.error.retryable) {
+        if (!result.ok && result.error.retryable) {
           // Keep the same batch (same ids) for the retry; keep the last confirmed state on screen.
           setActionError({ action, code: result.error.code, retryable: true });
-          return;
-        } else {
-          // Business refusal (e.g. final_prescription_not_current, active_execution_exists):
-          // nothing was written; the database decides what is shown next.
-          pending.current = null;
-          setActionError({ action, code: result.error.code, retryable: false });
+          return "retryable";
         }
+        pending.current = null;
+        // Business refusal (e.g. final_prescription_not_current, id_conflict): nothing was
+        // written; the database decides what is shown next.
+        if (!result.ok) setActionError({ action, code: result.error.code, retryable: false });
         await reload();
+        return result.ok ? "ok" : "refused";
       } finally {
         inFlight.current = false;
         setBusy(false);
@@ -95,6 +99,7 @@ export function useGuidedSession(athleteId: string, date: string, deps: GuidedSe
 
   const event = (executionId: string, type: ExecutionEventType) => ({ id: deps.newId(), execution_id: executionId, event_type: type, occurred_at: deps.now() });
 
+  /** Start (or, after an abandoned attempt, restart): always a NEW execution with new ids. */
   const start = (finalPrescriptionId: string) =>
     send(
       "start",
@@ -107,10 +112,17 @@ export function useGuidedSession(athleteId: string, date: string, deps: GuidedSe
         };
       })
     );
-  const lifecycle = (action: Exclude<GuidedActionKind, "start">, type: ExecutionEventType) => (executionId: string) =>
+  const lifecycle = (action: "pause" | "resume" | "abandon", type: ExecutionEventType) => (executionId: string) =>
     send(action, batchFor(action, () => ({ events: [event(executionId, type)] })));
 
-  const retry = () => (pending.current ? send(pending.current.action, pending.current.batch) : Promise.resolve());
+  /** `completed` + the module's pending results, in one batch (one transaction). */
+  const complete = (executionId: string, pendingSets: SetResultInput[]) =>
+    send(
+      "complete",
+      batchFor("complete", () => ({ events: [event(executionId, "completed")], ...(pendingSets.length > 0 ? { sets: pendingSets } : {}) }))
+    );
+
+  const retry = () => (pending.current ? send(pending.current.action, pending.current.batch) : Promise.resolve("ignored" as const));
 
   return {
     load,
@@ -121,6 +133,10 @@ export function useGuidedSession(athleteId: string, date: string, deps: GuidedSe
     pause: lifecycle("pause", "paused"),
     resume: lifecycle("resume", "resumed"),
     abandon: lifecycle("abandon", "abandoned"),
+    complete,
+    submit: send,
     retry,
+    newId: deps.newId,
+    now: deps.now,
   };
 }

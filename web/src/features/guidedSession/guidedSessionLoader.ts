@@ -8,7 +8,8 @@
 //    its inputs, newest row — the same notion as Today and
 //    record_session_execution): a `created` V2 final prescription can be
 //    started; a terminal execution of that same prescription is shown read
-//    only; REST, blocked, V1, missing or unsupported → unavailable.
+//    only (an abandoned one may be restarted as a NEW execution, UX-11C.2);
+//    REST, blocked, V1, missing or unsupported → unavailable.
 // Starting from a planned prescription or planned_sessions is impossible by
 // construction.
 import { loadLatestDecisionForDate } from "../history/historyRepo";
@@ -16,12 +17,19 @@ import { loadDecisionCurrency } from "../dailyPlan/decisionCurrencyRepo";
 import { loadFinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2State";
 import type { FinalPrescriptionV2State, FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 import { loadDayExecutions, loadExecutionPrescription } from "./executionRepo";
-import { isTerminal, selectDayExecution, type ExecutionPhase, type ExecutionRow } from "./executionState";
+import { isTerminal, phaseOf, selectDayExecution, type ExecutionPhase, type ExecutionRow } from "./executionState";
 
 export type UnavailableReason = "no_decision" | "stale_decision" | "rest" | "blocked" | "not_v2" | "missing_prescription" | "unsupported" | "invalid";
 
 export type GuidedSessionSnapshot =
-  | { kind: "execution"; execution: ExecutionRow; phase: ExecutionPhase; prescription: FinalPrescriptionV2State }
+  | {
+      kind: "execution";
+      execution: ExecutionRow;
+      phase: ExecutionPhase;
+      prescription: FinalPrescriptionV2State;
+      /** UX-11C.2 — set only on an abandoned attempt whose final prescription is still the day's current one: a restart creates a NEW execution. */
+      restartFinalPrescriptionId?: string;
+    }
   | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View }
   | { kind: "unavailable"; reason: UnavailableReason };
 
@@ -61,7 +69,12 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
 
   const current = state.prescription;
   if (dayExecution && dayExecution.execution.final_prescription_id === current.id) {
-    return { kind: "execution", ...dayExecution, prescription: state };
+    // An abandoned attempt is never resumed; it may be restarted (new execution, new ids) while its
+    // prescription is still current and nothing of it was completed. A completed one stays read only.
+    const completedOnce = executions.some((e) => e.final_prescription_id === current.id && phaseOf(e) === "completed");
+    return dayExecution.phase === "abandoned" && !completedOnce
+      ? { kind: "execution", ...dayExecution, prescription: state, restartFinalPrescriptionId: current.id }
+      : { kind: "execution", ...dayExecution, prescription: state };
   }
   return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current };
 }

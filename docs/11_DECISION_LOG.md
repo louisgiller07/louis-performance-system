@@ -4573,3 +4573,35 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Solution.** Lignes d'un autre pilote (E, G, I) : semées par ce pilote lui-même, connecté, via `savePlannedSession` (chemin réel, RLS). OMIT/PRESERVE : les colonnes inertes (`primary_objective`, `planned_duration_min`, `planned_time_of_day`, `training_block_id`, `notes`) et un bloc d'entraînement ne sont écrits par aucun chemin pris en charge pour une ligne manuelle : SQL propriétaire sur la base locale (`execLocalSql`, harnais UX-11B.2.4c), hors code d'exécution. Aucun droit, aucune RLS, aucun comportement planning modifiés.
 
 **Statut** : Accepted — test seulement.
+
+## 2026-10-01 — ADR UX-11C.2 : séries d'une séance Force guidée (web)
+
+> **A guided Force session records the sets actually performed, one append-only `exercise_set_results` row per set, against the execution's own frozen final prescription. Performed results are never inferred from the prescription. Completion requires at least one performed work set; partial results are allowed after an explicit confirmation.**
+
+**Audit du contrat (inchangé).** `exercise_set_results` : `id` (appareil), `execution_id`, `prescription_item_id` ou `other_exercise_name`, `exercise_id` (recopié par le serveur), `set_number` ≥ 1, `done`, `measure_type` (`reps`, `duration`, `distance`, `pass`), `measure_value` (entier ≥ 0, requis si `done`), `load_kg` (0–1000, 2 décimales), `rpe_actual` (1–10, 1 décimale), `success`, `comment` (≤ 500), `supersedes_id`, `occurred_at`, `recorded_at`. Dans un lot, les événements sont traités avant les séries ; la séance entière est une transaction. Le serveur vérifie l'élément et la mesure contre la prescription de **cette** exécution, l'idempotence (même identifiant et même contenu → inchangé ; autre contenu → `id_conflict`) et les corrections (`invalid_correction`).
+
+**Décisions.**
+- Module `strength` (`STRENGTH_LOWER` / `STRENGTH_UPPER`) ; DH et endurance gardent le module en lecture seule.
+- Champs exposés : valeur réalisée (répétitions ou durée en secondes, selon la mesure prescrite), RPE ressenti facultatif (RPE prescrit affiché à part), charge en kg facultative (donnée observée, jamais prescrite). Non exposés : `success` (pas de critère Force), `comment` (écran mobile sobre), `other_exercise_name` (hors périmètre), `done = false` (une série absente n'a pas de ligne).
+- `perSide` : une ligne par série, valeur par côté (aucune sémantique gauche/droite en base).
+- Un emplacement « Série n » n'est pas une ligne tant que rien n'est enregistré ; l'ordre est mis en avant, jamais imposé.
+- Identifiant généré à l'ouverture de la saisie, horodatage figé au premier envoi : un nouvel essai renvoie le même lot ; rien n'est affiché comme enregistré avant la confirmation du serveur.
+- Correction : « Modifier » préremplit, puis envoie une nouvelle ligne `supersedes_id` ; une seule fois ; seule la valeur active est affichée.
+- Fin (règle verrouillée) : au moins un résultat actif réalisé sur `main` / `complementary` ; résultats partiels → confirmation « Certaines séries prévues n'ont pas de résultat enregistré… » ; une saisie valide non envoyée part avec `completed` dans le **même lot** ; une saisie invalide bloque la fin.
+- Terminal : lecture seule (aucune saisie ni correction).
+- Recommencer après un arrêt (règle verrouillée) : nouvelle exécution, nouveaux identifiants, seulement si la prescription est toujours courante et sans fin antérieure de cette prescription ; sinon refus `final_prescription_not_current` et rechargement.
+- Pont M1 inchangé : une exécution Force terminée compte `done`, une exécution arrêtée ne compte pas (test réel).
+
+**Écarts backend signalés (non corrigés, hors périmètre web).**
+- Le serveur accepte encore une série après `completed` / `abandoned` ; l'interface la bloque (test qui documente l'écart).
+- Le serveur ne vérifie pas `set_number` ≤ `sets` prescrit.
+- Il n'impose pas un seul original par série : deux appareils peuvent chacun enregistrer un original pour la même série. Les deux sont acceptés, et le web affiche le plus récent.
+- À trancher avant la production : contrainte serveur (comme `activity_result_exists`) ou règle de lecture actuelle.
+
+**Tests.**
+- Modèle pur.
+- Interface contre un serveur en mémoire : LOWER, UPPER, emplacements, répétitions, RPE, charge, côté, durée, mesure non prise en charge, validation liée au champ, nouvel essai réseau avec le même identifiant, conflit non rejouable, double envoi, correction, rafraîchissement, deux onglets, fin désactivée, fin directe, fin partielle confirmée, dernière série dans le même lot, saisie invalide, arrêt, recommencer, recommencer périmé, DH et endurance inchangés.
+- Intégration réelle locale : Edge + RPC + RLS, puis pont M1 via `computeDailyFor`.
+- Aucun navigateur réel : le dépôt n'a pas de harnais Playwright/Cypress.
+
+**Statut** : Accepted — `feat/ux11c2-guided-strength-sets`, local, non poussé.

@@ -11,6 +11,22 @@ export interface ExecutionEventRow {
   event_seq: number;
 }
 
+/** One exercise_set_results row (append-only; a correction supersedes one original). */
+export interface SetResultRow {
+  id: string;
+  prescription_item_id: string | null;
+  other_exercise_name: string | null;
+  set_number: number;
+  done: boolean;
+  measure_type: string;
+  measure_value: number | null;
+  load_kg: number | null;
+  rpe_actual: number | null;
+  supersedes_id: string | null;
+  occurred_at: string;
+  recorded_at: string;
+}
+
 export interface ExecutionRow {
   id: string;
   session_date: string;
@@ -18,6 +34,8 @@ export interface ExecutionRow {
   started_at: string;
   recorded_at: string;
   execution_events: ExecutionEventRow[];
+  /** UX-11C.2 — every set result of the execution (history included), read with it. */
+  exercise_set_results: SetResultRow[];
 }
 
 const PHASE_BY_LAST_EVENT: Readonly<Record<string, ExecutionPhase>> = {

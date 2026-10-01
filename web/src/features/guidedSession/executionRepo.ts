@@ -13,11 +13,16 @@ export class GuidedSessionLoadError extends Error {
   }
 }
 
-/** The rider's executions of `date` with their lifecycle events (one query). */
+const SET_RESULT_COLUMNS = "id, prescription_item_id, other_exercise_name, set_number, done, measure_type, measure_value, load_kg, rpe_actual, supersedes_id, occurred_at, recorded_at";
+
+// numeric columns may come back as strings depending on the PostgREST setting: always numbers here.
+const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+/** The rider's executions of `date` with their lifecycle events and set results (one query, no N+1). */
 export async function loadDayExecutions(athleteId: string, date: string): Promise<ExecutionRow[]> {
   const { data, error } = await supabase
     .from("session_executions")
-    .select("id, session_date, final_prescription_id, started_at, recorded_at, execution_events(event_type, event_seq)")
+    .select(`id, session_date, final_prescription_id, started_at, recorded_at, execution_events(event_type, event_seq), exercise_set_results(${SET_RESULT_COLUMNS})`)
     .eq("athlete_id", athleteId)
     .eq("session_date", date)
     .order("recorded_at", { ascending: true })
@@ -26,7 +31,10 @@ export async function loadDayExecutions(athleteId: string, date: string): Promis
     console.error("executionRepo.loadDayExecutions failed", error.code);
     throw new GuidedSessionLoadError();
   }
-  return (data ?? []) as ExecutionRow[];
+  return ((data ?? []) as ExecutionRow[]).map((e) => ({
+    ...e,
+    exercise_set_results: (e.exercise_set_results ?? []).map((r) => ({ ...r, measure_value: num(r.measure_value), load_kg: num(r.load_kg), rpe_actual: num(r.rpe_actual) })),
+  }));
 }
 
 /**

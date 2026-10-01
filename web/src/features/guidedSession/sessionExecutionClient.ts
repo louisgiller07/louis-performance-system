@@ -31,10 +31,31 @@ export interface ExecutionEventInput {
   occurred_at: string;
 }
 
-/** UX-11C.1 sends executions and events only; sets / activities belong to the session modules (UX-11C.2+). */
+/**
+ * UX-11C.2 — one performed set of a PRESCRIBED item (never an "other
+ * exercise" here). `exercise_id` is copied by the server and never sent.
+ * A correction is a new row with `supersedes_id` = the original (same item,
+ * same set number); `done` is always true: an absent set has no row.
+ */
+export interface SetResultInput {
+  id: string;
+  execution_id: string;
+  prescription_item_id: string;
+  set_number: number;
+  done: true;
+  measure_type: "reps" | "duration";
+  measure_value: number;
+  load_kg: number | null;
+  rpe_actual: number | null;
+  supersedes_id: string | null;
+  occurred_at: string;
+}
+
+/** Executions, events and (UX-11C.2) set results; activities belong to the endurance module (later). */
 export interface SessionExecutionBatch {
   execution?: ExecutionCreateInput;
   events: ExecutionEventInput[];
+  sets?: SetResultInput[];
 }
 
 export interface SessionExecutionOutcome {
