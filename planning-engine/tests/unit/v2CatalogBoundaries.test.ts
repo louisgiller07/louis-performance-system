@@ -135,6 +135,24 @@ describe("V2 content — import boundary", () => {
     expect(text).not.toMatch(/baseline\.loadProfile|BASE_LOAD_PROFILE|TAPER_LOAD_PROFILE/);
   });
 
+  it("UX-11A.5c.1 — KEEP final prescription is a copy: the final module calls no sport builder, catalogue, dose policy or legacy dose, and nothing outside the V2 module references it", () => {
+    const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "final");
+    expect(readdirSync(dir).sort()).toEqual(["buildKeepFinalPrescriptionV2.ts", "finalPrescriptionV2.ts", "validateKeepFinalPrescriptionV2.ts"]);
+    for (const file of sourceFiles(dir)) {
+      const text = readFileSync(file, "utf8");
+      expect(text, file).not.toMatch(/\/builders\/|\/catalog\/|\/orchestration\/|planDosePolicyV2|strengthDoseCatalogV2|strengthTemplateCatalogV2|protocolCatalogV2|setVolume|targetRpeOrRir|intensityZone/);
+    }
+    const offenders: string[] = [];
+    for (const root of ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src", "web/src"].map((r) => join(REPO, r))) {
+      for (const file of sourceFiles(root)) {
+        const rel = relative(REPO, file);
+        if (isSessionModelV2(rel)) continue;
+        if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2|FinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("UX-11A.5b.5b — V2 builders and the in-memory orchestrator never read the legacy doseTarget fields (setVolume, targetRpeOrRir, intensityZone)", () => {
     const files = [
       ...sourceFiles(join(REPO, "planning-engine", "src", "sessionModelV2", "builders")),

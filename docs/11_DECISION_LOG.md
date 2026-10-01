@@ -4317,3 +4317,30 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **15. `completed_sessions` / `session_executions` (bloquant avant production UX-11C, pas avant 5c.1).** M1 calcule la charge récente depuis `completed_sessions` ; l'exécution détaillée V2 écrit `session_executions` / `exercise_set_results`, qui restent la vérité détaillée future. Avant la production d'UX-11C, il faudra une projection ou un résumé compatible, ou un autre point d'intégration. M1 inchangé ; UX-11E non traité.
 
 **Statut** : Accepted (points 1–3, 5–10, 12–15) ; points 4 (MODIFY) et 11 : propositions à valider avant 5c.2 / 5c.5. Aucun code runtime, aucune migration.
+
+## 2026-10-01 — ADR UX-11A.5c.1 : prescription du jour KEEP V2 (pure)
+
+> **A KEEP final prescription V2 is a verbatim copy of the planned V2 prescription, produced by a pure function only when the plan lineage is real and the final session matches the planned one. No DB write, no runDailyFor integration, no MODIFY / REPLACE.**
+
+**Module** (`planning-engine/src/sessionModelV2/final/`, exposé uniquement par `planning-engine/session-model-v2`) :
+- `FinalPrescriptionV2` : miroir de `decision_final_prescriptions` (origine, action, `adaptationRuleIds`, `planVersionId`, `plannedPrescriptionId`, `schemaVersion: "v2"`, `catalogVersion`), avec `structure: PrescriptionV2` (aucun type parallèle). `generated_at` reste fixé par la base.
+- `FinalPrescriptionV2Result` : `created` | `{ status: "none", reason: "rest" }` | `blocked` avec code stable (`final_prescription_no_lineage`, `final_prescription_adaptation_not_defined`, `final_prescription_catalog_mismatch`) et détail ; `FinalPrescriptionV2BlockedError` pour la forme levée.
+- `buildKeepFinalPrescriptionV2({ finalPrescriptionId, decision: { decisionId, decision, finalSession }, lineage, plannedPrescription })` : entrées en données simples (aucun type M1 importé).
+- `validateKeepFinalPrescriptionV2(final, planned)` : invariants KEEP.
+
+**Comportement** :
+- REST → `none / rest`, aucun document.
+- REPLACE → `adaptation_not_defined` (`replace_not_supported`), même vers un type qui a un builder.
+- Lignée absente ou fausse → `no_lineage`, avec la raison : `no_planned_session`, `planned_session_not_generated`, `missing_generated_session_lineage`, `not_current_plan_version`, `generated_session_not_found`, `no_planned_prescription`, `planned_prescription_of_another_session`.
+- MODIFY → `adaptation_not_defined` (`modify_not_supported`, ou `upward_modify_not_supported` si la charge finale dépasse la charge prévue).
+- KEEP avec écart → `adaptation_not_defined` (`kind_mismatch`, `load_profile_mismatch`, `duration_mismatch`). Une séance finale sans durée n'est pas comparée sur la durée.
+- KEEP copiable → copie JSON verbatim : `templateId`, `protocolId`, `activitySelection`, manifeste, blocs, `blockId`, `prescriptionItemId`, exercices, `drillId`, séries, mesures, RPE, repos, `rampUp`, textes ; aucun `derivedFromItemId`, aucune dose recalculée, aucun builder appelé.
+- Prescription prévue non fiable (pas v2, structure invalide, `derivedFromItemId` déjà présent, `catalog_version` ≠ agrégat du manifeste, type ≠ séance générée) → erreur de contrat levée : c'est un bug ou une donnée corrompue, jamais un blocage par design ni un repli.
+
+**Invariants KEEP** (vérifiés après construction) : schéma v2, structure valide au stade `final`, `catalog_version` = agrégat, manifeste identique, action `keep`, origine `generated`, `plannedPrescriptionId` et `planVersionId` présents, aucune règle d'adaptation, aucun `derivedFromItemId`, mêmes `blockId` et `prescriptionItemId` (même ordre), même empreinte sportive, mêmes type / famille / intention / template / protocole.
+
+**Tests** (`tests/unit/finalPrescriptionV2Keep.test.ts`, 42) : KEEP Force LOWER / UPPER, DH, endurance ; template, `drillId` et passages, protocole et `activitySelection` ; identifiants ; manifeste ; empreinte ; sept cas sans lignée ; écarts de type, charge, durée ; REST ; MODIFY bas / haut ; REPLACE ; prescriptions prévues non fiables ; chaque invariant du validateur. Frontière : le module `final/` n'importe aucun builder, catalogue, politique ni champ de dose legacy, et rien hors du module V2 ne le référence (M1, V1, head-coach, web).
+
+**Inchangés** : M1, V1, head-coach-engine, prescription-engine, web, migrations, RPC. Aucune écriture.
+
+**Statut** : Accepted — `feat/ux11a5c1-v2-final-prescription-keep`, lignée non fusionnée.
