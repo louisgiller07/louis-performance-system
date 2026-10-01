@@ -76,7 +76,7 @@ const INPUT_SNAPSHOT_SCHEMA_VERSION = "v1";
 const DEFAULT_GENERATION_TRIGGER: GenerationTrigger = "initial";
 
 /** Closed mapping, same discipline as `PHRASE_FOR_SELECTION_REASON` (planningPipelineOrchestrator.ts, V0.4_114A) — never free-text generation. */
-const RATIONALE_FOR_TRIGGER: Record<GenerationTrigger, string> = {
+export const RATIONALE_FOR_TRIGGER: Record<GenerationTrigger, string> = {
   initial: "Initial training plan generation.",
   race_added: "Regenerated after a race was added to the calendar.",
   race_removed: "Regenerated after a race was removed from the calendar.",

@@ -130,6 +130,18 @@ describe("C — legacy history counter never changes V2 doses", () => {
     expect(sessions(missed).some((s) => /missed or replaced/.test(s.rationale))).toBe(false);
   });
 
+  it("DH and AEROBIC_BASE carry LoadDerivation's unadjusted baseline load (DB requires it for load-variable kinds): development MODERATE, taper LIGHT, history ignored", () => {
+    for (const count of [0, 5]) {
+      const p = generated(generatePlanV2InMemory({
+        block: RACE_PLAN,
+        snapshot: snapshot({ races: [RACE], recentHistory: { recentSessionKinds: [], recentMissedOrReplacedCount: count, trailingVolumeMinutes: 0 } }),
+        mintId: counter(),
+      }));
+      const loads = new Set(sessions(p).filter((s) => s.kind === "DH_TECHNICAL" || s.kind === "AEROBIC_BASE").map((s) => `${s.weekType}:${s.loadProfile}`));
+      expect(loads).toEqual(new Set(["development:MODERATE", "taper:LIGHT"]));
+    }
+  });
+
   it("V1 keeps its history adjustment for the same inputs (35 / 50 / LIGHT, 5 passages)", () => {
     const v1 = runPlanningPipeline({
       block: { ...TWO_WEEKS, id: "b", planVersionId: "v" },
@@ -219,7 +231,7 @@ describe("F — placement uses the V2 duration (policy before placement)", () =>
         kind: "DH_TECHNICAL",
         domain: "dh_technical",
         weekType,
-        baseline: { durationMin: 999, doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 99 } },
+        baseline: { loadProfile: "MODERATE", durationMin: 999, doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 99 } },
       });
       expect([resolved.durationMin, (resolved.doseTarget as { focusedRunsCount: number }).focusedRunsCount]).toEqual([expected, weekType === "development" ? 6 : 4]);
     }

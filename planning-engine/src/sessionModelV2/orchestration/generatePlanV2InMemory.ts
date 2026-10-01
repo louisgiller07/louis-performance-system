@@ -22,7 +22,7 @@ import { runPlanningPipeline, PLANNING_ENGINE_VERSION } from "../../pipeline/pla
 import type { TrainingPlanBlock } from "../../types/planBlock.js";
 import type { LoadProfile, SessionKind } from "../../types/sharedVocabulary.js";
 import type { SessionDoseTarget } from "../../types/generatedSession.js";
-import type { WeekType } from "../../types/planWeek.js";
+import type { WeekDoseSummary, WeekType } from "../../types/planWeek.js";
 import type { RelaxedConstraint } from "../../types/planVersion.js";
 import { buildSessionModelV2CatalogManifest, type SessionModelV2CatalogManifest } from "../catalogManifest.js";
 import { assignPrescriptionIds } from "../assignPrescriptionIds.js";
@@ -74,6 +74,10 @@ export interface PlanWeekV2InMemory {
   startDate: string;
   endDate: string;
   weekType: WeekType;
+  /** Planner week rationale and dose summary (transported as-is to persistence). */
+  rationale: string;
+  doseSummary: WeekDoseSummary;
+  /** Planner relaxations of this week, e.g. a session not placed because no window fits its V2 duration. */
   relaxedConstraints: readonly RelaxedConstraint[];
   sessions: PlanSessionV2InMemory[];
 }
@@ -88,6 +92,8 @@ export interface PlanV2InMemory {
   catalog: SessionModelV2CatalogManifest;
   planVersionId: string;
   blockId: string;
+  /** Block content the plan was generated for (ids above). */
+  block: Omit<TrainingPlanBlock, "id" | "planVersionId">;
   horizon: { startDate: string; endDate: string };
   weeks: PlanWeekV2InMemory[];
   /** Fingerprint of the whole plan's sport content (ids excluded). */
@@ -164,6 +170,8 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
       startDate: week.startDate,
       endDate: week.endDate,
       weekType: week.weekType,
+      rationale: week.rationale,
+      doseSummary: week.doseSummary,
       relaxedConstraints: week.relaxedConstraints,
       sessions,
     });
@@ -181,6 +189,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
       catalog,
       planVersionId,
       blockId,
+      block: { ...input.block },
       horizon,
       weeks,
       planSportFingerprint: sportFingerprint({

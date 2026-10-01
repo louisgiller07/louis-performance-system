@@ -113,6 +113,9 @@ describe("V2 content — import boundary", () => {
     const allowed = new Set([
       join("head-coach-engine", "src", "supabase", "buildPlanInputSnapshotV2.ts"),
       join("head-coach-engine", "src", "generation", "v2", "runInMemoryPlanGenerationV2.ts"),
+      // UX-11A.5b.5b — explicit local V2 persistence (no public entry point).
+      join("head-coach-engine", "src", "generation", "v2", "planV2PersistencePayload.ts"),
+      join("head-coach-engine", "src", "generation", "v2", "generateAndPersistTrainingPlanV2.ts"),
     ]);
     const importers: string[] = [];
     for (const root of ["head-coach-engine/src", "prescription-engine/src", "longitudinal-engine/src", "planning-engine/src"].map((r) => join(REPO, r))) {
@@ -128,5 +131,13 @@ describe("V2 content — import boundary", () => {
   it("UX-11A.5a.4.3 — the V2 dose model never reads the legacy LoadDerivation durations", () => {
     const text = readFileSync(join(REPO, "planning-engine", "src", "sessionModelV2", "orchestration", "planDoseModelV2.ts"), "utf8");
     expect(text).not.toMatch(/referenceDurationMinFor|BASE_DURATION_MIN|TAPER_DURATION_MIN/);
+  });
+
+  it("UX-11A.5b.5b — V2 builders and the in-memory orchestrator never read the legacy doseTarget fields (setVolume, targetRpeOrRir, intensityZone)", () => {
+    const files = [
+      ...sourceFiles(join(REPO, "planning-engine", "src", "sessionModelV2", "builders")),
+      join(REPO, "planning-engine", "src", "sessionModelV2", "orchestration", "generatePlanV2InMemory.ts"),
+    ];
+    for (const file of files) expect(readFileSync(file, "utf8"), file).not.toMatch(/setVolume|targetRpeOrRir|intensityZone/);
   });
 });

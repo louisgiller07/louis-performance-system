@@ -4184,3 +4184,54 @@ Le modèle de dose V2 prend la durée DH, au placement comme pour la séance, **
 **Manifeste.** `planDosePolicy` : `plan-dose-policy-v2.2` ; version agrégée : `session-model-v2.4`. Les autres composants sont inchangés.
 
 **Statut** : Accepted — `feat/ux11a5b5a-v2-in-memory-orchestration`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5b.5b : persistance V2 locale
+
+> **A complete, validated V2 plan is persisted locally through the existing transactional RPC, with no migration: one call, nothing written if the plan is blocked or any invariant fails. The planned prescription is the V2 dose authority. V2 stays unreachable by users and absent from production.**
+
+**Audit du contrat (aucune migration nécessaire).**
+- `generate_training_plan_version` écrit en une seule transaction la version, le premier état du cycle de vie (`draft`), le bloc, les semaines, les séances et les prescriptions.
+- Colonnes de version en texte libre : `input_snapshot_schema_version`, `prescription_schema_version`, `catalog_version`, `planner_version`, `ruleset_version`. `input_snapshot` est un jsonb. Les relaxations ont déjà leur colonne : `relaxed_constraints` (jsonb).
+- `training_plan_planned_prescriptions` : `schema_version`, `catalog_version`, `structure` jsonb, au plus une ligne par séance.
+- **Idempotence** : sur (pilote, `generation_request_id`), si l'empreinte du snapshot et les cinq versions sont identiques, la RPC renvoie la version existante (`idempotent_replay`). Sinon, refus explicite (« different generation environment »).
+- Contrainte découverte : `training_plan_generated_sessions_load_profile_matches_kind` impose un `load_profile` non nul pour les types à charge variable, DH et AEROBIC_BASE compris (voir ci-dessous).
+
+**Chemin V2** (`head-coach-engine/src/generation/v2/generateAndPersistTrainingPlanV2.ts`, `planningModel: "v2"` obligatoire) :
+1. snapshot V2 (profil lu une fois) ;
+2. plan complet en mémoire, toutes les prescriptions construites, identifiées et validées ;
+3. invariants du plan entier (`assertPlanV2Invariants`) :
+   - une prescription v2 valide par séance placée ;
+   - aucun doublon d'identifiant de séance ou de prescription ;
+   - même catalogue pour toutes les prescriptions ;
+   - type de séance cohérent avec sa prescription ;
+   - `loadProfile` présent exactement pour les types à charge variable (miroir de la contrainte SQL) ;
+4. payload (`planV2ToPersistencePayload`, aucune logique sportive, aucun identifiant régénéré) ;
+5. **un** appel à la RPC existante, via un appel V2 mince : ni la RPC ni le wrapper V1 ne sont modifiés.
+
+Un plan bloqué (par exemple `missing_dh_technical_tier`) ou une prescription invalide s'arrête avant l'étape 5 : aucune écriture.
+
+**Contrat persisté.**
+- Version : `input_snapshot_schema_version = "v2"`, `prescription_schema_version = "v2"`, `catalog_version = "session-model-v2.4"`, `planner_version = ruleset_version = "v2"` (version réelle du planificateur), `input_snapshot` = le snapshot V2 utilisé, `input_snapshot_hash` = SHA-256 de son JSON (même technique qu'en V1).
+- Chaque prescription : `schema_version = "v2"`, `catalog_version = "session-model-v2.4"`, `structure` = le document identifié et validé, à l'identique.
+- **`planningModel`** : aucune colonne propre, et aucune n'est créée. Le trio snapshot v2 / prescription v2 / catalogue Session Model suffit à distinguer un plan V2 en base ; `planningModel` reste dans le modèle TS.
+- **Empreinte sportive** : aucune colonne appropriée, elle n'est donc **pas stockée**. Elle reste recalculable à partir des séances et des structures persistées ; elle n'est cachée dans aucun autre champ.
+
+**`doseTarget` legacy.** Les séances V2 transportent toujours `doseTarget` (`setVolume`, `targetRpeOrRir`, `intensityZone` non ajustés) comme **métadonnée de compatibilité**. Ce n'est pas une autorité V2. Pour un plan V2, l'autorité de dose est la **prescription prévue structurée** (politique de dose, doses Force, templates, protocoles, catalogue DH). Un test de frontière vérifie qu'aucun builder ni l'orchestrateur en mémoire ne lisent ces champs.
+
+**`loadProfile` de DH et AEROBIC_BASE (correction de 5b.5a).** La base exige ce champ. Le modèle V2 reprend la charge de base **non ajustée** de `LoadDerivation` : MODERATE en développement, LIGHT en affûtage, sans réduction liée à l'historique. C'est une métadonnée structurelle ; aucun builder V2 ne la lit. Le modèle en mémoire de 5b.5a l'omettait, et seule la persistance réelle l'a révélé. Ce champ est lu par la projection et la décision quotidienne existantes : savoir si la politique doit en devenir l'autorité reste une question ouverte.
+
+**Non-placement.** Une séance qui ne tient pas dans un créneau (par exemple l'endurance d'affûtage de 45 min face à un créneau de 30 min) reste non placée : pas de séance fantôme, pas de prescription orpheline, pas de compression. Le diagnostic existant `{ constraintId: "placement_shortfall", reason: "insufficient_available_time", domain: "aerobic" }` est conservé dans `relaxed_constraints` de la version, comme en V1. Ce format n'indique pas la semaine concernée (contrat existant).
+
+**Preuves en base locale** (`tests/supabase/v2Persistence.integration.test.ts`) :
+- plan de développement complet (version v2, snapshot avec `dhTechnicalTier`, dates, types et durées, une prescription v2 par séance, `templateId`, exercice DH `drillId` avec `pass` sans `exerciseId`, `activitySelection`, structures identiques aux documents en mémoire) ;
+- reprise avec le même identifiant de requête (aucune deuxième version) ; nouvel identifiant → nouvelle version de même empreinte ;
+- collision V1 / V2 dans les deux sens → refus, version d'origine intacte ;
+- plan bloqué → aucune ligne ;
+- course : affûtage Force LIGHT / 45, DH 4 passages / 60 min, endurance 45 min, jamais 30 min ni 3 passages ;
+- non-placement : relaxation conservée, aucune prescription fantôme ;
+- compteur legacy 0 vs 3 → même empreinte, empreinte de snapshot différente ;
+- garde-fou de lecture sur une **vraie** ligne v2 → `unsupported_by_reader`.
+
+**Inchangés** : `generate-training-plan` (Edge Function publique, toujours V1), la RPC, les migrations, la suppression de compte, la production. Seul changement côté V1 : `RATIONALE_FOR_TRIGGER` est désormais exporté (sans effet sur le comportement), pour être réutilisé à l'identique en V2.
+
+**Statut** : Accepted — `feat/ux11a5b5b-v2-local-persistence`, lignée non fusionnée. **V2 non livrée** : persistance locale uniquement, inaccessible aux utilisateurs.
