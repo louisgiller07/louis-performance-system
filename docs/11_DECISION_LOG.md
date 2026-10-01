@@ -3915,3 +3915,42 @@ Un test fige le manifeste. Toute nouvelle version de composant impose une nouvel
 **7. Test permanent de `session-execution`.** `tests/edge/sessionExecution/**/*.test.ts` est ajouté à `vitest.edge.config.ts`. Il est exécuté par la commande officielle `npm run test:edge` (head-coach-engine), qui couvre la validation de la requête et les codes de rejet stables, dont `invalid_prescribed_measure`.
 
 **Statut** : Accepted — `feat/ux11a5b2-v2-core-types`, lignée non fusionnée. Aucune prescription V2 générée ni persistée.
+
+## 2026-10-01 — ADR UX-11A.5b.3 : premiers builders V2 purs (DH technique et endurance fondamentale)
+
+> **Two pure builders produce V2 sport content (no ids) for DH_TECHNICAL and AEROBIC_BASE sessions, strictly from declared data, the catalogues and the planned session's dose. They block instead of correcting. Nothing is wired into generation or persistence.**
+
+**Emplacement.** `planning-engine/src/sessionModelV2/builders/`, à l'intérieur du module isolé : aucune autre source de moteur ne l'importe (test de frontière). Pas de `generationEngine`, pas de `generate-training-plan`, pas de Supabase, pas d'UUID, pas d'horloge.
+
+**DH — `buildDhPrescriptionV2Content(input)`.**
+- **Entrée** : `sessionKind`, `dhSessionOrdinal`, `dhTechnicalTier`, `priorityAreas` (ordre déclaré), `terrainAccess`, `focusedRunsCount`, `catalog`. Jamais `strengths`, `weaknesses`, niveau de compétition ni niveau de renfo.
+- **Contrôles, dans l'ordre, sans correction** : `missing_dh_technical_tier`, `missing_dh_priority_areas`, `too_many_dh_priority_areas` (> 3), `duplicate_dh_priority_areas`, `dh_passes_out_of_range` (hors 4–8), puis `unavailable_dh_drill_terrain`.
+- **Erreurs de contrat** (`SessionModelV2ContractError`, pas des règles sportives) : type de séance autre que `DH_TECHNICAL`, ordinal non entier ou négatif, compétence inconnue.
+- **Rotation** : compétence = `priorityAreas[ordinal % n]`. Intention = `DH_SKILL_TO_INTENT_V2[compétence]`. Exercice = **le** drill du couple (compétence, niveau déclaré).
+- **Terrain** : si le terrain requis n'est pas déclaré, le plan est bloqué. Pas d'autre priorité, pas d'autre niveau, pas d'autre drill.
+- **Structure** : cadre `sessionFrameV2` (brief, échauffement, principal, application, retour au calme). Seul `main` contient un élément, l'exercice DH avec `{ type: "pass", count: focusedRunsCount }`. Les autres blocs ne portent que des consignes, sans aucun nombre de descentes.
+- **Invariant de catalogue (état réel)** : 21 drills, exactement un par couple (7 compétences × 3 niveaux). `canonicalDhDrill` lève une erreur de contrat si un couple a zéro ou plusieurs entrées : ce n'est jamais « le premier compatible ».
+- **Ordinal** : `deriveDhSessionOrdinals(sessions)` numérote 0, 1, 2… les séances `DH_TECHNICAL` d'une version de plan par date. Une séance par jour : pas de départage ; deux séances DH le même jour sont refusées.
+
+**`focusedRunsCount`.** Sa sémantique (passages de l'exercice technique unique, ADR UX-11A.5b.0) est utilisée telle quelle. 3 (affûtage avec historique ajusté) bloque le plan : il reste hors périmètre.
+
+**Endurance fondamentale — `buildAerobicBasePrescriptionV2Content(input)`.**
+- **Entrée** : `sessionKind` (`AEROBIC_BASE`), `durationMin`, `catalog`. Seul `endurance_base_continuous` est utilisé.
+- **Intention** : celle déclarée par le protocole (`aerobic_base_lucidity`, relation explicite du catalogue).
+- **Activités** : `activitySelection` « restricted » = `activityOptions` du protocole, dans son ordre. Le builder ne choisit jamais l'activité.
+- **Blocs** : ceux du protocole, avec durée, RPE, test de la parole et consignes, et `items: []`.
+- **Durée** : résolution arithmétique, bloc principal = durée de la séance − blocs fixes (10 + 5). Elle n'est valide que si le principal reste dans 30–75 : 45 → 10/30/5, 60 → 10/45/5, 90 → 10/75/5. Pour 30, 35, 20 (ou toute durée hors 45–90) : `unsupported_protocol_duration`. Pas d'écrêtage, pas de compression, pas de protocole inventé.
+
+**Déterminisme.** Mêmes entrées donnent le même contenu et la même empreinte sportive, même après attribution d'UUID différents. Tests :
+- rotation 0/1/2/3 sur trois priorités → A/B/C/A ;
+- `strengths` et `weaknesses` sans effet ;
+- un drill par niveau ;
+- 4 et 8 passages acceptés, 3 et 9 bloqués ;
+- un terrain indisponible bloque sans repli ;
+- endurance : durées 45, 60 et 90, blocages, liste d'activités issue du protocole.
+
+Chaque contenu produit est validé par `validatePrescriptionV2` après `assignPrescriptionIds` (ids déterministes de test).
+
+**Hors périmètre** : Force et Puissance, modèles de contenu, `generationEngine`, persistance, constructeur runtime du snapshot V2, prescription du jour (5c), interface V2, `session_activity_results`, récupération, intervalles, activité libre, séances aérobie de 20, 30 et 35 min, DH à 3 passages.
+
+**Statut** : Accepted — `feat/ux11a5b3-v2-pure-generation`, lignée non fusionnée. Aucune prescription V2 persistée.
