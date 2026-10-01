@@ -4113,3 +4113,57 @@ Le reste est inchangé (DH 6 / 4 passages, endurance fondamentale 45 / 45 min, a
 - **Conclusion** : dans un plan V2, `historyAdjuster` n'est pas appliqué. La durée DH vaut donc exactement la durée de référence utilisée au placement (90 / 60) : elle est connue avant le placement et ne dépend d'aucune valeur abandonnée par V2. **Aucune durée DH n'est ajoutée à la politique.** Elle reste une donnée structurelle du planificateur, dont le statut PLACEHOLDER est signalé. La prescription DH V2 ne porte d'ailleurs aucune durée de séance (cadre sans durées).
 
 **Statut** : Accepted (architecture) / PROVISIONAL (valeurs) — `feat/ux11a5b4-v2-force-builder`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5b.5a : orchestration V2 en mémoire (sans persistance)
+
+> **A V2 plan can now be generated end to end in memory: snapshot V2 → shared planning pipeline with an injected V2 dose model (durations known before placement, no legacy history decrement) → V2 builders for every session kind the planner produces → ids → validation → sport fingerprints. It is reached only through an explicit V2 entry point; V1 is unchanged and nothing is persisted.**
+
+**Mode explicite.**
+- `PlanningModel = "v1" | "v2"`, défaut `"v1"`.
+- Le chemin V2 n'est atteint que par `runInMemoryPlanGenerationV2({ planningModel: "v2", … })` (head-coach) ou `generatePlanV2InMemory(…)` (planning-engine, pur).
+- Aucune détection automatique : ni la présence d'un niveau DH, ni un profil récent, ni la disponibilité d'un catalogue ne déclenchent V2.
+- `generationEngine`, `generateAndPersistTrainingPlan`, `persistGeneratedTrainingPlan` et l'Edge Function `generate-training-plan` sont inchangés.
+
+**Snapshot V2 runtime** (`head-coach-engine/src/supabase/buildPlanInputSnapshotV2.ts`) :
+- réutilise `buildPlanInputSnapshot` sans le modifier (mêmes lectures, validations et blocages) et y ajoute `dhTechnicalTier` (nullable, valeur inconnue refusée) ;
+- le profil de performance n'est lu **qu'une fois** : la lecture du constructeur V1 est capturée et réutilisée ;
+- après la construction, le chemin V2 ne relit jamais le profil.
+
+**Point d'injection dans le planificateur (pipeline partagé, pas de second pipeline).**
+- `runPlanningPipeline` accepte un `sessionDoseModel` facultatif (`pipeline/sessionDoseModel.ts`). Absent : chemin V1 identique (durées de référence `LoadDerivation`, puis `HistoryAdjuster`).
+- Présent, le modèle fournit :
+  - les **durées finales de placement** par type de semaine (`null` pour une semaine sans créneau) ;
+  - la **charge finale** de chaque séance placée, à la place de `HistoryAdjuster`.
+- Le pipeline vérifie que la durée finale de chaque séance est égale à celle utilisée pour la placer ; sinon, `SessionDoseModelContractError`. Toute durée connue seulement après le placement est donc structurellement refusée.
+- Le modèle V2 (`sessionModelV2/orchestration/planDoseModelV2.ts`) applique `plan-dose-policy-v2.1` :
+  - Force MODERATE 60 / LIGHT 45 ;
+  - DH : durée structurelle de référence du planificateur (90 / 60), passages 6 / 4 ;
+  - AEROBIC_BASE 45 / 45 ;
+  - course : aucune séance ;
+  - deload / recovery : erreur de contrat (jamais produits).
+- `recentHistory` reste transmis au pipeline (champ requis), mais son seul lecteur, `HistoryAdjuster`, n'est pas appliqué en V2. Les champs legacy de `doseTarget` (`setVolume`, `targetRpeOrRir`, `intensityZone`) gardent la base non ajustée de `LoadDerivation` ; aucun builder V2 ne les lit.
+
+**Orchestrateur en mémoire** (`sessionModelV2/orchestration/generatePlanV2InMemory.ts`, pur, `mintId` injecté) :
+- **Types de séance** : `STRENGTH_LOWER`, `STRENGTH_UPPER`, `DH_TECHNICAL` et `AEROBIC_BASE`, tous ceux que produit le planificateur ; tout autre type est une erreur de contrat.
+- **Ordinaux DH** : `deriveDhSessionOrdinals` sur les séances de la version ; la rotation repart de 0.
+- **Préconditions DH** : appliquées seulement s'il existe une séance DH, via le builder.
+- **Blocages verrouillés** : ils renvoient `{ status: "blocked", code, detail }` avant tout id. Pas de plan partiel.
+- **Composition Force** : identique (template et exercices) pour toutes les séances d'un même type de la version, vérifié à l'exécution ; seule la dose varie.
+- **Prescriptions** : pour chaque séance, builder → contenu sans id → empreinte de séance → `assignPrescriptionIds` → `validatePrescriptionV2`. Une prescription invalide est une erreur de contrat.
+- **Résultat** : `planningModel "v2"`, `inputSnapshotSchemaVersion "v2"`, `prescriptionSchemaVersion "v2"`, `plannerVersion`, `catalogVersion` (= version agrégée), manifeste, semaines et séances, chacune avec **sa** prescription V2 obligatoire (N séances → N prescriptions), empreintes de séance et `planSportFingerprint`.
+- La couche head-coach injecte `randomUUID`. Le Session Model reste sans UUID.
+
+**Accès au module.** Point d'entrée explicite du paquet `planning-engine/session-model-v2`, sans réexport depuis l'index public. Un test de frontière n'autorise que deux importateurs : le constructeur du snapshot V2 et le point d'entrée en mémoire. M1, `generationEngine`, la persistance et `prescription-engine` ne l'importent pas.
+
+**Preuves (tests).**
+- Plan de développement complet.
+- Plan avec course : développement → affûtage → course ; aucune séance de 30 min ni de 3 passages en V2.
+- Compteur legacy 0 vs 5 → contenu V2 identique, alors que V1 continue de réduire (35 / 50 / LIGHT / 5).
+- Plan avec DH sans niveau → bloqué ; plan sans DH sans niveau → généré.
+- Composition Force stable sur toute la version.
+- Créneau de 30 min seul pour l'aérobie d'affûtage : V2 ne la place pas (contrainte relâchée explicite), V1 la place (30 min).
+- Déterminisme : même empreinte avec des UUID différents ; `strengths` et `weaknesses` sans effet.
+
+**Aucune persistance** : RPC `generate_training_plan_version`, migrations, tables, `training_plan_planned_prescriptions` et Edge Functions inchangés. Prochaine étape : UX-11A.5b.5b, persistance V2 locale.
+
+**Statut** : Accepted — `feat/ux11a5b5a-v2-in-memory-orchestration`, lignée non fusionnée. Valeurs de dose PROVISIONAL — coaching validation required.

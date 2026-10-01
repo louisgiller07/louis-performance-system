@@ -56,10 +56,14 @@ describe("V2 content — import boundary", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("UX-11A.5a.2b — no engine reads the declared DH tier yet (only the profile repository may select the column)", () => {
+  it("UX-11A.5a.2b / 5b.5a — only the profile repository and the explicit PlanInputSnapshotV2 builder read the declared DH tier", () => {
     const roots = ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src"].map((r) => join(REPO, r));
     // The profile repository reads the column; the V2 catalogue modules (already isolated above) only document it.
-    const allowed = new Set([join("head-coach-engine", "src", "supabase", "repositories", "athletePerformanceProfileRepo.ts"), ...ALLOWED]);
+    const allowed = new Set([
+      join("head-coach-engine", "src", "supabase", "repositories", "athletePerformanceProfileRepo.ts"),
+      join("head-coach-engine", "src", "supabase", "buildPlanInputSnapshotV2.ts"),
+      ...ALLOWED,
+    ]);
     const offenders: string[] = [];
     for (const root of roots) {
       for (const file of sourceFiles(root)) {
@@ -103,5 +107,21 @@ describe("V2 content — import boundary", () => {
       expect(text, file).not.toMatch(/planDosePolicyV2|PLAN_DOSE_POLICY/);
       if (!file.endsWith("strengthPrescriptionV2.ts")) expect(text, file).not.toMatch(/strengthTemplateCatalogV2|strengthDoseCatalogV2|STRENGTH_TEMPLATE|STRENGTH_DOSE/);
     }
+  });
+
+  it("UX-11A.5b.5a — only the explicit V2 head-coach files import planning-engine/session-model-v2; M1, generationEngine, persistence and prescription-engine never do", () => {
+    const allowed = new Set([
+      join("head-coach-engine", "src", "supabase", "buildPlanInputSnapshotV2.ts"),
+      join("head-coach-engine", "src", "generation", "v2", "runInMemoryPlanGenerationV2.ts"),
+    ]);
+    const importers: string[] = [];
+    for (const root of ["head-coach-engine/src", "prescription-engine/src", "longitudinal-engine/src", "planning-engine/src"].map((r) => join(REPO, r))) {
+      for (const file of sourceFiles(root)) {
+        if (readFileSync(file, "utf8").includes("planning-engine/session-model-v2")) importers.push(relative(REPO, file));
+      }
+    }
+    expect(importers.sort()).toEqual([...allowed].sort());
+    // The public planning-engine index still does not expose the module.
+    expect(readFileSync(join(REPO, "planning-engine", "src", "index.ts"), "utf8")).not.toMatch(/sessionModelV2|session-model-v2/);
   });
 });

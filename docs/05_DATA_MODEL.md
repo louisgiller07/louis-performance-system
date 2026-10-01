@@ -218,7 +218,9 @@ completed_sessions                    résumé Après séance du jour (existe, i
 
 Les lignes v1 restent inchangées et non exécutables. Les lecteurs doivent distinguer « v1 pris en charge », « v2 pris en charge » et « format non pris en charge par ce lecteur » (UX-11A.5b.1), sans jamais interpréter un v2 comme un v1 ni le masquer.
 
-*Snapshot de génération v2* (`training_plan_versions.input_snapshot`, `input_snapshot_schema_version = 'v2'`) : le snapshot v1 plus `dhTechnicalTier` (`beginner` | `intermediate` | `advanced` | `null`). `technicalPriorities.priorityAreas`, déjà figé dans son ordre, reste la seule source des priorités DH : pas de `dhPriorityAreas`. Tout ce qui influence le contenu vient du snapshot et de la version du plan, jamais d'une relecture du profil vivant. `strengths` et `weaknesses` ne sélectionnent jamais de contenu.
+*Snapshot de génération v2* (`training_plan_versions.input_snapshot`, `input_snapshot_schema_version = 'v2'` ; constructeur runtime `buildPlanInputSnapshotV2` depuis UX-11A.5b.5a, qui reprend le snapshot v1 sans le modifier et lit le profil une seule fois) : le snapshot v1 plus `dhTechnicalTier` (`beginner` | `intermediate` | `advanced` | `null`). `technicalPriorities.priorityAreas`, déjà figé dans son ordre, reste la seule source des priorités DH : pas de `dhPriorityAreas`. Tout ce qui influence le contenu vient du snapshot et de la version du plan, jamais d'une relecture du profil vivant. `strengths` et `weaknesses` ne sélectionnent jamais de contenu.
+
+*Génération V2 (UX-11A.5b.5a, en mémoire seulement)* : le chemin V2 n'est déclenché que par un choix explicite (`planningModel: "v2"`) ; V1 reste le défaut. La politique de dose V2 fixe les durées **avant** le placement (point d'injection `sessionDoseModel` du planificateur partagé), et aucune réduction legacy liée à l'historique n'est appliquée. Chaque séance d'un plan V2 porte exactement une prescription v2 valide. **Aucune donnée v2 n'est encore écrite** : RPC, tables et Edge Functions inchangées (persistance locale prévue en UX-11A.5b.5b).
 
 | Table | Colonnes | Contraintes |
 |---|---|---|

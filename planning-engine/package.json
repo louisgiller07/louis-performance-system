@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./session-model-v2": {
+      "types": "./dist/sessionModelV2/index.d.ts",
+      "default": "./dist/sessionModelV2/index.js"
     }
   },
   "files": [

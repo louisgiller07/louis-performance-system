@@ -18,3 +18,5 @@ export * from "./builders/aerobicBasePrescriptionV2.js";
 export * from "./strengthTiers.js";
 export * from "./validateStrengthTemplatesV2.js";
 export * from "./builders/strengthPrescriptionV2.js";
+export * from "./orchestration/planDoseModelV2.js";
+export * from "./orchestration/generatePlanV2InMemory.js";

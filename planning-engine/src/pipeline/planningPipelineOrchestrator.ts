@@ -19,6 +19,7 @@ import { assignSessionKinds } from "./sessionKindAssignment.js";
 import { deriveLoad, referenceDurationMinFor, type LoadDerivationOutput } from "./loadDerivation.js";
 import { adjustHistory, type HistoryAdjusterOutput } from "./historyAdjuster.js";
 import { resolveConstraints, type ConstraintResolverSessionEntry } from "./constraintResolver.js";
+import { SessionDoseModelContractError, type SessionDoseModel } from "./sessionDoseModel.js";
 import type { PipelineSessionEnvelope } from "../types/pipelineSessionEnvelope.js";
 import type { TrainingPlanBlock } from "../types/planBlock.js";
 import type {
@@ -45,6 +46,12 @@ export interface PlanningPipelineOrchestratorInput {
   lockedDates: readonly PlanInputLockedDate[];
   strengthExperienceTier: StrengthExperienceTier;
   recentHistory: PlanInputRecentHistory;
+  /**
+   * UX-11A.5b.5a — absent (default): V1 pipeline, byte-for-byte unchanged.
+   * Present (explicit V2 plan): placement durations and session loads come
+   * from this model, known before placement; HistoryAdjuster is not applied.
+   */
+  sessionDoseModel?: SessionDoseModel;
 }
 
 export type OrchestratedSession = ConstraintResolverSessionEntry & { rationale: string };
@@ -110,6 +117,40 @@ function computeDoseSummary(weekStartDate: string, weekEndDate: string, sessions
   };
 }
 
+function placementDurationsFromModel(
+  model: SessionDoseModel,
+  weekType: WeekType,
+  template: { strengthSlotCount: number; dhTechnicalSlotCount: number; aerobicSlotCount: number }
+): Readonly<Record<SessionDomain, number>> {
+  const durations = model.placementDurationMinByDomain(weekType);
+  if (durations !== null) return durations;
+  if (template.strengthSlotCount + template.dhTechnicalSlotCount + template.aerobicSlotCount > 0) {
+    throw new SessionDoseModelContractError(`${model.modelId} gives no duration for week type "${weekType}", whose template places sessions`);
+  }
+  // No slot in this week: no duration is ever read.
+  return { strength: 0, dh_technical: 0, aerobic: 0 };
+}
+
+/**
+ * The model's final load for a placed session (HistoryAdjuster is not applied).
+ * Its duration must be the one the session was placed with.
+ */
+function resolveWithModel(
+  model: SessionDoseModel,
+  identity: { date: string; domain: SessionDomain; kind: PipelineSessionEnvelope<unknown>["kind"] },
+  weekType: WeekType,
+  baseline: LoadDerivationOutput,
+  placementDurations: Readonly<Record<SessionDomain, number>>
+): HistoryAdjusterOutput {
+  const resolved = model.resolveSessionLoad({ kind: identity.kind, domain: identity.domain, weekType, baseline });
+  if (resolved.durationMin !== placementDurations[identity.domain]) {
+    throw new SessionDoseModelContractError(
+      `${model.modelId}: ${identity.kind} on ${identity.date} resolves to ${resolved.durationMin} min but was placed with ${placementDurations[identity.domain]} min`
+    );
+  }
+  return { ...resolved, adjusted: false };
+}
+
 export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): PlanningPipelineOrchestratorResult {
   const { weeks: weekSequence } = buildWeekSequence({ block: input.block });
 
@@ -126,6 +167,18 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
       races: input.races,
     });
 
+    // UX-11A.5b.5a — with a dose model (V2), placement uses the model's FINAL
+    // durations; without one (V1), the legacy reference durations, unchanged.
+    const sessionDurationMinByDomain = input.sessionDoseModel
+      ? placementDurationsFromModel(input.sessionDoseModel, weekType, template)
+      : {
+          // V06-03 — the same reference figures deriveLoad() assigns below
+          // (HistoryAdjuster can only lower them), so a placed slot always fits.
+          strength: referenceDurationMinFor("strength", weekType),
+          dh_technical: referenceDurationMinFor("dh_technical", weekType),
+          aerobic: referenceDurationMinFor("aerobic", weekType),
+        };
+
     const { placedSlots, unplaceable } = segmentWeek({
       weekStartDate: weekEntry.startDate,
       weekEndDate: weekEntry.endDate,
@@ -133,13 +186,7 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
       availability: input.availability,
       terrainAccess: input.terrainAccess,
       lockedDates: input.lockedDates,
-      // V06-03 — the same reference figures deriveLoad() assigns below
-      // (HistoryAdjuster can only lower them), so a placed slot always fits.
-      sessionDurationMinByDomain: {
-        strength: referenceDurationMinFor("strength", weekType),
-        dh_technical: referenceDurationMinFor("dh_technical", weekType),
-        aerobic: referenceDurationMinFor("aerobic", weekType),
-      },
+      sessionDurationMinByDomain,
     });
 
     const { assignments } = assignSessionKinds({ placedSlots });
@@ -156,11 +203,13 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
       });
       const afterLoadDerivation: PipelineSessionEnvelope<LoadDerivationOutput> = { ...identity, payload: loadBaseline };
 
-      const historyAdjusted: HistoryAdjusterOutput = adjustHistory({
-        baseline: afterLoadDerivation.payload,
-        kind: identity.kind,
-        recentHistory: input.recentHistory,
-      });
+      const historyAdjusted: HistoryAdjusterOutput = input.sessionDoseModel
+        ? resolveWithModel(input.sessionDoseModel, identity, weekType, afterLoadDerivation.payload, sessionDurationMinByDomain)
+        : adjustHistory({
+            baseline: afterLoadDerivation.payload,
+            kind: identity.kind,
+            recentHistory: input.recentHistory,
+          });
 
       return { ...identity, payload: historyAdjusted };
     });
