@@ -34,6 +34,7 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   invalid_item: "This exercise is not part of the prescription.",
   measure_mismatch: "This measure does not match the prescribed exercise.",
   invalid_prescribed_measure: "The prescribed exercise has no valid measure.",
+  final_prescription_not_current: "This prescription is no longer today's current prescription.",
 };
 
 export default {

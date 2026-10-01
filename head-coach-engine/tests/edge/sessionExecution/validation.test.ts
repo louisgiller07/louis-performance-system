@@ -124,6 +124,7 @@ describe("REJECTION_STATUS — stable codes", () => {
         "active_execution_exists",
         "date_mismatch",
         "execution_not_found",
+        "final_prescription_not_current",
         "id_conflict",
         "invalid_correction",
         "invalid_item",
@@ -136,6 +137,8 @@ describe("REJECTION_STATUS — stable codes", () => {
         "prescription_not_found",
       ].sort()
     );
+    // UX-11A.5c.2 — a superseded final prescription is a conflict with the current state.
+    expect(REJECTION_STATUS.final_prescription_not_current).toBe(409);
     for (const status of Object.values(REJECTION_STATUS)) {
       expect(status).toBeGreaterThanOrEqual(400);
       expect(status).toBeLessThan(500);

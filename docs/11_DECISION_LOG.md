@@ -4344,3 +4344,40 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Inchangés** : M1, V1, head-coach-engine, prescription-engine, web, migrations, RPC. Aucune écriture.
 
 **Statut** : Accepted — `feat/ux11a5c1-v2-final-prescription-keep`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5c.2 : persistance quotidienne V2 (couche DB, locale)
+
+> **A V2 daily run persists its decision, a durable final prescription status and at most one final prescription atomically, through a dedicated server-only RPC. A final prescription is executable only while its decision is the athlete's current decision for the day. Not wired into runDailyFor yet.**
+
+**Migration** `20261001120000_ux11a5c2_v2_daily_persistence.sql` (additive, appliquée en local uniquement, aucune migration antérieure modifiée) :
+1. `decisions` : `final_prescription_status` (`created` | `not_required` | `blocked`), `final_prescription_status_code` (texte ouvert), `final_prescription_status_detail` (jsonb), tous nullables. CHECK : code non NULL ssi `blocked` ; détail objet et seulement pour `blocked`. `NULL` = V1 ou historique.
+2. `decision_final_prescriptions` : `unique (decision_id)`, précédé d'un contrôle qui refuse la migration s'il existe des doublons. Audit local : 71 lignes (fixtures des tests d'exécution), 71 décisions distinctes, aucun doublon.
+3. `persist_daily_run_v2(p_athlete_id uuid, p_health_flag jsonb, p_decision_row jsonb, p_final_prescription_outcome jsonb) returns jsonb` — `SECURITY DEFINER`, `search_path = public, pg_temp`, `EXECUTE` révoqué pour `public`, `anon`, `authenticated`, accordé à `service_role` seul. Retour : `decision_id`, `health_flag_id`, `final_prescription_id`, `final_prescription_status`.
+4. `record_session_execution` : nouvelle version (`create or replace`, signature, droits et codes inchangés) avec un seul ajout, le contrôle de prescription courante.
+
+**Sémantique** :
+- KEEP copiable → `created` + exactement une prescription du jour.
+- REST → `not_required`, aucune ligne.
+- KEEP sans lignée → `blocked` / `final_prescription_no_lineage`.
+- MODIFY → `blocked` / `final_prescription_adaptation_not_defined` (détail `modify_not_supported` ou `upward_modify_not_supported`).
+- REPLACE → `blocked` / `final_prescription_adaptation_not_defined` (détail `replace_not_supported`) : code canonique de 5c.0 / 5c.1, pas de nouveau code.
+- Incompatibilité de catalogue → `blocked` / `final_prescription_catalog_mismatch`.
+- Une prescription corrompue reste une erreur de contrat côté TypeScript et n'atteint pas la RPC.
+
+**Contrôles de la RPC** (refus = exception, rien d'écrit) : statut obligatoire et connu (le chemin V2 n'écrit jamais `NULL`) ; `created` ⇔ exactement un objet de prescription, sans code ni détail ; `not_required` ⇒ aucune prescription et décision REST ; `blocked` ⇒ aucune prescription et code non vide ; prescription : identifiant fourni, `decision_id` = décision de l'appel, pilote identique, `schema_version = 'v2'`, `catalog_version` non vide et égal à `structure.catalog.aggregate`, `structure` objet en `schemaVersion: "v2"`, action égale à la décision (KEEP ↔ keep, etc.), `keep` ⇒ `planned_prescription_id`, prescription prévue v2. Les contraintes de table existantes (origine, lignée, règles d'adaptation, clés composites) s'appliquent en plus.
+
+**Décision courante** (`record_session_execution`) : décision de la prescription = décision la plus récente du pilote pour la date (`created_at desc, id desc`) **et** `is_current` dans `daily_decision_currency` (PILOT_022, mêmes entrées). La vue seule ne suffit pas : deux exécutions quotidiennes sur les mêmes entrées sont toutes deux à jour. Statut ≠ `created` → `not_executable`. Sinon → `final_prescription_not_current` (Edge `session-execution` : HTTP 409, message dédié). Contrôle appliqué à la création d'une exécution ; une exécution déjà commencée n'est pas interrompue.
+
+**Contrats pour 5c.3** (documentés, non codés) : chemin V1 / V2 choisi par `prescription_schema_version` de la version de plan courante (`v1`, `v2`, autre → fail-closed) ; la séance prévue utilisée pour la réconciliation est la **même observation** que celle du contexte M1.
+
+**`derivedFromBlockId`** : non ajouté. KEEP conserve les `blockId` ; MODIFY : nouveaux `blockId` + futur `derivedFromBlockId` ; REPLACE : nouveaux `blockId`, aucune lignée. Introduit avec MODIFY (amende la proposition de l'ADR 5c.0 §4).
+
+**Audit suppression de compte** (transactions annulées, athlètes de test locaux) : un utilisateur sans données append-only se supprime (cascade) ; avec une décision V2 seule (statut `blocked`) aussi ; avec une décision + prescription du jour, refus `decision_final_prescriptions_decision_fk` (`ON DELETE RESTRICT`) ; avec un plan, refus `training_plan_versions_athlete_id_fkey` — **préexistant**, comme `training_plan_current_version`, `decision_outcomes`, `pattern_evidence_*`, `pattern_insight_identities`, `session_executions`. 5c.2 ne crée aucune nouvelle contrainte bloquante. Aucune cascade ajoutée ; traitement par la procédure de purge unique (UX-11B.2 §11, ticket séparé).
+
+**Tests** : `tests/supabase/v2DailyPersistence.integration.test.ts` (28, base locale) — created, REST, quatre blocages, quinze refus avec message attendu et absence d'écriture, rollback après insertion (health flag, décision), `unique (decision_id)`, D1/F1 → D2/F2 (F1 `final_prescription_not_current`, F2 accepté), check-in modifié → F2 non courant, REST postérieur → ancienne prescription non courante, décision sans statut `created` → `not_executable`, RLS, droits. Fixtures de `sessionExecution.integration.test.ts` mises au contrat (décisions `created`, courantes, une décision par jour) sans changer ses assertions.
+
+**Découvert pendant les tests (non corrigé, hors périmètre)** : `getAvailabilityWindowsFor` (et les lectures sœurs du snapshot de génération) n'ont pas d'`ORDER BY` ; l'ordre des fenêtres dans `input_snapshot` suit l'ordre physique des lignes, donc le hash du snapshot (V1 et V2) peut changer entre deux appels identiques et faire échouer l'idempotence `generation_request_id`. Observé sous charge locale (ex. snapshot stocké avec les jours 1,4,3,0,5,6,2). Correctif proposé : tri déterministe des entrées du snapshot — touche le snapshot V1, donc à valider avant. Un test 5b.5b qui dépendait de l'ordre des lignes de prescriptions a été rendu indépendant de cet ordre (test seulement).
+
+**Inchangés** : `runDailyFor`, `persist_daily_run`, M1, V1, web, prescription-engine, production. Aucun `db push`.
+
+**Statut** : Accepted — `feat/ux11a5c2-v2-daily-persistence`, lignée non fusionnée, migration locale non poussée.

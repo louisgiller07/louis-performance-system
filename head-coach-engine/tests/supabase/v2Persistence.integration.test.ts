@@ -112,7 +112,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
     expect(new Set(prescriptions.map((p) => p.generated_plan_session_id))).toEqual(new Set(sessions.map((s) => s.id)));
     expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.5"]));
 
-    const byKind = (kind: string) => prescriptions.find((p) => sessions.find((s) => s.id === p.generated_plan_session_id)!.kind === kind)!.structure as Record<string, any>;
+    // The first session of that kind by date (sessions are ordered; prescription rows are not).
+    const byKind = (kind: string) => prescriptions.find((p) => p.generated_plan_session_id === sessions.find((s) => s.kind === kind)!.id)!.structure as Record<string, any>;
     expect(byKind("STRENGTH_LOWER").templateId).toBe("strength_lower_intermediate_v1");
     expect(byKind("DH_TECHNICAL").blocks.find((b: any) => b.role === "main").items[0]).toMatchObject({ kind: "drill", drillId: "cornering_berm_speed", measure: { type: "pass", count: 6 } });
     expect(byKind("DH_TECHNICAL").blocks.find((b: any) => b.role === "main").items[0].exerciseId).toBeUndefined();

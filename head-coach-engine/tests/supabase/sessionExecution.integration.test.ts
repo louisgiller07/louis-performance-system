@@ -6,9 +6,14 @@
  *   RUN_LOCAL_SUPABASE_INTEGRATION=1
  *   SUPABASE_SECRET_KEY / SUPABASE_PUBLISHABLE_KEY from `npx supabase status -o env`
  *
- * Fixtures: decision_final_prescriptions has no write path yet (UX-11A.5
- * will add one), so its rows are inserted as the local database owner
- * through `docker exec psql` on the local `supabase_db_*` container only.
+ * Fixtures: these tests use hand-made v2 structures that no planner can
+ * produce, so their decisions and final prescriptions are inserted as the
+ * local database owner through `docker exec psql` on the local
+ * `supabase_db_*` container only. UX-11A.5c.2: a fixture decision is written
+ * as the V2 contract writes it (final_prescription_status 'created', computed
+ * from the day's check-in) so that its final prescription is the current,
+ * executable one; the V2 write path itself is covered by
+ * v2DailyPersistence.integration.test.ts.
  * Scratch athletes are left in the local database on purpose: their
  * append-only rows (final prescriptions, executions) can never be deleted —
  * the same known limitation as canonical training plans (see testDb.ts).
@@ -21,7 +26,7 @@ import {
   createTestAthlete,
   createTestClient,
   getAthleteAuthClient,
-  insertDecision,
+  insertCheckin,
   isLoopbackSupabaseUrl,
   resolveTestSupabaseUrl,
   type TestAthlete,
@@ -37,6 +42,7 @@ const INTEGRATION_ENABLED =
 
 const DAY = "2026-10-01";
 const OTHER_DAY = "2026-10-02";
+const V1_DAY = "2026-10-03";
 
 function localDbContainer(): string {
   const name = execSync('docker ps --filter "name=supabase_db_" --format "{{.Names}}"', { encoding: "utf8" }).trim().split("\n")[0];
@@ -80,6 +86,27 @@ function insertFinalPrescription(athleteId: string, decisionId: string, schemaVe
      values (${sqlLiteral(id)}, ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, 'no_canonical_plan', 'keep', '[]'::jsonb,
              ${sqlLiteral(schemaVersion)}, 'test', ${sqlLiteral(JSON.stringify(structure))}::jsonb);`
   );
+  return id;
+}
+
+/**
+ * UX-11A.5c.2 — a fixture decision as the V2 contract writes it: status
+ * 'created', computed from the day's check-in (so current until superseded).
+ */
+const checkedInDays = new Set<string>();
+async function insertCreatedDecision(admin: SupabaseClient, athleteId: string, day: string): Promise<string> {
+  if (!checkedInDays.has(`${athleteId}:${day}`)) {
+    await insertCheckin(admin, athleteId, day);
+    checkedInDays.add(`${athleteId}:${day}`);
+  }
+  const id = randomUUID();
+  const out = execLocalSql(
+    `insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
+     select ${sqlLiteral(id)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, 'STRENGTH_A', 'test fixture', 'test', 'created', c.id, c.updated_at
+       from public.daily_checkins c where c.athlete_id = ${sqlLiteral(athleteId)} and c.checkin_date = ${sqlLiteral(day)}
+     returning id;`
+  );
+  if (!out.includes(id)) throw new Error("insertCreatedDecision: no check-in for that day");
   return id;
 }
 
@@ -146,10 +173,11 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     authA = await getAthleteAuthClient(a.athleteId);
     authB = await getAthleteAuthClient(b.athleteId);
 
-    decisionA = await insertDecision(admin, a.athleteId, DAY);
-    const decisionAv1 = await insertDecision(admin, a.athleteId, DAY);
-    const decisionAOtherDay = await insertDecision(admin, a.athleteId, OTHER_DAY);
-    const decisionB = await insertDecision(admin, b.athleteId, DAY);
+    decisionA = await insertCreatedDecision(admin, a.athleteId, DAY);
+    // Its own day: a later decision on DAY would supersede decisionA (UX-11A.5c.2).
+    const decisionAv1 = await insertCreatedDecision(admin, a.athleteId, V1_DAY);
+    const decisionAOtherDay = await insertCreatedDecision(admin, a.athleteId, OTHER_DAY);
+    const decisionB = await insertCreatedDecision(admin, b.athleteId, DAY);
 
     fpA = insertFinalPrescription(
       a.athleteId,
@@ -300,7 +328,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
   // UX-11B.2.3 — single 'pass' vocabulary and fail-closed measure check.
   it("UX-11B.2.3 — prescribed measure types are exactly reps / duration / distance / pass; anything else is rejected, never unchecked", async () => {
     const PASS_DAY = "2026-10-07";
-    const decision = await insertDecision(admin, a.athleteId, PASS_DAY);
+    const decision = await insertCreatedDecision(admin, a.athleteId, PASS_DAY);
     const ids = {
       pass: randomUUID(),
       passes: randomUUID(),
