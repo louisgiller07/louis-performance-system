@@ -148,12 +148,17 @@ describe("V2 content — import boundary", () => {
       expect(text, file).not.toMatch(/\/builders\/|\/catalog\/|\/orchestration\/|planDosePolicyV2|strengthDoseCatalogV2|strengthTemplateCatalogV2|protocolCatalogV2|setVolume|targetRpeOrRir|intensityZone/);
     }
     const offenders: string[] = [];
-    for (const root of ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src", "web/src"].map((r) => join(REPO, r))) {
+    for (const root of ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src"].map((r) => join(REPO, r))) {
       for (const file of sourceFiles(root)) {
         const rel = relative(REPO, file);
         if (isSessionModelV2(rel) || rel.startsWith(join("head-coach-engine", "src", "supabase", "dailyV2") + sep) || rel === join("head-coach-engine", "src", "supabase", "runDailyFor.ts") || rel === join("head-coach-engine", "src", "edge", "dailyRunV2EdgeEntry.ts")) continue;
         if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2|FinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
       }
+    }
+    // UX-11A.5c.4 — the web has its own read-only V2 contract (its own types named
+    // FinalPrescriptionV2*), but never calls the engine's builder or validator.
+    for (const file of sourceFiles(join(REPO, "web", "src"))) {
+      if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(relative(REPO, file));
     }
     expect(offenders).toEqual([]);
   });

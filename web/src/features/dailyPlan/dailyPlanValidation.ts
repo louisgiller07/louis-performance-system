@@ -291,11 +291,17 @@ export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse
   if (!isStringArray(data.warnings)) return false;
   if (!isValidExecutablePrescription(data.executablePrescription)) return false;
   if (data.executablePrescriptionStatus !== undefined && !isOneOf(data.executablePrescriptionStatus, EXECUTABLE_PRESCRIPTION_STATUSES)) return false;
+  // UX-11A.5c.4 — V2 fields: shapes only here; the document is decoded strictly by features/finalPrescriptionV2.
+  if (data.finalPrescriptionStatus !== undefined && !isOneOf(data.finalPrescriptionStatus, FINAL_PRESCRIPTION_STATUSES)) return false;
+  if (data.finalPrescriptionStatusCode !== undefined && typeof data.finalPrescriptionStatusCode !== "string") return false;
+  if (data.finalPrescriptionStatusDetail !== undefined && !isObject(data.finalPrescriptionStatusDetail)) return false;
+  if (data.finalPrescription !== undefined && !isObject(data.finalPrescription)) return false;
 
   return isValidDailyPlan(data.dailyPlan);
 }
 
 const EXECUTABLE_PRESCRIPTION_STATUSES = ["delivered", "none", "unsupported_schema_version"] as const;
+const FINAL_PRESCRIPTION_STATUSES = ["created", "not_required", "blocked"] as const;
 
 /**
  * UX-11A.5b.1 — applied right after isValidDailyRunResponse: a prescription

@@ -21,6 +21,8 @@ import {
 } from "./safetyPresentation";
 import { formatDhSessionWindow, formatDhSessionWindowCompact, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
 import { ExecutablePrescriptionCard, UnavailablePrescriptionCard } from "./ExecutablePrescriptionCard";
+import { FinalPrescriptionV2Card } from "../finalPrescriptionV2/FinalPrescriptionV2Card";
+import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 import { sanitizeHealthSignalReason } from "./healthZoneLabels";
 import type { DailyPlan, ExecutablePrescription, ExecutablePrescriptionStatus, RecentRecoveryContext } from "./dailyPlanTypes";
 
@@ -118,6 +120,13 @@ export interface DailyPlanViewProps {
   /** UX-11A.5b.1 — "unsupported_schema_version": today's prescription exists in a format this app cannot display; shown explicitly, never hidden. */
   executablePrescriptionStatus?: ExecutablePrescriptionStatus;
   /**
+   * UX-11A.5c.4 — Today only, V2 daily decisions only: the state of today's
+   * final prescription V2 (live response or restored from the database).
+   * When present it replaces the V1 prescription cards (a V2 decision never
+   * uses the V1 reader); absent (V1 decision, History) → unchanged V1 behaviour.
+   */
+  finalPrescriptionV2?: FinalPrescriptionV2State;
+  /**
    * UX-03 — Today only (DailyPlanResult): the missionSlot is the unified
    * MissionHero, which already shows the decision + confidence + reasoning
    * (DecisionHero), the planned → adapted comparison (the "Séance" card)
@@ -152,6 +161,7 @@ export function DailyPlanView({
   missionSlot,
   executablePrescription,
   executablePrescriptionStatus,
+  finalPrescriptionV2,
   heroInMission = false,
   detailsTarget,
 }: DailyPlanViewProps) {
@@ -388,12 +398,17 @@ export function DailyPlanView({
        * the adaptation honestly; no placeholder text is added here for that
        * case (ticket lock: absence of this card is enough).
        */}
-      {dailyPlan.decision === "KEEP" && executablePrescription != null && (
-        <ExecutablePrescriptionCard prescription={executablePrescription} />
-      )}
-      {/* UX-11A.5b.1 — a prescription in a format this app cannot display is shown as such, never hidden. */}
-      {dailyPlan.decision === "KEEP" && executablePrescription == null && executablePrescriptionStatus === "unsupported_schema_version" && (
-        <UnavailablePrescriptionCard />
+      {finalPrescriptionV2 !== undefined ? (
+        // UX-11A.5c.4 — V2 daily decision: its own read-only card for every status (created, REST, blocked, fail-closed).
+        <FinalPrescriptionV2Card state={finalPrescriptionV2} />
+      ) : (
+        <>
+          {dailyPlan.decision === "KEEP" && executablePrescription != null && <ExecutablePrescriptionCard prescription={executablePrescription} />}
+          {/* UX-11A.5b.1 — a prescription in a format this app cannot display is shown as such, never hidden. */}
+          {dailyPlan.decision === "KEEP" && executablePrescription == null && executablePrescriptionStatus === "unsupported_schema_version" && (
+            <UnavailablePrescriptionCard />
+          )}
+        </>
       )}
     </>
   );

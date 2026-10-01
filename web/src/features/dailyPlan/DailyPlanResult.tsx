@@ -4,6 +4,7 @@ import { MissionHero } from "./MissionHero";
 import { CoachStateCard } from "./CoachStateCard";
 import type { CheckinRow } from "../checkin/checkinTypes";
 import type { DailyRunResponse } from "./dailyPlanTypes";
+import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 
 // UX-03 — Today's live result leads with the unified MissionHero (mission,
 // planned → adapted, decision, confidence, reasoning); DailyPlanView then
@@ -20,7 +21,16 @@ export interface TodayPresentation {
   detailsTarget?: HTMLElement | null;
 }
 
-export function DailyPlanResult({ result, today }: { result: DailyRunResponse; today?: TodayPresentation }) {
+export function DailyPlanResult({
+  result,
+  today,
+  finalPrescriptionV2,
+}: {
+  result: DailyRunResponse;
+  today?: TodayPresentation;
+  /** UX-11A.5c.4 — V2 daily decisions only (computed by DailyPlanPanel from the live response or the database). */
+  finalPrescriptionV2?: FinalPrescriptionV2State;
+}) {
   const { dailyPlan, healthFlagId, warnings, decisionId, executablePrescription, executablePrescriptionStatus } = result;
 
   // Explicit server signal only — never a frontend-deduced safety rule
@@ -47,6 +57,7 @@ export function DailyPlanResult({ result, today }: { result: DailyRunResponse; t
       detailsTarget={today ? (today.detailsTarget ?? null) : undefined}
       executablePrescription={executablePrescription}
       executablePrescriptionStatus={executablePrescriptionStatus}
+      finalPrescriptionV2={finalPrescriptionV2}
     />
   );
 }

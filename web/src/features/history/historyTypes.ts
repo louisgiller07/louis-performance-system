@@ -30,4 +30,14 @@ export interface DecisionHistoryRow {
   activeModeDb: string | null;
   confidenceLevelDb: string | null;
   dailyPlan: unknown;
+  /**
+   * UX-11A.5c.4 — durable final prescription status of a V2 daily decision
+   * (decisions.final_prescription_status / _code / _detail). Absent for V1 and
+   * historical decisions (NULL in the database).
+   */
+  finalPrescriptionStatus?: string;
+  finalPrescriptionStatusCode?: string;
+  finalPrescriptionStatusDetail?: unknown;
+  /** UX-11A.5c.4 — set by loadLatestDecisionForDate on a V2 decision: is it the day's newest row (the one record_session_execution treats as current)? */
+  isLatestOfDay?: boolean;
 }

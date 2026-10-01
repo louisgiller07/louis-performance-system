@@ -277,4 +277,13 @@ export interface DailyRunResponse {
   executablePrescription?: ExecutablePrescription | null;
   /** UX-11A.5b.1 — absent from older backends; see ExecutablePrescriptionStatus. */
   executablePrescriptionStatus?: ExecutablePrescriptionStatus;
+  /**
+   * UX-11A.5c.3 / 5c.4 — V2 daily path only (absent on the V1 path). The
+   * final prescription itself stays `unknown` here: it is only ever read
+   * through the strict V2 decoder (features/finalPrescriptionV2), never cast.
+   */
+  finalPrescriptionStatus?: "created" | "not_required" | "blocked";
+  finalPrescriptionStatusCode?: string;
+  finalPrescriptionStatusDetail?: Record<string, unknown>;
+  finalPrescription?: unknown;
 }

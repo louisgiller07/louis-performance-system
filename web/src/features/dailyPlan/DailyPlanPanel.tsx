@@ -10,6 +10,8 @@ import { loadDecisionCurrency, type DecisionStaleReason } from "./decisionCurren
 import type { DailyRunError } from "./dailyRunErrors";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 import type { CheckinRow } from "../checkin/checkinTypes";
+import { finalPrescriptionV2StateFromResponse, loadFinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2State";
+import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 
 type RequestState = "idle" | "running" | "success" | "error";
 /** NAL-003 — the persisted-decision restore lookup, independent of the generation RequestState above. */
@@ -95,6 +97,8 @@ export function DailyPlanPanel({
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
   const [result, setResult] = useState<DailyRunResponse | null>(null);
+  // UX-11A.5c.4 — V2 daily decisions only; always set together with `result` (undefined for V1).
+  const [finalPrescriptionV2, setFinalPrescriptionV2] = useState<FinalPrescriptionV2State | undefined>(undefined);
   const [error, setError] = useState<DailyRunError | null>(null);
   const [invalidatedNotice, setInvalidatedNotice] = useState<string | null>(null);
   // UX-04 — whether the result on screen comes from a run in this session (vs. a restore).
@@ -119,6 +123,9 @@ export function DailyPlanPanel({
         // stays in history but is never shown as current.
         const currency = await loadDecisionCurrency(row.id);
         if (currency.isCurrent) {
+          // UX-11A.5c.4 — a V2 decision restores its durable status and, when
+          // created, its own final prescription row (never rebuilt from the plan).
+          setFinalPrescriptionV2(await loadFinalPrescriptionV2State(row));
           setResult({ dailyPlan: row.dailyPlan, decisionId: row.id, healthFlagId: null, warnings: [] });
           setState("success");
         } else {
@@ -168,6 +175,7 @@ export function DailyPlanPanel({
     if (hadVisibleResultRef.current) setInvalidatedNotice(CHECKIN_CHANGED_NOTICE);
     hadVisibleResultRef.current = false;
     setResult(null);
+    setFinalPrescriptionV2(undefined);
     setError(null);
     setState("idle");
     // UX-03 — opt-in: a freshly saved check-in goes straight into the run.
@@ -190,6 +198,7 @@ export function DailyPlanPanel({
     // Clear immediately: a previous SUCCESS must never remain visible
     // alongside a new attempt's error, and vice versa.
     setResult(null);
+    setFinalPrescriptionV2(undefined);
     setError(null);
     setInvalidatedNotice(null);
     setState("running");
@@ -212,6 +221,7 @@ export function DailyPlanPanel({
       }
 
       if (outcome.ok) {
+        setFinalPrescriptionV2(finalPrescriptionV2StateFromResponse(outcome.data));
         setResult(outcome.data);
         setFreshRun(true);
         setState("success");
@@ -280,6 +290,7 @@ export function DailyPlanPanel({
       {result && (
         <DailyPlanResult
           result={result}
+          finalPrescriptionV2={finalPrescriptionV2}
           today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun, detailsTarget } : undefined}
         />
       )}

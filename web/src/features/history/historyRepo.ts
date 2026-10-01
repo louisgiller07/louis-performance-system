@@ -10,7 +10,8 @@ import type { DecisionHistoryRow } from "./historyTypes";
 
 // Single string literal — see checkinRepo.ts's CHECKIN_COLUMNS for why a
 // runtime-concatenated string breaks supabase-js's typed .select().
-const DECISION_COLUMNS = "id, decision_date, created_at, final_session, active_mode, confidence_level, daily_plan";
+const DECISION_COLUMNS =
+  "id, decision_date, created_at, final_session, active_mode, confidence_level, daily_plan, final_prescription_status, final_prescription_status_code, final_prescription_status_detail";
 
 const DEFAULT_LIMIT = 30;
 
@@ -37,6 +38,9 @@ interface DecisionRow {
   active_mode: string | null;
   confidence_level: string | null;
   daily_plan: unknown;
+  final_prescription_status?: string | null;
+  final_prescription_status_code?: string | null;
+  final_prescription_status_detail?: unknown;
 }
 
 function toHistoryRow(row: DecisionRow): DecisionHistoryRow {
@@ -48,6 +52,14 @@ function toHistoryRow(row: DecisionRow): DecisionHistoryRow {
     activeModeDb: row.active_mode,
     confidenceLevelDb: row.confidence_level,
     dailyPlan: row.daily_plan,
+    // UX-11A.5c.4 — V2 decisions only (NULL for V1 / historical rows: keys omitted).
+    ...(typeof row.final_prescription_status === "string"
+      ? {
+          finalPrescriptionStatus: row.final_prescription_status,
+          ...(typeof row.final_prescription_status_code === "string" ? { finalPrescriptionStatusCode: row.final_prescription_status_code } : {}),
+          ...(row.final_prescription_status_detail != null ? { finalPrescriptionStatusDetail: row.final_prescription_status_detail } : {}),
+        }
+      : {}),
   };
 }
 
@@ -129,7 +141,11 @@ export async function loadLatestDecisionForDate(athleteId: string, date: string)
   }
 
   const rows = ((data ?? []) as DecisionRow[]).map(toHistoryRow);
-  return rows.find((row) => isValidDailyPlan(row.dailyPlan)) ?? null;
+  const found = rows.find((row) => isValidDailyPlan(row.dailyPlan)) ?? null;
+  // UX-11A.5c.4 — a V2 final prescription is restored only for the day's
+  // newest row (record_session_execution's notion of the current decision).
+  if (found !== null && found.finalPrescriptionStatus !== undefined) return { ...found, isLatestOfDay: rows[0]!.id === found.id };
+  return found;
 }
 
 /**
