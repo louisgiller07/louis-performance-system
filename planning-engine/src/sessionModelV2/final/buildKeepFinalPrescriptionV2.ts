@@ -15,14 +15,19 @@
  * - REST → `{ status: "none", reason: "rest" }` (no document);
  * - no lineage → `final_prescription_no_lineage`;
  * - KEEP hiding a difference, MODIFY, REPLACE → `final_prescription_adaptation_not_defined`
- *   (MODIFY / REPLACE before UX-11A.5c.5; upward MODIFY is never supported).
+ *   (MODIFY / REPLACE before UX-11A.5c.5; upward MODIFY is never supported);
+ * - a planned prescription written under another Session Model aggregate
+ *   that this runtime can no longer validate → `final_prescription_catalog_mismatch`
+ *   (expected after a catalogue upgrade; UX-11A.5c.3).
  *
  * Inputs are plain data (no M1 type is imported): the caller maps
  * `DailyPlan.decision` / `final_session` and the DB lineage onto them.
- * A malformed planned prescription is a contract error (thrown), never a
- * block: it is a bug or corrupt data, not a decision by design.
+ * A malformed planned prescription under the runtime's own aggregate is a
+ * contract error (thrown), never a block: it is a bug or corrupt data, not a
+ * decision by design.
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
+import { SESSION_MODEL_V2_AGGREGATE_VERSION } from "../catalogManifest.js";
 import { SessionModelV2ContractError } from "../generationErrors.js";
 import type { PrescriptionV2 } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
@@ -89,13 +94,29 @@ function lineageFailure(lineage: PlannedSessionLineageV2 | null, planned: Planne
   return null;
 }
 
-/** Parses the stored planned prescription; any inconsistency is a contract error (bug / corrupt data). */
-function trustedPlannedStructure(planned: PlannedPrescriptionRecordV2, generatedKind: string): PrescriptionV2 {
+/** The manifest aggregate a stored structure declares, if any (read before validation). */
+function declaredAggregate(structure: unknown): string | undefined {
+  const catalog = structure !== null && typeof structure === "object" ? (structure as { catalog?: unknown }).catalog : undefined;
+  const aggregate = catalog !== null && typeof catalog === "object" ? (catalog as { aggregate?: unknown }).aggregate : undefined;
+  return typeof aggregate === "string" ? aggregate : undefined;
+}
+
+/**
+ * Parses the stored planned prescription. A structure from another Session
+ * Model aggregate that the runtime can no longer validate is an expected
+ * catalogue mismatch (returned as such); any other inconsistency is a
+ * contract error (bug / corrupt data).
+ */
+function trustedPlannedStructure(planned: PlannedPrescriptionRecordV2, generatedKind: string): PrescriptionV2 | { catalogMismatch: Record<string, unknown> } {
   if (planned.schemaVersion !== "v2") {
     throw new SessionModelV2ContractError(`planned prescription ${planned.id} has schema_version "${planned.schemaVersion}", not v2 (no v2 → v1 fallback)`);
   }
   const validation = validatePrescriptionV2(planned.structure, { stage: "planned" });
   if (!validation.ok) {
+    const aggregate = declaredAggregate(planned.structure);
+    if (aggregate !== undefined && aggregate !== SESSION_MODEL_V2_AGGREGATE_VERSION) {
+      return { catalogMismatch: { plannedAggregate: aggregate, runtimeAggregate: SESSION_MODEL_V2_AGGREGATE_VERSION } };
+    }
     throw new SessionModelV2ContractError(`planned prescription ${planned.id} is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
   }
   const structure = validation.prescription;
@@ -119,7 +140,9 @@ export function buildKeepFinalPrescriptionV2(input: BuildKeepFinalPrescriptionV2
   if (failure !== null) return blocked("final_prescription_no_lineage", { reason: failure });
   const generated = lineage!.generatedSession!;
   const planned = plannedPrescription!;
-  const structure = trustedPlannedStructure(planned, generated.kind);
+  const trusted = trustedPlannedStructure(planned, generated.kind);
+  if ("catalogMismatch" in trusted) return blocked("final_prescription_catalog_mismatch", trusted.catalogMismatch);
+  const structure = trusted;
 
   const final = decision.finalSession;
   if (decision.decision === "MODIFY") {

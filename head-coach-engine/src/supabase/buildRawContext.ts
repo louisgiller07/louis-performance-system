@@ -46,8 +46,28 @@ export class NoCurrentCheckinError extends Error {
   }
 }
 
+/**
+ * UX-11A.5c.3 — integration-layer metadata of today's `planned_sessions` row,
+ * from the SAME read that produced `RawContext.planned_session`. Never given
+ * to M1. The V2 daily reconciliation uses it as the only source of today's
+ * plan lineage (no second `planned_sessions` read after M1).
+ */
+export interface PlannedSessionObservation {
+  id: string;
+  date: string;
+  updatedAt: string | null;
+  /** planned_sessions.source ("generated" while owned by the projection). */
+  source: string | null;
+  sourcePlanVersionId: string | null;
+  sourceGeneratedSessionId: string | null;
+  /** Exactly the intervention M1 received as `planned_session` (null if the legacy row could not be inverted). */
+  plannedSession: RawContext["planned_session"];
+}
+
 export interface BuildRawContextResult {
   rawContext: RawContext;
+  /** UX-11A.5c.3 — null when today has no planned_sessions row. */
+  plannedSessionObservation: PlannedSessionObservation | null;
   /**
    * Non-fatal reconstruction warnings surfaced by the adapters — e.g. an
    * ambiguous legacy `planned_sessions.session_type` with no `intervention`
@@ -95,6 +115,7 @@ export async function buildRawContext(
   const active_mode = currentBlock === null ? "UNSPECIFIED" : parseTrainingMode(currentBlock.mode);
 
   const plannedRow = await getPlannedSessionFor(client, athleteId, today);
+  let plannedSessionObservation: PlannedSessionObservation | null = null;
   let planned_session = null as RawContext["planned_session"];
   let planned_intent: string | undefined;
   let planned_session_committed: boolean | undefined;
@@ -109,6 +130,15 @@ export async function buildRawContext(
     planned_intent = mapping.planned_intent ?? undefined;
     planned_session_committed = mapping.planned_session_committed;
     warnings.push(...mapping.warnings);
+    plannedSessionObservation = {
+      id: plannedRow.id as string,
+      date: plannedRow.planned_date as string,
+      updatedAt: (plannedRow.updated_at as string | null) ?? null,
+      source: (plannedRow.source as string | null) ?? null,
+      sourcePlanVersionId: (plannedRow.source_plan_version_id as string | null) ?? null,
+      sourceGeneratedSessionId: (plannedRow.source_generated_session_id as string | null) ?? null,
+      plannedSession: planned_session,
+    };
   }
 
   const raceRows = await getRacesInWindow(client, athleteId, today);
@@ -170,5 +200,5 @@ export async function buildRawContext(
     n_total_completed_sessions,
   };
 
-  return { rawContext, warnings };
+  return { rawContext, plannedSessionObservation, warnings };
 }

@@ -48,6 +48,20 @@
  *      PostgreSQL side (M2_006); this module never issues a second write
  *      to reproduce that transaction client-side.
  *
+ * UX-11A.5c.3 — V2 daily path. Before M1, the daily path is chosen once from
+ * the current plan version's `prescription_schema_version`
+ * (`resolveDailyPrescriptionModel`: none / v1 → the flow above, unchanged;
+ * v2 → V2; anything else → fail-closed, nothing computed or written). On the
+ * V2 path, after M1 (unchanged, nothing V2 injected), the integration layer
+ * mints the decision id, reconciles the final prescription from the
+ * planned_sessions observation M1 consumed (no second planned_sessions read,
+ * no legacy executable-prescription lookup), personalizes `reasoning` as in
+ * V1, and calls `persist_daily_run_v2` exactly once (never
+ * `persist_daily_run`). MODIFY / REPLACE produce no final prescription yet
+ * (durable blocked status). The V2 reconciliation module is loaded lazily so
+ * the V1 path's static import graph has no bare runtime import (the
+ * daily-run Edge Function loads this file directly under Deno).
+ *
  * `source_checkin_id` is intentionally omitted from the health flag
  * payload: the current read path (`dailyCheckinsRepo.getCheckinFor`,
  * `buildRawContext`) does not select/expose the `daily_checkins.id` of the
@@ -67,6 +81,10 @@ import { getAthleteCoachingContext } from "./repositories/athleteCoachingContext
 import { getDailyRunInputVersions, getProjectedGeneratedSessionIdForDate } from "./repositories/plannedSessionsRepo.js";
 import { getPlannedPrescriptionForGeneratedSession } from "./repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import { PRESCRIPTION_SCHEMA_UNSUPPORTED } from "./prescriptionRead.js";
+import { resolveDailyPrescriptionModel } from "./dailyV2/dailyPrescriptionModel.js";
+import { toFinalPrescriptionOutcome } from "./dailyV2/finalPrescriptionOutcome.js";
+import { persistDailyRunV2, type FinalPrescriptionStatus } from "./dailyV2/persistDailyRunV2.js";
+import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
 import { resolveTrainingPlanProjectionWindow } from "./trainingPlanProjectionConfig.js";
@@ -109,6 +127,19 @@ export interface RunDailyForResult extends ComputeDailyForResult {
    * carry a warning, unchanged).
    */
   executablePrescriptionStatus: ExecutablePrescriptionStatus;
+  /**
+   * UX-11A.5c.3 — V2 daily path only (absent on the V1 path): the durable
+   * final prescription status persisted with the decision. created →
+   * `finalPrescription` present; not_required (REST) → absent; blocked →
+   * absent, with `finalPrescriptionStatusCode` / `finalPrescriptionStatusDetail`.
+   * Not rendered by the web yet (5c.4): on this path `executablePrescription`
+   * stays null and `executablePrescriptionStatus` is "unsupported_schema_version"
+   * when a final prescription exists, "none" otherwise.
+   */
+  finalPrescriptionStatus?: FinalPrescriptionStatus;
+  finalPrescriptionStatusCode?: string;
+  finalPrescriptionStatusDetail?: Readonly<Record<string, unknown>>;
+  finalPrescription?: FinalPrescriptionV2;
 }
 
 export type ExecutablePrescriptionStatus = "delivered" | "none" | "unsupported_schema_version";
@@ -134,6 +165,14 @@ export interface RunDailyForDeps {
   getPlannedPrescriptionForGeneratedSession: typeof getPlannedPrescriptionForGeneratedSession;
   /** PILOT_022 — injectable so the input-provenance capture can be unit-tested with plain mocks, same reasoning as the other deps. */
   getDailyRunInputVersions: typeof getDailyRunInputVersions;
+  /** UX-11A.5c.3 — the daily V1 / V2 discriminant (current plan version's prescription schema). */
+  resolveDailyPrescriptionModel: typeof resolveDailyPrescriptionModel;
+  /** UX-11A.5c.3 — V2 reconciliation (pure 5c.1 decision + plan reads in the current version). */
+  reconcileFinalPrescriptionV2: (input: ReconcileFinalPrescriptionV2Input) => Promise<FinalPrescriptionV2Result>;
+  /** UX-11A.5c.3 — the single V2 write (persist_daily_run_v2). */
+  persistDailyRunV2: typeof persistDailyRunV2;
+  /** UX-11A.5c.3 — ids minted after M1 (decision, final prescription). */
+  mintId: () => string;
 }
 
 const DEFAULT_DEPS: RunDailyForDeps = {
@@ -145,6 +184,11 @@ const DEFAULT_DEPS: RunDailyForDeps = {
   projectTrainingPlan,
   resolveTrainingPlanProjectionWindow,
   getDailyRunInputVersions,
+  resolveDailyPrescriptionModel,
+  // Lazy: the only daily module with a runtime import of the Session Model V2 package entry.
+  reconcileFinalPrescriptionV2: async (input) => (await import("./dailyV2/reconcileFinalPrescriptionV2.js")).reconcileFinalPrescriptionV2(input),
+  persistDailyRunV2,
+  mintId: () => globalThis.crypto.randomUUID(),
 };
 
 /**
@@ -307,7 +351,11 @@ export async function runDailyFor(
   // older one and the decision is correctly reported stale afterwards.
   const inputVersions = await deps.getDailyRunInputVersions(client, athleteId, today);
 
-  const computed = await deps.computeDailyFor(client, athleteId, today);
+  // UX-11A.5c.3 — chosen once, before M1; an unknown schema fails closed here
+  // (UnsupportedPlanPrescriptionSchemaError): nothing computed, nothing written.
+  const prescriptionModel = await deps.resolveDailyPrescriptionModel(client, athleteId);
+
+  const { plannedSessionObservation, ...computed } = await deps.computeDailyFor(client, athleteId, today);
 
   // Defensive invariant, not a data-driven check: buildDailyPlan (M1,
   // frozen) sets `date: ctx.today` verbatim in every branch (SAFETY and
@@ -316,6 +364,47 @@ export async function runDailyFor(
   // that invariant were ever to drift.
   if (computed.dailyPlan.date !== today) {
     throw new DailyPlanDateMismatchError(today, computed.dailyPlan.date);
+  }
+
+  if (prescriptionModel.model === "v2") {
+    // M1 is done and final; nothing below changes its decision.
+    const decisionId = deps.mintId();
+    const reconciliation = await deps.reconcileFinalPrescriptionV2({
+      client,
+      currentPlanVersionId: prescriptionModel.planVersionId,
+      decisionId,
+      finalPrescriptionId: deps.mintId(),
+      dailyPlan: computed.dailyPlan,
+      observation: plannedSessionObservation ?? null,
+    });
+
+    const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, computed.dailyPlan, deps.getAthleteCoachingContext);
+
+    const decisionRowV2 = {
+      id: decisionId,
+      ...mapDailyPlanToDecisionRow(personalizedPlanV2, athleteId),
+      source_checkin_id: inputVersions.checkin?.id ?? null,
+      source_checkin_updated_at: inputVersions.checkin?.updated_at ?? null,
+      source_planned_session_id: inputVersions.plannedSession?.id ?? null,
+      source_planned_session_updated_at: inputVersions.plannedSession?.updated_at ?? null,
+    };
+    const healthFlagV2 = personalizedPlanV2.health_flag_to_create ? mapHealthFlagToCreatePayload(personalizedPlanV2.health_flag_to_create, today) : null;
+
+    const persisted = await deps.persistDailyRunV2(client, athleteId, healthFlagV2, decisionRowV2, toFinalPrescriptionOutcome(reconciliation, athleteId));
+
+    return {
+      ...computed,
+      dailyPlan: personalizedPlanV2,
+      warnings: [...projectionWarnings, ...computed.warnings, ...personalizationWarningsV2],
+      persistence: { decision_id: persisted.decision_id, health_flag_id: persisted.health_flag_id },
+      executablePrescription: null,
+      executablePrescriptionStatus: reconciliation.status === "created" ? "unsupported_schema_version" : "none",
+      finalPrescriptionStatus: persisted.final_prescription_status,
+      ...(reconciliation.status === "blocked"
+        ? { finalPrescriptionStatusCode: reconciliation.code, ...(Object.keys(reconciliation.detail).length > 0 ? { finalPrescriptionStatusDetail: reconciliation.detail } : {}) }
+        : {}),
+      ...(reconciliation.status === "created" ? { finalPrescription: reconciliation.finalPrescription } : {}),
+    };
   }
 
   // V0.5_047/048 — decided from computed.dailyPlan.decision (M1's own,

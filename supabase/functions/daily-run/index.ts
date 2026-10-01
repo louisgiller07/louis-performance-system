@@ -130,6 +130,12 @@ export default {
           // ("delivered" | "none" | "unsupported_schema_version"); same
           // passthrough discipline, no logic here.
           executablePrescriptionStatus: result.executablePrescriptionStatus,
+          // UX-11A.5c.3 — V2 daily path only (keys absent on the V1 path):
+          // durable final prescription status, same passthrough discipline.
+          ...(result.finalPrescriptionStatus !== undefined ? { finalPrescriptionStatus: result.finalPrescriptionStatus } : {}),
+          ...(result.finalPrescriptionStatusCode !== undefined ? { finalPrescriptionStatusCode: result.finalPrescriptionStatusCode } : {}),
+          ...(result.finalPrescriptionStatusDetail !== undefined ? { finalPrescriptionStatusDetail: result.finalPrescriptionStatusDetail } : {}),
+          ...(result.finalPrescription !== undefined ? { finalPrescription: result.finalPrescription } : {}),
         },
         { status: 200 }
       );

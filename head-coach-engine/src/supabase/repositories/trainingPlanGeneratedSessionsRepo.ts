@@ -24,6 +24,22 @@ export interface GeneratedSessionRawRow {
  * version's own horizon) simply has no row here — never an error, never a
  * fabricated entry.
  */
+/** UX-11A.5c.3 — one generated session of exactly `planVersionId` (never searched in another version). */
+export async function getGeneratedSessionOfVersion(
+  client: SupabaseClient,
+  planVersionId: string,
+  generatedSessionId: string
+): Promise<Pick<GeneratedSessionRawRow, "id" | "kind" | "load_profile" | "duration_min"> | null> {
+  const { data, error } = await client
+    .from("training_plan_generated_sessions")
+    .select("id, kind, load_profile, duration_min")
+    .eq("plan_version_id", planVersionId)
+    .eq("id", generatedSessionId)
+    .maybeSingle();
+  assertNoSupabaseError(error, "training_plan_generated_sessions");
+  return data as Pick<GeneratedSessionRawRow, "id" | "kind" | "load_profile" | "duration_min"> | null;
+}
+
 export async function getGeneratedSessionsInWindow(
   client: SupabaseClient,
   planVersionId: string,

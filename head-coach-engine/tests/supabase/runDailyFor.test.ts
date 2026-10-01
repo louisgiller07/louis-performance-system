@@ -123,6 +123,18 @@ function buildDeps(
     getProjectedGeneratedSessionIdForDate: getProjectedGeneratedSessionIdForDateMock,
     getPlannedPrescriptionForGeneratedSession: getPlannedPrescriptionForGeneratedSessionMock,
     getDailyRunInputVersions: getDailyRunInputVersionsMock,
+    // UX-11A.5c.3 — these tests exercise the V1 daily path: no current plan
+    // version (V1 by definition). The V2 seams throw if ever touched.
+    resolveDailyPrescriptionModel: vi.fn(async () => ({ model: "v1" as const, planVersionId: null })),
+    reconcileFinalPrescriptionV2: vi.fn(async () => {
+      throw new Error("the V1 daily path must never reconcile a V2 final prescription");
+    }),
+    persistDailyRunV2: vi.fn(async () => {
+      throw new Error("the V1 daily path must never call persist_daily_run_v2");
+    }),
+    mintId: vi.fn(() => {
+      throw new Error("the V1 daily path never mints a decision id");
+    }),
   };
 
   return {

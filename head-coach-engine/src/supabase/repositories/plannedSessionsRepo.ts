@@ -22,7 +22,11 @@ export async function getPlannedSessionFor(
 ): Promise<PlannedSessionRawRow | null> {
   const { data, error } = await client
     .from("planned_sessions")
-    .select("session_type, intervention, planned_intent, is_committed")
+    // UX-11A.5c.3 — the same single read also carries the row's identity and
+    // projection lineage, so the V2 daily path reconciles against exactly the
+    // observation M1 consumed (never a second read after M1). M1 itself still
+    // only receives session_type / intervention / planned_intent / is_committed.
+    .select("id, planned_date, updated_at, source, source_plan_version_id, source_generated_session_id, session_type, intervention, planned_intent, is_committed")
     .eq("athlete_id", athleteId)
     .eq("planned_date", date)
     .maybeSingle();

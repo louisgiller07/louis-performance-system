@@ -4408,3 +4408,29 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Tests.** `planInputSnapshotDeterminism.test.ts` (ordre canonique, quatre ordres de lecture fixés → même JSON et même hash, tableaux du profil inchangés, plan V1 et empreinte V2 identiques) ; `planInputSnapshotDeterminism.integration.test.ts` (fenêtres insérées dans le désordre → snapshot stocké canonique ; cinq rejeux du même identifiant idempotents, V1 et V2). Suite head-coach complète verte trois fois de suite.
 
 **Statut** : Accepted — `feat/ux11a5c2-v2-daily-persistence`, non fusionné.
+
+## 2026-10-01 — ADR UX-11A.5c.3 : intégration quotidienne V2 (locale)
+
+> **For an athlete whose current plan version is v2, the daily run reconciles M1's unchanged decision into a durable final prescription outcome, from the very planned_sessions observation M1 consumed, and persists everything in one persist_daily_run_v2 call. V1 is untouched. MODIFY / REPLACE produce no final prescription.**
+
+**Discriminant** (`resolveDailyPrescriptionModel`, lu une fois avant M1) : `prescription_schema_version` de la version de plan courante. Aucune version ou `v1` → chemin historique strictement inchangé (projection → `computeDailyFor` → lecture legacy de la prescription exécutable → personnalisation → `persist_daily_run`). `v2` → chemin V2, même un jour sans séance prévue. Autre valeur → `UnsupportedPlanPrescriptionSchemaError` avant M1, aucune écriture ; Edge `daily-run` : HTTP 409 `unsupported_plan_prescription_schema`.
+
+**Même observation.** `getPlannedSessionFor` (la lecture qui alimente M1) sélectionne aussi `id`, `planned_date`, `updated_at`, `source`, `source_plan_version_id`, `source_generated_session_id`. `buildRawContext` / `computeDailyFor` exposent `PlannedSessionObservation` à côté du `RawContext` (M1 reçoit exactement le même contexte, noyau M1 non modifié). Le chemin V2 ne relit pas `planned_sessions` (ni `getProjectedGeneratedSessionIdForDate`) ; il lit la séance générée et la prescription prévue seulement si l'observation est `generated` et pointe vers la **version courante**, et seulement dans cette version (aucune recherche par date ni dans une ancienne version). La provenance PILOT_022 de la décision reste lue comme avant ; si la ligne change pendant le calcul, la décision est périmée et sa prescription non exécutable (garde 5c.2).
+
+**Identifiant de décision** : créé par la couche d'intégration **après** le calcul M1 réussi ; le même identifiant sert à la ligne de décision, à `FinalPrescriptionV2.decisionId` et à `persist_daily_run_v2`. M1 ne le voit jamais.
+
+**Correspondance** (module pur 5c.1) : KEEP copiable → `created` ; REST → `not_required` ; KEEP sans lignée → `blocked` / `final_prescription_no_lineage` + raison ; MODIFY → `blocked` / `final_prescription_adaptation_not_defined` (`modify_not_supported` | `upward_modify_not_supported`) ; REPLACE → idem (`replace_not_supported`). La décision M1 n'est jamais modifiée.
+
+**Incompatibilité de catalogue** (ajout au module 5c.1) : une prescription prévue dont l'agrégat du manifeste diffère de celui du runtime **et** que le runtime ne sait plus valider → `blocked` / `final_prescription_catalog_mismatch` (`plannedAggregate`, `runtimeAggregate`). Agrégat plus ancien mais encore valide → copie KEEP avec son propre manifeste. Même agrégat et structure invalide → erreur de contrat (corruption), la transaction n'a pas lieu.
+
+**Réponse** (chemin V2 seulement, clés absentes en V1) : `finalPrescriptionStatus`, `finalPrescriptionStatusCode`, `finalPrescriptionStatusDetail`, `finalPrescription`. `executablePrescription` reste nul ; `executablePrescriptionStatus` vaut `unsupported_schema_version` quand une prescription du jour existe (le web affiche déjà « Le détail de cette séance n'est pas disponible dans cette version. »), `none` sinon. Aucune UI V2.
+
+**Chargement paresseux.** `daily-run` (Deno, sans import map) charge directement `runDailyFor` compilé : son graphe d'imports statique ne doit contenir aucun import nu. Le module de réconciliation (seul import d'exécution de `planning-engine/session-model-v2`) est chargé par `import()` sur le chemin V2 uniquement ; le chemin V1 garde un graphe identique (test). Conséquence : le chemin V2 n'est pas exécutable dans l'Edge Function tant qu'elle n'est pas empaquetée (comme `generate-training-plan`) — bloquant avant toute exposition.
+
+**Tests** :
+- unitaires (`runDailyForV2.test.ts`) : ordre modèle → M1 → identifiants → réconciliation → un seul `persist_daily_run_v2` ; observation transmise ; aucune relecture de `planned_sessions` ; REST, MODIFY, REPLACE, KEEP sans lignée ; personnalisation sans effet sur la décision ; schéma inconnu avant M1 ; discriminant ; graphe d'imports ; M1 sans import V2. Le fixture V1 de `runDailyFor.test.ts` déclare le modèle `v1` et des dépendances V2 qui échouent si elles sont appelées.
+- intégration (`v2DailyIntegration.integration.test.ts`, vrai M1, plan V2 accepté et projeté) : KEEP Force / DH / endurance stockés à l'identique (mêmes identifiants, même empreinte), KEEP sans séance → `no_lineage`, MODIFY et REPLACE réels → `blocked`, REST réel (commotion) → `not_required` + health flag, incompatibilité de catalogue, schéma `v999`, deux exécutions le même jour (cas KEEP, REST, MODIFY) avec ancienne prescription `final_prescription_not_current` et nouvelle exécutable, V1 sans plan et plan v1 inchangés (statut NULL).
+
+**Inchangés** : noyau M1, `persist_daily_run`, `record_session_execution`, web, production, migrations. Suppression de compte : dette connue (audit 5c.2).
+
+**Statut** : Accepted — `feat/ux11a5c3-v2-daily-integration`, code local non fusionné, non déployé.

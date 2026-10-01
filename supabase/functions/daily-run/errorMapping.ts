@@ -5,6 +5,8 @@ import { IncompleteDailyCheckinError } from "../../../head-coach-engine/dist/sup
 import { IncompleteCheckinPainCriteriaError } from "../../../head-coach-engine/dist/supabase/mapping/dailyCheckinPainCriteria.js";
 import { PersistDailyRunRpcError, InvalidPersistDailyRunResultError } from "../../../head-coach-engine/dist/supabase/persistDailyRun.js";
 import { DailyPlanDateMismatchError } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
+import { UnsupportedPlanPrescriptionSchemaError } from "../../../head-coach-engine/dist/supabase/dailyV2/dailyPrescriptionModel.js";
+import { PersistDailyRunV2RpcError, InvalidPersistDailyRunV2ResultError } from "../../../head-coach-engine/dist/supabase/dailyV2/persistDailyRunV2.js";
 
 export interface MappedDailyRunError {
   status: number;
@@ -35,6 +37,16 @@ export function mapDailyRunError(error: unknown): MappedDailyRunError {
     return { status: 500, code: "persistence_failed", message: "Failed to persist the daily run." };
   }
   if (error instanceof InvalidPersistDailyRunResultError) {
+    return { status: 500, code: "internal_error", message: "An unexpected error occurred while persisting the daily run." };
+  }
+  // UX-11A.5c.3 — the current plan version's prescription schema is unknown: fail-closed, nothing written.
+  if (error instanceof UnsupportedPlanPrescriptionSchemaError) {
+    return { status: 409, code: "unsupported_plan_prescription_schema", message: "The current training plan uses a format this daily run does not support." };
+  }
+  if (error instanceof PersistDailyRunV2RpcError) {
+    return { status: 500, code: "persistence_failed", message: "Failed to persist the daily run." };
+  }
+  if (error instanceof InvalidPersistDailyRunV2ResultError) {
     return { status: 500, code: "internal_error", message: "An unexpected error occurred while persisting the daily run." };
   }
   if (error instanceof DailyPlanDateMismatchError) {

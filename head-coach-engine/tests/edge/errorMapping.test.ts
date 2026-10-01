@@ -8,6 +8,8 @@ import { IncompleteDailyCheckinError } from "../../dist/supabase/mapping/dailyCh
 import { IncompleteCheckinPainCriteriaError } from "../../dist/supabase/mapping/dailyCheckinPainCriteria.js";
 import { PersistDailyRunRpcError, InvalidPersistDailyRunResultError } from "../../dist/supabase/persistDailyRun.js";
 import { DailyPlanDateMismatchError } from "../../dist/supabase/runDailyFor.js";
+import { UnsupportedPlanPrescriptionSchemaError } from "../../dist/supabase/dailyV2/dailyPrescriptionModel.js";
+import { PersistDailyRunV2RpcError, InvalidPersistDailyRunV2ResultError } from "../../dist/supabase/dailyV2/persistDailyRunV2.js";
 
 describe("mapDailyRunError", () => {
   it("maps NoCurrentCheckinError to 422 no_checkin_for_date", () => {
@@ -43,6 +45,17 @@ describe("mapDailyRunError", () => {
     const mapped = mapDailyRunError(new DailyPlanDateMismatchError("2026-08-17", "2026-08-18"));
     expect(mapped.status).toBe(500);
     expect(mapped.code).toBe("internal_error");
+  });
+
+  it("UX-11A.5c.3 — maps UnsupportedPlanPrescriptionSchemaError to 409 unsupported_plan_prescription_schema (fail-closed, nothing written)", () => {
+    const mapped = mapDailyRunError(new UnsupportedPlanPrescriptionSchemaError("plan-1", "v999"));
+    expect(mapped).toEqual({ status: 409, code: "unsupported_plan_prescription_schema", message: mapped.message });
+    expect(mapped.message).not.toContain("v999");
+  });
+
+  it("UX-11A.5c.3 — maps the V2 persistence errors like the V1 ones", () => {
+    expect(mapDailyRunError(new PersistDailyRunV2RpcError("boom"))).toMatchObject({ status: 500, code: "persistence_failed" });
+    expect(mapDailyRunError(new InvalidPersistDailyRunV2ResultError("bad", {}))).toMatchObject({ status: 500, code: "internal_error" });
   });
 
   it("maps a generic/unforeseen Error to 500 internal_error", () => {

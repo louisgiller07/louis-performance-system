@@ -116,6 +116,9 @@ describe("V2 content — import boundary", () => {
       // UX-11A.5b.5b — explicit local V2 persistence (no public entry point).
       join("head-coach-engine", "src", "generation", "v2", "planV2PersistencePayload.ts"),
       join("head-coach-engine", "src", "generation", "v2", "generateAndPersistTrainingPlanV2.ts"),
+      // UX-11A.5c.3 — V2 daily reconciliation (runtime import, loaded lazily) and its outcome mapping (type-only).
+      join("head-coach-engine", "src", "supabase", "dailyV2", "reconcileFinalPrescriptionV2.ts"),
+      join("head-coach-engine", "src", "supabase", "dailyV2", "finalPrescriptionOutcome.ts"),
     ]);
     const importers: string[] = [];
     for (const root of ["head-coach-engine/src", "prescription-engine/src", "longitudinal-engine/src", "planning-engine/src"].map((r) => join(REPO, r))) {
@@ -135,7 +138,7 @@ describe("V2 content — import boundary", () => {
     expect(text).not.toMatch(/baseline\.loadProfile|BASE_LOAD_PROFILE|TAPER_LOAD_PROFILE/);
   });
 
-  it("UX-11A.5c.1 — KEEP final prescription is a copy: the final module calls no sport builder, catalogue, dose policy or legacy dose, and nothing outside the V2 module references it", () => {
+  it("UX-11A.5c.1 / 5c.3 — KEEP final prescription is a copy: the final module calls no sport builder, catalogue, dose policy or legacy dose; outside the V2 module only the head-coach V2 daily integration references it", () => {
     const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "final");
     expect(readdirSync(dir).sort()).toEqual(["buildKeepFinalPrescriptionV2.ts", "finalPrescriptionV2.ts", "validateKeepFinalPrescriptionV2.ts"]);
     for (const file of sourceFiles(dir)) {
@@ -146,7 +149,7 @@ describe("V2 content — import boundary", () => {
     for (const root of ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src", "web/src"].map((r) => join(REPO, r))) {
       for (const file of sourceFiles(root)) {
         const rel = relative(REPO, file);
-        if (isSessionModelV2(rel)) continue;
+        if (isSessionModelV2(rel) || rel.startsWith(join("head-coach-engine", "src", "supabase", "dailyV2") + sep) || rel === join("head-coach-engine", "src", "supabase", "runDailyFor.ts")) continue;
         if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2|FinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
       }
     }

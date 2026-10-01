@@ -23,13 +23,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DailyPlan, RawContext } from "../types/index.js";
 import { buildDailyPlan } from "../engine/buildDailyPlan.js";
-import { buildRawContext } from "./buildRawContext.js";
+import { buildRawContext, type PlannedSessionObservation } from "./buildRawContext.js";
 
 export interface ComputeDailyForResult {
   rawContext: RawContext;
   dailyPlan: DailyPlan;
   /** Adapter-level reconstruction warnings — see buildRawContext.ts. */
   warnings: string[];
+  /**
+   * UX-11A.5c.3 — integration metadata of the planned_sessions row M1 consumed
+   * (same read), for the V2 daily reconciliation only. Never part of DailyPlan.
+   * Optional so callers that only need M1's output are unaffected.
+   */
+  plannedSessionObservation?: PlannedSessionObservation | null;
 }
 
 /**
@@ -41,7 +47,7 @@ export async function computeDailyFor(
   athleteId: string,
   today: string
 ): Promise<ComputeDailyForResult> {
-  const { rawContext, warnings } = await buildRawContext(client, athleteId, today);
+  const { rawContext, plannedSessionObservation, warnings } = await buildRawContext(client, athleteId, today);
   const dailyPlan = buildDailyPlan(rawContext);
-  return { rawContext, dailyPlan, warnings };
+  return { rawContext, dailyPlan, warnings, plannedSessionObservation };
 }

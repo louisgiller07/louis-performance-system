@@ -18,7 +18,7 @@ import type { PrescriptionRead } from "../prescriptionRead.js";
  */
 export type PlannedPrescriptionRead = PrescriptionRead<PlannedPrescription, never>;
 
-interface PlannedPrescriptionRawRow {
+export interface PlannedPrescriptionRawRow {
   id: string;
   generated_plan_session_id: string;
   schema_version: string;
@@ -55,6 +55,27 @@ function mapRow(row: PlannedPrescriptionRawRow): PlannedPrescriptionRead {
  * reader does not implement is returned as "unsupported_by_reader", never
  * dropped.
  */
+/**
+ * UX-11A.5c.3 — the raw stored row (no reader guard, no interpretation) of
+ * the planned prescription of one generated session of exactly
+ * `planVersionId`, for the V2 daily reconciliation, which validates it
+ * itself. Never a lookup by date, never in another version.
+ */
+export async function getPlannedPrescriptionRowOfVersion(
+  client: SupabaseClient,
+  planVersionId: string,
+  generatedPlanSessionId: string
+): Promise<PlannedPrescriptionRawRow | null> {
+  const { data, error } = await client
+    .from("training_plan_planned_prescriptions")
+    .select(COLUMNS)
+    .eq("plan_version_id", planVersionId)
+    .eq("generated_plan_session_id", generatedPlanSessionId)
+    .maybeSingle();
+  assertNoSupabaseError(error, "training_plan_planned_prescriptions");
+  return (data as PlannedPrescriptionRawRow | null) ?? null;
+}
+
 export async function getPlannedPrescriptionForGeneratedSession(
   client: SupabaseClient,
   generatedPlanSessionId: string

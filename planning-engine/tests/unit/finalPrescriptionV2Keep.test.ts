@@ -246,6 +246,39 @@ describe("an untrustworthy planned prescription is refused (contract error, neve
   });
 });
 
+describe("UX-11A.5c.3 — planned prescription from another catalogue aggregate", () => {
+  const s = session("STRENGTH_LOWER");
+  const base = keepInput(s);
+  const withStructure = (mutate: (structure: any, record: any) => void) => {
+    const planned = JSON.parse(JSON.stringify(base.plannedPrescription));
+    mutate(planned.structure, planned);
+    return buildKeepFinalPrescriptionV2({ ...base, plannedPrescription: planned });
+  };
+
+  it("older aggregate the runtime can no longer validate → final_prescription_catalog_mismatch (expected, no fallback)", () => {
+    expect(
+      withStructure((st, rec) => {
+        st.catalog.aggregate = "session-model-v2.0";
+        rec.catalogVersion = "session-model-v2.0";
+        st.blocks.find((b: any) => b.role === "main").items[0].exerciseId = "exercise_removed_since_v2_0";
+      })
+    ).toEqual({ status: "blocked", code: "final_prescription_catalog_mismatch", detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.5" } });
+  });
+
+  it("older aggregate still valid for this runtime → KEEP copies it verbatim with its own manifest", () => {
+    const r = withStructure((st, rec) => {
+      st.catalog.aggregate = "session-model-v2.4";
+      rec.catalogVersion = "session-model-v2.4";
+    });
+    expect(r.status).toBe("created");
+    if (r.status === "created") expect(r.finalPrescription.catalogVersion).toBe("session-model-v2.4");
+  });
+
+  it("the runtime's own aggregate with an unknown exercise is corruption → contract error", () => {
+    expect(() => withStructure((st) => (st.blocks.find((b: any) => b.role === "main").items[0].exerciseId = "unknown_exercise_id"))).toThrow(SessionModelV2ContractError);
+  });
+});
+
 describe("validateKeepFinalPrescriptionV2 — every invariant is enforced", () => {
   const s = session("STRENGTH_LOWER");
   const planned = { id: s.plannedPrescription.id, structure: s.plannedPrescription.structure };

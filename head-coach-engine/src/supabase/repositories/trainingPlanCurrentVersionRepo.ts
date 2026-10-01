@@ -18,6 +18,29 @@ export interface CurrentPlanVersionRow {
  * plan has ever been accepted for this athlete — a real, legitimate state
  * (an athlete with no active canonical plan), never an error.
  */
+/** UX-11A.5c.3 — the current accepted version and its prescription schema (the daily V1 / V2 discriminant). */
+export interface CurrentPlanPrescriptionSchemaRow {
+  plan_version_id: string;
+  prescription_schema_version: string;
+}
+
+export async function getCurrentPlanPrescriptionSchema(
+  client: SupabaseClient,
+  athleteId: string
+): Promise<CurrentPlanPrescriptionSchemaRow | null> {
+  const current = await getCurrentPlanVersion(client, athleteId);
+  if (current === null) return null;
+  const { data, error } = await client
+    .from("training_plan_versions")
+    .select("id, prescription_schema_version")
+    .eq("id", current.plan_version_id)
+    .eq("athlete_id", athleteId)
+    .single();
+  assertNoSupabaseError(error, "training_plan_versions");
+  const row = data as { id: string; prescription_schema_version: string };
+  return { plan_version_id: row.id, prescription_schema_version: row.prescription_schema_version };
+}
+
 export async function getCurrentPlanVersion(
   client: SupabaseClient,
   athleteId: string
