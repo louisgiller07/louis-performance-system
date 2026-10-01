@@ -4507,3 +4507,17 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Limites** : aucune représentation V2 de `skipped` / `replaced` (une absence d'exécution n'est pas un skip) ; pas de réalisé partiel ; le snapshot de génération (V1) lit toujours `completed_sessions` seul.
 
 **Statut** : Accepted — `feat/ux11b24-v2-recent-history-bridge`, code local non fusionné.
+
+## 2026-10-01 — ADR UX-11B.2.4c : harnais d'intégration d'exécution fiable
+
+> **A DB integration suite is skipped only when integration was not requested. Requested but unusable, or a broken setup, makes the suite fail. The execution suite's setup is now fast enough not to brush against Vitest's hook timeout.**
+
+**Constat.** Le fichier `sessionExecution.integration` s'était affiché « 7 skipped » dans 2 exécutions complètes sur 11. Vitest affiche ainsi les tests d'un fichier dont le `beforeAll` échoue, mais il marque aussi le fichier en échec (« Test Files 1 failed », code de sortie 1) : la suite n'était pas verte, le rapport précédent ne lisait que la ligne « Tests ». Cause mesurée : sous la charge d'une exécution complète, le `beforeAll` durait 7 à 8 s pour un délai de hook par défaut de 10 s (deux utilisateurs, puis huit appels `docker ps` + `docker exec psql`, environ 0,5 s chacun) ; un pic de latence Docker suffisait à dépasser le délai. Hypothèse de limite de connexions Auth écartée (aucun 429 dans les journaux GoTrue sur 120 h). Autre trou réel : avec `RUN_LOCAL_SUPABASE_INTEGRATION=1` mais une clé absente ou une URL non locale, le fichier était sauté silencieusement.
+
+**Décision** (tests uniquement, aucun changement métier) :
+- `tests/supabase/localDb.ts` : `localIntegrationRequested()` — `false` seulement si l'intégration n'est pas demandée (mode volontaire « tests unitaires ») ; demandée mais inutilisable → exception, le fichier échoue. `localDbContainer()` résolu une fois par fichier ; `execLocalSql()` borné (30 s) ; `assertLocalDbReady()` : un `select 1`, sans boucle ni attente.
+- `sessionExecution.integration` : contrôle de disponibilité, check-ins en parallèle, toutes les fixtures dans **une** commande SQL (au lieu de huit), budget de hook explicite (60 s) ; toute erreur fait échouer le fichier. Même garde et mêmes helpers pour `v2DailyPersistence.integration`.
+
+**Stabilité** : 10 exécutions complètes en mode intégration, dans les mêmes conditions : 10 réussites (98 fichiers, 1077 tests), 0 échec, 0 test sauté.
+
+**Statut** : Accepted — `feat/ux11b24-v2-recent-history-bridge`.

@@ -14,11 +14,14 @@
  * from the day's check-in) so that its final prescription is the current,
  * executable one; the V2 write path itself is covered by
  * v2DailyPersistence.integration.test.ts.
+ * UX-11B.2.4c — setup fails loudly: integration requested but unusable, local
+ * Postgres not answering, or any fixture statement failing makes the file
+ * FAIL (never a skip). Fixture SQL runs as one batched statement through the
+ * shared helpers in localDb.ts (one container lookup, one docker exec).
  * Scratch athletes are left in the local database on purpose: their
  * append-only rows (final prescriptions, executions) can never be deleted —
  * the same known limitation as canonical training plans (see testDb.ts).
  */
-import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -27,41 +30,16 @@ import {
   createTestClient,
   getAthleteAuthClient,
   insertCheckin,
-  isLoopbackSupabaseUrl,
-  resolveTestSupabaseUrl,
   type TestAthlete,
 } from "./testDb.js";
+import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral } from "./localDb.js";
 
-const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-const INTEGRATION_ENABLED =
-  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" &&
-  !!SERVER_KEY &&
-  !!PUBLISHABLE_KEY &&
-  isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+// Skipped only when integration is NOT requested; requested but unusable -> throws (the file fails).
+const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 
 const DAY = "2026-10-01";
 const OTHER_DAY = "2026-10-02";
 const V1_DAY = "2026-10-03";
-
-function localDbContainer(): string {
-  const name = execSync('docker ps --filter "name=supabase_db_" --format "{{.Names}}"', { encoding: "utf8" }).trim().split("\n")[0];
-  if (!name || !name.startsWith("supabase_db_")) throw new Error("local supabase_db_* container not found");
-  return name;
-}
-
-/** Runs SQL as the local database owner. Local container only — never a remote target. */
-function execLocalSql(sql: string): string {
-  return execSync(`docker exec -i ${localDbContainer()} psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -f -`, {
-    input: sql,
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-}
-
-function sqlLiteral(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`;
-}
 
 function v2Structure(items: Array<{ id: string; exerciseId: string; measure: Record<string, unknown> }>): unknown {
   return {
@@ -78,36 +56,41 @@ function v2Structure(items: Array<{ id: string; exerciseId: string; measure: Rec
   };
 }
 
-function insertFinalPrescription(athleteId: string, decisionId: string, schemaVersion: string, structure: unknown): string {
-  const id = randomUUID();
-  execLocalSql(
-    `insert into public.decision_final_prescriptions
-       (id, decision_id, athlete_id, active_session_origin, reconciliation_action, adaptation_rule_ids, schema_version, catalog_version, structure)
-     values (${sqlLiteral(id)}, ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, 'no_canonical_plan', 'keep', '[]'::jsonb,
-             ${sqlLiteral(schemaVersion)}, 'test', ${sqlLiteral(JSON.stringify(structure))}::jsonb);`
-  );
-  return id;
+/**
+ * UX-11A.5c.2 fixture: a decision as the V2 contract writes it (status
+ * 'created', computed from the day's check-in, so current until superseded)
+ * with its final prescription. The day's check-in must already exist.
+ */
+interface FixtureDecision {
+  decisionId: string;
+  finalPrescriptionId: string;
+  athleteId: string;
+  day: string;
+  schemaVersion: string;
+  structure: unknown;
 }
 
-/**
- * UX-11A.5c.2 — a fixture decision as the V2 contract writes it: status
- * 'created', computed from the day's check-in (so current until superseded).
- */
-const checkedInDays = new Set<string>();
-async function insertCreatedDecision(admin: SupabaseClient, athleteId: string, day: string): Promise<string> {
-  if (!checkedInDays.has(`${athleteId}:${day}`)) {
-    await insertCheckin(admin, athleteId, day);
-    checkedInDays.add(`${athleteId}:${day}`);
-  }
-  const id = randomUUID();
-  const out = execLocalSql(
-    `insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
-     select ${sqlLiteral(id)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, 'STRENGTH_A', 'test fixture', 'test', 'created', c.id, c.updated_at
-       from public.daily_checkins c where c.athlete_id = ${sqlLiteral(athleteId)} and c.checkin_date = ${sqlLiteral(day)}
-     returning id;`
-  );
-  if (!out.includes(id)) throw new Error("insertCreatedDecision: no check-in for that day");
-  return id;
+function fixtureDecision(athleteId: string, day: string, schemaVersion: string, structure: unknown): FixtureDecision {
+  return { decisionId: randomUUID(), finalPrescriptionId: randomUUID(), athleteId, day, schemaVersion, structure };
+}
+
+/** Writes every fixture in ONE owner-level statement batch; throws (setup fails) unless every decision was written. */
+function insertFixtureDecisions(fixtures: readonly FixtureDecision[]): void {
+  const sql = fixtures
+    .map(
+      (f) => `insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
+  select ${sqlLiteral(f.decisionId)}, ${sqlLiteral(f.athleteId)}, ${sqlLiteral(f.day)}, 'STRENGTH_A', 'test fixture', 'test', 'created', c.id, c.updated_at
+    from public.daily_checkins c where c.athlete_id = ${sqlLiteral(f.athleteId)} and c.checkin_date = ${sqlLiteral(f.day)}
+  returning id;
+insert into public.decision_final_prescriptions
+  (id, decision_id, athlete_id, active_session_origin, reconciliation_action, adaptation_rule_ids, schema_version, catalog_version, structure)
+  values (${sqlLiteral(f.finalPrescriptionId)}, ${sqlLiteral(f.decisionId)}, ${sqlLiteral(f.athleteId)}, 'no_canonical_plan', 'keep', '[]'::jsonb,
+          ${sqlLiteral(f.schemaVersion)}, 'test', ${sqlLiteral(JSON.stringify(f.structure))}::jsonb);`
+    )
+    .join("\n");
+  const out = execLocalSql(sql);
+  const missing = fixtures.filter((f) => !out.includes(f.decisionId));
+  if (missing.length > 0) throw new Error(`fixture decisions not written (no check-in for ${missing.map((f) => f.day).join(", ")})`);
 }
 
 const at = (minute: number) => `${DAY}T17:${String(minute).padStart(2, "0")}:00Z`;
@@ -166,32 +149,43 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     expect(outcome.status).toBe("ok");
   }
 
+  // Real setup work (two users, check-ins, one SQL batch): an explicit budget
+  // instead of the 10 s default, which the old one-docker-call-per-statement
+  // setup could exceed under full-suite load. A failure still fails the file.
   beforeAll(async () => {
+    assertLocalDbReady();
     admin = createTestClient();
     a = await createTestAthlete(admin, "UX-11B.2.2 execution test A");
     b = await createTestAthlete(admin, "UX-11B.2.2 execution test B");
     authA = await getAthleteAuthClient(a.athleteId);
     authB = await getAthleteAuthClient(b.athleteId);
 
-    decisionA = await insertCreatedDecision(admin, a.athleteId, DAY);
-    // Its own day: a later decision on DAY would supersede decisionA (UX-11A.5c.2).
-    const decisionAv1 = await insertCreatedDecision(admin, a.athleteId, V1_DAY);
-    const decisionAOtherDay = await insertCreatedDecision(admin, a.athleteId, OTHER_DAY);
-    const decisionB = await insertCreatedDecision(admin, b.athleteId, DAY);
-
-    fpA = insertFinalPrescription(
+    await Promise.all([
+      insertCheckin(admin, a.athleteId, DAY),
+      insertCheckin(admin, a.athleteId, V1_DAY),
+      insertCheckin(admin, a.athleteId, OTHER_DAY),
+      insertCheckin(admin, b.athleteId, DAY),
+    ]);
+    const onDayA = fixtureDecision(
       a.athleteId,
-      decisionA,
+      DAY,
       "v2",
       v2Structure([
         { id: itemSquat, exerciseId: "goblet_squat", measure: { type: "reps", min: 6, max: 8 } },
         { id: itemPass, exerciseId: "cornering_drill", measure: { type: "pass", count: 6 } },
       ])
     );
-    fpV1 = insertFinalPrescription(a.athleteId, decisionAv1, "v1", { domain: "strength", schemaVersion: "v1", blocks: [] });
-    fpOtherDay = insertFinalPrescription(a.athleteId, decisionAOtherDay, "v2", v2Structure([]));
-    fpB = insertFinalPrescription(b.athleteId, decisionB, "v2", v2Structure([{ id: itemOfB, exerciseId: "pushup", measure: { type: "reps", min: 8, max: 12 } }]));
-  });
+    // Its own day: a later decision on DAY would supersede decisionA (UX-11A.5c.2).
+    const v1 = fixtureDecision(a.athleteId, V1_DAY, "v1", { domain: "strength", schemaVersion: "v1", blocks: [] });
+    const otherDay = fixtureDecision(a.athleteId, OTHER_DAY, "v2", v2Structure([]));
+    const ofB = fixtureDecision(b.athleteId, DAY, "v2", v2Structure([{ id: itemOfB, exerciseId: "pushup", measure: { type: "reps", min: 8, max: 12 } }]));
+    insertFixtureDecisions([onDayA, v1, otherDay, ofB]);
+    decisionA = onDayA.decisionId;
+    fpA = onDayA.finalPrescriptionId;
+    fpV1 = v1.finalPrescriptionId;
+    fpOtherDay = otherDay.finalPrescriptionId;
+    fpB = ofB.finalPrescriptionId;
+  }, 60_000);
 
   it("records a new execution with its started event and a set; decision and exercise are derived by the server", async () => {
     const exec = newExecution(fpA);
@@ -328,7 +322,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
   // UX-11B.2.3 — single 'pass' vocabulary and fail-closed measure check.
   it("UX-11B.2.3 — prescribed measure types are exactly reps / duration / distance / pass; anything else is rejected, never unchecked", async () => {
     const PASS_DAY = "2026-10-07";
-    const decision = await insertCreatedDecision(admin, a.athleteId, PASS_DAY);
+    await insertCheckin(admin, a.athleteId, PASS_DAY);
     const ids = {
       pass: randomUUID(),
       passes: randomUUID(),
@@ -359,7 +353,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
         },
       ],
     };
-    const fp = insertFinalPrescription(a.athleteId, decision, "v2", structure);
+    const passFixture = fixtureDecision(a.athleteId, PASS_DAY, "v2", structure);
+    insertFixtureDecisions([passFixture]);
+    const fp = passFixture.finalPrescriptionId;
     const exec = newExecution(fp, PASS_DAY);
     expect((await record(a.athleteId, { execution: exec.execution, events: [exec.started] })).status).toBe("ok");
 

@@ -9,7 +9,6 @@
  * Owner-level SQL (`docker exec psql` on the local supabase_db_* container
  * only) is used solely to prove what the API roles cannot do.
  */
-import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,18 +18,15 @@ import {
   createTestClient,
   getAthleteAuthClient,
   insertCheckin,
-  isLoopbackSupabaseUrl,
-  resolveTestSupabaseUrl,
   setAthleteDiscipline,
 } from "./testDb.js";
+import { assertLocalDbReady, execLocalSql, localIntegrationRequested } from "./localDb.js";
 import { upsertPerformanceProfileFor, type AthletePerformanceProfileWriteFields } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 
-const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-const PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-const INTEGRATION_ENABLED =
-  process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!PUBLISHABLE_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
+// Skipped only when integration is NOT requested; requested but unusable -> throws (the file fails).
+const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 
 const TODAY = "2026-10-05";
 const STRENGTH_DAY = "2026-10-07"; // STRENGTH_LOWER MODERATE 60 in the development plan (the KEEP source)
@@ -48,21 +44,6 @@ const PROFILE: AthletePerformanceProfileWriteFields = {
   technical_priorities: { strengths: [], weaknesses: [], priorityAreas: ["cornering", "braking"] },
   dh_technical_tier: "intermediate",
 };
-
-function localDbContainer(): string {
-  const name = execSync('docker ps --filter "name=supabase_db_" --format "{{.Names}}"', { encoding: "utf8" }).trim().split("\n")[0];
-  if (!name || !name.startsWith("supabase_db_")) throw new Error("local supabase_db_* container not found");
-  return name;
-}
-
-/** Runs SQL as the local database owner. Local container only — never a remote target. */
-function execLocalSql(sql: string): string {
-  return execSync(`docker exec -i ${localDbContainer()} psql -U postgres -d postgres -v ON_ERROR_STOP=1 -At -f -`, {
-    input: sql,
-    encoding: "utf8",
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-}
 
 type Decision = "KEEP" | "MODIFY" | "REPLACE" | "REST";
 type Checkin = { id: string; updated_at: string };
@@ -178,6 +159,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
   const fixture = () => (shared ??= seed("5c.2 shared V2 plan"));
 
   beforeAll(() => {
+    assertLocalDbReady();
     admin = createTestClient();
   });
 
