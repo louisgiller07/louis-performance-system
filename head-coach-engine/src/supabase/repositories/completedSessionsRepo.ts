@@ -34,12 +34,21 @@ function addDays(isoDate: string, days: number): string {
  * Fetches `completed_sessions` rows for `athleteId` with
  * `session_date` in [today - windowDays, today].
  */
+/**
+ * UX-11B.2.4b — first day of M1's recent-load window ([today - windowDays,
+ * today], inclusive). Shared by the legacy read below and the V2 completed
+ * executions read, so both sources use exactly the same window.
+ */
+export function recentLoadWindowStart(today: string): string {
+  return addDays(today, -PROVISIONAL_THRESHOLDS.recentLoad.windowDays);
+}
+
 export async function getRecentSessions(
   client: SupabaseClient,
   athleteId: string,
   today: string
 ): Promise<CompletedSessionRawRow[]> {
-  const windowStart = addDays(today, -PROVISIONAL_THRESHOLDS.recentLoad.windowDays);
+  const windowStart = recentLoadWindowStart(today);
 
   const { data, error } = await client
     .from("completed_sessions")

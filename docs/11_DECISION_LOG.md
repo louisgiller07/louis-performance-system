@@ -4478,3 +4478,32 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Dette connue** : purge de compte (UX-11B.2 §11), inchangée.
 
 **Statut** : Accepted — `feat/ux11a5c4-v2-final-prescription-web`, code local non fusionné, non déployé.
+
+## 2026-10-01 — ADR UX-11B.2.4 : pont de l'historique récent de M1 (exécutions V2)
+
+> **A completed V2 execution now counts in M1's recent load, through a read-only bridge in the integration layer that produces exactly the shape M1 already receives. session_executions stays the truth of V2 executions; nothing is copied into completed_sessions; the M1 core is unchanged.**
+
+**Amende** l'ADR UX-11B.1 §8 (« le moteur continue de lire la charge récente dans `completed_sessions` »).
+
+**Audit (UX-11B.2.4a) — ce que M1 lit vraiment de `completed_sessions`.**
+- `getRecentSessions` (`session_date`, `session_type`, `intervention`, `completion_status`, `actual_duration_min`, `post_leg_fatigue`, `post_grip_fatigue`, `change_reason`, fenêtre `[J − 7, J]`) → `mapCompletedSessionRow` → `recent_sessions` = { `date`, `intervention`, `completion_status` } (ligne sans intervention ignorée) → `computeRecentLoad` : compte les séances non `skipped`, d'âge 0 à 7 jours, de type à charge variable et de charge HEAVY ou MODERATE ; ≥ 3 → AMBER, ≥ 5 → RED. Effets : RED → règle informative C3.7 (aucun changement de séance) et ligne de suivi « Surveiller la charge cumulée… ». `globalReadiness` n'est appelé nulle part. Champs réellement nécessaires : date, statut (skipped ou non), type et charge de l'intervention.
+- Les mêmes lignes alimentent `recent_recovery_context` (ligne de J − 1 avec `change_reason = fatigue_control`, statut partial / replaced / skipped, fatigues post-séance) : simple transmission vers l'affichage, sans effet sur l'arbitrage.
+- `getRecentTechnicalCandidates` (`decision_id`, `technical_outcome`, J − 14 … J − 1) → `recent_technical_context` → `prior_task_reference` : affichage seul.
+- `n_total_completed_sessions` : lu, jamais consommé par M1. `historyAdjuster` (compte des skipped / replaced) appartient à la génération V1, pas à M1 ; la V2 l'ignore.
+
+**Définition canonique d'une exécution V2 terminée** : un événement `completed` dans `execution_events`. `completed` et `abandoned` sont terminaux et exclusifs ; démarrée, en pause, reprise ou abandonnée ⇒ non terminée. Les exécutions ne sont jamais remplacées ; les corrections (`supersedes_id`) ne concernent que les séries, non lues ici.
+
+**Correspondance** : date ← `session_executions.session_date` (exact, égale à la date de la décision par contrôle serveur) ; type, charge, durée ← `decisions.daily_plan.final_session` de la décision de l'exécution (exact : c'est l'intervention pour laquelle la prescription exécutée a été construite) ; statut ← `done` pour un événement `completed` (M1 ne distingue que skipped / non skipped, le libellé ne change aucun calcul). Absent en V2 : réalisé effectif (séries partielles, durée réelle), `change_reason`, fatigues post-séance, `technical_outcome`, `skipped`, `replaced` — rien n'est approximé : ces informations restent celles des lignes `completed_sessions` quand elles existent. Une exécution sans décision (sans prescription) ne donne aucune entrée, comme une ligne legacy sans intervention.
+
+**Choix : B (lecture combinée dans la couche d'intégration).** A (projection vers `completed_sessions`) créerait une seconde vérité dans une table à remplacement complet, avec risque de doublon et de collision avec le résumé « Après séance » (unique par jour). C (vue ou RPC) imposerait une migration pour une fusion qui contient des règles de déduplication ; elle reste possible plus tard sans changer le contrat. B ajoute **une** requête par run quotidien (exécutions terminées + décision embarquées, ordre explicite), aucun N+1, aucun cache.
+
+**Déduplication** (fondée sur ADR UX-11B.1 §3 et §7 : 0 à N tentatives par prescription, une séance principale par jour, `completed_sessions` unique par jour et résumé du jour) :
+1. un jour avec une ligne `completed_sessions` ne prend aucune entrée V2 ;
+2. les exécutions terminées d'un même jour qui portent la même intervention comptent une fois (reprise, rejeu) ; une tentative abandonnée ne compte jamais ;
+3. des exécutions terminées d'un même jour avec des interventions différentes : aucune autorité ne dit laquelle a été réalisée → aucune n'est comptée, avertissement `recent_history_v2_conflicting_completions` (techniquement possible si la séance prévue change en cours de journée). **Décision à valider.**
+
+**Résultat** : sortie triée par date puis contenu (déterministe). Historique legacy seul : `DailyPlan` strictement identique (preuve en base : même plan qu'avec l'ancien mapping). Preuve d'influence : 3 résumés legacy MODERATE + 2 exécutions V2 MODERATE terminées (dont une reprise après abandon) → 5 séances → `recent_load` RED → règle existante C3.7 et ligne de suivi ; sans les exécutions : 3 → AMBER, pas de C3.7. Démarrée seule et abandonnée : aucune charge. Aucun écrit dans `completed_sessions`.
+
+**Limites** : aucune représentation V2 de `skipped` / `replaced` (une absence d'exécution n'est pas un skip) ; pas de réalisé partiel ; le snapshot de génération (V1) lit toujours `completed_sessions` seul.
+
+**Statut** : Accepted — `feat/ux11b24-v2-recent-history-bridge`, code local non fusionné.

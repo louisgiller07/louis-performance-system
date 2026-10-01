@@ -23,7 +23,9 @@ import { getCheckinFor } from "./repositories/dailyCheckinsRepo.js";
 import { getCurrentTrainingBlock } from "./repositories/trainingBlocksRepo.js";
 import { getPlannedSessionFor } from "./repositories/plannedSessionsRepo.js";
 import { getRacesInWindow } from "./repositories/raceCalendarRepo.js";
-import { getRecentSessions, getRecentTechnicalCandidates } from "./repositories/completedSessionsRepo.js";
+import { getRecentSessions, getRecentTechnicalCandidates, recentLoadWindowStart } from "./repositories/completedSessionsRepo.js";
+import { getCompletedExecutionsInWindow } from "./repositories/completedSessionExecutionsRepo.js";
+import { mergeRecentSessionsForDailyContext } from "./mapping/recentSessionsForDailyContext.js";
 import { getDecisionsByIds } from "./repositories/decisionsRepo.js";
 import { getOpenHealthFlags } from "./repositories/healthFlagsRepo.js";
 import { getTotalCheckinsCount, getTotalCompletedSessionsCount } from "./repositories/athleteCountsRepo.js";
@@ -33,7 +35,6 @@ import { mapDailyCheckinRow } from "./mapping/dailyCheckinRow.js";
 import { parseTrainingMode } from "./mapping/trainingMode.js";
 import { mapPlannedSessionRow } from "./mapping/plannedSessionIntervention.js";
 import { mapRaceCalendarRow } from "./mapping/raceCalendarRow.js";
-import { mapCompletedSessionRow } from "./mapping/completedSessionRow.js";
 import { mapRecentRecoveryContext } from "./mapping/recentRecoveryContext.js";
 import { resolveRecentTechnicalContext } from "./mapping/recentTechnicalContext.js";
 import { mapHealthFlagRow } from "./mapping/healthFlagRow.js";
@@ -149,11 +150,13 @@ export async function buildRawContext(
   });
 
   const sessionRows = await getRecentSessions(client, athleteId, today);
-  const recent_sessions: CompletedSessionSummary[] = [];
-  for (const row of sessionRows) {
-    const mapped = mapCompletedSessionRow(row);
-    if (mapped) recent_sessions.push(mapped);
-  }
+  // UX-11B.2.4b — recent-history bridge: legacy day summaries + V2 executions
+  // completed in the same window, merged in the exact shape M1 already reads
+  // (see mapping/recentSessionsForDailyContext.ts). M1 never sees the origin.
+  const completedExecutions = await getCompletedExecutionsInWindow(client, athleteId, recentLoadWindowStart(today), today);
+  const recentHistory = mergeRecentSessionsForDailyContext(sessionRows, completedExecutions);
+  const recent_sessions: CompletedSessionSummary[] = recentHistory.sessions;
+  warnings.push(...recentHistory.warnings);
   // V0.3_008A — same raw rows, a fully independent mapper (never reuses
   // mapCompletedSessionRow, which would silently drop a `skipped` D-1 row —
   // see recentRecoveryContext.ts's own doc). recentLoad's own pipeline
