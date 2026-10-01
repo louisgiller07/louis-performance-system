@@ -95,11 +95,13 @@ describe("V2 content — import boundary", () => {
     expect(sourceFiles(join(REPO, "planning-engine", "src", "sessionModelV2")).length).toBeGreaterThan(0);
   });
 
-  it("UX-11A.5a.4 — no Force builder exists yet: the only V2 builders are DH and aerobic base, and no builder reads the strength templates or doses", () => {
+  it("UX-11A.5b.4 — the V2 builders are DH, aerobic base and Force; only the Force builder reads the strength templates and doses; none reads the plan dose policy yet", () => {
     const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "builders");
-    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts"]);
+    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts", "strengthPrescriptionV2.ts"]);
     for (const file of sourceFiles(dir)) {
-      expect(readFileSync(file, "utf8"), file).not.toMatch(/strengthTemplateCatalogV2|strengthDoseCatalogV2|planDosePolicyV2|STRENGTH_TEMPLATE|STRENGTH_DOSE|PLAN_DOSE_POLICY/);
+      const text = readFileSync(file, "utf8");
+      expect(text, file).not.toMatch(/planDosePolicyV2|PLAN_DOSE_POLICY/);
+      if (!file.endsWith("strengthPrescriptionV2.ts")) expect(text, file).not.toMatch(/strengthTemplateCatalogV2|strengthDoseCatalogV2|STRENGTH_TEMPLATE|STRENGTH_DOSE/);
     }
   });
 });

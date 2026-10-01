@@ -4043,3 +4043,45 @@ Mesure, `perSide`, repos, consigne et vigilances viennent du catalogue d'exercic
 **Validation.** Les 6 templates officiels passent `validateStrengthTemplatesV2` avec **zéro anomalie**. Aucun test n'attend plus d'anomalie connue.
 
 **Statut** : Accepted — `feat/ux11a5a4-strength-templates-v2`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5b.4 : builder Force V2 pur
+
+> **A pure builder turns the versioned Force content (templates, doses, warm-up protocol, intent catalogue) into V2 prescription content for STRENGTH_LOWER and STRENGTH_UPPER. It takes no sport decision of its own, no id, no date, no ordinal. Nothing is wired into generation or persistence.**
+
+**API** (`planning-engine/src/sessionModelV2/builders/strengthPrescriptionV2.ts`) : `buildStrengthPrescriptionV2Content({ sessionKind, athleteTier, equipment, loadProfile, catalog })`.
+- `sessionKind` ∈ `STRENGTH_LOWER` | `STRENGTH_UPPER` ; `loadProfile` ∈ `LIGHT` | `MODERATE`. Toute autre valeur, HEAVY compris, est une erreur de contrat.
+- Le builder ne reçoit ni date, ni ordinal, ni `strengths` / `weaknesses`, ni historique, ni `setVolume` / `targetRpeOrRir`.
+- Primitives exposées : `resolveStrengthSlotCandidate`, `strengthTemplateFor`, `strengthIntentFor`.
+
+**Règles appliquées, toutes issues du contenu versionné.**
+- **Template** : exactement un template par couple (type de séance, niveau). 0 ou plusieurs → erreur de contrat.
+- **Exercices de travail** : premier candidat de la liste **ordonnée du template** qui est autorisé pour le niveau (règle cumulative V2) et dont tout le matériel requis est déclaré ; le matériel facultatif ne bloque jamais.
+  - Jamais l'ordre du catalogue, `progressesTo`, `regressesTo` ni `substitutions`.
+  - Si aucun candidat ne convient : `no_compatible_strength_exercise`, avec le détail type de séance, niveau, emplacement, rôle, matériel déclaré et candidats examinés (motif « niveau » ou « matériel manquant »).
+  - Avec les templates officiels actuels, ce blocage ne peut pas survenir : chaque liste se termine par un exercice sans matériel autorisé au niveau. Il est testé sur la primitive.
+- **Doses** : `strengthDoseCatalogV2[loadProfile][rôle]` pour les séries exactes, le RPE et le repos.
+  - Mesure `dose_catalog` (répétitions, `perSide` repris de l'exercice) réservée aux exercices mesurés en répétitions ; sinon, erreur de contrat (pas de conversion).
+  - Prévention : mesure de référence de l'exercice (`exercise_reference`).
+- **Échauffement** : les 3 exercices du template, avec leurs séries du template. Mesure, `perSide`, repos, consigne et vigilances viennent du catalogue. Rôle d'exercice issu du choix correspondant du protocole (`warm_up` pour la mobilité, `activation`). Consignes : les identifiants du protocole `strength_warm_up_v1` (mobilité, activation).
+- **`rampUp`** : sur le principal uniquement. `instructionId` = consigne canonique « préparation du mouvement principal » du protocole (`instruction.strength_warm_up.main_movement_ramp`, vérifiée comme texte de type consigne), séries 1–2, sans charge, sans RPE, sans id.
+- **Structure** : `warm_up` (3 exercices) → `main` (principal) → `complementary` → `complementary`. Pas de retour au calme.
+- **Intention** : l'intention **unique**, sélectionnable par type de séance (`session_kind`), de la famille `strength` pour ce type. LOWER → `lower_body_strength_control` ; UPPER → `upper_bike_control` (catalogue existant, aucune intention créée). 0 ou plusieurs → erreur de contrat.
+- **Manifeste** : celui reçu en entrée, recopié (actuellement `session-model-v2.2`). Une autre version des templates, des doses, des exercices ou de la politique change l'empreinte sportive.
+
+**Compositions vérifiées** (PROVISIONAL, issues des templates) :
+
+| Profil | LOWER | UPPER |
+|---|---|---|
+| Débutant, sans matériel | `bodyweight_squat` / `glute_bridge` / `reverse_lunge` | `pushup` / `floor_ytw_raise` / `dead_bug` |
+| Intermédiaire, haltères + banc | `goblet_squat` / `dumbbell_romanian_deadlift` / `bulgarian_split_squat` | `dumbbell_bench_press` / `one_arm_dumbbell_row` / `dead_bug` |
+| Intermédiaire, sans matériel | `bodyweight_squat` / `glute_bridge` / `single_leg_romanian_deadlift` | — |
+| Avancé, salle complète | `barbell_back_squat` / `barbell_romanian_deadlift` / `bulgarian_split_squat` | `barbell_bench_press` / `lat_pulldown` / `hanging_leg_raise` |
+| Avancé, haltères seuls | `goblet_squat` / `dumbbell_romanian_deadlift` / `single_leg_romanian_deadlift` | — |
+
+**Stabilité.** La composition ne dépend que de (type de séance, niveau, matériel, version du template). Même entrée → même contenu et même empreinte ; l'ordre du matériel déclaré et toute donnée supplémentaire (date, ordinal) sont sans effet.
+
+**Validation.** Chaque prescription produite est valide (`validatePrescriptionV2`, après `assignPrescriptionIds` déterministe de test), pour toutes les combinaisons type × niveau × {sans matériel, salle complète}.
+
+**Hors périmètre** : `generationEngine`, placement V2 (invariant UX-11A.5a.4.1), snapshot V2 runtime, persistance, 5c, UX-11C, progression liée à l'historique, Puissance, préhension, récupération, `session_activity_results`.
+
+**Statut** : Accepted — `feat/ux11a5b4-v2-force-builder`, lignée non fusionnée. Aucune prescription V2 persistée.
