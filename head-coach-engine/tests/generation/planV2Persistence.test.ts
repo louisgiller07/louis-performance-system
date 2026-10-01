@@ -49,7 +49,7 @@ describe("planV2ToPersistencePayload — transformation only", () => {
       inputSnapshotHash: "hash",
       plannerVersion: "v2",
       rulesetVersion: "v2",
-      catalogVersion: "session-model-v2.4",
+      catalogVersion: "session-model-v2.5",
       prescriptionSchemaVersion: "v2",
       generationTrigger: "initial",
       rationale: "Initial training plan generation.",
@@ -66,7 +66,7 @@ describe("planV2ToPersistencePayload — transformation only", () => {
     expect(payload.plannedPrescriptions.map((x) => x.generatedPlanSessionId)).toEqual(sessions.map((s) => s.generatedPlanSessionId));
     expect(payload.plannedPrescriptions.map((x) => x.structure)).toEqual(sessions.map((s) => s.plannedPrescription.structure));
     expect(new Set(payload.plannedPrescriptions.map((x) => x.schemaVersion))).toEqual(new Set(["v2"]));
-    expect(new Set(payload.plannedPrescriptions.map((x) => x.catalogVersion))).toEqual(new Set(["session-model-v2.4"]));
+    expect(new Set(payload.plannedPrescriptions.map((x) => x.catalogVersion))).toEqual(new Set(["session-model-v2.5"]));
   });
 
   it("legacy doseTarget is transported on sessions as compatibility metadata only, never inside a prescription", () => {

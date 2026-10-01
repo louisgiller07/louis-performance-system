@@ -131,6 +131,8 @@ describe("V2 content — import boundary", () => {
   it("UX-11A.5a.4.3 — the V2 dose model never reads the legacy LoadDerivation durations", () => {
     const text = readFileSync(join(REPO, "planning-engine", "src", "sessionModelV2", "orchestration", "planDoseModelV2.ts"), "utf8");
     expect(text).not.toMatch(/referenceDurationMinFor|BASE_DURATION_MIN|TAPER_DURATION_MIN/);
+    // Load authority lock: the final V2 load never comes from the baseline.
+    expect(text).not.toMatch(/baseline\.loadProfile|BASE_LOAD_PROFILE|TAPER_LOAD_PROFILE/);
   });
 
   it("UX-11A.5b.5b — V2 builders and the in-memory orchestrator never read the legacy doseTarget fields (setVolume, targetRpeOrRir, intensityZone)", () => {

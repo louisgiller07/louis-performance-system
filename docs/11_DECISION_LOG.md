@@ -4235,3 +4235,35 @@ Un plan bloqué (par exemple `missing_dh_technical_tier`) ou une prescription in
 **Inchangés** : `generate-training-plan` (Edge Function publique, toujours V1), la RPC, les migrations, la suppression de compte, la production. Seul changement côté V1 : `RATIONALE_FOR_TRIGGER` est désormais exporté (sans effet sur le comportement), pour être réutilisé à l'identique en V2.
 
 **Statut** : Accepted — `feat/ux11a5b5b-v2-local-persistence`, lignée non fusionnée. **V2 non livrée** : persistance locale uniquement, inaccessible aux utilisateurs.
+
+## 2026-10-01 — ADR UX-11A.5b.5b.1 : verrouillage de l'autorité de charge V2
+
+> **In a V2 plan, the load profile of every generated kind (Force, DH, endurance base) comes from the plan dose policy only. The legacy baseline load is never the final V2 load.**
+
+**Contexte.** En 5b.5b, la charge de DH et d'AEROBIC_BASE reprenait la charge de base non ajustée de `LoadDerivation` (exigée par la contrainte SQL `load_profile_matches_kind`). La question de l'autorité restait ouverte (ADR UX-11A.5b.5b).
+
+**Décision.** `plan-dose-policy-v2.3` (valeurs PROVISIONAL — coaching validation required) :
+
+| Semaine | Force | DH | Endurance fondamentale |
+|---|---|---|---|
+| développement | MODERATE, 60 min | MODERATE, 90 min, 6 passages | MODERATE, 45 min |
+| affûtage | LIGHT, 45 min | LIGHT, 60 min, 4 passages | LIGHT, 45 min |
+| course | aucune séance | aucune séance | aucune séance |
+
+- Le modèle de dose V2 lit `forceLoad`, `dhLoad` et `aerobicLoad` dans la politique pour STRENGTH_LOWER / UPPER, DH_TECHNICAL et AEROBIC_BASE. Il ne lit plus `baseline.loadProfile`.
+- Les champs legacy de `doseTarget` (`setVolume`, `targetRpeOrRir`, `intensityZone`) restent une métadonnée transportée, jamais une autorité V2.
+- Les valeurs persistées sont identiques à celles de 5b.5b (MODERATE / LIGHT) ; seule leur source change. Aucune dose sportive modifiée.
+
+**Manifeste.** `planDosePolicy` : `plan-dose-policy-v2.3` ; agrégat : `session-model-v2.5`. Autres composants inchangés.
+
+**Preuves.**
+- Charges par type : développement MODERATE, affûtage LIGHT (Force, DH, endurance).
+- Une charge de base legacy arbitraire (`HEAVY`, 999 min) ne change pas la charge V2.
+- Historique ignoré (aucun ajustement).
+- Test de frontière : `planDoseModelV2` ne lit jamais `baseline.loadProfile`.
+- V1 identique (snapshots de non-régression inchangés).
+- Base locale : chaque `load_profile` persisté est égal à la valeur de la politique pour son type et sa semaine.
+
+**Amende** l'ADR UX-11A.5b.5b, paragraphe « `loadProfile` de DH et AEROBIC_BASE » : la charge n'est plus la charge de base, c'est une valeur de la politique.
+
+**Statut** : Accepted — `feat/ux11a5b5b-v2-local-persistence`, lignée non fusionnée. V2 non livrée.

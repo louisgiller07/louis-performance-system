@@ -392,7 +392,7 @@ describe("Prescription V2 — validator invariants", () => {
 describe("Catalogue manifest", () => {
   it("is built from the real component versions (UX-11A.5a.4.1: planDosePolicy traced, aggregate v2.2)", () => {
     expect(buildSessionModelV2CatalogManifest()).toEqual({
-      aggregate: "session-model-v2.4",
+      aggregate: "session-model-v2.5",
       exercises: "session-exercises-v2.1",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
@@ -400,7 +400,7 @@ describe("Catalogue manifest", () => {
       texts: "coaching-text-v1.0",
       templates: "strength-templates-v2.1",
       strengthDoses: "strength-doses-v2.1",
-      planDosePolicy: "plan-dose-policy-v2.2",
+      planDosePolicy: "plan-dose-policy-v2.3",
     });
     expect(Object.keys(buildSessionModelV2CatalogManifest())).toEqual(["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses", "planDosePolicy"]);
   });

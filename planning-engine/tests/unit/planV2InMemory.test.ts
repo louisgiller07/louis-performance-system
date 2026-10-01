@@ -63,9 +63,9 @@ describe("A — development plan: every session kind gets a valid V2 prescriptio
       inputSnapshotSchemaVersion: "v2",
       prescriptionSchemaVersion: "v2",
       plannerVersion: "v2",
-      catalogVersion: "session-model-v2.4",
+      catalogVersion: "session-model-v2.5",
     });
-    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.2");
+    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.3");
   });
 
   it("Force MODERATE 60 min, DH 6 passages, AEROBIC_BASE 45 min; N sessions → N V2 prescriptions", () => {
@@ -130,15 +130,17 @@ describe("C — legacy history counter never changes V2 doses", () => {
     expect(sessions(missed).some((s) => /missed or replaced/.test(s.rationale))).toBe(false);
   });
 
-  it("DH and AEROBIC_BASE carry LoadDerivation's unadjusted baseline load (DB requires it for load-variable kinds): development MODERATE, taper LIGHT, history ignored", () => {
+  it("every generated kind takes its load from the policy: development MODERATE, taper LIGHT (Force, DH, AEROBIC_BASE), history ignored", () => {
     for (const count of [0, 5]) {
       const p = generated(generatePlanV2InMemory({
         block: RACE_PLAN,
         snapshot: snapshot({ races: [RACE], recentHistory: { recentSessionKinds: [], recentMissedOrReplacedCount: count, trailingVolumeMinutes: 0 } }),
         mintId: counter(),
       }));
-      const loads = new Set(sessions(p).filter((s) => s.kind === "DH_TECHNICAL" || s.kind === "AEROBIC_BASE").map((s) => `${s.weekType}:${s.loadProfile}`));
-      expect(loads).toEqual(new Set(["development:MODERATE", "taper:LIGHT"]));
+      for (const kind of ["STRENGTH_LOWER", "DH_TECHNICAL", "AEROBIC_BASE"]) {
+        const loads = new Set(sessions(p).filter((s) => s.kind === kind).map((s) => `${s.weekType}:${s.loadProfile}`));
+        expect(loads, kind).toEqual(new Set(["development:MODERATE", "taper:LIGHT"]));
+      }
     }
   });
 
@@ -234,6 +236,18 @@ describe("F — placement uses the V2 duration (policy before placement)", () =>
         baseline: { loadProfile: "MODERATE", durationMin: 999, doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 99 } },
       });
       expect([resolved.durationMin, (resolved.doseTarget as { focusedRunsCount: number }).focusedRunsCount]).toEqual([expected, weekType === "development" ? 6 : 4]);
+    }
+  });
+
+  it("an arbitrary legacy baseline load never changes the V2 load (policy is the single load authority)", () => {
+    const dh = { domain: "dh_technical" as const, skillTargets: [], focusedRunsCount: 1 };
+    const aerobic = { domain: "aerobic" as const, intensityZone: "moderate" as const };
+    const strength = { domain: "strength" as const, setVolume: 1, targetRpeOrRir: 1 };
+    for (const [weekType, expected] of [["development", "MODERATE"], ["taper", "LIGHT"]] as const) {
+      for (const [kind, domain, doseTarget] of [["DH_TECHNICAL", "dh_technical", dh], ["AEROBIC_BASE", "aerobic", aerobic], ["STRENGTH_UPPER", "strength", strength]] as const) {
+        const resolved = PLAN_DOSE_MODEL_V2.resolveSessionLoad({ kind, domain, weekType, baseline: { loadProfile: "HEAVY", durationMin: 999, doseTarget } });
+        expect(resolved.loadProfile, `${kind}/${weekType}`).toBe(expected);
+      }
     }
   });
 

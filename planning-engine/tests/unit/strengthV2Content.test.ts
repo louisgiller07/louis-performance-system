@@ -239,11 +239,11 @@ describe("UX-11A.5a.4.1 — floor_ytw_raise holds `secondary` in V2 only", () =>
 });
 
 describe("V2 Plan Dose Policy", () => {
-  it("development = MODERATE 60 min / DH 90 min, 6 / 45; taper = LIGHT 45 min / DH 60 min, 4 / 45; race = no normal session (v2.2)", () => {
-    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.2");
+  it("v2.3: every generated kind has its load, duration and passages in the policy; race = no normal session", () => {
+    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.3");
     expect(PLAN_DOSE_POLICY_V2).toEqual({
-      development: { forceLoad: "MODERATE", forceDurationMin: 60, dhDurationMin: 90, dhFocusedPasses: 6, aerobicBaseDurationMin: 45 },
-      taper: { forceLoad: "LIGHT", forceDurationMin: 45, dhDurationMin: 60, dhFocusedPasses: 4, aerobicBaseDurationMin: 45 },
+      development: { forceLoad: "MODERATE", forceDurationMin: 60, dhLoad: "MODERATE", dhDurationMin: 90, dhFocusedPasses: 6, aerobicLoad: "MODERATE", aerobicBaseDurationMin: 45 },
+      taper: { forceLoad: "LIGHT", forceDurationMin: 45, dhLoad: "LIGHT", dhDurationMin: 60, dhFocusedPasses: 4, aerobicLoad: "LIGHT", aerobicBaseDurationMin: 45 },
       race: null,
       validationStatus: "PROVISIONAL",
     });

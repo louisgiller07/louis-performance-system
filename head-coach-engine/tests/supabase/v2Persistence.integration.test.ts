@@ -7,6 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { PLAN_DOSE_POLICY_V2 } from "planning-engine";
 import {
   createTestAthlete,
   createTestClient,
@@ -85,7 +86,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
       id: result.planVersionId,
       input_snapshot_schema_version: "v2",
       prescription_schema_version: "v2",
-      catalog_version: "session-model-v2.4",
+      catalog_version: "session-model-v2.5",
       planner_version: "v2",
       relaxed_constraints: [],
     });
@@ -104,9 +105,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
       ["2026-10-15", "STRENGTH_UPPER", "MODERATE", 60],
       ["2026-10-16", "AEROBIC_BASE", "MODERATE", 45],
     ]);
+    // Load authority lock: every stored load is the plan dose policy's load for its kind.
+    const policyLoad = { STRENGTH_LOWER: PLAN_DOSE_POLICY_V2.development.forceLoad, STRENGTH_UPPER: PLAN_DOSE_POLICY_V2.development.forceLoad, DH_TECHNICAL: PLAN_DOSE_POLICY_V2.development.dhLoad, AEROBIC_BASE: PLAN_DOSE_POLICY_V2.development.aerobicLoad } as Record<string, string>;
+    for (const s of sessions) expect(s.load_profile, s.kind).toBe(policyLoad[s.kind as string]);
     expect(prescriptions).toHaveLength(sessions.length);
     expect(new Set(prescriptions.map((p) => p.generated_plan_session_id))).toEqual(new Set(sessions.map((s) => s.id)));
-    expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.4"]));
+    expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.5"]));
 
     const byKind = (kind: string) => prescriptions.find((p) => sessions.find((s) => s.id === p.generated_plan_session_id)!.kind === kind)!.structure as Record<string, any>;
     expect(byKind("STRENGTH_LOWER").templateId).toBe("strength_lower_intermediate_v1");
@@ -173,6 +177,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
       ["STRENGTH_LOWER", "LIGHT", 45],
       ["AEROBIC_BASE", "LIGHT", 45],
     ]);
+    expect(taper.map((s) => s.load_profile)).toEqual([PLAN_DOSE_POLICY_V2.taper.dhLoad, PLAN_DOSE_POLICY_V2.taper.forceLoad, PLAN_DOSE_POLICY_V2.taper.aerobicLoad]);
     const taperDh = prescriptions.find((p) => p.generated_plan_session_id === taper[0]!.id)!.structure as Record<string, any>;
     expect(taperDh.blocks.find((b: any) => b.role === "main").items[0].measure).toEqual({ type: "pass", count: 4 });
     expect(sessions.some((s) => s.date >= "2026-10-19")).toBe(false); // race week: no session
