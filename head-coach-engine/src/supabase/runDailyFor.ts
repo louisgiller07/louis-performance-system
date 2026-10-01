@@ -175,7 +175,12 @@ export interface RunDailyForDeps {
   mintId: () => string;
 }
 
-const DEFAULT_DEPS: RunDailyForDeps = {
+/**
+ * The production dependencies. Exported (UX-11A.5c.3.1) so the daily-run Edge
+ * Function can keep every one of them and replace only the lazy V2
+ * reconciliation loader by its Deno bundle.
+ */
+export const DEFAULT_RUN_DAILY_FOR_DEPS: RunDailyForDeps = {
   computeDailyFor,
   persistDailyRun,
   getAthleteCoachingContext,
@@ -335,7 +340,7 @@ export async function runDailyFor(
   client: SupabaseClient,
   athleteId: string,
   today: string,
-  deps: RunDailyForDeps = DEFAULT_DEPS
+  deps: RunDailyForDeps = DEFAULT_RUN_DAILY_FOR_DEPS
 ): Promise<RunDailyForResult> {
   const projectionWarnings = await runProjectionBestEffort(
     client,

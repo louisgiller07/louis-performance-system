@@ -14,6 +14,10 @@
     "./session-model-v2": {
       "types": "./dist/sessionModelV2/index.d.ts",
       "default": "./dist/sessionModelV2/index.js"
+    },
+    "./session-model-v2/daily": {
+      "types": "./dist/sessionModelV2/daily.d.ts",
+      "default": "./dist/sessionModelV2/daily.js"
     }
   },
   "files": [

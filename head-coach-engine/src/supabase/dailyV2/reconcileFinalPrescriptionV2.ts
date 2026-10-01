@@ -16,11 +16,13 @@
  * data raises a contract error.
  *
  * Loaded lazily by runDailyFor (V2 path only): this is the only daily module
- * with a runtime import of `planning-engine/session-model-v2`, so the V1
- * daily path's static import graph is unchanged (see runDailyFor).
+ * with a runtime import of the Session Model V2 daily entry
+ * (`planning-engine/session-model-v2/daily`), so the V1 daily path's static
+ * import graph is unchanged (see runDailyFor). Under Deno, the daily-run Edge
+ * Function loads it through the esbuild bundle of src/edge/dailyRunV2EdgeEntry.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildKeepFinalPrescriptionV2, type FinalPrescriptionV2, type FinalPrescriptionV2Result } from "planning-engine/session-model-v2";
+import { buildKeepFinalPrescriptionV2, type FinalPrescriptionV2, type FinalPrescriptionV2Result } from "planning-engine/session-model-v2/daily";
 import type { DailyPlan } from "../../types/index.js";
 import type { PlannedSessionObservation } from "../buildRawContext.js";
 import { getGeneratedSessionOfVersion } from "../repositories/trainingPlanGeneratedSessionsRepo.js";

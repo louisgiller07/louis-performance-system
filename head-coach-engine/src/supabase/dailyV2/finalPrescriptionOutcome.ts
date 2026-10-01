@@ -4,7 +4,7 @@
  * no id minted). Type-only dependency on the Session Model V2 module, so it
  * can sit in runDailyFor's static import graph.
  */
-import type { FinalPrescriptionV2Result } from "planning-engine/session-model-v2";
+import type { FinalPrescriptionV2Result } from "planning-engine/session-model-v2/daily";
 
 /** persist_daily_run_v2's `p_final_prescription_outcome` (exactly one object, never a collection). */
 export type FinalPrescriptionOutcomePayload =

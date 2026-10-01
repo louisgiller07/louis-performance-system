@@ -5,7 +5,7 @@
 // ctx.supabaseAdmin (from @supabase/server) is the client passed to
 // runDailyFor.
 import { withSupabase } from "@supabase/server";
-import { runDailyFor } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
+import { runDailyFor, DEFAULT_RUN_DAILY_FOR_DEPS } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapDailyRunError } from "./errorMapping.ts";
 
@@ -24,6 +24,17 @@ function isValidCalendarDate(value: string): boolean {
     date.getUTCDate() === day
   );
 }
+
+// UX-11A.5c.3.1 — same dependencies as Node, except the V2 reconciliation:
+// Deno cannot resolve `planning-engine/session-model-v2/daily` from the
+// unbundled dist, so the V2 path loads the esbuild bundle of the same source
+// (head-coach-engine `npm run build:edge`). Loaded lazily: a V1 (or no-plan)
+// daily run never imports it.
+const DAILY_RUN_DEPS = {
+  ...DEFAULT_RUN_DAILY_FOR_DEPS,
+  reconcileFinalPrescriptionV2: async (input: Parameters<typeof DEFAULT_RUN_DAILY_FOR_DEPS.reconcileFinalPrescriptionV2>[0]) =>
+    (await import("../../../head-coach-engine/dist/edge/dailyRunV2.bundle.js")).reconcileFinalPrescriptionV2(input),
+};
 
 function errorResponse(status: number, code: string, message: string): Response {
   return Response.json({ error: { code, message } }, { status });
@@ -93,7 +104,7 @@ export default {
     try {
       // ctx.supabaseAdmin only — athleteId came exclusively from the
       // RLS-scoped ctx.supabase query above, never from client input.
-      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue);
+      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue, DAILY_RUN_DEPS);
 
       // REST/MODIFY/REPLACE are normal coaching outcomes: daily_run_succeeded (info), never an error.
       await recordPilotEvent(ctx.supabaseAdmin, {

@@ -4434,3 +4434,27 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Inchangés** : noyau M1, `persist_daily_run`, `record_session_execution`, web, production, migrations. Suppression de compte : dette connue (audit 5c.2).
 
 **Statut** : Accepted — `feat/ux11a5c3-v2-daily-integration`, code local non fusionné, non déployé.
+
+## 2026-10-01 — ADR UX-11A.5c.3.1 : empaquetage Deno du chemin quotidien V2
+
+> **The daily-run Edge Function runs the V2 daily path from an esbuild bundle of the same source, built by the repository's existing Edge packaging mechanism, and loads it only on the V2 path.**
+
+**Audit du mécanisme existant** (`generate-training-plan`) : point d'entrée `head-coach-engine/src/edge/generateTrainingPlanEdgeEntry.ts` → `npm run build` (tsc vers `dist/`) → `npm run build:edge` (esbuild `--bundle --format=esm --platform=neutral --external:node:*`) → `dist/edge/generateTrainingPlan.bundle.js`, importé par l'Edge Function par chemin relatif. `dist/` n'est pas versionné. Aucune import map pour le code partagé. Tests : `npm run test:edge` (reconstruit puis exécute sous Node) ; runtime Deno réel : `npm run test:m3:http` (`supabase functions serve`).
+
+**Décision** (même mécanisme, rien de copié) :
+- `planning-engine` expose un point d'entrée minimal `./session-model-v2/daily` (`src/sessionModelV2/daily.ts`) : module KEEP final, validateur, `sportFingerprint`, version d'agrégat. Aucun builder, aucune orchestration, aucune politique de dose, aucun pipeline n'y est atteignable.
+- La réconciliation head-coach importe ce point d'entrée. `src/edge/dailyRunV2EdgeEntry.ts` réexporte `reconcileFinalPrescriptionV2` (et `sportFingerprint` pour le test de parité) ; `build:edge` produit aussi `dist/edge/dailyRunV2.bundle.js` (≈ 77 ko : catalogues de données requis par le validateur, module final, empreinte, deux lectures ; seul import restant `node:crypto`, natif sous Deno) et sa déclaration de types.
+- `runDailyFor` exporte `DEFAULT_RUN_DAILY_FOR_DEPS`. `daily-run` garde toutes les dépendances de production et ne remplace que le chargeur paresseux de la réconciliation V2 par `import()` du bundle. Un run V1 (ou sans plan) ne charge jamais le bundle ; son graphe d'imports statique est inchangé.
+- Primitive d'empreinte : `createHash("sha256")` de `node:crypto` dans les deux environnements (aucune réimplémentation).
+
+**Commande** : `cd head-coach-engine && npm run build && npm run build:edge`.
+
+**Preuves** :
+- parité Node / bundle (`tests/edge/dailyRunV2Bundle.test.ts`, dans `test:edge`) : pour Force, DH et endurance, même document KEEP, mêmes identifiants conservés, même empreinte ; résultats bloqués et REST identiques ; le bundle n'importe que `node:*` et ne contient aucun code de génération de plan ;
+- runtime Deno réel (`npm run test:daily-run:v2:http`, Edge Runtime 1.74.3 / Deno 2.1.4 via `supabase functions serve`) : plan V2 KEEP → `created`, prescription renvoyée identique à la prescription prévue stockée (identifiants conservés, empreinte Node du document Deno = empreinte prévue), persistée par `persist_daily_run_v2` ; KEEP sans séance → `blocked` / `no_lineage` ; REST → `not_required` + health flag ; schéma `v999` → 409 sans décision ; sans plan → chemin V1 (`persist_daily_run`, statut NULL). 9/9 sur cinq exécutions, dont une à froid. La toute première exécution a donné 2/9 (502 sans erreur applicative journalisée sur les requêtes V2, juste après le remplacement d'un conteneur Edge actif depuis 23 h) ; non reproduit ensuite — à surveiller en préproduction.
+- V1 dans le runtime réel : `npm run test:m3:http` 27/27 scénarios fonctionnels ; son nettoyage échoue (6) parce que `training_plan_versions` (`ON DELETE RESTRICT`) empêche la suppression des athlètes de test — dette de purge préexistante (UX-11B.2 §11), sans lien avec ce changement.
+- L'empreinte calculée **dans** Deno n'est pas observable via le contrat public ; elle utilise la même primitive et l'invariant KEEP (recalcul des deux empreintes dans Deno) est satisfait.
+
+**Inchangés** : logique sportive, taxonomie KEEP / REST / blocked, RPC, persistance, M1, web.
+
+**Statut** : Accepted — `feat/ux11a5c3-v2-daily-integration`, non fusionné, non déployé.

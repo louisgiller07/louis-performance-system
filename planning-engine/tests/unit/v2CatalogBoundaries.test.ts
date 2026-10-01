@@ -119,6 +119,8 @@ describe("V2 content — import boundary", () => {
       // UX-11A.5c.3 — V2 daily reconciliation (runtime import, loaded lazily) and its outcome mapping (type-only).
       join("head-coach-engine", "src", "supabase", "dailyV2", "reconcileFinalPrescriptionV2.ts"),
       join("head-coach-engine", "src", "supabase", "dailyV2", "finalPrescriptionOutcome.ts"),
+      // UX-11A.5c.3.1 — the daily-run V2 Deno bundle entry (same source, bundled by esbuild).
+      join("head-coach-engine", "src", "edge", "dailyRunV2EdgeEntry.ts"),
     ]);
     const importers: string[] = [];
     for (const root of ["head-coach-engine/src", "prescription-engine/src", "longitudinal-engine/src", "planning-engine/src"].map((r) => join(REPO, r))) {
@@ -149,7 +151,7 @@ describe("V2 content — import boundary", () => {
     for (const root of ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src", "web/src"].map((r) => join(REPO, r))) {
       for (const file of sourceFiles(root)) {
         const rel = relative(REPO, file);
-        if (isSessionModelV2(rel) || rel.startsWith(join("head-coach-engine", "src", "supabase", "dailyV2") + sep) || rel === join("head-coach-engine", "src", "supabase", "runDailyFor.ts")) continue;
+        if (isSessionModelV2(rel) || rel.startsWith(join("head-coach-engine", "src", "supabase", "dailyV2") + sep) || rel === join("head-coach-engine", "src", "supabase", "runDailyFor.ts") || rel === join("head-coach-engine", "src", "edge", "dailyRunV2EdgeEntry.ts")) continue;
         if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2|FinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
       }
     }

@@ -17,6 +17,8 @@ export default defineConfig({
       // rejection codes (invalid_prescribed_measure, …). Pure TypeScript,
       // imported from supabase/functions/session-execution/validation.ts.
       "tests/edge/sessionExecution/**/*.test.ts",
+      // UX-11A.5c.3.1 — the daily-run V2 Deno bundle runs the same source as Node.
+      "tests/edge/dailyRunV2Bundle.test.ts",
     ],
   },
 });
