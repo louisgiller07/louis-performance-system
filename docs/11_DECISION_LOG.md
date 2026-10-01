@@ -4085,3 +4085,31 @@ Mesure, `perSide`, repos, consigne et vigilances viennent du catalogue d'exercic
 **Hors périmètre** : `generationEngine`, placement V2 (invariant UX-11A.5a.4.1), snapshot V2 runtime, persistance, 5c, UX-11C, progression liée à l'historique, Puissance, préhension, récupération, `session_activity_results`.
 
 **Statut** : Accepted — `feat/ux11a5b4-v2-force-builder`, lignée non fusionnée. Aucune prescription V2 persistée.
+
+## 2026-10-01 — ADR UX-11A.5a.4.2 : traçabilité du template Force et contrat de durée avant placement
+
+> **A Force V2 prescription names the template that produced it; the V2 plan dose policy now carries every Force duration needed before placement. The Force warm-up block gets no generated duration.**
+
+**1. `templateId` (architecture validée).**
+- Champ de séance `templateId?` dans la Prescription V2 : **obligatoire** pour la famille `strength`, **absent** pour DH et endurance.
+- Le validateur vérifie que l'identifiant existe dans `strengthTemplateCatalogV2` et qu'il correspond au même type de séance. Codes : `missing_template_id`, `unknown_template_id`, `template_id_not_allowed`.
+- Le builder Force renseigne l'identifiant réellement utilisé, par exemple `strength_lower_intermediate_v1`.
+- Il n'est jamais stocké dans `protocolId` ni dans `catalog.templates`.
+- L'empreinte sportive l'inclut : un autre template source donne une autre empreinte (test).
+
+**2. Durée de l'échauffement Force.** Le bloc `warm_up` d'une prescription Force n'a **pas** de `durationMinutes` généré. Le protocole garde sa durée indicative de 6–8 min dans le catalogue ; la prescription détaillée repose sur les trois exercices, leurs séries, mesures et repos. Aucune durée n'est calculée ni choisie (ni 6, ni 7, ni 8).
+
+**3. Politique de dose du plan v2.1 (valeurs PROVISIONAL).** Durée Force explicite, connue avant le placement :
+- développement : MODERATE, **60 min** ;
+- affûtage : LIGHT, **45 min** ;
+- course : aucune séance.
+
+Le reste est inchangé (DH 6 / 4 passages, endurance fondamentale 45 / 45 min, aucune réduction liée à l'historique). Version `plan-dose-policy-v2.1`, version agrégée `session-model-v2.3`.
+
+**4. Audit de la durée de placement d'une séance `DH_TECHNICAL`.**
+- **Où** : `loadDerivation.ts`, `BASE_DURATION_MIN.dh_technical = 90` et `TAPER_DURATION_MIN.dh_technical = 60`. Le placement la reçoit via `referenceDurationMinFor` (ADR V06-03), et `deriveLoad` attribue la même valeur à la séance.
+- **Modifications** : l'affûtage la fait passer de 90 à 60. `historyAdjuster` lui retire 10 min (80 / 50) **après** le placement, ce qui ne pose pas de problème en V1 puisqu'elle ne peut que baisser.
+- **Statut** : PLACEHOLDER (« V1 placeholder figures only », `loadDerivation.ts` l.68).
+- **Conclusion** : dans un plan V2, `historyAdjuster` n'est pas appliqué. La durée DH vaut donc exactement la durée de référence utilisée au placement (90 / 60) : elle est connue avant le placement et ne dépend d'aucune valeur abandonnée par V2. **Aucune durée DH n'est ajoutée à la politique.** Elle reste une donnée structurelle du planificateur, dont le statut PLACEHOLDER est signalé. La prescription DH V2 ne porte d'ailleurs aucune durée de séance (cadre sans durées).
+
+**Statut** : Accepted (architecture) / PROVISIONAL (valeurs) — `feat/ux11a5b4-v2-force-builder`, lignée non fusionnée.

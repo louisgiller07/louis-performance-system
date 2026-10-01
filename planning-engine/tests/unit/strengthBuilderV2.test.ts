@@ -180,9 +180,18 @@ describe("Force builder — stability, fingerprint, blocks and contract errors",
     expect(sportFingerprint(build({ ...input, catalog: { ...MANIFEST, [key]: value } }))).not.toBe(sportFingerprint(build(input)));
   });
 
+  it("carries the template actually used (templateId), and no generated warm-up duration", () => {
+    const lower = build({ sessionKind: "STRENGTH_LOWER", athleteTier: "intermediate", equipment: ["dumbbells", "bench"] });
+    expect(lower.templateId).toBe("strength_lower_intermediate_v1");
+    expect(build({ sessionKind: "STRENGTH_UPPER", athleteTier: "advanced", equipment: FULL_GYM }).templateId).toBe("strength_upper_advanced_v1");
+    expect(lower.blocks[0]!.durationMinutes).toBeUndefined();
+    const other = { ...lower, templateId: "strength_lower_advanced_v1" };
+    expect(sportFingerprint(other)).not.toBe(sportFingerprint(lower));
+  });
+
   it("carries the current manifest", () => {
     expect(build({ sessionKind: "STRENGTH_LOWER", athleteTier: "beginner" }).catalog).toEqual({
-      aggregate: "session-model-v2.2",
+      aggregate: "session-model-v2.3",
       exercises: "session-exercises-v2.1",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
@@ -190,7 +199,7 @@ describe("Force builder — stability, fingerprint, blocks and contract errors",
       texts: "coaching-text-v1.0",
       templates: "strength-templates-v2.1",
       strengthDoses: "strength-doses-v2.1",
-      planDosePolicy: "plan-dose-policy-v2.0",
+      planDosePolicy: "plan-dose-policy-v2.1",
     });
   });
 

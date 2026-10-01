@@ -114,6 +114,12 @@ export interface PrescriptionV2Content {
   sessionKind: SessionKind;
   intentId: string;
   protocolId?: string;
+  /**
+   * Strength family only (required there, absent elsewhere): the strength
+   * template that produced the composition (strengthTemplateCatalogV2
+   * `templateId`). Never stored in protocolId or catalog.templates.
+   */
+  templateId?: string;
   /** Endurance family only: the modality list the rider chooses from, once for the whole session. */
   activitySelection?: ActivitySelectionV2;
   catalog: SessionModelV2CatalogManifest;

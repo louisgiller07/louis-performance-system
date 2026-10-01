@@ -20,7 +20,10 @@
  * - rampUp on the principal only: the protocol's main-movement-prep
  *   instruction, one to two sets, no load, no RPE, no id;
  * - intent: the unique selectable session-kind intent of the intent
- *   catalogue for this session kind.
+ *   catalogue for this session kind;
+ * - templateId: the template actually used (traceability, UX-11A.5a.4.2);
+ * - the warm_up block carries no generated duration (UX-11A.5a.4.2): the
+ *   detailed prescription is its three exercises, sets, measures and rests.
  *
  * Composition depends only on (sessionKind, athleteTier, equipment,
  * template version): never on a date, an ordinal, a week or randomness.
@@ -219,6 +222,7 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
     family: "strength",
     sessionKind: input.sessionKind,
     intentId,
+    templateId: template.templateId,
     catalog: input.catalog,
     blocks: [warmUp, ...workBlocks],
   };

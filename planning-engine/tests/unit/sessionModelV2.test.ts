@@ -28,6 +28,7 @@ const STRENGTH: PrescriptionV2Content = {
   sessionKind: "STRENGTH_LOWER",
   intentId: "lower_body_strength_control",
   protocolId: "strength_warm_up_v1",
+  templateId: "strength_lower_intermediate_v1",
   catalog: MANIFEST,
   blocks: [
     {
@@ -293,6 +294,24 @@ describe("Prescription V2 — validator invariants", () => {
     expect(codes(dup)).toEqual(["invalid_activity_selection"]);
   });
 
+  it("UX-11A.5a.4.2 — templateId: required and known (same session kind) on a strength prescription, absent on DH and endurance", () => {
+    const missing = mutable(STRENGTH);
+    delete missing.templateId;
+    expect(codes(missing)).toEqual(["missing_template_id"]);
+    const unknown = mutable(STRENGTH);
+    unknown.templateId = "strength_lower_elite_v1";
+    expect(codes(unknown)).toEqual(["unknown_template_id"]);
+    const otherKind = mutable(STRENGTH);
+    otherKind.templateId = "strength_upper_intermediate_v1";
+    expect(codes(otherKind)).toEqual(["unknown_template_id"]);
+    expect(codes(mutable(STRENGTH))).toEqual([]);
+    for (const base of [DH, ENDURANCE]) {
+      const withTemplate = mutable(base);
+      withTemplate.templateId = "strength_lower_intermediate_v1";
+      expect(codes(withTemplate)).toEqual(["template_id_not_allowed"]);
+    }
+  });
+
   it("activitySelection only exists on an endurance session, never on another family nor on an item; 'activity' is not an item kind", () => {
     const onStrength = mutable(STRENGTH);
     onStrength.activitySelection = { mode: "restricted", activityIds: ["road_bike"] };
@@ -373,7 +392,7 @@ describe("Prescription V2 — validator invariants", () => {
 describe("Catalogue manifest", () => {
   it("is built from the real component versions (UX-11A.5a.4.1: planDosePolicy traced, aggregate v2.2)", () => {
     expect(buildSessionModelV2CatalogManifest()).toEqual({
-      aggregate: "session-model-v2.2",
+      aggregate: "session-model-v2.3",
       exercises: "session-exercises-v2.1",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
@@ -381,7 +400,7 @@ describe("Catalogue manifest", () => {
       texts: "coaching-text-v1.0",
       templates: "strength-templates-v2.1",
       strengthDoses: "strength-doses-v2.1",
-      planDosePolicy: "plan-dose-policy-v2.0",
+      planDosePolicy: "plan-dose-policy-v2.1",
     });
     expect(Object.keys(buildSessionModelV2CatalogManifest())).toEqual(["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses", "planDosePolicy"]);
   });
@@ -439,6 +458,7 @@ describe("Sport fingerprint", () => {
     ["intent", (d) => (d.intentId = "leg_strength_corner_exit")],
     ["catalog version", (d) => (d.catalog.exercises = "session-exercises-v9.9")],
     ["plan dose policy version", (d) => (d.catalog.planDosePolicy = "plan-dose-policy-v9.9")],
+    ["strength template id", (d) => (d.templateId = "strength_lower_advanced_v1")],
     ["strength template version", (d) => (d.catalog.templates = "strength-templates-v9.9")],
     ["strength dose version", (d) => (d.catalog.strengthDoses = "strength-doses-v9.9")],
     ["drill", (d) => (d.blocks[1].items[0].drillId = "cornering_berm_speed"), DH],

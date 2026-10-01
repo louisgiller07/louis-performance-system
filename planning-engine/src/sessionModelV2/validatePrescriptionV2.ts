@@ -16,6 +16,7 @@ import { INTENT_CATALOG_V2, INTENT_SESSION_KINDS_V2, SESSION_FAMILIES_V2 } from 
 import { PROTOCOL_CATALOG_V2, ENDURANCE_ACTIVITIES_V2, PROTOCOL_BLOCK_FOCUS_V2 } from "../catalog/protocolCatalogV2.js";
 import { COACHING_TEXT_CATALOG, type CoachingTextKind } from "../catalog/coachingTextCatalog.js";
 import { SESSION_BLOCK_ROLES_V2 } from "../catalog/sessionFrameV2.js";
+import { STRENGTH_TEMPLATE_CATALOG_V2 } from "../catalog/strengthTemplateCatalogV2.js";
 import { SESSION_MODEL_V2_MANIFEST_KEYS } from "./catalogManifest.js";
 import { PRESCRIPTION_V2_ITEM_KINDS, PRESCRIPTION_V2_SCHEMA_VERSION, type PrescriptionV2 } from "./prescriptionV2.js";
 
@@ -49,6 +50,9 @@ export type PrescriptionV2IssueCode =
   | "empty_activity_selection"
   | "invalid_activity_selection"
   | "activity_selection_not_allowed"
+  | "missing_template_id"
+  | "unknown_template_id"
+  | "template_id_not_allowed"
   | "ramp_up_not_allowed"
   | "invalid_ramp_up"
   | "forbidden_load_field";
@@ -91,6 +95,15 @@ export function validatePrescriptionV2(value: unknown, options: ValidatePrescrip
   else if (intent.family !== value.family) add("$.intentId", "intent_family_mismatch");
   if (value.protocolId !== undefined && !(isNonEmptyString(value.protocolId) && PROTOCOL_CATALOG_V2[value.protocolId])) add("$.protocolId", "unknown_protocol");
   validateManifest(value.catalog, add);
+  if (value.family === "strength") {
+    if (value.templateId === undefined) add("$.templateId", "missing_template_id");
+    else {
+      const template = isNonEmptyString(value.templateId) ? STRENGTH_TEMPLATE_CATALOG_V2[value.templateId] : undefined;
+      if (!template || template.sessionKind !== value.sessionKind) add("$.templateId", "unknown_template_id");
+    }
+  } else if (value.templateId !== undefined) {
+    add("$.templateId", "template_id_not_allowed");
+  }
   if (value.activitySelection !== undefined) {
     if (value.family !== "endurance") add("$.activitySelection", "activity_selection_not_allowed");
     checkActivitySelection(value.activitySelection, "$.activitySelection", add);

@@ -239,11 +239,11 @@ describe("UX-11A.5a.4.1 — floor_ytw_raise holds `secondary` in V2 only", () =>
 });
 
 describe("V2 Plan Dose Policy", () => {
-  it("development = MODERATE / 6 / 45; taper = LIGHT / 4 / 45; race = no normal session", () => {
-    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.0");
+  it("development = MODERATE 60 min / 6 / 45; taper = LIGHT 45 min / 4 / 45; race = no normal session (v2.1)", () => {
+    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.1");
     expect(PLAN_DOSE_POLICY_V2).toEqual({
-      development: { forceLoad: "MODERATE", dhFocusedPasses: 6, aerobicBaseDurationMin: 45 },
-      taper: { forceLoad: "LIGHT", dhFocusedPasses: 4, aerobicBaseDurationMin: 45 },
+      development: { forceLoad: "MODERATE", forceDurationMin: 60, dhFocusedPasses: 6, aerobicBaseDurationMin: 45 },
+      taper: { forceLoad: "LIGHT", forceDurationMin: 45, dhFocusedPasses: 4, aerobicBaseDurationMin: 45 },
       race: null,
       validationStatus: "PROVISIONAL",
     });
@@ -252,6 +252,7 @@ describe("V2 Plan Dose Policy", () => {
   it("never produces a legacy history-adjusted or taper value (20 / 30 / 35 min, 3 / 5 passages)", () => {
     for (const week of [PLAN_DOSE_POLICY_V2.development, PLAN_DOSE_POLICY_V2.taper]) {
       expect([20, 30, 35]).not.toContain(week.aerobicBaseDurationMin);
+      expect([50, 35]).not.toContain(week.forceDurationMin); // legacy history-adjusted Force durations
       expect([3, 5]).not.toContain(week.dhFocusedPasses);
     }
   });
