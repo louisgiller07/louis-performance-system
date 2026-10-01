@@ -118,3 +118,33 @@ describe("DailyPlanView — executable prescription acceptance matrix (V0.5_048)
     expect(screen.queryByText("Exercices")).not.toBeInTheDocument();
   });
 });
+
+describe("UX-11A.5b.1 — prescription format this app cannot display", () => {
+  const MESSAGE = "Le détail de cette séance n'est pas disponible dans cette version.";
+
+  it("KEEP + unsupported_schema_version: explicit state under Exercices, the rest of Today still rendered, no technical wording", () => {
+    const { container } = render(
+      <DailyPlanView dailyPlan={basePlan("KEEP")} hasHealthSignal={false} executablePrescription={null} executablePrescriptionStatus="unsupported_schema_version" />
+    );
+    expect(screen.getByText("Exercices")).toBeInTheDocument();
+    expect(screen.getByText(MESSAGE)).toBeInTheDocument();
+    expect(screen.getByText("Base aérobie")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/JSON|schema|V1|V2|migration/);
+  });
+
+  it.each(["MODIFY", "REPLACE", "REST"] as const)("%s + unsupported_schema_version: nothing shown (same KEEP-only gate as the card)", (decision) => {
+    render(<DailyPlanView dailyPlan={basePlan(decision)} hasHealthSignal={false} executablePrescription={null} executablePrescriptionStatus="unsupported_schema_version" />);
+    expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+  });
+
+  it("KEEP + v1 prescription: the existing card, never the unavailable state", () => {
+    render(<DailyPlanView dailyPlan={basePlan("KEEP")} hasHealthSignal={false} executablePrescription={STRENGTH_PRESCRIPTION} executablePrescriptionStatus="delivered" />);
+    expect(screen.getByText("Exercices")).toBeInTheDocument();
+    expect(screen.queryByText(MESSAGE)).not.toBeInTheDocument();
+  });
+
+  it("KEEP + none: nothing shown, exactly as before", () => {
+    render(<DailyPlanView dailyPlan={basePlan("KEEP")} hasHealthSignal={false} executablePrescription={null} executablePrescriptionStatus="none" />);
+    expect(screen.queryByText("Exercices")).not.toBeInTheDocument();
+  });
+});

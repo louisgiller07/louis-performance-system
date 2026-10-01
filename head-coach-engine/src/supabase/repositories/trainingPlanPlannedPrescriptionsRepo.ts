@@ -9,6 +9,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlannedPrescription } from "planning-engine";
 import { assertNoSupabaseError } from "./supabaseError.js";
+import type { PrescriptionRead } from "../prescriptionRead.js";
+
+/**
+ * UX-11A.5b.1 — what this reader can interpret: v1 only. Any other
+ * `schema_version` (v2, or an unknown value) comes back as
+ * "unsupported_by_reader" and its structure is never cast into the v1 type.
+ */
+export type PlannedPrescriptionRead = PrescriptionRead<PlannedPrescription, never>;
 
 interface PlannedPrescriptionRawRow {
   id: string;
@@ -20,8 +28,11 @@ interface PlannedPrescriptionRawRow {
 
 const COLUMNS = "id, generated_plan_session_id, schema_version, catalog_version, structure";
 
-function mapRow(row: PlannedPrescriptionRawRow): PlannedPrescription {
-  return {
+function mapRow(row: PlannedPrescriptionRawRow): PlannedPrescriptionRead {
+  if (row.schema_version !== "v1") {
+    return { status: "unsupported_by_reader", schemaVersion: row.schema_version, prescriptionId: row.id };
+  }
+  const prescription: PlannedPrescription = {
     id: row.id,
     generatedPlanSessionId: row.generated_plan_session_id,
     schemaVersion: row.schema_version,
@@ -33,18 +44,21 @@ function mapRow(row: PlannedPrescriptionRawRow): PlannedPrescription {
     // trainingPlanGeneratedSessionsRepo.ts's own plain cast).
     structure: row.structure as PlannedPrescription["structure"],
   };
+  return { status: "supported", schemaVersion: "v1", prescription };
 }
 
 /**
  * Fetches the canonical prescription for exactly one generated session, or
  * `null` if none exists — a legitimate, expected state for an aerobic
  * session (planning-engine's PRESCRIBABLE_DOMAINS never generates a
- * prescription for that domain), never treated as an error.
+ * prescription for that domain), never treated as an error. A row the
+ * reader does not implement is returned as "unsupported_by_reader", never
+ * dropped.
  */
 export async function getPlannedPrescriptionForGeneratedSession(
   client: SupabaseClient,
   generatedPlanSessionId: string
-): Promise<PlannedPrescription | null> {
+): Promise<PlannedPrescriptionRead | null> {
   const { data, error } = await client
     .from("training_plan_planned_prescriptions")
     .select(COLUMNS)

@@ -1,3 +1,4 @@
+import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../../prescriptions/prescriptionRead";
 import { Card } from "../../../components/Card";
 import { Badge } from "../../../components/Badge";
 import type { TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
@@ -165,9 +166,15 @@ export function TrainingPlanSessionCard({ session }: { session: TrainingPlanRevi
       {domainLabel && <p className="text-xs text-muted">{domainLabel}</p>}
       {/* REV-013 — the stored English rationale is translated for display only. */}
       {sessionExplanation && <p className="text-sm text-ink/90">{sessionExplanation}</p>}
-      {session.prescription && (
+      {session.prescription?.status === "supported" && (
         <div className="mt-1 border-t border-white/5 pt-2">
-          <PrescriptionStructure structure={session.prescription.structure} />
+          <PrescriptionStructure structure={session.prescription.prescription.structure} />
+        </div>
+      )}
+      {/* UX-11A.5b.1 — a prescription in a format this app cannot display stays visible as such, never silently dropped. */}
+      {session.prescription?.status === "unsupported_by_reader" && (
+        <div className="mt-1 border-t border-white/5 pt-2">
+          <p className="text-sm text-muted">{PRESCRIPTION_UNAVAILABLE_MESSAGE}</p>
         </div>
       )}
     </Card>

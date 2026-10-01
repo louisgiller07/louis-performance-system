@@ -3772,3 +3772,28 @@ Aucune règle structurelle ne manque dans 03 : les règles d'endurance, de mobil
 **Documentation.** 05 est mis à jour avec les décisions verrouillées et les deux points OPEN. 03 est inchangé.
 
 **Statut** : Accepted (décisions verrouillées) / OPEN (mesure DH, élément activité) — `feat/ux11a5a3-session-protocols-v2`, lignée non fusionnée.
+
+## 2026-10-01 — ADR UX-11A.5b.1 : garde-fous des lecteurs de prescriptions
+
+> **Every reader of a stored prescription states what it can interpret. A format it does not implement is reported as "unsupported_by_reader": never cast into v1, never silently dropped, never a reason to reject Today. No reader implements v2 yet.**
+
+**Contrat.** `PrescriptionRead<TV1, TV2>` = `supported v1` | `supported v2` | `unsupported_by_reader { schemaVersion, prescriptionId }`, défini dans `head-coach-engine/src/supabase/prescriptionRead.ts` et recopié dans `web/src/features/prescriptions/prescriptionRead.ts` (le web n'importe pas les moteurs). Aujourd'hui, `TV2 = never` partout. Code de diagnostic stable : `prescription_schema_unsupported`.
+
+**Lecteurs protégés.** La recherche exhaustive de `training_plan_planned_prescriptions`, `schema_version`, `.structure` et `executablePrescription` a trouvé un lecteur absent de l'audit 5b.0 : `programPresentation.sessionFocus`.
+
+| Lecteur | Comportement pour un format non v1 |
+|---|---|
+| `trainingPlanPlannedPrescriptionsRepo` (head-coach) | `unsupported_by_reader`, la structure n'est jamais renvoyée |
+| `runDailyFor` / `resolveExecutablePrescriptionBestEffort` | Décision M1 inchangée et persistée ; `executablePrescription = null` ; `executablePrescriptionStatus = "unsupported_schema_version"` ; warning `prescription_schema_unsupported: …` |
+| Edge Function `daily-run` | Transmet `executablePrescriptionStatus` (réponse seulement ; l'écriture de la décision est inchangée) |
+| web `dailyPlanValidation` + `runDailyRun` | Ne rejette plus toute la réponse : la prescription est remplacée par `null` avec le statut `unsupported_schema_version` ; une v1 malformée reste rejetée comme avant |
+| web `DailyPlanView` / `ExecutablePrescriptionCard` | KEEP uniquement : section « Exercices » avec « Le détail de cette séance n'est pas disponible dans cette version. » |
+| web `trainingPlanReviewRepo` | Sélectionne `schema_version` ; `unsupported_by_reader` pour tout format non v1 |
+| web `TrainingPlanSessionCard` (Programme, revue du plan) | La séance reste affichée, avec le même message |
+| web `programPresentation.sessionFocus` | Pas de Focus pour un format non lu |
+
+Non concernés : `record_session_execution` et `session-execution`, qui exigent déjà v2 pour une prescription du jour ; `pilotEvents` ; M1 ; la projection et l'acceptation du plan.
+
+**Hors périmètre, inchangés :** génération, `GenerationEngine`, `PlanInputSnapshot`, catalogues, migrations, Supabase, règles M1. Aucune prescription v2 n'est générée ni persistée.
+
+**Statut** : Accepted — `feat/ux11a5b1-v2-reader-guards`, empilée sur la lignée UX-11 non fusionnée.

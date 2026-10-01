@@ -20,9 +20,9 @@ import {
   hasActiveSafetyRule,
 } from "./safetyPresentation";
 import { formatDhSessionWindow, formatDhSessionWindowCompact, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
-import { ExecutablePrescriptionCard } from "./ExecutablePrescriptionCard";
+import { ExecutablePrescriptionCard, UnavailablePrescriptionCard } from "./ExecutablePrescriptionCard";
 import { sanitizeHealthSignalReason } from "./healthZoneLabels";
-import type { DailyPlan, ExecutablePrescription, RecentRecoveryContext } from "./dailyPlanTypes";
+import type { DailyPlan, ExecutablePrescription, ExecutablePrescriptionStatus, RecentRecoveryContext } from "./dailyPlanTypes";
 
 // V0.3_008A — Previous-Day Recovery Continuity. A dedicated, purely factual
 // read-only section — deliberately NEVER folded into `reasoning` (that
@@ -115,6 +115,8 @@ export interface DailyPlanViewProps {
    * to show" — never a fabricated fallback.
    */
   executablePrescription?: ExecutablePrescription | null;
+  /** UX-11A.5b.1 — "unsupported_schema_version": today's prescription exists in a format this app cannot display; shown explicitly, never hidden. */
+  executablePrescriptionStatus?: ExecutablePrescriptionStatus;
   /**
    * UX-03 — Today only (DailyPlanResult): the missionSlot is the unified
    * MissionHero, which already shows the decision + confidence + reasoning
@@ -149,6 +151,7 @@ export function DailyPlanView({
   readinessSlot,
   missionSlot,
   executablePrescription,
+  executablePrescriptionStatus,
   heroInMission = false,
   detailsTarget,
 }: DailyPlanViewProps) {
@@ -387,6 +390,10 @@ export function DailyPlanView({
        */}
       {dailyPlan.decision === "KEEP" && executablePrescription != null && (
         <ExecutablePrescriptionCard prescription={executablePrescription} />
+      )}
+      {/* UX-11A.5b.1 — a prescription in a format this app cannot display is shown as such, never hidden. */}
+      {dailyPlan.decision === "KEEP" && executablePrescription == null && executablePrescriptionStatus === "unsupported_schema_version" && (
+        <UnavailablePrescriptionCard />
       )}
     </>
   );

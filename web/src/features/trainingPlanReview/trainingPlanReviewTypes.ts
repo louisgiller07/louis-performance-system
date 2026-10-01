@@ -15,6 +15,8 @@
 // `relaxedConstraints` ARE mirrored precisely below — both are small, stable
 // shapes already identified as UI-relevant (V0.5_026).
 
+import type { PrescriptionRead } from "../prescriptions/prescriptionRead";
+
 /** The real lifecycle enum (public.training_plan_lifecycle_state) — never a new value invented here. Reconstructed from training_plan_version_lifecycle_transitions; no `status` column exists on training_plan_versions itself. */
 export type TrainingPlanLifecycleState = "draft" | "accepted" | "superseded" | "abandoned";
 
@@ -42,6 +44,13 @@ export interface TrainingPlanReviewPrescription {
   structure: unknown;
 }
 
+/**
+ * UX-11A.5b.1 — what the plan review can interpret: v1 only. Any other
+ * `schema_version` is "unsupported_by_reader" (the session stays visible
+ * with an explicit "not displayable" state), never read as a v1 structure.
+ */
+export type TrainingPlanReviewPrescriptionRead = PrescriptionRead<TrainingPlanReviewPrescription, never>;
+
 export interface TrainingPlanReviewSession {
   id: string;
   weekId: string;
@@ -53,7 +62,7 @@ export interface TrainingPlanReviewSession {
   doseTarget: unknown;
   rationale: string;
   /** `null` for a session with no prescription — always true for aerobic/rest/recovery kinds (never generated for them, locked V0.4_119), never a placeholder. */
-  prescription: TrainingPlanReviewPrescription | null;
+  prescription: TrainingPlanReviewPrescriptionRead | null;
 }
 
 export interface TrainingPlanReviewWeek {

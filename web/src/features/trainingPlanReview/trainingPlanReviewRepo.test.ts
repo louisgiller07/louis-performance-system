@@ -151,6 +151,7 @@ const STRENGTH_PRESCRIPTION: TrainingPlanPlannedPrescriptionRawRow = {
   id: "prescription-1",
   generated_plan_session_id: "session-strength",
   plan_version_id: "version-1",
+  schema_version: "v1",
   structure: { domain: "strength", schemaVersion: "v1", blocks: [] },
 };
 
@@ -201,7 +202,11 @@ describe("assembleTrainingPlanReview", () => {
     const strength = sessions.find((s) => s.id === "session-strength");
     const aerobic = sessions.find((s) => s.id === "session-aerobic");
 
-    expect(strength?.prescription).toEqual({ id: "prescription-1", generatedPlanSessionId: "session-strength", structure: STRENGTH_PRESCRIPTION.structure });
+    expect(strength?.prescription).toEqual({
+      status: "supported",
+      schemaVersion: "v1",
+      prescription: { id: "prescription-1", generatedPlanSessionId: "session-strength", structure: STRENGTH_PRESCRIPTION.structure },
+    });
     expect(aerobic?.prescription).toBeNull();
   });
 
@@ -410,5 +415,43 @@ describe("getManualPlannedDates", () => {
     mockPlannedSessions({ data: null, error: { code: "42501", message: "permission denied" } });
 
     await expect(getManualPlannedDates("2026-10-19", "2026-11-01")).rejects.toThrow(TrainingPlanReviewError);
+  });
+});
+
+describe("UX-11A.5b.1 — reader guard: prescriptions in a format this reader does not implement", () => {
+  it.each(["v2", "v999"])("schema_version %s: the session keeps its prescription slot as unsupported_by_reader, never a v1 structure", (schemaVersion) => {
+    const row: TrainingPlanPlannedPrescriptionRawRow = {
+      ...STRENGTH_PRESCRIPTION,
+      schema_version: schemaVersion,
+      structure: { schemaVersion, family: "strength", blocks: [{ blockId: "b", items: [] }] },
+    };
+    const review = assembleTrainingPlanReview(VERSION_1, "draft", [BLOCK_1], [WEEK_1], [STRENGTH_SESSION, AEROBIC_SESSION], [row]);
+
+    const sessions = review.blocks[0]!.weeks[0]!.sessions;
+    expect(sessions).toHaveLength(2);
+    const strength = sessions.find((s) => s.id === "session-strength");
+    expect(strength?.prescription).toEqual({ status: "unsupported_by_reader", schemaVersion, prescriptionId: "prescription-1" });
+    expect(JSON.stringify(strength)).not.toContain("blockId");
+  });
+
+  it("selects schema_version from training_plan_planned_prescriptions (no implicit v1)", async () => {
+    const selected: Record<string, string> = {};
+    const responses: Record<string, QueryResult> = {
+      training_plan_versions: { data: VERSION_1, error: null },
+      training_plan_version_lifecycle_transitions: { data: [DRAFT_TRANSITION_1], error: null },
+    };
+    mockedFrom.mockImplementation((table: string) => {
+      const builder = makeQueryBuilder(responses[table] ?? { data: [], error: null }) as Record<string, unknown>;
+      const select = builder.select as (columns: string) => unknown;
+      builder.select = (columns: string) => {
+        selected[table] = columns;
+        return select(columns);
+      };
+      return builder;
+    });
+
+    await getTrainingPlanReview("version-1");
+
+    expect(selected.training_plan_planned_prescriptions?.split(", ")).toContain("schema_version");
   });
 });

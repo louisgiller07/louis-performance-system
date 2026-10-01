@@ -826,3 +826,11 @@ describe("DailyPlanResult", () => {
     expect(screen.queryByText(/tu peux rouler|séance est sûre|commence prudemment/i)).not.toBeInTheDocument();
   });
 });
+
+describe("UX-11A.5b.1 — Today result with a prescription format the app cannot display", () => {
+  it("renders the decision and the explicit unavailable state together", () => {
+    render(<DailyPlanResult result={makeResult({ decision: "KEEP" }, { executablePrescription: null, executablePrescriptionStatus: "unsupported_schema_version" })} />);
+    expect(screen.getByText("Ta séance reste conforme au plan")).toBeInTheDocument();
+    expect(screen.getByText("Le détail de cette séance n'est pas disponible dans cette version.")).toBeInTheDocument();
+  });
+});

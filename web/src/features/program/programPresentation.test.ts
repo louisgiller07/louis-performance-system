@@ -27,7 +27,11 @@ describe("sessionTitle / sessionFocus", () => {
   it("no prescription, an unknown id or another domain: no Focus (never an invented objective)", () => {
     expect(sessionFocus(session(TODAY))).toBeNull();
     expect(sessionFocus(session(TODAY, { prescription: drill("future_drill") }))).toBeNull();
-    expect(sessionFocus(session(TODAY, { prescription: { id: "p", generatedPlanSessionId: "s", structure: { domain: "aerobic" } } }))).toBeNull();
+    expect(sessionFocus(session(TODAY, { prescription: { status: "supported", schemaVersion: "v1", prescription: { id: "p", generatedPlanSessionId: "s", structure: { domain: "aerobic" } } } }))).toBeNull();
+  });
+
+  it.each(["v2", "v999"])("UX-11A.5b.1 — a %s prescription has no Focus and is never read as v1", (schemaVersion) => {
+    expect(sessionFocus(session(TODAY, { prescription: { status: "unsupported_by_reader", schemaVersion, prescriptionId: "p-v2" } }))).toBeNull();
   });
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isValidDailyRunResponse, isValidDailyPlan } from "./dailyPlanValidation";
+import { isValidDailyRunResponse, isValidDailyPlan, normalizeExecutablePrescription } from "./dailyPlanValidation";
+import type { DailyRunResponse } from "./dailyPlanTypes";
 
 const VALID_DAILY_PLAN = {
   active_mode: "IN_SEASON",
@@ -464,5 +465,49 @@ describe("V0.5_047/048 — executablePrescription validation", () => {
 
   it("rejects a non-object, non-null executablePrescription", () => {
     expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: "not an object" })).toBe(false);
+  });
+});
+
+describe("UX-11A.5b.1 — a prescription format this app does not implement never rejects Today", () => {
+  const unsupported = (schemaVersion: string) => ({
+    id: "prescription-v2",
+    generatedPlanSessionId: "session-1",
+    schemaVersion,
+    catalogVersion: "session-model-v2.0",
+    structure: { schemaVersion, family: "strength", blocks: [{ blockId: "b1", role: "main", items: [] }] },
+  });
+
+  it.each(["v2", "v999"])("schema_version %s: the whole response stays valid", (schemaVersion) => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: unsupported(schemaVersion) })).toBe(true);
+  });
+
+  it.each(["v2", "v999"])("schema_version %s: normalized to null + unsupported_schema_version, the rest of the response untouched", (schemaVersion) => {
+    const response = { ...VALID_RESPONSE, executablePrescription: unsupported(schemaVersion) } as unknown as DailyRunResponse;
+    const normalized = normalizeExecutablePrescription(response);
+
+    expect(normalized.executablePrescription).toBeNull();
+    expect(normalized.executablePrescriptionStatus).toBe("unsupported_schema_version");
+    expect({ ...normalized, executablePrescription: undefined, executablePrescriptionStatus: undefined }).toEqual({
+      ...response,
+      executablePrescription: undefined,
+      executablePrescriptionStatus: undefined,
+    });
+  });
+
+  it("a v1 prescription is returned unchanged (same object), never re-labelled", () => {
+    const response = { ...VALID_RESPONSE, executablePrescription: null } as unknown as DailyRunResponse;
+    expect(normalizeExecutablePrescription(response)).toBe(response);
+  });
+
+  it("an unsupported object without an id is still a malformed response (no blanket acceptance)", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescription: { schemaVersion: "v2" } })).toBe(false);
+  });
+
+  it.each(["delivered", "none", "unsupported_schema_version"])("accepts executablePrescriptionStatus %s", (status) => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescriptionStatus: status })).toBe(true);
+  });
+
+  it("rejects an unknown executablePrescriptionStatus", () => {
+    expect(isValidDailyRunResponse({ ...VALID_RESPONSE, executablePrescriptionStatus: "maybe" })).toBe(false);
   });
 });

@@ -18,7 +18,10 @@ import {
   getProjectedGeneratedSessionIdForDate,
   type DailyRunInputVersions,
 } from "../../src/supabase/repositories/plannedSessionsRepo.js";
-import { getPlannedPrescriptionForGeneratedSession } from "../../src/supabase/repositories/trainingPlanPlannedPrescriptionsRepo.js";
+import {
+  getPlannedPrescriptionForGeneratedSession,
+  type PlannedPrescriptionRead,
+} from "../../src/supabase/repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import type { DailyPlan, RawContext } from "../../src/types/index.js";
 import type { PlannedPrescription } from "planning-engine";
 
@@ -79,7 +82,7 @@ function buildDeps(
   athleteContext: AthleteCoachingContext | (() => Promise<AthleteCoachingContext>) = NO_CONTEXT,
   projectionConfig: TrainingPlanProjectionWindowConfig = PROJECTION_DISABLED,
   generatedSessionId: string | null | (() => Promise<string | null>) = NO_LINEAGE,
-  prescription: PlannedPrescription | null | (() => Promise<PlannedPrescription | null>) = NO_PRESCRIPTION,
+  prescription: PlannedPrescription | PlannedPrescriptionRead | null | (() => Promise<PlannedPrescription | null>) = NO_PRESCRIPTION,
   inputVersions: DailyRunInputVersions = INPUT_VERSIONS
 ) {
   const computeDailyForMock = vi.fn<typeof computeDailyFor>(
@@ -100,9 +103,14 @@ function buildDeps(
   const getProjectedGeneratedSessionIdForDateMock = vi.fn<typeof getProjectedGeneratedSessionIdForDate>(async () =>
     typeof generatedSessionId === "function" ? generatedSessionId() : generatedSessionId
   );
-  const getPlannedPrescriptionForGeneratedSessionMock = vi.fn<typeof getPlannedPrescriptionForGeneratedSession>(async () =>
-    typeof prescription === "function" ? prescription() : prescription
-  );
+  // UX-11A.5b.1 — the repository now returns a read result; a plain v1
+  // PlannedPrescription fixture is wrapped as "supported v1", a read result
+  // (e.g. "unsupported_by_reader") is passed through unchanged.
+  const getPlannedPrescriptionForGeneratedSessionMock = vi.fn<typeof getPlannedPrescriptionForGeneratedSession>(async () => {
+    const value = typeof prescription === "function" ? await prescription() : prescription;
+    if (value === null) return null;
+    return "status" in value ? value : { status: "supported", schemaVersion: "v1", prescription: value };
+  });
 
   const getDailyRunInputVersionsMock = vi.fn<typeof getDailyRunInputVersions>(async () => inputVersions);
 
@@ -586,5 +594,68 @@ describe("V0.5_047/048 — executable prescription lookup (best-effort, KEEP-onl
     expect(Object.keys(result.dailyPlan)).not.toContain("executablePrescription");
     const [, , , decisionRowArg] = persistDailyRunMock.mock.calls[0]!;
     expect(decisionRowArg).not.toHaveProperty("executablePrescription");
+  });
+});
+
+describe("UX-11A.5b.1 — reader guard: a prescription format this reader does not implement", () => {
+  const UNSUPPORTED = (schemaVersion: string): PlannedPrescriptionRead => ({ status: "unsupported_by_reader", schemaVersion, prescriptionId: "prescription-v2" });
+
+  it.each(["v2", "v999"])(
+    "KEEP + lineage + schema_version %s: M1 decision kept and persisted, executablePrescription null, status unsupported_schema_version, stable warning",
+    async (schemaVersion) => {
+      const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+      const { deps, persistDailyRunMock } = buildDeps(
+        dailyPlan,
+        { decision_id: "d1", health_flag_id: null },
+        NO_CONTEXT,
+        PROJECTION_DISABLED,
+        "session-1",
+        UNSUPPORTED(schemaVersion)
+      );
+
+      const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+      expect(result.dailyPlan).toBe(dailyPlan);
+      expect(result.dailyPlan.decision).toBe("KEEP");
+      expect(persistDailyRunMock).toHaveBeenCalledTimes(1);
+      expect(persistDailyRunMock.mock.calls[0]![3]).toEqual({
+        ...mapDailyPlanToDecisionRow(dailyPlan, ATHLETE_ID),
+        source_checkin_id: "checkin-1",
+        source_checkin_updated_at: "2026-08-13T07:00:00.123456+00:00",
+        source_planned_session_id: null,
+        source_planned_session_updated_at: null,
+      });
+      expect(result.executablePrescription).toBeNull();
+      expect(result.executablePrescriptionStatus).toBe("unsupported_schema_version");
+      const guardWarnings = result.warnings.filter((w) => w.startsWith("prescription_schema_unsupported:"));
+      expect(guardWarnings).toHaveLength(1);
+      expect(guardWarnings[0]).toContain(`"${schemaVersion}"`);
+    }
+  );
+
+  it("v1 stays exactly as before: delivered, attached unchanged, no warning", async () => {
+    const v1: PlannedPrescription = { id: "p1", generatedPlanSessionId: "session-1", schemaVersion: "v1", catalogVersion: "v3", structure: { domain: "strength", schemaVersion: "v1", blocks: [] } };
+    const dailyPlan = buildFixtureDailyPlan({ decision: "KEEP" });
+    const { deps } = buildDeps(dailyPlan, { decision_id: "d1", health_flag_id: null }, NO_CONTEXT, PROJECTION_DISABLED, "session-1", v1);
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toEqual(v1);
+    expect(result.executablePrescriptionStatus).toBe("delivered");
+    expect(result.warnings).toEqual([]);
+  });
+
+  it.each([
+    ["not KEEP", "REST", "session-1", "v2"],
+    ["no lineage", "KEEP", null, "v2"],
+  ] as const)("%s: the lookup never happens, status stays none", async (_label, decision, lineage, schemaVersion) => {
+    const dailyPlan = buildFixtureDailyPlan({ decision });
+    const { deps } = buildDeps(dailyPlan, { decision_id: "d1", health_flag_id: null }, NO_CONTEXT, PROJECTION_DISABLED, lineage, UNSUPPORTED(schemaVersion));
+
+    const result = await runDailyFor(FAKE_CLIENT, ATHLETE_ID, TODAY, deps);
+
+    expect(result.executablePrescription).toBeNull();
+    expect(result.executablePrescriptionStatus).toBe("none");
+    expect(result.warnings.some((w) => w.startsWith("prescription_schema_unsupported"))).toBe(false);
   });
 });

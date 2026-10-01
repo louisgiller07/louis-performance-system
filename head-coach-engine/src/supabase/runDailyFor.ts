@@ -34,7 +34,12 @@
  *      source_generated_session_id → training_plan_planned_prescriptions`.
  *      Never written to any table, never fed back into M1 — purely
  *      additive enrichment on the returned result. Never throws, only ever
- *      contributes a warning.
+ *      contributes a warning. UX-11A.5b.1: a prescription whose format this
+ *      reader does not implement (anything but v1) is never cast into v1 —
+ *      `executablePrescription` stays null, `executablePrescriptionStatus`
+ *      says "unsupported_schema_version" and a stable
+ *      "prescription_schema_unsupported" warning is added; M1's decision is
+ *      untouched.
  *   3. `mapDailyPlanToDecisionRow` (M2_002 shape, unchanged) — DailyPlan → decision row.
  *   4. `DailyPlan.health_flag_to_create` (the real M1 field name — not
  *      assumed) present? → `mapHealthFlagToCreatePayload`. Absent → `null`.
@@ -61,6 +66,7 @@ import { persistDailyRun, type PersistDailyRunResult } from "./persistDailyRun.j
 import { getAthleteCoachingContext } from "./repositories/athleteCoachingContextRepo.js";
 import { getDailyRunInputVersions, getProjectedGeneratedSessionIdForDate } from "./repositories/plannedSessionsRepo.js";
 import { getPlannedPrescriptionForGeneratedSession } from "./repositories/trainingPlanPlannedPrescriptionsRepo.js";
+import { PRESCRIPTION_SCHEMA_UNSUPPORTED } from "./prescriptionRead.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
 import { resolveTrainingPlanProjectionWindow } from "./trainingPlanProjectionConfig.js";
@@ -94,7 +100,18 @@ export interface RunDailyForResult extends ComputeDailyForResult {
    * after M1's decision is already final.
    */
   executablePrescription: PlannedPrescription | null;
+  /**
+   * UX-11A.5b.1 — why `executablePrescription` is (or is not) present:
+   * "delivered" when attached; "unsupported_schema_version" when today's
+   * canonical prescription exists but its format is not implemented by
+   * this reader (never cast, never hidden); "none" for every other case
+   * (not KEEP, no lineage, no row, lookup failure — the last two also
+   * carry a warning, unchanged).
+   */
+  executablePrescriptionStatus: ExecutablePrescriptionStatus;
 }
+
+export type ExecutablePrescriptionStatus = "delivered" | "none" | "unsupported_schema_version";
 
 /**
  * Injectable seam for `computeDailyFor`/`persistDailyRun` — not an IoC
@@ -204,29 +221,40 @@ async function resolveExecutablePrescriptionBestEffort(
   decision: DailyPlan["decision"],
   getLineage: typeof getProjectedGeneratedSessionIdForDate,
   getPrescription: typeof getPlannedPrescriptionForGeneratedSession
-): Promise<{ executablePrescription: PlannedPrescription | null; warnings: string[] }> {
+): Promise<{ executablePrescription: PlannedPrescription | null; executablePrescriptionStatus: ExecutablePrescriptionStatus; warnings: string[] }> {
   if (decision !== "KEEP") {
-    return { executablePrescription: null, warnings: [] };
+    return { executablePrescription: null, executablePrescriptionStatus: "none", warnings: [] };
   }
 
   try {
     const generatedPlanSessionId = await getLineage(client, athleteId, today);
     if (!generatedPlanSessionId) {
-      return { executablePrescription: null, warnings: [] };
+      return { executablePrescription: null, executablePrescriptionStatus: "none", warnings: [] };
     }
 
-    const prescription = await getPrescription(client, generatedPlanSessionId);
-    if (!prescription) {
+    const read = await getPrescription(client, generatedPlanSessionId);
+    if (!read) {
       return {
         executablePrescription: null,
+        executablePrescriptionStatus: "none",
         warnings: [`V0.5_048: no canonical prescription found for today's KEEP session (generatedPlanSessionId=${generatedPlanSessionId}).`],
       };
     }
 
-    return { executablePrescription: prescription, warnings: [] };
+    if (read.status !== "supported") {
+      return {
+        executablePrescription: null,
+        executablePrescriptionStatus: "unsupported_schema_version",
+        warnings: [
+          `${PRESCRIPTION_SCHEMA_UNSUPPORTED}: planned prescription ${read.prescriptionId} has schema_version "${read.schemaVersion}", not supported by this reader (generatedPlanSessionId=${generatedPlanSessionId}).`,
+        ],
+      };
+    }
+
+    return { executablePrescription: read.prescription, executablePrescriptionStatus: "delivered", warnings: [] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { executablePrescription: null, warnings: [`V0.5_048 executable prescription lookup skipped: ${message}`] };
+    return { executablePrescription: null, executablePrescriptionStatus: "none", warnings: [`V0.5_048 executable prescription lookup skipped: ${message}`] };
   }
 }
 
@@ -296,7 +324,7 @@ export async function runDailyFor(
   // so reading it here vs. after makes no difference to correctness; doing
   // it here keeps this step visually grouped with the other read-only,
   // best-effort enrichments in this function.
-  const { executablePrescription, warnings: executablePrescriptionWarnings } = await resolveExecutablePrescriptionBestEffort(
+  const { executablePrescription, executablePrescriptionStatus, warnings: executablePrescriptionWarnings } = await resolveExecutablePrescriptionBestEffort(
     client,
     athleteId,
     today,
@@ -332,5 +360,6 @@ export async function runDailyFor(
     warnings: [...projectionWarnings, ...computed.warnings, ...executablePrescriptionWarnings, ...personalizationWarnings],
     persistence,
     executablePrescription,
+    executablePrescriptionStatus,
   };
 }

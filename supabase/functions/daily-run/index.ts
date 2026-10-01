@@ -126,6 +126,10 @@ export default {
           // Function never reads any table or applies any business logic of
           // its own for this field — an HTTP boundary only.
           executablePrescription: result.executablePrescription,
+          // UX-11A.5b.1 — why executablePrescription is null or present
+          // ("delivered" | "none" | "unsupported_schema_version"); same
+          // passthrough discipline, no logic here.
+          executablePrescriptionStatus: result.executablePrescriptionStatus,
         },
         { status: 200 }
       );

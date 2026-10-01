@@ -109,3 +109,34 @@ describe("runDailyRun", () => {
     expect(result).toEqual({ ok: true, data: freshAthleteResponse });
   });
 });
+
+describe("UX-11A.5b.1 — Today survives a prescription format it cannot display", () => {
+  it.each(["v2", "v999"])("schema_version %s: ok, executablePrescription null, status unsupported_schema_version, plan kept", async (schemaVersion) => {
+    mockedInvoke.mockResolvedValue({
+      data: { ...SUCCESS_RESPONSE, executablePrescription: {
+        id: "prescription-v2",
+        generatedPlanSessionId: "session-1",
+        schemaVersion,
+        catalogVersion: "session-model-v2.0",
+        structure: { schemaVersion, family: "strength", blocks: [{ blockId: "b1", role: "main", items: [] }] },
+      } },
+      error: null,
+    });
+
+    const result = await runDailyRun("2026-08-13");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.dailyPlan).toEqual(SUCCESS_RESPONSE.dailyPlan);
+    expect(result.data.executablePrescription).toBeNull();
+    expect(result.data.executablePrescriptionStatus).toBe("unsupported_schema_version");
+  });
+
+  it("passes the backend status through unchanged", async () => {
+    mockedInvoke.mockResolvedValue({ data: { ...SUCCESS_RESPONSE, executablePrescription: null, executablePrescriptionStatus: "unsupported_schema_version" }, error: null });
+
+    const result = await runDailyRun("2026-08-13");
+
+    expect(result).toEqual({ ok: true, data: { ...SUCCESS_RESPONSE, executablePrescription: null, executablePrescriptionStatus: "unsupported_schema_version" } });
+  });
+});

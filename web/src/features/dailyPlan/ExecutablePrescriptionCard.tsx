@@ -5,6 +5,7 @@ import { formatRepetitionRange, formatRepetitions, translateSkill, translateTerr
 import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCISE_LABEL } from "../trainingLabels/exerciseLabels";
 // REV-015.4b — French drill instruction/criterion only when the stored English matches its known source; otherwise the stored text is kept.
 import { translateDrillExecutionCue, translateDrillSuccessCriterion } from "../trainingLabels/drillInstructionLabels";
+import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionRead";
 
 /** REV-015.2 — "Freinage · Sentier aménagé"; an unknown skill/terrain is left out, never shown raw. `null` when neither is known. */
 function formatDrillContext(skillTarget: string, terrainRequirement: string): string | null {
@@ -103,6 +104,20 @@ export function ExecutablePrescriptionCard({ prescription }: ExecutablePrescript
           ))}
         </ul>
       )}
+    </PlanSection>
+  );
+}
+
+/**
+ * UX-11A.5b.1 — today's prescription exists but its format is not one this
+ * app can display: an explicit, sober state in place of the exercises (no
+ * technical wording; the details stay in executablePrescriptionStatus and
+ * the backend warning).
+ */
+export function UnavailablePrescriptionCard() {
+  return (
+    <PlanSection title="Exercices">
+      <p className="text-sm text-muted">{PRESCRIPTION_UNAVAILABLE_MESSAGE}</p>
     </PlanSection>
   );
 }

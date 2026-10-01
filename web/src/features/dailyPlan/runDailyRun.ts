@@ -6,7 +6,7 @@
 // never `athlete_id` — the athlete is resolved server-side via RLS.
 import { supabase } from "../../lib/supabase";
 import { mapDailyRunError, type DailyRunError } from "./dailyRunErrors";
-import { isValidDailyRunResponse } from "./dailyPlanValidation";
+import { isValidDailyRunResponse, normalizeExecutablePrescription } from "./dailyPlanValidation";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 
 export type RunDailyRunResult = { ok: true; data: DailyRunResponse } | { ok: false; error: DailyRunError };
@@ -45,5 +45,5 @@ export async function runDailyRun(date: string): Promise<RunDailyRunResult> {
     return { ok: false, error: INVALID_RESPONSE_ERROR };
   }
 
-  return { ok: true, data };
+  return { ok: true, data: normalizeExecutablePrescription(data) };
 }

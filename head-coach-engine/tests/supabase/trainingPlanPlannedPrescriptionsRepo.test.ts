@@ -45,19 +45,34 @@ const RAW_ROW = {
 };
 
 describe("getPlannedPrescriptionForGeneratedSession — V0.5_047/048", () => {
-  it("found: maps the row into a PlannedPrescription", async () => {
+  it("found: maps a v1 row into a supported v1 read carrying exactly the same PlannedPrescription as before", async () => {
     const captured: CapturedQuery = {};
     const client = fakeClient({ data: RAW_ROW, error: null }, captured);
 
     const result = await getPlannedPrescriptionForGeneratedSession(client, "session-1");
 
     expect(result).toEqual({
-      id: "prescription-1",
-      generatedPlanSessionId: "session-1",
+      status: "supported",
       schemaVersion: "v1",
-      catalogVersion: "v1",
-      structure: { domain: "strength", schemaVersion: "v1", blocks: [] },
+      prescription: {
+        id: "prescription-1",
+        generatedPlanSessionId: "session-1",
+        schemaVersion: "v1",
+        catalogVersion: "v1",
+        structure: { domain: "strength", schemaVersion: "v1", blocks: [] },
+      },
     });
+  });
+
+  it.each(["v2", "v999", ""])("UX-11A.5b.1 — schema_version %j: unsupported_by_reader, the structure is never cast or returned", async (schemaVersion) => {
+    const captured: CapturedQuery = {};
+    const row = { ...RAW_ROW, schema_version: schemaVersion, structure: { schemaVersion, family: "strength", blocks: [{ items: [] }] } };
+    const client = fakeClient({ data: row, error: null }, captured);
+
+    const result = await getPlannedPrescriptionForGeneratedSession(client, "session-1");
+
+    expect(result).toEqual({ status: "unsupported_by_reader", schemaVersion, prescriptionId: "prescription-1" });
+    expect(JSON.stringify(result)).not.toContain("blocks");
   });
 
   it("missing: no row -> null", async () => {

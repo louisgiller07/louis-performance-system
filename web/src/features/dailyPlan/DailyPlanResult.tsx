@@ -21,7 +21,7 @@ export interface TodayPresentation {
 }
 
 export function DailyPlanResult({ result, today }: { result: DailyRunResponse; today?: TodayPresentation }) {
-  const { dailyPlan, healthFlagId, warnings, decisionId, executablePrescription } = result;
+  const { dailyPlan, healthFlagId, warnings, decisionId, executablePrescription, executablePrescriptionStatus } = result;
 
   // Explicit server signal only — never a frontend-deduced safety rule
   // (no A1-A5 hardcoded here).
@@ -46,6 +46,7 @@ export function DailyPlanResult({ result, today }: { result: DailyRunResponse; t
       heroInMission
       detailsTarget={today ? (today.detailsTarget ?? null) : undefined}
       executablePrescription={executablePrescription}
+      executablePrescriptionStatus={executablePrescriptionStatus}
     />
   );
 }

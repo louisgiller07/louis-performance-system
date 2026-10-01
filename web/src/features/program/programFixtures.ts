@@ -23,11 +23,11 @@ export function session(date: string, overrides: Partial<TrainingPlanReviewSessi
 }
 
 export function drill(drillId: string): TrainingPlanReviewSession["prescription"] {
-  return { id: "p-1", generatedPlanSessionId: "s-1", structure: { domain: "dh_technical", drills: [{ drillId }] } };
+  return { status: "supported", schemaVersion: "v1", prescription: { id: "p-1", generatedPlanSessionId: "s-1", structure: { domain: "dh_technical", drills: [{ drillId }] } } };
 }
 
 export function exercise(exerciseId: string): TrainingPlanReviewSession["prescription"] {
-  return { id: "p-2", generatedPlanSessionId: "s-2", structure: { domain: "strength", blocks: [{ exerciseId }] } };
+  return { status: "supported", schemaVersion: "v1", prescription: { id: "p-2", generatedPlanSessionId: "s-2", structure: { domain: "strength", blocks: [{ exerciseId }] } } };
 }
 
 const DOSE = {

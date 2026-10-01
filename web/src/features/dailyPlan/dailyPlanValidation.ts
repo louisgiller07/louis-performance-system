@@ -1,3 +1,4 @@
+import { SUPPORTED_PRESCRIPTION_SCHEMA_VERSION } from "../prescriptions/prescriptionRead";
 import type {
   ArbitrationDecision,
   Confidence,
@@ -135,8 +136,23 @@ function isValidExecutablePrescriptionStructure(value: unknown): boolean {
   return false;
 }
 
+// UX-11A.5b.1 — a present prescription in a format this app does not
+// implement (anything but v1) is NOT a malformed response: it is accepted
+// here only so the rest of Today survives, and normalizeExecutablePrescription
+// below replaces it by null + "unsupported_schema_version" before anything
+// renders. Its structure is never inspected as, or cast into, a v1 shape.
+function isUnsupportedExecutablePrescription(value: unknown): boolean {
+  return (
+    isObject(value) &&
+    typeof value.id === "string" &&
+    typeof value.schemaVersion === "string" &&
+    value.schemaVersion !== SUPPORTED_PRESCRIPTION_SCHEMA_VERSION
+  );
+}
+
 function isValidExecutablePrescription(value: unknown): boolean {
   if (value === undefined || value === null) return true;
+  if (isUnsupportedExecutablePrescription(value)) return true;
   return (
     isObject(value) &&
     typeof value.id === "string" &&
@@ -274,6 +290,24 @@ export function isValidDailyRunResponse(data: unknown): data is DailyRunResponse
   if (data.healthFlagId !== null && typeof data.healthFlagId !== "string") return false;
   if (!isStringArray(data.warnings)) return false;
   if (!isValidExecutablePrescription(data.executablePrescription)) return false;
+  if (data.executablePrescriptionStatus !== undefined && !isOneOf(data.executablePrescriptionStatus, EXECUTABLE_PRESCRIPTION_STATUSES)) return false;
 
   return isValidDailyPlan(data.dailyPlan);
+}
+
+const EXECUTABLE_PRESCRIPTION_STATUSES = ["delivered", "none", "unsupported_schema_version"] as const;
+
+/**
+ * UX-11A.5b.1 — applied right after isValidDailyRunResponse: a prescription
+ * in a format this app does not implement becomes null with the explicit
+ * "unsupported_schema_version" status (the rest of the response is kept as
+ * is). A v1 prescription is returned unchanged, byte for byte.
+ */
+export function normalizeExecutablePrescription(response: DailyRunResponse): DailyRunResponse {
+  const prescription = response.executablePrescription as unknown;
+  if (prescription === undefined || prescription === null) return response;
+  if (isUnsupportedExecutablePrescription(prescription)) {
+    return { ...response, executablePrescription: null, executablePrescriptionStatus: "unsupported_schema_version" };
+  }
+  return response;
 }

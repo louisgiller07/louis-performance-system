@@ -260,6 +260,13 @@ export interface ExecutablePrescription {
   structure: ExecutablePrescriptionStructure;
 }
 
+/**
+ * UX-11A.5b.1 — why `executablePrescription` is present or null (mirror of
+ * runDailyFor's `ExecutablePrescriptionStatus`). "unsupported_schema_version":
+ * today's prescription exists but its format is not one this app can display.
+ */
+export type ExecutablePrescriptionStatus = "delivered" | "none" | "unsupported_schema_version";
+
 /** Exact response contract of supabase/functions/daily-run — see its index.ts. */
 export interface DailyRunResponse {
   dailyPlan: DailyPlan;
@@ -268,4 +275,6 @@ export interface DailyRunResponse {
   warnings: string[];
   /** Absent/null whenever decision !== "KEEP", the session has no canonical lineage, or the backend lookup itself failed (always best-effort — see runDailyFor.ts). */
   executablePrescription?: ExecutablePrescription | null;
+  /** UX-11A.5b.1 — absent from older backends; see ExecutablePrescriptionStatus. */
+  executablePrescriptionStatus?: ExecutablePrescriptionStatus;
 }

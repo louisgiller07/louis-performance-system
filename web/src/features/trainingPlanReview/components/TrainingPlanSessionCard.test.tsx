@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { TrainingPlanSessionCard } from "./TrainingPlanSessionCard";
-import type { TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
+import type { TrainingPlanReviewPrescription, TrainingPlanReviewPrescriptionRead, TrainingPlanReviewSession } from "../trainingPlanReviewTypes";
+
+/** UX-11A.5b.1 — fixtures are v1 prescriptions as the repository now returns them (a supported v1 read). */
+function v1Read(prescription: TrainingPlanReviewPrescription): TrainingPlanReviewPrescriptionRead {
+  return { status: "supported", schemaVersion: "v1", prescription };
+}
 
 function session(overrides: Partial<TrainingPlanReviewSession> = {}): TrainingPlanReviewSession {
   return {
@@ -41,11 +46,11 @@ describe("TrainingPlanSessionCard", () => {
     render(
       <TrainingPlanSessionCard
         session={session({
-          prescription: {
+          prescription: v1Read({
             id: "prescription-1",
             generatedPlanSessionId: "session-1",
             structure: { domain: "strength", schemaVersion: "v1", blocks: [{ role: "work", exerciseId: "bodyweight_squat", sets: 12 }] },
-          },
+          }),
         })}
       />
     );
@@ -56,11 +61,11 @@ describe("TrainingPlanSessionCard", () => {
 
   function strengthSession(block: Record<string, unknown>): TrainingPlanReviewSession {
     return session({
-      prescription: {
+      prescription: v1Read({
         id: "prescription-1",
         generatedPlanSessionId: "session-1",
         structure: { domain: "strength", schemaVersion: "v1", blocks: [block] },
-      },
+      }),
     });
   }
 
@@ -153,7 +158,7 @@ describe("TrainingPlanSessionCard", () => {
         session={session({
           kind: "DH_TECHNICAL",
           doseTarget: { domain: "dh_technical", skillTargets: ["cornering"], focusedRunsCount: 6 },
-          prescription: {
+          prescription: v1Read({
             id: "prescription-2",
             generatedPlanSessionId: "session-1",
             structure: {
@@ -161,7 +166,7 @@ describe("TrainingPlanSessionCard", () => {
               schemaVersion: "v1",
               drills: [{ drillId: "cornering_flat_turn_precision", skillTarget: "cornering", runs: 6, executionCue: "Look where you want to go." }],
             },
-          },
+          }),
         })}
       />
     );
@@ -259,7 +264,7 @@ describe("TrainingPlanSessionCard — training vocabulary (REV-015.2)", () => {
         session={session({
           kind: "DH_TECHNICAL",
           doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 },
-          prescription: { id: "p-3", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ runs: 4 }] } },
+          prescription: v1Read({ id: "p-3", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ runs: 4 }] } }),
         })}
       />
     );
@@ -292,7 +297,7 @@ describe("TrainingPlanSessionCard — exercise and drill names (REV-015.3)", () 
   it.each(STORED_EXERCISES)("existing plan exercise %s → %s", (exerciseId, label) => {
     render(
       <TrainingPlanSessionCard
-        session={session({ prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ role: "work", exerciseId, sets: 12 }] } } })}
+        session={session({ prescription: v1Read({ id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ role: "work", exerciseId, sets: 12 }] } }) })}
       />
     );
 
@@ -306,7 +311,7 @@ describe("TrainingPlanSessionCard — exercise and drill names (REV-015.3)", () 
         session={session({
           kind: "DH_TECHNICAL",
           doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 },
-          prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ drillId, runs: 6 }] } },
+          prescription: v1Read({ id: "p", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ drillId, runs: 6 }] } }),
         })}
       />
     );
@@ -318,7 +323,7 @@ describe("TrainingPlanSessionCard — exercise and drill names (REV-015.3)", () 
   it("unknown ids show 'Exercice' / 'Exercice technique', never the id", () => {
     const { container } = render(
       <TrainingPlanSessionCard
-        session={session({ prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ exerciseId: "unknown_exercise_42", sets: 3 }] } } })}
+        session={session({ prescription: v1Read({ id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ exerciseId: "unknown_exercise_42", sets: 3 }] } }) })}
       />
     );
 
@@ -333,7 +338,7 @@ describe("TrainingPlanSessionCard — drill instruction (REV-015.4b)", () => {
     return session({
       kind: "DH_TECHNICAL",
       doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: 6 },
-      prescription: { id: "p", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ drillId, runs: 6, executionCue }] } },
+      prescription: v1Read({ id: "p", generatedPlanSessionId: "session-1", structure: { domain: "dh_technical", schemaVersion: "v1", drills: [{ drillId, runs: 6, executionCue }] } }),
     });
   }
 
@@ -352,5 +357,31 @@ describe("TrainingPlanSessionCard — drill instruction (REV-015.4b)", () => {
 
     const { container } = render(<TrainingPlanSessionCard session={dhSession("race_execution_full_run_sim", undefined)} />);
     expect(container.querySelectorAll("li p")).toHaveLength(0);
+  });
+});
+
+describe("UX-11A.5b.1 — a prescription format this app cannot display", () => {
+  it.each(["v2", "v999"])("schema_version %s: the session stays visible with an explicit, non-technical state", (schemaVersion) => {
+    const { container } = render(
+      <TrainingPlanSessionCard
+        session={session({
+          kind: "STRENGTH_LOWER",
+          prescription: { status: "unsupported_by_reader", schemaVersion, prescriptionId: "p-v2" },
+        })}
+      />
+    );
+
+    expect(screen.getByText("Le détail de cette séance n'est pas disponible dans cette version.")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/JSON|schema|v1|v2|v999|migration/i);
+  });
+
+  it("a v1 prescription never shows the unavailable state", () => {
+    render(
+      <TrainingPlanSessionCard
+        session={session({ prescription: v1Read({ id: "p", generatedPlanSessionId: "session-1", structure: { domain: "strength", schemaVersion: "v1", blocks: [{ exerciseId: "bodyweight_squat", sets: 3 }] } }) })}
+      />
+    );
+
+    expect(screen.queryByText("Le détail de cette séance n'est pas disponible dans cette version.")).not.toBeInTheDocument();
   });
 });

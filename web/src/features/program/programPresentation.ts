@@ -37,9 +37,10 @@ export function sessionTitle(session: Pick<TrainingPlanReviewSession, "kind">): 
   return translateTrainingKind(session.kind) ?? UNKNOWN_SESSION_LABEL;
 }
 
-/** First exercise / drill of the stored prescription, when its French name is known; otherwise null (the line is hidden). */
+/** First exercise / drill of the stored prescription, when its French name is known; otherwise null (the line is hidden). A prescription format this app cannot read (UX-11A.5b.1) has no focus; the session card itself says so. */
 export function sessionFocus(session: Pick<TrainingPlanReviewSession, "prescription">): string | null {
-  const structure = session.prescription?.structure;
+  if (session.prescription?.status !== "supported") return null;
+  const structure = session.prescription.prescription.structure;
   if (typeof structure !== "object" || structure === null) return null;
   const record = structure as Record<string, unknown>;
   if (record.domain === "dh_technical" && Array.isArray(record.drills)) {

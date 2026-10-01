@@ -23,7 +23,8 @@
 // meaningful to an athlete); training_plan_generated_sessions omits `focus`/
 // `generation_note` (real columns, deliberately excluded — not in this
 // ticket's explicit field list, not silently forgotten); training_plan_
-// planned_prescriptions omits schema_version/catalog_version.
+// planned_prescriptions omits catalog_version; schema_version is read since
+// UX-11A.5b.1 so a non-v1 prescription is reported as unsupported, never read as v1.
 //
 // V0.5_028 — getActivePlanVersionId() added (extends this same file, within
 // this ticket's authorized directory): the acceptance confirmation step
@@ -33,6 +34,7 @@
 // prescription concern) — a separate, minimal read, same "own_select" RLS
 // idiom as everything else in this file.
 import { supabase } from "../../lib/supabase";
+import { SUPPORTED_PRESCRIPTION_SCHEMA_VERSION } from "../prescriptions/prescriptionRead";
 import type {
   TrainingPlanReview,
   TrainingPlanReviewVersion,
@@ -40,6 +42,7 @@ import type {
   TrainingPlanReviewWeek,
   TrainingPlanReviewSession,
   TrainingPlanReviewPrescription,
+  TrainingPlanReviewPrescriptionRead,
   TrainingPlanReviewDoseSummary,
   TrainingPlanReviewRelaxedConstraint,
   TrainingPlanLifecycleState,
@@ -68,7 +71,8 @@ const VERSION_COLUMNS = "id, horizon_start_date, horizon_end_date, generation_tr
 const BLOCK_COLUMNS = "id, plan_version_id, sequence_number, name, mode, primary_focus, start_date, end_date";
 const WEEK_COLUMNS = "id, block_id, plan_version_id, week_number, start_date, end_date, week_type, dose_summary, rationale";
 const SESSION_COLUMNS = "id, week_id, plan_version_id, date, kind, load_profile, duration_min, dose_target, rationale";
-const PRESCRIPTION_COLUMNS = "id, generated_plan_session_id, plan_version_id, structure";
+// UX-11A.5b.1 — schema_version is read so a non-v1 row is never assumed to be v1.
+const PRESCRIPTION_COLUMNS = "id, generated_plan_session_id, plan_version_id, schema_version, structure";
 const TRANSITION_COLUMNS = "plan_version_id, transition_number, state";
 
 export interface TrainingPlanVersionRawRow {
@@ -126,6 +130,7 @@ export interface TrainingPlanPlannedPrescriptionRawRow {
   id: string;
   generated_plan_session_id: string;
   plan_version_id: string;
+  schema_version: string;
   structure: unknown;
 }
 
@@ -191,8 +196,12 @@ export function latestStateByVersion(
   return result;
 }
 
-function mapPrescription(row: TrainingPlanPlannedPrescriptionRawRow): TrainingPlanReviewPrescription {
-  return { id: row.id, generatedPlanSessionId: row.generated_plan_session_id, structure: row.structure };
+function mapPrescription(row: TrainingPlanPlannedPrescriptionRawRow): TrainingPlanReviewPrescriptionRead {
+  if (row.schema_version !== SUPPORTED_PRESCRIPTION_SCHEMA_VERSION) {
+    return { status: "unsupported_by_reader", schemaVersion: row.schema_version, prescriptionId: row.id };
+  }
+  const prescription: TrainingPlanReviewPrescription = { id: row.id, generatedPlanSessionId: row.generated_plan_session_id, structure: row.structure };
+  return { status: "supported", schemaVersion: "v1", prescription };
 }
 
 function mapSession(
