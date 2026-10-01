@@ -168,7 +168,13 @@ describe("Prescription V2 — validator invariants", () => {
     }
   });
 
-  it("the catalogue manifest must be complete (templates may be null, nothing else)", () => {
+  it("the catalogue manifest must be complete: every key, each a non-empty version", () => {
+    const nullTemplates = mutable(STRENGTH);
+    nullTemplates.catalog.templates = null;
+    expect(codes(nullTemplates)).toContain("invalid_manifest");
+    const noDoses = mutable(STRENGTH);
+    delete noDoses.catalog.strengthDoses;
+    expect(codes(noDoses)).toContain("invalid_manifest");
     const missing = mutable(STRENGTH);
     delete missing.catalog.texts;
     expect(codes(missing)).toContain("invalid_manifest");
@@ -365,17 +371,18 @@ describe("Prescription V2 — validator invariants", () => {
 });
 
 describe("Catalogue manifest", () => {
-  it("is built from the real component versions; templates stay null until a template catalogue exists", () => {
+  it("is built from the real component versions (UX-11A.5a.4: real templates and strengthDoses, aggregate v2.1)", () => {
     expect(buildSessionModelV2CatalogManifest()).toEqual({
-      aggregate: "session-model-v2.0",
+      aggregate: "session-model-v2.1",
       exercises: "session-exercises-v2.0",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
       protocols: "session-protocols-v2.0",
       texts: "coaching-text-v1.0",
-      templates: null,
+      templates: "strength-templates-v2.0",
+      strengthDoses: "strength-doses-v2.0",
     });
-    expect(Object.keys(buildSessionModelV2CatalogManifest())).toEqual(["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates"]);
+    expect(Object.keys(buildSessionModelV2CatalogManifest())).toEqual(["aggregate", "exercises", "drills", "intents", "protocols", "texts", "templates", "strengthDoses"]);
   });
 
   it("the aggregate version is distinct from every legacy version", () => {
@@ -500,6 +507,7 @@ describe("Generation block codes (defined, not wired)", () => {
       "unavailable_dh_drill_terrain",
       "unsupported_protocol_duration",
       "dh_passes_out_of_range",
+      "no_compatible_strength_exercise",
     ]);
   });
 });

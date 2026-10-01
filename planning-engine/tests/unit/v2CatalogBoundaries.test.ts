@@ -12,9 +12,19 @@ import { describe, expect, it } from "vitest";
 // is the only business module allowed to read the V2 catalogues and the DH
 // tier; no other engine source may import that module.
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const V2_MODULES = ["sessionExerciseCatalogV2", "sessionDrillCatalogV2", "intentCatalogV2", "sessionFrameV2", "coachingTextCatalog", "protocolCatalogV2"];
+const V2_MODULES = [
+  "sessionExerciseCatalogV2",
+  "sessionDrillCatalogV2",
+  "intentCatalogV2",
+  "sessionFrameV2",
+  "coachingTextCatalog",
+  "protocolCatalogV2",
+  "strengthTemplateCatalogV2",
+  "strengthDoseCatalogV2",
+  "planDosePolicyV2",
+];
 const V2_SYMBOLS =
-  /\b(SESSION_EXERCISE_CATALOG_V2\w*|SESSION_DRILL_CATALOG_V2\w*|INTENT_CATALOG_V2\w*|DH_SKILL_TO_INTENT_V2|DH_SESSION_FRAME_V2|SESSION_BLOCK_ROLES_V2|COACHING_TEXT_CATALOG\w*|PROTOCOL_CATALOG_V2\w*)\b/;
+  /\b(SESSION_EXERCISE_CATALOG_V2\w*|SESSION_DRILL_CATALOG_V2\w*|INTENT_CATALOG_V2\w*|DH_SKILL_TO_INTENT_V2|DH_SESSION_FRAME_V2|SESSION_BLOCK_ROLES_V2|COACHING_TEXT_CATALOG\w*|PROTOCOL_CATALOG_V2\w*|STRENGTH_TEMPLATE_CATALOG_V2\w*|STRENGTH_DOSE_CATALOG_V2\w*|PLAN_DOSE_POLICY_V2\w*)\b/;
 const ALLOWED = new Set(
   ["planning-engine/src/catalog/index.ts", ...V2_MODULES.map((m) => `planning-engine/src/catalog/${m}.ts`)].map((p) => p.split("/").join(sep))
 );
@@ -83,5 +93,13 @@ describe("V2 content — import boundary", () => {
     }
     expect(offenders).toEqual([]);
     expect(sourceFiles(join(REPO, "planning-engine", "src", "sessionModelV2")).length).toBeGreaterThan(0);
+  });
+
+  it("UX-11A.5a.4 — no Force builder exists yet: the only V2 builders are DH and aerobic base, and no builder reads the strength templates or doses", () => {
+    const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "builders");
+    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts"]);
+    for (const file of sourceFiles(dir)) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/strengthTemplateCatalogV2|strengthDoseCatalogV2|planDosePolicyV2|STRENGTH_TEMPLATE|STRENGTH_DOSE|PLAN_DOSE_POLICY/);
+    }
   });
 });

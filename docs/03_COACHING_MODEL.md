@@ -381,6 +381,29 @@ Le niveau fixe l'enveloppe de tous les exercices de travail, sauf prévention et
 
 L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, respiration) ne comptent pas dans ce maximum. Le mouvement principal passe toujours en premier. La somme des parties tient dans la durée prévue. La préhension suit C3.2 et C3.5.
 
+*Force — modèle V2 (UX-11A.5a.4 ; architecture **validée**, contenu **PROVISIONAL — coaching validation required**)* :
+- **Niveaux cumulatifs (V2 uniquement)** — validé architecture. Le niveau d'un exercice est le niveau **minimum** nécessaire. Un pilote débutant n'utilise que des exercices débutant ; intermédiaire, débutant + intermédiaire ; avancé, tous. La règle V1 (position dans la chaîne de progression) est inchangée.
+- **Familles par type de séance** — PROVISIONAL. LOWER : squat, hinge, lunge, lower_leg, adductor, carry. UPPER : push, pull, shoulder_health. Gainage (core) transversal : prévention et contrôle du tronc. Préhension (grip) et pliométrie exclues pour l'instant. Le mapping V1 n'est pas modifié.
+- **Structure** — validé architecture. Un modèle par type de séance (`STRENGTH_LOWER`, `STRENGTH_UPPER`) et par niveau :
+  - un échauffement explicite de 3 exercices (2 mobilité + 1 activation, dans le cadre de l'échauffement Force) ;
+  - **exactement trois exercices de travail** : principal (bloc `main`), puis deux exercices complémentaires ;
+  - chaque exercice a une **liste ordonnée de candidats** : contenu versionné, jamais dérivé de l'ordre du catalogue, des progressions, des régressions ni des substitutions. Le premier candidat autorisé pour le niveau et dont le matériel est déclaré sera retenu ; sans candidat compatible, le plan est bloqué (pas de repli caché).
+  - Les modèles actuels (choix et ordre des exercices) sont PROVISIONAL.
+- **Doses Force V2** — PROVISIONAL. Séries **exactes** :
+
+| Niveau de charge | Principal | Secondaire | Unilatéral | Prévention · gainage |
+|---|---|---|---|---|
+| Modéré | 4 × 6–8, RPE 7–8, repos 120–180 s | 3 × 8–12, RPE 7, repos 90 s | 3 × 8–10 par côté, RPE 7, repos 60–90 s | 2 séries, RPE 6–7, repos 45–60 s, **volume à définir** |
+| Léger | 3 × 8–10, RPE 5–6, repos 90–120 s | 2 × 10–12, RPE 5–6, repos 60–90 s | 2 × 8–10 par côté, RPE 5–6, repos 60 s | 2 séries, RPE 5–6, repos 45–60 s, **volume à définir** |
+
+  Lourd : hors périmètre. Une mesure en durée n'est jamais convertie en répétitions. En V2, les doses ne viennent que de ce tableau : `setVolume` et `targetRpeOrRir` (cible de séance V1) ne fixent ni les séries ni le RPE.
+- **Politique de dose du plan V2** — PROVISIONAL :
+  - semaine de développement : Force modérée, 6 passages DH, endurance fondamentale 45 min ;
+  - semaine d'affûtage : Force légère, 4 passages DH, endurance fondamentale 45 min ;
+  - semaine de course : aucune séance normale.
+
+  Les réductions génériques liées à l'historique (V1) et les durées d'affûtage V1 ne sont pas reprises en V2.
+
 *Puissance* : 3 à 4 exercices explosifs, 3–5 séries de 3–5 répétitions, qualité maximale, repos complet (2–3 min). La série s'arrête dès que la vitesse d'exécution baisse. Jamais après une séance fatigante.
 
 *Technique DH* :

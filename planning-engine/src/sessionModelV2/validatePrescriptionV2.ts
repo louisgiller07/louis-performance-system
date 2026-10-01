@@ -127,8 +127,7 @@ function validateManifest(manifest: unknown, add: (path: string, code: Prescript
   if (!isObj(manifest) || Object.keys(manifest).length !== keys.length || !keys.every((k) => k in manifest)) return add("$.catalog", "invalid_manifest");
   for (const key of keys) {
     const v = manifest[key];
-    const ok = key === "templates" ? v === null || isNonEmptyString(v) : isNonEmptyString(v);
-    if (!ok) add(`$.catalog.${key}`, "invalid_manifest");
+    if (!isNonEmptyString(v)) add(`$.catalog.${key}`, "invalid_manifest");
   }
 }
 

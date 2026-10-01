@@ -12,6 +12,9 @@ export const SESSION_MODEL_V2_GENERATION_BLOCK_CODES = [
   "unavailable_dh_drill_terrain",
   "unsupported_protocol_duration",
   "dh_passes_out_of_range",
+  // UX-11A.5a.4 — no template candidate is allowed for the athlete's tier
+  // with the declared equipment (future Force builder; not raised yet).
+  "no_compatible_strength_exercise",
 ] as const;
 
 export type SessionModelV2GenerationBlockCode = (typeof SESSION_MODEL_V2_GENERATION_BLOCK_CODES)[number];

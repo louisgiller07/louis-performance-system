@@ -3954,3 +3954,55 @@ Chaque contenu produit est validé par `validatePrescriptionV2` après `assignPr
 **Hors périmètre** : Force et Puissance, modèles de contenu, `generationEngine`, persistance, constructeur runtime du snapshot V2, prescription du jour (5c), interface V2, `session_activity_results`, récupération, intervalles, activité libre, séances aérobie de 20, 30 et 35 min, DH à 3 passages.
 
 **Statut** : Accepted — `feat/ux11a5b3-v2-pure-generation`, lignée non fusionnée. Aucune prescription V2 persistée.
+
+## 2026-10-01 — ADR UX-11A.5a.4 : templates, doses Force et politique de dose du plan V2
+
+> **Strength V2 content is now versioned data: cumulative tiers, six templates with an explicit warm-up and three work slots whose ordered candidates are content, a LIGHT / MODERATE dose catalogue with exact sets, and a V2 plan dose policy that drops the legacy history decrements. No Force builder, no generation wiring.**
+
+**Validé (architecture).**
+- **Niveaux cumulatifs V2** (`strengthTiers.ts`) : le niveau d'un exercice est le minimum de ses `tiers`. Débutant → débutant ; intermédiaire → débutant + intermédiaire ; avancé → tous. V2 uniquement ; la règle V1 de position dans la chaîne est inchangée.
+- **Catalogue de templates** (`strengthTemplateCatalogV2.ts`, `strength-templates-v2.0`) : un template par `sessionKind` (`STRENGTH_LOWER` / `STRENGTH_UPPER`) × niveau, soit 6 au total.
+  - Échauffement explicite dans le protocole `strength_warm_up_v1` : 2 mobilité + 1 activation.
+  - Exactement **trois emplacements de travail** (principal dans `main`, deux dans `complementary`), avec rôle et **liste ordonnée de candidats**.
+  - L'ordre est du contenu versionné, jamais dérivé du catalogue d'exercices, de `progressesTo`, de `regressesTo` ni de `substitutions`.
+  - Le futur builder retiendra le premier candidat autorisé pour le niveau (cumulatif) et dont le matériel requis est déclaré. Nouveau code stable `no_compatible_strength_exercise` (défini, pas encore levé). L'absence de matériel compatible est un blocage runtime, pas une erreur de catalogue.
+- **Catalogue de doses** (`strengthDoseCatalogV2.ts`, `strength-doses-v2.0`) : séries exactes, volume indexé par type de mesure de l'exercice (jamais de conversion durée → répétitions), RPE et repos par niveau de charge × rôle. LIGHT et MODERATE seulement ; HEAVY hors périmètre (jamais produit par le planificateur).
+- **Legacy `doseTarget`** : Force V2 ne consomme **pas** `doseTarget.setVolume` (ni comme nombre de séries, ni comme budget de séries), ni `doseTarget.targetRpeOrRir` comme autorité de RPE. Ces champs restent des entrées V1.
+- **Politique de dose du plan V2** (`planDosePolicyV2.ts`, `plan-dose-policy-v2.0`), dose par type de semaine :
+  - développement : MODERATE / 6 passages / 45 min ;
+  - affûtage : LIGHT / 4 passages / 45 min ;
+  - course : aucune séance normale.
+
+  Elle ne reprend **pas** les réductions génériques de `historyAdjuster` (−10 min, −1 passage, −2 séries, −1 RPE, passage à LIGHT) ni les durées d'affûtage legacy. Elle ne peut produire ni 20 / 30 / 35 min, ni 3 / 5 passages. `historyAdjuster.ts` est inchangé et pilote toujours V1.
+- **Manifeste** : `templates: "strength-templates-v2.0"`, nouveau composant `strengthDoses: "strength-doses-v2.0"` (les doses ne sont pas cachées dans `templates`), version agrégée `session-model-v2.1`. Le validateur exige désormais une version non vide pour les 8 clés.
+
+**PROVISIONAL (contenu, validation coaching requise).**
+- **Familles** :
+  - LOWER : squat, hinge, lunge, lower_leg, adductor, carry ;
+  - UPPER : push, pull, shoulder_health ;
+  - transversal : core ;
+  - exclues : grip, plyometric.
+- **Templates (candidats dans l'ordre)** :
+  - LOWER, échauffement : `hip_90_90`, `knee_to_wall_ankle`, `bird_dog`.
+  - LOWER débutant : principal `bodyweight_squat` ; secondaire `glute_bridge` ; unilatéral `reverse_lunge`.
+  - LOWER intermédiaire : `goblet_squat` → `bodyweight_squat` ; `dumbbell_romanian_deadlift` → `dumbbell_hip_thrust` → `glute_bridge` ; `bulgarian_split_squat` → `step_up` → `single_leg_romanian_deadlift` → `reverse_lunge`.
+  - LOWER avancé : `barbell_back_squat` → `barbell_deadlift` → `goblet_squat` → `bodyweight_squat` ; `barbell_romanian_deadlift` → `dumbbell_romanian_deadlift` → `dumbbell_hip_thrust` → `glute_bridge` ; unilatéral identique à l'intermédiaire.
+  - UPPER, échauffement : `thoracic_rotation_mobility`, `wrist_mobility`, `bear_crawl`.
+  - UPPER débutant : `pushup` ; `resistance_band_row` → `floor_ytw_raise` ; prévention `dead_bug`.
+  - UPPER intermédiaire : `dumbbell_bench_press` → `pushup` ; `one_arm_dumbbell_row` → `lat_pulldown` → `inverted_row` → `resistance_band_row` → `floor_ytw_raise` ; `pallof_press` → `dead_bug`.
+  - UPPER avancé : `barbell_bench_press` → `dumbbell_bench_press` → `pull_up` → `pushup` ; `lat_pulldown` → `one_arm_dumbbell_row` → `inverted_row` → `resistance_band_row` → `floor_ytw_raise` ; `hanging_leg_raise` → `pallof_press` → `dead_bug`.
+- **Doses** :
+  - MODERATE : principal 4 × 6–8, RPE 7–8, repos 120–180 s ; secondaire 3 × 8–12, RPE 7, repos 90 s ; unilatéral 3 × 8–10 par côté, RPE 7, repos 60–90 s ; prévention 2 séries, RPE 6–7, repos 45–60 s.
+  - LIGHT : principal 3 × 8–10, RPE 5–6, repos 90–120 s ; secondaire 2 × 10–12, RPE 5–6, repos 60–90 s ; unilatéral 2 × 8–10 par côté, RPE 5–6, repos 60 s ; prévention 2 séries, RPE 5–6, repos 45–60 s.
+  - Les répétitions d'un exercice « par côté » s'entendent par côté (sémantique `perSide` du catalogue).
+- **Politique de dose du plan** : toutes ses valeurs.
+
+**Questions ouvertes, visibles et verrouillées par test (rien n'a été inventé).**
+1. **Rôle de `floor_ytw_raise`** : il termine les trois listes « secondaire » UPPER, mais ses rôles au catalogue sont `warm_up` et `prevention`, pas `secondary`. Le validateur de templates signale exactement ces trois cas (`role_not_held`). Le contenu est conservé tel que décidé, dans l'attente d'un arbitrage : ajouter le rôle `secondary` à l'exercice, ou le retirer des listes.
+2. **Volume de la prévention / du gainage** : séries, RPE et repos sont fournis, mais pas le volume (répétitions ou durée). Tous les candidats de prévention actuels (`dead_bug`, `pallof_press`, `hanging_leg_raise`) se mesurent en répétitions. La ligne porte `volume: {}` et la question `strength_doses.prevention_volume_not_defined`. Un builder ne pourra pas prescrire ce rôle sans cette valeur.
+3. **Durée des séances vs placement** : la politique V2 fixe l'endurance fondamentale à 45 min en affûtage, mais le planificateur place les créneaux selon ses durées legacy (aérobie 30 min en affûtage, ADR V06-03). Une séance V2 de 45 min peut donc ne pas tenir dans le créneau choisi pour 30 min. À résoudre avant de brancher V2 dans le planificateur.
+4. **Version de la politique de dose dans le manifeste** : `plan-dose-policy-v2.0` influence le contenu, mais n'a pas été ajoutée au manifeste (non demandé). À décider.
+
+**Hors périmètre** : builder Force, résolution du matériel à l'exécution, `generationEngine`, persistance V2, snapshot V2 runtime, 5c, UX-11C, UX-11E, `session_activity_results`, récupération, puissance, préhension.
+
+**Statut** : Accepted (architecture) / PROVISIONAL (contenu) — `feat/ux11a5a4-strength-templates-v2`, lignée non fusionnée.
