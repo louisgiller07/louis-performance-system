@@ -4,7 +4,8 @@
 // activities: it asks the module whether completion is possible, whether it
 // needs a confirmation, and which not-yet-sent results must travel in the
 // SAME batch as `completed`. Force (STRENGTH_LOWER / STRENGTH_UPPER) has a
-// real module since UX-11C.2; every other family keeps the read-only module
+// real module since UX-11C.2, DH technical (main drill passes) since
+// UX-11C.3; every other family keeps the read-only module
 // (canComplete = false: completion is never forced without the results the
 // backend requires, e.g. the activity of an endurance session).
 import type { ComponentType } from "react";
@@ -15,6 +16,9 @@ import { ReadOnlySessionModule } from "./ReadOnlySessionModule";
 import { StrengthSessionModule } from "./strength/StrengthSessionModule";
 import { strengthCompletion } from "./strength/strengthDraft";
 import { isGuidedStrengthPrescription } from "./strength/strengthSets";
+import { DhSessionModule } from "./dh/DhSessionModule";
+import { dhCompletion } from "./dh/dhDraft";
+import { isGuidedDhPrescription } from "./dh/dhPasses";
 import { COMPLETION_NOT_READY_MESSAGE } from "./guidedSessionCopy";
 
 /** What the shell reports back after a module write (the state shown is always re-read from the database). */
@@ -49,6 +53,8 @@ export interface ModuleCompletion {
   completionNeedsConfirmation: boolean;
   /** Explanation shown while completion is not possible. */
   hint: string;
+  /** The partial-completion question, in the module's own words (sets, passes…). */
+  confirmationMessage: string;
   /** Valid results not sent yet: recorded in the same batch as `completed` (atomic). */
   pendingSets: SetResultInput[];
 }
@@ -62,11 +68,12 @@ export interface GuidedSessionModule {
 
 const readOnlyModule = (kind: string): GuidedSessionModule => ({
   kind,
-  completion: () => ({ canComplete: false, completionNeedsConfirmation: false, hint: COMPLETION_NOT_READY_MESSAGE, pendingSets: [] }),
+  completion: () => ({ canComplete: false, completionNeedsConfirmation: false, hint: COMPLETION_NOT_READY_MESSAGE, confirmationMessage: "", pendingSets: [] }),
   Content: ReadOnlySessionModule,
 });
 
 export function resolveSessionModule(prescription: FinalPrescriptionV2View): GuidedSessionModule {
   if (isGuidedStrengthPrescription(prescription)) return { kind: "strength", completion: strengthCompletion, Content: StrengthSessionModule };
+  if (isGuidedDhPrescription(prescription)) return { kind: "dh_technical", completion: dhCompletion, Content: DhSessionModule };
   return readOnlyModule(prescription.family);
 }

@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
-import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, PHASE_LABELS, PARTIAL_COMPLETION_MESSAGE } from "./guidedSessionCopy";
+import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, PHASE_LABELS } from "./guidedSessionCopy";
 import { resolveSessionModule, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
 import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -192,7 +192,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
         {open && confirming === "complete" && (
           <Confirmation
             id="complete-title"
-            message={PARTIAL_COMPLETION_MESSAGE}
+            message={completion?.confirmationMessage ?? ""}
             confirmLabel="Terminer quand même"
             cancelLabel="Revenir à la séance"
             disabled={busy}
@@ -208,7 +208,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
         {open && executionId && confirming === "stop" && (
           <Confirmation
             id="stop-title"
-            message="Arrêter la séance ? Elle sera enregistrée comme arrêtée et ne pourra plus être reprise. Les séries déjà enregistrées restent dans l'historique."
+            message="Arrêter la séance ? Elle sera enregistrée comme arrêtée et ne pourra plus être reprise. Les résultats déjà enregistrés restent dans l'historique."
             confirmLabel="Confirmer l'arrêt"
             cancelLabel="Continuer la séance"
             disabled={busy}

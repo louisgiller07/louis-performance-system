@@ -5,6 +5,8 @@ import type { SetResultInput } from "../sessionExecutionClient";
 import type { ModuleCompletion, ModuleContext } from "../sessionModules";
 import { isEmptyForm, strengthProgress, validateSetForm, type SetFormErrors, type SetFormValues, type StrengthMeasureType } from "./strengthSets";
 import { STRENGTH_COPY } from "./strengthCopy";
+import { entryStillOpen } from "../results/activeResults";
+import { PARTIAL_COMPLETION_MESSAGE } from "../guidedSessionCopy";
 
 export interface OpenForm {
   key: string;
@@ -35,7 +37,7 @@ const asState = (u: unknown): StrengthUiState => (u !== null && typeof u === "ob
 export function liveForm(uiState: unknown, rows: readonly SetResultRow[]): OpenForm | null {
   const form = asState(uiState).form;
   if (!form) return null;
-  return rows.some((r) => r.id.toLowerCase() === form.id.toLowerCase()) ? null : form;
+  return entryStillOpen({ id: form.id, prescriptionItemId: form.itemId, ordinal: form.setNumber, supersedesId: form.supersedes?.id ?? null }, rows) ? form : null;
 }
 
 export type Draft = { kind: "none" } | { kind: "invalid" } | { kind: "valid"; set: SetResultInput };
@@ -63,14 +65,14 @@ export function draftOf(form: OpenForm | null, executionId: string | null, now: 
   };
 }
 
-const asRow = (set: SetResultInput): SetResultRow => ({ ...set, other_exercise_name: null, recorded_at: "9999-12-31T23:59:59Z" });
+const asRow = (set: SetResultInput): SetResultRow => ({ load_kg: null, rpe_actual: null, success: null, ...set, other_exercise_name: null, recorded_at: "9999-12-31T23:59:59Z" });
 
 /** Locked completion rule (UX-11C.2): ≥ 1 performed work set; partial results need a confirmation. */
 export function strengthCompletion(context: ModuleContext, now: () => string): ModuleCompletion {
   const draft = draftOf(liveForm(context.uiState, context.setResults), context.executionId, now);
-  if (draft.kind === "invalid") return { canComplete: false, completionNeedsConfirmation: false, hint: STRENGTH_COPY.finishEntryFirst, pendingSets: [] };
+  if (draft.kind === "invalid") return { canComplete: false, completionNeedsConfirmation: false, hint: STRENGTH_COPY.finishEntryFirst, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pendingSets: [] };
   const pendingSets = draft.kind === "valid" ? [draft.set] : [];
   const progress = strengthProgress(context.prescription, context.setResults, pendingSets.map(asRow));
-  return { canComplete: progress.canComplete, completionNeedsConfirmation: progress.completionNeedsConfirmation, hint: STRENGTH_COPY.needOneWorkSet, pendingSets };
+  return { canComplete: progress.canComplete, completionNeedsConfirmation: progress.completionNeedsConfirmation, hint: STRENGTH_COPY.needOneWorkSet, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pendingSets };
 }
 

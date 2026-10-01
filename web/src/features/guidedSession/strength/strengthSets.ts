@@ -5,6 +5,9 @@
 // a prescribed set without a row has NO result — never 0, skipped or done.
 import type { ExerciseItemView, FinalPrescriptionV2View } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 import type { SetResultRow } from "../executionState";
+import { activeResultsBySlot, slotKey } from "../results/activeResults";
+
+export { activeResultsBySlot, isCorrectable, slotKey } from "../results/activeResults";
 
 export const STRENGTH_SESSION_KINDS = ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const;
 
@@ -31,29 +34,6 @@ export function workItems(p: FinalPrescriptionV2View): WorkItem[] {
     .filter((i): i is ExerciseItemView => i.kind === "exercise")
     .map((item) => ({ item, measureType: item.measure.type === "reps" || item.measure.type === "duration" ? item.measure.type : null }));
 }
-
-export const slotKey = (prescriptionItemId: string, setNumber: number) => `${prescriptionItemId.toLowerCase()}#${setNumber}`;
-
-/**
- * The active result of each (prescription item, set number): rows that no
- * other row supersedes. Should several remain for one set (two devices each
- * recorded an original — the backend does not forbid it), the most recently
- * recorded one is the current value; the others stay in the history.
- */
-export function activeResultsBySlot(rows: readonly SetResultRow[]): Map<string, SetResultRow> {
-  const superseded = new Set(rows.filter((r) => r.supersedes_id).map((r) => r.supersedes_id!.toLowerCase()));
-  const bySlot = new Map<string, SetResultRow>();
-  for (const row of rows) {
-    if (superseded.has(row.id.toLowerCase()) || row.prescription_item_id === null) continue;
-    const key = slotKey(row.prescription_item_id, row.set_number);
-    const current = bySlot.get(key);
-    if (!current || row.recorded_at > current.recorded_at || (row.recorded_at === current.recorded_at && row.id > current.id)) bySlot.set(key, row);
-  }
-  return bySlot;
-}
-
-/** A correction is itself never corrected (backend rule): only an original can be. */
-export const isCorrectable = (row: SetResultRow) => row.supersedes_id === null;
 
 export interface StrengthSlot {
   item: ExerciseItemView;

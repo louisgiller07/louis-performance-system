@@ -404,8 +404,8 @@ describe("Guided Force session — abandon and restart", () => {
   });
 });
 
-describe("Other families stay read only (DH, endurance)", () => {
-  it.each(["DH_TECHNICAL", "AEROBIC_BASE"] as const)("%s: no result entry, completion disabled", async (kind) => {
+describe("Endurance stays read only (UX-11C.4 not started)", () => {
+  it.each(["AEROBIC_BASE"] as const)("%s: no result entry, completion disabled", async (kind) => {
     const b = fakeBackend({ prescription: prescriptionView(kind) });
     render(<Harness deps={b.deps} />);
     await startSession();

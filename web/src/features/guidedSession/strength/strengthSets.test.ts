@@ -15,6 +15,7 @@ const row = (id: string, setNumber: number, recorded: string, extra: Partial<Set
   measure_value: 8,
   load_kg: null,
   rpe_actual: null,
+  success: null,
   supersedes_id: null,
   occurred_at: recorded,
   recorded_at: recorded,
@@ -39,9 +40,8 @@ describe("strengthSets — pure model (UX-11C.2)", () => {
     expect(activeResultsBySlot([original, correction]).get(slotKey(SQUAT.prescriptionItemId, 1))?.id).toBe("b");
   });
 
-  it("two active originals for one set (two devices): the most recently recorded is current", () => {
-    const active = activeResultsBySlot([row("a", 1, "2026-10-09T18:01:00Z"), row("b", 1, "2026-10-09T18:02:00Z")]);
-    expect(active.get(slotKey(SQUAT.prescriptionItemId, 1))?.id).toBe("b");
+  it("two active rows for one set cannot exist since UX-11B.2.6 (unique original): the reader fails closed, it never picks one", () => {
+    expect(() => activeResultsBySlot([row("a", 1, "2026-10-09T18:01:00Z"), row("b", 1, "2026-10-09T18:02:00Z")])).toThrow(/several active results/);
   });
 
   it("completion: 0 work results → no; partial → yes with confirmation; all → yes without; an 'other exercise' or a not-done row never counts", () => {

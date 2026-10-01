@@ -22,6 +22,8 @@ export interface SetResultRow {
   measure_value: number | null;
   load_kg: number | null;
   rpe_actual: number | null;
+  /** UX-11C.3 — drill pass: was the success criterion met? null = not assessed. */
+  success: boolean | null;
   supersedes_id: string | null;
   occurred_at: string;
   recorded_at: string;

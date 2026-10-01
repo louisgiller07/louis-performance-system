@@ -102,15 +102,17 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
     for (const set of batch.sets ?? []) {
       const all = executions.flatMap((e) => e.exercise_set_results);
       const existing = all.find((r) => r.id === set.id);
+      const sent = { load_kg: null, rpe_actual: null, success: null, ...set };
       if (existing) {
         const same =
-          existing.prescription_item_id === set.prescription_item_id &&
-          existing.set_number === set.set_number &&
-          existing.measure_value === set.measure_value &&
-          existing.rpe_actual === set.rpe_actual &&
-          existing.load_kg === set.load_kg &&
-          existing.supersedes_id === set.supersedes_id &&
-          existing.occurred_at === set.occurred_at;
+          existing.prescription_item_id === sent.prescription_item_id &&
+          existing.set_number === sent.set_number &&
+          existing.measure_value === sent.measure_value &&
+          existing.rpe_actual === sent.rpe_actual &&
+          existing.load_kg === sent.load_kg &&
+          existing.success === sent.success &&
+          existing.supersedes_id === sent.supersedes_id &&
+          existing.occurred_at === sent.occurred_at;
         if (!same) throw new Rejected(refuse("id_conflict"));
         unchanged.sets!.push(set.id);
         continue;
@@ -131,7 +133,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
           throw new Rejected(refuse("invalid_correction"));
         }
       }
-      const row: SetResultRow = { ...set, other_exercise_name: null, recorded_at: `2026-10-09T18:${String(++clock).padStart(2, "0")}:00Z` };
+      const row: SetResultRow = { ...sent, other_exercise_name: null, recorded_at: `2026-10-09T18:${String(++clock).padStart(2, "0")}:00Z` };
       exec.exercise_set_results.push(row);
       inserted.sets!.push(set.id);
     }

@@ -17,7 +17,7 @@ import { upsertPerformanceProfileFor } from "../../../../../head-coach-engine/sr
 import { insertAvailabilityWindow } from "../../../../../head-coach-engine/src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../../../../head-coach-engine/src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../../../../head-coach-engine/src/supabase/acceptTrainingPlanVersion.js";
-import type { SessionExecutionBatch, SetResultInput } from "../sessionExecutionClient";
+import type { ForceSetInput, SessionExecutionBatch } from "../sessionExecutionClient";
 import type { FinalPrescriptionV2View } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 import { activeResultsBySlot, slotKey, strengthProgress, workItems } from "./strengthSets";
 
@@ -90,7 +90,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11C.2 — guided Force sets (real loca
     const id = randomUUID();
     return { execution: { id, session_date: day, started_at: at(day, 0), final_prescription_id: fpId, comment: null }, events: [{ id: randomUUID(), execution_id: id, event_type: "started", occurred_at: at(day, 0) }] };
   };
-  const set = (executionId: string, itemId: string, setNumber: number, value: number, extra: Partial<SetResultInput> = {}): SetResultInput => ({
+  const set = (executionId: string, itemId: string, setNumber: number, value: number, extra: Partial<ForceSetInput> = {}): ForceSetInput => ({
     id: randomUUID(),
     execution_id: executionId,
     prescription_item_id: itemId,

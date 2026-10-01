@@ -32,24 +32,44 @@ export interface ExecutionEventInput {
 }
 
 /**
- * UX-11C.2 — one performed set of a PRESCRIBED item (never an "other
+ * UX-11C.2 / 11C.3 — one performed set (Force) or pass (DH drill, the
+ * ordinal travels in `set_number`) of a PRESCRIBED item (never an "other
  * exercise" here). `exercise_id` is copied by the server and never sent.
  * A correction is a new row with `supersedes_id` = the original (same item,
- * same set number); `done` is always true: an absent set has no row.
+ * same ordinal); `done` is always true: an absent set / pass has no row.
  */
-export interface SetResultInput {
-  id: string;
-  execution_id: string;
-  prescription_item_id: string;
-  set_number: number;
-  done: true;
-  measure_type: "reps" | "duration";
-  measure_value: number;
-  load_kg: number | null;
-  rpe_actual: number | null;
-  supersedes_id: string | null;
-  occurred_at: string;
-}
+export type SetResultInput =
+  | {
+      id: string;
+      execution_id: string;
+      prescription_item_id: string;
+      set_number: number;
+      done: true;
+      measure_type: "reps" | "duration";
+      measure_value: number;
+      load_kg: number | null;
+      rpe_actual: number | null;
+      supersedes_id: string | null;
+      occurred_at: string;
+    }
+  | {
+      id: string;
+      execution_id: string;
+      prescription_item_id: string;
+      /** The pass ordinal (1..measure.count). */
+      set_number: number;
+      done: true;
+      measure_type: "pass";
+      /** A pass carries no value. */
+      measure_value: null;
+      /** Was the drill's success criterion met on this pass? null = not assessed. */
+      success: boolean | null;
+      supersedes_id: string | null;
+      occurred_at: string;
+    };
+
+export type ForceSetInput = Extract<SetResultInput, { measure_type: "reps" | "duration" }>;
+export type PassResultInput = Extract<SetResultInput, { measure_type: "pass" }>;
 
 /** Executions, events and (UX-11C.2) set results; activities belong to the endurance module (later). */
 export interface SessionExecutionBatch {

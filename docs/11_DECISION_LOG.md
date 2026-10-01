@@ -4631,3 +4631,26 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 **Tests mis à jour** : deux tests figeaient l'ancien comportement (une série acceptée après `completed`, une seconde activité refusée sur une exécution terminée). Ils suivent désormais le nouveau contrat. Le test web C.2 qui documentait l'écart vérifie maintenant le refus.
 
 **Statut** : Accepted — `feat/ux11b26-execution-result-integrity`, local, non poussé.
+
+## 2026-10-02 — ADR UX-11C.3 : passages d'une séance DH guidée (web)
+
+> **A guided DH technical session records the passes actually ridden on the ONE main drill of the execution's own final prescription, one append-only row per pass ordinal; `success` is an optional observation of the drill's criterion, never a completion condition.**
+
+**Décisions.**
+- Module `dh_technical` ; l'endurance reste en lecture seule (UX-11C.4) ; la Force est inchangée.
+- **Élément porteur** : l'unique drill du bloc `main`. Zéro, plusieurs, ou un élément non drill → fail-closed (message, fin désactivée), jamais un choix arbitraire.
+- **Emplacements** : « Passage 1…N », N = `measure.count` de la prescription du jour (jamais le plan, le type de semaine ni le catalogue courant). `set_number` = ordinal ; le mot « série » n'apparaît jamais dans l'écran DH.
+- **Résultat** : `measure_type = "pass"`, `measure_value = NULL`, `done = true`, `success` ∈ {true, false, NULL} via Oui / Non / Non évalué (groupe radio clavier, « Non évalué » par défaut).
+- Le critère de réussite est affiché une seule fois, sans score, pourcentage ni badge. Les consignes viennent de la prescription, aucun texte de coaching n'est écrit en dur. Aucun chrono.
+- **Saisie et correction** : mêmes règles qu'en Force. Une saisie ouverte n'est envoyée avec `completed` que si le pilote a répondu ; elle se ferme si l'emplacement a changé entre-temps (autre onglet).
+- **Fin** (règle verrouillée) : au moins un passage enregistré. Si des passages manquent, la confirmation « Certains passages prévus n'ont pas de résultat enregistré… » est demandée. `success` n'est pas pris en compte.
+- **Contrat de module** : la question de fin partielle est fournie par le module, et les messages d'erreur du shell parlent de « résultat » (plus de « série »).
+- **Lecteur commun** (`results/activeResults.ts`) : un emplacement a au plus un résultat actif. Le lecteur n'arbitre plus « le plus récent » ; un doublon fait échouer le chargement (fail-closed).
+
+**Écart signalé (harnais, non corrigé)** : `test:daily-run:v2:http` lance toujours un nouveau `supabase functions serve` et le termine en sortie, ce qui supprime le conteneur Edge même s'il tournait avant (malgré son commentaire « leave the stack as found »). Les suites web suivantes reçoivent alors des 503 jusqu'à ce qu'un nouveau `functions serve` soit lancé. Le 2/9 observé une fois en UX-11C.2 n'a pas été reproduit, conteneur préexistant compris.
+
+**Tests.**
+- Modèle pur ; interface DH contre le serveur en mémoire (règles UX-11B.2.6 incluses) ; intégration réelle locale (Edge, RPC, RLS, pont M1).
+- Contrôle Chrome headless réel à 390×844 via le protocole DevTools, script jetable hors dépôt, Supabase local seulement, toute requête vers `*.supabase.co` bloquée et comptée (0).
+
+**Statut** : Accepted — `feat/ux11c3-guided-dh-passes`, local, non poussé.

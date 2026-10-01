@@ -28,9 +28,9 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   active_execution_exists: "Une séance est déjà en cours aujourd'hui : elle est affichée ici.",
   network_error: "Ton action n'a pas été confirmée (connexion). L'état affiché est le dernier enregistré.",
   refused: "Action refusée. L'état affiché est celui enregistré.",
-  id_conflict: "Cette série a déjà été enregistrée avec d'autres valeurs : les valeurs enregistrées sont affichées.",
-  invalid_correction: "Cette série a déjà été corrigée : une série ne se corrige qu'une fois.",
-  result_slot_exists: "Un résultat a déjà été enregistré pour cette série (autre appareil) : la valeur enregistrée est affichée.",
+  id_conflict: "Ce résultat a déjà été enregistré avec d'autres valeurs : les valeurs enregistrées sont affichées.",
+  invalid_correction: "Ce résultat a déjà été corrigé : un résultat ne se corrige qu'une fois.",
+  result_slot_exists: "Un résultat a déjà été enregistré ici (autre appareil ou onglet) : la valeur enregistrée est affichée.",
   execution_terminal: "Cette séance est terminée : ses résultats ne peuvent plus changer.",
 };
 
