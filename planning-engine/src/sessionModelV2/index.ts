@@ -12,4 +12,3 @@ export * from "./assignPrescriptionIds.js";
 export * from "./sportFingerprint.js";
 export * from "./planInputSnapshotV2.js";
 export * from "./generationErrors.js";
-export * from "./executionCompatibility.js";

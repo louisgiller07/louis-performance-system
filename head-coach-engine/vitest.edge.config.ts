@@ -10,6 +10,13 @@ import { defineConfig } from "vitest/config";
 // files' tests, unaffected by whatever else gets added under tests/edge/**.
 export default defineConfig({
   test: {
-    include: ["tests/edge/errorMapping.test.ts", "tests/edge/generateTrainingPlanErrorMapping.test.ts"],
+    include: [
+      "tests/edge/errorMapping.test.ts",
+      "tests/edge/generateTrainingPlanErrorMapping.test.ts",
+      // UX-11A.5b.2.1 — session-execution request validation and stable
+      // rejection codes (invalid_prescribed_measure, …). Pure TypeScript,
+      // imported from supabase/functions/session-execution/validation.ts.
+      "tests/edge/sessionExecution/**/*.test.ts",
+    ],
   },
 });

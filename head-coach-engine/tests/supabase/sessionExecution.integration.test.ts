@@ -309,7 +309,6 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
       reps: randomUUID(),
       duration: randomUUID(),
       distance: randomUUID(),
-      activity: randomUUID(),
     };
     const structure = {
       schemaVersion: "v2",
@@ -320,15 +319,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
           blockId: "main",
           role: "main",
           items: [
-            { prescriptionItemId: ids.pass, kind: "drill", exerciseId: "cornering_flat_turn_precision", measure: { type: "pass", count: 6 } },
-            { prescriptionItemId: ids.passes, kind: "drill", exerciseId: "cornering_flat_turn_precision", measure: { type: "passes", count: 6 } },
+            // UX-11A.5b.2.1 — canonical drill item: drillId only, never an exerciseId alias.
+            { prescriptionItemId: ids.pass, kind: "drill", drillId: "cornering_flat_turn_precision", measure: { type: "pass", count: 6 } },
+            { prescriptionItemId: ids.passes, kind: "drill", drillId: "cornering_flat_turn_precision", measure: { type: "passes", count: 6 } },
             { prescriptionItemId: ids.unknown, kind: "exercise", exerciseId: "goblet_squat", sets: 3, measure: { type: "unknown" } },
             { prescriptionItemId: ids.missing, kind: "exercise", exerciseId: "goblet_squat", sets: 3 },
             { prescriptionItemId: ids.reps, kind: "exercise", exerciseId: "goblet_squat", sets: 3, measure: { type: "reps", min: 6, max: 8 } },
             { prescriptionItemId: ids.duration, kind: "exercise", exerciseId: "plank", sets: 2, measure: { type: "duration", minSeconds: 30, maxSeconds: 45 } },
             { prescriptionItemId: ids.distance, kind: "exercise", exerciseId: "farmer_carry", sets: 2, measure: { type: "distance", minMeters: 20, maxMeters: 30 } },
-            // Endurance activity item: no exerciseId at all (never a fake one).
-            { prescriptionItemId: ids.activity, kind: "activity", activitySelection: { mode: "restricted", activityIds: ["road_bike"] }, measure: { type: "duration", minSeconds: 1800, maxSeconds: 4500 } },
           ],
         },
       ],
@@ -368,17 +366,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     expect((await record(a.athleteId, { sets: [set(ids.distance, "distance", 25)] })).status).toBe("ok");
     expect(await record(a.athleteId, { sets: [set(ids.distance, "duration", 30, 2)] })).toMatchObject({ code: "measure_mismatch" });
 
-    // An activity item without exerciseId is not broken by the hardening: its duration is checked, exercise_id stays null.
-    const activitySet = set(ids.activity, "duration", 2400);
-    expect((await record(a.athleteId, { sets: [activitySet] })).status).toBe("ok");
-    expect(await record(a.athleteId, { sets: [set(ids.activity, "distance", 20000, 2)] })).toMatchObject({ code: "measure_mismatch" });
-    const { data: stored } = await admin.from("exercise_set_results").select("exercise_id, measure_type").in("id", [passSet.id, activitySet.id]);
-    expect(stored).toEqual(
-      expect.arrayContaining([
-        { exercise_id: "cornering_flat_turn_precision", measure_type: "pass" },
-        { exercise_id: null, measure_type: "duration" },
-      ])
-    );
+    // A canonical drill item (drillId, no exerciseId) records its pass with exercise_id = null:
+    // the drill is never written into exercise_id (UX-11A.5b.2.1).
+    const { data: stored } = await admin.from("exercise_set_results").select("exercise_id, measure_type").eq("id", passSet.id).single();
+    expect(stored).toEqual({ exercise_id: null, measure_type: "pass" });
     await completeExecution(exec.id);
   });
 });

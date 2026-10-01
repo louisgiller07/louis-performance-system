@@ -48,7 +48,7 @@ export type PrescriptionV2IssueCode =
   | "drill_with_role"
   | "empty_activity_selection"
   | "invalid_activity_selection"
-  | "activity_with_exercise_id"
+  | "activity_selection_not_allowed"
   | "ramp_up_not_allowed"
   | "invalid_ramp_up"
   | "forbidden_load_field";
@@ -91,6 +91,10 @@ export function validatePrescriptionV2(value: unknown, options: ValidatePrescrip
   else if (intent.family !== value.family) add("$.intentId", "intent_family_mismatch");
   if (value.protocolId !== undefined && !(isNonEmptyString(value.protocolId) && PROTOCOL_CATALOG_V2[value.protocolId])) add("$.protocolId", "unknown_protocol");
   validateManifest(value.catalog, add);
+  if (value.activitySelection !== undefined) {
+    if (value.family !== "endurance") add("$.activitySelection", "activity_selection_not_allowed");
+    checkActivitySelection(value.activitySelection, "$.activitySelection", add);
+  }
 
   const blockIds = new Set<string>();
   const itemIds = new Set<string>();
@@ -147,6 +151,8 @@ function validateItem(
   if (!includes(PRESCRIPTION_V2_ITEM_KINDS, item.kind)) return add(`${path}.kind`, "invalid_item_kind");
 
   if (item.kind !== "exercise" && item.rampUp !== undefined) add(`${path}.rampUp`, "ramp_up_not_allowed");
+  // The modality choice is session-level (endurance), never on an item.
+  if ("activitySelection" in item) add(`${path}.activitySelection`, "activity_selection_not_allowed");
   if (item.vigilanceIds !== undefined) {
     if (!Array.isArray(item.vigilanceIds)) add(`${path}.vigilanceIds`, "unknown_text");
     else item.vigilanceIds.forEach((id, i) => checkText(id, "vigilance", `${path}.vigilanceIds[${i}]`, add));
@@ -183,23 +189,16 @@ function validateItem(
       if (!Array.isArray(item.vigilanceIds)) add(`${path}.vigilanceIds`, "unknown_text");
       return;
     }
-    case "activity": {
-      if ("exerciseId" in item) add(`${path}.exerciseId`, "activity_with_exercise_id");
-      if ("sets" in item) add(`${path}.sets`, "invalid_sets");
-      const sel = item.activitySelection;
-      if (!isObj(sel) || sel.mode !== "restricted" || !Array.isArray(sel.activityIds)) add(`${path}.activitySelection`, "invalid_activity_selection");
-      else if (sel.activityIds.length === 0) add(`${path}.activitySelection.activityIds`, "empty_activity_selection");
-      else if (new Set(sel.activityIds).size !== sel.activityIds.length || !sel.activityIds.every((a) => includes(ENDURANCE_ACTIVITIES_V2, a))) {
-        add(`${path}.activitySelection.activityIds`, "invalid_activity_selection");
-      }
-      const m = item.measure;
-      if (!isObj(m)) add(`${path}.measure`, "invalid_measure");
-      else if (m.type !== "duration") add(`${path}.measure.type`, "invalid_measure_type");
-      else checkPair(m.minSeconds, m.maxSeconds, `${path}.measure`, 1, add);
-      if (item.rpeTarget !== undefined) checkRpe(item.rpeTarget, `${path}.rpeTarget`, add);
-      if (item.talkTestId !== undefined) checkText(item.talkTestId, "instruction", `${path}.talkTestId`, add);
-      return;
-    }
+  }
+}
+
+function checkActivitySelection(sel: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  if (!isObj(sel) || sel.mode !== "restricted" || !Array.isArray(sel.activityIds) || Object.keys(sel).length !== 2) {
+    return add(path, "invalid_activity_selection");
+  }
+  if (sel.activityIds.length === 0) return add(`${path}.activityIds`, "empty_activity_selection");
+  if (new Set(sel.activityIds).size !== sel.activityIds.length || !sel.activityIds.every((a) => includes(ENDURANCE_ACTIVITIES_V2, a))) {
+    add(`${path}.activityIds`, "invalid_activity_selection");
   }
 }
 

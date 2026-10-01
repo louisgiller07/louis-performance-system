@@ -3881,3 +3881,37 @@ Un test fige le manifeste. Toute nouvelle version de composant impose une nouvel
 - Pas de table créée maintenant, pas de colonne `activity_id` sur `session_executions`.
 
 **Statut** : Accepted — `feat/ux11a5b2-v2-core-types`, lignée non fusionnée. Aucune prescription V2 générée ni persistée.
+
+## 2026-10-01 — ADR UX-11A.5b.2.1 : corrections du contrat V2 avant génération
+
+> **The endurance modality is a session-level choice, not a prescription item. A DH drill stays identified by `drillId` everywhere, with no `exerciseId` alias. The session-execution validation tests run in the official edge suite.**
+
+**Amende l'ADR UX-11A.5b.2** sur les points ci-dessous. Le reste de cet ADR est inchangé.
+
+**1. Modalité d'endurance au niveau de la séance.**
+- `ActivityItemV2` est retiré avant toute utilisation. Une séance d'endurance continue se lit : `PrescriptionV2` → `activitySelection` → `warm_up` → `main` → `cool_down`. Le pilote choisit une activité une seule fois pour toute la séance.
+- `activitySelection?: { mode: "restricted"; activityIds }` vit au niveau de la séance, sur la famille `endurance` uniquement. La liste est non vide, sans doublon et faite d'identifiants connus. Elle sera dérivée du protocole par le générateur, jamais d'une seconde liste. Pas de mode `free`.
+- `PrescriptionItemV2` se limite à `exercise | drill` ; pas encore d'`intervals`, le planificateur ne produit pas ce type de séance.
+- Les blocs d'endurance portent durée, RPE, test de la parole et consignes, avec `items: []`. Le validateur l'accepte sans poser de règle générale : la composition par famille appartient aux builders et aux modèles de contenu.
+
+**2. Validateur.**
+- `activitySelection` : mode exactement `restricted`, liste non vide, sans doublon, identifiants connus.
+- Refusé hors famille `endurance` et sur un élément (`activity_selection_not_allowed`).
+- `kind: "activity"` est désormais une sorte d'élément invalide.
+
+**3. Exercice technique DH canonique.** Le domaine et le document stocké utilisent `drillId`, sans alias. Le mapper `toExecutionCompatibleDocument`, dont la seule raison d'être était cet alias, est **supprimé**. Le test SQL montre qu'un passage (`measure_type = 'pass'`) s'enregistre sur un élément DH portant `drillId` sans `exerciseId`, avec `exercise_id = null`. `exercise_id` n'est jamais rempli avec un exercice DH. Si UX-11E a besoin d'un accès direct, un vrai `drill_id` sera décidé.
+
+**4. Future réalisation d'une activité d'endurance (amende l'ADR UX-11A.5b.2).**
+- Une structure dédiée en ajout seul, `session_activity_results` (nom conceptuel), liée à `execution_id`. L'exécution référence déjà la prescription du jour ; il n'y a pas de faux élément.
+- Champs : `activity_id`, `duration_seconds`, `distance_meters` facultatif, `rpe_actual` facultatif, `comment` facultatif, `supersedes_id`, horodatages.
+- Le serveur vérifiera que l'activité réalisée appartient à `activitySelection.activityIds` de la prescription du jour.
+- Correction : original → correction via `supersedes_id`, sans mutation destructive.
+- La table n'est pas créée maintenant.
+
+**5. Empreinte sportive.** `activitySelection`, liste et ordre, fait partie du contenu sportif : deux séances d'endurance identiques sauf pour les activités autorisées ont des empreintes différentes (test).
+
+**6. Manifeste.** `templates: null` est validé pour l'instant. La DH et l'endurance utilisent `sessionFrameV2` et `protocolCatalogV2`, sans modèle Force. La version agrégée sera incrémentée quand un vrai catalogue Force sera créé.
+
+**7. Test permanent de `session-execution`.** `tests/edge/sessionExecution/**/*.test.ts` est ajouté à `vitest.edge.config.ts`. Il est exécuté par la commande officielle `npm run test:edge` (head-coach-engine), qui couvre la validation de la requête et les codes de rejet stables, dont `invalid_prescribed_measure`.
+
+**Statut** : Accepted — `feat/ux11a5b2-v2-core-types`, lignée non fusionnée. Aucune prescription V2 générée ni persistée.

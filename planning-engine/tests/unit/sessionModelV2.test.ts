@@ -7,7 +7,6 @@ import {
   SESSION_MODEL_V2_AGGREGATE_VERSION,
   SESSION_MODEL_V2_GENERATION_BLOCK_CODES,
   sportFingerprint,
-  toExecutionCompatibleDocument,
   toSessionModelV2Input,
   validatePrescriptionV2,
   type PlanInputSnapshotV2,
@@ -105,29 +104,26 @@ const DH: PrescriptionV2Content = {
   ],
 };
 
+// UX-11A.5b.2.1 — the activity is a session-level modality, not an item; endurance blocks carry no item.
 const ENDURANCE: PrescriptionV2Content = {
   schemaVersion: "v2",
   family: "endurance",
   sessionKind: "AEROBIC_BASE",
   intentId: "aerobic_base_lucidity",
   protocolId: "endurance_base_continuous",
+  activitySelection: { mode: "restricted", activityIds: ["road_bike", "mtb_rolling", "home_trainer", "running"] },
   catalog: MANIFEST,
   blocks: [
     { role: "warm_up", durationMinutes: { min: 10, max: 10 }, rpeTarget: { min: 2, max: 3 }, instructionIds: ["instruction.endurance.warm_up_easy"], items: [] },
     {
       role: "main",
+      durationMinutes: { min: 30, max: 30 },
+      rpeTarget: { min: 3, max: 4 },
+      talkTestId: "instruction.endurance.talk_test_full_sentences",
       instructionIds: [],
-      items: [
-        {
-          kind: "activity",
-          activitySelection: { mode: "restricted", activityIds: ["road_bike", "mtb_rolling", "home_trainer", "running"] },
-          measure: { type: "duration", minSeconds: 1800, maxSeconds: 4500 },
-          rpeTarget: { min: 3, max: 4 },
-          talkTestId: "instruction.endurance.talk_test_full_sentences",
-        },
-      ],
+      items: [],
     },
-    { role: "cool_down", durationMinutes: { min: 5, max: 5 }, instructionIds: ["instruction.endurance.cool_down_easy"], items: [] },
+    { role: "cool_down", durationMinutes: { min: 5, max: 5 }, rpeTarget: { min: 2, max: 2 }, instructionIds: ["instruction.endurance.cool_down_easy"], items: [] },
   ],
 };
 
@@ -152,7 +148,7 @@ describe("Prescription V2 — valid documents", () => {
   it.each([
     ["strength (exercise items, rampUp on the principal)", STRENGTH],
     ["DH (drill item, pass measure, no item role)", DH],
-    ["endurance (restricted activity item, no exerciseId)", ENDURANCE],
+    ["endurance (session-level restricted activitySelection, blocks without items)", ENDURANCE],
   ])("%s validates", (_label, content) => {
     const result = validatePrescriptionV2(withIds(content));
     expect(result.ok ? [] : result.issues).toEqual([]);
@@ -276,29 +272,41 @@ describe("Prescription V2 — validator invariants", () => {
     expect(codes(doc)).toEqual(["invalid_measure"]);
   });
 
-  it("an activity item is restricted to a non-empty, known, duplicate-free list and never carries an exerciseId", () => {
+  it("activitySelection (session level) is restricted to a non-empty, known, duplicate-free list", () => {
     const empty = mutable(ENDURANCE);
-    empty.blocks[1].items[0].activitySelection.activityIds = [];
+    empty.activitySelection.activityIds = [];
     expect(codes(empty)).toEqual(["empty_activity_selection"]);
     const free = mutable(ENDURANCE);
-    free.blocks[1].items[0].activitySelection = { mode: "free" };
+    free.activitySelection = { mode: "free" };
     expect(codes(free)).toEqual(["invalid_activity_selection"]);
     const unknown = mutable(ENDURANCE);
-    unknown.blocks[1].items[0].activitySelection.activityIds = ["road_bike", "swimming"];
+    unknown.activitySelection.activityIds = ["road_bike", "swimming"];
     expect(codes(unknown)).toEqual(["invalid_activity_selection"]);
     const dup = mutable(ENDURANCE);
-    dup.blocks[1].items[0].activitySelection.activityIds = ["road_bike", "road_bike"];
+    dup.activitySelection.activityIds = ["road_bike", "road_bike"];
     expect(codes(dup)).toEqual(["invalid_activity_selection"]);
-    const fake = mutable(ENDURANCE);
-    fake.blocks[1].items[0].exerciseId = "endurance_activity";
-    expect(codes(fake)).toEqual(["activity_with_exercise_id"]);
   });
 
-  it("rampUp is refused on an activity, on a drill, on a non-principal exercise and outside strength; its shape is locked", () => {
+  it("activitySelection only exists on an endurance session, never on another family nor on an item; 'activity' is not an item kind", () => {
+    const onStrength = mutable(STRENGTH);
+    onStrength.activitySelection = { mode: "restricted", activityIds: ["road_bike"] };
+    expect(codes(onStrength)).toEqual(["activity_selection_not_allowed"]);
+    const onItem = mutable(STRENGTH);
+    onItem.blocks[1].items[0].activitySelection = { mode: "restricted", activityIds: ["road_bike"] };
+    expect(codes(onItem)).toEqual(["activity_selection_not_allowed"]);
+    const activityItem = mutable(ENDURANCE);
+    activityItem.blocks[1].items = [{ prescriptionItemId: "x-1", kind: "activity", measure: { type: "duration", minSeconds: 1800, maxSeconds: 1800 } }];
+    expect(codes(activityItem)).toEqual(["invalid_item_kind"]);
+  });
+
+  it("an endurance session without activitySelection is not rejected by the structural validator (composition belongs to the builders)", () => {
+    const doc = mutable(ENDURANCE);
+    delete doc.activitySelection;
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it("rampUp is refused on a drill and on a non-principal exercise; its shape is locked", () => {
     const ramp = { instructionId: "instruction.strength_warm_up.main_movement_ramp", sets: { min: 1, max: 2 } };
-    const onActivity = mutable(ENDURANCE);
-    onActivity.blocks[1].items[0].rampUp = ramp;
-    expect(codes(onActivity)).toEqual(["ramp_up_not_allowed"]);
     const onDrill = mutable(DH);
     onDrill.blocks[1].items[0].rampUp = ramp;
     expect(codes(onDrill)).toEqual(["ramp_up_not_allowed"]);
@@ -424,8 +432,9 @@ describe("Sport fingerprint", () => {
     ["catalog version", (d) => (d.catalog.exercises = "session-exercises-v2.1")],
     ["drill", (d) => (d.blocks[1].items[0].drillId = "cornering_berm_speed"), DH],
     ["passes", (d) => (d.blocks[1].items[0].measure.count = 7), DH],
-    ["allowed activity", (d) => d.blocks[1].items[0].activitySelection.activityIds.pop(), ENDURANCE],
-    ["activity duration", (d) => (d.blocks[1].items[0].measure.maxSeconds = 3600), ENDURANCE],
+    ["allowed activity list", (d) => d.activitySelection.activityIds.pop(), ENDURANCE],
+    ["activity order", (d) => d.activitySelection.activityIds.reverse(), ENDURANCE],
+    ["main block duration", (d) => (d.blocks[1].durationMinutes = { min: 45, max: 45 }), ENDURANCE],
   ])("changes when the %s changes", (_label, mutate, base) => {
     const reference = sportFingerprint(base ?? STRENGTH);
     expect(change(mutate, base)).not.toBe(reference);
@@ -436,16 +445,12 @@ describe("Sport fingerprint", () => {
   });
 });
 
-describe("Execution compatibility (UX-11B write path reads `exerciseId`)", () => {
-  it("adds exerciseId = drillId on drill items only; activities never get a fake exerciseId; the domain object is untouched", () => {
+describe("Drill items are canonical (UX-11A.5b.2.1)", () => {
+  it("a drill item is identified by drillId only — no exerciseId alias anywhere in the prescription", () => {
     const dh = withIds(DH);
-    const stored = toExecutionCompatibleDocument(dh) as any;
-    expect(stored.blocks[1].items[0]).toMatchObject({ drillId: "cornering_flat_turn_precision", exerciseId: "cornering_flat_turn_precision" });
-    expect((dh.blocks[1]!.items[0] as any).exerciseId).toBeUndefined();
-    const endurance = toExecutionCompatibleDocument(withIds(ENDURANCE)) as any;
-    expect("exerciseId" in endurance.blocks[1].items[0]).toBe(false);
-    const strength = withIds(STRENGTH);
-    expect(toExecutionCompatibleDocument(strength)).toEqual(strength);
+    const drill = dh.blocks[1]!.items[0]!;
+    expect(drill).toMatchObject({ kind: "drill", drillId: "cornering_flat_turn_precision" });
+    expect(JSON.stringify(dh)).not.toContain("exerciseId");
   });
 });
 
