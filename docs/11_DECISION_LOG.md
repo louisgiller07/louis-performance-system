@@ -4702,3 +4702,7 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 - Contrôle Chrome réel à 390×844 : Supabase local seulement, via `.env.local` local et la garde de développement ; seuls `localhost` et `127.0.0.1:54321` ont été contactés.
 
 **Statut** : Accepted — `feat/ux11c4-guided-endurance`, local, non poussé.
+
+## 2026-10-02 — Précision (sécurité du développement local) : refus affiché dans la page
+
+Le refus d'un backend Supabase distant en développement n'apparaissait que dans la console (page blanche). `web/src/main.tsx` vérifie désormais la cible avec la fonction pure `isSupabaseTargetAllowed` **avant** de charger l'application (import dynamique de `App`, qui crée le client Supabase). Un refus affiche `DevConfigRefused` : aucun client, aucune authentification, aucune requête, et ni URL, ni clé, ni jeton à l'écran. La garde du module client reste en défense en profondeur. Contrat inchangé : opt-in `VITE_ALLOW_REMOTE_SUPABASE_IN_DEV=true`, production jamais bloquée. Vérifié dans un vrai Chrome : URL distante → écran de refus, 0 requête distante ; Supabase local → application normale.

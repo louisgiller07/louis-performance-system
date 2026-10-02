@@ -63,3 +63,13 @@ describe("the client module enforces it before creating any client", () => {
     await expect(import("./supabase")).resolves.toHaveProperty("supabase");
   });
 });
+
+describe("isSupabaseTargetAllowed — the pure check main.tsx runs before loading the app", () => {
+  it("same contract as the assertion", async () => {
+    const { isSupabaseTargetAllowed } = await import("./supabaseTarget");
+    expect(isSupabaseTargetAllowed({ DEV: true, VITE_SUPABASE_URL: "http://127.0.0.1:54321" })).toBe(true);
+    expect(isSupabaseTargetAllowed({ DEV: true, VITE_SUPABASE_URL: REMOTE })).toBe(false);
+    expect(isSupabaseTargetAllowed({ DEV: true, VITE_SUPABASE_URL: REMOTE, VITE_ALLOW_REMOTE_SUPABASE_IN_DEV: "true" })).toBe(true);
+    expect(isSupabaseTargetAllowed({ DEV: false, VITE_SUPABASE_URL: REMOTE })).toBe(true);
+  });
+});

@@ -38,11 +38,14 @@ export interface SupabaseTargetEnv {
   VITE_ALLOW_REMOTE_SUPABASE_IN_DEV?: string;
 }
 
+/** Whether this configuration may create a Supabase client (pure: no client, no network). */
+export function isSupabaseTargetAllowed(env: SupabaseTargetEnv): boolean {
+  return !env.DEV || isLocalSupabaseUrl(env.VITE_SUPABASE_URL) || env.VITE_ALLOW_REMOTE_SUPABASE_IN_DEV === "true";
+}
+
 /** Throws RemoteSupabaseInDevError when development mode targets a non-local Supabase without the explicit opt-in. */
 export function assertSupabaseTargetAllowed(env: SupabaseTargetEnv): void {
-  if (!env.DEV) return;
-  if (isLocalSupabaseUrl(env.VITE_SUPABASE_URL)) return;
-  if (env.VITE_ALLOW_REMOTE_SUPABASE_IN_DEV === "true") return;
+  if (isSupabaseTargetAllowed(env)) return;
   let host = "URL invalide";
   try {
     host = new URL(env.VITE_SUPABASE_URL).hostname;
