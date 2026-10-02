@@ -1,4 +1,4 @@
-# UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1)
+# UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1, UX-11R.3.2)
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -10,18 +10,18 @@
 |---|---|---|
 | Projet Supabase | `uvolpldwwyvadlamulvr`, nom « LOUIS PERFORMANCE SYSTEM » | `supabase/.temp/project-ref` et `linked-project.json` (lien CLI local, non versionné) ; toutes les mises en production documentées (dernière : PILOT_013, 2026-09-24) |
 | Projet à ne **jamais** viser | `evynmzyjhobdpmxdiwsy` (inactif, non lié) | `docs/11_DECISION_LOG.md` |
-| Web | Vercel, projet `louis-performance-system`, scope `nalynt`, alias `https://louis-performance-system.vercel.app` | `web/.vercel/project.json` (non versionné), `docs/06_ARCHITECTURE.md` |
+| Web | Vercel, projet `nalynt` (id `prj_PmxPGlFwH5beHjzMFcwV1pOAf9CS`, racine `web`), alias `https://louis-performance-system.vercel.app` ; marketing : projet `nalynt-marketing` (racine `marketing-site`) | Gate R7 (2026-10-02, lecture API Vercel) |
 | CLI Supabase | `2.114.0` (racine, `npx supabase`) | `package.json` racine |
 
 - Le lien CLI local pointe sur la production. `db push` et `functions deploy` sans option visent donc le projet lié.
 - Règle de ce runbook : **toujours** passer `--project-ref uvolpldwwyvadlamulvr` explicitement, jamais une commande sans cible.
 - Aucune variable `SUPABASE_*` dans l'environnement du shell local (vérifié) ; `web/.env.local` vise la pile locale.
-- Web : en 2026-09 (V0.3_003E), le projet Vercel a été **constaté** non relié à Git, et `npx vercel deploy --prod --scope nalynt` depuis `web/` était le seul mécanisme. C'est un constat historique, **pas une preuve de la configuration actuelle** : voir §19, qui conclut `REMOTE CONFIGURATION MUST BE VERIFIED BEFORE MERGE`.
+- **Web : `AUTO_DEPLOY_ON_MAIN = TRUE`** (vérifié en lecture seule le 2026-10-02, §19). Les projets Vercel `nalynt` et `nalynt-marketing` sont reliés à GitHub `louisgiller07/louis-performance-system`, branche de production `main`, création automatique des déploiements activée, aucune étape de build ignorée. Le web en production est le build de `ba59239`, produit par le push sur `main`. Le constat V0.3_003E (« non relié à Git ») date d'avant la liaison du 2026-09-15 : il est périmé.
 
 ## 2. Source de la release
 
 - Commit de release : la tête de la pile UX-11 approuvée (actuellement `feat/ux11r31-athlete-delete-merge-gate`). `main` = `origin/main` = `ba59239` (production).
-- **Aucun merge ni push avant le Stage 1** tant que le §19 n'a pas été levé par une vérification distante en lecture seule. L'ordre est verrouillé au §20.
+- **INTERDIT : merge / push sur `main` avant le Stage 1.** Un push sur `main` est un déploiement production du web et du site marketing. L'ordre est verrouillé au §20.
 - Le déploiement se fait toujours depuis un checkout propre du commit de release, qu'il soit poussé ou non.
 - Rien de local n'est versionné par erreur : `.env.local` et `web/.env.local` sont ignorés, `supabase/.temp` aussi, `web/.vercel` aussi, `ROLL_OUT_CHECKLIST.md` est exclu localement, aucun `dist/` n'est suivi. Ajouts toujours fichier par fichier, jamais `git add .`.
 
@@ -120,7 +120,7 @@ Distant attendu : 50 migrations, la dernière `20260924110000`. Local : 60. À a
 | 0.8 | Sauvegardes | Dashboard → Database → Backups · `npx supabase backups list --project-ref uvolpldwwyvadlamulvr` | API, lecture | sauvegarde récente présente ; PITR noté (oui / non) |
 | 0.9 | Fonctions déployées | `npx supabase functions list --project-ref uvolpldwwyvadlamulvr` | API, lecture | versions notées pour `daily-run`, `generate-training-plan`, `accept-training-plan`, `completed-session` ; `session-execution` absente ; `verify_jwt = true` |
 | 0.10 | Flag global | `npx supabase secrets list --project-ref uvolpldwwyvadlamulvr` | API, lecture (noms et empreintes seulement) | `NALYNT_V2_PLAN_GENERATION_ENABLED` **absent** |
-| 0.11 | Web en production | `npx vercel ls louis-performance-system --scope nalynt` puis `npx vercel inspect https://louis-performance-system.vercel.app --scope nalynt` | Vercel, lecture | identifiant du déploiement courant noté (retour web possible tant qu'aucun plan V2 n'existe) |
+| 0.11 | Web en production | `npx vercel@62.2.0 api "/v9/projects/<projectId>?teamId=<orgId>" -X GET --raw`, filtré sur `targets.production` (ne jamais afficher `env`) | Vercel, lecture | identifiant du déploiement courant noté (retour web possible tant qu'aucun plan V2 n'existe) |
 | 0.12 | Référence de comptage V1 | SQL lecture : `select 'training_plan_versions', count(*) from public.training_plan_versions union all select 'decisions', count(*) from public.decisions union all select 'completed_sessions', count(*) from public.completed_sessions union all select 'athletes', count(*) from public.athletes;` | DB prod, lecture | valeurs notées ; comparées après le Stage 1 |
 
 ### MUTATING COMMANDS
@@ -161,29 +161,34 @@ Aucune commande du Stage 0 ne modifie la production.
 - checkout propre au commit de release ;
 - `build:release:all -- --verify-only` vert, avec les mêmes hashes que l'inventaire enregistré.
 
-Depuis la racine du checkout de release, dans cet ordre, **une fonction nommée à la fois** :
+Ordre exact (UX-11R.3.2). Le web n'est **plus** déployé par `vercel deploy` : c'est le push sur `main` qui le déploie, avec le site marketing. Ainsi « nouveau web + anciennes Edge » n'existe jamais comme étape planifiée.
 
-| # | Commande | Pourquoi cet ordre |
+| # | Commande / action | Pourquoi |
 |---|---|---|
+| 2.0 | Checkout propre au commit RC exact ; `npm ci` (racine + 5 paquets) ; `npm run build:release:all` puis `npm run build:release:all -- --verify-only` | mêmes hashes que l'inventaire (§4) |
 | 2.1 | `npx supabase functions deploy session-execution --project-ref uvolpldwwyvadlamulvr --use-api` | nouvelle, inerte : aucune prescription V2 ne peut exister |
 | 2.2 | `npx supabase functions deploy daily-run --project-ref uvolpldwwyvadlamulvr --use-api` | chemin V1 identique ; lecteurs V2 présents mais inactifs |
 | 2.3 | `npx supabase functions deploy generate-training-plan --project-ref uvolpldwwyvadlamulvr --use-api` | flag absent → V1 |
-| 2.4 | `npx supabase functions list --project-ref uvolpldwwyvadlamulvr` | versions +1 pour les 3 seulement, `verify_jwt = true`, les autres versions inchangées |
-| 2.5 | `cd web && npx vercel deploy --prod --scope nalynt` | en dernier : web RC compatible V1, fail-closed pour V2 |
+| 2.4 | `npx supabase functions list --project-ref uvolpldwwyvadlamulvr` ; `NALYNT_V2_PLAN_GENERATION_ENABLED` toujours absent | versions +1 pour les 3 seulement, `verify_jwt = true` |
+| 2.5 | **Smoke V1 Edge** (compte de test, web encore `ba59239`) | voir ci-dessous |
+| 2.6 | **Seulement ensuite** : merge du commit RC dans `main`, puis push | le push déclenche les déploiements production Vercel `nalynt` (web) et `nalynt-marketing` (contenu inchangé depuis `ba59239`) |
+| 2.7 | Vérifier le déploiement production (API Vercel en lecture : `targets.production.meta.githubCommitSha` = commit RC, `READY`) | web RC servi |
+| 2.8 | **Smoke V1 web** | voir ci-dessous |
 
-Jamais `--no-verify-jwt`, jamais `--prune`, jamais `functions deploy` sans nom.
+Jamais `--no-verify-jwt`, jamais `--prune`, jamais `functions deploy` sans nom, jamais `npx vercel deploy --prod` en parallèle du push.
 
-**Smokes V1** (compte de test) :
+**Smokes V1 Edge (2.5)** (compte de test) :
 - appel sans JWT à chaque fonction → 401 ;
 - génération → 200, puis `plan_generation_succeeded` avec `planningModel = v1` et `rolloutReason = global_v2_disabled` ;
 - acceptation → 200 ;
 - Daily → 200, sans champ V2, `decisions.final_prescription_status` NULL ;
-- completed-session → 200 ;
-- web : routes principales 200 ; aucune entrée « séance guidée ».
+- completed-session → 200.
+
+**Smoke V1 web (2.8)** : routes principales 200, connexion du compte de test, Daily affiché, aucune entrée « séance guidée ».
 
 **Retour arrière du Stage 2** (permis **seulement** si `select count(*) from public.training_plan_versions where prescription_schema_version = 'v2'` vaut 0) :
 - redéployer `daily-run` et `generate-training-plan` depuis un checkout propre de `ba59239` ;
-- promouvoir le déploiement web noté au 0.11 ;
+- web : promouvoir le déploiement production précédent (`dpl_AVRkb3jeU1iAvifRHsrRpgwpi8AG`, build de `ba59239`) via Vercel (`vercel promote` / « Instant Rollback »), **sans** pousser un revert sur `main` (qui redéploierait aussi) ;
 - `session-execution` peut rester (inerte).
 
 ## 10. Stage 3 — compte interne (APPROVALS C puis D ; NON exécuté)
@@ -365,11 +370,22 @@ Mêmes résultats sur la base vierge (60 migrations) et sur la base type product
 
 Conclusion : **aucune automation dans le dépôt**. Ce n'est **pas** une preuve qu'aucun système externe ne déploie.
 
-**Verdict : `REMOTE CONFIG VERIFICATION REQUIRED`**, à traiter par défaut comme **`DO NOT MERGE BEFORE STAGE 1`**.
-- Un déploiement automatique du nouveau web ou de nouvelles Edge Functions sur l'ancien schéma serait **new code + old schema = UNSUPPORTED**.
-- Une application automatique des migrations court-circuiterait l'Approbation A.
-- Statut Vercel : `REMOTE CONFIGURATION MUST BE VERIFIED BEFORE MERGE` (§21, R7).
-- Statut Supabase : à vérifier aussi (§21, R8).
+**Vérification distante en lecture seule (2026-10-02, UX-11R.3.2) : `AUTO_DEPLOY_ON_MAIN = TRUE`.**
+- API Vercel (GET) : les projets `nalynt` (racine `web`) et `nalynt-marketing` (racine `marketing-site`) sont reliés à GitHub `louisgiller07/louis-performance-system`.
+  - Branche de production `main`, `gitProviderOptions.createDeployments = enabled`, aucune `commandForIgnoringBuildStep`, aucun deploy hook.
+  - Lien créé le 2026-09-15.
+- Production web actuelle : `dpl_AVRkb3jeU1iAvifRHsrRpgwpi8AG`, `READY`, `githubCommitSha = ba59239…`, ref `main`, 2026-09-30 14:08 UTC.
+- GitHub (API publique, GET) :
+  - chaque push sur `main` du 2026-09-30 (`33f779b`, `9e68e4b`, `1f16235`, `35e6e62`, `ba59239`) a créé des déploiements **Production** par `vercel[bot]`, pour `nalynt` et `nalynt-marketing` ;
+  - statuts « Vercel – nalynt » et « Vercel – nalynt-marketing » sur `ba59239` ;
+  - aucun workflow GitHub Actions ; aucun check-run.
+- Supabase : aucune branche de preview (`branches list` vide) ; aucun statut ni check-run Supabase sur les commits. Aucune intégration détectée ; l'intégration GitHub dans le dashboard, les webhooks et les GitHub Apps n'ont pas été vérifiés (pas d'accès GitHub authentifié).
+- Le dépôt GitHub est **public**.
+
+**Verdict : `DO NOT MERGE/PUSH MAIN BEFORE STAGE 1`.**
+- Un push sur `main` déploierait immédiatement le web RC sur l'ancien schéma : nouveau code + ancien schéma = UNSUPPORTED.
+- `createDeployments` étant actif, un push d'une **autre** branche crée probablement des déploiements Preview : aucun push de branche UX-11 avant l'Approbation B.
+- Le push sur `main` devient l'étape 2.6 de l'Approbation B, après les Edge Functions (§9, §20).
 
 ## 20. Ordre de déploiement verrouillé
 
@@ -384,12 +400,19 @@ Compatibilité prouvée en local :
 4. Smoke V1 avec l'**ancien** code toujours en place (1.6).
 5. Seulement ensuite, **Approbation B** : déploiement du nouveau code, Edge d'abord puis web (§9). C'est aussi le seul moment où un merge / push sur `main` peut avoir lieu s'il déclenche un déploiement.
 
-**Merge / push :**
-- **Si R7 et R8 prouvent qu'aucun système ne déploie au push** : le merge / push peut précéder le Stage 1. Le déploiement reste manuel, depuis un checkout propre.
-- **Si un déploiement automatique existe (ou si R7 / R8 ne concluent pas)** : le push est un déploiement.
-  - Il se place **après le Stage 1** et **sous l'Approbation B**.
-  - Pour le web, après le déploiement des 3 Edge Functions (2.1 à 2.3) : la combinaison nouveau web + anciennes Edge n'a pas été répétée.
-  - Une intégration Supabase qui appliquerait les migrations au merge doit être désactivée ou vérifiée inactive **avant** tout push.
+**Merge / push (verrouillé, UX-11R.3.2) :**
+- **INTERDIT** : merge / push sur `main` avant le Stage 1, et avant les 3 Edge Functions du Stage 2.
+- **APPROBATION A** : migrations seulement (§8), puis smoke V1 avec l'ancien code (1.6).
+- **APPROBATION B**, dans cet ordre exact (§9) :
+  1. checkout RC exact ;
+  2. `build:release:all` puis `--verify-only` ;
+  3. déploiement manuel de `session-execution`, `daily-run`, `generate-training-plan` ;
+  4. flag V2 global toujours absent ;
+  5. smoke V1 Edge ;
+  6. merge / push `main` ;
+  7. ce push déclenche les déploiements production Vercel web et marketing ;
+  8. smoke V1 web.
+- Une intégration Supabase qui appliquerait les migrations au merge n'a pas été détectée ; elle doit rester vérifiée inactive avant le push 6.
 
 ## 21. Gate distant en lecture seule (préparé, NON exécuté ; autorisation séparée requise)
 
@@ -433,4 +456,88 @@ L'Approbation A reste **BLOQUÉE** tant que ces points distants ne sont pas vér
 3. sauvegarde fraîche de production : dump logique, avec sommes de contrôle et procédure de restauration ;
 4. capacité de restauration : sauvegardes, PITR, rôle autorisé (R6) ;
 5. cible confirmée une seconde fois, au moment même de l'opération (R1, R2) ;
-6. **avant toute décision de merge** : comportement Git de Vercel et de Supabase (R7, R8).
+6. comportement Git : **fait** (R7 : `AUTO_DEPLOY_ON_MAIN = TRUE`, intégré à l'ordre du §20 ; R8 : aucune intégration Supabase détectée, webhooks et GitHub Apps non vérifiés).
+
+Statut courant et matrice : §24.
+
+## 23. Outil du gate en lecture seule (UX-11R.3.2)
+
+`scripts/release/prod-readonly-gate.mjs` (versionné, sans secret). **Lancé par l'opérateur dans son propre terminal**, `PGPASSWORD` défini dans ce terminal seulement : le mot de passe ne transite ni par un fichier, ni par un argument, ni par un log.
+
+| Commande | Fait | Écrit en production |
+|---|---|---|
+| `inspect --out <DIR>` | R3 (historique des migrations comparé à `ba59239` et aux 10 UX), grants / RLS / policies de `athletes`, comptages, catalogue structurel de `public`, dump `--schema-only --schema=public` | jamais : chaque requête dans `BEGIN READ ONLY … ROLLBACK` avec `ON_ERROR_STOP` ; `pg_dump` ne fait que lire |
+| `catalog --target local:<conteneur> --out <FICHIER>` | catalogue de référence d'une pile locale construite depuis les 50 migrations de `ba59239` | — (local) |
+| `drift --prod <catalogue> --ref <catalogue>` | R5 : différences ligne à ligne (tables, colonnes, types, defaults, contraintes, FK, index, fonctions et signatures, triggers, RLS, policies, grants de tables, de colonnes et de fonctions, vues, séquences, enums, default privileges, extensions) ; propriétaires exclus | — (local) |
+| `backup --out <DIR>` | dump logique complet : `public` + `supabase_migrations` (schéma et données), `auth` et `storage` en **données seulement** (sans `auth.schema_migrations`), format custom, `SHA256SUMS`, comptages avant / après | jamais (`pg_dump`) |
+| `restore-check --backup <DIR> --into local:<conteneur vide>` | restauration dans une pile **locale** vide (auth → storage → app), comptages, catalogue restauré comparé à celui de la sauvegarde, athlètes sans identité Auth | — (local seulement ; refuse la production) |
+
+Garde-fous : ref liée = `uvolpldwwyvadlamulvr` obligatoire, `evynmzyjhobdpmxdiwsy` refusé, utilisateur du pooler de ce projet, `PGPASSWORD` requis (jamais affiché), sorties hors du dépôt, cible `local:` limitée aux conteneurs `supabase_db_*`. Aucune commande du CLI Supabase (pas de rôle de connexion temporaire), aucune API de gestion.
+
+**Validé en local** (pile `ba59239` + données = « fausse production », référence `ba59239` fraîche, pile vide de restauration) :
+- `inspect` : 50 appliquées = `ba59239`, exactement les 10 UX en attente, grants pré-migration (DELETE présent pour `anon` / `authenticated`) ;
+- `drift` : 0 ligne entre la fausse production et la référence (même hash de catalogue) ; contrôle positif : 147 / 3 lignes contre le schéma à 60 migrations, dont le grant DELETE de `athletes` ;
+- `backup` puis `restore-check` : 0 écart de comptage, 0 athlète sans identité Auth, catalogue identique à une ligne près ;
+  - l'écart restant est une CHECK de `pattern_insight_reviews` réécrite avec des parenthèses normalisées par PostgreSQL lors de l'aller-retour : bruit d'outil démontré, sans effet ;
+  - seule erreur restante : `schema "public" already exists`, sans effet ;
+- lecture V1 par le code de production `ba59239` sur la base restaurée (`computeDailyFor`) : 4 / 4.
+
+**Limites de la sauvegarde logique** (à connaître avant d'accepter le risque) :
+- **Auth** : les lignes `auth.*` sont restaurables en données si le service Auth cible est à une version de schéma compatible. Ne sont **pas** dans le dump :
+  - la configuration Auth (fournisseurs, SMTP, URL du site, modèles d'e-mail) ;
+  - les clés de signature JWT du projet. Dans un nouveau projet, les sessions et jetons existants sont invalides et les utilisateurs se reconnectent ; les hachages de mot de passe restent valables.
+- Lisibilité de `auth` par le rôle `postgres` en production : à constater au premier `backup` (`NO_SELECT_PRIVILEGE` ou échec de `pg_dump` = Auth non sauvegardée).
+- **Storage** : seules les métadonnées (`storage.buckets`, `storage.objects`) ; pas le contenu des fichiers.
+- **Hors base** : secrets et versions des Edge Functions, secrets Vault (`supabase_vault`), clés API, paramètres réseau et de projet, configuration Vercel.
+- La restauration vise une base **vide** au même schéma de plateforme ; sur un projet Supabase neuf, il faut d'abord comparer les versions des services.
+
+## 24. Statut du gate et matrice de l'Approbation A (2026-10-02)
+
+Exécuté en lecture seule (UX-11R.3.2) : R1, R2, R6, R7, R8. **Non exécuté** : tout ce qui demande la base, car `PGPASSWORD` est absent de l'environnement de l'agent.
+
+| Gate | Résultat |
+|---|---|
+| target production | **PASS** : `uvolpldwwyvadlamulvr`, « LOUIS PERFORMANCE SYSTEM », eu-central-1, ACTIVE_HEALTHY, lié ; `evynmzyjhobdpmxdiwsy` INACTIVE, non lié. À reconfirmer au moment de l'opération. |
+| migration history | **NOT VERIFIED** (mot de passe absent) |
+| exactly 10 pending | **NOT VERIFIED** |
+| material schema drift | **NOT VERIFIED** |
+| schema dump | **NOT DONE** |
+| full logical dump | **NOT DONE** |
+| logical restore rehearsal | **NOT DONE** sur la production ; procédure validée en local (§23) |
+| auth recoverability | **NOT VERIFIED** (données Auth restaurables en local ; lisibilité en production et compatibilité de version à constater) |
+| provider backup | **FAIL** : `backups list` = 0 sauvegarde |
+| PITR | **FAIL** : `pitr_enabled = false` |
+| restore operator | **NOT VERIFIED** (dashboard, rôles de l'organisation) |
+| baseline counts | **NOT CAPTURED** |
+| DELETE pre-state | **NOT VERIFIED** |
+| Vercel main auto-deploy known | **PASS** : `AUTO_DEPLOY_ON_MAIN = TRUE`, documenté et intégré à l'ordre du §20 |
+
+État des Edge Functions (R2, `functions list`, lecture) : 8 fonctions `ACTIVE`, `verify_jwt` vrai. `daily-run` v20, `accept-training-plan` v4, `generate-training-plan` v6 (2026-09-28) ; `completed-session` v5, `abandon-training-plan` v2 (2026-09-24) ; `get-insights` v2, `refresh-longitudinal` v4, `submit-review` v2 (2026-08-28). `session-execution` absente. Lien avec `ba59239` : **DOCUMENTED** (aucune source Edge modifiée entre `056ebd7`, 2026-09-28, et `ba59239`), sans preuve par hash.
+
+**HARD REQUIREMENTS FOR APPROVAL A** :
+- target PASS ;
+- migration history PASS ;
+- exactly 10 pending PASS ;
+- ZERO MATERIAL SCHEMA DRIFT ;
+- logical dump PASS ;
+- restore rehearsal PASS ;
+- restore operator identified ;
+- baseline captured.
+
+**RISK ACCEPTANCE** :
+- la sauvegarde provider et le PITR peuvent rester indisponibles **uniquement** si la récupération logique est réellement validée sur le dump de production, **et** si l'opérateur accepte explicitement, par écrit, qu'il n'existe aucun point-in-time recovery ;
+- cette acceptation n'est jamais implicite.
+
+**Verdict : `APPROVAL A STILL BLOCKED`.**
+
+**Pour compléter le gate** (opérateur, terminal local, aucune écriture en production) :
+1. définir `PGPASSWORD` dans ce terminal ;
+2. `node scripts/release/prod-readonly-gate.mjs inspect --out <DIR>` ;
+3. démarrer une pile locale jetable depuis les 50 migrations de `ba59239`, puis `catalog --target local:<conteneur> --out <DIR>/catalog-ref.txt` ;
+4. `drift --prod <DIR>/catalog-target.txt --ref <DIR>/catalog-ref.txt` ;
+5. `backup --out <DIR>/backup` ;
+6. sur une pile locale **vide** (0 migration), `restore-check --backup <DIR>/backup --into local:<conteneur>` ;
+7. lecture V1 avec le code de `ba59239` sur la pile restaurée ;
+8. effacer `PGPASSWORD`.
+
+Les fichiers produits restent hors dépôt, sur un support protégé ; seuls les résumés (comptages, hashes, lignes de catalogue) sont partagés.

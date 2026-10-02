@@ -4850,3 +4850,28 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §17, §19 à §22.
 
 **Statut** : Accepted — `feat/ux11r31-athlete-delete-merge-gate`, local. 10 migrations UX non poussées ; production `ba59239`.
+
+## 2026-10-02 — ADR UX-11R.3.2 : gate distant en lecture seule, auto-déploiement Vercel sur `main`, outil de sauvegarde et restauration logiques
+
+> **Vercel deploys production on every push to `main` (web and marketing), so `main` is only pushed after Stage 1 and after the three Edge Functions. Production has no provider backup and no PITR; the read-only DB gate could not run without the operator's password and is now a single operator-run tool. Approval A remains blocked.**
+
+**Constats (lecture seule, 2026-10-02).**
+- Cible `uvolpldwwyvadlamulvr` confirmée ; `evynmzyjhobdpmxdiwsy` inactif.
+- Web en production = build de `ba59239` (`dpl_AVRkb3jeU1iAvifRHsrRpgwpi8AG`).
+- Edge : 8 fonctions actives, `session-execution` absente.
+- `backups list` : 0 sauvegarde, PITR désactivé.
+- **Vercel `nalynt` et `nalynt-marketing` reliés à GitHub depuis le 2026-09-15**, `main` = production, déploiements automatiques actifs. Cela **invalide le constat V0.3_003E** (« non connecté à Git ») repris dans `06_ARCHITECTURE.md` et le preflight, désormais corrigés.
+- Dépôt GitHub public.
+
+**Décisions.**
+- **Ordre verrouillé** : merge / push `main` interdit avant le Stage 1. Dans l'Approbation B : Edge (`session-execution`, `daily-run`, `generate-training-plan`), smoke V1 Edge, **puis** push `main` (déploie web et marketing), puis smoke V1 web. « Nouveau web + anciennes Edge » n'est jamais une étape planifiée.
+- Retour web : promotion du déploiement précédent dans Vercel, jamais un revert poussé sur `main`.
+- **Accès base en lecture seule** : `scripts/release/prod-readonly-gate.mjs`, lancé par l'opérateur avec `PGPASSWORD` dans son terminal.
+  - `BEGIN READ ONLY` sur chaque requête ; `pg_dump` ; aucune commande CLI Supabase pouvant créer un rôle ; garde-fous de cible.
+  - Catalogue structurel normalisé pour la dérive ; sauvegarde logique `public` + `supabase_migrations` + données `auth` / `storage` ; restauration rehearsal dans une pile locale vide.
+  - Validé en local de bout en bout.
+- **Approbation A** : exigences dures (historique, 10 pending, zéro dérive, dump, restauration, opérateur de restauration, baseline). L'absence de sauvegarde provider / PITR n'est acceptable que par une acceptation de risque **explicite** de l'opérateur, après validation de la récupération logique.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §19, §20, §23, §24.
+
+**Statut** : Accepted — `feat/ux11r32-readonly-gate-completion`, local. Approval A : BLOCKED. Production `ba59239`, 10 migrations UX non poussées.

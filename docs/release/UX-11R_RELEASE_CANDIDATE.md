@@ -311,7 +311,9 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Parcours produit de suppression de compte | PENDING (Stage 5) | Backend prêt ; procédure opérateur de purge en production à écrire et répéter ; non bloquant pour le Stage 3 (preflight §18) |
 | Security | DELETE direct sur `athletes` | PASS (local) | Révoqué par la migration 10 ; tests 7/7 et purge 5/5 sur trois bases (preflight §17) |
 | Operations | Preflight Stage 0 | PRÉPARÉ (local), exécution PENDING | Cible identifiée sans accès distant, commandes Stage 0 à 3, approbations A à D ; gate distant en lecture seule R1 à R8 préparé (preflight §21) ; sauvegarde / PITR : TO VERIFY AT APPROVAL GATE |
-| Operations | Merge / push sur `main` | REMOTE CONFIG VERIFICATION REQUIRED (par défaut : pas de merge avant le Stage 1) | Aucune automation dans le dépôt ; configuration Git Vercel / Supabase invérifiable localement (preflight §19, §20) |
+| Operations | Merge / push sur `main` | `AUTO_DEPLOY_ON_MAIN = TRUE` : INTERDIT avant le Stage 1 ; étape 2.6 de l'Approbation B, après les Edge Functions | Gate R7 (API Vercel, déploiements GitHub) ; preflight §19, §20 |
+| Operations | Gate distant en lecture seule | BLOCKED | R1, R2, R6, R7, R8 exécutés ; R3 à R5, grants, comptages, dump et restauration non exécutés (mot de passe absent) ; sauvegarde provider 0, PITR désactivé (preflight §24) |
+| Operations | Sauvegarde / restauration | FAIL (provider), PENDING (logique) | Aucune sauvegarde provider, PITR désactivé ; outil de dump et de restauration logique validé en local (preflight §23) |
 
 ## 12bis. Fragilités connues du harnais local
 

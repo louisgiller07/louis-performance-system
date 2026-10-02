@@ -496,7 +496,7 @@ Les fichiers d'intégration `head-coach-engine` pré-existants (`buildRawContext
 
 ## V0.3_003E — Planning / Session Intent, rollout production + clôture (CLOSED / PRODUCTION ROLLOUT COMPLETE, 2026-09-02)
 
-- [x] Audit préalable : projet Vercel non connecté à Git (déploiement manuel CLI uniquement, `npx vercel deploy --prod --scope nalynt` depuis `web/`) ; cible Supabase `uvolpldwwyvadlamulvr` confirmée, migration parity 26/26, `daily-run` ACTIVE/version 2/`verify_jwt: true`
+- [x] Audit préalable (constat historique, périmé depuis la liaison Git du 2026-09-15 — voir ADR UX-11R.3.2) : projet Vercel non connecté à Git (déploiement manuel CLI uniquement, `npx vercel deploy --prod --scope nalynt` depuis `web/`) ; cible Supabase `uvolpldwwyvadlamulvr` confirmée, migration parity 26/26, `daily-run` ACTIVE/version 2/`verify_jwt: true`
 - [x] Premier déploiement ÉCHEC (défaut de frontière de build TypeScript — tests `web/src/**` important `head-coach-engine/**` hors du contexte de build isolé Vercel), **zéro impact production** (alias resté sur le déploiement `Ready` précédent, déploiement échoué conservé comme preuve d'audit)
 - [x] Correctif build-only (`ede2776`, `build: isolate web production typecheck`) : `web/tsconfig.build.json` (nouveau, graphe TypeScript de production dédié excluant les tests) + `web/package.json` (`build` isolé, nouveau script `typecheck` préservant le graphe local complet) — aucun changement `web/src/**`
 - [x] Second déploiement SUCCÈS : `dpl_HQDuP893LoDSuqxdfzWXMbABmVzT`, alias canonique `Ready`/`production`, bundle réellement servi confirmé (`/assets/index-F_rQBrBr.js`), project ref Supabase correct confirmé dans le bundle

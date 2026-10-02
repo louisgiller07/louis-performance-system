@@ -4,6 +4,11 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**UX-11R.3.2 — gate distant en lecture seule : APPROVAL A STILL BLOCKED (2026-10-02, `feat/ux11r32-readonly-gate-completion`).** Aucune mutation.
+- Lu en production : cible confirmée ; Edge Functions actives (v20 `daily-run`, `session-execution` absente) ; web = `ba59239` ; **aucune sauvegarde provider, PITR désactivé**.
+- **`AUTO_DEPLOY_ON_MAIN = TRUE`** (Vercel `nalynt` et `nalynt-marketing` reliés à GitHub, `main` → production). Docs corrigées : merge / push interdit avant le Stage 1 ; c'est l'étape 2.6 de l'Approbation B.
+- Base de production non lue : mot de passe absent de l'environnement de l'agent. Outil `scripts/release/prod-readonly-gate.mjs` (lecture seule, lancé par l'opérateur) validé en local, dump et restauration compris.
+
 **UX-11R.3.1 — DELETE direct révoqué, risque de merge et gate distant en lecture seule (2026-10-02, `feat/ux11r31-athlete-delete-merge-gate`).** 100 % local.
 - Migration 10 : `revoke delete on public.athletes from anon, authenticated`. La purge serveur est le seul chemin de suppression.
 - Répétitions refaites avec les 10 migrations : base vierge 60/60 ; base type production depuis `ba59239` + données V1 de l'ancien code (données intactes, ancien code compatible).
