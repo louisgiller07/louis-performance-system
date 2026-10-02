@@ -46,6 +46,9 @@ export type PilotEvent =
       decision: PilotDailyDecision;
       executablePrescriptionDelivered: boolean;
       generatedSessionId?: string;
+      /** UX-11R.1 — V2 daily path only (absent on V1): created | not_required | blocked, and the stable blocked code. */
+      finalPrescriptionStatus?: "created" | "not_required" | "blocked";
+      finalPrescriptionStatusCode?: string | null;
     })
   | (EventBase & { eventType: "daily_run_warning"; eventDate: string; decisionId: string; warnings: readonly string[] })
   | (EventBase & { eventType: "daily_run_failed"; eventDate: string; errorName: string; errorCode: string })
@@ -156,7 +159,13 @@ export function toPilotEventRow(event: PilotEvent): PilotEventRow {
         event_date: event.eventDate,
         decision_id: event.decisionId,
         generated_session_id: event.generatedSessionId ?? null,
-        metadata: { decision: event.decision, executablePrescriptionDelivered: event.executablePrescriptionDelivered },
+        metadata: {
+          decision: event.decision,
+          executablePrescriptionDelivered: event.executablePrescriptionDelivered,
+          // UX-11R.1 — rollout visibility: which daily runs took the V2 path and what it produced (stable codes only).
+          ...(event.finalPrescriptionStatus ? { finalPrescriptionStatus: event.finalPrescriptionStatus } : {}),
+          ...(event.finalPrescriptionStatusCode ? { finalPrescriptionStatusCode: code(event.finalPrescriptionStatusCode) } : {}),
+        },
       };
     case "daily_run_warning":
       return { ...row, event_date: event.eventDate, decision_id: event.decisionId, metadata: { warnings: boundWarnings(event.warnings) } };

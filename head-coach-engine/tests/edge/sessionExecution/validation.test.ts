@@ -190,3 +190,20 @@ describe("UX-11B.2.5 — activities (session_activity_results)", () => {
     expect(validateSessionExecutionBody({ activities: [activity({ duration_seconds: 7 })] }).ok).toBe(true);
   });
 });
+
+describe("executionLogLine — UX-11R.1 rollout log (PII-free)", () => {
+  it("recorded batch: counts new lifecycle events by type, sets, activities and replays; no id, no value", async () => {
+    const { executionLogLine } = await import("../../../../supabase/functions/session-execution/validation.js");
+    const line = executionLogLine(
+      { events: [{ id: "e1", event_type: "started" }, { id: "e2", event_type: "completed" }] },
+      { status: "ok", inserted: { executions: ["x"], events: ["e2"], sets: ["s1", "s2"], activities: [] }, unchanged: { events: ["e1"], executions: [], sets: [], activities: [] } }
+    );
+    expect(line).toEqual({ source: "session-execution", outcome: "recorded", events: { completed: 1 }, sets: 2, activities: 0, replayed: 1 });
+    expect(JSON.stringify(line)).not.toMatch(/e1|e2|s1|x"/);
+  });
+
+  it("rejected batch: the stable code and its HTTP status only", async () => {
+    const { executionLogLine } = await import("../../../../supabase/functions/session-execution/validation.js");
+    expect(executionLogLine({ events: [] }, { status: "rejected", code: "execution_terminal" })).toEqual({ source: "session-execution", outcome: "rejected", code: "execution_terminal", status: 409 });
+  });
+});

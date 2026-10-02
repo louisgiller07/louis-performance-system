@@ -14,7 +14,7 @@
 // (ADR UX-11B.2.1 §7); a server-side check is a separate security ticket.
 // CORS/OPTIONS: answered by the gateway, same as the other functions.
 import { withSupabase } from "@supabase/server";
-import { REJECTION_STATUS, validateSessionExecutionBody } from "./validation.ts";
+import { executionLogLine, REJECTION_STATUS, validateSessionExecutionBody } from "./validation.ts";
 
 function errorResponse(status: number, code: string, message: string, target?: string): Response {
   return Response.json({ error: { code, message, ...(target ? { target } : {}) } }, { status });
@@ -92,9 +92,11 @@ export default {
 
     const outcome = result as { status?: unknown; code?: unknown; target?: unknown; inserted?: unknown; unchanged?: unknown } | null;
     if (outcome?.status === "ok") {
+      console.info(JSON.stringify(executionLogLine(validation.value, { status: "ok", inserted: (outcome.inserted ?? {}) as Record<string, unknown>, unchanged: (outcome.unchanged ?? {}) as Record<string, unknown> })));
       return Response.json({ inserted: outcome.inserted, unchanged: outcome.unchanged }, { status: 200 });
     }
     if (outcome?.status === "rejected" && typeof outcome.code === "string" && outcome.code in REJECTION_STATUS) {
+      console.warn(JSON.stringify(executionLogLine(validation.value, { status: "rejected", code: outcome.code })));
       return errorResponse(
         REJECTION_STATUS[outcome.code],
         outcome.code,

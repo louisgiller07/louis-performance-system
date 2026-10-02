@@ -94,6 +94,14 @@ describe("pilotEvents — row mapping", () => {
     });
   });
 
+  it("UX-11R.1 — the V2 daily path adds its final prescription status (and blocked code); the V1 path adds nothing", () => {
+    const v2 = toPilotEventRow({ eventType: "daily_run_succeeded", athleteId: ATHLETE, eventDate: "2026-09-24", decisionId: DECISION, decision: "MODIFY", executablePrescriptionDelivered: false, finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_adaptation_not_defined" });
+    expect(v2.metadata).toEqual({ decision: "MODIFY", executablePrescriptionDelivered: false, finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_adaptation_not_defined" });
+    const created = toPilotEventRow({ eventType: "daily_run_succeeded", athleteId: ATHLETE, eventDate: "2026-09-24", decisionId: DECISION, decision: "KEEP", executablePrescriptionDelivered: false, finalPrescriptionStatus: "created", finalPrescriptionStatusCode: null });
+    expect(created.metadata).toEqual({ decision: "KEEP", executablePrescriptionDelivered: false, finalPrescriptionStatus: "created" });
+    expect(toPilotEventRow(EVENTS[6]!).metadata).toEqual({ decision: "KEEP", executablePrescriptionDelivered: true });
+  });
+
   it.each(["REST", "MODIFY", "REPLACE"] as const)("%s -> daily_run_succeeded with severity info", (decision) => {
     const row = toPilotEventRow({ eventType: "daily_run_succeeded", athleteId: ATHLETE, eventDate: "2026-09-24", decisionId: DECISION, decision, executablePrescriptionDelivered: false });
     expect(row.event_type).toBe("daily_run_succeeded");

@@ -115,6 +115,8 @@ export default {
         decision: result.dailyPlan.decision,
         executablePrescriptionDelivered: result.executablePrescription !== null,
         ...(result.executablePrescription ? { generatedSessionId: result.executablePrescription.generatedPlanSessionId } : {}),
+        // UX-11R.1 — V2 daily path visibility (keys absent on the V1 path).
+        ...(result.finalPrescriptionStatus ? { finalPrescriptionStatus: result.finalPrescriptionStatus, finalPrescriptionStatusCode: result.finalPrescriptionStatusCode ?? null } : {}),
       });
       if (result.warnings.length > 0) {
         await recordPilotEvent(ctx.supabaseAdmin, {

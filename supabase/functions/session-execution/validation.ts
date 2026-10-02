@@ -350,3 +350,44 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   result_slot_out_of_range: 422,
   result_slot_exists: 409,
 };
+
+/**
+ * UX-11R.1 — one structured, PII-free log line per batch for rollout
+ * monitoring (Edge logs): the outcome, the stable rejection code, and how
+ * many lifecycle events (by type), set results and activity results were
+ * newly recorded. No athlete / execution id, no comment, no value. Never
+ * blocks the response (built from data already at hand).
+ */
+export interface ExecutionLogLine {
+  source: "session-execution";
+  outcome: "recorded" | "rejected";
+  code?: string;
+  status?: number;
+  events?: Partial<Record<ExecutionEventType, number>>;
+  sets?: number;
+  activities?: number;
+  replayed?: number;
+}
+
+export function executionLogLine(
+  batch: { events: readonly { id: string; event_type: ExecutionEventType }[] },
+  outcome: { status: "ok"; inserted: Record<string, unknown>; unchanged: Record<string, unknown> } | { status: "rejected"; code: string }
+): ExecutionLogLine {
+  if (outcome.status === "rejected") {
+    return { source: "session-execution", outcome: "rejected", code: outcome.code, status: REJECTION_STATUS[outcome.code] ?? 500 };
+  }
+  const ids = (v: unknown) => (Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : []);
+  const insertedEvents = new Set(ids(outcome.inserted.events));
+  const events: Partial<Record<ExecutionEventType, number>> = {};
+  for (const e of batch.events) if (insertedEvents.has(e.id)) events[e.event_type] = (events[e.event_type] ?? 0) + 1;
+  const replayed = ["executions", "events", "sets", "activities"].reduce((n, k) => n + ids(outcome.unchanged[k]).length, 0);
+  return {
+    source: "session-execution",
+    outcome: "recorded",
+    events,
+    sets: ids(outcome.inserted.sets).length,
+    activities: ids(outcome.inserted.activities).length,
+    replayed,
+  };
+}
+
