@@ -16,6 +16,7 @@
     "test:edge": "npm run build && npm run build:edge && vitest run --config vitest.edge.config.ts",
     "test:m3:http": "npm run build && tsx tests/edge/http/orchestrate.ts",
     "test:daily-run:v2:http": "npm run build && npm run build:edge && tsx tests/edge/http/dailyRunV2.orchestrate.ts",
+    "test:generate-plan:rollout:http": "npm run build:release && tsx tests/edge/http/generatePlanV2Rollout.orchestrate.ts",
     "test:completed-session": "vitest run --config vitest.completedSession.config.ts",
     "test:session-execution": "vitest run --config vitest.sessionExecution.config.ts",
     "test:m5:completed-session:http": "tsx tests/edge/completedSession/orchestrate.ts",

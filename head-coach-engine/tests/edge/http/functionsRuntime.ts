@@ -78,3 +78,45 @@ export function localFunctionsRuntimeDeps(repoRoot: string): FunctionsRuntimeDep
     stopContainer: () => execSync(`docker stop ${EDGE_CONTAINER}`, { stdio: "ignore" }),
   };
 }
+
+/**
+ * UX-11R.2 — a runtime this harness OWNS, started with an env file (e.g. the
+ * Edge secret NALYNT_V2_PLAN_GENERATION_ENABLED). A runtime's environment is
+ * fixed at start, so reusing someone else's is impossible here: if one is
+ * already running the harness refuses loudly (never a false green). stop()
+ * stops what it started and waits until the container is gone, so the next
+ * start never collides with a container being removed.
+ */
+export async function startOwnedFunctionsRuntime(repoRoot: string, envFile: string): Promise<{ stop: () => Promise<void> }> {
+  const deps = localFunctionsRuntimeDeps(repoRoot);
+  if (deps.containerRunning()) {
+    throw new Error("An Edge runtime is already running: this harness must own the runtime to set its environment. Stop `supabase functions serve` first, then rerun.");
+  }
+  const log = openSync(SERVE_LOG, "w");
+  const child = spawn(`npx supabase functions serve --env-file "${envFile}"`, [], { cwd: repoRoot, stdio: ["ignore", log, log], shell: true });
+  closeSync(log);
+  return {
+    stop: async () => {
+      if (child.pid != null && child.exitCode === null) {
+        try {
+          if (process.platform === "win32") execSync(`taskkill /T /F /PID ${child.pid}`, { stdio: "ignore" });
+          else child.kill("SIGTERM");
+        } catch {
+          /* already gone */
+        }
+      }
+      if (deps.containerRunning()) deps.stopContainer();
+      for (let i = 0; i < 60; i += 1) {
+        const exists = execSync(`docker ps -a --filter "name=${EDGE_CONTAINER}" --format "{{.Names}}"`).toString().trim() !== "";
+        if (!exists) return;
+        try {
+          execSync(`docker rm -f ${EDGE_CONTAINER}`, { stdio: "ignore" });
+        } catch {
+          /* removal in progress */
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      throw new Error("edge-runtime container still present after stop");
+    },
+  };
+}
