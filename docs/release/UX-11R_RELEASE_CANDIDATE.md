@@ -1,4 +1,4 @@
-# UX-11R — Release candidate & rollout hardening (R.1, R.2)
+# UX-11R — Release candidate & rollout hardening (R.1, R.2, R.3)
 
 > Rien n'est déployé. Ce document prépare un déploiement futur : il ne l'autorise pas. Toute action distante (backup, `db push`, déploiement Edge, activation V2) reste une décision humaine explicite, étape par étape.
 
@@ -9,7 +9,8 @@
 | Base production | `ba59239` (`main` / `origin/main`) |
 | Entrée fonctionnelle du RC | `7bdd9d8` (`feat/ux11c5-closure`, UX-11C core complete locally) |
 | Durcissement | branche `feat/ux11r1-rollout-hardening`, commits de UX-11R.1 au-dessus de `7bdd9d8` (HEAD `4c9c88b`) |
-| Flag serveur V2 | branche `feat/ux11r2-v2-server-rollout`, commits de UX-11R.2 au-dessus de `4c9c88b` |
+| Flag serveur V2 | branche `feat/ux11r2-v2-server-rollout`, commits de UX-11R.2 au-dessus de `4c9c88b` (HEAD `db1bbb8`) |
+| Preflight Stage 0 | branche `feat/ux11r3-production-preflight`, commits de UX-11R.3 au-dessus de `db1bbb8` ; commandes, gates et approbations : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` |
 | Constante de version | aucune : le dépôt n'a pas de convention de numéro de release, rien n'est créé |
 
 ## 2. Audit du diff `ba59239..7bdd9d8`
@@ -101,11 +102,21 @@ Les suites d'intégration ciblent une pile de répétition avec `SUPABASE_URL`, 
 
 **Hors périmètre.** L'appel produit (écran « supprimer mon compte », Edge dédiée, confirmation) n'existe pas : seul le contrat serveur est prêt.
 
-**Observation, non modifiée.** Les rôles `authenticated` et `anon` ont un GRANT DELETE sur `athletes` (filtré par RLS « own data »). Un rider sans plan pourrait donc supprimer sa ligne et cascader une partie de ses données, sans passer par la purge. À trancher.
+**Audit UX-11R.3 (aucun grant modifié).** `anon` et `authenticated` ont DELETE sur `athletes` (RLS `user_id = auth.uid()`), hérité du `GRANT ALL` de la baseline.
+- Un rider **sans plan** peut supprimer sa propre ligne : la cascade efface check-ins, décisions, health flags et completed sessions qu'il ne peut pas supprimer directement, et laisse l'identité Auth et les événements pilotes orphelins.
+- Avec un plan, une assignation ou une exécution : refusé (RESTRICT).
+- Un autre athlète ou `anon` : 0 ligne. La purge serveur : complète.
+- Comportement identique sur `ba59239` ; aucun usage produit.
+- **Classé OBSOLETE / SHOULD REVOKE**, non bloquant pour le Stage 1. Révocation proposée, non implémentée : preflight §17.
 
 ## 6. Déployabilité Edge (sans déploiement)
 
-**Commande de release** (depuis un checkout propre, sans aucun `dist`) : `cd head-coach-engine && npm ci && npm run build:release`.
+**Commande de release complète (UX-11R.3)** : à la racine, `npm run build:release:all`, après `npm ci` à la racine et dans les 5 paquets.
+- Elle construit les moteurs, les bundles Edge, `longitudinal-engine` et le web.
+- Elle vérifie que chaque import de chaque Edge Function résout vers un fichier construit, et imprime l'inventaire sha256.
+- `--verify-only` vérifie sans reconstruire. Détail : preflight §3–4.
+
+**Commande UX-11 seule** (historique R.1) : `cd head-coach-engine && npm ci && npm run build:release`.
 - Elle construit `planning-engine`, puis `prescription-engine` (qui dépend du premier), puis `head-coach-engine/dist` et les bundles Edge.
 - `npm ci` est aussi requis dans `planning-engine` et `prescription-engine`.
 - Vérifié sur un worktree propre : sortie 0, artefacts **identiques octet pour octet** au build de développement.
@@ -203,6 +214,8 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 
 ## 9. Runbook de déploiement (à exécuter par un humain, étape par étape)
 
+> Commandes exactes, gates, approbations A à D, conditions d'arrêt et kill switch : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` (UX-11R.3). En cas d'écart, ce document fait foi pour l'exécution.
+
 **Stage 0 — sauvegarde et vérifications (lecture seule)**
 - Confirmer la sauvegarde DB (PITR ou dump récent) et le commit en production (`ba59239`).
 - `supabase migration list` doit montrer les 50 migrations jusqu'à `20260924110000` et aucune des 8.
@@ -282,7 +295,7 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Database | Upgrade type production | PASS | §4 : 0 ligne V1 modifiée ; ancien et nouveau code OK ; migration 9 : table vide → V1, 38 tables identiques |
 | Database | V1 après migrations | PASS | §4 et §11 |
 | Database | Purge | PASS (contrat serveur) | §5 : 5/5 sur trois bases ; assignation incluse (R.2). **Le parcours produit de suppression de compte n'existe pas** (PENDING). |
-| Runtime | Build Edge propre | PASS | §6 : checkout propre, octets identiques, eszip local OK pour les 3 fonctions ; R.2 : bundle de génération avec V2, testé sous Deno depuis un checkout propre (26/26) |
+| Runtime | Build Edge propre | PASS | §6 : checkout propre, octets identiques, eszip local OK pour les 3 fonctions ; R.2 : bundle de génération avec V2, testé sous Deno depuis un checkout propre (26/26) ; R.3 : `build:release:all` (toutes les fonctions et le web), échecs explicites prouvés, build web isolé OK |
 | Runtime | Démarrage à froid | PENDING | Démarrage à froid local de `functions serve` OK ; non vérifié avec un eszip déployé |
 | Runtime | Runtime V1 | PASS (local) | M3 27/28 (nettoyage seul), M5 97/97, daily-run V1 |
 | Runtime | Runtime V2 interne | PASS (local), PENDING (production) | daily-run V2 HTTP 9/9 ; rollout HTTP 26/26 ; suites guidées sur l'Edge locale |
@@ -293,8 +306,9 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Runbook de retour arrière | PASS (écrit) ; flag répété en local | §10 : retours global et individuel répétés en local ; retour Edge vers `ba59239` toujours UNSUPPORTED après un plan V2 |
 | Operations | Runbook de déploiement | PASS (écrit) | §9 : Stage 3 débloqué techniquement (comptes internes seulement) ; Stage 5 non READY |
 | Operations | Flag serveur V2 | PASS (local) | §7 : migration 9, résolveur, Edge, sécurité, rejeux, rollback, purge, HTTP 26/26 ; non déployé |
-| Operations | Parcours produit de suppression de compte | PENDING | Contrat serveur seul (§5) |
-| Operations | GRANT DELETE `anon` / `authenticated` sur `athletes` | PENDING (décision) | §5, inchangé |
+| Operations | Parcours produit de suppression de compte | PENDING (Stage 5) | Backend prêt ; procédure opérateur de purge en production à écrire et répéter ; non bloquant pour le Stage 3 (preflight §18) |
+| Operations | GRANT DELETE `anon` / `authenticated` sur `athletes` | OBSOLETE / SHOULD REVOKE, PENDING (décision) | Audit R.3 : 7/7 et 5/5 ; révocation proposée, non implémentée (preflight §17) |
+| Operations | Preflight Stage 0 | PRÉPARÉ (local), exécution PENDING | Cible identifiée sans accès distant, commandes Stage 0 à 3, approbations A à D ; sauvegarde / PITR : TO VERIFY AT APPROVAL GATE |
 
 ## 12bis. Fragilités connues du harnais local
 

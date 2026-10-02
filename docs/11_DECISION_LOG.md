@@ -4802,3 +4802,25 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail et preuves** : `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7 et §12 ; tests `planningModelRollout`, `v2RolloutFlag`, `test:generate-plan:rollout:http`.
 
 **Statut** : Accepted — `feat/ux11r2-v2-server-rollout`, local. 9 migrations UX non poussées ; production `ba59239`.
+
+## 2026-10-02 — ADR UX-11R.3 : preflight production du Stage 0 (aucune commande distante)
+
+> **The production rollout is prepared up to, and not including, Stage 1: target identified offline, one offline release build, exact Edge scope, command plans for Stages 0–3, four separate human approvals, stop conditions and kill switch. Nothing remote was run.**
+
+**Décisions.**
+- **Cible** : `uvolpldwwyvadlamulvr` (lien CLI local, historique des déploiements). Toute commande du runbook passe `--project-ref` explicitement ; jamais `evynmzyjhobdpmxdiwsy`.
+- **Build de release** : `npm run build:release:all` à la racine (moteurs, bundles Edge, `longitudinal-engine`, web).
+  - Il vérifie le graphe d'imports de chaque Edge Function et imprime l'inventaire sha256 (fins de ligne normalisées).
+  - `--verify-only` vérifie sans reconstruire.
+  - Il ne fait ni installation ni appel distant.
+  - Déploiement uniquement depuis un checkout propre : le `dist` de développement contient des fichiers obsolètes.
+- **Périmètre Edge** : seules `generate-training-plan`, `daily-run` et `session-execution`, chacune nommée ; jamais de déploiement global ni `--prune`. Les 6 autres fonctions sont inchangées depuis `ba59239`.
+- **Migrations** : exactement les 9 UX. `db push --dry-run` ne fait que lister les fichiers (aucune exécution SQL) ; la dérive se constate par comparaison de dumps de schéma ; le succès est prouvé par les répétitions locales.
+- **Ordre du Stage 3** : assignation (Approbation C) avant le flag global (Approbation D). Une assignation est inerte tant que le flag est absent.
+- **Retour arrière** : kill switch avec le code de la release ; jamais `ba59239` après un premier plan V2.
+- **DELETE client sur `athletes`** : classé OBSOLETE / SHOULD REVOKE (aucun usage produit ; contrat de purge serveur unique). Non bloquant pour le Stage 1 : déjà en production, limité aux propres données d'un rider sans plan. Révocation proposée, non implémentée.
+- **Suppression de compte produit** : backend prêt, parcours absent ; non bloquant pour le Stage 3, procédure opérateur requise avant le Stage 5.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md`, `docs/release/UX-11R_RELEASE_CANDIDATE.md`.
+
+**Statut** : Accepted — `feat/ux11r3-production-preflight`, local. 9 migrations UX non poussées ; production `ba59239`.

@@ -4,6 +4,13 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**UX-11R.3 — preflight production du Stage 0, préparé (2026-10-02, `feat/ux11r3-production-preflight`).** Aucune commande distante exécutée ; arrêt avant le Stage 1.
+- Cible identifiée localement : `uvolpldwwyvadlamulvr`.
+- Build de release complet et hors ligne : `npm run build:release:all`. Inventaire Edge : seules `generate-training-plan`, `daily-run` et `session-execution` sont à déployer.
+- Commandes Stage 0 à 3, approbations A à D, conditions d'arrêt et kill switch : `docs/release/UX-11R_STAGE0_PREFLIGHT.md`.
+- Audit du DELETE client sur `athletes` : OBSOLETE / SHOULD REVOKE, non bloquant, non révoqué.
+- Avant l'Approbation A : sauvegarde / PITR à vérifier, dump frais, historique des migrations distantes, décision sur la source de release.
+
 **UX-11R.2 — flag serveur V2 et génération Edge, en local (2026-10-02, `feat/ux11r2-v2-server-rollout`).** Rien n'est déployé.
 - Choix du modèle de planification sur le serveur seulement : secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED` (exactement `true`) et table d'assignation `training_plan_model_assignments` (service role seul, migration locale 9, vide). Défaut V1, aucun repli V2 → V1.
 - `generate-training-plan` produit V1 ou V2 selon ce choix ; le corps public et la réponse sont inchangés, le client ne peut pas forcer V2.
