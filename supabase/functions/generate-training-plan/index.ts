@@ -21,14 +21,14 @@
 // a real JWT/session or mutating any ESM import binding (V0.5_014 fix,
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
-import { generateAndPersistTrainingPlan } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
+import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, V2_PLAN_GENERATION_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */
 interface GenerateTrainingPlanRequestContext {
   supabase: { from(table: string): { select(columns: string): Promise<{ data: { id: string }[] | null; error: { code?: string; message: string } | null }> } };
-  supabaseAdmin: Parameters<typeof generateAndPersistTrainingPlan>[0]["client"];
+  supabaseAdmin: Parameters<typeof generateTrainingPlanForAthlete>[0]["client"];
 }
 
 const UUID_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,10 +69,15 @@ function validateDurationWeeks(value: unknown): { ok: true; durationWeeks: numbe
  * binding — never an ESM namespace stub.
  */
 export interface HandleGenerateTrainingPlanDeps {
-  generateAndPersistTrainingPlan: typeof generateAndPersistTrainingPlan;
+  generateTrainingPlanForAthlete: typeof generateTrainingPlanForAthlete;
+  /** UX-11R.2 — the global V2 switch, read on the server only (Edge secret); never from the request. */
+  readV2Flag: () => string | undefined;
 }
 
-const DEFAULT_DEPS: HandleGenerateTrainingPlanDeps = { generateAndPersistTrainingPlan };
+const DEFAULT_DEPS: HandleGenerateTrainingPlanDeps = {
+  generateTrainingPlanForAthlete,
+  readV2Flag: () => Deno.env.get(V2_PLAN_GENERATION_FLAG),
+};
 
 export async function handleGenerateTrainingPlan(
   req: Request,
@@ -150,13 +155,26 @@ export async function handleGenerateTrainingPlan(
     // client. The TrainingPlanBlock itself is constructed inside
     // generateAndPersistTrainingPlan from durationWeeks + today
     // (V0.5_031/032 lock) — never built in this file.
-    const result = await deps.generateAndPersistTrainingPlan({
+    // UX-11R.2 — the planning model is decided HERE, on the server, after the athlete was resolved
+    // from the caller's identity: global switch (Edge secret) + server-side assignment. The request
+    // body cannot carry it (unknown keys are refused above) and the response never reveals it.
+    const result = await deps.generateTrainingPlanForAthlete({
       client: ctx.supabaseAdmin,
       athleteId,
       generationRequestId: generationRequestIdValue,
       durationWeeks: durationWeeksResult.durationWeeks,
       today: todayUtc(),
+      globalV2Enabled: parseV2PlanGenerationFlag(deps.readV2Flag()),
     });
+    const modelTrace = { planningModel: result.planningModel, rolloutReason: result.reason };
+
+    if (result.status === "blocked") {
+      // A V2 generation blocked by a stable Session Model V2 code (missing declared data, unsupported
+      // duration…): an explicit refusal, never a V1 plan in its place.
+      console.warn(`generate-training-plan: V2 generation blocked -> ${result.code}`);
+      await recordPilotEvent(ctx.supabaseAdmin, { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: result.code, ...modelTrace });
+      return errorResponse(422, result.code, "Configuration incomplete for training plan generation.");
+    }
 
     await recordPilotEvent(ctx.supabaseAdmin, {
       eventType: "plan_generation_succeeded",
@@ -165,6 +183,7 @@ export async function handleGenerateTrainingPlan(
       generationRequestId: generationRequestIdValue,
       idempotentReplay: result.idempotentReplay,
       durationWeeks: durationWeeksResult.durationWeeks,
+      ...modelTrace,
     });
 
     // Deliberately minimal — never inputSnapshot, catalogVersion, or full
@@ -173,14 +192,16 @@ export async function handleGenerateTrainingPlan(
     return Response.json({ planVersionId: result.planVersionId, idempotentReplay: result.idempotentReplay }, { status: 200 });
   } catch (error) {
     const mapped = mapGenerateTrainingPlanError(error);
-    console.error(`generate-training-plan: generateAndPersistTrainingPlan failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
+    console.error(`generate-training-plan: generation failed [${error instanceof Error ? error.name : typeof error}] -> ${mapped.code}`);
     // mapGenerateTrainingPlanError returns 422 only for a user-fixable setup outcome: GenerationBlockedError
     // (code = blockedReason) or, since PILOT_015, no_compatible_drill / no_compatible_exercise.
+    const resolution = planningResolutionOf(error);
+    const failedTrace = resolution ? { planningModel: resolution.planningModel, rolloutReason: resolution.reason } : {};
     await recordPilotEvent(
       ctx.supabaseAdmin,
       mapped.status === 422
-        ? { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: mapped.code }
-        : { eventType: "plan_generation_failed", athleteId, generationRequestId: generationRequestIdValue, errorName: errorNameOf(error), errorCode: mapped.code }
+        ? { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: mapped.code, ...failedTrace }
+        : { eventType: "plan_generation_failed", athleteId, generationRequestId: generationRequestIdValue, errorName: errorNameOf(error), errorCode: mapped.code, ...failedTrace }
     );
     return errorResponse(mapped.status, mapped.code, mapped.message);
   }
