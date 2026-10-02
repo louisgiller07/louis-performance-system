@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertSessionExecutionServing } from "../../../test/edgeRuntime";
 import { createTestAthlete, createTestClient, insertCheckin, setAthleteDiscipline } from "../../../../../head-coach-engine/tests/supabase/testDb.js";
 import { runDailyFor } from "../../../../../head-coach-engine/src/supabase/runDailyFor.js";
 import { computeDailyFor } from "../../../../../head-coach-engine/src/supabase/computeDailyFor.js";
@@ -41,6 +42,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11C.3 — guided DH passes (real local
   const dhDays: Array<{ day: string; prescription: FinalPrescriptionV2View }> = [];
 
   beforeAll(async () => {
+    await assertSessionExecutionServing(LOCAL_URL);
     admin = createTestClient();
     vi.stubEnv("VITE_SUPABASE_URL", LOCAL_URL);
     vi.stubEnv("VITE_SUPABASE_PUBLISHABLE_KEY", LOCAL_ANON_KEY!);

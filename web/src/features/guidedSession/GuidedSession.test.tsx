@@ -43,6 +43,45 @@ describe("Guided session shell (UX-11C.1)", () => {
     expect(b.executions).toHaveLength(1);
   });
 
+  it.each([
+    ["pause", "Mettre en pause", "paused", ["started", "paused"]],
+    ["abandon", null, "abandoned", ["started", "abandoned"]],
+  ] as const)("UX-11C.5 — %s after a network error: retry re-sends the SAME event id → one event", async (_label, button, expectedPhase, events) => {
+    const b = fakeBackend({ prescription: FORCE });
+    render(<Harness deps={b.deps} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Commencer la séance" }));
+    await waitFor(() => expect(phase()).toBe("active"));
+    b.state.networkFailures = ["landed"];
+    if (button) await userEvent.click(screen.getByRole("button", { name: button }));
+    else {
+      await userEvent.click(screen.getByRole("button", { name: "Arrêter la séance" }));
+      await userEvent.click(screen.getByRole("button", { name: "Confirmer l'arrêt" }));
+    }
+    expect(await screen.findByRole("alert")).toHaveAttribute("data-code", "network_error");
+    expect(phase()).toBe("active"); // the last CONFIRMED state, never optimistic
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await waitFor(() => expect(phase()).toBe(expectedPhase));
+    const [first, second] = b.state.posts.slice(-2);
+    expect(second).toEqual(first);
+    expect(b.executions[0]!.execution_events.map((e) => e.event_type)).toEqual(events);
+  });
+
+  it("UX-11C.5 — resume after a network error: retry re-sends the SAME event id → one event", async () => {
+    const b = fakeBackend({ prescription: FORCE });
+    render(<Harness deps={b.deps} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Commencer la séance" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Mettre en pause" }));
+    await waitFor(() => expect(phase()).toBe("paused"));
+    b.state.networkFailures = ["landed"];
+    await userEvent.click(screen.getByRole("button", { name: "Reprendre" }));
+    expect(await screen.findByRole("alert")).toHaveAttribute("data-code", "network_error");
+    expect(phase()).toBe("paused");
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    await waitFor(() => expect(phase()).toBe("active"));
+    expect(b.state.posts.at(-1)).toEqual(b.state.posts.at(-2));
+    expect(b.executions[0]!.execution_events.map((e) => e.event_type)).toEqual(["started", "paused", "resumed"]);
+  });
+
   it("network error → last confirmed state kept, retry re-sends the SAME ids → no second execution", async () => {
     const b = fakeBackend({ prescription: FORCE });
     b.state.networkFailures = ["landed"];

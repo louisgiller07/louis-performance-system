@@ -4706,3 +4706,62 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 ## 2026-10-02 — Précision (sécurité du développement local) : refus affiché dans la page
 
 Le refus d'un backend Supabase distant en développement n'apparaissait que dans la console (page blanche). `web/src/main.tsx` vérifie désormais la cible avec la fonction pure `isSupabaseTargetAllowed` **avant** de charger l'application (import dynamique de `App`, qui crée le client Supabase). Un refus affiche `DevConfigRefused` : aucun client, aucune authentification, aucune requête, et ni URL, ni clé, ni jeton à l'écran. La garde du module client reste en défense en profondeur. Contrat inchangé : opt-in `VITE_ALLOW_REMOTE_SUPABASE_IN_DEV=true`, production jamais bloquée. Vérifié dans un vrai Chrome : URL distante → écran de refus, 0 requête distante ; Supabase local → application normale.
+
+## 2026-10-02 — ADR UX-11C.5 : clôture du cœur des séances guidées (local)
+
+> **UX-11C core — COMPLETE LOCALLY.** Force, DH and endurance guided sessions are complete on the local stack. Nothing of it is in production.
+
+**Matrice fonctionnelle** (READY = implémenté et couvert par des tests d'interface et d'intégration réelle locale) :
+
+| Fonction | Force | DH | Endurance |
+|---|---|---|---|
+| Prescription du jour (lecture seule, figée par exécution) | READY | READY | READY |
+| Démarrer (exécution + `started`, prescription courante) | READY | READY | READY |
+| Rafraîchir (reprise de l'exécution ouverte) | READY | READY | READY |
+| Pause / Reprise | READY | READY | READY |
+| Résultat réel | READY (séries) | READY (passages) | READY (activité) |
+| Correction (append-only, une fois) | READY | READY | READY |
+| Résultats partiels | READY (confirmation) | READY (confirmation) | sans objet (un résultat principal) |
+| Fin (+ dernier résultat dans le même lot) | READY | READY | READY |
+| Arrêt | READY | READY | READY |
+| Recommencer après arrêt | READY | READY | READY |
+| Résultats figés après la fin | READY | READY | READY |
+| Retour M1 (pont récent) | READY | READY | READY |
+
+**Audit (preuves).**
+- **Source de vérité** : test de frontière `guidedSession.boundaries.test.ts`. Seules `session_executions` et `decision_final_prescriptions` sont lues ; aucune prescription planifiée, `planned_sessions`, `doseTarget` ni politique de dose ; aucun moteur importé. Les catalogues miroirs servent seulement à résoudre les textes du manifeste pris en charge.
+- **Prescrit ≠ réalisé** : un emplacement sans ligne n'a pas de résultat (Force, DH), et l'endurance n'a pas d'activité sans ligne. Jamais de résultat implicite (tests C.2, C.3, C.4).
+- **Atomicité** : test croisé réel. `completed` + résultat invalide → tout le lot est refusé et l'exécution reste active ; `completed` + dernier résultat valide → les deux sont validés, pour les trois familles.
+- **État terminal** : aucun résultat ni correction après la fin (serveur UX-11B.2.6, Edge réelle, interface en lecture seule) pour les trois familles.
+- **Idempotence** : démarrer, pause, reprise, arrêt, série, passage, activité et fin renvoient le même lot après une erreur réseau (mêmes identifiants, aucun doublon). Aucune action ne régénère d'identifiant au nouvel essai.
+- **Deux onglets** : une seule exécution ouverte (`active_execution_exists`), un original par série ou passage (`result_slot_exists`), un original d'activité (`activity_result_exists`) ; l'interface relit l'état confirmé, jamais « le dernier gagne ».
+- **Recommencer** : une seule règle, dans le chargeur commun aux trois familles. Seulement après un arrêt, même jour, prescription toujours courante, aucune fin antérieure de cette prescription, aucune exécution ouverte ; c'est une nouvelle exécution.
+- **Nouvelle décision du jour pendant E1** : E1 garde sa prescription ; un démarrage depuis la prescription périmée est refusé (shell et intégration réelle).
+- **Retour M1** : chaque famille terminée compte une fois avec le `final_session` de sa décision (test croisé réel) ; RPE, critère atteint, durée et distance réels ne sont pas lus. Une exécution arrêtée ne compte pas (tests C.2, C.3, C.4). Le contrat des complétions conflictuelles est inchangé.
+- **Requêtes** : 2 pour une exécution ouverte (mesuré sur la vraie pile), 4 au plus sinon ; pas de N+1.
+- **V1, REST, blocked, MODIFY, REPLACE** : aucune entrée de séance guidée (MODIFY et REPLACE sont aujourd'hui `blocked`). V1 inchangé.
+- **Mobile** : smoke Chrome réel à 390×844 pour Force, DH et endurance. Supabase local seulement, 0 requête distante, aucun débordement, focus et dialogues corrects.
+
+**Harnais.**
+- `test:daily-run:v2:http` réutilise un runtime existant ou nettoie le sien. `test:m3:http` et `test:m5:completed-session:http` gardent leur contrat historique (ils arrêtent le runtime) et l'annoncent désormais quand un runtime tournait déjà.
+- Les suites d'intégration web qui appellent l'Edge vérifient d'abord le runtime et échouent avec la commande de correction : plus de faux vert ni de 503 mystérieux.
+- Le build de `dist` (staging, écritures atomiques) n'écrit rien sans changement.
+
+**Hors cœur (futur, non bloquant pour C).**
+- MODIFY / REPLACE de la prescription du jour.
+- Corrections après la séance ; debrief / commentaire.
+- File hors ligne complète, minuteurs avancés, audio / haptique.
+- Adaptation fine (UX-11D), progression longitudinale (UX-11E).
+
+**Blockers.**
+- **Développement local** : aucun bloquant démontré. Reste non déterministe : un redémarrage parasite de `functions serve` sous Windows/Docker, détecté et signalé par les sondes.
+- **Production** :
+  - 7 migrations UX locales non poussées ;
+  - `generate-training-plan` public en V1, donc aucun plan V2 possible en production ;
+  - Edge `session-execution` et chemin daily-run V2 non déployés ;
+  - purge de compte non implémentée (les tables append-only bloquent la suppression) ;
+  - contenu sportif « PROVISIONAL — coaching validation required » ;
+  - aucune instrumentation des séances guidées ni validation du runtime Deno en production ;
+  - aucune stratégie de déploiement écrite.
+
+**Statut** : UX-11C core — COMPLETE LOCALLY (`feat/ux11c5-closure`). Non poussé, production `ba59239`.

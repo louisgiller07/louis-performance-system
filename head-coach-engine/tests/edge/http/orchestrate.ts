@@ -298,6 +298,12 @@ async function main(): Promise<void> {
   // Tracked the instant the user exists — independent of createdAthletes,
   // so cleanup does not depend on reaching any particular later line.
   let noAthleteUserId: string | undefined;
+  // UX-11C.5 — historical contract: this harness STOPS the edge-runtime container at exit, even one it did
+  // not start (unlike test:daily-run:v2:http, see functionsRuntime.ts). Said out loud, so a later suite failing
+  // on a stopped runtime is never a mystery; suites that need the runtime check it and fail with the fix.
+  if (execSync(`docker ps --filter "name=supabase_edge_runtime_louis-performance-system" --format "{{.Names}}"`).toString().trim() !== "") {
+    console.warn("NOTE: an Edge runtime was already running; this harness will STOP it at exit (historical contract). Restart it with `npx supabase functions serve` afterwards if needed.");
+  }
   const server = startFunctionsServer();
   try {
     await waitForFunctionsReady();
