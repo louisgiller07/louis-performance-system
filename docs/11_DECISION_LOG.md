@@ -4765,3 +4765,20 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
   - aucune stratégie de déploiement écrite.
 
 **Statut** : UX-11C core — COMPLETE LOCALLY (`feat/ux11c5-closure`). Non poussé, production `ba59239`.
+
+## 2026-10-02 — ADR UX-11R.1 : durcissement du release candidate (aucun déploiement)
+
+> **Release candidate hardened locally: migrations proven on a clean and a production-like database, account purge implemented, Edge artefacts reproducible from a clean checkout, minimal V2 rollout observability, written rollout / rollback plans. Nothing deployed.**
+
+**Décisions.**
+- **Répétitions de migration** : sur des piles Supabase locales jetables, la pile de développement n'est jamais réinitialisée. Les suites ciblent une autre pile locale par `LOCAL_SUPABASE_API_PORT` et `LOCAL_SUPABASE_DB_CONTAINER`.
+- **Purge de compte** (ADR UX-11B.2.1 §11) : migration 8, `purge_athlete_account` (service_role, tout-ou-rien, ordre des dépendances, vérification finale). Contournement append-only limité au DELETE dans la transaction de purge (marqueur lié à `txid_current()`), jamais de trigger désactivé. Identité Auth supprimée ensuite par l'API Admin.
+- **Build de release** : `npm run build:release` (planning-engine, puis prescription-engine, puis head-coach et ses bundles). Avant, le build reposait sur des `dist` locaux non versionnés.
+- **Observabilité sans migration** : statut V2 de la prescription du jour dans `daily_run_succeeded` ; une ligne de log JSON sans PII par lot `session-execution`.
+- **Activation V2** : seul point d'activation, la génération. Contrat de flag serveur proposé (affectation par athlète + interrupteur global, défaut V1, aucun repli automatique), **non implémenté**.
+- **Retour arrière** : V2 désactivé avec le code conservé. Revenir à l'Edge ou au web de `ba59239` est interdit dès qu'un plan V2 existe : la répétition montre que l'ancien daily-run sert alors le document V2 comme prescription V1.
+- **Contenu coaching** : document de sign-off généré depuis les sources versionnées (275 entrées, toutes `pending`). Le code ne valide rien et n'invente aucun validateur.
+
+**Détail et preuves** : `docs/release/UX-11R_RELEASE_CANDIDATE.md` et `docs/release/COACHING_CONTENT_SIGNOFF.md`.
+
+**Statut** : Accepted — `feat/ux11r1-rollout-hardening`, local. 8 migrations UX non poussées ; production `ba59239`.
