@@ -20,6 +20,17 @@ interface EventBase {
   athleteId: string;
 }
 
+/** UX-11R.2 — which planning model a generation used and why (operational only; absent when not resolved yet). */
+export interface PlanningModelTrace {
+  planningModel?: "v1" | "v2";
+  rolloutReason?: "global_v2_disabled" | "default_v1" | "assigned_v1" | "assigned_v2";
+}
+
+const modelTrace = (event: PlanningModelTrace) => ({
+  ...(event.planningModel ? { planningModel: event.planningModel } : {}),
+  ...(event.rolloutReason ? { rolloutReason: event.rolloutReason } : {}),
+});
+
 export type PilotEvent =
   | (EventBase & {
       eventType: "plan_generation_succeeded";
@@ -27,9 +38,9 @@ export type PilotEvent =
       generationRequestId: string;
       idempotentReplay: boolean;
       durationWeeks: number;
-    })
-  | (EventBase & { eventType: "plan_generation_blocked"; generationRequestId: string; blockedReason: string })
-  | (EventBase & { eventType: "plan_generation_failed"; generationRequestId: string; errorName: string; errorCode: string })
+    } & PlanningModelTrace)
+  | (EventBase & { eventType: "plan_generation_blocked"; generationRequestId: string; blockedReason: string } & PlanningModelTrace)
+  | (EventBase & { eventType: "plan_generation_failed"; generationRequestId: string; errorName: string; errorCode: string } & PlanningModelTrace)
   | (EventBase & {
       eventType: "plan_acceptance_succeeded";
       planVersionId: string;
@@ -125,15 +136,15 @@ export function toPilotEventRow(event: PilotEvent): PilotEventRow {
         ...row,
         plan_version_id: event.planVersionId,
         generation_request_id: event.generationRequestId,
-        metadata: { idempotentReplay: event.idempotentReplay, durationWeeks: event.durationWeeks },
+        metadata: { idempotentReplay: event.idempotentReplay, durationWeeks: event.durationWeeks, ...modelTrace(event) },
       };
     case "plan_generation_blocked":
-      return { ...row, generation_request_id: event.generationRequestId, metadata: { blockedReason: code(event.blockedReason) } };
+      return { ...row, generation_request_id: event.generationRequestId, metadata: { blockedReason: code(event.blockedReason), ...modelTrace(event) } };
     case "plan_generation_failed":
       return {
         ...row,
         generation_request_id: event.generationRequestId,
-        metadata: { errorName: code(event.errorName), errorCode: code(event.errorCode) },
+        metadata: { errorName: code(event.errorName), errorCode: code(event.errorCode), ...modelTrace(event) },
       };
     case "plan_acceptance_succeeded":
       return {
