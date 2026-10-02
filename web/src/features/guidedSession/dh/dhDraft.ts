@@ -56,7 +56,7 @@ const asRow = (set: SetResultInput): SetResultRow => ({ load_kg: null, rpe_actua
 /** Locked completion rule (UX-11C.3): ≥ 1 pass recorded (success irrelevant); partial passes need a confirmation. */
 export function dhCompletion(context: ModuleContext, now: () => string): ModuleCompletion {
   if (!mainDrill(context.prescription)) {
-    return { canComplete: false, completionNeedsConfirmation: false, hint: DH_COPY.invalid, confirmationMessage: DH_COPY.partialCompletion, pendingSets: [] };
+    return { canComplete: false, completionNeedsConfirmation: false, hint: DH_COPY.invalid, confirmationMessage: DH_COPY.partialCompletion, pending: {} };
   }
   const draft = dhDraftSet(liveDhForm(context.uiState, context.setResults), context.executionId, now);
   const pendingSets = draft ? [draft] : [];
@@ -66,6 +66,6 @@ export function dhCompletion(context: ModuleContext, now: () => string): ModuleC
     completionNeedsConfirmation: progress.completionNeedsConfirmation,
     hint: DH_COPY.needOnePass,
     confirmationMessage: DH_COPY.partialCompletion,
-    pendingSets,
+    pending: pendingSets.length > 0 ? { sets: pendingSets } : {},
   };
 }

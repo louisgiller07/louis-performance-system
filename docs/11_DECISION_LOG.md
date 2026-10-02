@@ -4681,3 +4681,24 @@ Sinon, pas de copie : `final_prescription_no_lineage` (pas de lignée) ou `final
 - Un démarrage par le harnais n'est pas devenu prêt en 60 s une fois sur 11 : non reproduit, capture de diagnostic ajoutée.
 
 **Statut** : Accepted — `feat/harness-local-dev-safety`, local, non poussé.
+
+## 2026-10-02 — ADR UX-11C.4 : activité d'une séance d'endurance guidée (web)
+
+> **A guided endurance session records the ONE activity actually performed — chosen among the execution's own prescription activities — with its real duration, and optionally distance and RPE, through the existing `session_activity_results` contract. Actual and prescribed are shown side by side, never scored.**
+
+**Décisions.**
+- Module `endurance` ; Force et DH inchangés.
+- **Vue de prescription** : extension additive `activityOptions: {id, label}[]`, à côté des libellés existants, pour écrire l'identifiant d'activité. Aucun changement de rendu.
+- **Formulaire minimal** : activité (groupe radio, aucune présélection), durée en minutes (obligatoire), distance en km et RPE (facultatifs). `comment` n'est pas exposé (réservé à un futur debrief au contrat explicite).
+- **Conversions explicites et testées** : minutes × 60 → secondes ; km × 1000 arrondi au mètre (1,005 km → 1005 m malgré le bruit flottant) ; vide → NULL. Aucune chaîne n'est convertie silencieusement (NaN, Infinity, 1e3 et décimales en trop sont refusés et signalés sur le champ).
+- **Correction** : append-only, une fois, préremplie, et l'activité peut changer vers une autre activité autorisée.
+- **Fin** : un résultat actif est requis ; une saisie valide non enregistrée part avec `completed` dans le même lot ; pas de confirmation partielle.
+- **Deux onglets** : `activity_result_exists`, puis rechargement de l'état confirmé (jamais « le dernier gagne »).
+- **Contrat de module** : le contexte transporte les résultats d'activité. Ce que le module ajoute au lot `completed` devient générique (`pending: { sets?, activities? }`) ; le shell ignore les champs propres à chaque discipline.
+- **Aucune migration** : le contrat serveur (UX-11B.2.5 / 11B.2.6) suffisait.
+
+**Tests.**
+- Modèle pur, conversions comprises ; interface contre le serveur en mémoire (règles d'activité comprises) ; intégration réelle locale (Edge, RPC, RLS, unités en base, pont M1).
+- Contrôle Chrome réel à 390×844 : Supabase local seulement, via `.env.local` local et la garde de développement ; seuls `localhost` et `127.0.0.1:54321` ont été contactés.
+
+**Statut** : Accepted — `feat/ux11c4-guided-endurance`, local, non poussé.

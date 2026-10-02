@@ -32,6 +32,8 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   invalid_correction: "Ce résultat a déjà été corrigé : un résultat ne se corrige qu'une fois.",
   result_slot_exists: "Un résultat a déjà été enregistré ici (autre appareil ou onglet) : la valeur enregistrée est affichée.",
   execution_terminal: "Cette séance est terminée : ses résultats ne peuvent plus changer.",
+  activity_result_exists: "Une activité a déjà été enregistrée pour cette séance (autre appareil ou onglet) : la valeur enregistrée est affichée.",
+  activity_result_required: "Enregistre l'activité réalisée avant de terminer la séance.",
 };
 
 export const PARTIAL_COMPLETION_MESSAGE =

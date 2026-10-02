@@ -9,8 +9,8 @@
 // last result failed).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadGuidedSession, type GuidedSessionSnapshot } from "./guidedSessionLoader";
-import { postSessionExecutionBatch, type ExecutionEventType, type SessionExecutionBatch, type SetResultInput } from "./sessionExecutionClient";
-import type { SubmitOutcome } from "./sessionModules";
+import { postSessionExecutionBatch, type ExecutionEventType, type SessionExecutionBatch } from "./sessionExecutionClient";
+import type { ModulePending, SubmitOutcome } from "./sessionModules";
 
 /** start / pause / resume / abandon / complete, or a module action (e.g. `set:<item>#<n>`). */
 export type GuidedActionKind = string;
@@ -115,11 +115,15 @@ export function useGuidedSession(athleteId: string, date: string, deps: GuidedSe
   const lifecycle = (action: "pause" | "resume" | "abandon", type: ExecutionEventType) => (executionId: string) =>
     send(action, batchFor(action, () => ({ events: [event(executionId, type)] })));
 
-  /** `completed` + the module's pending results, in one batch (one transaction). */
-  const complete = (executionId: string, pendingSets: SetResultInput[]) =>
+  /** `completed` + the module's pending results (sets or activity), in one batch (one transaction). */
+  const complete = (executionId: string, pending: ModulePending) =>
     send(
       "complete",
-      batchFor("complete", () => ({ events: [event(executionId, "completed")], ...(pendingSets.length > 0 ? { sets: pendingSets } : {}) }))
+      batchFor("complete", () => ({
+        events: [event(executionId, "completed")],
+        ...(pending.sets && pending.sets.length > 0 ? { sets: pending.sets } : {}),
+        ...(pending.activities && pending.activities.length > 0 ? { activities: pending.activities } : {}),
+      }))
     );
 
   const retry = () => (pending.current ? send(pending.current.action, pending.current.batch) : Promise.resolve("ignored" as const));

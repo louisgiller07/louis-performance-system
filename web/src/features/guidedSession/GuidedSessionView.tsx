@@ -12,11 +12,11 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
 import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, PHASE_LABELS } from "./guidedSessionCopy";
-import { resolveSessionModule, type SubmitOutcome } from "./sessionModules";
+import { resolveSessionModule, type ModulePending, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
 import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 import type { ExecutionPhase } from "./executionState";
-import type { SessionExecutionBatch, SetResultInput } from "./sessionExecutionClient";
+import type { SessionExecutionBatch } from "./sessionExecutionClient";
 
 export interface GuidedSessionViewProps {
   load: GuidedLoadState;
@@ -26,7 +26,7 @@ export interface GuidedSessionViewProps {
   onPause: (executionId: string) => void;
   onResume: (executionId: string) => void;
   onAbandon: (executionId: string) => void;
-  onComplete: (executionId: string, pendingSets: SetResultInput[]) => void;
+  onComplete: (executionId: string, pending: ModulePending) => void;
   onSubmit: (action: string, batch: SessionExecutionBatch) => Promise<SubmitOutcome>;
   onRetry: () => void;
   onReload: () => void;
@@ -114,10 +114,11 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
   const phase: ExecutionPhase = snapshot.kind === "ready_to_start" ? "not_started" : snapshot.phase;
   const executionId = snapshot.kind === "execution" ? snapshot.execution.id : null;
   const setResults = snapshot.kind === "execution" ? snapshot.execution.exercise_set_results : [];
+  const activityResults = snapshot.kind === "execution" ? snapshot.execution.session_activity_results : [];
   const restartId = snapshot.kind === "execution" ? snapshot.restartFinalPrescriptionId : undefined;
   const open = phase === "active" || phase === "paused";
   const module = prescription ? resolveSessionModule(prescription) : null;
-  const context = prescription ? { prescription, executionId, phase, setResults, uiState: moduleState } : null;
+  const context = prescription ? { prescription, executionId, phase, setResults, activityResults, uiState: moduleState } : null;
   const completion = module && context ? module.completion(context, now) : null;
   const canComplete = open && executionId !== null && completion?.canComplete === true;
 
@@ -125,7 +126,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
     if (!executionId || !module || !context) return;
     // Rebuilt at the moment of completing: the pending results carry their own stable ids.
     setConfirming(null);
-    onComplete(executionId, module.completion(context, now).pendingSets);
+    onComplete(executionId, module.completion(context, now).pending);
   };
 
   return (

@@ -157,11 +157,13 @@ export function decodeFinalPrescriptionV2(record: FinalPrescriptionV2Record): De
     if (typeof s.family !== "string" || !(SESSION_FAMILIES_V2 as readonly string[]).includes(s.family)) fail("unknown family");
     if (!isNonEmptyString(s.sessionKind)) fail("missing sessionKind");
     if (!Array.isArray(s.blocks) || s.blocks.length === 0) fail("no blocks");
-    let activities: string[] | undefined;
+    let activityOptions: { id: string; label: string }[] | undefined;
     if (s.activitySelection !== undefined) {
       const sel = s.activitySelection;
       if (!isObject(sel) || sel.mode !== "restricted" || !Array.isArray(sel.activityIds) || sel.activityIds.length === 0) fail("invalid activitySelection");
-      activities = sel.activityIds.map((id) => (typeof id === "string" && Object.prototype.hasOwnProperty.call(ENDURANCE_ACTIVITY_LABELS_V2, id) ? ENDURANCE_ACTIVITY_LABELS_V2[id]! : fail("unknown activity")));
+      activityOptions = sel.activityIds.map((id) =>
+        typeof id === "string" && Object.prototype.hasOwnProperty.call(ENDURANCE_ACTIVITY_LABELS_V2, id) ? { id, label: ENDURANCE_ACTIVITY_LABELS_V2[id]! } : fail("unknown activity")
+      );
     }
     const view: FinalPrescriptionV2View = {
       id: record.id,
@@ -172,7 +174,7 @@ export function decodeFinalPrescriptionV2(record: FinalPrescriptionV2Record): De
       intent: text(`intent.${String(s.intentId)}`, "intent", "intentId"),
       ...(isNonEmptyString(s.templateId) ? { templateId: s.templateId } : {}),
       ...(isNonEmptyString(s.protocolId) ? { protocolId: s.protocolId } : {}),
-      ...(activities ? { activities } : {}),
+      ...(activityOptions ? { activities: activityOptions.map((a) => a.label), activityOptions } : {}),
       blocks: s.blocks.map((b, i) => block(b, `blocks[${i}]`)),
     };
     return { ok: true, view };

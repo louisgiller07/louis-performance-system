@@ -21,7 +21,7 @@ function GuidedSession({ athleteId }: { athleteId: string }) {
       onPause={(id) => void session.pause(id)}
       onResume={(id) => void session.resume(id)}
       onAbandon={(id) => void session.abandon(id)}
-      onComplete={(id, sets) => void session.complete(id, sets)}
+      onComplete={(id, pending) => void session.complete(id, pending)}
       onSubmit={session.submit}
       onRetry={() => void session.retry()}
       onReload={() => void session.reload()}

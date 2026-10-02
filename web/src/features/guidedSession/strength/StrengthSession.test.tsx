@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DAY, fakeBackend, prescriptionView } from "../../../test/guidedSessionFakeBackend";
+import { fakeBackend, prescriptionView } from "../../../test/guidedSessionFakeBackend";
 import { GuidedSessionHarness as Harness } from "../../../test/GuidedSessionHarness";
-import { ACTION_ERROR_MESSAGES, COMPLETION_NOT_READY_MESSAGE, PARTIAL_COMPLETION_MESSAGE } from "../guidedSessionCopy";
+import { ACTION_ERROR_MESSAGES, PARTIAL_COMPLETION_MESSAGE } from "../guidedSessionCopy";
 import { STRENGTH_COPY } from "./strengthCopy";
 import type { ExerciseItemView, FinalPrescriptionV2View } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 
@@ -401,18 +401,5 @@ describe("Guided Force session — abandon and restart", () => {
     // The reloaded day offers the NEW prescription, never a restart of the stale one.
     expect(await screen.findByRole("button", { name: "Commencer la séance" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Recommencer la séance" })).toBeNull();
-  });
-});
-
-describe("Endurance stays read only (UX-11C.4 not started)", () => {
-  it.each(["AEROBIC_BASE"] as const)("%s: no result entry, completion disabled", async (kind) => {
-    const b = fakeBackend({ prescription: prescriptionView(kind) });
-    render(<Harness deps={b.deps} />);
-    await startSession();
-    expect(screen.getByTestId("results-placeholder")).toBeInTheDocument();
-    expect(screen.queryAllByRole("button", { name: /^Saisir/ })).toEqual([]);
-    expect(completeButton()).toBeDisabled();
-    expect(completeButton()).toHaveAccessibleDescription(COMPLETION_NOT_READY_MESSAGE);
-    expect(DAY).toBe("2026-10-09");
   });
 });

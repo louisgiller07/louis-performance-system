@@ -12,7 +12,7 @@
 // tests; this double only keeps the UI tests fast and deterministic.
 import { vi } from "vitest";
 import type { GuidedSessionDeps } from "../features/guidedSession/useGuidedSession";
-import { isTerminal, phaseOf, selectDayExecution, type ExecutionRow, type SetResultRow } from "../features/guidedSession/executionState";
+import { isTerminal, phaseOf, selectDayExecution, type ActivityResultRow, type ExecutionRow, type SetResultRow } from "../features/guidedSession/executionState";
 import type { GuidedSessionSnapshot } from "../features/guidedSession/guidedSessionLoader";
 import type { SessionExecutionBatch, SessionExecutionResult } from "../features/guidedSession/sessionExecutionClient";
 import type { DrillItemView, ExerciseItemView, FinalPrescriptionV2View } from "../features/finalPrescriptionV2/finalPrescriptionV2Types";
@@ -67,8 +67,9 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
   function applyOrThrow(batch: SessionExecutionBatch) {
     // UX-11B.2.6 — terminal BEFORE the batch (a terminal event of this batch does not count).
     const terminalBefore = new Set(executions.filter((e) => isTerminal(phaseOf(e))).map((e) => e.id));
-    const inserted: Record<string, string[]> = { executions: [], events: [], sets: [] };
-    const unchanged: Record<string, string[]> = { executions: [], events: [], sets: [] };
+    const inserted: Record<string, string[]> = { executions: [], events: [], sets: [], activities: [] };
+    const unchanged: Record<string, string[]> = { executions: [], events: [], sets: [], activities: [] };
+    const completedNow: string[] = [];
     if (batch.execution) {
       const x = batch.execution;
       const existing = executions.find((e) => e.id === x.id);
@@ -78,7 +79,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       } else {
         if (x.final_prescription_id !== state.current.prescription?.id) throw new Rejected(refuse("final_prescription_not_current"));
         if (executions.some((e) => !isTerminal(phaseOf(e)))) throw new Rejected(refuse("active_execution_exists"));
-        executions.push({ id: x.id, session_date: DAY, final_prescription_id: x.final_prescription_id, started_at: x.started_at, recorded_at: `2026-10-09T17:${String(++clock).padStart(2, "0")}:00Z`, execution_events: [], exercise_set_results: [] });
+        executions.push({ id: x.id, session_date: DAY, final_prescription_id: x.final_prescription_id, started_at: x.started_at, recorded_at: `2026-10-09T17:${String(++clock).padStart(2, "0")}:00Z`, execution_events: [], exercise_set_results: [], session_activity_results: [] });
         inserted.executions!.push(x.id);
       }
     }
@@ -98,6 +99,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       eventIds.set(ev.id, ev.event_type);
       exec.execution_events.push({ event_type: ev.event_type, event_seq: ++seq });
       inserted.events!.push(ev.id);
+      if (ev.event_type === "completed") completedNow.push(exec.id);
     }
     for (const set of batch.sets ?? []) {
       const all = executions.flatMap((e) => e.exercise_set_results);
@@ -136,6 +138,44 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       const row: SetResultRow = { ...sent, other_exercise_name: null, recorded_at: `2026-10-09T18:${String(++clock).padStart(2, "0")}:00Z` };
       exec.exercise_set_results.push(row);
       inserted.sets!.push(set.id);
+    }
+    // UX-11B.2.5 / 11B.2.6 — activity results (session_activity_results).
+    for (const act of batch.activities ?? []) {
+      const all = executions.flatMap((e) => e.session_activity_results);
+      const existing = all.find((r) => r.id === act.id);
+      if (existing) {
+        const same =
+          existing.activity_id === act.activity_id &&
+          existing.duration_seconds === act.duration_seconds &&
+          existing.distance_m === act.distance_m &&
+          existing.rpe_actual === act.rpe_actual &&
+          existing.supersedes_id === act.supersedes_id &&
+          existing.occurred_at === act.occurred_at;
+        if (!same) throw new Rejected(refuse("id_conflict"));
+        unchanged.activities!.push(act.id);
+        continue;
+      }
+      const exec = executions.find((e) => e.id === act.execution_id);
+      if (!exec) throw new Rejected(refuse("execution_not_found", 404));
+      if (terminalBefore.has(exec.id)) throw new Rejected(refuse("execution_terminal"));
+      const allowed = prescriptions.get(exec.final_prescription_id ?? "")?.activityOptions?.map((o) => o.id) ?? [];
+      if (!allowed.includes(act.activity_id)) throw new Rejected(refuse("activity_not_allowed_by_prescription", 422));
+      if (act.supersedes_id) {
+        const target = exec.session_activity_results.find((r) => r.id === act.supersedes_id);
+        if (!target || target.supersedes_id !== null || all.some((r) => r.supersedes_id === act.supersedes_id)) throw new Rejected(refuse("invalid_correction"));
+      } else if (exec.session_activity_results.some((r) => r.supersedes_id === null)) {
+        throw new Rejected(refuse("activity_result_exists"));
+      }
+      const row: ActivityResultRow = { id: act.id, activity_id: act.activity_id, duration_seconds: act.duration_seconds, distance_m: act.distance_m, rpe_actual: act.rpe_actual, supersedes_id: act.supersedes_id, occurred_at: act.occurred_at, recorded_at: `2026-10-09T19:${String(++clock).padStart(2, "0")}:00Z` };
+      exec.session_activity_results.push(row);
+      inserted.activities!.push(act.id);
+    }
+    // Completion invariant: an execution whose prescription offers an activity choice completes only with its activity result.
+    for (const id of completedNow) {
+      const exec = executions.find((e) => e.id === id)!;
+      if (prescriptions.get(exec.final_prescription_id ?? "")?.activityOptions && exec.session_activity_results.length === 0) {
+        throw new Rejected({ ok: false, error: { code: "activity_result_required", status: 422, retryable: false } } as never);
+      }
     }
     return { inserted, unchanged };
   }

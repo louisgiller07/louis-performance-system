@@ -30,6 +30,7 @@ const execution = (id: string, fp: string | null, events: string[], recorded = "
   recorded_at: recorded,
   execution_events: events.map((event_type, i) => ({ event_type, event_seq: i + 1 })),
   exercise_set_results: [],
+  session_activity_results: [],
 });
 
 beforeEach(() => {

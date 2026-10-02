@@ -4,7 +4,7 @@
 // ordinal) and at most one correction per original, so each slot has at
 // most one active row: the reader never arbitrates between rows (no "most
 // recent wins"). Anything else is an inconsistency: fail closed.
-import type { SetResultRow } from "../executionState";
+import type { ActivityResultRow, SetResultRow } from "../executionState";
 
 export class AmbiguousResultsError extends Error {
   constructor(slot: string) {
@@ -28,7 +28,7 @@ export function activeResultsBySlot(rows: readonly SetResultRow[]): Map<string, 
 }
 
 /** A correction is itself never corrected (backend rule): only an original can be. */
-export const isCorrectable = (row: SetResultRow) => row.supersedes_id === null;
+export const isCorrectable = (row: { supersedes_id: string | null }) => row.supersedes_id === null;
 
 /**
  * An entry being typed stays open only while the slot is still as it was
@@ -40,4 +40,17 @@ export function entryStillOpen(entry: { id: string; prescriptionItemId: string; 
   if (rows.some((r) => r.id.toLowerCase() === entry.id.toLowerCase())) return false;
   if (entry.supersedesId !== null) return !rows.some((r) => r.supersedes_id?.toLowerCase() === entry.supersedesId!.toLowerCase());
   return !activeResultsBySlot(rows).has(slotKey(entry.prescriptionItemId, entry.ordinal));
+}
+
+/**
+ * UX-11C.4 — the active activity result of an execution: the row nobody
+ * supersedes. The backend holds at most one original per execution
+ * (activity_result_exists) and one correction per original, so there is at
+ * most one; anything else fails closed (never "the latest wins").
+ */
+export function activeActivityResult(rows: readonly ActivityResultRow[]): ActivityResultRow | null {
+  const superseded = new Set(rows.filter((r) => r.supersedes_id).map((r) => r.supersedes_id!.toLowerCase()));
+  const active = rows.filter((r) => !superseded.has(r.id.toLowerCase()));
+  if (active.length > 1) throw new AmbiguousResultsError("activity");
+  return active[0] ?? null;
 }

@@ -70,9 +70,9 @@ const asRow = (set: SetResultInput): SetResultRow => ({ load_kg: null, rpe_actua
 /** Locked completion rule (UX-11C.2): ≥ 1 performed work set; partial results need a confirmation. */
 export function strengthCompletion(context: ModuleContext, now: () => string): ModuleCompletion {
   const draft = draftOf(liveForm(context.uiState, context.setResults), context.executionId, now);
-  if (draft.kind === "invalid") return { canComplete: false, completionNeedsConfirmation: false, hint: STRENGTH_COPY.finishEntryFirst, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pendingSets: [] };
+  if (draft.kind === "invalid") return { canComplete: false, completionNeedsConfirmation: false, hint: STRENGTH_COPY.finishEntryFirst, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pending: {} };
   const pendingSets = draft.kind === "valid" ? [draft.set] : [];
   const progress = strengthProgress(context.prescription, context.setResults, pendingSets.map(asRow));
-  return { canComplete: progress.canComplete, completionNeedsConfirmation: progress.completionNeedsConfirmation, hint: STRENGTH_COPY.needOneWorkSet, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pendingSets };
+  return { canComplete: progress.canComplete, completionNeedsConfirmation: progress.completionNeedsConfirmation, hint: STRENGTH_COPY.needOneWorkSet, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pending: pendingSets.length > 0 ? { sets: pendingSets } : {} };
 }
 

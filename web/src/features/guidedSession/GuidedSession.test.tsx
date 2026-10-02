@@ -139,7 +139,7 @@ describe("Guided session shell (UX-11C.1)", () => {
   it("unsupported catalogue on an existing execution: no partial rendering, explicit message, the execution is kept", async () => {
     const b = fakeBackend({ prescription: FORCE });
     b.prescriptions.delete(FORCE.id); // the linked prescription is not decodable by this version
-    b.executions.push({ id: "e-old", session_date: "2026-10-09", final_prescription_id: FORCE.id, started_at: "x", recorded_at: "2026-10-09T16:00:00Z", execution_events: [{ event_type: "started", event_seq: 0 }], exercise_set_results: [] });
+    b.executions.push({ id: "e-old", session_date: "2026-10-09", final_prescription_id: FORCE.id, started_at: "x", recorded_at: "2026-10-09T16:00:00Z", execution_events: [{ event_type: "started", event_seq: 0 }], exercise_set_results: [], session_activity_results: [] });
     render(<Harness deps={b.deps} />);
     expect(await screen.findByText(UNSUPPORTED_SESSION_MESSAGE)).toBeInTheDocument();
     expect(screen.queryByText("Goblet squat")).toBeNull();

@@ -16,7 +16,7 @@ export function GuidedSessionHarness({ deps }: { deps: GuidedSessionDeps }) {
         onPause={(id) => void s.pause(id)}
         onResume={(id) => void s.resume(id)}
         onAbandon={(id) => void s.abandon(id)}
-        onComplete={(id, sets) => void s.complete(id, sets)}
+        onComplete={(id, pending) => void s.complete(id, pending)}
         onSubmit={s.submit}
         onRetry={() => void s.retry()}
         onReload={() => void s.reload()}

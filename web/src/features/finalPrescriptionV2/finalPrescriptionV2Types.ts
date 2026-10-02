@@ -63,6 +63,8 @@ export interface FinalPrescriptionV2View {
   protocolId?: string;
   /** Endurance only: the activities the rider may choose from (labels). */
   activities?: string[];
+  /** Endurance only (UX-11C.4): the same choice with the prescription's activity ids, in order. */
+  activityOptions?: { id: string; label: string }[];
   blocks: BlockView[];
 }
 

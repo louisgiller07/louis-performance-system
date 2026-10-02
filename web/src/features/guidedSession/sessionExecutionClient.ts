@@ -68,14 +68,33 @@ export type SetResultInput =
       occurred_at: string;
     };
 
+/**
+ * UX-11C.4 — the endurance activity actually performed (session_activity_results):
+ * one of the execution's own prescription activityIds, the real duration in
+ * seconds (> 0), the distance in meters (integer >= 0) and the actual RPE
+ * (1-10), both optional. `comment` is never exposed (always null in C.4).
+ */
+export interface ActivityResultInput {
+  id: string;
+  execution_id: string;
+  activity_id: string;
+  duration_seconds: number;
+  distance_m: number | null;
+  rpe_actual: number | null;
+  comment: null;
+  supersedes_id: string | null;
+  occurred_at: string;
+}
+
 export type ForceSetInput = Extract<SetResultInput, { measure_type: "reps" | "duration" }>;
 export type PassResultInput = Extract<SetResultInput, { measure_type: "pass" }>;
 
-/** Executions, events and (UX-11C.2) set results; activities belong to the endurance module (later). */
+/** Executions, events, set results (Force sets, DH passes) and activity results (endurance). */
 export interface SessionExecutionBatch {
   execution?: ExecutionCreateInput;
   events: ExecutionEventInput[];
   sets?: SetResultInput[];
+  activities?: ActivityResultInput[];
 }
 
 export interface SessionExecutionOutcome {

@@ -29,6 +29,18 @@ export interface SetResultRow {
   recorded_at: string;
 }
 
+/** UX-11C.4 — one session_activity_results row (append-only; a correction supersedes one original). */
+export interface ActivityResultRow {
+  id: string;
+  activity_id: string;
+  duration_seconds: number;
+  distance_m: number | null;
+  rpe_actual: number | null;
+  supersedes_id: string | null;
+  occurred_at: string;
+  recorded_at: string;
+}
+
 export interface ExecutionRow {
   id: string;
   session_date: string;
@@ -38,6 +50,8 @@ export interface ExecutionRow {
   execution_events: ExecutionEventRow[];
   /** UX-11C.2 — every set result of the execution (history included), read with it. */
   exercise_set_results: SetResultRow[];
+  /** UX-11C.4 — every activity result of the execution (history included), read with it. */
+  session_activity_results: ActivityResultRow[];
 }
 
 const PHASE_BY_LAST_EVENT: Readonly<Record<string, ExecutionPhase>> = {
