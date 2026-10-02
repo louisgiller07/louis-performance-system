@@ -66,7 +66,8 @@ export function isLoopbackSupabaseUrl(url: string): boolean {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:") return false;
     if (parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") return false;
-    return parsed.port === LOCAL_SUPABASE_PORT;
+    // UX-11R.1 — LOCAL_SUPABASE_API_PORT explicitly admits a second LOCAL stack (throwaway migration rehearsal); still loopback http only.
+    return parsed.port === LOCAL_SUPABASE_PORT || (!!process.env.LOCAL_SUPABASE_API_PORT && parsed.port === process.env.LOCAL_SUPABASE_API_PORT);
   } catch {
     return false;
   }
