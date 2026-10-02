@@ -351,6 +351,19 @@ Table technique append-only, écrite best-effort par les Edge Functions `generat
 
 Accès : RLS activée sans policy ; `service_role` = `INSERT` uniquement ; aucun accès `anon` / `authenticated` ; lecture support via rôle SQL admin. Index : `(athlete_id, created_at desc)`, `(event_type, created_at desc)`. Voir `11_DECISION_LOG.md` (2026-09-24 — ADR PILOT_008).
 
+### `training_plan_model_assignments` (UX-11R.2 — choix serveur du modèle de planification, migration locale non poussée)
+
+Configuration serveur, hors modèle coaching : quel modèle de planification utiliser pour les **nouvelles** générations d'un athlète. Lue uniquement par `generate-training-plan` (service role), et seulement si le secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED` vaut exactement `true`. Migration `20261003090000_ux11r2_training_plan_model_assignments`.
+
+| Colonne | Type | Note |
+|---|---|---|
+| `athlete_id` | `uuid` PK | FK `athletes(id)` `ON DELETE RESTRICT` (supprimée par la purge) |
+| `planning_model` | `text NOT NULL` | `CHECK` : `v1` / `v2` |
+| `note` | `text NULL` | `CHECK` : non blanche, ≤ 500 caractères ; note d'opérateur |
+| `created_at`, `updated_at` | `timestamptz` | `now()` ; `updated_at` par trigger `set_updated_at` |
+
+Accès : RLS activée sans policy ; aucun privilège pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`, `UPDATE`, `DELETE` seulement. Aucune ligne créée par la migration : table vide → tout le monde en V1. Résolution : interrupteur inactif → V1 ; actif sans ligne → V1 ; `v1` → V1 ; `v2` → V2. Ne gouverne pas Daily, les prescriptions du jour ni les exécutions, qui suivent les plans persistés. Les événements `plan_generation_*` de `pilot_observability_events` portent `metadata.planningModel` et `metadata.rolloutReason`. Voir `11_DECISION_LOG.md` (ADR UX-11R.2) et `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7.
+
 ### `athlete_onboarding_profiles` — consentement données de santé (PILOT_012, additif)
 
 Deux colonnes ajoutées par `20260924100000_pilot_002_health_data_consent.sql` :
@@ -513,7 +526,7 @@ Voir `01_PRODUCT_REQUIREMENTS.md` §Hors périmètre.
 - **RLS activée** sur toutes les tables
 - Politique unique : `athlete_id IN (SELECT id FROM athletes WHERE user_id = auth.uid())`
 - `health_flags` séparée pour permettre plus tard une politique de rétention différente si besoin
-- **Suppression des données d'un pilote (ADR UX-11B.2.1)** : suppression physique de toutes ses lignes, sans anonymisation ni conservation agrégée en V1, par une procédure de purge unique réservée au serveur qui lève la protection « ajout seul » uniquement pendant sa transaction. **Implémentée en local (UX-11R.1, migration `20261002120000_ux11r1_athlete_account_purge`, non poussée)** : `purge_athlete_account(p_athlete_id)`, SECURITY DEFINER réservée à `service_role`, une transaction tout-ou-rien. Elle supprime dans l'ordre des dépendances (chaînes `supersedes` en commençant par les feuilles, structure de plan, issues, journaux `pattern_*`, exécutions, prescriptions du jour, `pilot_observability_events`), puis la ligne `athletes` (les autres tables suivent en CASCADE), puis vérifie qu'aucune ligne de l'athlète ne reste. `reject_append_only_mutation` refuse toujours tout UPDATE, et tout DELETE sauf dans la transaction de purge (marqueur local `nalynt.athlete_purge_txid` = `txid_current()`) ; aucun trigger n'est désactivé. L'identité Auth est supprimée **ensuite** par l'API Admin (`athletes.user_id` cascade depuis `auth.users`). Le parcours produit de suppression de compte (interface, Edge dédiée) reste à faire.
+- **Suppression des données d'un pilote (ADR UX-11B.2.1)** : suppression physique de toutes ses lignes, sans anonymisation ni conservation agrégée en V1, par une procédure de purge unique réservée au serveur qui lève la protection « ajout seul » uniquement pendant sa transaction. **Implémentée en local (UX-11R.1, migration `20261002120000_ux11r1_athlete_account_purge`, non poussée)** : `purge_athlete_account(p_athlete_id)`, SECURITY DEFINER réservée à `service_role`, une transaction tout-ou-rien. Elle supprime dans l'ordre des dépendances (chaînes `supersedes` en commençant par les feuilles, structure de plan, issues, journaux `pattern_*`, exécutions, prescriptions du jour, `pilot_observability_events`), puis la ligne `athletes` (les autres tables suivent en CASCADE), puis vérifie qu'aucune ligne de l'athlète ne reste. Depuis UX-11R.2 (migration `20261003090000`), elle supprime aussi l'assignation `training_plan_model_assignments` de l'athlète. `reject_append_only_mutation` refuse toujours tout UPDATE, et tout DELETE sauf dans la transaction de purge (marqueur local `nalynt.athlete_purge_txid` = `txid_current()`) ; aucun trigger n'est désactivé. L'identité Auth est supprimée **ensuite** par l'API Admin (`athletes.user_id` cascade depuis `auth.users`). Le parcours produit de suppression de compte (interface, Edge dédiée) reste à faire.
 
 ---
 

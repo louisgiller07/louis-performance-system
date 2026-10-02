@@ -4,6 +4,12 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**UX-11R.2 — flag serveur V2 et génération Edge, en local (2026-10-02, `feat/ux11r2-v2-server-rollout`).** Rien n'est déployé.
+- Choix du modèle de planification sur le serveur seulement : secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED` (exactement `true`) et table d'assignation `training_plan_model_assignments` (service role seul, migration locale 9, vide). Défaut V1, aucun repli V2 → V1.
+- `generate-training-plan` produit V1 ou V2 selon ce choix ; le corps public et la réponse sont inchangés, le client ne peut pas forcer V2.
+- Prouvé en local sous Deno (26/26) : interrupteur OFF / ON / OFF, rejeux, rollback global et individuel, sécurité, purge, répétitions base vierge et type production, checkout propre.
+- Stage 3 interne débloqué techniquement. V2 réservé aux comptes internes / de test tant que le sign-off coaching est `pending` ; Stage 5 non READY.
+
 **UX-11R.1 — release candidate durci localement (2026-10-02, `feat/ux11r1-rollout-hardening`).** Rien n'est déployé.
 - Répétitions de migration réussies : base vierge, et upgrade depuis le schéma et les données V1 de `ba59239` sans modifier une ligne V1.
 - Purge de compte implémentée (migration locale 8) et testée.

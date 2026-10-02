@@ -4782,3 +4782,23 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail et preuves** : `docs/release/UX-11R_RELEASE_CANDIDATE.md` et `docs/release/COACHING_CONTENT_SIGNOFF.md`.
 
 **Statut** : Accepted — `feat/ux11r1-rollout-hardening`, local. 8 migrations UX non poussées ; production `ba59239`.
+
+## 2026-10-02 — ADR UX-11R.2 : flag serveur V2 et génération Edge (aucun déploiement)
+
+> **New training plans can be generated in V1 or V2 by the public Edge function, chosen on the server only (global Edge switch + per-athlete assignment). Default V1, no fallback, persisted plans keep driving Daily. Nothing deployed.**
+
+**Décisions.**
+- **Interrupteur global** : secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED`, actif seulement pour la valeur exacte `true`. Aucune variable `VITE_*`.
+- **Assignation** : table `training_plan_model_assignments` (migration 9, additive), `planning_model` `v1` / `v2`. RLS sans policy, aucun droit client, `service_role` seul. La migration n'assigne personne. Elle est incluse dans `purge_athlete_account`.
+- **Résolution** (`resolvePlanningModelForAthlete`) : OFF → V1 (`global_v2_disabled`), ON sans ligne → V1 (`default_v1`), `v1` → V1 (`assigned_v1`), `v2` → V2 (`assigned_v2`). L'assignation n'est lue que si l'interrupteur est actif ; une lecture en échec fait échouer la génération.
+- **Point d'entrée unique** `generateTrainingPlanForAthlete` : appelle le chemin V1 existant inchangé ou le pipeline V2 validé (`generateAndPersistTrainingPlanV2`), sans second pipeline. **Aucun repli** : V2 bloqué → 422 avec son code stable, V2 en échec → erreur, jamais un plan V1.
+- **Edge `generate-training-plan`** : choix après l'authentification et la résolution de l'athlète ; corps public et réponse inchangés (clés inconnues toujours refusées, modèle jamais révélé). Le bundle de génération contient V2.
+- **Portée** : seules les nouvelles générations. Daily, prescriptions du jour, séances guidées et exécutions suivent les données persistées. Désactiver (global ou individuel) n'affecte pas un plan V2 courant tant qu'un plan V1 n'est pas généré et accepté.
+- **Idempotence** : rejeu identique → même version ; même requête avec un autre modèle → refus (environnement de génération différent), rien n'est réécrit.
+- **Observabilité** : `planningModel` et `rolloutReason` dans les métadonnées des événements `plan_generation_*`, sans nouveau type.
+- **Écarts avec la proposition R.1** : nom de table, nom de flag, `note` + horodatages au lieu de `assigned_by` / `assigned_at` (aucun auteur inventé), valeur `v1` acceptée pour un retour individuel.
+- **Limite** : V2 réservé aux comptes internes / de test jusqu'au sign-off coaching ; Stage 5 non READY. Le retour à l'Edge ou au web de `ba59239` reste UNSUPPORTED après un plan V2.
+
+**Détail et preuves** : `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7 et §12 ; tests `planningModelRollout`, `v2RolloutFlag`, `test:generate-plan:rollout:http`.
+
+**Statut** : Accepted — `feat/ux11r2-v2-server-rollout`, local. 9 migrations UX non poussées ; production `ba59239`.

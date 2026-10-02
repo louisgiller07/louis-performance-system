@@ -1,4 +1,4 @@
-# UX-11R.1 — Release candidate & rollout hardening
+# UX-11R — Release candidate & rollout hardening (R.1, R.2)
 
 > Rien n'est déployé. Ce document prépare un déploiement futur : il ne l'autorise pas. Toute action distante (backup, `db push`, déploiement Edge, activation V2) reste une décision humaine explicite, étape par étape.
 
@@ -8,7 +8,8 @@
 |---|---|
 | Base production | `ba59239` (`main` / `origin/main`) |
 | Entrée fonctionnelle du RC | `7bdd9d8` (`feat/ux11c5-closure`, UX-11C core complete locally) |
-| Durcissement | branche `feat/ux11r1-rollout-hardening`, commits de UX-11R.1 au-dessus de `7bdd9d8` |
+| Durcissement | branche `feat/ux11r1-rollout-hardening`, commits de UX-11R.1 au-dessus de `7bdd9d8` (HEAD `4c9c88b`) |
+| Flag serveur V2 | branche `feat/ux11r2-v2-server-rollout`, commits de UX-11R.2 au-dessus de `4c9c88b` |
 | Constante de version | aucune : le dépôt n'a pas de convention de numéro de release, rien n'est créé |
 
 ## 2. Audit du diff `ba59239..7bdd9d8`
@@ -40,11 +41,12 @@ Anomalies :
 6. `20261001140000_ux11b25_session_activity_results`
 7. `20261002090000_ux11b26_execution_result_integrity`
 8. `20261002120000_ux11r1_athlete_account_purge` (UX-11R.1)
+9. `20261003090000_ux11r2_training_plan_model_assignments` (UX-11R.2) : table d'assignation serveur (§7), `purge_athlete_account` redéfinie pour la vider aussi. N'assigne personne.
 
 **Toutes additives pour le V1 :**
 - colonnes nullables seulement : `athlete_performance_profiles.dh_technical_tier`, colonnes de statut V2 de `decisions` ;
 - contraintes CHECK qui acceptent NULL ;
-- nouvelles tables d'exécution ;
+- nouvelles tables d'exécution, table d'assignation du modèle de planification (vide) ;
 - RPC nouvelles ou redéfinies seulement côté V2 : `record_session_execution`, `persist_daily_run_v2` ;
 - aucune RPC V1 modifiée ;
 - `reject_append_only_mutation` est redéfinie (migration 8, §5) sans changer son comportement normal.
@@ -68,6 +70,9 @@ Méthode : piles Supabase **locales jetables** (`project_id` et ports 55xxx–57
 | ↳ nouveau code | Suite head-coach du RC sur la base migrée : 1098/1098, avec nouvelles données V2 et parcours complet. Daily du RC sur l'athlète V1 historique : chemin V1, aucun champ V2. |
 | ↳ migration 8 + purge | Appliquée sur la base migrée ; purge de l'athlète V1 historique OK, témoin identique ; test de purge 5/5. |
 | **Garde « un original par emplacement »** | Doublon créé volontairement (transaction annulée) : la migration refuse avec un message explicite et ne supprime rien. Sans doublon : elle passe. |
+| **Base vierge, UX-11R.2** | Nouvelle pile jetable : 59/59 migrations sans intervention ; table d'assignation vide, RLS active, droits `service_role` seuls. Suite head-coach complète sur cette pile : 1121/1121 (dont flag V2, rollback, sécurité, purge). |
+| **Upgrade type production, UX-11R.2** | Pile « upgrade » (schéma `ba59239` + données V1 créées par l'ancien code + 8 migrations) : migration 9 via `migration up`, 59 enregistrées. Table vide → athlète historique résolu en V1 (`default_v1`) même interrupteur actif ; nouvelle génération V1 ; son plan courant reste celui de l'ancien code ; Daily V1 sans champ V2 ; purge d'un autre athlète historique OK. |
+| ↳ intégrité des données | Seconde pile peuplée (145 athlètes, 143 versions de plan, 103 décisions) : empreinte md5 des 38 tables `public` et de `auth.users` avant / après la migration 9 → **identiques**, seule différence la nouvelle table vide. |
 | **Réapplication** | Un second `migration up` n'applique rien (`applied: []`) ; les versions restent enregistrées (57, puis 58). Les migrations ne sont pas présentées comme rejouables : c'est le registre `schema_migrations` qui empêche le rejeu. |
 
 Les suites d'intégration ciblent une pile de répétition avec `SUPABASE_URL`, `LOCAL_SUPABASE_API_PORT` (port local supplémentaire explicite) et `LOCAL_SUPABASE_DB_CONTAINER` (conteneur `supabase_db_*` local explicite). Deux suites web (`athleteBootstrapRepo`, `openHealthFlagsRepo`) épinglent leur client sur le port de la pile de développement et ne peuvent viser une autre pile : c'est une limite du harnais, pas du schéma.
@@ -82,6 +87,7 @@ Les suites d'intégration ciblent une pile de répétition avec `SUPABASE_URL`, 
 - Ordre des dépendances : chaînes `supersedes` en commençant par les feuilles, structure de plan avant versions, issues et journaux `pattern_*` avant décisions, exécutions avant prescriptions du jour, `pilot_observability_events` (sans FK). Ensuite la ligne `athletes` (les autres tables suivent en CASCADE), puis une vérification qu'aucune ligne de l'athlète ne subsiste.
 - **Aucun trigger désactivé** : `reject_append_only_mutation` refuse toujours tout UPDATE, et tout DELETE sauf celui exécuté dans la transaction de purge (marqueur local `nalynt.athlete_purge_txid` lié à `txid_current()`).
 - Aucun rôle API n'a DELETE sur une table append-only (vérifié).
+- UX-11R.2 : la purge supprime aussi l'assignation de modèle de l'athlète (`training_plan_model_assignments`, compteur dans le résultat) ; l'assignation d'un autre athlète reste intacte (testé).
 
 **Identité Auth.** `athletes.user_id` cascade depuis `auth.users`. L'ordre est donc : purge applicative, **puis** `auth.admin.deleteUser` (helper serveur `purgeAthleteAccount`). Si l'Auth échoue après la purge, il suffit de relancer la suppression Auth.
 
@@ -107,29 +113,71 @@ Les suites d'intégration ciblent une pile de répétition avec `SUPABASE_URL`, 
 
 | Fonction | Entrée / imports | RPC / tables | V1 / V2 | Bundling local eszip (image edge-runtime v1.74.3, sans envoi) |
 |---|---|---|---|---|
-| `generate-training-plan` | `index.ts` → `dist/edge/generateTrainingPlan.bundle.js`, `dist/supabase/observability/pilotEvents.js`, `@supabase/server@1.4.1` | RPC de persistance du plan (V1), `pilot_observability_events` | **V1 uniquement**. Corps limité à `generationRequestId` et `durationWeeks` (clés inconnues refusées) : un client ne peut pas demander V2. | OK (code 0) |
+| `generate-training-plan` | `index.ts` → `dist/edge/generateTrainingPlan.bundle.js` (contient le pipeline V2 depuis UX-11R.2), `dist/supabase/observability/pilotEvents.js`, `@supabase/server@1.4.1` | RPC de persistance du plan (V1 et V2), `training_plan_model_assignments` (lecture), `pilot_observability_events` | **Choix serveur** (§7) : V1 par défaut, V2 seulement interrupteur actif + athlète assigné. Corps limité à `generationRequestId` et `durationWeeks` (clés inconnues refusées) : un client ne peut pas demander V2. | OK (code 0) ; R.2 : OK depuis un checkout propre |
 | `daily-run` | `index.ts` → 73 fichiers `dist/supabase/**`, `import()` paresseux de `dist/edge/dailyRunV2.bundle.js` | `persist_daily_run` (V1), `persist_daily_run_v2`, lectures plan / décisions | Suit les données : plan V2 courant → chemin V2, sinon V1 | OK (code 0), bundle V2 **inclus** |
 | `session-execution` | `index.ts`, `validation.ts`, `@supabase/server` | `record_session_execution` (migrations 1, 2, 4, 5, 6, 7) | Uniquement pour une prescription du jour V2 | OK (code 0) |
 
-- Variables d'environnement : uniquement celles injectées par Supabase (`SUPABASE_URL`, clés publishable et secret) via `withSupabase` ; aucune variable propre au projet.
+- Variables d'environnement : celles injectées par Supabase (`SUPABASE_URL`, clés publishable et secret) via `withSupabase`, plus, depuis UX-11R.2, le secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED` (lu par `generate-training-plan` seulement ; absent = V2 désactivé).
+- UX-11R.2, checkout propre : `build:release` sortie 0, bundles identiques octet pour octet au build de développement ; eszip local de `generate-training-plan` et `daily-run` OK ; harnais HTTP de rollout 26/26 sur le runtime Deno servant ce checkout. En local, `functions serve` charge toutes les fonctions : `longitudinal-engine` doit aussi être construit (`npm ci && npm run build`), ce que `build:release` ne couvre pas (fonctions `get-insights`, `refresh-longitudinal`, `submit-review`, inchangées depuis `ba59239`).
 - Hygiène, non bloquante : `runDailyFor.js` garde, pour Node, un `import()` paresseux de `reconcileFinalPrescriptionV2.js`, qui contient le spécificateur nu `planning-engine/session-model-v2/daily`. Le bundler le signale « non mappé » sans échouer, et `daily-run` ne l'exécute jamais (il injecte le bundle).
 
-## 7. Activation V2 côté serveur
+## 7. Activation V2 côté serveur (implémentée en UX-11R.2)
 
-**Seam existant.**
-- `generateAndPersistTrainingPlanV2` exige `planningModel: "v2"`, une option serveur.
-- L'Edge publique n'appelle que `generateAndPersistTrainingPlan` (V1) et refuse toute clé inconnue : aucune auto-activation par le client.
-- `daily-run` et `session-execution` suivent les données (plan V2, prescription du jour V2) : **le seul point d'activation est la génération du plan.**
+**Mécanisme.**
+- **Interrupteur global** : secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED`. Seule la valeur exacte `true` l'active ; absent, vide, `TRUE`, `1`, `yes`, ` true` → désactivé. Aucune variable `VITE_*` : rien côté navigateur.
+- **Assignation** : table `public.training_plan_model_assignments` (`athlete_id` PK → `athletes`, `planning_model` `v1` ou `v2`, `note` optionnelle ≤ 500 caractères, `created_at`, `updated_at`).
+  - RLS active, aucune policy.
+  - `anon` et `authenticated` : aucun droit (testé : select / insert / update / delete d'un rider → 42501).
+  - `service_role` seul : SELECT, INSERT, UPDATE, DELETE.
+  - La migration n'assigne personne.
+- **Résolution** (`resolvePlanningModelForAthlete`, avec code de raison) :
+  - interrupteur inactif → V1 (`global_v2_disabled`) ; l'assignation n'est même pas lue ;
+  - actif, aucune ligne → V1 (`default_v1`) ;
+  - actif, `v1` → V1 (`assigned_v1`) ;
+  - actif, `v2` → V2 (`assigned_v2`).
+  - Une assignation illisible fait échouer la génération, jamais un V1 silencieux.
+- **`generate-training-plan`** décide après l'authentification et la résolution de l'athlète depuis l'identité de l'appelant.
+  - Corps public inchangé : `generationRequestId`, `durationWeeks` ; toute autre clé (`planningModel`, `useV2`…) → 400, rien n'est généré.
+  - Réponse inchangée (`planVersionId`, `idempotentReplay`) : le modèle n'est pas révélé.
+  - V1 : chemin existant, exact et inchangé. V2 : `generateAndPersistTrainingPlanV2`, le pipeline validé, aucun second pipeline.
+  - **Aucun repli** : V2 bloqué → 422 avec le code stable Session Model V2 (ex. `missing_dh_technical_tier`) ; V2 en échec → 500. Jamais un plan V1 à la place. Le web affiche pour ces codes son message générique « configuration incomplète ».
+- **Portée** : le flag ne gouverne que les **nouvelles** générations. Daily, prescriptions du jour, séances guidées et exécutions suivent les données persistées.
+- **Idempotence** :
+  - même requête rejouée (V1 ou V2) → même version, `idempotentReplay: true` ;
+  - même `generationRequestId` avec un autre modèle (flag ou assignation changés entre deux tentatives) → environnement de génération différent → refus (500 `internal_error`), aucune version réécrite.
+- **Écarts avec le contrat proposé en R.1** :
+  - nom de table `training_plan_model_assignments` ;
+  - nom de flag `NALYNT_V2_PLAN_GENERATION_ENABLED` ;
+  - `created_at` / `updated_at` et `note` au lieu de `assigned_by` / `assigned_at`, pour ne pas inventer d'auteur (l'opérateur peut se nommer dans `note`) ;
+  - la valeur `v1` est aussi acceptée, pour un retour individuel explicite.
 
-**Mécanisme de flag.** Aucun n'existe : pas de table d'allowlist ni de cohorte. `VITE_SIMULATION_ATHLETE_ID` n'est qu'une garde d'interface.
+**Activation (ordre, décision humaine à chaque étape).**
+1. Interrupteur absent ou `false` (défaut).
+2. Code compatible déployé (Stage 2) : tout le monde reste V1.
+3. Assignation, en SQL serveur (service role / éditeur SQL), jamais depuis le client :
+   ```sql
+   insert into public.training_plan_model_assignments (athlete_id, planning_model, note)
+   values ('<athlete_id>', 'v2', '<opérateur> — pilote interne')
+   on conflict (athlete_id) do update set planning_model = excluded.planning_model, note = excluded.note;
+   ```
+   Prérequis : profil V2 de l'athlète (palier technique DH, priorités DH, terrains…). Sinon la génération répond 422 avec le code manquant.
+4. Interrupteur global : `NALYNT_V2_PLAN_GENERATION_ENABLED=true` (secret Edge).
+5. La **prochaine** génération de l'athlète assigné produit un plan V2. Il devient courant une fois accepté. Vérification : `plan_generation_succeeded` avec `planningModel = v2`.
 
-**Contrat minimal proposé (non implémenté, ticket suivant) :**
-- table serveur `athlete_planning_model_assignments (athlete_id PK, planning_model 'v2', assigned_by, assigned_at, note)`, lisible par `service_role` seulement ;
-- interrupteur global Edge `NALYNT_V2_GENERATION_ENABLED` (absent = désactivé) ;
-- `generate-training-plan` choisit V2 seulement si l'interrupteur est actif **et** l'athlète est assigné ;
-- défaut V1 ; **aucun repli automatique** (un échec V2 reste un échec, jamais un plan V1 silencieux) ;
-- inclure `generateAndPersistTrainingPlanV2` dans le bundle de génération ;
-- tracer le modèle dans `plan_generation_succeeded` (métadonnée).
+**Désactivation.**
+- **Globale** : interrupteur à `false` (ou supprimé). Toutes les nouvelles générations repassent en V1, assignations conservées.
+- **Individuelle** : `update public.training_plan_model_assignments set planning_model = 'v1' where athlete_id = '<athlete_id>'` (ou `delete`). La prochaine génération de cet athlète est V1.
+- Dans les deux cas, **un plan V2 courant continue d'être lu en V2** (Daily, séances guidées) jusqu'à ce qu'un nouveau plan V1 soit généré **et accepté**. Les données V2 restent (append-only).
+
+**Limite.** Tant que le sign-off coaching est `pending` (`docs/release/COACHING_CONTENT_SIGNOFF.md`), l'assignation V2 est réservée aux comptes internes / de test (en production : `41f21027-…` seulement). Le Stage 5 n'est pas READY.
+
+**Preuves locales.**
+- Unitaires : parsing, matrice de résolution, dispatcher (pas de lecture d'assignation interrupteur inactif, pas de repli, erreur relancée telle quelle).
+- Intégration (`v2RolloutFlag`, 9/9) : OFF/ON, rejeux V1 et V2, changement de modèle sur la même requête refusé sans réécriture, rollback global et individuel, sécurité, purge.
+- HTTP réel sous Deno (`npm run test:generate-plan:rollout:http`, 26/26) : le harnais possède le runtime et le redémarre interrupteur OFF, ON, puis OFF.
+  - Athlètes : pilote A (assigné V2), témoin B (non assigné), pilote C bloqué.
+  - Corps forgés, rejeu, acceptation, Daily V2, séance guidée démarrée puis complétée avec résultat.
+  - Après OFF : Daily de A toujours V2, nouvelle génération de A en V1, plan courant de A toujours V2, retour M1.
 
 ## 8. Observabilité
 
@@ -147,8 +195,9 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 - séances : `execution_events` par `event_type` ;
 - retour M1 : `computeDailyFor` ou `daily_run_succeeded`.
 
+**Ajout UX-11R.2, sans toucher à la liste fermée des types :** `plan_generation_succeeded`, `plan_generation_blocked` et `plan_generation_failed` portent `metadata.planningModel` (`v1` / `v2`) et `metadata.rolloutReason` (code de résolution, §7) ; absents si l'échec précède la résolution. Best-effort, sans PII. Requête : `metadata->>'planningModel'` par athlète et par jour.
+
 **Trous restants :**
-- la génération ne trace pas le modèle V1/V2 (ce sera le cas avec le flag) ;
 - aucun événement serveur ne compte les refus `session-execution` en base (seulement dans les logs Edge, durée de conservation à vérifier) ;
 - aucune alerte n'est configurée.
 
@@ -170,14 +219,17 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 
 **Stage 2 — code compatible, V2 désactivé**
 - `build:release` depuis le RC.
-- Déployer `daily-run`, `generate-training-plan` (toujours V1), `session-execution` (déployée mais sans prescription V2 à servir) et le web (l'entrée « séance guidée » n'apparaît que pour une prescription V2 `created`).
+- Ne **pas** définir `NALYNT_V2_PLAN_GENERATION_ENABLED` (ou le laisser à `false`). La table d'assignation est vide (migration 9).
+- Déployer `daily-run`, `generate-training-plan` (V1 tant que l'interrupteur est inactif), `session-execution` (déployée mais sans prescription V2 à servir) et le web (l'entrée « séance guidée » n'apparaît que pour une prescription V2 `created`).
 - Smoke V1 complet.
 - *Justification* : aucun plan V2 ne peut être créé, donc tous les chemins V2 restent inertes. Le web reste fail-closed.
 
-**Stage 3 — interne**
-- **Prérequis non disponible** : le flag serveur (§7).
-- Assigner V2 au seul compte de test `41f21027-…`, puis activer l'interrupteur.
-- Jusqu'au flag, ce stage est **BLOQUÉ**. Ne pas contourner par une génération V2 manuelle en production.
+**Stage 3 — interne** (débloqué techniquement par UX-11R.2, §7)
+- Assigner V2 au seul compte de test `41f21027-…` (SQL §7), vérifier son profil V2, puis activer l'interrupteur.
+- Générer, accepter, puis vérifier `plan_generation_succeeded` (`planningModel = v2`), Daily V2 et une séance guidée.
+- Les autres athlètes restent V1 (non assignés), interrupteur actif ou non.
+- Retour : interrupteur à `false` ou assignation `v1` (§7, §10).
+- Ne jamais contourner par une génération V2 manuelle hors de l'Edge.
 
 **Stage 4 — observation** (au moins une semaine de séances réelles sur le compte interne). Critères :
 - génération V2 sans échec ;
@@ -188,18 +240,18 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 - refus `session-execution` limités aux codes attendus.
 
 **Stage 5 — déploiement contrôlé**
-- Seulement après le sign-off coaching (§10) et des critères techniques verts.
+- Seulement après le sign-off coaching (`COACHING_CONTENT_SIGNOFF.md`) et des critères techniques verts. **Non READY.**
 - Élargissement athlète par athlète par assignation, réversible.
 
 ## 10. Stratégie de retour arrière
 
-- **Retour arrière principal : V2 désactivé (flag) et code conservé.**
+- **Retour arrière principal : V2 désactivé (flag) et code conservé.** Global : `NALYNT_V2_PLAN_GENERATION_ENABLED=false`. Individuel : assignation `v1` ou supprimée (§7).
   - Les nouvelles générations repassent en V1.
   - Les données V2 sont **conservées** (append-only) ; rien n'est supprimé.
   - Les lecteurs restent fail-closed : version non prise en charge → pas de rendu partiel.
 - **Athlète ayant déjà un plan V2 courant :**
   - Daily suit les données et reste en V2 tant que ce plan est courant.
-  - Pour sortir un athlète du V2 : générer et accepter un plan **V1** pour lui. C'est une action serveur, qui suppose le flag en place.
+  - Pour sortir un athlète du V2 : désactiver (global ou individuel), puis générer et accepter un plan **V1** pour lui. Testé en local (intégration et HTTP).
   - Les exécutions passées restent en historique.
 - **Retour arrière Edge vers `ba59239` : interdit dès qu'un plan V2 existe en production.**
   - Répétition : l'ancien `daily-run` transmet alors le document V2 comme prescription « V1 » (`schemaVersion: "v2"`) au web de `ba59239`, qui n'a pas les gardes de lecture (UX-11A.5b.1).
@@ -214,31 +266,35 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Ancien code + ancien schéma | SUPPORTED | Production actuelle |
 | Ancien code + nouveau schéma | SUPPORTED | Répétition : Daily V1, génération, acceptation par le code de `ba59239` sur le schéma migré ; 0 ligne V1 modifiée |
 | Nouveau code + ancien schéma | UNSUPPORTED | Le nouveau code lit les nouvelles colonnes et RPC (statut V2 des décisions, `persist_daily_run_v2`, `record_session_execution`). Le schéma doit passer d'abord. |
-| Nouveau code + nouveau schéma + V2 désactivé | SUPPORTED | Suite RC sur la base migrée ; Daily RC sur l'athlète V1 historique (chemin V1) ; HTTP V1 M3 27/28 (le seul échec est le nettoyage, §5, résolu par la purge) ; M5 97/97 ; daily-run « pas de plan → V1 » |
-| Nouveau code + nouveau schéma + V2 interne | SUPPORTED en local, PENDING en production | UX-11C core local (Force, DH, endurance, M1), daily-run V2 HTTP 9/9 sous Deno. Le flag de production manque (§7). |
+| Nouveau code + nouveau schéma + V2 désactivé | SUPPORTED | Interrupteur absent / `false` → V1 pour tous, même assignés (HTTP rollout et intégration) ; suite RC sur la base migrée ; Daily RC sur l'athlète V1 historique (chemin V1) ; HTTP V1 M3 27/28 (le seul échec est le nettoyage, §5, résolu par la purge) ; M5 97/97 ; daily-run « pas de plan → V1 » |
+| Nouveau code + nouveau schéma + V2 interne | SUPPORTED en local, PENDING en production | Flag serveur (§7) : HTTP rollout 26/26 sous Deno, intégration 9/9 ; UX-11C core local (Force, DH, endurance, M1), daily-run V2 HTTP 9/9. Production : non déployé, sign-off coaching pending. |
+| Interrupteur actif + athlète non assigné | SUPPORTED | V1 (`default_v1`), y compris avec un profil V2 complet ; corps forgé → 400 |
+| Interrupteur actif + migration 9 sur données historiques | SUPPORTED | Table vide → V1 ; répétition type production (§4) |
 | Plans V1 historiques | SUPPORTED | Intacts après migration ; chemin V1 |
-| Plans V2 existants après V2 désactivé (nouveau code) | SUPPORTED | Daily et séances guidées continuent ; seule la génération est coupée |
+| Plans V2 existants après V2 désactivé (nouveau code) | SUPPORTED | Daily et séances guidées continuent ; seule la génération est coupée (HTTP rollout : OFF après plan V2 → Daily V2, nouvelle génération V1) |
 | Plans V2 existants + ancien code (retour Edge ou web) | UNSUPPORTED | Répétition : l'ancien daily-run sert le document V2 comme V1 |
 
 ## 12. Release gates
 
 | Domaine | Gate | Statut | Preuve |
 |---|---|---|---|
-| Database | Répétition sur base vierge | PASS | §4 : 58/58, suite 1098/1098 |
-| Database | Upgrade type production | PASS | §4 : 0 ligne V1 modifiée ; ancien et nouveau code OK |
+| Database | Répétition sur base vierge | PASS | §4 : 59/59, suite 1121/1121 |
+| Database | Upgrade type production | PASS | §4 : 0 ligne V1 modifiée ; ancien et nouveau code OK ; migration 9 : table vide → V1, 38 tables identiques |
 | Database | V1 après migrations | PASS | §4 et §11 |
-| Database | Purge | PASS (contrat serveur) | §5 : 5/5 sur trois bases. **Le parcours produit de suppression de compte n'existe pas** (PENDING). |
-| Runtime | Build Edge propre | PASS | §6 : checkout propre, octets identiques, eszip local OK pour les 3 fonctions |
+| Database | Purge | PASS (contrat serveur) | §5 : 5/5 sur trois bases ; assignation incluse (R.2). **Le parcours produit de suppression de compte n'existe pas** (PENDING). |
+| Runtime | Build Edge propre | PASS | §6 : checkout propre, octets identiques, eszip local OK pour les 3 fonctions ; R.2 : bundle de génération avec V2, testé sous Deno depuis un checkout propre (26/26) |
 | Runtime | Démarrage à froid | PENDING | Démarrage à froid local de `functions serve` OK ; non vérifié avec un eszip déployé |
 | Runtime | Runtime V1 | PASS (local) | M3 27/28 (nettoyage seul), M5 97/97, daily-run V1 |
-| Runtime | Runtime V2 interne | PASS (local), PENDING (production) | daily-run V2 HTTP 9/9 ; suites guidées sur l'Edge locale |
+| Runtime | Runtime V2 interne | PASS (local), PENDING (production) | daily-run V2 HTTP 9/9 ; rollout HTTP 26/26 ; suites guidées sur l'Edge locale |
 | Product | Force / DH / Endurance | PASS (local) | UX-11C.2 à C.5 |
 | Product | Retour M1 | PASS (local) | Test croisé UX-11C.5 |
 | Coaching | Sign-off du contenu | PENDING | `docs/release/COACHING_CONTENT_SIGNOFF.md` : 275 entrées `pending` |
-| Operations | Observabilité | PARTIAL | §8 : ajouts en place ; génération V1/V2 non tracée, aucune alerte |
-| Operations | Runbook de retour arrière | PASS (écrit), non répété | §10 |
-| Operations | Runbook de déploiement | PASS (écrit), Stage 3 bloqué | §9 : le flag manque |
-| Operations | Flag serveur V2 | PENDING | §7 : contrat proposé, non implémenté |
+| Operations | Observabilité | PARTIAL | §8 : génération tracée V1/V2 avec raison (R.2) ; aucune alerte |
+| Operations | Runbook de retour arrière | PASS (écrit) ; flag répété en local | §10 : retours global et individuel répétés en local ; retour Edge vers `ba59239` toujours UNSUPPORTED après un plan V2 |
+| Operations | Runbook de déploiement | PASS (écrit) | §9 : Stage 3 débloqué techniquement (comptes internes seulement) ; Stage 5 non READY |
+| Operations | Flag serveur V2 | PASS (local) | §7 : migration 9, résolveur, Edge, sécurité, rejeux, rollback, purge, HTTP 26/26 ; non déployé |
+| Operations | Parcours produit de suppression de compte | PENDING | Contrat serveur seul (§5) |
+| Operations | GRANT DELETE `anon` / `authenticated` sur `athletes` | PENDING (décision) | §5, inchangé |
 
 ## 12bis. Fragilités connues du harnais local
 
