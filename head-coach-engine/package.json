@@ -10,6 +10,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:edge": "node scripts/build.mjs --edge",
+    "build:release": "npm --prefix ../planning-engine run build && npm --prefix ../prescription-engine run build && npm run build && npm run build:edge",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:edge": "npm run build && npm run build:edge && vitest run --config vitest.edge.config.ts",
