@@ -21,8 +21,9 @@
 //      every relative import must resolve to a file on disk, and every bare
 //      specifier must be mapped by the function's deno.json (or be a known,
 //      documented exception). A missing dist file fails the build here.
-//   5. Inventory: sha256 of each Edge bundle and of each function's whole
-//      import graph, for the release record.
+//   5. Inventory: sha256 of each Edge bundle (raw bytes) and of each
+//      function's whole import graph (line endings normalized), for the
+//      release record.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -62,6 +63,9 @@ if (!process.argv.includes("--verify-only")) {
 
 const IMPORT_RE = /(?:import|export)\s[^"']*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^\s*import\s*["']([^"']+)["']/gm;
 const sha256 = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
+// Graph hashes ignore line endings (core.autocrlf checkouts differ only by CRLF), so one commit
+// gives one graph hash on every machine. Bundle hashes stay raw bytes.
+const sha256Text = (file) => createHash("sha256").update(readFileSync(file, "utf8").replace(/\r\n/g, "\n")).digest("hex");
 const rel = (file) => relative(ROOT, file).replace(/\\/g, "/");
 
 const problems = [];
@@ -91,7 +95,7 @@ for (const name of readdirSync(FUNCTIONS_DIR).sort()) {
   }
   const files = [...seen].sort();
   const graph = createHash("sha256");
-  for (const file of files) graph.update(`${rel(file)}\0${sha256(file)}\n`);
+  for (const file of files) graph.update(`${rel(file)}\0${sha256Text(file)}\n`);
   inventory.push({
     name,
     files: files.length,
