@@ -13,7 +13,6 @@
  * The assignment is read only when the global switch is on.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { SessionModelV2GenerationBlockCode } from "planning-engine/session-model-v2";
 import { generateAndPersistTrainingPlan } from "../supabase/generateAndPersistTrainingPlan.js";
 import { generateAndPersistTrainingPlanV2 } from "./v2/generateAndPersistTrainingPlanV2.js";
 import { getPlanningModelAssignment, resolvePlanningModelForAthlete, type PlanningModelResolution } from "./planningModelRollout.js";
@@ -29,10 +28,13 @@ export interface GenerateTrainingPlanForAthleteInput {
   globalV2Enabled: boolean;
 }
 
+// Derived from the V2 path itself, so this dispatcher stays outside the Session Model V2 import boundary.
+type V2BlockedOutcome = Extract<Awaited<ReturnType<typeof generateAndPersistTrainingPlanV2>>, { status: "blocked" }>;
+
 export type GenerateTrainingPlanForAthleteResult = PlanningModelResolution &
   (
     | { status: "persisted"; planVersionId: string; idempotentReplay: boolean }
-    | { status: "blocked"; code: SessionModelV2GenerationBlockCode; detail: Readonly<Record<string, unknown>> }
+    | { status: "blocked"; code: V2BlockedOutcome["code"]; detail: V2BlockedOutcome["detail"] }
   );
 
 export interface GenerateTrainingPlanForAthleteDeps {
