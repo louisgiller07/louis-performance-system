@@ -4824,3 +4824,29 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md`, `docs/release/UX-11R_RELEASE_CANDIDATE.md`.
 
 **Statut** : Accepted — `feat/ux11r3-production-preflight`, local. 9 migrations UX non poussées ; production `ba59239`.
+
+## 2026-10-02 — ADR UX-11R.3.1 : DELETE direct sur `athletes` révoqué, ordre de déploiement et risque de merge (aucune commande distante)
+
+> **Clients can no longer delete an athletes row: account deletion is the server purge, then the Auth Admin API. The deployment order is locked (schema first, old code smoke, then new code), and merging to `main` is treated as a possible deployment until the remote Git configuration is verified read-only.**
+
+**Décisions.**
+- **Migration 10** `20261003120000_ux11r31_revoke_direct_athlete_delete` : `revoke delete on public.athletes from anon, authenticated`.
+  - Portée DELETE seulement : SELECT, INSERT, UPDATE, policy et grant EXECUTE de la purge inchangés.
+  - Aucun usage produit (recherche statique).
+  - Confirme le contrat de l'ADR UX-11B.2.1 : purge serveur unique.
+- **Ordre verrouillé** :
+  1. gate distant en lecture seule ;
+  2. Approbation A ;
+  3. migrations ;
+  4. smoke V1 avec l'ancien code ;
+  5. Approbation B, puis nouveau code (Edge, puis web).
+  - Justification : ancien code + nouveau schéma SUPPORTED, nouveau code + ancien schéma UNSUPPORTED.
+- **Merge / push** : `REMOTE CONFIG VERIFICATION REQUIRED`.
+  - Le dépôt n'a aucune automation, mais une intégration Git Vercel ou Supabase ne se voit que côté distant.
+  - Tant que ce n'est pas vérifié, un push est traité comme un déploiement : après le Stage 1, sous l'Approbation B, et après les Edge Functions pour le web.
+- **Lectures distantes en lecture seule** : `psql` avec `default_transaction_read_only=on` et `pg_dump`, mot de passe fourni par variable d'environnement. Pas de `migration list` / `db dump` du CLI sans mot de passe : le CLI peut alors créer un rôle de connexion temporaire.
+- **Script `deploy:daily-run`** (M3) : à ne pas utiliser. Il déploie sans `build:edge`.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §17, §19 à §22.
+
+**Statut** : Accepted — `feat/ux11r31-athlete-delete-merge-gate`, local. 10 migrations UX non poussées ; production `ba59239`.

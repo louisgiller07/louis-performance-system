@@ -1,4 +1,4 @@
-# UX-11R — Release candidate & rollout hardening (R.1, R.2, R.3)
+# UX-11R — Release candidate & rollout hardening (R.1, R.2, R.3, R.3.1)
 
 > Rien n'est déployé. Ce document prépare un déploiement futur : il ne l'autorise pas. Toute action distante (backup, `db push`, déploiement Edge, activation V2) reste une décision humaine explicite, étape par étape.
 
@@ -10,7 +10,8 @@
 | Entrée fonctionnelle du RC | `7bdd9d8` (`feat/ux11c5-closure`, UX-11C core complete locally) |
 | Durcissement | branche `feat/ux11r1-rollout-hardening`, commits de UX-11R.1 au-dessus de `7bdd9d8` (HEAD `4c9c88b`) |
 | Flag serveur V2 | branche `feat/ux11r2-v2-server-rollout`, commits de UX-11R.2 au-dessus de `4c9c88b` (HEAD `db1bbb8`) |
-| Preflight Stage 0 | branche `feat/ux11r3-production-preflight`, commits de UX-11R.3 au-dessus de `db1bbb8` ; commandes, gates et approbations : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` |
+| Preflight Stage 0 | branche `feat/ux11r3-production-preflight`, commits de UX-11R.3 au-dessus de `db1bbb8` (HEAD `be83f44`) ; commandes, gates et approbations : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` |
+| DELETE révoqué, gate distant | branche `feat/ux11r31-athlete-delete-merge-gate`, commits de UX-11R.3.1 au-dessus de `be83f44` |
 | Constante de version | aucune : le dépôt n'a pas de convention de numéro de release, rien n'est créé |
 
 ## 2. Audit du diff `ba59239..7bdd9d8`
@@ -43,6 +44,7 @@ Anomalies :
 7. `20261002090000_ux11b26_execution_result_integrity`
 8. `20261002120000_ux11r1_athlete_account_purge` (UX-11R.1)
 9. `20261003090000_ux11r2_training_plan_model_assignments` (UX-11R.2) : table d'assignation serveur (§7), `purge_athlete_account` redéfinie pour la vider aussi. N'assigne personne.
+10. `20261003120000_ux11r31_revoke_direct_athlete_delete` (UX-11R.3.1) : `revoke delete on public.athletes from anon, authenticated`. Retire un privilège client, n'ajoute ni ne modifie aucune donnée.
 
 **Toutes additives pour le V1 :**
 - colonnes nullables seulement : `athlete_performance_profiles.dh_technical_tier`, colonnes de statut V2 de `decisions` ;
@@ -102,12 +104,12 @@ Les suites d'intégration ciblent une pile de répétition avec `SUPABASE_URL`, 
 
 **Hors périmètre.** L'appel produit (écran « supprimer mon compte », Edge dédiée, confirmation) n'existe pas : seul le contrat serveur est prêt.
 
-**Audit UX-11R.3 (aucun grant modifié).** `anon` et `authenticated` ont DELETE sur `athletes` (RLS `user_id = auth.uid()`), hérité du `GRANT ALL` de la baseline.
-- Un rider **sans plan** peut supprimer sa propre ligne : la cascade efface check-ins, décisions, health flags et completed sessions qu'il ne peut pas supprimer directement, et laisse l'identité Auth et les événements pilotes orphelins.
-- Avec un plan, une assignation ou une exécution : refusé (RESTRICT).
-- Un autre athlète ou `anon` : 0 ligne. La purge serveur : complète.
-- Comportement identique sur `ba59239` ; aucun usage produit.
-- **Classé OBSOLETE / SHOULD REVOKE**, non bloquant pour le Stage 1. Révocation proposée, non implémentée : preflight §17.
+**DELETE client sur `athletes` : révoqué (UX-11R.3.1, migration 10).**
+- Constat de l'audit R.3 : un rider sans plan pouvait supprimer sa propre ligne, et la cascade effaçait un historique qu'il ne peut pas supprimer directement.
+- Désormais, rider (propre ligne, avec ou sans plan), autre athlète et `anon` reçoivent 42501 ; ni rider ni `anon` ne peuvent appeler la purge.
+- SELECT, INSERT, UPDATE et la policy sont inchangés.
+- **Seul chemin de suppression : purge serveur, puis API Admin.** Aucun usage produit du DELETE direct (recherche statique).
+- Détail : preflight §17.
 
 ## 6. Déployabilité Edge (sans déploiement)
 
@@ -277,7 +279,7 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Combinaison | Statut | Preuve / raison |
 |---|---|---|
 | Ancien code + ancien schéma | SUPPORTED | Production actuelle |
-| Ancien code + nouveau schéma | SUPPORTED | Répétition : Daily V1, génération, acceptation par le code de `ba59239` sur le schéma migré ; 0 ligne V1 modifiée |
+| Ancien code + nouveau schéma | SUPPORTED | Répétition : Daily V1, génération, acceptation par le code de `ba59239` sur le schéma migré ; 0 ligne V1 modifiée. Rejoué en R.3.1 avec les 10 migrations. L'ancien code ne supprime jamais de ligne `athletes` côté client. |
 | Nouveau code + ancien schéma | UNSUPPORTED | Le nouveau code lit les nouvelles colonnes et RPC (statut V2 des décisions, `persist_daily_run_v2`, `record_session_execution`). Le schéma doit passer d'abord. |
 | Nouveau code + nouveau schéma + V2 désactivé | SUPPORTED | Interrupteur absent / `false` → V1 pour tous, même assignés (HTTP rollout et intégration) ; suite RC sur la base migrée ; Daily RC sur l'athlète V1 historique (chemin V1) ; HTTP V1 M3 27/28 (le seul échec est le nettoyage, §5, résolu par la purge) ; M5 97/97 ; daily-run « pas de plan → V1 » |
 | Nouveau code + nouveau schéma + V2 interne | SUPPORTED en local, PENDING en production | Flag serveur (§7) : HTTP rollout 26/26 sous Deno, intégration 9/9 ; UX-11C core local (Force, DH, endurance, M1), daily-run V2 HTTP 9/9. Production : non déployé, sign-off coaching pending. |
@@ -291,8 +293,8 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 
 | Domaine | Gate | Statut | Preuve |
 |---|---|---|---|
-| Database | Répétition sur base vierge | PASS | §4 : 59/59, suite 1121/1121 |
-| Database | Upgrade type production | PASS | §4 : 0 ligne V1 modifiée ; ancien et nouveau code OK ; migration 9 : table vide → V1, 38 tables identiques |
+| Database | Répétition sur base vierge | PASS | R.3.1 : 60/60, suite 1128/1128 (V1, V2 assigné, Daily, exécution guidée, purge, DELETE révoqué) |
+| Database | Upgrade type production | PASS | R.3.1, depuis `ba59239` + données V1 de l'ancien code + 10 migrations : colonnes d'origine identiques octet pour octet, nouvelles colonnes NULL ; ancien code OK ; DELETE direct refusé ; purge OK ; table d'assignation vide → V1 ; suite 1128/1128 |
 | Database | V1 après migrations | PASS | §4 et §11 |
 | Database | Purge | PASS (contrat serveur) | §5 : 5/5 sur trois bases ; assignation incluse (R.2). **Le parcours produit de suppression de compte n'existe pas** (PENDING). |
 | Runtime | Build Edge propre | PASS | §6 : checkout propre, octets identiques, eszip local OK pour les 3 fonctions ; R.2 : bundle de génération avec V2, testé sous Deno depuis un checkout propre (26/26) ; R.3 : `build:release:all` (toutes les fonctions et le web), échecs explicites prouvés, build web isolé OK |
@@ -307,8 +309,9 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Runbook de déploiement | PASS (écrit) | §9 : Stage 3 débloqué techniquement (comptes internes seulement) ; Stage 5 non READY |
 | Operations | Flag serveur V2 | PASS (local) | §7 : migration 9, résolveur, Edge, sécurité, rejeux, rollback, purge, HTTP 26/26 ; non déployé |
 | Operations | Parcours produit de suppression de compte | PENDING (Stage 5) | Backend prêt ; procédure opérateur de purge en production à écrire et répéter ; non bloquant pour le Stage 3 (preflight §18) |
-| Operations | GRANT DELETE `anon` / `authenticated` sur `athletes` | OBSOLETE / SHOULD REVOKE, PENDING (décision) | Audit R.3 : 7/7 et 5/5 ; révocation proposée, non implémentée (preflight §17) |
-| Operations | Preflight Stage 0 | PRÉPARÉ (local), exécution PENDING | Cible identifiée sans accès distant, commandes Stage 0 à 3, approbations A à D ; sauvegarde / PITR : TO VERIFY AT APPROVAL GATE |
+| Security | DELETE direct sur `athletes` | PASS (local) | Révoqué par la migration 10 ; tests 7/7 et purge 5/5 sur trois bases (preflight §17) |
+| Operations | Preflight Stage 0 | PRÉPARÉ (local), exécution PENDING | Cible identifiée sans accès distant, commandes Stage 0 à 3, approbations A à D ; gate distant en lecture seule R1 à R8 préparé (preflight §21) ; sauvegarde / PITR : TO VERIFY AT APPROVAL GATE |
+| Operations | Merge / push sur `main` | REMOTE CONFIG VERIFICATION REQUIRED (par défaut : pas de merge avant le Stage 1) | Aucune automation dans le dépôt ; configuration Git Vercel / Supabase invérifiable localement (preflight §19, §20) |
 
 ## 12bis. Fragilités connues du harnais local
 

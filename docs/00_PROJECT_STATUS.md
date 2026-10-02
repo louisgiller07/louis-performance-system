@@ -4,6 +4,12 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**UX-11R.3.1 — DELETE direct révoqué, risque de merge et gate distant en lecture seule (2026-10-02, `feat/ux11r31-athlete-delete-merge-gate`).** 100 % local.
+- Migration 10 : `revoke delete on public.athletes from anon, authenticated`. La purge serveur est le seul chemin de suppression.
+- Répétitions refaites avec les 10 migrations : base vierge 60/60 ; base type production depuis `ba59239` + données V1 de l'ancien code (données intactes, ancien code compatible).
+- Merge / push sur `main` : REMOTE CONFIG VERIFICATION REQUIRED, aucune automation dans le dépôt. Par défaut, pas de merge avant le Stage 1.
+- Gate distant en lecture seule R1 à R8 préparé, non exécuté. L'Approbation A reste bloquée jusqu'à ce gate (preflight §21, §22).
+
 **UX-11R.3 — preflight production du Stage 0, préparé (2026-10-02, `feat/ux11r3-production-preflight`).** Aucune commande distante exécutée ; arrêt avant le Stage 1.
 - Cible identifiée localement : `uvolpldwwyvadlamulvr`.
 - Build de release complet et hors ligne : `npm run build:release:all`. Inventaire Edge : seules `generate-training-plan`, `daily-run` et `session-execution` sont à déployer.

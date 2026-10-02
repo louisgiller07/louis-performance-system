@@ -1,6 +1,6 @@
-# UX-11R.3 — Stage 0 production preflight
+# UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1)
 
-> **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§12). Aucune approbation n'en autorise implicitement une autre.
+> **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
 > Aucun secret ici. L'UUID du compte interne n'est écrit nulle part dans le dépôt : il est fourni par l'opérateur au moment de l'exécution (`<INTERNAL_ATHLETE_ID>`).
 
@@ -16,12 +16,13 @@
 - Le lien CLI local pointe sur la production. `db push` et `functions deploy` sans option visent donc le projet lié.
 - Règle de ce runbook : **toujours** passer `--project-ref uvolpldwwyvadlamulvr` explicitement, jamais une commande sans cible.
 - Aucune variable `SUPABASE_*` dans l'environnement du shell local (vérifié) ; `web/.env.local` vise la pile locale.
-- Le web n'est **pas** relié à Git : un push ne déploie rien. Seul `npx vercel deploy --prod --scope nalynt` depuis `web/` déploie.
+- Web : en 2026-09 (V0.3_003E), le projet Vercel a été **constaté** non relié à Git, et `npx vercel deploy --prod --scope nalynt` depuis `web/` était le seul mécanisme. C'est un constat historique, **pas une preuve de la configuration actuelle** : voir §19, qui conclut `REMOTE CONFIGURATION MUST BE VERIFIED BEFORE MERGE`.
 
 ## 2. Source de la release
 
-- Commit de release : la tête de la pile UX-11 approuvée (actuellement `feat/ux11r3-production-preflight`). `main` = `origin/main` = `ba59239` (production), 55 commits non poussés au-dessus.
-- **Décision humaine requise avant l'Approbation A** : fusionner et pousser cette pile sur `main` avant le Stage 1, pour que `origin/main` reste égal au code en production (pratique suivie jusqu'ici), ou déployer depuis la branche. Recommandé : fusion + push d'abord, puis déploiement depuis un checkout propre de ce commit.
+- Commit de release : la tête de la pile UX-11 approuvée (actuellement `feat/ux11r31-athlete-delete-merge-gate`). `main` = `origin/main` = `ba59239` (production).
+- **Aucun merge ni push avant le Stage 1** tant que le §19 n'a pas été levé par une vérification distante en lecture seule. L'ordre est verrouillé au §20.
+- Le déploiement se fait toujours depuis un checkout propre du commit de release, qu'il soit poussé ou non.
 - Rien de local n'est versionné par erreur : `.env.local` et `web/.env.local` sont ignorés, `supabase/.temp` aussi, `web/.vercel` aussi, `ROLL_OUT_CHECKLIST.md` est exclu localement, aucun `dist/` n'est suivi. Ajouts toujours fichier par fichier, jamais `git add .`.
 
 ## 3. Build de release (checkout propre, hors ligne)
@@ -59,11 +60,12 @@ Hash du graphe = sha256 de l'ensemble des fichiers importés, fins de ligne norm
 
 - eszip local (image `edge-runtime:v1.74.3`, rien envoyé) depuis le checkout propre : `generate-training-plan`, `daily-run`, `session-execution` → code 0.
 - **Interdit** : `supabase functions deploy` sans nom (déploierait les 9 fonctions) et `--prune` (supprimerait des fonctions distantes).
+- **Ne pas utiliser** le script `head-coach-engine` `deploy:daily-run` (ajouté en M3, 2026-08). Il ne lance que `npm run build`, sans `build:edge`, puis déploie `daily-run` directement en production : la fonction partirait sans le bundle V2 reconstruit. Le runbook utilise uniquement les commandes explicites du §9, après `build:release:all`.
 - Le déploiement précédent utilisait `--use-api` (bundling côté Supabase, graphe transitif hors de `supabase/functions` prouvé en M3_005). L'inclusion de l'import paresseux du bundle V2 par ce bundling distant n'est pas prouvée : elle se vérifie au Stage 3, avant toute séance (§9).
 
 ## 5. Migrations
 
-Distant attendu : 50 migrations, la dernière `20260924110000`. À appliquer, dans cet ordre, rien d'autre :
+Distant attendu : 50 migrations, la dernière `20260924110000`. Local : 60. À appliquer, dans cet ordre, rien d'autre (10) :
 
 1. `20260930120000_ux11b2_execution_schema`
 2. `20260930120500_ux11b2_record_session_execution`
@@ -74,8 +76,9 @@ Distant attendu : 50 migrations, la dernière `20260924110000`. À appliquer, da
 7. `20261002090000_ux11b26_execution_result_integrity`
 8. `20261002120000_ux11r1_athlete_account_purge`
 9. `20261003090000_ux11r2_training_plan_model_assignments`
+10. `20261003120000_ux11r31_revoke_direct_athlete_delete` (UX-11R.3.1 : `revoke delete on public.athletes from anon, authenticated`)
 
-`git diff --name-status ba59239..HEAD -- supabase/migrations` : 9 ajouts (`A`), 0 modification, 0 suppression. Aucun seed : `supabase/seed.sql` n'existe pas. Aucune migration n'insère d'assignation ni d'athlète.
+`git diff --name-status ba59239..HEAD -- supabase/migrations` : 10 ajouts (`A`), 0 modification, 0 suppression. Les 9 premières n'ont pas changé depuis `be83f44`. Aucun seed : `supabase/seed.sql` n'existe pas. Aucune migration n'insère d'assignation ni d'athlète.
 
 **Ce que le CLI vérifie, et ce qu'il ne vérifie pas.**
 
@@ -111,9 +114,9 @@ Distant attendu : 50 migrations, la dernière `20260924110000`. À appliquer, da
 | 0.2 | Cible liée | `cat supabase/.temp/project-ref` | local | `uvolpldwwyvadlamulvr` |
 | 0.3 | Version CLI | `npx supabase --version` | local | `2.114.0` |
 | 0.4 | Projet existant et sain | `npx supabase projects list` | API Supabase, lecture | ligne `uvolpldwwyvadlamulvr`, nom attendu ; aucun risque |
-| 0.5 | Historique des migrations | `npx supabase migration list --project-ref uvolpldwwyvadlamulvr` | DB prod, lecture | 59 locales, 50 distantes jusqu'à `20260924110000`, **exactement** les 9 du §5 sans contrepartie distante, aucune version distante absente du dépôt. Sinon : STOP. |
-| 0.6 | Dérive de schéma | `npx supabase db dump --project-ref uvolpldwwyvadlamulvr --schema public -f <HORS_DEPOT>/prod_public_<date>.sql`, puis comparaison avec `db dump --local --schema public` d'une pile locale jetable construite depuis les 50 migrations de `ba59239` | DB prod, lecture (pg_dump) ; fichier local hors dépôt | Diff vide après normalisation (ordre, propriétaires). Toute différence de table, colonne, policy, grant ou fonction : STOP et analyse. |
-| 0.7 | Gardes de données des migrations | SQL en lecture seule (éditeur SQL ou psql) : `select decision_id, count(*) from public.decision_final_prescriptions group by 1 having count(*) > 1;` · `select to_regclass('public.session_executions'), to_regclass('public.training_plan_model_assignments');` | DB prod, lecture | 0 ligne ; `null, null` |
+| 0.5 | Historique des migrations | voir §21, R3 (lecture garantie par transaction en lecture seule) | DB prod, lecture | 50 distantes jusqu'à `20260924110000`, **exactement** les 10 du §5 absentes du distant, aucune version distante absente du dépôt. Sinon : STOP. |
+| 0.6 | Dérive de schéma | voir §21, R4 et R5 | DB prod, lecture (pg_dump) ; fichier local hors dépôt | Diff vide après normalisation (ordre, propriétaires). Toute différence de table, colonne, policy, grant ou fonction : STOP et analyse. |
+| 0.7 | Gardes de données des migrations | SQL en lecture seule (§21, R3) : `select decision_id, count(*) from public.decision_final_prescriptions group by 1 having count(*) > 1;` · `select to_regclass('public.session_executions'), to_regclass('public.training_plan_model_assignments');` | DB prod, lecture | 0 ligne ; `null, null` |
 | 0.8 | Sauvegardes | Dashboard → Database → Backups · `npx supabase backups list --project-ref uvolpldwwyvadlamulvr` | API, lecture | sauvegarde récente présente ; PITR noté (oui / non) |
 | 0.9 | Fonctions déployées | `npx supabase functions list --project-ref uvolpldwwyvadlamulvr` | API, lecture | versions notées pour `daily-run`, `generate-training-plan`, `accept-training-plan`, `completed-session` ; `session-execution` absente ; `verify_jwt = true` |
 | 0.10 | Flag global | `npx supabase secrets list --project-ref uvolpldwwyvadlamulvr` | API, lecture (noms et empreintes seulement) | `NALYNT_V2_PLAN_GENERATION_ENABLED` **absent** |
@@ -131,16 +134,16 @@ Aucune commande du Stage 0 ne modifie la production.
 **Gates, tous vrais avant la commande de mutation :**
 - cible confirmée (0.2, 0.4) ;
 - sauvegarde ou PITR confirmé (0.8) **et** dump logique frais, avec sommes de contrôle ;
-- `migration list` exactement 50 / 9 pending (0.5), aucune dérive (0.6), gardes OK (0.7) ;
+- historique distant exactement 50 versions, les 10 du §5 en attente (0.5), aucune dérive (0.6), gardes OK (0.7) ;
 - commit en production confirmé `ba59239` (0.9, 0.11) et commit de release confirmé (0.1) ;
 - flag global absent (0.10).
 
 | # | Commande | Type | Note |
 |---|---|---|---|
-| 1.1 | `npx supabase db push --project-ref uvolpldwwyvadlamulvr --dry-run --skip-vault` | lecture | doit lister exactement les 9 fichiers du §5 |
-| 1.2 | `npx supabase db push --project-ref uvolpldwwyvadlamulvr --skip-vault` | **MUTATION** | jamais `--include-all`, `--include-seed`, `--include-roles`, `--yes` ; mot de passe DB saisi au prompt, jamais dans la ligne de commande ; relire la liste avant de confirmer. `--skip-vault` : aucun secret Vault n'est configuré, rien ne doit être écrit. |
-| 1.3 | `npx supabase migration list --project-ref uvolpldwwyvadlamulvr` | lecture | 59 / 59, 0 pending |
-| 1.4 | SQL lecture : `select count(*) from public.training_plan_model_assignments;` · `select relrowsecurity from pg_class where oid = 'public.training_plan_model_assignments'::regclass;` · `select grantee, string_agg(privilege_type, ',') from information_schema.role_table_grants where table_name = 'training_plan_model_assignments' group by 1;` · `select to_regprocedure('public.purge_athlete_account(uuid)');` | lecture | `0` ; `true` ; `service_role` seul (SELECT, INSERT, UPDATE, DELETE) ; non null |
+| 1.1 | `npx supabase db push --project-ref uvolpldwwyvadlamulvr --dry-run --skip-vault` | lecture | doit lister exactement les 10 fichiers du §5 |
+| 1.2 | `npx supabase db push --project-ref uvolpldwwyvadlamulvr --skip-vault` | **MUTATION** | `SUPABASE_DB_PASSWORD` défini (sinon le CLI crée un rôle de connexion temporaire, §21) ; jamais `--include-all`, `--include-seed`, `--include-roles`, `--yes` ; mot de passe DB saisi au prompt, jamais dans la ligne de commande ; relire la liste avant de confirmer. `--skip-vault` : aucun secret Vault n'est configuré, rien ne doit être écrit. |
+| 1.3 | §21, R3 | lecture | 60 versions distantes, la dernière `20261003120000`, 0 pending |
+| 1.4 | SQL lecture : `select count(*) from public.training_plan_model_assignments;` · `select relrowsecurity from pg_class where oid = 'public.training_plan_model_assignments'::regclass;` · `select grantee, string_agg(privilege_type, ',') from information_schema.role_table_grants where table_name = 'training_plan_model_assignments' group by 1;` · `select to_regprocedure('public.purge_athlete_account(uuid)');` · `select has_table_privilege('authenticated', 'public.athletes', 'DELETE'), has_table_privilege('anon', 'public.athletes', 'DELETE'), has_table_privilege('authenticated', 'public.athletes', 'UPDATE');` | lecture | `0` ; `true` ; `service_role` seul (SELECT, INSERT, UPDATE, DELETE) ; non null ; `false, false, true` |
 | 1.5 | Comptages du 0.12 | lecture | identiques |
 | 1.6 | Smoke V1, compte de test, avec l'ancien code Edge et web encore en place | écrit sur le compte de test | génération, acceptation, Daily, completed-session : OK, comme avant |
 
@@ -299,43 +302,39 @@ Chaque approbation est donnée explicitement, par écrit, après lecture des pre
 
 | Approbation | Autorise uniquement | N'autorise pas | Preuves exigées |
 |---|---|---|---|
-| **A — Stage 1 DB** | 1.2 (`db push` des 9 migrations), puis 1.3 à 1.6 | tout déploiement Edge ou web, tout secret, toute assignation | 0.1 à 0.12 verts, sauvegarde ou PITR confirmé, dump frais avec sommes de contrôle, décision sur la source de release (§2) |
-| **B — Stage 2 code** | 2.1 à 2.5 (3 fonctions nommées + web), smokes V1 | toute assignation, tout secret V2 | Stage 1 vert, `--verify-only` vert avec les hashes enregistrés, flag absent |
+| **A — Stage 1 DB** | 1.2 (`db push` des 10 migrations), puis 1.3 à 1.6 | tout déploiement Edge ou web, tout secret, toute assignation, **tout merge / push sur `main`** (§20) | gate en lecture seule du §21 vert (R1 à R8), dump frais avec sommes de contrôle, sauvegarde / PITR / restauration confirmés, cible reconfirmée au moment de l'opération |
+| **B — Stage 2 code** | 2.1 à 2.5 (3 fonctions nommées + web), smokes V1 ; le merge / push sur `main` s'il déclenche un déploiement (§20) | toute assignation, tout secret V2 | Stage 1 vert, `--verify-only` vert avec les hashes enregistrés, flag absent |
 | **C — Stage 3 assignation** | 3.2 à 3.4 : une ligne d'assignation, pour le seul compte interne nommé dans l'approbation | l'interrupteur global | Stage 2 vert, smokes V1 verts, compte interne identifié hors dépôt |
 | **D — Stage 3 V2 ON** | 3.5 à 3.10 (interrupteur global à `true`) | toute assignation supplémentaire, tout pilote externe, le Stage 5 | assignation unique vérifiée (Q5), conditions d'arrêt (§12) et kill switch (§13) relus |
 
 ## 16. Points ouverts avant l'Approbation A
 
-1. Sauvegarde / PITR et rôle de restauration : **TO VERIFY AT APPROVAL GATE** ; dump logique frais requis (celui du 2026-09-28 est périmé).
-2. Historique des migrations distantes et absence de dérive : à constater en lecture seule (0.5, 0.6).
-3. Source de la release : fusion + push de la pile sur `main` avant le Stage 1 (recommandé), ou déploiement depuis la branche. Décision humaine ; aucun push n'a eu lieu.
-4. Non bloquants pour A : sign-off coaching (gate du Stage 5, pas du Stage 3 interne) ; GRANT DELETE sur `athletes` (classé OBSOLETE / SHOULD REVOKE, §17) ; parcours produit de suppression de compte (§18).
+Remplacé par le §22 (UX-11R.3.1).
 
-## 17. Audit du DELETE client sur `athletes`
+## 17. DELETE client sur `athletes` : révoqué (UX-11R.3.1)
 
-Constaté en local, identique sur le schéma `ba59239` (50 migrations) et sur le schéma de la release (59). Test versionné : `head-coach-engine/tests/supabase/athletesDeleteGrant.integration.test.ts` (7/7 sur la release, 5/5 + 2 sans objet sur `ba59239`).
+**Audit UX-11R.3** (schémas `ba59239` et release) :
+- un rider sans plan pouvait supprimer sa propre ligne ; la cascade (exécutée comme propriétaire de table) effaçait check-ins, décisions, health flags et completed sessions qu'il ne peut pas supprimer directement ;
+- l'identité Auth et les événements pilotes restaient orphelins, et le web recréait une ligne vide ;
+- avec un plan, une assignation ou une exécution : refus par FK RESTRICT ;
+- autre athlète, anon : 0 ligne ;
+- le droit venait du `GRANT ALL` générique de la baseline V0.2.
 
-- **GRANT** : `anon` et `authenticated` ont DELETE (et tous les autres privilèges) sur `athletes`, hérités du `GRANT ALL` de la baseline V0.2 (dump Supabase générique), pas d'une décision produit.
-- **RLS** : seule policy `athletes_own_data`, `ALL`, `user_id = auth.uid()`.
-- **A — rider, sa propre ligne, sans plan** : suppression **acceptée**. La cascade (exécutée comme propriétaire de table, donc hors RLS et hors grants des tables enfants) efface check-ins, décisions, health flags et completed sessions, alors que le rider ne peut pas supprimer une décision directement (42501). L'identité Auth et les événements pilotes restent orphelins. Au prochain chargement, le web recrée une ligne `athletes` vide.
-- **A — avec plan** (cas de tout pilote actif) : refusée, 23503 (`training_plan_versions` RESTRICT), rien supprimé. Après les migrations UX, une assignation de modèle ou une exécution bloque aussi (RESTRICT).
-- **B — autre athlète** : 0 ligne, aucune erreur, rien supprimé.
-- **C — anon** : 0 ligne, même avec un filtre universel.
-- **D — purge serveur** : tout supprimé (plan, assignation, événements pilotes, identité Auth), témoin intact.
-- **Interaction avec les migrations UX** : aucune aggravation ; elles ajoutent des RESTRICT (`session_executions`, `training_plan_model_assignments`, `decision_final_prescriptions → decisions`).
-- **Usage produit** : aucun. Tout le code et tous les tests suppriment via le service role. La notice de confidentialité promet la suppression sur demande écrite, exécutée par l'opérateur. Le contrat documenté (ADR UX-11B.2.1, `05_DATA_MODEL.md`) fait de la purge serveur l'unique chemin.
+**Décision et migration 10** : `20261003120000_ux11r31_revoke_direct_athlete_delete`, `revoke delete on public.athletes from anon, authenticated;`.
+- **Portée : DELETE seulement.** SELECT, INSERT et UPDATE (amorçage web, profil), les autres privilèges, la policy `athletes_own_data` et le grant EXECUTE de la purge (`service_role` seul) sont inchangés. Aucun grant à PUBLIC.
+- **Recherche statique** : aucun `.from("athletes").delete()` ni `DELETE FROM athletes` dans le web, le site marketing, les Edge Functions ou les moteurs. Seuls les helpers de test l'utilisent, tous avec le client service role (55 appels vérifiés).
+- **Contrat** : suppression de compte = purge serveur `purge_athlete_account` (`service_role`), puis suppression Auth par l'API Admin. Aucun autre chemin.
 
-**Classement : OBSOLETE / SHOULD REVOKE.**
-- Pas un BLOCKER du Stage 1 : comportement déjà présent en production, limité aux propres données du rider, et sans effet sur un athlète qui a un plan. Les migrations UX ne l'élargissent pas.
-- Proposition, **non implémentée**, à approuver séparément comme migration additive UX-11R.3 :
+**Tests** (`athletesDeleteGrant.integration.test.ts`, 7/7 ; `athletePurge.integration.test.ts`, 5/5) :
+- rider, propre ligne sans plan ni FK RESTRICT → 42501, rien supprimé ;
+- rider, propre ligne avec plan → 42501 (le privilège est vérifié avant la FK) ;
+- rider, autre athlète → 42501 ;
+- anon, même avec un filtre universel → 42501 ;
+- rider et anon appellent la purge → 42501 ;
+- purge serveur → tout supprimé, identité Auth incluse, témoin intact ;
+- échec forcé au dernier pas de la purge → rollback complet.
 
-```sql
-revoke delete on public.athletes from anon, authenticated;
-```
-
-- `INSERT`, `SELECT` et `UPDATE` restent nécessaires : l'amorçage web insère la ligne, le profil la lit et la met à jour.
-- `TRUNCATE`, `REFERENCES` et `TRIGGER` (défauts Supabase) ne sont pas exposés par PostgREST ; leur nettoyage serait un ticket distinct.
-- Effet attendu : A → 42501 ; B, C, D inchangés ; aucun code ni test client à modifier.
+Mêmes résultats sur la base vierge (60 migrations) et sur la base type production (`ba59239` + données V1 de l'ancien code + 10 migrations), pour des athlètes historiques avec et sans plan.
 
 ## 18. Suppression de compte côté produit
 
@@ -344,3 +343,94 @@ revoke delete on public.athletes from anon, authenticated;
 - Promesse actuelle : suppression sur demande écrite à l'adresse de contact. Elle est tenue par l'opérateur.
 - **Stage 3 interne** : non bloquant (compte de test, opérateur interne).
 - **Stage 5** : bloquant tant qu'une procédure opérateur de purge en production n'est pas écrite et répétée. Elle s'exécute en local avec la clé service, jamais dans le dépôt. Un écran en self-service n'est requis que si le produit le promet ; la notice actuelle ne le promet pas.
+
+## 19. Merge / push sur `main` : risque de déploiement automatique (UX-11R.3.1)
+
+**Audit local du dépôt.**
+
+| Élément | Constat |
+|---|---|
+| GitHub Actions, GitLab CI, Bitbucket, CircleCI, Azure, Jenkins, Travis, Buildkite | aucun fichier versionné (`.github/` absent) |
+| Hooks Git | aucun hook actif (`.git/hooks` : seulement des `.sample`), pas de `core.hooksPath`, pas de Husky / lefthook / pre-commit |
+| Vercel | `web/vercel.json` = une règle de réécriture SPA, rien sur Git ni sur les branches. `web/.vercel/project.json` (non versionné) = identifiants du projet seulement. `marketing-site/.vercel` = sortie de build seulement ; aucun changement de `marketing-site` depuis `ba59239`. |
+| Supabase | `config.toml` : aucune section `[remotes]`, aucune configuration de branching ; `[experimental.pgdelta]` ne concerne que `db diff` en local. Aucun fichier de workflow `db push` / `functions deploy`. |
+| Scripts npm | aucun `prepare`, `postinstall` ou `preinstall` qui déploie. Un seul script manuel distant : `head-coach-engine` `deploy:daily-run`, exécuté seulement à la main, et à ne pas utiliser (§4). |
+| Remote | `origin` = `github.com/louisgiller07/louis-performance-system` |
+| Docs | Vercel « non connecté à Git » **constaté** en 2026-09 (V0.3_003E : des commits poussés sur `main` n'avaient pas atteint la production) |
+
+**Ce que le dépôt ne peut pas prouver.**
+- Un projet Vercel relié à GitHub déploie la branche de production à chaque push, sans aucun fichier dans le dépôt.
+- L'intégration GitHub de Supabase (branching) peut appliquer les migrations au merge sur `main`, elle aussi sans fichier local.
+- Des webhooks ou des GitHub Apps installés sur le dépôt ne sont visibles que côté GitHub.
+
+Conclusion : **aucune automation dans le dépôt**. Ce n'est **pas** une preuve qu'aucun système externe ne déploie.
+
+**Verdict : `REMOTE CONFIG VERIFICATION REQUIRED`**, à traiter par défaut comme **`DO NOT MERGE BEFORE STAGE 1`**.
+- Un déploiement automatique du nouveau web ou de nouvelles Edge Functions sur l'ancien schéma serait **new code + old schema = UNSUPPORTED**.
+- Une application automatique des migrations court-circuiterait l'Approbation A.
+- Statut Vercel : `REMOTE CONFIGURATION MUST BE VERIFIED BEFORE MERGE` (§21, R7).
+- Statut Supabase : à vérifier aussi (§21, R8).
+
+## 20. Ordre de déploiement verrouillé
+
+Compatibilité prouvée en local :
+- **ancien code + nouveau schéma (60 migrations) : SUPPORTED** (répétition R.3.1 : Daily V1, génération, acceptation par le code de `ba59239`) ;
+- **nouveau code + ancien schéma : UNSUPPORTED**.
+
+**Ordre obligatoire :**
+1. Gate distant en lecture seule (§21), sur autorisation explicite.
+2. **Approbation A.**
+3. Migrations (Stage 1, §8).
+4. Smoke V1 avec l'**ancien** code toujours en place (1.6).
+5. Seulement ensuite, **Approbation B** : déploiement du nouveau code, Edge d'abord puis web (§9). C'est aussi le seul moment où un merge / push sur `main` peut avoir lieu s'il déclenche un déploiement.
+
+**Merge / push :**
+- **Si R7 et R8 prouvent qu'aucun système ne déploie au push** : le merge / push peut précéder le Stage 1. Le déploiement reste manuel, depuis un checkout propre.
+- **Si un déploiement automatique existe (ou si R7 / R8 ne concluent pas)** : le push est un déploiement.
+  - Il se place **après le Stage 1** et **sous l'Approbation B**.
+  - Pour le web, après le déploiement des 3 Edge Functions (2.1 à 2.3) : la combinaison nouveau web + anciennes Edge n'a pas été répétée.
+  - Une intégration Supabase qui appliquerait les migrations au merge doit être désactivée ou vérifiée inactive **avant** tout push.
+
+## 21. Gate distant en lecture seule (préparé, NON exécuté ; autorisation séparée requise)
+
+Règles communes :
+- cible explicite `uvolpldwwyvadlamulvr` partout ;
+- aucun secret dans la ligne de commande ni dans l'historique : variables d'environnement saisies depuis le gestionnaire de mots de passe (`SUPABASE_DB_PASSWORD`, `PGPASSWORD`, `VERCEL_TOKEN`), effacées ensuite ;
+- les sorties restent hors du dépôt (`<HORS_DEPOT>`).
+
+**Connexion à la base sans écriture possible.**
+- Le CLI Supabase 2.x, s'il n'a pas de mot de passe, peut créer un **rôle de connexion temporaire** via l'API de gestion avant de se connecter. C'est une écriture côté projet.
+- Les lectures en base passent donc par `psql` / `pg_dump` (17.6, les versions du conteneur local `supabase_db_louis-performance-system`), avec le mot de passe fourni.
+- Pour `psql` : `PGOPTIONS='-c default_transaction_read_only=on'`, qui fait refuser toute écriture par Postgres lui-même.
+- Hôte et utilisateur : ceux de `supabase/.temp/pooler-url` (pooler de session, port 5432, sans mot de passe dans le fichier).
+
+| # | Objectif | Outil et commande | Lecture seule | Donnée retournée | Secret requis | Risque |
+|---|---|---|---|---|---|---|
+| R1 | Confirmer la cible (local) | `cat supabase/.temp/project-ref` · `git rev-parse HEAD` | oui, local | `uvolpldwwyvadlamulvr`, commit | aucun | aucun |
+| R2 | Confirmer la cible (distant) | `npx supabase projects list` | oui (GET de l'API de gestion) | projets du compte : ref, nom, région, statut | jeton d'accès Supabase (session CLI) | aucun ; vérifier que `evynmzyjhobdpmxdiwsy` n'est pas visé |
+| R3 | Historique des migrations, gardes, grants | `docker exec -e PGPASSWORD -e PGOPTIONS='-c default_transaction_read_only=on' supabase_db_louis-performance-system psql "<pooler-url>" -At -c "select version from supabase_migrations.schema_migrations order by 1;"`, puis les requêtes 0.7 et 0.12 | **garantie** (transaction en lecture seule) | 50 versions attendues ; gardes ; comptages | mot de passe DB | aucun |
+| R4 | Dump du schéma de production | `docker exec -e PGPASSWORD supabase_db_louis-performance-system pg_dump "<pooler-url>" --schema-only --schema=public --no-owner --no-privileges` (sortie redirigée vers `<HORS_DEPOT>/prod_public_<date>.sql`), plus une seconde passe **avec** privilèges (`--schema-only --schema=public`) pour comparer grants et policies | oui (pg_dump ne fait que lire, en transaction d'instantané) | schéma `public`, sans données | mot de passe DB | fichier local de schéma, à garder hors dépôt |
+| R5 | Comparer la dérive avec `ba59239` | pile locale jetable construite depuis les 50 migrations de `ba59239`, `pg_dump` avec les mêmes options, puis `diff` après normalisation | oui, local | différences de tables, colonnes, contraintes, fonctions, policies, grants | aucun | aucun ; toute différence inexpliquée = STOP |
+| R6 | Sauvegardes / PITR | Dashboard → Database → Backups (consultation seulement, sans bouton) · `npx supabase backups list --project-ref uvolpldwwyvadlamulvr` | oui (GET) | sauvegardes disponibles, PITR actif ou non | jeton d'accès Supabase | aucun ; ne jamais cliquer « Restore » |
+| R7 | Vercel relié à Git ? | Dashboard Vercel → projet `louis-performance-system` → Settings → Git (consultation), **ou** `curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/louis-performance-system?teamId=<orgId de web/.vercel/project.json>"` en lisant `link` et la branche de production · `gh api repos/louisgiller07/louis-performance-system/deployments` et `gh api repos/louisgiller07/louis-performance-system/commits/ba59239/statuses` (un déploiement Vercel posté par commit = intégration Git active) | oui (GET) | dépôt relié ou non, branche de production, déploiements créés par push | jeton Vercel en lecture ; session `gh` | aucun ; ne jamais utiliser `vercel git connect/disconnect` dans ce gate |
+| R8 | Supabase relié à GitHub ? | Dashboard Supabase → Project Settings → Integrations → GitHub (consultation) · `npx supabase branches list --project-ref uvolpldwwyvadlamulvr` · `gh api repos/louisgiller07/louis-performance-system/hooks` (droits admin) · `gh api repos/louisgiller07/louis-performance-system/actions/workflows` | oui (GET) | intégration et branching actifs ou non, webhooks, workflows | jeton d'accès Supabase ; session `gh` | aucun |
+
+**Exclus de ce gate**, car pas strictement en lecture seule ou hors périmètre :
+- `supabase migration list` / `db dump` sans mot de passe (rôle de connexion temporaire) ;
+- `db push --dry-run` (Stage 1) ;
+- `secrets list` (lecture, mais à faire au Stage 1 juste avant la mutation : 0.10) ;
+- toute création de sauvegarde côté Supabase ;
+- `vercel git`, `vercel link`.
+
+Le dump logique de **données** (sauvegarde fraîche) lit seulement la production mais contient des données personnelles : il relève de la préparation de l'Approbation A, au même titre que R6. Il suit les mêmes règles (`pg_dump`, mot de passe en variable, hors dépôt, `SHA256SUMS`, `RESTORE.md`).
+
+## 22. Blockers avant l'Approbation A
+
+L'Approbation A reste **BLOQUÉE** tant que ces points distants ne sont pas vérifiés (gate du §21, sur autorisation séparée) :
+
+1. historique des migrations distantes : 50 versions, exactement les 10 du §5 absentes (R3) ;
+2. dérive de schéma nulle par rapport à `ba59239` (R4, R5) ;
+3. sauvegarde fraîche de production : dump logique, avec sommes de contrôle et procédure de restauration ;
+4. capacité de restauration : sauvegardes, PITR, rôle autorisé (R6) ;
+5. cible confirmée une seconde fois, au moment même de l'opération (R1, R2) ;
+6. **avant toute décision de merge** : comportement Git de Vercel et de Supabase (R7, R8).
