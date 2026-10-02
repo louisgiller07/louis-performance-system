@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "build:release:all": "node scripts/build-release-all.mjs"
+  },
   "devDependencies": {
     "supabase": "^2.114.0"
   }
