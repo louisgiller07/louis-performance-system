@@ -312,8 +312,8 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Security | DELETE direct sur `athletes` | PASS (local) | Révoqué par la migration 10 ; tests 7/7 et purge 5/5 sur trois bases (preflight §17) |
 | Operations | Preflight Stage 0 | PRÉPARÉ (local), exécution PENDING | Cible identifiée sans accès distant, commandes Stage 0 à 3, approbations A à D ; gate distant en lecture seule R1 à R8 préparé (preflight §21) ; sauvegarde / PITR : TO VERIFY AT APPROVAL GATE |
 | Operations | Merge / push sur `main` | `AUTO_DEPLOY_ON_MAIN = TRUE` : INTERDIT avant le Stage 1 ; étape 2.6 de l'Approbation B, après les Edge Functions | Gate R7 (API Vercel, déploiements GitHub) ; preflight §19, §20 |
-| Operations | Gate distant en lecture seule | BLOCKED | R1, R2, R6, R7, R8 exécutés ; R3 à R5, grants, comptages, dump et restauration non exécutés (mot de passe absent) ; sauvegarde provider 0, PITR désactivé (preflight §24) |
-| Operations | Sauvegarde / restauration | FAIL (provider), PENDING (logique) | Aucune sauvegarde provider, PITR désactivé ; outil de dump et de restauration logique validé en local (preflight §23) |
+| Operations | Gate distant en lecture seule | PASS (2026-10-03) | Historique 50 = `ba59239`, exactement 10 pending ; dérive non matérielle expliquée ; grants et comptages capturés (preflight §24) |
+| Operations | Sauvegarde / restauration | LOGICAL PASS, PROVIDER FAIL | Dump de production restauré dans une pile locale vide : 0 écart de comptage, Auth en données, V1 46/46 ; aucune sauvegarde provider, PITR désactivé. **Approval A : TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED** (preflight §24) |
 
 ## 12bis. Fragilités connues du harnais local
 

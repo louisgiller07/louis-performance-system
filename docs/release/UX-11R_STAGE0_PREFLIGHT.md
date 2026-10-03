@@ -491,53 +491,74 @@ Garde-fous : ref liée = `uvolpldwwyvadlamulvr` obligatoire, `evynmzyjhobdpmxdiw
 - **Hors base** : secrets et versions des Edge Functions, secrets Vault (`supabase_vault`), clés API, paramètres réseau et de projet, configuration Vercel.
 - La restauration vise une base **vide** au même schéma de plateforme ; sur un projet Supabase neuf, il faut d'abord comparer les versions des services.
 
-## 24. Statut du gate et matrice de l'Approbation A (2026-10-02)
+## 24. Statut du gate et matrice de l'Approbation A (finale, 2026-10-03)
 
-Exécuté en lecture seule (UX-11R.3.2) : R1, R2, R6, R7, R8. **Non exécuté** : tout ce qui demande la base, car `PGPASSWORD` est absent de l'environnement de l'agent.
+Les commandes avec `PGPASSWORD` ont été lancées par l'opérateur dans son terminal. L'agent n'a jamais eu le mot de passe et n'a analysé que les fichiers locaux produits (hors dépôt, `C:\Temp\nalynt-prod-gate`). Aucune mutation, aucun `db push`.
 
-| Gate | Résultat |
+**Historique et dérive** (`inspect`, 2026-10-03 07:03 UTC) :
+- 50 migrations appliquées, identiques à `ba59239`, aucune version inconnue ;
+- exactement les 10 UX en attente ;
+- dérive : 3 lignes, toutes expliquées et non matérielles :
+  - `set_updated_at()` : même logique, corps en CRLF en production (fonction antérieure à la baseline, marquée appliquée par `migration repair`) contre LF dans le blob git ; MD5 reproduit exactement ;
+  - `pg_net` : extension créée par l'image Supabase **locale**, utilisée par aucune migration, fonction, trigger ou RPC du dépôt.
+
+**État pré-migration** :
+- `athletes` : `anon` et `authenticated` ont DELETE (la migration 10 le retirera) ; RLS active ; policy unique `athletes_own_data`.
+- Comptages de référence (39 tables) : `athletes` 7, `auth.users` 10, `auth.identities` 11, `decisions` 83, `decision_outcomes` 42, `daily_checkins` 46, `completed_sessions` 7, `planned_sessions` 82, `training_plan_versions` 12, `training_plan_current_version` 5, `training_plan_generated_sessions` 137, `training_plan_planned_prescriptions` 120, `pilot_observability_events` 57, `pattern_*` 0, `storage` 0, `schema_migrations` 50.
+
+**Sauvegarde logique de production** (2026-10-03 16:31:14–16:31:21 UTC, `pg_dump` format custom, client PostgreSQL 17, comptages stables pendant la sauvegarde et identiques à ceux de 07:03, catalogue identique) :
+
+| Archive | Contenu | Taille | SHA-256 |
+|---|---|---|---|
+| `app-public-and-migrations.dump` | schémas `public` + `supabase_migrations`, schéma et données (35 tables, fonctions et RPC, 51 index, 51 triggers, 58 FK, 34 RLS, 33 policies, 8 vues, ACL, default privileges) | 476 363 o | `338443ad3f83794f97a9750a315fa1036d4a70f4aeed7c7fd044e24c718c1e35` |
+| `auth-data.dump` | `auth`, données seulement, 26 tables (users, identities, sessions, refresh_tokens, MFA, SSO / SAML, OAuth, WebAuthn…), sans `auth.schema_migrations` | 18 973 o | `7a188e12b70629892a3deccb7d051aaa64908b22c242ab79021b21703832519f` |
+| `storage-data.dump` | `storage`, données seulement, 8 tables (métadonnées ; 0 bucket, 0 objet en production) | 6 978 o | `22a4d9137e1d19ac3d96e30c07c4e5fc30fdb26fd852fcd61d185c65ab145be7` |
+
+`SHA256SUMS` vérifié. Stockage : local, hors dépôt. Les fichiers contiennent des données personnelles.
+
+**Restauration rehearsal** :
+- pile **locale vide dédiée** `nalynt-prodrestore-r33` (0 migration, Storage activé pour recevoir les métadonnées), jamais la pile principale ni `r32ref` ; ordre auth → storage → app.
+- **0 écart de comptage** sur les 39 tables, dont `auth.users` 10/10 et `auth.identities` 11/11 ; aussi `auth.sessions` 26/26 et `auth.refresh_tokens` 37/37.
+- 0 athlète sans identité Auth.
+- Catalogue restauré identique à la production, à deux lignes près, analysées :
+  - la CHECK `pattern_insight_reviews_reviewer_note_shape`, réécrite `(a AND b AND c)` au lieu de `((a AND b) AND c)` par l'aller-retour PostgreSQL : même logique ;
+  - `pg_net`, propre à la pile locale.
+  - `set_updated_at` est restaurée à l'identique (CRLF).
+- Erreurs `pg_restore` (sortie 1, erreurs ignorées), toutes non matérielles :
+  - `schema "public" already exists` ;
+  - Auth locale plus ancienne que la production : `mfa_recovery_code_sets`, `mfa_recovery_codes`, `scim_tokens`, `scim_users` absentes, colonne `one_time_tokens.expires_at` absente. Ces 5 tables ont **0 ligne** dans la sauvegarde.
+  - Storage local plus ancien : colonnes `buckets.versioning_status`, `objects.archived_at` absentes ; `buckets` et `objects` ont 0 ligne. `storage.migrations` est la table de version du service : le conflit est attendu.
+- Lecture V1 par le code de production `ba59239` sur la base restaurée : `computeDailyFor` **46 / 46** (tous les check-ins, 5 athlètes), 0 échec.
+
+**Auth** : `DATABASE AUTH DATA RECOVERABLE` (comptes, identités, hachages de mot de passe, sessions et refresh tokens). La cible doit avoir un schéma Auth au moins aussi récent que la production : une cible plus ancienne perdrait les tables manquantes, vides aujourd'hui. **Pas** de récupération Auth complète : la configuration Auth (fournisseurs, SMTP, Site URL, redirections, modèles), les clés de signature JWT et les autres secrets ne sont pas dans le dump. Dans un nouveau projet, les sessions sont invalides et les utilisateurs se reconnectent.
+
+**Storage** : seules les métadonnées (aujourd'hui vides) ; aucun fichier n'est sauvegardé.
+
+**Hors base** : secrets et code déployé des Edge Functions, secrets Vault, clés API, réglages réseau et projet, configuration Vercel.
+
+| Gate | Status |
 |---|---|
-| target production | **PASS** : `uvolpldwwyvadlamulvr`, « LOUIS PERFORMANCE SYSTEM », eu-central-1, ACTIVE_HEALTHY, lié ; `evynmzyjhobdpmxdiwsy` INACTIVE, non lié. À reconfirmer au moment de l'opération. |
-| migration history | **NOT VERIFIED** (mot de passe absent) |
-| exactly 10 pending | **NOT VERIFIED** |
-| material schema drift | **NOT VERIFIED** |
-| schema dump | **NOT DONE** |
-| full logical dump | **NOT DONE** |
-| logical restore rehearsal | **NOT DONE** sur la production ; procédure validée en local (§23) |
-| auth recoverability | **NOT VERIFIED** (données Auth restaurables en local ; lisibilité en production et compatibilité de version à constater) |
-| provider backup | **FAIL** : `backups list` = 0 sauvegarde |
-| PITR | **FAIL** : `pitr_enabled = false` |
-| restore operator | **NOT VERIFIED** (dashboard, rôles de l'organisation) |
-| baseline counts | **NOT CAPTURED** |
-| DELETE pre-state | **NOT VERIFIED** |
-| Vercel main auto-deploy known | **PASS** : `AUTO_DEPLOY_ON_MAIN = TRUE`, documenté et intégré à l'ordre du §20 |
+| Production target | PASS |
+| Migration history | PASS |
+| Exactly 10 pending | PASS |
+| Material schema drift | PASS (zéro dérive matérielle ; bruit de plateforme expliqué) |
+| DELETE pre-state | PASS |
+| Baseline row counts | PASS |
+| Production logical backup | PASS |
+| Logical restore rehearsal | PASS (erreurs non matérielles analysées) |
+| Database Auth recovery | PASS (données ; configuration et clés hors dump) |
+| Provider backup | FAIL (aucune) |
+| PITR | FAIL (désactivé) |
+| Restore operator | PASS (VERIFIED par l'opérateur dans le dashboard) |
+| Vercel main auto-deploy understood | PASS |
 
-État des Edge Functions (R2, `functions list`, lecture) : 8 fonctions `ACTIVE`, `verify_jwt` vrai. `daily-run` v20, `accept-training-plan` v4, `generate-training-plan` v6 (2026-09-28) ; `completed-session` v5, `abandon-training-plan` v2 (2026-09-24) ; `get-insights` v2, `refresh-longitudinal` v4, `submit-review` v2 (2026-08-28). `session-execution` absente. Lien avec `ba59239` : **DOCUMENTED** (aucune source Edge modifiée entre `056ebd7`, 2026-09-28, et `ba59239`), sans preuve par hash.
+**LOGICAL RECOVERY : PASS. PROVIDER RECOVERY : FAIL.**
 
-**HARD REQUIREMENTS FOR APPROVAL A** :
-- target PASS ;
-- migration history PASS ;
-- exactly 10 pending PASS ;
-- ZERO MATERIAL SCHEMA DRIFT ;
-- logical dump PASS ;
-- restore rehearsal PASS ;
-- restore operator identified ;
-- baseline captured.
+**Risque à accepter explicitement** :
+- La sauvegarde est un instantané au temps T (2026-10-03 16:31 UTC, à refaire juste avant le Stage 1).
+- Sans PITR ni sauvegarde provider, toute écriture entre ce dump et un incident serait **perdue** en restaurant cet instantané.
+- Une restauration vers un nouveau projet ne restaure pas la configuration Auth, les clés JWT, les fichiers Storage, les secrets Edge, la configuration Vercel ni les autres secrets hors base.
 
-**RISK ACCEPTANCE** :
-- la sauvegarde provider et le PITR peuvent rester indisponibles **uniquement** si la récupération logique est réellement validée sur le dump de production, **et** si l'opérateur accepte explicitement, par écrit, qu'il n'existe aucun point-in-time recovery ;
-- cette acceptation n'est jamais implicite.
-
-**Verdict : `APPROVAL A STILL BLOCKED`.**
-
-**Pour compléter le gate** (opérateur, terminal local, aucune écriture en production) :
-1. définir `PGPASSWORD` dans ce terminal ;
-2. `node scripts/release/prod-readonly-gate.mjs inspect --out <DIR>` ;
-3. démarrer une pile locale jetable depuis les 50 migrations de `ba59239`, puis `catalog --target local:<conteneur> --out <DIR>/catalog-ref.txt` ;
-4. `drift --prod <DIR>/catalog-target.txt --ref <DIR>/catalog-ref.txt` ;
-5. `backup --out <DIR>/backup` ;
-6. sur une pile locale **vide** (0 migration), `restore-check --backup <DIR>/backup --into local:<conteneur>` ;
-7. lecture V1 avec le code de `ba59239` sur la pile restaurée ;
-8. effacer `PGPASSWORD`.
-
-Les fichiers produits restent hors dépôt, sur un support protégé ; seuls les résumés (comptages, hashes, lignes de catalogue) sont partagés.
+**Verdict : `APPROVAL A TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED`.**
+- Aucune migration n'est lancée : l'Approbation A demande une décision écrite de l'opérateur sur ce risque.
+- Au moment du Stage 1 : nouveau dump juste avant `db push`, et cible reconfirmée.

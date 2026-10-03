@@ -4,6 +4,11 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**Gate distant en lecture seule complété (2026-10-03) : `APPROVAL A TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED`.**
+- Historique : 50 = `ba59239`, exactement 10 pending ; dérive non matérielle expliquée (CRLF de `set_updated_at`, `pg_net` local).
+- Dump logique de production restauré localement : 0 écart de comptage, Auth en données, V1 46/46. Opérateur de restauration vérifié.
+- Pas de sauvegarde provider ni de PITR : risque à accepter explicitement avant toute migration. Aucun `db push` lancé.
+
 **UX-11R.3.2 — gate distant en lecture seule : APPROVAL A STILL BLOCKED (2026-10-02, `feat/ux11r32-readonly-gate-completion`).** Aucune mutation.
 - Lu en production : cible confirmée ; Edge Functions actives (v20 `daily-run`, `session-execution` absente) ; web = `ba59239` ; **aucune sauvegarde provider, PITR désactivé**.
 - **`AUTO_DEPLOY_ON_MAIN = TRUE`** (Vercel `nalynt` et `nalynt-marketing` reliés à GitHub, `main` → production). Docs corrigées : merge / push interdit avant le Stage 1 ; c'est l'étape 2.6 de l'Approbation B.

@@ -4875,3 +4875,21 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §19, §20, §23, §24.
 
 **Statut** : Accepted — `feat/ux11r32-readonly-gate-completion`, local. Approval A : BLOCKED. Production `ba59239`, 10 migrations UX non poussées.
+
+## 2026-10-03 — ADR UX-11R.3.3 : gate distant complété, dérive expliquée, récupération logique validée
+
+> **The read-only gate is complete: migration history and pending set match, the only drift is explained platform noise, and the production logical backup restores cleanly into an empty local stack. Provider recovery does not exist (no backup, no PITR), so Approval A is technically ready but requires the operator's explicit, written acceptance of that risk.**
+
+**Décisions.**
+- **Dérive classée non matérielle** :
+  - `set_updated_at()` : même logique ; corps en CRLF en production, antérieur à la baseline marquée appliquée, contre LF dans git ;
+  - `pg_net` : extension de l'image locale, inutilisée par le dépôt.
+- **Récupération logique : PASS.** Dump `public` + `supabase_migrations` + données `auth` et `storage`, restauré dans une pile locale vide : comptages identiques, Auth en données, lecture V1 46/46. Les erreurs de restauration viennent uniquement des versions locales plus anciennes d'Auth et de Storage, sur des tables vides en production, et sont documentées.
+- **Récupération provider : FAIL.** Aucune sauvegarde, PITR désactivé. La configuration Auth, les clés JWT, les fichiers Storage et les secrets ne sont pas couverts par le dump.
+- **Approbation A** : `TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED`.
+  - Aucune migration sans acceptation écrite du risque par l'opérateur.
+  - Nouveau dump juste avant le Stage 1.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §24.
+
+**Statut** : Accepted — local. Production `ba59239`, 10 migrations UX non poussées.
