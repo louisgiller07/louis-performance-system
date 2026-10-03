@@ -4,7 +4,7 @@
 // through a file, a script argument or a log:
 //
 //   $env:PGPASSWORD = Read-Host -AsSecureString ...   (or any shell equivalent)
-//   node scripts/release/prod-readonly-gate.mjs inspect --out <DIR_OUTSIDE_REPO>
+//   node scripts/release/prod-readonly-gate.mjs inspect --out <DIR_OUTSIDE_REPO> [--expect pre-stage1|post-stage1] [--since <UTC>]
 //   node scripts/release/prod-readonly-gate.mjs catalog --target local:<db container> --out <FILE>
 //   node scripts/release/prod-readonly-gate.mjs drift --prod <catalog> --ref <catalog> --out <FILE>
 //   node scripts/release/prod-readonly-gate.mjs backup --out <DIR_OUTSIDE_REPO>
@@ -135,6 +135,26 @@ select 'policy|' || polname || '|cmd=' || polcmd::text || '|permissive=' || polp
 from pg_policy where polrelid = 'public.athletes'::regclass order by 1;`;
 
 // Counts only (never row content). Tables the connected role cannot read are reported, not skipped silently.
+// Post-Stage 1 schema facts (read-only, metadata only).
+const POST_STAGE1_SQL = `
+select 'ux_table|' || t || '|' || (to_regclass('public.' || t) is not null) from unnest(array['session_executions', 'execution_events', 'exercise_set_results', 'session_activity_results', 'decision_final_prescriptions', 'training_plan_model_assignments']) t order by 1;
+select 'assignments|' || count(*) from public.training_plan_model_assignments;
+select 'athletes_delete|' || r || '|' || has_table_privilege(r, 'public.athletes', 'DELETE') from unnest(array['anon', 'authenticated', 'service_role']) r order by 1;
+select 'purge_execute|' || r || '|' || has_function_privilege(r, 'public.purge_athlete_account(uuid)', 'EXECUTE') from unnest(array['anon', 'authenticated', 'service_role']) r order by 1;
+select 'column|athlete_performance_profiles.dh_technical_tier|' || exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'athlete_performance_profiles' and column_name = 'dh_technical_tier');
+select 'column|decisions.final_prescription_status|' || exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'decisions' and column_name = 'final_prescription_status');`;
+
+// Effects of a smoke test since a UTC instant: counts only, never row content.
+const smokeSql = (since) => `
+select 'event|' || event_type || '|' || severity || '|' || count(*) from public.pilot_observability_events where created_at >= ${sqlLiteral(since)}::timestamptz group by event_type, severity order by 1;
+select 'decisions_since|' || count(*) || '|with_final_prescription_status=' || count(final_prescription_status) from public.decisions where created_at >= ${sqlLiteral(since)}::timestamptz;
+select 'plan_versions_since|' || coalesce(prescription_schema_version, 'null') || '|' || count(*) from public.training_plan_versions where generated_at >= ${sqlLiteral(since)}::timestamptz group by prescription_schema_version order by 1;
+select 'executions_total|' || count(*) from public.session_executions;`;
+const sqlLiteral = (v) => {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?Z$/.test(v)) fail(`--since must be a UTC instant like 2026-10-03T18:00:00Z, got "${v}"`);
+  return `'${v}'`;
+};
+
 const COUNTS_SQL = `
 select n.nspname || '.' || c.relname || '|' ||
   case when has_table_privilege(c.oid, 'SELECT')
@@ -220,7 +240,14 @@ function migrationsCheck(target) {
   const unknownRemote = applied.filter((v) => !repoNames.some((n) => n.startsWith(`${v}_`)));
   const sameAsBase = JSON.stringify(applied) === JSON.stringify(baseVersions);
   const pendingExact = JSON.stringify(pending) === JSON.stringify(EXPECTED_PENDING);
-  return { appliedCount: applied.length, applied: rows.map(([v, n]) => (n ? `${v} ${n}` : v)), baseCount: baseVersions.length, sameAsBase, unknownRemote, pending, pendingExact, pass: sameAsBase && pendingExact && unknownRemote.length === 0 };
+  const repoVersions = repoNames.map((n) => n.split("_")[0]);
+  const allApplied = JSON.stringify(applied) === JSON.stringify(repoVersions);
+  return {
+    appliedCount: applied.length, applied: rows.map(([v, n]) => (n ? `${v} ${n}` : v)), baseCount: baseVersions.length, repoCount: repoVersions.length, sameAsBase, unknownRemote, pending, pendingExact,
+    pass: sameAsBase && pendingExact && unknownRemote.length === 0,
+    // Post-Stage 1: every repository migration applied, in order, nothing pending, nothing unknown.
+    postPass: allApplied && pending.length === 0 && unknownRemote.length === 0,
+  };
 }
 
 function counts(target) {
@@ -248,19 +275,26 @@ if (command === "inspect") {
   mkdirSync(out, { recursive: true });
   const target = resolveTarget(opts.target);
   const startedAt = nowUtc();
+  const expect = opts.expect ?? "pre-stage1";
+  if (!["pre-stage1", "post-stage1"].includes(expect)) fail("--expect must be pre-stage1 or post-stage1");
   const migrations = migrationsCheck(target);
-  console.log(`R3 migrations on ${target.label}: ${migrations.appliedCount} applied (base ${PRODUCTION_BASE}: ${migrations.baseCount}), identical to base: ${migrations.sameAsBase}, unknown remote: ${migrations.unknownRemote.length}, pending exactly the 10 UX: ${migrations.pendingExact}`);
+  console.log(`R3 migrations on ${target.label} (expect ${expect}): ${migrations.appliedCount} applied (base ${PRODUCTION_BASE}: ${migrations.baseCount}, repository: ${migrations.repoCount}), identical to base: ${migrations.sameAsBase}, unknown remote: ${migrations.unknownRemote.length}, pending: ${migrations.pending.length}${expect === "pre-stage1" ? `, exactly the 10 UX: ${migrations.pendingExact}` : ""}`);
+  const postStage1 = expect === "post-stage1" ? readOnlySql(target, POST_STAGE1_SQL) : undefined;
+  if (postStage1) console.log(`post-Stage 1 schema facts:\n  ${postStage1.join("\n  ")}`);
+  const smoke = opts.since ? readOnlySql(target, smokeSql(opts.since)) : undefined;
+  if (smoke) console.log(`since ${opts.since} (counts only):\n  ${smoke.join("\n  ") || "(nothing)"}`);
   const grants = readOnlySql(target, ATHLETES_GRANTS_SQL);
   console.log(`athletes grants / RLS / policies:\n  ${grants.join("\n  ")}`);
   const baseline = counts(target);
   console.log(`baseline counts: ${Object.keys(baseline).length} tables (see summary)`);
   const cat = catalog(target, join(out, "catalog-target.txt"));
   const schemaDump = pgDumpToFile(target, ["--schema-only", "--schema=public"], join(out, "schema-public.sql"));
-  const summary = { target: target.label, startedAt, finishedAt: nowUtc(), migrations, athletesGrants: grants, baselineCounts: baseline, catalog: cat, schemaDump };
+  const summary = { target: target.label, expect, startedAt, finishedAt: nowUtc(), migrations, athletesGrants: grants, postStage1, smokeSince: opts.since, smoke, baselineCounts: baseline, catalog: cat, schemaDump };
   writeJson(join(out, "inspect-summary.json"), summary);
   console.log(`schema dump: ${schemaDump.bytes} bytes sha256 ${schemaDump.sha256}; catalog ${cat.lines} lines sha256 ${cat.sha256}`);
   console.log(`summary: ${join(out, "inspect-summary.json")}`);
-  if (!migrations.pass) fail("migration history is not exactly the expected state (50 applied = ba59239, exactly the 10 UX pending)");
+  if (expect === "pre-stage1" && !migrations.pass) fail("migration history is not exactly the expected state (50 applied = ba59239, exactly the 10 UX pending)");
+  if (expect === "post-stage1" && !migrations.postPass) fail(`migration history is not the expected post-Stage 1 state (all ${migrations.repoCount} repository migrations applied, nothing pending)`);
 } else if (command === "catalog") {
   const target = resolveTarget(opts.target);
   const file = outsideRepo(opts.out ?? fail("--out <file outside the repo> is required"));
