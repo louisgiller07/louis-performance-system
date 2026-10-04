@@ -12,6 +12,8 @@
 | Flag serveur V2 | branche `feat/ux11r2-v2-server-rollout`, commits de UX-11R.2 au-dessus de `4c9c88b` (HEAD `db1bbb8`) |
 | Preflight Stage 0 | branche `feat/ux11r3-production-preflight`, commits de UX-11R.3 au-dessus de `db1bbb8` (HEAD `be83f44`) ; commandes, gates et approbations : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` |
 | DELETE révoqué, gate distant | branche `feat/ux11r31-athlete-delete-merge-gate`, commits de UX-11R.3.1 au-dessus de `be83f44` |
+| Gate, Stage 1, préparation de l'Approbation B | branche `feat/ux11r32-readonly-gate-completion` (UX-11R.3.2 à UX-11R.4) |
+| **Stage 1** | **PASS, 2026-10-04** : les 10 migrations UX appliquées en production (60/60), smoke V1 avec l'ancien code PASS. Code de production toujours V1 (`ba59239`) |
 | Constante de version | aucune : le dépôt n'a pas de convention de numéro de release, rien n'est créé |
 
 ## 2. Audit du diff `ba59239..7bdd9d8`
@@ -33,7 +35,7 @@ Anomalies :
 - **`ROLL_OUT_CHECKLIST.md`** : non suivi mais non ignoré. Ajouté à `.git/info/exclude` (local, non versionné).
 - **Défaut corrigé** : le build Edge ne fonctionnait que si les `dist` de `planning-engine` et `prescription-engine` existaient déjà localement (sortie de build non versionnée). Corrigé par `npm run build:release` (§6).
 
-## 3. Migrations non poussées (ordre de déploiement)
+## 3. Migrations UX (appliquées en production le 2026-10-04, Stage 1)
 
 1. `20260930120000_ux11b2_execution_schema`
 2. `20260930120500_ux11b2_record_session_execution`
@@ -279,7 +281,7 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Combinaison | Statut | Preuve / raison |
 |---|---|---|
 | Ancien code + ancien schéma | SUPPORTED | Production actuelle |
-| Ancien code + nouveau schéma | SUPPORTED | Répétition : Daily V1, génération, acceptation par le code de `ba59239` sur le schéma migré ; 0 ligne V1 modifiée. Rejoué en R.3.1 avec les 10 migrations. L'ancien code ne supprime jamais de ligne `athletes` côté client. |
+| Ancien code + nouveau schéma | SUPPORTED — **état de la production depuis le 2026-10-04** (smoke V1 PASS) | Répétition : Daily V1, génération, acceptation par le code de `ba59239` sur le schéma migré ; 0 ligne V1 modifiée. Rejoué en R.3.1 avec les 10 migrations. L'ancien code ne supprime jamais de ligne `athletes` côté client. |
 | Nouveau code + ancien schéma | UNSUPPORTED | Le nouveau code lit les nouvelles colonnes et RPC (statut V2 des décisions, `persist_daily_run_v2`, `record_session_execution`). Le schéma doit passer d'abord. |
 | Nouveau code + nouveau schéma + V2 désactivé | SUPPORTED | Interrupteur absent / `false` → V1 pour tous, même assignés (HTTP rollout et intégration) ; suite RC sur la base migrée ; Daily RC sur l'athlète V1 historique (chemin V1) ; HTTP V1 M3 27/28 (le seul échec est le nettoyage, §5, résolu par la purge) ; M5 97/97 ; daily-run « pas de plan → V1 » |
 | Nouveau code + nouveau schéma + V2 interne | SUPPORTED en local, PENDING en production | Flag serveur (§7) : HTTP rollout 26/26 sous Deno, intégration 9/9 ; UX-11C core local (Force, DH, endurance, M1), daily-run V2 HTTP 9/9. Production : non déployé, sign-off coaching pending. |
@@ -313,7 +315,9 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Preflight Stage 0 | PRÉPARÉ (local), exécution PENDING | Cible identifiée sans accès distant, commandes Stage 0 à 3, approbations A à D ; gate distant en lecture seule R1 à R8 préparé (preflight §21) ; sauvegarde / PITR : TO VERIFY AT APPROVAL GATE |
 | Operations | Merge / push sur `main` | `AUTO_DEPLOY_ON_MAIN = TRUE` : INTERDIT avant le Stage 1 ; étape 2.6 de l'Approbation B, après les Edge Functions | Gate R7 (API Vercel, déploiements GitHub) ; preflight §19, §20 |
 | Operations | Gate distant en lecture seule | PASS (2026-10-03) | Historique 50 = `ba59239`, exactement 10 pending ; dérive non matérielle expliquée ; grants et comptages capturés (preflight §24) |
-| Operations | Sauvegarde / restauration | LOGICAL PASS, PROVIDER FAIL | Dump de production restauré dans une pile locale vide : 0 écart de comptage, Auth en données, V1 46/46 ; aucune sauvegarde provider, PITR désactivé. **Approval A : TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED** (preflight §24) |
+| Database | Stage 1 (10 migrations) | PASS (2026-10-04) | 60/60 appliquées, 0 en attente, dérive après migration = bruit connu, 0 baisse de comptage, smoke V1 ancien code PASS (preflight §25) |
+| Operations | Préparation de l'Approbation B | READY (local) | Build propre, eszip local des 3 fonctions, déploiement en bundling Docker, vérification par `functions download` (preflight §26) |
+| Operations | Sauvegarde / restauration | LOGICAL PASS, PROVIDER FAIL (risque accepté par écrit le 2026-10-04) | Dump de production restauré dans une pile locale vide : 0 écart de comptage, Auth en données, V1 46/46 ; aucune sauvegarde provider, PITR désactivé. **Approval A : TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED** (preflight §24) |
 
 ## 12bis. Fragilités connues du harnais local
 

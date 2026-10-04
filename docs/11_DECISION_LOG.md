@@ -4893,3 +4893,21 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §24.
 
 **Statut** : Accepted — local. Production `ba59239`, 10 migrations UX non poussées.
+
+## 2026-10-04 — ADR UX-11R.4 : Stage 1 clos, préparation de l'Approbation B
+
+> **The 10 UX migrations are live in production and the old V1 code works on the new schema. The new runtime will be deployed with local Docker bundling (not `--use-api`), so the uploaded eszip is the one inspected locally, and its server-side content is checked with `functions download` before any V2 plan can exist.**
+
+**Constats.**
+- **Stage 1** (Approbation A, acceptation écrite du risque de sauvegarde) : 60/60 migrations, 0 en attente ; dérive après migration limitée au bruit connu ; 0 baisse de comptage ; DELETE client révoqué ; smoke V1 avec l'ancien code PASS. Preuves locales : `post-stage1`, `post-smoke-final`.
+- Les 10 fichiers ont été poussés en LF. La copie de travail de la migration 7 était en CRLF (`autocrlf`) ; elle a été réextraite depuis le blob avant le push.
+
+**Décisions.**
+- Les ADR antérieurs disant « 10 migrations non poussées » sont des états datés. Cet ADR les remplace. Les statuts de `05_DATA_MODEL.md` sont mis à jour.
+- **Approbation B sans `--use-api`.** Le CLI 2.114.0 collecte les `import("…")` littéraux, mais le traitement serveur du spécificateur nu paresseux `planning-engine/session-model-v2/daily` n'est pas prouvable sans déployer. Le bundling Docker local (image `edge-runtime:v1.74.3`) produit l'eszip inspecté : 75 modules pour `daily-run`, bundle V2 inclus.
+- **Vérification serveur obligatoire avant l'Approbation C** : `functions download` dans un dossier isolé, avec présence et sha256 des bundles V2. Jamais depuis le dépôt (chemins `../../..`).
+- **Ordre de l'Approbation B** : Edge (`session-execution`, `daily-run`, `generate-training-plan`), smoke V1 Edge, puis push `main` (web et marketing), smoke V1 web. Arrêt avant les Approbations C et D.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §25, §26.
+
+**Statut** : Accepted — Stage 1 PASS en production ; Approbation B prête, non exécutée. Edge et web en production : `ba59239`.

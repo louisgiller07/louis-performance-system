@@ -1,4 +1,6 @@
-# UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1, UX-11R.3.2)
+# UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1 à UX-11R.4)
+
+> **État au 2026-10-04 : Stage 1 PASS** (10 migrations appliquées, smoke V1 PASS, §25). Prochaine étape : Approbation B, préparée au §26, non exécutée.
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -61,11 +63,11 @@ Hash du graphe = sha256 de l'ensemble des fichiers importés, fins de ligne norm
 - eszip local (image `edge-runtime:v1.74.3`, rien envoyé) depuis le checkout propre : `generate-training-plan`, `daily-run`, `session-execution` → code 0.
 - **Interdit** : `supabase functions deploy` sans nom (déploierait les 9 fonctions) et `--prune` (supprimerait des fonctions distantes).
 - **Ne pas utiliser** le script `head-coach-engine` `deploy:daily-run` (ajouté en M3, 2026-08). Il ne lance que `npm run build`, sans `build:edge`, puis déploie `daily-run` directement en production : la fonction partirait sans le bundle V2 reconstruit. Le runbook utilise uniquement les commandes explicites du §9, après `build:release:all`.
-- Le déploiement précédent utilisait `--use-api` (bundling côté Supabase, graphe transitif hors de `supabase/functions` prouvé en M3_005). L'inclusion de l'import paresseux du bundle V2 par ce bundling distant n'est pas prouvée : elle se vérifie au Stage 3, avant toute séance (§9).
+- Le déploiement précédent utilisait `--use-api` (bundling côté Supabase, graphe transitif hors de `supabase/functions` prouvé en M3_005). L'inclusion de l'import paresseux du bundle V2 par ce bundling distant n'est pas prouvée. **Décision UX-11R.4 : pas de `--use-api` pour l'Approbation B**, bundling Docker local (eszip inspecté) et vérification serveur par `functions download` avant l'Approbation C (§26.C).
 
 ## 5. Migrations
 
-Distant attendu : 50 migrations, la dernière `20260924110000`. Local : 60. À appliquer, dans cet ordre, rien d'autre (10) :
+**Appliquées en production le 2026-10-04 (Stage 1) : 60/60, 0 en attente.** Avant le Stage 1, la production avait 50 migrations, la dernière `20260924110000`. Les 10 appliquées, dans cet ordre :
 
 1. `20260930120000_ux11b2_execution_schema`
 2. `20260930120500_ux11b2_record_session_execution`
@@ -166,16 +168,16 @@ Ordre exact (UX-11R.3.2). Le web n'est **plus** déployé par `vercel deploy` : 
 | # | Commande / action | Pourquoi |
 |---|---|---|
 | 2.0 | Checkout propre au commit RC exact ; `npm ci` (racine + 5 paquets) ; `npm run build:release:all` puis `npm run build:release:all -- --verify-only` | mêmes hashes que l'inventaire (§4) |
-| 2.1 | `npx supabase functions deploy session-execution --project-ref uvolpldwwyvadlamulvr --use-api` | nouvelle, inerte : aucune prescription V2 ne peut exister |
-| 2.2 | `npx supabase functions deploy daily-run --project-ref uvolpldwwyvadlamulvr --use-api` | chemin V1 identique ; lecteurs V2 présents mais inactifs |
-| 2.3 | `npx supabase functions deploy generate-training-plan --project-ref uvolpldwwyvadlamulvr --use-api` | flag absent → V1 |
+| 2.1 | `npx supabase functions deploy session-execution --project-ref uvolpldwwyvadlamulvr` | nouvelle, inerte : aucune prescription V2 ne peut exister |
+| 2.2 | `npx supabase functions deploy daily-run --project-ref uvolpldwwyvadlamulvr` | chemin V1 identique ; lecteurs V2 présents mais inactifs |
+| 2.3 | `npx supabase functions deploy generate-training-plan --project-ref uvolpldwwyvadlamulvr` | flag absent → V1 |
 | 2.4 | `npx supabase functions list --project-ref uvolpldwwyvadlamulvr` ; `NALYNT_V2_PLAN_GENERATION_ENABLED` toujours absent | versions +1 pour les 3 seulement, `verify_jwt = true` |
 | 2.5 | **Smoke V1 Edge** (compte de test, web encore `ba59239`) | voir ci-dessous |
 | 2.6 | **Seulement ensuite** : merge du commit RC dans `main`, puis push | le push déclenche les déploiements production Vercel `nalynt` (web) et `nalynt-marketing` (contenu inchangé depuis `ba59239`) |
 | 2.7 | Vérifier le déploiement production (API Vercel en lecture : `targets.production.meta.githubCommitSha` = commit RC, `READY`) | web RC servi |
 | 2.8 | **Smoke V1 web** | voir ci-dessous |
 
-Jamais `--no-verify-jwt`, jamais `--prune`, jamais `functions deploy` sans nom, jamais `npx vercel deploy --prod` en parallèle du push.
+Jamais `--no-verify-jwt`, jamais `--prune`, jamais `functions deploy` sans nom, jamais `npx vercel deploy --prod` en parallèle du push. **Pas de `--use-api`** (UX-11R.4, §26.C) : bundling Docker local avec l'image du CLI épinglé, vérifiable avant et après. Commandes complètes et vérification serveur : §26.G.
 
 **Smokes V1 Edge (2.5)** (compte de test) :
 - appel sans JWT à chaque fonction → 401 ;
@@ -447,7 +449,7 @@ Règles communes :
 
 Le dump logique de **données** (sauvegarde fraîche) lit seulement la production mais contient des données personnelles : il relève de la préparation de l'Approbation A, au même titre que R6. Il suit les mêmes règles (`pg_dump`, mot de passe en variable, hors dépôt, `SHA256SUMS`, `RESTORE.md`).
 
-## 22. Blockers avant l'Approbation A
+## 22. Blockers avant l'Approbation A (levés : Approbation A accordée et Stage 1 exécuté le 2026-10-04, §25)
 
 L'Approbation A reste **BLOQUÉE** tant que ces points distants ne sont pas vérifiés (gate du §21, sur autorisation séparée) :
 
@@ -562,3 +564,162 @@ Les commandes avec `PGPASSWORD` ont été lancées par l'opérateur dans son ter
 **Verdict : `APPROVAL A TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED`.**
 - Aucune migration n'est lancée : l'Approbation A demande une décision écrite de l'opérateur sur ce risque.
 - Au moment du Stage 1 : nouveau dump juste avant `db push`, et cible reconfirmée.
+
+## 25. Stage 1 — exécuté et validé (2026-10-04)
+
+Exécuté par l'opérateur sous l'Approbation A ; analysé à partir des sorties locales (`C:\Temp\nalynt-prod-gate\pre-stage1`, `backup-stage1`, `post-stage1`, `post-smoke-final`).
+
+- **Avant** (08:07 UTC) :
+  - cible confirmée ; 50 = `ba59239`, exactement 10 en attente ;
+  - nouveau dump logique vérifié (checksums) puis restauré dans une pile locale vide : 0 écart de comptage ;
+  - les 10 fichiers poussés étaient identiques aux blobs git (LF).
+- **`db push`** : les 10 migrations UX, sans autre fichier.
+- **Après** (`post-stage1`, 08:14 UTC) :
+  - 60/60, 0 en attente, 0 version inconnue ;
+  - tables UX présentes, 0 assignment ;
+  - DELETE `anon` / `authenticated` sur `athletes` révoqué ;
+  - purge exécutable par `service_role` seul ;
+  - aucune baisse de comptage ;
+  - dérive contre la référence à 60 migrations (construite depuis les blobs) : uniquement le bruit connu (corps CRLF de `set_updated_at`, `pg_net` local).
+- **Smoke V1 avec l'ancien code** (`post-smoke-final`, fenêtre depuis 09:05:37 UTC, lecture 17:34 UTC) :
+  - UI : connexion, check-in, Daily (KEEP, DH 90 min), génération du plan, acceptation, complétion de séance, sans erreur visible ;
+  - base :
+    - `daily_run_succeeded`, `plan_generation_succeeded`, `plan_acceptance_succeeded`, `session_completion_succeeded` = 1 chacun ;
+    - 1 décision, `final_prescription_status` NULL ;
+    - 1 version de plan `v1`, 0 plan V2, 0 exécution.
+- **État de la production après le Stage 1** :
+  - schéma à 60 migrations, 0 migration UX restante ;
+  - code Edge et web inchangés (`ba59239`, V1) ; V2 inactive ;
+  - 0 assignment ; aucune séance guidée V2 ;
+  - DELETE client révoqué.
+- **Retour arrière** : à partir de maintenant, il passe par le nouveau runtime avec le flag V2 OFF. Jamais un retour à `ba59239` après la création d'un premier plan V2 (§14).
+
+## 26. Approbation B — préparation (UX-11R.4, rien n'est exécuté)
+
+### A. Artefacts
+
+| Ordre | Composant | Raison | Dépendances | Source |
+|---|---|---|---|---|
+| 1 | `session-execution` (nouvelle) | Enregistrer cycle de vie et résultats des séances guidées V2 | RPC `record_session_execution` (migrations 2, 4, 5, 6, 7 : en production) | `supabase/functions/session-execution/{index,validation}.ts`, 2 modules |
+| 2 | `daily-run` | Chemin Daily V2 (prescription finale) ; chemin V1 identique | `persist_daily_run_v2` (migration 5), `dist/edge/dailyRunV2.bundle.js` (import paresseux), 73 modules `dist/supabase/**` | Graphe `661e556a…`, bundle V2 `951ca9bd…` |
+| 3 | `generate-training-plan` | Dispatcher V1 / V2 serveur, flag, assignments, trace `planningModel` | `training_plan_model_assignments` (migration 9), RPC de génération inchangée | Graphe `ce9734fd…`, bundle `02f0bca3…` |
+| 4 | Web `nalynt` (+ `nalynt-marketing`, contenu inchangé) via push `main` | Lecteurs V2 fail-closed, séances guidées ; compatible V1 | Les 3 Edge Functions déjà déployées | Commit RC fusionné dans `main` |
+
+À ne pas toucher : `accept-training-plan`, `abandon-training-plan`, `completed-session`, `get-insights`, `refresh-longitudinal`, `submit-review` (sources inchangées depuis `ba59239`).
+
+### B. Build propre (vérifié en local le 2026-10-04, worktree neuf à `21fbcfb`, sans `dist`)
+
+- `npm ci` (racine + 5 paquets), `build:release:all` et `--verify-only` : sortie 0. Hashes de graphe et de bundles identiques à l'inventaire §4.
+- `generateTrainingPlan.bundle.js` contient :
+  - `resolvePlanningModelForAthlete`, `generateTrainingPlanForAthlete`, `parseV2PlanGenerationFlag` ;
+  - `NALYNT_V2_PLAN_GENERATION_ENABLED`, `training_plan_model_assignments` ;
+  - le pipeline V2 (`generatePlanV2InMemory`, `planV2ToPersistencePayload`) et le chemin V1 (`generateAndPersistTrainingPlan`).
+- `generate-training-plan/index.ts` utilise le dispatcher et garde la liste blanche du corps (`ALLOWED_BODY_KEYS`).
+- `dailyRunV2.bundle.js` contient `reconcileFinalPrescriptionV2`, `buildKeepFinalPrescriptionV2` et les codes `final_prescription_adaptation_not_defined`.
+- `session-execution` : `record_session_execution`, `validateSessionExecutionBody`, `withSupabase`.
+- eszip (image du CLI épinglé, `edge-runtime:v1.74.3`), mode verbeux :
+
+| Fonction | Modules locaux | Contenu vérifié | eszip |
+|---|---|---|---|
+| `generate-training-plan` | 4 | bundle du dispatcher | `972354b4…` |
+| `daily-run` | 75 | `dailyRunV2.bundle.js`, `reconcileFinalPrescriptionV2.js`, `persistDailyRunV2.js`, `runDailyFor.js` | `33801061…` |
+| `session-execution` | 2 | `index.ts`, `validation.ts` | `0069ea02…` |
+
+### C. Risque du bundling distant (`--use-api`)
+
+- **Le risque existe toujours en mode `--use-api`.**
+  - Le CLI (binaire 2.114.0) collecte les fichiers avec la regex `(?:import|export)…from…['"](.*?)['"]|import\(\s*['"](.*?)['"]\)`. `import("…/dailyRunV2.bundle.js")` (littéral) est donc collecté.
+  - Mais `runDailyFor.js` importe paresseusement `reconcileFinalPrescriptionV2.js`, qui contient le spécificateur nu non mappé `planning-engine/session-model-v2/daily`. Le traitement de ce spécificateur par le CLI puis par le bundler côté serveur n'est **pas** prouvable sans déployer.
+  - Edge ne l'exécute jamais (`daily-run` injecte le bundle).
+- **Décision : déployer sans `--use-api`** (bundling Docker local, mode par défaut du CLI 2.114.0, image `edge-runtime:v1.74.3`). L'eszip téléversé est celui qui a été construit et inspecté en local : 75 modules pour `daily-run`, bundle V2 inclus.
+- Ce qui reste non prouvable sans déployer :
+  1. le lancement du bundling Docker de `deploy` sous Windows (une monture par fichier : la dette ENAMETOOLONG de V0.5_059). `functions serve` passe avec le même graphe ; en cas d'échec, rien n'est téléversé ;
+  2. l'exécution par le runtime hébergé. Le chemin V1 est prouvé par le smoke Edge ; le chemin V2 n'est exécuté qu'au premier plan V2 (Stage 3, compte interne).
+- **Condition avant l'Approbation C** (le premier plan V2), en lecture seule :
+  - `functions download` de `daily-run` et `generate-training-plan` dans un dossier **isolé** ;
+  - la présence de `head-coach-engine/dist/edge/dailyRunV2.bundle.js` (sha256 `951ca9bd…`) et de `generateTrainingPlan.bundle.js` (`02f0bca3…`) doit être confirmée.
+  - Validé en local : `unbundle` reconstruit les 75 fichiers, relatifs au dossier de sortie.
+  - **Ne jamais lancer `functions download` depuis le dépôt** : les chemins `../../..` écraseraient des fichiers locaux.
+
+### D. Ordre (verrouillé, conforme au §20)
+
+1. Pré-vérifications en lecture seule :
+   - cible ;
+   - flag absent (`secrets list`) ;
+   - 0 assignment, 60/60 (`inspect --expect post-stage1`) ;
+   - versions Edge et déploiement Vercel courants notés pour le retour arrière.
+2. Checkout RC exact, `build:release:all`, `--verify-only` (hashes du §B).
+3. Déploiement de `session-execution`, puis `daily-run`, puis `generate-training-plan` : une fonction nommée à la fois, sans `--use-api`.
+4. `functions list` : seules les 3 versions changent, `verify_jwt` vrai. Puis `functions download` des 3 dans un dossier isolé, avec vérification des bundles.
+5. Smoke V1 Edge, flag absent, web encore `ba59239`. Le contrat de réponse V1 est inchangé ; vérifié en HTTP.
+6. Seulement ensuite : fusion fast-forward du commit RC dans `main` et push. Cela déclenche les déploiements production Vercel web et marketing.
+7. Vérification du déploiement Vercel (`githubCommitSha` = commit RC, `READY`), puis smoke V1 web complet, flag toujours absent.
+8. `inspect --expect post-stage1 --since <T>` : événements V1, `planningModel = v1` / `global_v2_disabled`, 0 plan V2, 0 assignment.
+9. **STOP.** L'Approbation C (assignment) et l'Approbation D (flag) restent séparées.
+
+### E. Kill switch (vérifié dans le code et les tests)
+
+- Flag absent, ou toute valeur autre qu'exactement `"true"` → V1. Test unitaire `parseV2PlanGenerationFlag` ; HTTP « OFF : A assigné v2 → V1 ».
+- Interrupteur OFF : l'assignment n'est même pas lu (test « switch off: the assignment is not even read »).
+- Aucun client ne peut forcer V2 : clés inconnues → 400 (HTTP, 4 corps forgés) ; table d'assignment inaccessible aux clients (42501).
+- Plans V2 existants : Daily et séances guidées continuent si le flag est coupé (HTTP « OFF again: A's current V2 plan still drives Daily »).
+- Le flag ne gouverne que la génération de nouveaux plans (dispatcher unique `generateTrainingPlanForAthlete`).
+
+### F. Conditions d'arrêt de l'Approbation B (une seule suffit)
+
+- Commit, hash de graphe ou de bundle différent du §B ; `--verify-only` en échec.
+- `functions deploy` qui vise autre chose que la fonction nommée, propose `--prune`, ou déploie une fonction inattendue.
+- `functions list` montrant un changement de version sur une autre fonction que les 3, ou `verify_jwt = false`.
+- `functions download` sans `dailyRunV2.bundle.js` ou `generateTrainingPlan.bundle.js`, ou avec des sha256 différents.
+- Toute migration proposée ou appliquée ; tout changement de schéma (`inspect` : autre chose que 60/60, ou nouvelle dérive).
+- `NALYNT_V2_PLAN_GENERATION_ENABLED` présent dans `secrets list` ; assignment non nul.
+- Événement `plan_generation_succeeded` avec `planningModel = v2`, ou plan `v2` créé.
+- Erreur de bundling ou de démarrage (`InvalidWorkerCreation`, `BOOT_ERROR`).
+- Toute réponse 5xx, ou une régression V1 (génération, acceptation, Daily, completed-session, web).
+- Déploiement Vercel déclenché avant la fin de l'étape 5, ou déploiement production d'un autre commit que le commit RC.
+
+### G. Commandes opérateur (préparées, NON exécutées)
+
+Racine du checkout RC propre. Mot de passe DB seulement pour `inspect`, défini dans le terminal, jamais affiché.
+
+```powershell
+# 1. Pré-vérifications (lecture seule)
+npx supabase projects list
+npx supabase secrets list --project-ref uvolpldwwyvadlamulvr          # NALYNT_V2_PLAN_GENERATION_ENABLED doit être absent
+npx supabase functions list --project-ref uvolpldwwyvadlamulvr        # noter versions et ezbr_sha256 (retour arrière)
+node scripts/release/prod-readonly-gate.mjs inspect --expect post-stage1 --out C:\Temp\nalynt-prod-gate\pre-b
+
+# 2. Build
+npm run build:release:all
+npm run build:release:all -- --verify-only
+
+# 3. Déploiement Edge (MUTATION, une fonction à la fois, sans --use-api)
+npx supabase functions deploy session-execution --project-ref uvolpldwwyvadlamulvr
+npx supabase functions deploy daily-run --project-ref uvolpldwwyvadlamulvr
+npx supabase functions deploy generate-training-plan --project-ref uvolpldwwyvadlamulvr
+
+# 4. Vérifications serveur (lecture seule, dossier isolé hors dépôt)
+npx supabase functions list --project-ref uvolpldwwyvadlamulvr
+New-Item -ItemType Directory -Force C:\Temp\nalynt-edge-verify\supabase\functions | Out-Null
+npx supabase functions download daily-run --project-ref uvolpldwwyvadlamulvr --workdir C:\Temp\nalynt-edge-verify
+npx supabase functions download generate-training-plan --project-ref uvolpldwwyvadlamulvr --workdir C:\Temp\nalynt-edge-verify
+npx supabase functions download session-execution --project-ref uvolpldwwyvadlamulvr --workdir C:\Temp\nalynt-edge-verify
+Get-FileHash C:\Temp\nalynt-edge-verify\head-coach-engine\dist\edge\dailyRunV2.bundle.js, C:\Temp\nalynt-edge-verify\head-coach-engine\dist\edge\generateTrainingPlan.bundle.js
+
+# 5. Smoke V1 Edge (compte de test, via l'app ba59239 encore en production), puis :
+node scripts/release/prod-readonly-gate.mjs inspect --expect post-stage1 --since <T_EDGE> --out C:\Temp\nalynt-prod-gate\post-b-edge
+
+# 6. Web (MUTATION : déclenche les déploiements production Vercel)
+git switch main
+git merge --ff-only <RC_SHA>
+git push origin main
+
+# 7–8. Vérification Vercel (lecture), smoke V1 web, puis :
+node scripts/release/prod-readonly-gate.mjs inspect --expect post-stage1 --since <T_WEB> --out C:\Temp\nalynt-prod-gate\post-b-web
+Remove-Item Env:PGPASSWORD
+```
+
+Notes :
+- Le dossier `C:\Temp\nalynt-edge-verify` doit être vide et hors dépôt.
+- Le CLI peut exiger `supabase/config.toml` dans `--workdir` : un fichier minimal suffit (`project_id = "nalynt-edge-verify"`). C'est à vérifier à la première exécution, en lecture seule.
+- La commande de vérification Vercel (`vercel api …/v9/projects/…`, GET, filtrée) est décrite au §21 R7.

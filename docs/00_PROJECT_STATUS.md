@@ -4,6 +4,14 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**Stage 1 — CLOSED / PASS (2026-10-04).** Les 10 migrations UX sont appliquées en production (60/60, 0 en attente).
+- Approbation A accordée avec acceptation écrite du risque de sauvegarde (aucune sauvegarde provider, PITR désactivé).
+- Dump logique frais vérifié et restauré en local avant le `db push`.
+- Smoke V1 avec l'ancien code : PASS (génération, acceptation, Daily KEEP, complétion ; 0 plan V2, 0 exécution).
+- **Production** : schéma UX en place ; code Edge et web toujours `ba59239` (V1) ; V2 inactive, 0 assignment, aucune séance guidée ; DELETE client sur `athletes` révoqué.
+- **Retour arrière futur** : nouveau runtime avec le flag V2 OFF, jamais `ba59239` après un premier plan V2.
+- **Prochaine étape** : Approbation B (déploiement des 3 Edge Functions, puis push `main` pour le web), préparée dans `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §26, non exécutée.
+
 **Gate distant en lecture seule complété (2026-10-03) : `APPROVAL A TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED`.**
 - Historique : 50 = `ba59239`, exactement 10 pending ; dérive non matérielle expliquée (CRLF de `set_updated_at`, `pg_net` local).
 - Dump logique de production restauré localement : 0 écart de comptage, Auth en données, V1 46/46. Opérateur de restauration vérifié.
