@@ -185,7 +185,7 @@ Les suites d'intégration ciblent une pile de répétition avec `SUPABASE_URL`, 
 - **Individuelle** : `update public.training_plan_model_assignments set planning_model = 'v1' where athlete_id = '<athlete_id>'` (ou `delete`). La prochaine génération de cet athlète est V1.
 - Dans les deux cas, **un plan V2 courant continue d'être lu en V2** (Daily, séances guidées) jusqu'à ce qu'un nouveau plan V1 soit généré **et accepté**. Les données V2 restent (append-only).
 
-**Limite.** Tant que le sign-off coaching est `pending` (`docs/release/COACHING_CONTENT_SIGNOFF.md`), l'assignation V2 est réservée aux comptes internes / de test (en production : `41f21027-…` seulement). Le Stage 5 n'est pas READY.
+**Limite.** Tant que le sign-off coaching est `pending` (`docs/release/COACHING_CONTENT_SIGNOFF.md`), l'assignation V2 est réservée aux comptes internes / de test (en production : le seul compte interne désigné par écrit par Louis, preflight §28 ; `41f21027-…` est l'`athlete_id` d'un **autre** compte, à ne pas utiliser). Le Stage 5 n'est pas READY.
 
 **Preuves locales.**
 - Unitaires : parsing, matrice de résolution, dispatcher (pas de lecture d'assignation interrupteur inactif, pas de repli, erreur relancée telle quelle).
