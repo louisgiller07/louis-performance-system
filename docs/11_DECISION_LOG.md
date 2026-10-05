@@ -4960,3 +4960,21 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §30, §31.
 
 **Statut** : Accepted. Production : Edge et web `6d01c88`, flag absent, 1 assignment V2.
+
+## 2026-10-05 — ADR UX-11R.7 : Approbation D1 close, D2 découpée en D2A / D2B
+
+> **The first production V2 plan exists for the internal simulation account, not accepted, and the generation flag is back to false. D2 is split: D2A accepts that exact plan and runs one Daily V2; D2B (guided session, lifecycle, results) is only considered after D2A PASS.**
+
+**Constats.**
+- D1 PASS : une génération `v2` / `assigned_v2`, plan `cd5cde79`, plan courant V1 inchangé ; 0 échec, 0 exécution.
+- Flag ON de 08:49:50 à 08:55:45 UTC, puis `false`.
+- 3 constats produit (jours de ride, progression, séance le jour même) : non bloquants pour les tests internes, bloquants avant bêta payante.
+
+**Décisions.**
+- D2A se fait avec le flag à `false` : l'acceptation et la Daily suivent les données persistées.
+- Un résultat MODIFY / REPLACE de la Daily (`final_prescription_adaptation_not_defined`) est un résultat de test valide. Ce n'est pas un échec de D2A, mais c'est un bloquant avant D2B.
+- Une fois un plan V2 accepté, le retour au V1 passe par une génération et une acceptation V1, jamais par `ba59239` ni par SQL.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §32, §33 ; `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md`.
+
+**Statut** : Accepted. Production : Edge et web `6d01c88`, flag `false`, 1 assignment V2, plan courant V1.

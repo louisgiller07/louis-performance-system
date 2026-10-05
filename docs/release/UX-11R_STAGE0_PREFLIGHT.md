@@ -1,6 +1,6 @@
 # UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1 à UX-11R.4)
 
-> **État au 2026-10-05 : Approbation C PASS** (§30) : 1 assignment V2 (compte interne de simulation), flag toujours absent, 0 plan V2. Prochaine étape : Approbation D1, préparée au §31, non exécutée.
+> **État au 2026-10-05 : Approbation D1 PASS** (§32) : un plan V2 généré pour le compte de simulation, non accepté ; flag revenu à `false`. Prochaine étape : Approbation D2A (acceptation + une Daily V2), préparée au §33, non exécutée. D2B (séance guidée) non autorisée.
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -1056,3 +1056,148 @@ Constatés dans la répétition locale avec le même profil (6 semaines, 30 séa
 6. **Répartition** : par semaine 2 DH technique, 2 force (bas, haut), 1 endurance ; au total 12 / 12 / 6.
 
 À vérifier sur le plan réel, avec les colonnes `dow`, `slot_capacity_min`, `drills` et les semaines de `proof-d1.sql`.
+
+## 32. Approbation D1 — exécutée et validée (2026-10-05)
+
+- **Preflight** (`pre-d1`) : 60/60, 0 pending ; 1 assignment `v2` (compte de simulation) ; flag absent ; versions Edge inchangées.
+- **Flag** : `true` posé à 08:49:50 UTC, remis à `false` à 08:55:45 UTC. Valeur vérifiée par empreinte (`secrets list`), jamais affichée.
+- **Génération** depuis l'app, une seule (`proof-d1.out`) :
+  - événement `plan_generation_succeeded` à 08:54:19 UTC, `v2` / `assigned_v2` ;
+  - version `cd5cde79-5da0-4a29-85ab-1b719ace28fc` : schéma, planner et ruleset `v2`, catalogue `session-model-v2.5`, `initial`, 2026-10-05 → 2026-11-15, `relaxed_constraints = []` ;
+  - 6 semaines, 30 séances, chacune avec sa prescription V2, chacune dans la capacité de son créneau ;
+  - plan courant inchangé : V1 `3cb12a62-3408-42f1-b33c-e6014f4f5ca1` (non accepté) ;
+  - V2 : ce seul athlète (1 plan, 1 événement) ; 0 échec ; 0 exécution ; 60/60.
+- **App** : nouvelle version disponible, non acceptée, aucune erreur.
+- **Constats produit** : 3 bugs, documentés à part dans `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md`. Non bloquants pour les tests internes, bloquants avant une bêta payante. Non corrigés.
+
+## 33. Approbation D2A — acceptation du plan V2 + une Daily V2 (préparée, NON exécutée)
+
+### A. Découpage D2
+
+- **D2A** : accepter le plan V2 `cd5cde79-…`, vérifier qu'il devient courant, lancer **une** Daily V2 contrôlée, inspecter la prescription finale, STOP.
+- **D2B** (séance guidée, cycle de vie, résultats) : **non autorisée**, seulement après D2A PASS et une approbation séparée.
+
+### B. Portée
+
+**N'autorise pas** :
+- une nouvelle génération, le flag à `true` (il reste `false` pendant toute D2A) ;
+- la séance guidée : Start, Pause, Resume, Complete, Abandon, Restart ;
+- la saisie de résultats, de passages DH, d'une activité d'endurance, de corrections ;
+- un autre assignment ou athlète, une modification du profil ;
+- une migration, un déploiement, une modification de code, un push git.
+
+### C. Fichiers (hors dépôt, `C:\Temp\nalynt-prod-gate\approval-d2a\`)
+
+Trois fichiers `BEGIN READ ONLY … ROLLBACK`, validés sur la stack locale (aucune erreur) :
+- `preflight-d2a.sql` ;
+- `proof-d2a-accept.sql` ;
+- `proof-d2a-daily.sql`.
+
+Variables :
+- `athlete_id` (compte de simulation) ;
+- `candidate = cd5cde79-5da0-4a29-85ab-1b719ace28fc` ;
+- `previous = 3cb12a62-3408-42f1-b33c-e6014f4f5ca1` ;
+- `today = 2026-10-05` ;
+- `since_d1` (début de D1) ;
+- `since` (`T_D2A`, pris juste avant l'acceptation).
+
+### D. Preflight (lecture seule, juste avant l'acceptation)
+
+- `inspect --expect post-stage1` : 60/60, 0 pending.
+- `secrets list` : empreinte de `NALYNT_V2_PLAN_GENERATION_ENABLED` = sha256(`false`).
+- `preflight-d2a.sql`, attendu :
+  - `current_plan` = `3cb12a62-…` (`v1`) ;
+  - `candidate` : même athlète, `v2`, non courant ; dernier état du cycle de vie `draft` ;
+  - `assignments` : exactement 1 ligne, compte de simulation, `v2` ;
+  - `executions_total` = 0 ;
+  - `v2_plans_by_athlete` et `v2_events_by_athlete` : ce seul athlète ;
+  - `failures_since_d1` : aucune ligne ;
+  - `today_completed` = 0 ; `today_planned` : pas de ligne `manual` (sinon la projection ne remplace pas la séance du jour) ;
+  - `today_checkin`, `today_decisions` : notés (une décision V1 existante est permise, la décision courante est la plus récente).
+
+### E. Date de simulation
+
+- La date simulée est propre à l'onglet (`sessionStorage`, clé `nalynt-simulation-date`) et ne s'applique qu'au compte de simulation.
+- Il n'y a **pas** de bouton de remise à zéro. Le Simulation Lab n'a que « +1 jour ».
+- Procédure :
+  1. ouvrir l'app dans un **nouvel onglet** (ou une nouvelle fenêtre), connecté au compte de simulation ;
+  2. ouvrir `/simulation` : « Date réelle » = 2026-10-05, date simulée = 2026-10-05, « Jour 1 » ;
+  3. si « Jour » > 1 : fermer l'onglet et en ouvrir un nouveau (vide la `sessionStorage`) ; ne **jamais** cliquer « +1 jour » ;
+  4. faire D2A dans ce même onglet ; l'écran du jour doit afficher le 5 octobre.
+- Aucune mutation de base.
+- L'acceptation projette à partir de la date UTC du serveur (2026-10-05), indépendante de la date simulée.
+
+### F. D2A-1 — acceptation
+
+1. Noter `T_D2A` (UTC).
+2. Dans l'app : accepter **la** nouvelle version (celle de D1). Ne rien générer.
+3. `proof-d2a-accept.sql` avec `since = T_D2A`, attendu :
+   - `accept_event` : un seul `plan_acceptance_succeeded`, `plan_version_id = cd5cde79-…` ; aucun `plan_acceptance_projection_warning` ;
+   - `current_plan` = `cd5cde79-…` ;
+   - `lifecycle_athlete_since` : `cd5cde79` → `accepted` ; `3cb12a62` → `superseded` ; rien d'autre ;
+   - `lifecycle_all_since` = 2 transitions sur 2 versions ;
+   - `previous_still_exists` = 1 ; `previous_last_state` = `superseded` (V1 dans l'historique) ;
+   - `new_versions_since` = 0 ;
+   - `planned_from` : les dates à venir de la fenêtre projetée pointent vers `cd5cde79` ;
+   - `today_planned` : `generated`, `from_candidate = t`, DH 90 min ;
+   - `executions_total` = 0 ; `failures_since` : aucune ligne.
+- **STOP** si :
+  - une autre version est acceptée ;
+  - plus d'une version change d'état (hors V1 → `superseded`) ;
+  - une nouvelle version apparaît ;
+  - un avertissement de projection ;
+  - une exécution ;
+  - un échec.
+
+### G. D2A-2 — une Daily V2
+
+Check-in de TEST neutre (pas de vraie donnée de santé) :
+- sommeil 8 h, qualité 8, 0 réveil ;
+- énergie 8, motivation 8 ;
+- stress professionnel 3, fatigue jambes 2, fatigue grip 2 ;
+- pas de douleur, pas de commotion, pas de fièvre ni maladie.
+
+Puis :
+1. Lancer la Daily **une** fois.
+2. `proof-d2a-daily.sql` avec le même `since`, attendu :
+   - `checkin` : les valeurs ci-dessus, date 2026-10-05 ;
+   - `decision` : une seule nouvelle, 2026-10-05, avec un `final_prescription_status` ;
+   - `decisions_all_since` = 1 décision, 1 athlète ;
+   - `final_prescription` (si KEEP) : `from_candidate = t`, `v2`, `session-model-v2.5`, `reconciliation_action = keep`, avec la même prescription planifiée que `planned_today_in_candidate` ;
+   - `daily_event` : `daily_run_succeeded`, avec `finalPrescriptionStatus` égal à celui de la décision ;
+   - `current_plan` = `cd5cde79` ;
+   - `executions_total` = 0 ; `failures_since` : aucune ligne.
+3. App : pas de 422 ni de 5xx, pas de `unsupported_schema_version`. Ne **pas** démarrer la séance guidée.
+
+Issues :
+
+| Décision | Statut attendu | Suite |
+|---|---|---|
+| KEEP (préférée) | `created` | Inspecter famille, durée, drill, terrain, intensité. STOP. |
+| REST | `not_required` | Expliquer pourquoi (règles déclenchées). STOP. |
+| MODIFY / REPLACE | `blocked`, `final_prescription_adaptation_not_defined` | Limite connue. STOP : ne pas contourner, ne pas changer le check-in, ne pas relancer la Daily. Résultat de test valide, bloquant avant D2B. |
+
+- **STOP** sur tout autre code de blocage :
+  - `final_prescription_no_lineage` : séance du jour pas issue du plan V2 ;
+  - `final_prescription_catalog_mismatch`.
+
+### H. Conditions d'arrêt (toute D2A)
+
+- Preflight non conforme : rien à défaire.
+- Mauvaise version acceptée, plusieurs versions modifiées.
+- Flag différent de `false`.
+- 422, 5xx, `unsupported_schema_version`.
+- Toute exécution créée, toute séance guidée démarrée.
+- Plan V2, événement ou décision V2 sur un autre athlète.
+- Plus d'une Daily.
+
+### I. Retour arrière
+
+- L'acceptation et les décisions sont append-only : pas de retour en arrière par SQL.
+- Une fois un plan V2 accepté, ne **jamais** redéployer `ba59239` (§14). La production reste sur `6d01c88`.
+- Le flag reste `false`. Le kill switch ne concerne que les nouvelles générations : il ne change ni le plan accepté ni la Daily.
+- Retour au V1 (sur approbation séparée) :
+  - flag `false` → une nouvelle génération donne `v1` ;
+  - accepter ce plan V1 remplace le plan V2 comme plan courant ;
+  - le plan V2 et ses décisions restent dans l'historique.
+- Une Daily `blocked` n'a pas besoin de retour arrière : rien n'est exécuté, et la prochaine Daily recalcule.

@@ -319,7 +319,10 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Database | Stage 1 (10 migrations) | PASS (2026-10-04) | 60/60 appliquées, 0 en attente, dérive après migration = bruit connu, 0 baisse de comptage, smoke V1 ancien code PASS (preflight §25) |
 | Operations | Approbation B | PASS (2026-10-05) | Déploiement `6d01c88` ; bundle V2 prouvé sur le serveur (eszip, `951ca9bd…`) ; smokes V1 PASS ; 0 plan V2 (preflight §27) |
 | Operations | Approbation C | PASS (2026-10-05) | 1 assignment V2 (compte interne de simulation), flag absent, génération V1 `global_v2_disabled`, 0 V2 (preflight §30) |
-| Operations | Approbation D1 | PREPARED, non exécutée | Flag ON, une génération V2 pour le seul compte assigné, inspection, kill switch ; acceptation, Daily et séance guidée exclues (preflight §31) |
+| Operations | Approbation D1 | PASS (2026-10-05) | Un plan V2 `cd5cde79` généré (`assigned_v2`), non accepté, 0 échec, 0 exécution ; flag remis à `false` (preflight §32) |
+| Operations | Approbation D2A | PREPARED, non exécutée | Acceptation de `cd5cde79` + une Daily V2, flag `false` ; séance guidée exclue (preflight §33) |
+| Operations | Approbation D2B | NOT AUTHORIZED | Séance guidée, cycle de vie, résultats ; après D2A PASS |
+| Product | Constats V2 (3) | OPEN, bloquants avant bêta payante | `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md` |
 | Operations | Préparation de l'Approbation B (historique) | READY (local) | Build propre, eszip local des 3 fonctions, déploiement en bundling Docker, vérification par `functions download` (preflight §26) |
 | Operations | Sauvegarde / restauration | LOGICAL PASS, PROVIDER FAIL (risque accepté par écrit le 2026-10-04) | Dump de production restauré dans une pile locale vide : 0 écart de comptage, Auth en données, V1 46/46 ; aucune sauvegarde provider, PITR désactivé. **Approval A : TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED** (preflight §24) |
 
