@@ -4978,3 +4978,26 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §32, §33 ; `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md`.
 
 **Statut** : Accepted. Production : Edge et web `6d01c88`, flag `false`, 1 assignment V2, plan courant V1.
+
+## 2026-10-05 — ADR UX-11R.8 : Approbation D2A close, D2B découpée en D2B1 / D2B2
+
+> **The V2 plan is accepted and current for the internal simulation account, and the first production Daily V2 kept its DH session with a persisted V2 final prescription. D2B is split: D2B1 runs one guided DH session on the happy path; D2B2 (abandon, restart, corrections, conflicts) waits.**
+
+**Constats.**
+- D2A PASS :
+  - la première tentative d'acceptation n'a rien écrit : la confirmation n'avait pas été cliquée ;
+  - la nouvelle tentative : 1 acceptation, 2 transitions, séance du jour reprojetée ;
+  - Daily KEEP `created`, 0 exécution.
+- `projectedSessionCount = 11` : fenêtre de projection de 14 jours. Comportement prévu.
+- Compteurs de version Edge +2 sans changement de code (empreintes identiques).
+- Contrat de la séance guidée DH relu et répété en local (happy path complet, 0 `completed_sessions`, bridge `done`).
+- Deux règles n'existent que dans l'UI : au moins 1 passage pour terminer, et pas de nouvelle exécution après une complétion.
+
+**Décisions.**
+- D2B1 = la prescription finale `a775ed62` seulement, avec N passages fictifs, une preuve après chaque étape, sans correction, abandon ni restart.
+- Le bloc « après séance » (ancien débrief, `completed_sessions`) est exclu de D2B1.
+- Les règles UI-only sont documentées comme constat (F-6). Pas de correctif pendant le rollout.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §34, §35 ; `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md`.
+
+**Statut** : Accepted. Production : Edge et web `6d01c88`, flag `false`, 1 assignment V2, plan courant V2 `cd5cde79`, 0 exécution.

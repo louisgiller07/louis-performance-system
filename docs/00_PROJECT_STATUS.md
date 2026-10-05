@@ -4,6 +4,11 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**Approbation D2A — PASS (2026-10-05).**
+- Plan V2 `cd5cde79` accepté et courant pour le compte interne de simulation ; l'ancien V1 est `superseded`.
+- Première Daily V2 en production : KEEP, prescription finale `a775ed62` (`v2`, `session-model-v2.5`, DH `cornering_off_camber`) ; 0 exécution ; flag `false`.
+- **Prochaine étape** : Approbation D2B1 (séance guidée DH, happy path), préparée au §35 du preflight, non exécutée. D2B2 non autorisée.
+
 **Approbation D1 — PASS (2026-10-05).**
 - Premier plan V2 en production : `cd5cde79`, compte interne de simulation, `assigned_v2`, non accepté ; 0 échec, 0 exécution.
 - Flag `NALYNT_V2_PLAN_GENERATION_ENABLED` remis à `false`.

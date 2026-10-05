@@ -1,6 +1,6 @@
 # UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1 à UX-11R.4)
 
-> **État au 2026-10-05 : Approbation D1 PASS** (§32) : un plan V2 généré pour le compte de simulation, non accepté ; flag revenu à `false`. Prochaine étape : Approbation D2A (acceptation + une Daily V2), préparée au §33, non exécutée. D2B (séance guidée) non autorisée.
+> **État au 2026-10-05 : Approbation D2A PASS** (§34) : le plan V2 du compte de simulation est accepté et courant ; une Daily V2 KEEP a créé sa prescription finale ; 0 exécution ; flag `false`. Prochaine étape : Approbation D2B1 (séance guidée DH, happy path), préparée au §35, non exécutée. D2B2 non autorisée.
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -1201,3 +1201,160 @@ Issues :
   - accepter ce plan V1 remplace le plan V2 comme plan courant ;
   - le plan V2 et ses décisions restent dans l'historique.
 - Une Daily `blocked` n'a pas besoin de retour arrière : rien n'est exécuté, et la prochaine Daily recalcule.
+
+## 34. Approbation D2A — exécutée et validée (2026-10-05)
+
+- **Preflight** (`pre-d2a`, 10:15 UTC) :
+  - 60/60, 0 pending ; schéma identique à post-D1 ;
+  - 1 assignment `v2` ; flag `false` (empreinte) ;
+  - plan courant V1 `3cb12a62` ; candidat `cd5cde79` en `draft` ;
+  - 0 exécution ; 0 séance réalisée ou manuelle aujourd'hui.
+- **Date de simulation** : Jour 1, date réelle et simulée 2026-10-05.
+- **Phase 1, première tentative : aucune acceptation.**
+  - 0 événement, 0 transition dans toute la base.
+  - L'acceptation se fait en trois clics : « Voir la nouvelle version », « Accepter ce plan », puis « Confirmer ». Seul le dernier appelle le serveur. Il n'avait pas été fait.
+  - Rien à défaire. Nouvelle tentative autorisée par le HPM.
+- **Phase 1, nouvelle tentative : PASS** (`proof-accept-final.out`).
+  - `plan_acceptance_succeeded` à 10:58:36 UTC, sans rejeu.
+  - `cd5cde79` → `accepted` ; `3cb12a62` → `superseded` (toujours en base). 2 transitions au total.
+  - 0 nouvelle version ; 0 exécution ; 0 échec.
+  - Séance du jour reprojetée : `DH_TECHNICAL`, 90 min, `generated`, issue de `cd5cde79`.
+  - `projectedSessionCount = 11` : comportement prévu. L'acceptation ne projette que la fenêtre de 14 jours (`FALLBACK_PROJECTION_WINDOW_DAYS`), du 5 au 19 octobre, soit 2 semaines de 5 séances + le lundi 19.
+- **Phase 2 : PASS** (`proof-daily.out`, `post-d2a`).
+  - Check-in fictif neutre (8 h, 8, 0 ; énergie 8, motivation 8 ; stress 3, jambes 2, grip 2 ; aucun signal).
+  - Une Daily : décision `2693810a`, KEEP, `DH_TECHNICAL`, statut `created`.
+  - Prescription finale `a775ed62` :
+    - `v2`, `session-model-v2.5`, `dh_technical`, `keep`, `generated` ;
+    - issue de `cd5cde79` ;
+    - même prescription planifiée (`650ac4f7`) et même drill (`cornering_off_camber`) que le plan.
+  - `daily_run_succeeded` ; 1 décision, 1 athlète ; 0 exécution ; 0 échec ; 60/60.
+  - MODIFY / REPLACE : non rencontré.
+- **Compteurs de version Edge** : +2 sur **toutes** les fonctions depuis l'Approbation B (`daily-run` v23, `generate-training-plan` v9, `session-execution` v3).
+  - Empreintes de code (`ezbr`) et `updated_at` inchangés : aucun redéploiement.
+  - Cause la plus probable : les deux `secrets set` de D1.
+  - Contrôle à retenir : comparer `ezbr` et `updated_at`, pas le compteur.
+- **Constats non bloquants** : ajoutés à `UX-11R_V2_PRODUCT_FINDINGS.md` (encart « Nouvelle version disponible » après acceptation ; complétion V2 absente de la page Aujourd'hui).
+
+## 35. Approbation D2B1 — séance guidée DH, happy path (préparée, NON exécutée)
+
+### A. Découpage D2B
+
+- **D2B1** : une séance guidée DH, la prescription finale du jour, happy path seulement : Start → Pause → Resume → passages → Complete → refresh.
+- **D2B2** : **non autorisée**. Abandon, Restart, corrections, idempotence et conflits, autres scénarios.
+
+### B. Cible
+
+| | |
+|---|---|
+| Date | 2026-10-05 (Jour 1) |
+| Décision | `2693810a-8066-4277-97f6-b523e9f20cb4` (KEEP, courante) |
+| Prescription finale | `a775ed62-5223-43a9-a76e-9cd725ae678f` |
+| Prescription planifiée | `650ac4f7-d413-4d79-a0bb-7aea59cb2fed` |
+| Séance | `DH_TECHNICAL`, 90 min, MODERATE, plan `cd5cde79` |
+| Drill principal | `cornering_off_camber`, mesure `pass`, nombre de passages = `count` (6 dans la répétition locale, à confirmer par le preflight) |
+
+### C. Contrat (lu dans le code déployé `6d01c88`)
+
+**Cycle de vie** (`record_session_execution`, migration `20261002090000`) :
+- transitions permises : début → `started` ; `started`/`resumed` → `paused` ou `completed` ; `paused` → `resumed` ou `completed`. Tout le reste est `invalid_transition` (409) ;
+- une seule exécution non terminale par athlète et par jour (`active_execution_exists`) ;
+- Start exige une prescription V2 `created`, datée du jour, et une décision **la plus récente et toujours courante** pour ses entrées (`daily_decision_currency`), sinon `final_prescription_not_current`.
+  - **Modifier le check-in rend la décision non courante.**
+- Tout est append-only. Chaque action est un lot avec ses propres ids : un rejeu identique répond `unchanged`.
+
+**Résultat DH** (UX-11C.3, `web/src/features/guidedSession/dh/`) :
+- un résultat par passage effectivement roulé, sur l'unique drill du bloc principal ;
+- ligne `exercise_set_results` : `measure_type = pass`, `measure_value = null`, `done = true`, `set_number` = n° du passage (1 à `count`, sinon `result_slot_out_of_range`) ;
+- `success` = « Critère atteint ? » : Oui → `true`, Non → `false`, Non évalué → `null`. Facultatif, jamais une condition de complétion ;
+- pas de temps, de RPE ni de commentaire par passage dans l'UI ;
+- un seul original par passage (`result_slot_exists`). Une correction (`supersedes_id`) ne se fait qu'une fois et seulement avant la fin. **Non testée en D2B1.**
+
+**Complétion** :
+- UI : « Terminer la séance » ne s'active qu'avec au moins 1 passage enregistré. Avec 0 passage, le bouton reste inactif, avec le message « Enregistre au moins un passage pour pouvoir terminer la séance. ». S'il manque des passages, une confirmation « Terminer quand même » est demandée.
+- Serveur : aucun passage minimum pour le DH. Seule une séance avec choix d'activité (endurance) exige son activité (`activity_result_required`). La prescription DH n'a pas de choix d'activité. **La règle « ≥ 1 passage » n'existe que dans l'UI** (constat F-6).
+- `completed` est terminal : plus aucun résultat ensuite (`execution_terminal`).
+
+**Après la complétion** :
+- `/today/session` affiche l'exécution en lecture seule (« État : terminée »), sans bouton Commencer ni Recommencer.
+- Le serveur accepterait une nouvelle exécution le même jour, puisque seule une exécution non terminale bloque. C'est l'UI qui l'empêche (constat F-6).
+- Aucune écriture dans `completed_sessions` : le bridge lit `session_executions` + `completed`. La Daily suivante (hors D2B1) verra une séance `done` `DH_TECHNICAL`, sauf si une ligne `completed_sessions` existe pour ce jour (elle est prioritaire).
+- La page Aujourd'hui ne montre pas cette complétion (constat F-5).
+- **Ne pas utiliser le bloc « après séance » d'Aujourd'hui** : c'est l'ancien débrief, qui écrit `completed_sessions`.
+
+### D. Répétition locale (stack de dev, 2026-10-05)
+
+Athlète de répétition avec le profil exact du compte : plan V2 accepté, check-in neutre, une Daily (KEEP, `created`). Ensuite, par la RPC appelée par l'Edge et avec des lots identiques à ceux du web :
+- Start, Pause, Resume ;
+- 6 passages (Oui, Oui, Non, Oui, Non évalué, Oui) ;
+- Complete.
+
+Tous `ok`. Résultat :
+- 1 exécution, 4 événements dans l'ordre (`event_seq` croissant), 6 passages, 0 activité ;
+- 0 `completed_sessions` ;
+- bridge : 1 exécution complétée, `DH_TECHNICAL`.
+
+`preflight-d2b1.sql` et `proof-d2b1.sql` passent sans erreur.
+
+### E. Fichiers (hors dépôt, `C:\Temp\nalynt-prod-gate\approval-d2b1\`)
+
+- `preflight-d2b1.sql`. Variables : `athlete_id`, `plan`, `decision`, `fp`, `today`.
+- `proof-d2b1.sql`, relancé après chaque étape. Variables : `athlete_id`, `decision`, `fp`, `today`, `since` (= `T_D2B1`, juste avant Start).
+
+### F. Preflight (lecture seule)
+
+- `inspect --expect post-stage1` : 60/60, 0 pending, `assignments|1`.
+- Flag `false` (empreinte).
+- `preflight-d2b1.sql`, attendu :
+  - `current_plan` = `cd5cde79` ;
+  - `latest_decision` = `2693810a`, KEEP, `created`, 1 décision du jour ; `decision_currency` = `t` ;
+  - `final_prescription` = `a775ed62` : `v2`, `session-model-v2.5`, `dh_technical`, `keep`, prescription planifiée `650ac4f7`, `has_activity_selection = f` ;
+  - `main_item` : un seul, `main` / `drill` / `cornering_off_camber`, `pass`, nombre de passages N noté ;
+  - `planned_today` : `DH_TECHNICAL` 90 min, `from_plan = t` ;
+  - `executions_total`, `execution_events_total`, `set_results_total`, `activity_results_total`, `executions_for_fp` = 0 ;
+  - `completed_sessions_today` = 0.
+- `/simulation` : Jour 1, réelle = simulée = 2026-10-05.
+
+### G. Étapes et preuves
+
+Avant Start, noter `T_D2B1`. Après chaque étape, lancer `proof-d2b1.sql` et contrôler :
+- 1 seule exécution ; `fp_ok` et `decision_ok` = `t` ;
+- événements dans l'ordre, sans doublon ;
+- écritures sur ce seul athlète ;
+- `decisions_since` = 0 ; `checkin_today_updated_at` inchangé ;
+- `completed_sessions_today` = 0 ; `failures_since` vide.
+
+| Étape | Action dans l'app | Attendu |
+|---|---|---|
+| 1 | Aujourd'hui → « Ouvrir la séance guidée » | « État : pas encore commencée », drill `cornering_off_camber`, « Prévu : N passages » |
+| 2 | « Commencer la séance » | 1 exécution, événement `started` ; état « en cours » |
+| 3 | « Mettre en pause » | `started`, `paused` ; état « en pause » |
+| 4 | « Reprendre » | `started`, `paused`, `resumed` ; état « en cours » |
+| 5 | Passages 1 à N : « Enregistrer », réponse, « Enregistrer le passage » | N lignes `pass`, `done = t`, `measure_value` vide, `success` selon la réponse ; « N / N passages enregistrés » |
+| 6 | « Terminer la séance » (pas de confirmation si N/N) | dernier événement `completed` ; état « terminée » |
+| 7 | Refresh, puis Aujourd'hui → séance guidée | toujours « terminée », N passages, aucun bouton Commencer ; `bridge_v2_completed` = 1 ligne `DH_TECHNICAL` |
+
+Réponses fictives, clairement de test : passage 1 Oui, 2 Oui, 3 Non, 4 Oui, 5 Non évalué, 6 Oui. Si N > 6 : Oui pour les passages suivants. Si N < 6 : les N premières réponses.
+
+### H. Conditions d'arrêt
+
+STOP immédiat, sans correctif production, sur :
+- une erreur 422 ou 5xx ; `unsupported_schema_version` ;
+- un message d'erreur dans la séance ;
+- une mauvaise prescription (`fp_ok`/`decision_ok` = `f`) ;
+- une deuxième exécution ;
+- un événement hors ordre ou en double ; Pause/Resume incohérent ;
+- un passage refusé alors qu'il respecte le contrat ;
+- Complete actif sans passage, ou impossible avec des passages valides ;
+- une écriture sur un autre athlète ou une autre date ;
+- une nouvelle décision ou un check-in modifié ;
+- une ligne `completed_sessions` ;
+- un événement `*_failed`.
+
+Si une étape échoue avec « Réessayer » (réseau), un seul « Réessayer » est permis : il renvoie le même lot (mêmes ids). Ensuite, STOP.
+
+### I. Retour arrière
+
+- Tout est append-only : pas de retour en arrière par SQL.
+- Exécution restée ouverte (STOP en cours) : on la laisse telle quelle. Son arrêt (« Arrêter la séance » = `abandoned`) relève de D2B2 et d'une nouvelle approbation.
+- Exécution complétée : définitive, et seulement visible par la Daily suivante via le bridge.
+- Plan, décision, flag, déploiement : inchangés par D2B1.
