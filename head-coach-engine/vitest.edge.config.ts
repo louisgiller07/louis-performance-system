@@ -13,6 +13,8 @@ export default defineConfig({
     include: [
       "tests/edge/errorMapping.test.ts",
       "tests/edge/generateTrainingPlanErrorMapping.test.ts",
+      // UX-11R.9 — accept-training-plan: stale_plan_version mapped by SQLSTATE only.
+      "tests/edge/acceptTrainingPlanErrorMapping.test.ts",
       // UX-11A.5b.2.1 — session-execution request validation and stable
       // rejection codes (invalid_prescribed_measure, …). Pure TypeScript,
       // imported from supabase/functions/session-execution/validation.ts.

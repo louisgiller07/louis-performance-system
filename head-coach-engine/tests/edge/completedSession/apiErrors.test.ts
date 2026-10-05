@@ -6,7 +6,7 @@
  * docs/11_DECISION_LOG.md, M5_003 final review).
  */
 import { describe, expect, it } from "vitest";
-import { classifyMissingReadback } from "../../../../supabase/functions/completed-session/apiErrors.js";
+import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE } from "../../../../supabase/functions/completed-session/apiErrors.js";
 
 describe("classifyMissingReadback", () => {
   it("returns exactly 500 persistence_readback_missing", () => {
@@ -28,5 +28,13 @@ describe("classifyMissingReadback", () => {
 
   it("takes no argument — nothing dynamic can be smuggled in by a future caller", () => {
     expect(classifyMissingReadback.length).toBe(0);
+  });
+});
+
+describe("completed_session_v2_exists (UX-11R.9)", () => {
+  it("stable public code and the guard's dedicated SQLSTATE", () => {
+    expect(COMPLETED_SESSION_V2_EXISTS).toBe("completed_session_v2_exists");
+    expect(COMPLETED_SESSION_V2_EXISTS_SQLSTATE).toBe("NX101");
+    expect(COMPLETED_SESSION_V2_EXISTS_MESSAGE).not.toMatch(/NX101|sqlstate|athlete|execution_id/i);
   });
 });

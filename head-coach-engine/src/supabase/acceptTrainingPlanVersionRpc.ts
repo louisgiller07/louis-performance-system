@@ -1,7 +1,7 @@
 /**
  * Typed wrapper around the `accept_training_plan_version` RPC
  * (supabase/migrations/20260921092500_v0_4_001f_accept_training_plan_
- * version_rpc.sql, unmodified). Same style as persistDailyRun.ts /
+ * version_rpc.sql; UX-11R.9 stale guard: 20261005121000). Same style as persistDailyRun.ts /
  * projectTrainingPlanRpc.ts — one RPC call, an explicit runtime parser that
  * never blind-casts the returned JSON, custom error classes.
  */
@@ -14,10 +14,16 @@ export interface AcceptTrainingPlanVersionResult {
   acceptedTransitionId?: string;
 }
 
+/** UX-11R.9 — SQLSTATE raised by the RPC when the candidate is not more recent than the current plan. */
+export const STALE_PLAN_VERSION_SQLSTATE = "NX102";
+
 export class AcceptTrainingPlanVersionRpcError extends Error {
-  constructor(message: string) {
+  /** The PostgreSQL error code (SQLSTATE) reported for the RPC failure, when there is one. Never derived from the message text. */
+  readonly code: string | null;
+  constructor(message: string, code: string | null = null) {
     super(`accept_training_plan_version RPC call failed: ${message}`);
     this.name = "AcceptTrainingPlanVersionRpcError";
+    this.code = code;
   }
 }
 
@@ -68,7 +74,7 @@ export async function acceptTrainingPlanVersionRpc(
     p_plan_version_id: planVersionId,
   });
 
-  if (error) throw new AcceptTrainingPlanVersionRpcError(error.message);
+  if (error) throw new AcceptTrainingPlanVersionRpcError(error.message, typeof error.code === "string" && error.code !== "" ? error.code : null);
 
   return parseAcceptTrainingPlanVersionResult(data);
 }

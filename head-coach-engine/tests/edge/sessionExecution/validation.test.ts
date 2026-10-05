@@ -141,8 +141,13 @@ describe("REJECTION_STATUS — stable codes", () => {
         "execution_terminal",
         "result_slot_out_of_range",
         "result_slot_exists",
+        "dh_pass_required",
+        "session_already_completed",
       ].sort()
     );
+    // UX-11R.9 — a DH completion without a pass is unprocessable; a day already completed is a conflict.
+    expect(REJECTION_STATUS.dh_pass_required).toBe(422);
+    expect(REJECTION_STATUS.session_already_completed).toBe(409);
     // UX-11B.2.6 — frozen terminal results and an existing original are conflicts; an ordinal outside the prescription is unprocessable.
     expect(REJECTION_STATUS.execution_terminal).toBe(409);
     expect(REJECTION_STATUS.result_slot_exists).toBe(409);

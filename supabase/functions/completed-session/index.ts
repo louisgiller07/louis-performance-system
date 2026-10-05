@@ -23,7 +23,7 @@
 // semantics would otherwise silently null it out on every edit.
 import { withSupabase } from "@supabase/server";
 import { validateCompletedSessionBody, validateDateParam } from "./validation.ts";
-import { classifyMissingReadback } from "./apiErrors.ts";
+import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE } from "./apiErrors.ts";
 import { recordPilotEvent } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 
 const ALLOWED_METHODS = "GET, PUT";
@@ -132,6 +132,29 @@ export default {
       await recordPilotEvent(ctx.supabaseAdmin, { eventType: "session_completion_failed", athleteId, eventDate: body.session_date, errorCode: code });
       return errorResponse(status, code, message);
     };
+
+    // UX-11R.9 (F-5) — a day whose guided V2 execution is completed takes no
+    // legacy completed_sessions row (insert or replacement). RLS-scoped
+    // read-only precheck: a specific 409 before any write attempt. It is a
+    // best-effort check only; the transactional, race-safe guarantee is the
+    // RPC's own guard under the per-athlete lock (migration 20261005120500,
+    // SQLSTATE NX101, mapped below by code). Without that migration this
+    // precheck is the only protection and a concurrent V2 completion can
+    // still slip between the two.
+    const { data: completedV2, error: completedV2Error } = await ctx.supabase
+      .from("session_executions")
+      .select("id, execution_events!inner(event_type)")
+      .eq("athlete_id", athleteId)
+      .eq("session_date", body.session_date)
+      .eq("execution_events.event_type", "completed")
+      .limit(1);
+    if (completedV2Error) {
+      console.error(`completed-session: V2 completion precheck failed [${completedV2Error.code}]`);
+      return fail(500, "internal_error", "Failed to check for a completed guided session.");
+    }
+    if ((completedV2 ?? []).length > 0) {
+      return fail(409, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE);
+    }
 
     // free_notes preservation — RLS-scoped, read-only. free_notes is not
     // part of the M5_003 client contract (see module doc above): the
@@ -258,6 +281,12 @@ export default {
     });
 
     if (rpcError) {
+      // UX-11R.9 — the only classified RPC failure: the legacy completion
+      // guard's dedicated SQLSTATE (a V2 completion won the race against the
+      // precheck above). Mapped by code, never by message text.
+      if (rpcError.code === COMPLETED_SESSION_V2_EXISTS_SQLSTATE) {
+        return fail(409, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE);
+      }
       // Never parsed or classified beyond this generic code — see
       // docs/11_DECISION_LOG.md (M5_003) for why: our own preflight above
       // already rules out the expected rejection paths, so a failure here

@@ -349,6 +349,9 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   execution_terminal: 409,
   result_slot_out_of_range: 422,
   result_slot_exists: 409,
+  // UX-11R.9 — completion and one-main-session-per-day invariants (migration 20261005120000).
+  dh_pass_required: 422,
+  session_already_completed: 409,
 };
 
 /**

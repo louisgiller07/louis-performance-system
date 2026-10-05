@@ -4,6 +4,7 @@
 import {
   AcceptTrainingPlanVersionRpcError,
   InvalidAcceptTrainingPlanVersionResultError,
+  STALE_PLAN_VERSION_SQLSTATE,
 } from "../../../head-coach-engine/dist/supabase/acceptTrainingPlanVersionRpc.js";
 
 export interface MappedAcceptError {
@@ -29,10 +30,19 @@ export interface MappedAcceptError {
 // not-in-draft-state at the RPC boundary either) — never a literal
 // "resource not found."
 //
+// UX-11R.9 — one exception: the stale-plan guard (migration 20261005121000)
+// raises a dedicated SQLSTATE (NX102), carried by the error class as `code`.
+// It is mapped by that code alone, never by the message text: 409
+// `stale_plan_version`. Without the migration the code never appears (the
+// generic 409 below applies).
+//
 // Everything else (InvalidAcceptTrainingPlanVersionResultError, or anything
 // unforeseen) falls through to the generic 500 below by design — same
 // discipline as mapAbandonError/mapDailyRunError.
 export function mapAcceptError(error: unknown): MappedAcceptError {
+  if (error instanceof AcceptTrainingPlanVersionRpcError && error.code === STALE_PLAN_VERSION_SQLSTATE) {
+    return { status: 409, code: "stale_plan_version", message: "A more recent training plan is already active: this older version can no longer be accepted." };
+  }
   if (error instanceof AcceptTrainingPlanVersionRpcError) {
     return { status: 409, code: "accept_rejected", message: "The training plan version could not be accepted in its current state." };
   }

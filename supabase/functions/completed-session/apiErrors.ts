@@ -29,3 +29,13 @@ export function classifyMissingReadback(): ApiError {
     message: "The completed session was saved but could not be read back.",
   };
 }
+
+/**
+ * UX-11R.9 (F-5) — a legacy completed_sessions row is refused for a date
+ * whose guided V2 execution is completed (one main session per athlete and
+ * day). HTTP 409. The RPC guard (migration 20261005120500) raises this
+ * dedicated SQLSTATE; the handler maps the code, never the message text.
+ */
+export const COMPLETED_SESSION_V2_EXISTS = "completed_session_v2_exists";
+export const COMPLETED_SESSION_V2_EXISTS_SQLSTATE = "NX101";
+export const COMPLETED_SESSION_V2_EXISTS_MESSAGE = "This day's session was already completed as a guided session: no separate debrief can be recorded for it.";
