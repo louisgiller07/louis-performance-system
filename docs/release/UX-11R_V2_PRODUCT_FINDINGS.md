@@ -1,7 +1,17 @@
 # UX-11R — Constats produit Session Model V2
 
-> **Statut au 2026-10-05 : 7 constats OUVERTS, non corrigés.**
-> BUG-V2-1 à 3 : non bloquants pour les tests internes, **bloquants avant toute bêta payante**. F-4 à F-7 : à qualifier.
+> **Statut au 2026-10-05 : 8 constats OUVERTS, non corrigés.** Classement HPM (2026-10-05) :
+>
+> | Constat | Classement | Traitement |
+> |---|---|---|
+> | BUG-V2-1 jours de ride | bloquant avant bêta payante | ticket séparé |
+> | BUG-V2-2 progression | bloquant avant bêta payante | ticket séparé |
+> | BUG-V2-3 séance le jour de la génération | à corriger avant bêta | ticket séparé |
+> | F-4 brouillon périmé acceptable | priorité 2, bloquant avant bêta payante | hardening UX-11R.9 (UI + serveur) |
+> | F-5 complétion V2 hors séance guidée + doublon legacy | **P0 avant bêta** | hardening UX-11R.9 (UI + serveur) |
+> | F-6 règles de la séance guidée côté UI seulement | **P0 / intégrité serveur** | hardening UX-11R.9 (F-6A, F-6B) |
+> | F-6C fin d'une séance Force côté serveur | **P0 avant bêta payante** | ticket séparé |
+> | F-7 `projectedSessionCount` sans contexte | polish, non bloquant | plus tard |
 > Constatés sur le premier plan V2 de production (`cd5cde79`, compte interne de simulation, Approbation D1) et reproduits dans la répétition locale avec le même profil (preflight §31.F, §32).
 
 Contexte du profil :
@@ -32,11 +42,18 @@ Contexte du profil :
 
 **Attendu** : à définir dans la spec. Soit le plan commence le lendemain, soit une séance du jour n'est proposée que si le créneau du jour est encore à venir.
 
-## F-4 — Encart « Nouvelle version disponible » encore affiché après l'acceptation
+## F-4 — Brouillon plus ancien présenté comme « Nouvelle version disponible », et acceptable
 
-**Constat (D2A, 2026-10-05)** : juste après l'acceptation réussie de `cd5cde79`, l'UI a brièvement continué d'afficher l'encart. Ce n'était pas une erreur serveur : 1 acceptation, plan courant correct.
+**Constat (D2A, confirmé en D2B1)** : sur le plan accepté, l'encart reste affiché, même après un refresh.
 
-**Hypothèse** : état client périmé (liste des brouillons non rechargée). À vérifier.
+**Cause (lecture du code)** :
+- la page recharge bien après l'acceptation ;
+- l'encart montre le brouillon `draft` le plus récent ; ici, c'est le plan V1 généré pendant l'Approbation C (08:26), **plus ancien** que le V2 courant (08:54) ;
+- « Voir la nouvelle version » permettrait de l'accepter et de remplacer le V2.
+
+**Correctif** : hardening UX-11R.9.
+- Serveur : `stale_plan_version`.
+- UI : un brouillon n'est « nouveau » que s'il est plus récent que le plan courant.
 
 ## F-5 — La page Aujourd'hui ne montre pas une séance guidée V2 terminée
 
@@ -45,7 +62,11 @@ Contexte du profil :
 - sur Aujourd'hui, le bloc « après séance » (UX-08, ancien débrief) reste une invitation, et la semaine (`WeekStrip`) ne lit que `completed_sessions` ;
 - un rider peut donc saisir aussi l'ancien débrief, ce qui crée une ligne `completed_sessions`. Le bridge préfère cette ligne à l'exécution V2.
 
-**Attendu** : à définir dans la spec (une seule source de vérité pour « séance faite »).
+**Correctif** : hardening UX-11R.9.
+- Lecture web « séance faite » commune.
+- Garde serveur `completed_session_v2_exists`.
+
+**Question ouverte (F-5b)** : le doublon inverse, une ligne legacy d'abord puis une séance V2, n'est pas couvert par le contrat validé (preflight §37.C).
 
 ## F-6 — Règles de la séance guidée appliquées par l'UI seulement
 
@@ -54,6 +75,14 @@ Contexte du profil :
 - après une exécution `completed`, le serveur accepterait une nouvelle exécution le même jour (seule une exécution non terminale bloque). C'est l'UI qui n'offre plus « Commencer ».
 
 **Risque** : un autre client, ou un futur bug d'UI, contourne ces règles.
+
+**Correctif** : hardening UX-11R.9, `dh_pass_required` (F-6A) et `session_already_completed` (F-6B).
+
+## F-6C — Fin d'une séance Force sans résultat (ticket séparé)
+
+**Constat** : la règle « au moins un résultat de travail actif avant la fin » d'une séance Force (UX-11C.2) n'existe que dans l'UI. Le serveur accepte `completed` sans série.
+
+**Classement** : P0 avant bêta payante. Ticket séparé, pour ne pas élargir le hardening UX-11R.9.
 
 ## F-7 — `projectedSessionCount` sans contexte
 

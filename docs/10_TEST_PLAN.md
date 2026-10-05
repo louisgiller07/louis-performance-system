@@ -661,3 +661,53 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 **Contrat d'exécution final V0.3_005** : web full suite **604 passed / 6 skipped** (610 total, avant le fix guard auth) puis stable après ; engine unitaire 233/233 + edge 8/8 + intégration locale réelle (incluant les 26 nouveaux tests V0.3_005B) ; builds engine/web PASS. Canary production à deux athlètes scratch distincts : chaque assertion PASS, résidu zéro. Voir `docs/06_ARCHITECTURE.md` §V0.3_005 et `docs/11_DECISION_LOG.md` (V0.3_005D).
 
 **V0.3_005 — contrat de test complet.**
+
+---
+
+## Scénarios UX-11R.9 — Hardening exécution / complétion / acceptation (CONTRAT VALIDÉ 2026-10-05, NON IMPLÉMENTÉ)
+
+Contrat : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9. Intégration = Supabase local réel + Edge Functions locales (`RUN_LOCAL_SUPABASE_INTEGRATION=1`), même schéma que les suites UX-11C existantes. Chaque refus est vérifié par son code exact **et** par l'absence de toute ligne écrite.
+
+### T27. F-6A — fin d'une séance DH
+- DH `completed` sans aucun passage → `dh_pass_required` (422), 0 ligne écrite.
+- 1 passage + `completed` dans le même lot → `ok`.
+- Passage corrigé (correction active `done = true`) puis `completed` → `ok`.
+- Renvoi idempotent du lot `completed` → `unchanged`, pas de second contrôle.
+- Exécution sans prescription du jour : non concernée.
+- Endurance : `activity_result_required` inchangé. Force : comportement inchangé (F-6C hors périmètre).
+
+### T28. F-6B — une séance principale par jour
+- Exécution `completed` puis nouveau Start normal le même jour (même prescription, puis une autre prescription du jour) → `session_already_completed` (409).
+- `abandoned` puis Restart → `ok` (nouvelle exécution).
+- Renvoi idempotent du Start initial → `unchanged`.
+- Autre date → `ok`.
+- Deux Start concurrents → une seule exécution (verrou existant).
+
+### T29. F-5 — débrief legacy (serveur)
+- Date avec exécution V2 `completed` : PUT `completed-session` → 409 `completed_session_v2_exists` ; même refus par appel direct de la RPC (SQLSTATE dédié).
+- Remplacement d'une ligne existante sur une telle date → même refus, ligne inchangée.
+- V2 en cours ou `abandoned` à cette date → débrief accepté.
+- Autre date, ou athlète V1 → comportement inchangé.
+- Fin V2 et débrief concurrents → sérialisés ; jamais les deux.
+
+### T30. F-5 — lecture « séance faite » (web)
+- Pure : legacy seul ; V2 seul ; les deux (le legacy l'emporte) ; V2 en cours ; V2 `abandoned` ; legacy `skipped`.
+- Aujourd'hui : séance terminée ; compteur de la semaine à jour ; plus d'invitation « Raconter ma séance » pour une date V2 réalisée ; lien de lecture vers la séance guidée.
+- Programme : date marquée réalisée, même règle.
+- Séance guidée : « terminée », résultats visibles, ni Commencer ni Recommencer.
+- Non-régression V1 : débrief, compteur et Programme inchangés pour un athlète sans exécution V2.
+
+### T31. F-4 — acceptation d'une version périmée
+- Serveur : brouillon plus ancien que la version courante → `stale_plan_version` (409), aucune transition.
+- Brouillon plus récent → acceptation normale.
+- Renvoi idempotent de la version courante → `idempotent_replay`.
+- Premier plan (aucune version courante) → inchangé.
+- Edge : 409 `stale_plan_version` et `plan_acceptance_failed` avec ce code.
+- Web : sur un plan accepté, l'encart « Nouvelle version disponible » n'apparaît que pour un brouillon plus récent ; un brouillon plus ancien n'offre pas « Accepter ce plan ».
+
+### T32. Compatibilité de livraison
+- Edge nouvelle + base ancienne : les trois endpoints restent fonctionnels (aucun nouveau code émis).
+- Edge ancienne + base nouvelle : refus fermés (500 / 409 générique), 0 ligne écrite.
+- Migrations de retour : rejouées en local, elles restaurent exactement les corps précédents (comparaison du catalogue).
+
+**Non-régression obligatoire** : suites `head-coach-engine` (unitaires + intégration locale) et `web`, `npm run build`, `build:release:all` ; répétition locale de D2A et D2B1.

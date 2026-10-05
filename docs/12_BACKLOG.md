@@ -627,6 +627,14 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 
 ---
 
+## UX-11R — Hardening avant D2B2 et bêta payante (ajouté 2026-10-05)
+
+- [ ] **UX-11R.9 hardening** (contrat validé, implémentation non autorisée) : F-6A `dh_pass_required`, F-6B `session_already_completed`, F-5 garde serveur `completed_session_v2_exists` + lecture web « séance faite », F-4 garde serveur `stale_plan_version` + encart web. 3 migrations additives ; livraison Edge → base → web. Voir `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §37.
+- [ ] **F-6C** — fin d'une séance Force côté serveur (P0 avant bêta payante, ticket séparé).
+- [ ] **BUG-V2-1 / BUG-V2-2** — jours de ride, progression (bloquants avant bêta payante, tickets séparés).
+- [ ] **BUG-V2-3** — séance le jour de la génération (à corriger avant bêta).
+- [ ] **D2B2** — abandon, Restart, corrections, conflits en production : BLOQUÉE jusqu'au hardening UX-11R.9.
+
 ## P1 — Après M2
 
 ### Runtime `ActiveExperiment` (T9)

@@ -1,6 +1,6 @@
 # UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1 à UX-11R.4)
 
-> **État au 2026-10-05 : Approbation D2A PASS** (§34) : le plan V2 du compte de simulation est accepté et courant ; une Daily V2 KEEP a créé sa prescription finale ; 0 exécution ; flag `false`. Prochaine étape : Approbation D2B1 (séance guidée DH, happy path), préparée au §35, non exécutée. D2B2 non autorisée.
+> **État au 2026-10-05 : Approbation D2B1 PASS** (§36) : une séance guidée DH complète en production (Start, Pause, Resume, 6 passages, Complete) pour le compte de simulation ; flag `false`. **D2B2 BLOQUÉE** jusqu'au hardening UX-11R.9 (contrat au §37, implémentation non autorisée).
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -1358,3 +1358,76 @@ Si une étape échoue avec « Réessayer » (réseau), un seul « Réessayer » 
 - Exécution restée ouverte (STOP en cours) : on la laisse telle quelle. Son arrêt (« Arrêter la séance » = `abandoned`) relève de D2B2 et d'une nouvelle approbation.
 - Exécution complétée : définitive, et seulement visible par la Daily suivante via le bridge.
 - Plan, décision, flag, déploiement : inchangés par D2B1.
+
+## 36. Approbation D2B1 — exécutée et validée (2026-10-05)
+
+- **Preflight** (`pre-d2b1`, 11:21 UTC) :
+  - 60/60, 0 pending ; schéma identique ; 1 assignment `v2` ; flag `false` (empreinte) ; Jour 1 ;
+  - plan `cd5cde79` ; décision `2693810a` KEEP, courante ;
+  - prescription finale `a775ed62` (`v2`, `session-model-v2.5`, `dh_technical`, pas de choix d'activité) ;
+  - drill unique `cornering_off_camber`, **6 passages** ;
+  - 0 exécution, 0 événement, 0 résultat, 0 activité, 0 `completed_sessions` du jour.
+- **Exécution `df8b83f2-3333-465d-96fa-dd4b2bc7120a`** (Start à 11:30:25 UTC) :
+  - prescription, décision et athlète corrects ;
+  - événements `started` → `paused` → `resumed` → `completed`, dans l'ordre et sans doublon.
+- **Passages** : 6 / 6 persistés. Réponses : 1 Non, 2 Oui, 3 Non, 4 Oui, 5 Non évalué, 6 Oui.
+  - Le passage 1 a été enregistré volontairement juste après Start, avant la Pause, avec la réponse « Non » au lieu de « Oui ».
+  - Il est conservé sans correction, sur décision du HPM. Les passages 2 à 6 ont été saisis après Resume.
+- **Fin** : `completed`, sans confirmation de résultats partiels (6/6). 0 activité, 0 correction, 0 conflit, 0 échec.
+  - 0 `completed_sessions` ; bridge V2 : 1 complétion `DH_TECHNICAL`.
+  - 0 nouvelle décision, check-in inchangé, aucun autre athlète touché, flag `false`.
+- **Persistance après refresh** :
+  - séance guidée « État : terminée », 6/6 passages visibles, résultats conservés ;
+  - aucun bouton Commencer ni Recommencer.
+- **Preuves intermédiaires sans effet** : une preuve lancée avant le clic Start, et une autre avec `T_D2B1` vide (lectures seules).
+- **Constats confirmés en production** :
+  - F-4 : l'encart « Nouvelle version disponible » est toujours affiché ;
+  - F-5 : Aujourd'hui affiche la mission comme non faite, « 0 réalisées », et l'invitation « Raconter ma séance » reste proposée ; Programme ne reflète pas la complétion ;
+  - F-6 : règles appliquées par l'UI seulement.
+
+  Classement dans `UX-11R_V2_PRODUCT_FINDINGS.md`.
+
+## 37. Hardening UX-11R.9 avant D2B2 (contrat validé, implémentation NON autorisée)
+
+**D2B2 reste BLOQUÉE** jusqu'à la livraison et la validation en production de ce hardening. Contrat canonique : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9 ; tests : `docs/10_TEST_PLAN.md` §UX-11R.9 ; décisions : ADR UX-11R.9.
+
+### A. Migrations (additives, granulaires, noms provisoires)
+
+| # | Fichier | Contenu | Retour arrière technique |
+|---|---|---|---|
+| 1 | `<ts>_ux11r9_execution_completion_invariants.sql` | `create or replace record_session_execution` : corps de `20261002090000` + F-6A (`dh_pass_required`) + F-6B (`session_already_completed`) | Migration de retour qui recrée exactement le corps de `20261002090000` |
+| 2 | `<ts>_ux11r9_completed_session_v2_guard.sql` | `create or replace persist_completed_session` : corps de `20260910090000` + verrou consultatif partagé + refus `completed_session_v2_exists` (SQLSTATE dédié) | Migration de retour qui recrée exactement le corps de `20260910090000` |
+| 3 | `<ts>_ux11r9_stale_plan_acceptance_guard.sql` | `create or replace accept_training_plan_version` : corps de `20260921092500` + refus `stale_plan_version` (SQLSTATE dédié) | Migration de retour qui recrée exactement le corps de `20260921092500` |
+
+- Aucune table, colonne, index ni donnée modifiés. Les trois migrations sont indépendantes ; ordre recommandé 1, 2, 3.
+- Les migrations 1 et 2 partagent seulement la **clé** du verrou consultatif par athlète (`'record_session_execution:' || athlete_id`), pour sérialiser la fin d'une séance V2 et un débrief legacy. Cela ne justifie pas de les regrouper.
+- Une migration appliquée n'est jamais modifiée. Les migrations de retour sont rédigées et testées en local avant la release, puis ajoutées au dépôt seulement si un retour est décidé.
+
+### B. Matrice Edge / base
+
+| Endpoint (nom réel) | Aujourd'hui | Nouveau mapping | Edge nouvelle + base ancienne | Edge ancienne + base nouvelle |
+|---|---|---|---|---|
+| `session-execution` (v3, `6d01c88`) | refus métier = `{status: rejected, code}` → `REJECTION_STATUS` ; code inconnu → 500 `internal_error` | `dh_pass_required` → 422, `session_already_completed` → 409 | compatible : les nouveaux codes ne sont jamais émis | **500 `internal_error`** pour les deux nouveaux refus ; rien n'est écrit (fermé, mais mauvais statut) |
+| `completed-session` (PUT, v7, 2026-09-24) | refus métier = vérifications Edge avant la RPC (422) ; toute erreur RPC → 500 `persistence_failed` + `session_completion_failed` | vérification RLS **avant** la RPC (exécution V2 `completed` à cette date → 409 `completed_session_v2_exists`) + SQLSTATE dédié de la RPC → même 409 (course) | compatible : la vérification Edge suffit, la RPC ancienne ne refuse pas | **500 `persistence_failed`** (+ événement `session_completion_failed`) ; rien n'est écrit (fermé) |
+| `accept-training-plan` (v6, 2026-09-28) | toute erreur RPC → 409 `accept_rejected` + `plan_acceptance_failed` | SQLSTATE dédié → 409 `stale_plan_version` (+ `plan_acceptance_failed` avec ce code) ; `AcceptTrainingPlanVersionRpcError` garde le code d'erreur | compatible : jamais émis | **409 `accept_rejected`** générique ; rien n'est écrit (fermé) |
+
+**Ordre de livraison sûr** (une approbation par étape, comme Stage 1 / B) :
+1. Edge `session-execution`, `completed-session`, `accept-training-plan`, avec preuve du contenu eszip comme pour B.
+   - `completed-session` et `accept-training-plan` n'ont pas été redéployées depuis septembre. Leur nouveau bundle embarque le `head-coach-engine/dist` du commit de release : le diff de contenu doit être relu avant le déploiement.
+2. Migrations 1 → 3 (`db push`), avec sauvegarde préalable.
+3. Web (push `main` → Vercel) : nouveaux messages, F-5 UI, F-4 UI.
+
+Le web ancien face à l'Edge nouvelle : un code inconnu donne le message générique « Action refusée ». Acceptable.
+
+**Retour arrière** :
+- Base : migration de retour par fonction.
+- Edge : la version nouvelle reste compatible avec la base ancienne, donc elle est normalement conservée. Si un retour est quand même nécessaire :
+  - `session-execution` : redéploiement depuis `6d01c88` ;
+  - les deux autres : redéploiement depuis le commit qui reproduit leur `ezbr` actuel (`8b71f47c…`, `c713b106…`), à identifier pendant le preflight. Si aucun commit ne le reproduit, on garde l'Edge nouvelle.
+- Web : rollback instantané Vercel vers le déploiement `6d01c88`.
+- Aucune donnée à défaire : les nouvelles règles ne font que refuser.
+
+### C. Questions ouvertes (décision HPM requise avant le code)
+
+1. **Doublon inverse (F-5b)** : une ligne `completed_sessions` legacy existe d'abord pour la date, puis une séance guidée V2 est démarrée et terminée. Le contrat validé ne couvre que « V2 complétée → legacy refusé ». Proposition : à la création d'une exécution, refuser si une ligne `completed_sessions` non `skipped` existe déjà pour la date, avec le code `session_already_completed`.
+2. **Historique** (`historyRepo`) : il lit aussi `completed_sessions` seul. Faut-il l'inclure dans F-5 UI, ou en faire un ticket séparé ?

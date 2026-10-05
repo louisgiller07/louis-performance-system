@@ -4,6 +4,10 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**Approbation D2B1 — PASS (2026-10-05).**
+- Première séance guidée DH V2 en production (exécution `df8b83f2`, 6/6 passages, `completed`) ; 0 `completed_sessions` ; flag `false`.
+- **D2B2 BLOQUÉE.** Prochaine étape : hardening UX-11R.9 (invariants serveur F-6A/F-6B, garde du débrief legacy F-5, garde d'acceptation stale F-4, UI Aujourd'hui/Programme). Contrat validé dans `05_DATA_MODEL.md`, `10_TEST_PLAN.md`, ADR UX-11R.9 et preflight §37 ; **implémentation non autorisée**.
+
 **Approbation D2A — PASS (2026-10-05).**
 - Plan V2 `cd5cde79` accepté et courant pour le compte interne de simulation ; l'ancien V1 est `superseded`.
 - Première Daily V2 en production : KEEP, prescription finale `a775ed62` (`v2`, `session-model-v2.5`, DH `cornering_off_camber`) ; 0 exécution ; flag `false`.

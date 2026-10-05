@@ -5001,3 +5001,35 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §34, §35 ; `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md`.
 
 **Statut** : Accepted. Production : Edge et web `6d01c88`, flag `false`, 1 assignment V2, plan courant V2 `cd5cde79`, 0 exécution.
+
+## 2026-10-05 — ADR UX-11R.9 : Approbation D2B1 close, hardening avant D2B2
+
+> **The first guided DH session ran end to end in production. Before D2B2, three rules that today live only in the UI or nowhere become server invariants: a DH session cannot complete without a pass, a completed day cannot start a normal new execution, a V2-completed day refuses the legacy debrief, and a draft older than the current plan cannot be accepted.**
+
+**Constats.**
+- D2B1 PASS : exécution `df8b83f2`, 4 événements dans l'ordre, 6/6 passages, `completed`, 0 `completed_sessions`, bridge V2 présent, persistance après refresh.
+- F-4 :
+  - l'encart « Nouvelle version disponible » affiche le brouillon V1 de l'Approbation C, plus ancien que le V2 courant ;
+  - ce brouillon reste acceptable et remplacerait le plan courant.
+- F-5 :
+  - Aujourd'hui et Programme ne lisent que `completed_sessions` ;
+  - le débrief legacy reste proposé et pourrait créer un doublon.
+- F-6 : le minimum d'un passage et l'absence de nouvelle exécution après une fin ne sont garantis que par l'UI.
+
+**Décisions (HPM).**
+- **F-6A** : `dh_pass_required` (422), contrôle transactionnel en fin de lot ; les passages du même lot comptent.
+- **F-6B** : règle **par athlète + `session_date`** ; `session_already_completed` (409). Restart après `abandoned` permis. Refaire après une fin, une double séance ou une décision du coach passeront par une action explicite dédiée.
+- **F-5** : garde **UI + serveur** ; `completed_session_v2_exists` (409) sur `persist_completed_session` (chemin réel : Edge `completed-session`, PUT). La lecture web « séance faite » suit les règles du pont M1. La compatibilité V1 est conservée.
+- **F-4** : priorité 2, bloquant avant bêta payante. Garde **UI + serveur** ; `stale_plan_version` (409), ordre canonique `generated_at`.
+- **F-6C** (fin d'une séance Force côté serveur) : P0 avant bêta payante, ticket séparé, hors de ce lot.
+- **Livraison** :
+  - 3 migrations additives granulaires, chacune avec sa migration de retour ;
+  - ordre Edge → base → web, l'Edge nouvelle restant compatible avec la base ancienne.
+- **D2B2 BLOQUÉE** jusqu'à la livraison et la validation de ce hardening.
+- Hors de ce lot : jours de ride, progression, séance le jour de la génération, disponibilités, terminologie, MODIFY / REPLACE.
+
+**Questions ouvertes** : doublon inverse (legacy puis V2, F-5b), historique (`historyRepo`). Voir preflight §37.C.
+
+**Détail** : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9 ; `docs/10_TEST_PLAN.md` T27–T32 ; `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §36, §37.
+
+**Statut** : Accepted (contrat). Implémentation non autorisée. Production : `6d01c88`, flag `false`, 1 exécution V2 `completed`.

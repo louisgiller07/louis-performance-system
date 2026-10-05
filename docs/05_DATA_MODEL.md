@@ -300,6 +300,30 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
 
 **Charge récente de M1 (UX-11B.2.4, code local non fusionné)** : `session_executions` est la vérité des exécutions V2, `completed_sessions` le résumé legacy du jour ; aucune ligne n'est recopiée de l'un à l'autre. La couche d'intégration (`buildRawContext`) construit `RawContext.recent_sessions` depuis les deux sources, dans la même forme et la même fenêtre qu'avant (`[aujourd'hui − 7 j, aujourd'hui]`) : une exécution compte si elle a un événement `completed` (terminal, exclusif d'`abandoned`), son intervention est le `final_session` de sa décision, son statut `done` ; un jour qui a une ligne `completed_sessions` ne prend aucune entrée V2 (une séance principale par jour) ; plusieurs exécutions terminées identiques d'un même jour comptent une fois ; des interventions différentes le même jour ne sont pas comptées (avertissement `recent_history_v2_conflicting_completions`). Aucun `skipped` ni `replaced` n'est déduit d'une absence d'exécution. Le noyau M1 est inchangé.
 
+**Invariants UX-11R.9 — complétion, unicité, débrief legacy, acceptation (contrat validé le 2026-10-05, NON implémenté ; migrations additives, aucune table ni colonne)** :
+- **F-6A — fin d'une séance DH** (`record_session_execution`) : une exécution dont la prescription du jour est de famille `dh_technical` ne peut recevoir `completed` que s'il existe, pour cette exécution, au moins un résultat **actif** (ligne qu'aucune autre ne remplace) avec `measure_type = 'pass'` et `done = true`. Les passages envoyés dans le **même lot** que `completed` comptent.
+  - Le contrôle se fait en fin de lot, avec les autres préconditions de fin (`activity_result_required`).
+  - Refus : `dh_pass_required` (HTTP 422) ; tout le lot est annulé.
+  - Un renvoi idempotent d'un `completed` déjà enregistré reste `unchanged` et n'est pas revérifié.
+  - Force : inchangé dans ce lot (F-6C, ticket séparé). Endurance : inchangé.
+- **F-6B — une séance principale par jour** (`record_session_execution`, création d'une exécution) : refus si une exécution du **même athlète** et de la **même `session_date`** a déjà un événement `completed`, quelle que soit sa prescription.
+  - Refus : `session_already_completed` (HTTP 409).
+  - Après `abandoned` sans complétion, le Restart (nouvelle exécution) reste permis.
+  - Un renvoi idempotent d'une exécution existante reste `unchanged`.
+  - Refaire après une fin, une double séance ou une décision du coach demanderont une **action explicite dédiée**, jamais un Start normal.
+- **F-5 — débrief legacy** (`persist_completed_session`, appelée par l'Edge Function `completed-session`, PUT) : refus d'écrire **ou de remplacer** la ligne `completed_sessions` d'une date pour laquelle l'athlète a une exécution V2 `completed`.
+  - Refus : `completed_session_v2_exists` (HTTP 409). La RPC lève un SQLSTATE dédié, l'Edge mappe le code SQLSTATE et ne lit jamais le texte.
+  - Autres dates, parcours V1 : inchangés. Les lignes existantes ne sont jamais modifiées.
+  - La RPC prend le même verrou consultatif par athlète que `record_session_execution` : une fin V2 et un débrief legacy concurrents sont sérialisés.
+  - L'Edge fait aussi la vérification avant la RPC, par une lecture RLS.
+- **F-4 — acceptation d'une version périmée** (`accept_training_plan_version`) : si l'athlète a une version courante acceptée, une version `draft` dont `generated_at` est **strictement antérieur** à celui de la version courante ne peut pas être acceptée.
+  - Refus : `stale_plan_version` (HTTP 409), SQLSTATE dédié.
+  - L'ordre canonique est `training_plan_versions.generated_at` (index `(athlete_id, generated_at desc)`, ordre de la liste des brouillons) : pas de second système d'ordre.
+  - Le contrôle se fait **après** le renvoi idempotent (accepter la version déjà courante reste `idempotent_replay`) et après le contrôle `draft`.
+  - Sans version courante (premier plan) : inchangé.
+  - Restaurer un plan plus ancien sera une fonctionnalité explicite séparée.
+- **Lecture « séance faite » côté web (F-5 UI)** : une date est réalisée si elle a une ligne `completed_sessions` non `skipped` (prioritaire), sinon une exécution V2 `completed` liée à une décision. Ce sont les mêmes règles que le pont M1 ci-dessus. Aujourd'hui, Programme et le bloc « après séance » utilisent cette même lecture. Une date V2 réalisée n'offre plus le débrief legacy.
+
 **Limites V1** : une séance principale par jour ; « autre exercice réalisé » en nom libre sans lien au catalogue ; résultats de série non lus par le moteur de décision ; aucune progression automatique (UX-11E) ; suppression, anonymisation et conservation des données du pilote (RGPD) : sujet distinct, traité en UX-11B.2.
 
 ### `race_calendar`

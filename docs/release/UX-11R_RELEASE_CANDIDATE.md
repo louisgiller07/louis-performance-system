@@ -321,9 +321,10 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Approbation C | PASS (2026-10-05) | 1 assignment V2 (compte interne de simulation), flag absent, génération V1 `global_v2_disabled`, 0 V2 (preflight §30) |
 | Operations | Approbation D1 | PASS (2026-10-05) | Un plan V2 `cd5cde79` généré (`assigned_v2`), non accepté, 0 échec, 0 exécution ; flag remis à `false` (preflight §32) |
 | Operations | Approbation D2A | PASS (2026-10-05) | `cd5cde79` accepté et courant ; Daily V2 KEEP, prescription finale `a775ed62` (`v2`, `session-model-v2.5`) ; 0 exécution (preflight §34) |
-| Operations | Approbation D2B1 | PREPARED, non exécutée | Séance guidée DH happy path sur `a775ed62` : Start, Pause, Resume, passages, Complete, refresh (preflight §35) |
-| Operations | Approbation D2B2 | NOT AUTHORIZED | Abandon, Restart, corrections, idempotence, conflits |
-| Product | Constats V2 (7) | OPEN, BUG-V2-1 à 3 bloquants avant bêta payante | `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md` |
+| Operations | Approbation D2B1 | PASS (2026-10-05) | Exécution `df8b83f2` : started → paused → resumed → completed, 6/6 passages, 0 `completed_sessions`, bridge V2 1 complétion (preflight §36) |
+| Engineering | Hardening UX-11R.9 | CONTRAT VALIDÉ, implémentation non autorisée | F-6A, F-6B, F-5 (serveur + UI), F-4 (serveur + UI) ; 3 migrations additives (preflight §37) |
+| Operations | Approbation D2B2 | BLOCKED | Jusqu'au hardening UX-11R.9 livré et validé |
+| Product | Constats V2 (8) | OPEN : F-5, F-6, F-6C = P0 ; BUG-V2-1/2 et F-4 bloquants avant bêta payante | `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md` |
 | Operations | Préparation de l'Approbation B (historique) | READY (local) | Build propre, eszip local des 3 fonctions, déploiement en bundling Docker, vérification par `functions download` (preflight §26) |
 | Operations | Sauvegarde / restauration | LOGICAL PASS, PROVIDER FAIL (risque accepté par écrit le 2026-10-04) | Dump de production restauré dans une pile locale vide : 0 écart de comptage, Auth en données, V1 46/46 ; aucune sauvegarde provider, PITR désactivé. **Approval A : TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED** (preflight §24) |
 
