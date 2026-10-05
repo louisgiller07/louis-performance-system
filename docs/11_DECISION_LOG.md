@@ -4911,3 +4911,29 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §25, §26.
 
 **Statut** : Accepted — Stage 1 PASS en production ; Approbation B prête, non exécutée. Edge et web en production : `ba59239`.
+
+## 2026-10-05 — ADR UX-11R.5 : Approbation B close, Approbation C préparée
+
+> **The new runtime is live (Edge and web on `6d01c88`) with V2 off. The first V2 step is a single, guarded, reversible assignment row for one internal account named by Louis; with the global flag absent it changes nothing, and that is proven in production before any flag decision.**
+
+**Constats.**
+- Approbation B PASS.
+  - Edge déployée en bundling Docker local (pas `--use-api`).
+  - Bundle V2 de `daily-run` prouvé sur le serveur via l'eszip brut, byte-identique.
+  - `main` = `6d01c88`, Vercel web et marketing `READY`.
+  - Smokes V1 Edge et web PASS ; 0 plan V2, 0 exécution, 0 assignment.
+- `functions download` seul ne restitue que le dossier de la fonction. L'eszip brut reste dans `supabase/.temp` du dossier de travail : c'est lui qui sert de preuve.
+
+**Décisions.**
+- **Approbation C** : une ligne `training_plan_model_assignments (v2)`, insérée par une transaction avec gardes :
+  - 0 ligne avant ;
+  - `athlete_id` et e-mail désignant exactement un compte ;
+  - 1 ligne après.
+- Le compte est désigné par écrit par Louis (identifiant complet), jamais choisi par l'agent, jamais écrit dans le dépôt.
+- Flag absent pendant C. Preuve fonctionnelle obligatoire : génération `v1` / `global_v2_disabled` pour le compte assigné, 0 plan ou événement `v2`.
+- Retour arrière de C : suppression gardée de cette seule ligne.
+- **Approbation D** (flag ON, premier plan V2) reste séparée et décrite à titre d'aperçu. La portée exacte (génération seule, ou jusqu'au Daily et à la séance guidée) relève du propriétaire.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §27–§29.
+
+**Statut** : Accepted. Production : Edge et web `6d01c88`, V2 OFF.

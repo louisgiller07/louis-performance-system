@@ -13,6 +13,7 @@
 | Preflight Stage 0 | branche `feat/ux11r3-production-preflight`, commits de UX-11R.3 au-dessus de `db1bbb8` (HEAD `be83f44`) ; commandes, gates et approbations : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` |
 | DELETE révoqué, gate distant | branche `feat/ux11r31-athlete-delete-merge-gate`, commits de UX-11R.3.1 au-dessus de `be83f44` |
 | Gate, Stage 1, préparation de l'Approbation B | branche `feat/ux11r32-readonly-gate-completion` (UX-11R.3.2 à UX-11R.4) |
+| **Approbation B** | **PASS, 2026-10-05** : Edge (`session-execution` v1, `daily-run` v21, `generate-training-plan` v7) et web / marketing (Vercel) en production sur `6d01c88`, V2 OFF, 0 assignment, smokes V1 Edge et web PASS (preflight §27) |
 | **Stage 1** | **PASS, 2026-10-04** : les 10 migrations UX appliquées en production (60/60), smoke V1 avec l'ancien code PASS. Code de production toujours V1 (`ba59239`) |
 | Constante de version | aucune : le dépôt n'a pas de convention de numéro de release, rien n'est créé |
 
@@ -316,7 +317,9 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Merge / push sur `main` | `AUTO_DEPLOY_ON_MAIN = TRUE` : INTERDIT avant le Stage 1 ; étape 2.6 de l'Approbation B, après les Edge Functions | Gate R7 (API Vercel, déploiements GitHub) ; preflight §19, §20 |
 | Operations | Gate distant en lecture seule | PASS (2026-10-03) | Historique 50 = `ba59239`, exactement 10 pending ; dérive non matérielle expliquée ; grants et comptages capturés (preflight §24) |
 | Database | Stage 1 (10 migrations) | PASS (2026-10-04) | 60/60 appliquées, 0 en attente, dérive après migration = bruit connu, 0 baisse de comptage, smoke V1 ancien code PASS (preflight §25) |
-| Operations | Préparation de l'Approbation B | READY (local) | Build propre, eszip local des 3 fonctions, déploiement en bundling Docker, vérification par `functions download` (preflight §26) |
+| Operations | Approbation B | PASS (2026-10-05) | Déploiement `6d01c88` ; bundle V2 prouvé sur le serveur (eszip, `951ca9bd…`) ; smokes V1 PASS ; 0 plan V2 (preflight §27) |
+| Operations | Approbation C | PREPARED, en attente de la désignation du compte | Une seule ligne d'assignment, gardes transactionnelles, flag absent, preuve fonctionnelle V1, retour arrière (preflight §28) |
+| Operations | Préparation de l'Approbation B (historique) | READY (local) | Build propre, eszip local des 3 fonctions, déploiement en bundling Docker, vérification par `functions download` (preflight §26) |
 | Operations | Sauvegarde / restauration | LOGICAL PASS, PROVIDER FAIL (risque accepté par écrit le 2026-10-04) | Dump de production restauré dans une pile locale vide : 0 écart de comptage, Auth en données, V1 46/46 ; aucune sauvegarde provider, PITR désactivé. **Approval A : TECHNICALLY READY — EXPLICIT BACKUP RISK ACCEPTANCE REQUIRED** (preflight §24) |
 
 ## 12bis. Fragilités connues du harnais local

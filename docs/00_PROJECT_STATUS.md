@@ -4,6 +4,12 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**Approbation B — PASS (2026-10-05).** Production sur `6d01c88`.
+- Edge : `session-execution` v1, `daily-run` v21, `generate-training-plan` v7, bundling Docker local, bundle V2 prouvé sur le serveur.
+- Web et marketing : Vercel depuis `main` = `6d01c88`.
+- V2 toujours **OFF** (flag absent), 0 assignment, 0 plan V2, 0 exécution ; smokes V1 Edge et web PASS.
+- **Prochaine étape** : Approbation C (une seule ligne d'assignment V2, pour un compte interne désigné par Louis, flag absent), préparée dans `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §28, non exécutée. Approbation D (flag ON) séparée, §29.
+
 **Stage 1 — CLOSED / PASS (2026-10-04).** Les 10 migrations UX sont appliquées en production (60/60, 0 en attente).
 - Approbation A accordée avec acceptation écrite du risque de sauvegarde (aucune sauvegarde provider, PITR désactivé).
 - Dump logique frais vérifié et restauré en local avant le `db push`.

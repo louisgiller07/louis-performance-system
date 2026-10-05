@@ -1,6 +1,6 @@
 # UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1 à UX-11R.4)
 
-> **État au 2026-10-04 : Stage 1 PASS** (10 migrations appliquées, smoke V1 PASS, §25). Prochaine étape : Approbation B, préparée au §26, non exécutée.
+> **État au 2026-10-05 : Approbation B PASS** (§27) : Edge et web en production sur `6d01c88`, V2 OFF, 0 assignment. Prochaine étape : Approbation C, préparée au §28, non exécutée. Approbation D esquissée au §29.
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -723,3 +723,230 @@ Notes :
 - Le dossier `C:\Temp\nalynt-edge-verify` doit être vide et hors dépôt.
 - Le CLI peut exiger `supabase/config.toml` dans `--workdir` : un fichier minimal suffit (`project_id = "nalynt-edge-verify"`). C'est à vérifier à la première exécution, en lecture seule.
 - La commande de vérification Vercel (`vercel api …/v9/projects/…`, GET, filtrée) est décrite au §21 R7.
+
+## 27. Approbation B — exécutée et validée (2026-10-04 / 2026-10-05)
+
+Commit déployé : `6d01c88561a590eba22e754a8cbed0c97a8a5447`. Preuves locales : `C:\Temp\nalynt-prod-gate\pre-b`, `post-b-edge-final`, `post-b-web` ; `C:\Temp\nalynt-eszip-verify`.
+
+- **Pré-vérifications** (2026-10-04 17:52 UTC) :
+  - cible confirmée ; 60/60, 0 en attente, 0 assignment ;
+  - flag absent ; versions Edge et déploiement Vercel notés pour le retour arrière.
+- **Edge**, depuis un checkout propre de `6d01c88`, bundling Docker local (image `edge-runtime:v1.74.3`), **sans `--use-api`** :
+
+  | Fonction | Avant | Après | Déployée (UTC) | `ezbr` |
+  |---|---|---|---|---|
+  | `session-execution` | — | v1 | 2026-10-04 18:00 | `d3917182…` |
+  | `daily-run` | v20 | v21 | 2026-10-04 18:00 | `95f5786d…` |
+  | `generate-training-plan` | v6 | v7 | 2026-10-04 18:01 | `3f5ec429…` |
+
+  - Seules ces 3 fonctions ont changé ; les 9 sont `ACTIVE` avec `verify_jwt = true`.
+  - Sans JWT : 401 ; `OPTIONS` : 204 (pas d'erreur de démarrage).
+- **Preuve serveur du chemin V2** :
+  - `functions download daily-run --debug` (lecture seule) dans un dossier isolé ; l'eszip brut est conservé par le CLI dans `supabase/.temp/output_daily-run.eszip`.
+  - `unbundle` local : 75 modules. `head-coach-engine/dist/edge/dailyRunV2.bundle.js` (sha256 `951ca9bd…`) et les 73 modules JS de `head-coach-engine/dist` sont identiques au build validé.
+  - Les points d'entrée transpilés ont les mêmes littéraux, dans le même ordre.
+  - Correction de la méthode du §26.C : `functions download` seul ne restitue que le dossier de la fonction.
+- **Smoke V1 Edge** (web encore `ba59239`, `post-b-edge-final`) :
+  - événements : génération, acceptation et Daily réussis, 0 `*_failed` ;
+  - 1 décision, `final_prescription_status` NULL ; 1 plan `v1` ; 0 plan V2 ; 0 exécution.
+- **Web** :
+  - `main` avancé en fast-forward de `ba59239` à `6d01c88` (62 commits, 0 merge) puis poussé (2026-10-05 05:48 UTC) ;
+  - Vercel `nalynt` `dpl_7Le1JqrCeCoLZnMjXAdQCR8JQyDS` et `nalynt-marketing` `dpl_5VPnRxWsJ2cffu9PHoXCiD4jMVcc` `READY` sur exactement `6d01c88` ;
+  - alias `app.nalynt.ch`, `nalynt.ch` et `www.nalynt.ch` en 200.
+- **Smoke V1 web** (`post-b-web`, depuis 06:17:04 UTC) :
+  - connexion, check-in, Daily, génération, acceptation, complétion, persistance ;
+  - événements Daily, génération, acceptation et complétion réussis, 0 `*_failed` ;
+  - 1 décision sans statut V2 ; 1 plan `v1` ; 0 plan V2 ; 0 exécution ; 0 assignment.
+- **Retour arrière** :
+  - possible tant qu'aucun plan V2 n'existe : Edge v20 / v6 depuis `ba59239`, Vercel `dpl_AVRkb3jeU1iAvifRHsrRpgwpi8AG` et `dpl_9evHTU2YodtXYih4z7dvLFKfWhkA` ;
+  - après un premier plan V2 : uniquement le kill switch (§13).
+
+## 28. Approbation C — un seul compte interne : préparation (NON exécutée)
+
+**Portée.** Une seule ligne `training_plan_model_assignments` (`planning_model = 'v2'`) pour **un** compte interne / de test désigné par écrit par Louis. Le flag global reste **absent** pendant toute l'Approbation C. Aucun plan V2 ne peut être créé tant que l'Approbation D n'est pas donnée.
+
+### A. Compte cible : désignation explicite, jamais choisi par l'agent
+
+Louis fournit, hors dépôt (jamais dans un fichier versionné) :
+- l'**e-mail** du compte ;
+- son **`athlete_id`** complet ;
+- la confirmation écrite qu'il s'agit d'un compte interne / de test, et non d'un pilote réel ou d'un compte d'un tiers.
+
+Le préfixe documenté `41f21027-…` (« compte de test » des runbooks) n'est **pas** suffisant : il faut l'identifiant complet, et préciser s'il s'agit d'un `athlete_id` ou d'un `user_id`.
+
+**Vérification en lecture seule** (opérateur, avec `PGPASSWORD` dans son terminal) :
+
+```sql
+BEGIN READ ONLY;
+SELECT a.id AS athlete_id, u.id AS user_id, u.email, u.created_at, u.last_sign_in_at,
+       u.email_confirmed_at IS NOT NULL AS email_confirmed,
+       (SELECT count(*) FROM public.athletes x WHERE x.user_id = u.id) AS athletes_for_user,
+       (SELECT count(*) FROM public.training_plan_versions v WHERE v.athlete_id = a.id) AS plan_versions,
+       (SELECT v.prescription_schema_version FROM public.training_plan_current_version c
+          JOIN public.training_plan_versions v ON v.id = c.plan_version_id WHERE c.athlete_id = a.id) AS current_plan_schema
+FROM public.athletes a JOIN auth.users u ON u.id = a.user_id
+WHERE a.id = :'athlete_id';
+-- Préparation de l'Approbation D (profil V2 prêt), lecture seule :
+SELECT p.dh_technical_tier, p.strength_experience_tier,
+       jsonb_array_length(coalesce(p.technical_priorities->'priorityAreas', '[]'::jsonb)) AS dh_priority_count,
+       jsonb_array_length(p.terrain_access) AS terrain_count, jsonb_array_length(p.equipment) AS equipment_count,
+       (SELECT count(*) FROM public.athlete_availability_windows w WHERE w.athlete_id = p.athlete_id) AS availability_windows
+FROM public.athlete_performance_profiles p WHERE p.athlete_id = :'athlete_id';
+ROLLBACK;
+```
+
+Attendu :
+- 1 ligne ;
+- e-mail identique à celui donné par Louis, `email_confirmed = true`, `athletes_for_user = 1` ;
+- profil : `dh_technical_tier` renseigné, 1 à 3 priorités DH, au moins un terrain, des fenêtres de disponibilité. Sinon, l'Approbation D bloquerait la génération (422) : le compléter **dans l'app** avant D, jamais en SQL.
+
+`terrain_access`, `equipment` et `technical_priorities` sont des colonnes `jsonb` (vérifié sur le schéma à 60 migrations).
+
+### B. Création de l'assignment : une transaction, des gardes, exactement une ligne
+
+Exécutée par l'opérateur (psql, rôle `postgres` via le pooler, comme `prod-readonly-gate.mjs` ; mot de passe en variable d'environnement). Variables psql : `athlete_id`, `target_email`, `note` (ex. `Approval C — compte interne — <opérateur> — <date>`).
+
+```sql
+\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('nalynt.target_athlete', :'athlete_id', true),
+       set_config('nalynt.target_email', :'target_email', true),
+       set_config('nalynt.note', :'note', true);
+DO $$
+DECLARE
+  v_athlete uuid := current_setting('nalynt.target_athlete')::uuid;
+  v_n int;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.training_plan_model_assignments;
+  IF v_n <> 0 THEN RAISE EXCEPTION 'expected 0 assignments before Approval C, found %', v_n; END IF;
+  IF (SELECT count(*) FROM public.athletes a JOIN auth.users u ON u.id = a.user_id
+      WHERE a.id = v_athlete AND lower(u.email) = lower(current_setting('nalynt.target_email'))) <> 1 THEN
+    RAISE EXCEPTION 'athlete_id and e-mail do not designate exactly one account';
+  END IF;
+  INSERT INTO public.training_plan_model_assignments (athlete_id, planning_model, note)
+  VALUES (v_athlete, 'v2', current_setting('nalynt.note'));
+  SELECT count(*) INTO v_n FROM public.training_plan_model_assignments;
+  IF v_n <> 1 THEN RAISE EXCEPTION 'expected exactly 1 assignment after insert, found %', v_n; END IF;
+END $$;
+SELECT athlete_id, planning_model, note, created_at FROM public.training_plan_model_assignments;
+COMMIT;
+```
+
+- Toute garde en échec → `ROLLBACK` automatique (`ON_ERROR_STOP`), rien n'est écrit.
+- Aucune autre table touchée.
+- **Le navigateur ne peut pas écrire cette table** :
+  - migration 9 : RLS sans policy, aucun privilège `anon` / `authenticated` ;
+  - test `v2RolloutFlag` : un rider reçoit 42501 en select / insert / update / delete.
+  - Contrôle en production (lecture) :
+
+```sql
+BEGIN READ ONLY;
+SELECT r, has_table_privilege(r, 'public.training_plan_model_assignments', 'SELECT') AS sel,
+       has_table_privilege(r, 'public.training_plan_model_assignments', 'INSERT') AS ins,
+       has_table_privilege(r, 'public.training_plan_model_assignments', 'UPDATE') AS upd,
+       has_table_privilege(r, 'public.training_plan_model_assignments', 'DELETE') AS del
+FROM unnest(array['anon', 'authenticated']) r;
+ROLLBACK;
+```
+
+Attendu : `false` partout.
+
+### C. Le flag absent neutralise l'assignment : contrat et preuve
+
+- **Code** : `generateTrainingPlanForAthlete` ne lit l'assignment que si `parseV2PlanGenerationFlag(...)` est vrai, c'est-à-dire si le secret vaut exactement `"true"`. Flag absent → `global_v2_disabled` → chemin V1 exact.
+- **Tests existants**, code inchangé depuis leur dernière exécution :
+  - unitaire « switch off: the assignment is not even read; the exact V1 path runs » ;
+  - intégration `v2RolloutFlag` « global OFF: A (assigned v2) → V1 » ;
+  - HTTP sous Deno « OFF: A (assigned v2) → 200, V1 plan », plus l'événement `planningModel = v1` / `global_v2_disabled`.
+- **Preuve en production après C** (fait partie de l'Approbation C) :
+  1. le compte assigné génère un nouveau plan depuis l'app, flag absent ;
+  2. la requête de lecture ci-dessous doit montrer `v1` / `global_v2_disabled` et un plan `v1`.
+
+```sql
+BEGIN READ ONLY;
+SELECT e.created_at, e.metadata->>'planningModel' AS model, e.metadata->>'rolloutReason' AS reason
+FROM public.pilot_observability_events e
+WHERE e.event_type = 'plan_generation_succeeded' AND e.athlete_id = :'athlete_id' AND e.created_at >= :'since'::timestamptz
+ORDER BY e.created_at;
+SELECT v.prescription_schema_version, count(*) FROM public.training_plan_versions v
+WHERE v.athlete_id = :'athlete_id' AND v.generated_at >= :'since'::timestamptz GROUP BY 1;
+SELECT count(*) AS v2_plans_all_athletes FROM public.training_plan_versions WHERE prescription_schema_version = 'v2';
+SELECT count(*) AS v2_events_all_athletes FROM public.pilot_observability_events
+WHERE event_type LIKE 'plan_generation_%' AND metadata->>'planningModel' = 'v2';
+ROLLBACK;
+```
+
+### D. Contrôles après C
+
+- `inspect --expect post-stage1 --since <T_C>` : 60/60, `assignments|1`, `plan_versions_since|v1|…`, aucune ligne `v2`, `executions_total|0`, 0 `*_failed`.
+- Requête de lecture : `SELECT athlete_id, planning_model FROM public.training_plan_model_assignments` → exactement 1 ligne, l'`athlete_id` prévu, `v2`.
+- `npx supabase secrets list` : `NALYNT_V2_PLAN_GENERATION_ENABLED` absent.
+- Privilèges client sur la table : `false` partout (§28.B).
+- Preuve fonctionnelle (§28.C) : génération `v1` / `global_v2_disabled` ; `v2_plans_all_athletes = 0` ; `v2_events_all_athletes = 0`.
+- Autres comptes : aucun événement ni plan `v2` (requêtes globales ci-dessus) ; aucune autre ligne d'assignment.
+
+**Arrêt immédiat** si :
+- l'une des gardes refuse ;
+- plus d'une ligne d'assignment ;
+- flag présent ;
+- un événement ou un plan `v2` ;
+- une génération `assigned_v2` ;
+- une 5xx ou une régression V1.
+
+### E. Retour arrière de C (supprime seulement cette ligne)
+
+```sql
+\set ON_ERROR_STOP on
+BEGIN;
+SELECT set_config('nalynt.target_athlete', :'athlete_id', true);
+DO $$
+DECLARE v_n int;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.training_plan_model_assignments;
+  IF v_n <> 1 THEN RAISE EXCEPTION 'expected exactly 1 assignment before rollback, found %', v_n; END IF;
+  DELETE FROM public.training_plan_model_assignments
+  WHERE athlete_id = current_setting('nalynt.target_athlete')::uuid AND planning_model = 'v2';
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  IF v_n <> 1 THEN RAISE EXCEPTION 'expected to delete exactly 1 row, deleted %', v_n; END IF;
+  IF (SELECT count(*) FROM public.training_plan_model_assignments) <> 0 THEN RAISE EXCEPTION 'assignments remain'; END IF;
+END $$;
+COMMIT;
+```
+
+- Aucun autre effet : la table n'est lue que par `generate-training-plan`, et seulement si le flag est actif ; aucun plan n'en dépend.
+- Comme le flag est absent, ce retour arrière ne change aucun comportement utilisateur.
+
+**Répétition locale du SQL de §28** (2026-10-05, pile jetable à 60 migrations, compte fictif ; aucune donnée de production) :
+- identification : OK, lecture seule ;
+- e-mail erroné : refusé, 0 ligne écrite ;
+- insertion correcte : exactement 1 ligne ;
+- seconde insertion : refusée ;
+- privilèges client : `false` partout ;
+- requêtes de preuve : OK ;
+- retour arrière : 1 ligne supprimée, puis un second retour arrière refusé.
+
+## 29. Approbation D — aperçu seulement (NON préparée pour exécution)
+
+- **Objet** :
+  - activer `NALYNT_V2_PLAN_GENERATION_ENABLED=true` (secret Edge) ;
+  - puis générer un premier vrai plan V2, **uniquement** pour l'athlète assigné en C.
+  - Les étapes suivantes (acceptation, Daily V2, séance guidée, retour M1 : §10, 3.7 à 3.10) sont à inclure explicitement dans D ou à approuver séparément. **Décision du propriétaire.**
+- **Prérequis** :
+  - Approbation C PASS, avec la preuve fonctionnelle du §28.C ;
+  - profil V2 du compte complet (§28.A) ;
+  - flag encore absent juste avant ; 1 assignment exactement ;
+  - conditions d'arrêt (§12) et kill switch (§13) relus ;
+  - requêtes d'observation Q1 à Q5 (§11) prêtes ;
+  - opérateur disponible pour observer jusqu'au premier Daily.
+- **Commandes** (à préparer en D) :
+  - `npx supabase secrets set NALYNT_V2_PLAN_GENERATION_ENABLED=true --project-ref uvolpldwwyvadlamulvr` ;
+  - génération depuis l'app ;
+  - événement attendu `planningModel = v2` / `assigned_v2`.
+  - Kill switch : `npx supabase secrets set NALYNT_V2_PLAN_GENERATION_ENABLED=false --project-ref uvolpldwwyvadlamulvr`.
+- **Effet pour les autres comptes** : aucun ; sans assignment → `default_v1`. Le flag ajoute seulement une lecture de la table d'assignments par génération.
+- **Non autorisé en D** :
+  - assignment supplémentaire ;
+  - pilote externe ;
+  - Stage 5 ;
+  - toute migration, tout déploiement.
+- **Point de non-retour** : dès le premier plan V2 persisté, plus jamais `ba59239` (§14). Le retour arrière devient « kill switch + nouveau plan V1 accepté ».
