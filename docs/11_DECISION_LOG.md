@@ -4937,3 +4937,26 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §27–§29.
 
 **Statut** : Accepted. Production : Edge et web `6d01c88`, V2 OFF.
+
+## 2026-10-05 — ADR UX-11R.6 : Approbation C close, Approbation D1 préparée
+
+> **One internal account is assigned to V2 and, with the flag still absent, its generation stays V1. D1 is limited to turning the flag on, generating one V2 plan for that account, inspecting it read-only and (recommended) turning the flag back off; acceptance, Daily V2 and guided sessions wait for D2.**
+
+**Constats.**
+- Approbation C PASS : transaction gardée (1 ligne) ; schéma inchangé ; droits clients nuls ; flag absent.
+- Preuve en production : génération V1 / `global_v2_disabled`, 0 V2.
+- Répétition D1 locale avec le profil exact du compte : plan V2 valide (6 semaines, 30 séances, chacune dans la capacité de son créneau, drills `advanced` sur des terrains déclarés).
+- Trois constats produit :
+  - DH placé en soirée de semaine malgré de longs créneaux le week-end (jours de ride non lus) ;
+  - aucune progression entre les semaines ;
+  - séance le jour même de la génération.
+
+**Décisions.**
+- D1 = flag ON, une génération, inspection en lecture seule (`proof-d1.sql`), STOP.
+- Kill switch : `secrets set …=false` (ou `unset`). L'assignment et le plan V2 créé restent ; jamais `ba59239`.
+- Recommandation : remettre le flag à `false` en fin de D1, puisque D2 n'en a pas besoin. Décision du propriétaire.
+- Les trois constats produit sont documentés à l'inspection. Ils ne sont pas un critère de retour arrière technique.
+
+**Détail** : `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §30, §31.
+
+**Statut** : Accepted. Production : Edge et web `6d01c88`, flag absent, 1 assignment V2.

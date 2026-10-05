@@ -4,6 +4,11 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**Approbation C — PASS (2026-10-05).**
+- Une ligne `training_plan_model_assignments` (`v2`) pour le seul compte interne de simulation ; flag `NALYNT_V2_PLAN_GENERATION_ENABLED` toujours absent.
+- Génération depuis l'app : V1 / `global_v2_disabled` ; 0 plan ou événement V2.
+- **Prochaine étape** : Approbation D1 (flag ON, un premier plan V2 généré et inspecté, non accepté), préparée dans `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §31, non exécutée.
+
 **Approbation B — PASS (2026-10-05).** Production sur `6d01c88`.
 - Edge : `session-execution` v1, `daily-run` v21, `generate-training-plan` v7, bundling Docker local, bundle V2 prouvé sur le serveur.
 - Web et marketing : Vercel depuis `main` = `6d01c88`.

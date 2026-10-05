@@ -1,6 +1,6 @@
 # UX-11R.3 — Stage 0 production preflight (mis à jour UX-11R.3.1 à UX-11R.4)
 
-> **État au 2026-10-05 : Approbation B PASS** (§27) : Edge et web en production sur `6d01c88`, V2 OFF, 0 assignment. Prochaine étape : Approbation C, préparée au §28, non exécutée. Approbation D esquissée au §29.
+> **État au 2026-10-05 : Approbation C PASS** (§30) : 1 assignment V2 (compte interne de simulation), flag toujours absent, 0 plan V2. Prochaine étape : Approbation D1, préparée au §31, non exécutée.
 
 > **Rien n'a été exécuté contre la production.** Ce document prépare le déploiement réel et s'arrête **avant le Stage 1**. Chaque commande ci-dessous est à lancer par un humain, au moment prévu, après l'approbation qui la couvre (§15). La première étape distante est le gate en lecture seule du §21, qui demande sa propre autorisation. Aucune approbation n'en autorise implicitement une autre.
 >
@@ -950,3 +950,109 @@ COMMIT;
   - Stage 5 ;
   - toute migration, tout déploiement.
 - **Point de non-retour** : dès le premier plan V2 persisté, plus jamais `ba59239` (§14). Le retour arrière devient « kill switch + nouveau plan V1 accepté ».
+
+## 30. Approbation C — exécutée et validée (2026-10-05)
+
+- **Compte** : le compte interne de simulation désigné par écrit par Louis (identité hors dépôt). Identité, unicité et profil V2 vérifiés en lecture seule (`preflight-c3`).
+  - Le profil complet : palier DH `advanced` ; priorités `cornering`, `line_choice`, `race_execution` ; 5 terrains ; 6 créneaux de disponibilité.
+  - Un premier relevé montrait le palier DH vide. Après sélection et sauvegarde dans l'app, il est bien persisté : pas de défaut du chemin de sauvegarde.
+- **Répétition D1 locale** (copie exacte du profil) : plan V2 persisté, sans 422 ; flag OFF + assignment → V1. Points produit relevés au §31.F.
+- **Mutation** : transaction gardée `assign-c.sql` (08:14:36 UTC) : `COMMIT`, exactement 1 ligne `v2`, la bonne note.
+- **Contrôles** (`post-c`) :
+  - `assignments|1` ; 60/60 ; catalogue de schéma identique ;
+  - seul le compteur de la table d'assignments a changé ;
+  - droits clients nuls ; flag absent (08:15:46 UTC).
+- **Preuve fonctionnelle**, flag absent : génération depuis l'app à 08:26:32 UTC (non acceptée) → `v1` / `global_v2_disabled`, 1 plan `v1` dans la fenêtre, 0 plan V2 et 0 événement V2 sur tous les comptes (`proof-c-rerun`, `post-c-gen`).
+- Retour arrière `rollback-c.sql` : non utilisé.
+- Les anciennes références `41f21027-…` ont été corrigées : c'est l'`athlete_id` d'un autre compte.
+
+## 31. Approbation D1 — premier plan V2, génération seulement (préparée, NON exécutée)
+
+### A. Portée
+
+**Autorise uniquement** :
+1. le preflight final ;
+2. l'activation du flag ;
+3. **une** génération depuis l'app avec le compte de simulation ;
+4. l'inspection en lecture seule du plan ;
+5. le retour du flag à OFF (recommandé, §31.D) ;
+6. STOP.
+
+**N'autorise pas** :
+- l'acceptation du plan V2, la Daily V2, une séance guidée (démarrage, pause, reprise, fin), des résultats ou une activité ;
+- un autre assignment ou un autre athlète ;
+- la modification du profil ;
+- une migration, un `db push`, un déploiement, une modification de code, un push git.
+
+### B. Preflight final (lecture seule, juste avant la mutation)
+
+- `inspect --expect post-stage1` : 60/60, 0 pending, `assignments|1`.
+- Requête `assignments` de `proof-d1.sql` : exactement 1 ligne, l'`athlete_id` du compte de simulation, `v2`.
+- `npx supabase secrets list --project-ref uvolpldwwyvadlamulvr` : `NALYNT_V2_PLAN_GENERATION_ENABLED` absent.
+- `npx supabase functions list --project-ref uvolpldwwyvadlamulvr` : `generate-training-plan` v7, `daily-run` v21, `session-execution` v1, les autres inchangées.
+- Noter `T_D1` (UTC) juste avant la mutation.
+
+### C. Mutation et génération
+
+1. `npx supabase secrets set NALYNT_V2_PLAN_GENERATION_ENABLED=true --project-ref uvolpldwwyvadlamulvr`
+2. `npx supabase secrets list …` : le nom est présent. L'activité réelle ne se prouve que par l'événement de génération (étape 4).
+3. Attendre au moins 60 s, puis, dans l'app avec le compte de simulation : Profil → générer **un** plan (durée par défaut). **Ne pas accepter.**
+4. Lecture seule : `proof-d1.sql` avec `athlete_id` et `since = T_D1` (fichier hors dépôt `C:\Temp\nalynt-prod-gate\approval-d1\proof-d1.sql`, validé en local), puis `inspect --expect post-stage1 --since T_D1`.
+
+Attendu :
+- un seul événement `plan_generation_succeeded`, `v2` / `assigned_v2`, pour cet athlète ;
+- une seule nouvelle version : `prescription_schema_version = v2`, `planner_version = v2`, `ruleset_version = v2`, `catalog_version = session-model-v2.5`, `relaxed_constraints = []` ;
+- le plan courant reste le plan `v1` existant (non accepté) ;
+- les semaines, les sessions avec prescriptions (famille, drill, capacité du créneau) ;
+- `v2_plans_by_athlete` : ce seul athlète, 1 ;
+- `v2_events_by_athlete` : ce seul athlète ;
+- 0 `*_failed` / `*_blocked` ; `executions_total` inchangé (0) ; 60/60.
+
+### D. Kill switch et fin de D1
+
+- **Kill switch** : `npx supabase secrets set NALYNT_V2_PLAN_GENERATION_ENABLED=false --project-ref uvolpldwwyvadlamulvr` (ou `secrets unset`, équivalent : absent = OFF).
+  - Effet : toute **nouvelle** génération repasse en V1 (`global_v2_disabled`).
+  - L'assignment C reste en place ; le plan V2 déjà créé reste en base (append-only), non courant.
+  - Aucun changement de schéma ; jamais de retour à `ba59239` (§14).
+  - Vérification : `secrets list`, puis la prochaine génération éventuelle donne `v1`.
+- **Fin de D1 recommandée** : remettre le flag à `false` après la preuve.
+  - D2 (acceptation, Daily, séance guidée) n'a pas besoin du flag : la Daily suit le plan accepté.
+  - Le flag ne sert qu'à générer de nouveaux plans V2.
+  - **Décision du propriétaire**, à inscrire dans le texte d'approbation.
+
+### E. Conditions d'arrêt et de retour arrière
+
+**Avant la mutation (STOP, rien à défaire)** :
+- assignments ≠ 1 ou mauvais athlète ;
+- flag déjà présent ;
+- migrations ≠ 60 / 0 ;
+- version d'une Edge Function modifiée.
+
+**Après le flag (kill switch immédiat, puis STOP)** :
+- génération en 422 ou 5xx ;
+- événement `v1` / `global_v2_disabled` alors que le flag est posé (propagation non faite) : ne pas régénérer sans nouvelle approbation ;
+- modèle autre que `v2` ou raison autre que `assigned_v2` ;
+- plan V2 ou événement V2 pour un autre athlète ;
+- plus d'une génération ;
+- version de schéma, planner, ruleset ou catalogue inattendue ;
+- plan courant modifié (acceptation involontaire) ;
+- toute exécution créée ;
+- toute erreur `*_failed` ;
+- toute régression V1 signalée par un autre compte.
+
+**Non bloquant** : les points produit du §31.F, documentés.
+
+### F. Inspection produit du premier plan V2 (à documenter, non bloquant)
+
+Constatés dans la répétition locale avec le même profil (6 semaines, 30 séances) :
+
+1. **Placement DH** :
+   - les séances DH tombent lundi et mardi soir (créneaux de 90 et 120 min), alors que samedi (10 h) et dimanche (14 h) n'accueillent que l'endurance (45 min) ;
+   - cause : placement glouton (DH d'abord, première date libre qui convient) ; les jours de ride déclarés ne sont pas lus par le planificateur.
+2. **Progression** : les 6 semaines sont `development`, MODERATE, avec la même rotation : aucune progression d'une semaine à l'autre.
+3. **Séance le jour même** : la semaine 1 commence le jour de la génération, avec une séance DH ce jour-là.
+4. **Créneaux utilisés** : lundi, mardi, mercredi, jeudi, samedi. Dimanche jamais utilisé ; vendredi sans créneau.
+5. **Terrains** : drills `advanced` sur des terrains déclarés (`technical_trail`, `rock_garden`, `full_dh_track`).
+6. **Répartition** : par semaine 2 DH technique, 2 force (bas, haut), 1 endurance ; au total 12 / 12 / 6.
+
+À vérifier sur le plan réel, avec les colonnes `dow`, `slot_capacity_min`, `drills` et les semaines de `proof-d1.sql`.
