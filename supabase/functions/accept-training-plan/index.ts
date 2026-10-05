@@ -47,6 +47,7 @@ import { acceptTrainingPlanVersion } from "../../../head-coach-engine/dist/supab
 import { resolveTrainingPlanProjectionWindow } from "../../../head-coach-engine/dist/supabase/trainingPlanProjectionConfig.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapAcceptError } from "./errorMapping.ts";
+import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */
 interface AcceptTrainingPlanRequestContext {
@@ -86,9 +87,11 @@ function errorResponse(status: number, code: string, message: string): Response 
  */
 export interface HandleAcceptTrainingPlanDeps {
   acceptTrainingPlanVersion: typeof acceptTrainingPlanVersion;
+  /** UX-11R.9 (R9-OPS-01) — the rollout write-suspension secret, read on the server only; optional for existing test deps. */
+  readWritesSuspended?: () => string | undefined;
 }
 
-const DEFAULT_DEPS: HandleAcceptTrainingPlanDeps = { acceptTrainingPlanVersion };
+const DEFAULT_DEPS: HandleAcceptTrainingPlanDeps = { acceptTrainingPlanVersion, readWritesSuspended: () => Deno.env.get(WRITES_SUSPENDED_ENV) };
 
 export async function handleAcceptTrainingPlan(
   req: Request,
@@ -100,6 +103,13 @@ export async function handleAcceptTrainingPlan(
       { error: { code: "method_not_allowed", message: "Only POST is supported on this endpoint." } },
       { status: 405, headers: { Allow: "POST" } }
     );
+  }
+
+  // UX-11R.9 (R9-OPS-01) — rollout write suspension: after authentication (withSupabase) and the
+  // method check, before the body is read, the athlete resolved, accept_training_plan_version or the
+  // projection called, and before any plan_acceptance_* event.
+  if (isWritesSuspended((deps.readWritesSuspended ?? (() => Deno.env.get(WRITES_SUSPENDED_ENV)))())) {
+    return writesSuspendedResponse();
   }
 
   let body: unknown;

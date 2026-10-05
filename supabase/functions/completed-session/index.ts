@@ -25,6 +25,7 @@ import { withSupabase } from "@supabase/server";
 import { validateCompletedSessionBody, validateDateParam } from "./validation.ts";
 import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE, hasNonAbandonedExecution } from "./apiErrors.ts";
 import { recordPilotEvent } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
+import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
 
 const ALLOWED_METHODS = "GET, PUT";
 
@@ -100,6 +101,13 @@ export default {
     }
 
     // PUT
+    // UX-11R.9 (R9-OPS-01) — rollout write suspension, PUT only (GET stays a read): before the body
+    // is read, the athlete resolved, any precheck, persist_completed_session or the
+    // session_completion_failed event (the `fail` helper is never reached).
+    if (isWritesSuspended(Deno.env.get(WRITES_SUSPENDED_ENV))) {
+      return writesSuspendedResponse();
+    }
+
     let rawBody: unknown;
     try {
       rawBody = await req.json();

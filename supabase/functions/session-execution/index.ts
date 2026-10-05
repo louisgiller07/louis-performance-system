@@ -15,6 +15,7 @@
 // CORS/OPTIONS: answered by the gateway, same as the other functions.
 import { withSupabase } from "@supabase/server";
 import { executionLogLine, REJECTION_STATUS, validateSessionExecutionBody } from "./validation.ts";
+import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
 
 function errorResponse(status: number, code: string, message: string, target?: string): Response {
   return Response.json({ error: { code, message, ...(target ? { target } : {}) } }, { status });
@@ -52,6 +53,13 @@ export default {
         { error: { code: "method_not_allowed", message: "Only POST is supported on this endpoint." } },
         { status: 405, headers: { Allow: "POST" } }
       );
+    }
+
+    // UX-11R.9 (R9-OPS-01) — rollout write suspension: after authentication (withSupabase) and the
+    // method check, before the body is read, the athlete resolved or record_session_execution called.
+    // Every lifecycle action (start, pause, resume, results, complete, abandon) goes through here.
+    if (isWritesSuspended(Deno.env.get(WRITES_SUSPENDED_ENV))) {
+      return writesSuspendedResponse();
     }
 
     let rawBody: unknown;
