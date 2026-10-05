@@ -31,11 +31,21 @@ export function classifyMissingReadback(): ApiError {
 }
 
 /**
- * UX-11R.9 (F-5) — a legacy completed_sessions row is refused for a date
- * whose guided V2 execution is completed (one main session per athlete and
- * day). HTTP 409. The RPC guard (migration 20261005120500) raises this
- * dedicated SQLSTATE; the handler maps the code, never the message text.
+ * UX-11R.9 (F-5, F-5b) — a legacy completed_sessions row is refused for a
+ * date whose guided V2 execution is open (started / paused / resumed) or
+ * completed (one main session per athlete and day). HTTP 409. The RPC guard
+ * (migration 20261005120500) raises this dedicated SQLSTATE; the handler
+ * maps the code, never the message text.
  */
 export const COMPLETED_SESSION_V2_EXISTS = "completed_session_v2_exists";
 export const COMPLETED_SESSION_V2_EXISTS_SQLSTATE = "NX101";
 export const COMPLETED_SESSION_V2_EXISTS_MESSAGE = "This day's session was already completed as a guided session: no separate debrief can be recorded for it.";
+
+/**
+ * UX-11R.9 (F-5b) — the day's guided executions (each with its lifecycle
+ * events) include one that is not abandoned: open or completed. Pure, so
+ * the precheck rule is unit-tested; the same rule as the RPC guard.
+ */
+export function hasNonAbandonedExecution(executions: ReadonlyArray<{ execution_events?: ReadonlyArray<{ event_type?: unknown }> | null }>): boolean {
+  return executions.some((execution) => !(execution.execution_events ?? []).some((event) => event.event_type === "abandoned"));
+}

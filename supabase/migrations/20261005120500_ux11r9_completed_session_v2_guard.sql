@@ -1,9 +1,11 @@
 -- UX-11R.9 — legacy completion guard (local, not pushed).
 --
--- F-5: persist_completed_session (called only by the completed-session Edge
--- Function, PUT) refuses to insert OR replace the completed_sessions row of a
--- date for which the athlete has a guided V2 execution with a `completed`
--- event: SQLSTATE NX101, message `completed_session_v2_exists` (the Edge
+-- F-5 / F-5b: persist_completed_session (called only by the
+-- completed-session Edge Function, PUT) refuses to insert OR replace the
+-- completed_sessions row of a date for which the athlete has a guided V2
+-- execution that is not abandoned — open (started / paused / resumed: it
+-- reserves the day's main session) or completed: SQLSTATE NX101, message
+-- `completed_session_v2_exists` (the Edge
 -- Function maps the SQLSTATE to HTTP 409, never the text). Other dates and
 -- V1 athletes are unchanged; existing rows are never modified.
 --
@@ -106,20 +108,22 @@ begin
   end if;
   v_session_date := (p_row->>'session_date')::date;
 
-  -- UX-11R.9 (F-5) — a day whose guided V2 execution is completed takes no
-  -- legacy completed_sessions row (insert or replacement): one main session
-  -- per athlete and day, no V2 + legacy duplicate. Same per-athlete advisory
-  -- lock as record_session_execution, so a V2 completion and a legacy
-  -- debrief never interleave. Dedicated SQLSTATE: the Edge Function maps the
-  -- code, never the message text.
+  -- UX-11R.9 (F-5, F-5b) — a day whose guided V2 execution is open
+  -- (started / paused / resumed) or completed takes no legacy
+  -- completed_sessions row (insert or replacement): an open guided session
+  -- reserves the day's main session, a completed one is the day's session.
+  -- Only an abandoned execution (or none) leaves the legacy debrief open.
+  -- Same per-athlete advisory lock as record_session_execution: a V2 start,
+  -- a V2 completion and a legacy debrief never interleave (one wins).
+  -- Dedicated SQLSTATE: the Edge Function maps the code, never the message.
   perform pg_advisory_xact_lock(hashtextextended('record_session_execution:' || p_athlete_id::text, 0));
   if exists (
     select 1 from public.session_executions e
      where e.athlete_id = p_athlete_id
        and e.session_date = v_session_date
-       and exists (
+       and not exists (
          select 1 from public.execution_events ev
-          where ev.execution_id = e.id and ev.event_type = 'completed'
+          where ev.execution_id = e.id and ev.event_type = 'abandoned'
        )
   ) then
     raise exception using errcode = 'NX101', message = 'completed_session_v2_exists';

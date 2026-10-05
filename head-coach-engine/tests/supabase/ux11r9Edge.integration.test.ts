@@ -22,6 +22,21 @@ const DH = {
   blocks: [{ blockId: "main", role: "main", items: [{ kind: "drill", prescriptionItemId: ITEM, drillId: "cornering_off_camber", measure: { type: "pass", count: 4 } }] }],
 };
 
+/** A valid legacy debrief body (completed-session PUT contract); session_date set per test. */
+const DEBRIEF = {
+  decision_id: null,
+  session_type: "RECOVERY",
+  completion_status: "done",
+  actual_duration_min: 42,
+  rpe: 6,
+  post_leg_fatigue: 3,
+  post_grip_fatigue: 3,
+  new_pain: false,
+  new_pain_note: null,
+  intervention: { kind: "RECOVERY_ACTIVE" },
+  main_content: null,
+};
+
 async function assertServing(fn: string): Promise<void> {
   const url = `${resolveTestSupabaseUrl()}/functions/v1/${fn}`;
   let last: number | string = "no answer";
@@ -97,20 +112,7 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
     expect(second.status).toBe(409);
     expect(second.body.error?.code).toBe("session_already_completed");
 
-    const debrief = {
-      session_date: DAY,
-      decision_id: null,
-      session_type: "RECOVERY",
-      completion_status: "done",
-      actual_duration_min: 42,
-      rpe: 6,
-      post_leg_fatigue: 3,
-      post_grip_fatigue: 3,
-      new_pain: false,
-      new_pain_note: null,
-      intervention: { kind: "RECOVERY_ACTIVE" },
-      main_content: null,
-    };
+    const debrief = { ...DEBRIEF, session_date: DAY };
     const legacy = await invoke(rider, "completed-session", debrief, "PUT");
     expect(legacy.status).toBe(409);
     expect(legacy.body.error?.code).toBe("completed_session_v2_exists");
@@ -121,6 +123,36 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
 
     // Another date: the legacy debrief is unchanged.
     expect((await invoke(rider, "completed-session", { ...debrief, session_date: "2027-02-02" }, "PUT")).status).toBe(200);
+  });
+
+  it("completed-session during an OPEN guided session (started, paused, resumed) → 409 completed_session_v2_exists; abandoned → accepted", async () => {
+    const days = ["2027-02-10", "2027-02-11", "2027-02-12", "2027-02-13"];
+    const lifecycles: string[][] = [[], ["paused"], ["paused", "resumed"], ["abandoned"]];
+    for (const [i, day] of days.entries()) {
+      await insertCheckin(admin, athleteId, day);
+      const decisionId = randomUUID();
+      const dayFp = randomUUID();
+      execLocalSql(`insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
+  select ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, 'DH_TECHNICAL', 'test fixture', 'test', 'created', c.id, c.updated_at
+    from public.daily_checkins c where c.athlete_id = ${sqlLiteral(athleteId)} and c.checkin_date = ${sqlLiteral(day)};
+insert into public.decision_final_prescriptions (id, decision_id, athlete_id, active_session_origin, reconciliation_action, adaptation_rule_ids, schema_version, catalog_version, structure)
+  values (${sqlLiteral(dayFp)}, ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, 'no_canonical_plan', 'keep', '[]'::jsonb, 'v2', 'test', ${sqlLiteral(JSON.stringify(DH))}::jsonb);`);
+      const id = randomUUID();
+      const at = (minute: number) => `${day}T17:${String(minute).padStart(2, "0")}:00Z`;
+      expect((await invoke(rider, "session-execution", { execution: { id, session_date: day, started_at: at(0), final_prescription_id: dayFp, comment: null }, events: [{ id: randomUUID(), execution_id: id, event_type: "started", occurred_at: at(0) }] })).status).toBe(200);
+      for (const [j, event] of lifecycles[i]!.entries()) {
+        expect((await invoke(rider, "session-execution", { events: [{ id: randomUUID(), execution_id: id, event_type: event, occurred_at: at(10 + j) }] })).status).toBe(200);
+      }
+      const legacy = await invoke(rider, "completed-session", { ...DEBRIEF, session_date: day }, "PUT");
+      if (lifecycles[i]!.includes("abandoned")) {
+        expect(legacy.status).toBe(200);
+      } else {
+        expect(legacy.status).toBe(409);
+        expect(legacy.body.error?.code).toBe("completed_session_v2_exists");
+        const { data: rows } = await admin.from("completed_sessions").select("id").eq("athlete_id", athleteId).eq("session_date", day);
+        expect(rows).toEqual([]);
+      }
+    }
   });
 
   it("accept-training-plan: an older draft → 409 stale_plan_version, plan_acceptance_failed carries the code; nothing changes", async () => {

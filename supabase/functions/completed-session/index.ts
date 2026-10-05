@@ -23,7 +23,7 @@
 // semantics would otherwise silently null it out on every edit.
 import { withSupabase } from "@supabase/server";
 import { validateCompletedSessionBody, validateDateParam } from "./validation.ts";
-import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE } from "./apiErrors.ts";
+import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE, hasNonAbandonedExecution } from "./apiErrors.ts";
 import { recordPilotEvent } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 
 const ALLOWED_METHODS = "GET, PUT";
@@ -133,26 +133,25 @@ export default {
       return errorResponse(status, code, message);
     };
 
-    // UX-11R.9 (F-5) — a day whose guided V2 execution is completed takes no
-    // legacy completed_sessions row (insert or replacement). RLS-scoped
-    // read-only precheck: a specific 409 before any write attempt. It is a
-    // best-effort check only; the transactional, race-safe guarantee is the
-    // RPC's own guard under the per-athlete lock (migration 20261005120500,
-    // SQLSTATE NX101, mapped below by code). Without that migration this
-    // precheck is the only protection and a concurrent V2 completion can
-    // still slip between the two.
-    const { data: completedV2, error: completedV2Error } = await ctx.supabase
+    // UX-11R.9 (F-5, F-5b) — a day whose guided V2 execution is open
+    // (started / paused / resumed) or completed takes no legacy
+    // completed_sessions row (insert or replacement); only an abandoned
+    // execution (or none) leaves the debrief open. RLS-scoped read-only
+    // precheck: a specific 409 before any write attempt. Best effort only:
+    // the transactional, race-safe guarantee is the RPC's own guard under the
+    // per-athlete lock (migration 20261005120500, SQLSTATE NX101, mapped
+    // below by code). Without that migration a concurrent V2 start can still
+    // slip between this read and the write.
+    const { data: dayExecutions, error: dayExecutionsError } = await ctx.supabase
       .from("session_executions")
-      .select("id, execution_events!inner(event_type)")
+      .select("id, execution_events(event_type)")
       .eq("athlete_id", athleteId)
-      .eq("session_date", body.session_date)
-      .eq("execution_events.event_type", "completed")
-      .limit(1);
-    if (completedV2Error) {
-      console.error(`completed-session: V2 completion precheck failed [${completedV2Error.code}]`);
-      return fail(500, "internal_error", "Failed to check for a completed guided session.");
+      .eq("session_date", body.session_date);
+    if (dayExecutionsError) {
+      console.error(`completed-session: guided session precheck failed [${dayExecutionsError.code}]`);
+      return fail(500, "internal_error", "Failed to check for a guided session.");
     }
-    if ((completedV2 ?? []).length > 0) {
+    if (hasNonAbandonedExecution((dayExecutions ?? []) as Array<{ execution_events?: Array<{ event_type?: unknown }> | null }>)) {
       return fail(409, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE);
     }
 

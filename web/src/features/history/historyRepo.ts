@@ -249,3 +249,27 @@ export async function loadGuidedCompletionsForDates(athleteId: string, dates: st
     finalPrescriptionId: row.final_prescription_id,
   }));
 }
+
+/** UX-11R.9 (F-5b) — the day's guided session as the legacy debrief must see it. */
+export type GuidedDayState = "completed" | "open" | "none";
+
+/**
+ * UX-11R.9 (F-5b) — one RLS read of the day's guided executions with their
+ * lifecycle events: "completed" if one reached `completed`, else "open" if
+ * one is started / paused / resumed (not abandoned), else "none". Same rule
+ * as the server guard of persist_completed_session (completed_session_v2_exists).
+ */
+export async function loadGuidedDayState(athleteId: string, date: string): Promise<GuidedDayState> {
+  const { data, error } = await supabase.from("session_executions").select("id, execution_events(event_type)").eq("athlete_id", athleteId).eq("session_date", date);
+
+  if (error) {
+    console.error("historyRepo.loadGuidedDayState failed", error.code);
+    throw new HistoryLoadError();
+  }
+
+  const executions = (data ?? []) as Array<{ execution_events: Array<{ event_type: string }> | null }>;
+  const types = executions.map((execution) => (execution.execution_events ?? []).map((event) => event.event_type));
+  if (types.some((events) => events.includes("completed"))) return "completed";
+  if (types.some((events) => !events.includes("abandoned"))) return "open";
+  return "none";
+}

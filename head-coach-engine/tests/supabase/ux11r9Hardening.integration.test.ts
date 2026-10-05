@@ -49,14 +49,16 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.9 — execution, legacy completion
     return data as Outcome;
   }
   /** A fresh day (own check-in, own current decision + final prescription): one scenario never leaks into another. */
-  async function freshDay(structure: unknown, finalSession = "DH_TECHNICAL"): Promise<string> {
+  /** `dailyPlanFinalSession`: the decision's daily_plan.final_session (what the M1 bridge reads); absent by default. */
+  async function freshDay(structure: unknown, finalSession = "DH_TECHNICAL", dailyPlanFinalSession?: unknown): Promise<string> {
     dayIndex += 1;
     const day = new Date(Date.UTC(2026, 11, dayIndex)).toISOString().slice(0, 10); // 2026-12-01, 2026-12-02, …
     await insertCheckin(admin, athleteId, day);
     const decisionId = randomUUID();
     const fpId = randomUUID();
-    execLocalSql(`insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
-  select ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, '${finalSession}', 'test fixture', 'test', 'created', c.id, c.updated_at
+    const dailyPlan = dailyPlanFinalSession === undefined ? "null" : `${sqlLiteral(JSON.stringify({ final_session: dailyPlanFinalSession }))}::jsonb`;
+    execLocalSql(`insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at, daily_plan)
+  select ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, '${finalSession}', 'test fixture', 'test', 'created', c.id, c.updated_at, ${dailyPlan}
     from public.daily_checkins c where c.athlete_id = ${sqlLiteral(athleteId)} and c.checkin_date = ${sqlLiteral(day)};
 insert into public.decision_final_prescriptions (id, decision_id, athlete_id, active_session_origin, reconciliation_action, adaptation_rule_ids, schema_version, catalog_version, structure)
   values (${sqlLiteral(fpId)}, ${sqlLiteral(decisionId)}, ${sqlLiteral(athleteId)}, 'no_canonical_plan', 'keep', '[]'::jsonb, 'v2', 'test', ${sqlLiteral(JSON.stringify(structure))}::jsonb);`);
@@ -212,14 +214,17 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
       expect(await record({ sets: [e.pass(1)], events: [e.event("completed")] })).toMatchObject({ status: "ok" });
     });
 
-    it("a legacy row recorded while the V2 execution is open wins: completing the execution → session_already_completed; abandoning stays allowed", async () => {
+    it("defensive (historical / inconsistent state): a non-skipped legacy row next to an OPEN execution → completing it is session_already_completed, no second completion; abandoning stays allowed", async () => {
       const day = await freshDay(dhStructure);
       const e = await started(day);
       expect(await record({ sets: [e.pass(1)] })).toMatchObject({ status: "ok" });
-      expect((await persistLegacy(day, "done")).error).toBeNull();
+      // Artificial state, owner-level (the RPC itself now refuses a debrief while the execution is open).
+      execLocalSql(`insert into public.completed_sessions (athlete_id, session_date, session_type, completion_status, actual_duration_min, rpe, intervention, post_leg_fatigue, post_grip_fatigue, new_pain)
+  values (${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, 'RECOVERY', 'done', 42, 6, '{"kind":"RECOVERY_ACTIVE"}'::jsonb, 3, 3, false);`);
       expect(await record({ events: [e.event("completed")] })).toEqual({ status: "rejected", code: "session_already_completed", target: "execution" });
       expect(await eventsOf(e.id)).toEqual(["started"]);
       expect(await record({ events: [e.event("abandoned")] })).toMatchObject({ status: "ok" });
+      expect(await eventsOf(e.id)).toEqual(["started", "abandoned"]);
     });
   });
 
@@ -243,11 +248,20 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
       expect(await legacyStatus(day)).toBe("skipped");
     });
 
-    it("a V2 execution that is open or abandoned does not block the legacy debrief; another date is unaffected", async () => {
-      const openDay = await freshDay(dhStructure);
-      await started(openDay);
-      expect((await persistLegacy(openDay, "done")).error).toBeNull();
+    it("F-5b — an OPEN guided session (started, paused, resumed) reserves the day: legacy debrief → NX101, nothing written", async () => {
+      for (const lifecycle of [[], ["paused"], ["paused", "resumed"]]) {
+        const day = await freshDay(dhStructure);
+        const e = await started(day);
+        for (const [i, event] of lifecycle.entries()) expect(await record({ events: [e.event(event, 5 + i)] })).toMatchObject({ status: "ok" });
+        const { error } = await persistLegacy(day, "done");
+        expect(error?.code).toBe("NX101");
+        expect(await legacyStatus(day)).toBeNull();
+        // The open session can still be completed normally.
+        expect(await record({ sets: [e.pass(1)], events: [e.event("completed")] })).toMatchObject({ status: "ok" });
+      }
+    });
 
+    it("an abandoned execution (or none) leaves the legacy debrief open; another date is unaffected", async () => {
       const abandonedDay = await freshDay(dhStructure);
       const a = await started(abandonedDay);
       await record({ events: [a.event("abandoned")] });
@@ -283,19 +297,42 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
       }
     });
 
-    it("V2 start and legacy debrief sent together: never a completed V2 execution plus a legacy row", async () => {
-      for (let round = 0; round < 6; round += 1) {
+    it("F-5b — V2 start and legacy debrief sent together, repeatedly: exactly one wins; never an active execution plus a non-skipped legacy row", async () => {
+      const winners = { start: 0, legacy: 0 };
+      for (let round = 0; round < 8; round += 1) {
         const day = await freshDay(dhStructure);
         const e = execution(day);
         const [start, legacy] = await Promise.all([record(e.startBatch), persistLegacy(day, "done")]);
-        expect(legacy.error).toBeNull(); // an open (or absent) execution never blocks the debrief
-        if (start.status === "ok") {
-          // The legacy row now exists: completing the open execution is refused.
-          expect(await record({ sets: [e.pass(1)], events: [e.event("completed")] })).toMatchObject({ status: "rejected", code: "session_already_completed" });
+        const startWon = start.status === "ok";
+        const legacyWon = legacy.error === null;
+        expect(startWon !== legacyWon).toBe(true);
+        if (startWon) {
+          winners.start += 1;
+          expect(legacy.error?.code).toBe("NX101");
+          expect(await legacyStatus(day)).toBeNull();
         } else {
-          expect(start).toMatchObject({ code: "session_already_completed" });
+          winners.legacy += 1;
+          expect(start).toEqual({ status: "rejected", code: "session_already_completed", target: "execution" });
+          expect(await executionsOn(day)).toBe(0);
         }
       }
+      expect(winners.start + winners.legacy).toBe(8);
+    });
+  });
+
+  describe("F-5d — canonical precedence: legacy skipped + V2 completed = V2 completed (bridge / M1)", () => {
+    it("the next Daily's recent sessions and recovery context see the completed guided session, not the skipped row", async () => {
+      const { computeDailyFor } = await import("../../src/supabase/computeDailyFor.js");
+      const day = await freshDay(dhStructure, "DH_TECHNICAL", { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 });
+      expect((await persistLegacy(day, "skipped")).error).toBeNull();
+      const e = await started(day);
+      expect(await record({ sets: [e.pass(1)], events: [e.event("completed")] })).toMatchObject({ status: "ok" });
+      const next = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+      await insertCheckin(admin, athleteId, next);
+      const { rawContext } = await computeDailyFor(admin, athleteId, next);
+      const sessionsOfDay = rawContext.recent_sessions.filter((s) => s.date === day);
+      expect(sessionsOfDay).toEqual([{ date: day, intervention: expect.objectContaining({ kind: "DH_TECHNICAL" }), completion_status: "done" }]);
+      expect(JSON.stringify(rawContext.recent_recovery_context ?? null)).not.toContain("skipped");
     });
   });
 

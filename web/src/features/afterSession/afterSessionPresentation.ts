@@ -42,6 +42,13 @@ export const GUIDED_DONE = {
   link: "Voir la séance guidée",
 } as const;
 
+/** UX-11R.9 (F-5b) — a guided session is open today: it is the day's session, no separate debrief. */
+export const GUIDED_OPEN = {
+  title: "Séance guidée en cours",
+  body: "Ta séance du jour se raconte dans la séance guidée.",
+  link: "Reprendre la séance guidée",
+} as const;
+
 export const BUTTONS = {
   next: "Continuer",
   back: "Retour",

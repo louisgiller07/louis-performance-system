@@ -12,15 +12,15 @@ import { AfterSessionEntry } from "./AfterSessionEntry";
 const signOut = vi.fn();
 vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ signOut }) }));
 vi.mock("../completedSession/completedSessionRepo", () => ({ getCompletedSession: vi.fn(), putCompletedSession: vi.fn() }));
-vi.mock("../history/historyRepo", () => ({ loadValidDecisionsForDate: vi.fn(), loadGuidedCompletionsForDates: vi.fn(async () => []) }));
+vi.mock("../history/historyRepo", () => ({ loadValidDecisionsForDate: vi.fn(), loadGuidedDayState: vi.fn(async () => "none") }));
 
 import { getCompletedSession, putCompletedSession } from "../completedSession/completedSessionRepo";
-import { loadGuidedCompletionsForDates, loadValidDecisionsForDate } from "../history/historyRepo";
+import { loadGuidedDayState, loadValidDecisionsForDate } from "../history/historyRepo";
 
 const mockedGet = getCompletedSession as unknown as ReturnType<typeof vi.fn>;
 const mockedPut = putCompletedSession as unknown as ReturnType<typeof vi.fn>;
 const mockedLoadDecisions = loadValidDecisionsForDate as unknown as ReturnType<typeof vi.fn>;
-const mockedLoadGuided = loadGuidedCompletionsForDates as unknown as ReturnType<typeof vi.fn>;
+const mockedLoadGuided = loadGuidedDayState as unknown as ReturnType<typeof vi.fn>;
 
 const DATE = "2026-09-29";
 
@@ -99,7 +99,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockedGet.mockResolvedValue({ ok: true, data: null });
   mockedLoadDecisions.mockResolvedValue([DH]);
-  mockedLoadGuided.mockResolvedValue([]);
+  mockedLoadGuided.mockResolvedValue("none");
 });
 
 describe("AfterSessionEntry — the invitation", () => {
@@ -309,7 +309,6 @@ describe("AfterSessionEntry — what NALYNT keeps", () => {
 });
 
 describe("AfterSessionEntry — UX-11R.9 a day completed as a guided session", () => {
-  const guided = { executionId: "exec-1", sessionDate: DATE, decisionId: "dec-1", finalPrescriptionId: "fp-1" };
   const renderEntry = () =>
     render(
       <MemoryRouter>
@@ -318,20 +317,37 @@ describe("AfterSessionEntry — UX-11R.9 a day completed as a guided session", (
     );
 
   it("no legacy record: 'Séance guidée terminée' + read-only link, never the 'Raconter ma séance' invitation", async () => {
-    mockedLoadGuided.mockResolvedValue([guided]);
+    mockedLoadGuided.mockResolvedValue("completed");
     renderEntry();
     expect(await screen.findByRole("heading", { name: "Séance guidée terminée" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Voir la séance guidée" })).toHaveAttribute("href", "/today/session");
     expect(screen.queryByRole("button", { name: "Raconter ma séance →" })).not.toBeInTheDocument();
-    expect(mockedLoadGuided).toHaveBeenCalledWith("athlete-1", [DATE]);
+    expect(mockedLoadGuided).toHaveBeenCalledWith("athlete-1", DATE);
   });
 
   it("an existing legacy record stays readable but can no longer be edited", async () => {
     mockedGet.mockResolvedValue({ ok: true, data: record() });
-    mockedLoadGuided.mockResolvedValue([guided]);
+    mockedLoadGuided.mockResolvedValue("completed");
     renderEntry();
     expect(await screen.findByText(/Séance enregistrée/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Modifier" })).not.toBeInTheDocument();
+  });
+
+  it("F-5d — a legacy `skipped` record yields to a completed guided session: the guided card, never 'non réalisée'", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record({ completion_status: "skipped", actual_duration_min: null, rpe: null, post_leg_fatigue: null, post_grip_fatigue: null, intervention: null }) });
+    mockedLoadGuided.mockResolvedValue("completed");
+    renderEntry();
+    expect(await screen.findByRole("heading", { name: "Séance guidée terminée" })).toBeInTheDocument();
+    expect(screen.queryByText(/Non réalisée/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Modifier" })).not.toBeInTheDocument();
+  });
+
+  it("F-5b — an OPEN guided session: 'Séance guidée en cours' + link to resume it, never the legacy invitation", async () => {
+    mockedLoadGuided.mockResolvedValue("open");
+    renderEntry();
+    expect(await screen.findByRole("heading", { name: "Séance guidée en cours" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reprendre la séance guidée" })).toHaveAttribute("href", "/today/session");
+    expect(screen.queryByRole("button", { name: "Raconter ma séance →" })).not.toBeInTheDocument();
   });
 
   it("no guided completion: the legacy invitation is unchanged", async () => {
