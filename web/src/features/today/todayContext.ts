@@ -1,4 +1,5 @@
 import { addDays } from "../../lib/date";
+import { isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
 import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../planning/planningTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
@@ -110,12 +111,14 @@ export function weekSummary(
   today: string,
   planned: PlannedSessionRow[],
   completed: CompletedSessionRecord[],
-  races: RaceOverlayEvent[]
+  races: RaceOverlayEvent[],
+  guided: readonly GuidedCompletion[] = []
 ): WeekSummary {
   const dates = weekDates(today);
   const days = dates.map((date) => {
     const row = planned.find((candidate) => candidate.planned_date === date);
-    const performed = completed.some((session) => session.session_date === date && session.completion_status !== "skipped");
+    // UX-11R.9 — the shared "day done" rule (legacy non-skipped first, else a completed guided session).
+    const performed = isDayDone(date, completed, guided);
     const race = races.find((event) => event.startDate <= date && date <= event.endDate);
     const kind = row?.intervention?.kind;
     return {

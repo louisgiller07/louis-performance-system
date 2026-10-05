@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { addDays } from "../../lib/date";
 import { loadRaces, loadObjective } from "../today/todayContextRepo";
 import type { TodayRace } from "../today/todayContext";
-import { loadCompletedSessionsForDates, loadDecisionHistory } from "../history/historyRepo";
+import { loadCompletedSessionsForDates, loadDecisionHistory, loadGuidedCompletionsForDates } from "../history/historyRepo";
+import type { GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
 import type { TrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewTypes";
@@ -19,10 +20,12 @@ export interface ProgramContext {
   races: TodayRace[];
   objective: string | null;
   completed: CompletedSessionRecord[];
+  /** UX-11R.9 — guided V2 executions completed on the plan's days (dayCompletion.ts). */
+  guided: GuidedCompletion[];
   decisionsByDate: Map<string, DailyPlan>;
 }
 
-const EMPTY: ProgramContext = { races: [], objective: null, completed: [], decisionsByDate: new Map() };
+const EMPTY: ProgramContext = { races: [], objective: null, completed: [], guided: [], decisionsByDate: new Map() };
 /** Decisions read to cover the plan's recent days (append-only: a few per day at most). */
 const DECISION_LOOKBACK = 90;
 
@@ -32,16 +35,18 @@ function valueOr<T>(result: PromiseSettledResult<T>, fallback: T): T {
 
 export async function loadProgramContext(athleteId: string, review: TrainingPlanReview, today: string): Promise<ProgramContext> {
   const planDates = [...new Set(planSessions(review).map((session) => session.date).filter((date) => date <= today))];
-  const [races, objective, completed, decisions] = await Promise.allSettled([
+  const [races, objective, completed, guided, decisions] = await Promise.allSettled([
     loadRaces(athleteId, today, addDays(today, 366)),
     loadObjective(),
     planDates.length > 0 ? loadCompletedSessionsForDates(athleteId, planDates) : Promise.resolve([]),
+    planDates.length > 0 ? loadGuidedCompletionsForDates(athleteId, planDates) : Promise.resolve([]),
     loadDecisionHistory(athleteId, DECISION_LOOKBACK),
   ]);
   return {
     races: valueOr(races, []),
     objective: valueOr(objective, null),
     completed: valueOr(completed, []),
+    guided: valueOr(guided, []),
     decisionsByDate: latestDecisionByDate(valueOr(decisions, [])),
   };
 }

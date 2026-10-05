@@ -19,6 +19,7 @@ import { CheckinHero } from "../features/checkin/CheckinHero";
 import { AnalysisSequence } from "../features/dailyPlan/AnalysisSequence";
 import type { CheckinRow } from "../features/checkin/checkinTypes";
 import { useTodayContext } from "../features/today/todayContextRepo";
+import { hasGuidedCompletion } from "../features/completion/dayCompletion";
 import { nextPlannedSession, raceHorizon, weekCheckinCount, weekSummary } from "../features/today/todayContext";
 import { RaceBanner } from "../features/today/RaceBanner";
 import { RegularityCard } from "../features/today/RegularityCard";
@@ -203,12 +204,22 @@ export function TodayPage() {
           checkinSnapshot={checkinValues}
           detailsTarget={detailsTarget}
           guidedSessionEntry={
-            <Link
-              to="/today/session"
-              className="ux-press flex min-h-12 items-center justify-center rounded bg-gold px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-bg hover:bg-gold-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
-            >
-              Ouvrir la séance guidée
-            </Link>
+            // UX-11R.9 (F-5) — a guided session completed today reads as done; the guided page stays reachable read-only.
+            todayContext && hasGuidedCompletion(canonicalDate, todayContext.guided) ? (
+              <div className="flex flex-col gap-2 rounded-lg border border-gold/50 bg-card p-4" data-testid="guided-session-done">
+                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-gold">Séance terminée</p>
+                <Link to="/today/session" className="ux-press inline-flex min-h-12 items-center text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
+                  Voir la séance guidée
+                </Link>
+              </div>
+            ) : (
+              <Link
+                to="/today/session"
+                className="ux-press flex min-h-12 items-center justify-center rounded bg-gold px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-bg hover:bg-gold-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
+              >
+                Ouvrir la séance guidée
+              </Link>
+            )
           }
         />
       )}
@@ -220,7 +231,7 @@ export function TodayPage() {
       {todayContext && (
         <>
           <NextStepCard next={nextPlannedSession(todayContext.planned, canonicalDate)} today={canonicalDate} horizon={horizon} objective={todayContext.objective} />
-          <WeekStrip week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races)} />
+          <WeekStrip week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races, todayContext.guided)} />
           <RegularityCard
             checkedInToday={hasCheckin}
             weekCount={weekCheckinCount(todayContext.checkinDates, canonicalDate, hasCheckin)}

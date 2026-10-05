@@ -16,6 +16,7 @@ vi.mock("../lib/simulationClock", () => ({ useEffectiveToday: () => "2026-09-29"
 vi.mock("../features/history/historyRepo", () => ({
   loadDecisionHistory: vi.fn(),
   loadCompletedSessionsForDates: vi.fn(),
+  loadGuidedCompletionsForDates: vi.fn(async () => []),
   HistoryLoadError: class HistoryLoadError extends Error {
     constructor() {
       super("Impossible de charger l'historique. Réessaie.");
@@ -25,12 +26,14 @@ vi.mock("../features/history/historyRepo", () => ({
 vi.mock("../features/checkin/checkinRepo", () => ({ loadCheckinsForDates: vi.fn() }));
 vi.mock("../features/today/todayContextRepo", () => ({ loadRaces: vi.fn(), loadObjective: vi.fn() }));
 
-import { loadDecisionHistory, loadCompletedSessionsForDates } from "../features/history/historyRepo";
+import { loadDecisionHistory, loadCompletedSessionsForDates, loadGuidedCompletionsForDates } from "../features/history/historyRepo";
+import { decision as historyDecision, KEEP_PLAN as HISTORY_KEEP_PLAN } from "../features/history/historyFixtures";
 import { loadCheckinsForDates } from "../features/checkin/checkinRepo";
 import { loadObjective, loadRaces } from "../features/today/todayContextRepo";
 
 const mockedLoad = loadDecisionHistory as unknown as ReturnType<typeof vi.fn>;
 const mockedLoadCompleted = loadCompletedSessionsForDates as unknown as ReturnType<typeof vi.fn>;
+const mockedLoadGuided = loadGuidedCompletionsForDates as unknown as ReturnType<typeof vi.fn>;
 const mockedCheckins = loadCheckinsForDates as unknown as ReturnType<typeof vi.fn>;
 const mockedRaces = loadRaces as unknown as ReturnType<typeof vi.fn>;
 const mockedObjective = loadObjective as unknown as ReturnType<typeof vi.fn>;
@@ -53,6 +56,7 @@ function expectNoInternals() {
 beforeEach(() => {
   vi.resetAllMocks();
   mockedLoadCompleted.mockResolvedValue([]);
+  mockedLoadGuided.mockResolvedValue([]);
   mockedCheckins.mockResolvedValue([]);
   mockedRaces.mockResolvedValue([]);
   mockedObjective.mockResolvedValue(null);
@@ -274,5 +278,15 @@ describe("HistoryPage — the journey (UX-07)", () => {
     expect(within(todayZone).getByText("Ta journée avec NALYNT n'a pas encore commencé.")).toBeInTheDocument();
     expect(within(todayZone).getByRole("link", { name: "Faire mon check-in →" })).toHaveAttribute("href", "/today");
     expect(screen.getByRole("region", { name: "Cette semaine" })).toBeInTheDocument();
+  });
+});
+
+describe("HistoryPage — UX-11R.9 a day completed as a guided session", () => {
+  it("reads as recorded ('✓ Séance guidée terminée') without any completed_sessions row", async () => {
+    mockedLoad.mockResolvedValue([historyDecision("d-today", "2026-09-29", "07:10", HISTORY_KEEP_PLAN)]);
+    mockedLoadGuided.mockResolvedValue([{ executionId: "exec-1", sessionDate: "2026-09-29", decisionId: "d-today", finalPrescriptionId: "fp-1" }]);
+    renderHistoryPage();
+    expect(await screen.findByText("✓ Séance guidée terminée")).toBeInTheDocument();
+    expect(screen.queryByText("Séance non enregistrée")).not.toBeInTheDocument();
   });
 });

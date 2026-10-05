@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { GuidedCompletion } from "../completion/dayCompletion";
 import { Link } from "react-router-dom";
 import { WeekDaysPicker } from "../../components/WeekDaysPicker";
 import type { TrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewTypes";
@@ -21,17 +22,20 @@ export function ProgramWeekTimeline({
   review,
   today,
   completed,
+  guided = [],
   races,
 }: {
   review: TrainingPlanReview;
   today: string;
   completed: CompletedSessionRecord[];
+  /** UX-11R.9 — completed guided sessions (dayCompletion.ts). */
+  guided?: readonly GuidedCompletion[];
   races: RaceOverlayEvent[];
 }) {
   const mondays = useMemo(() => calendarMondays(review), [review]);
   const [monday, setMonday] = useState(() => initialMonday(mondays, today));
   const index = mondays.indexOf(monday);
-  const days = programWeekDays(monday, today, review, completed, races);
+  const days = programWeekDays(monday, today, review, completed, races, guided);
   const phase = weekDates(monday)
     .map((date) => planWeekAt(review, date)?.phase)
     .find(Boolean);

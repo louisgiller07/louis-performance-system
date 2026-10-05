@@ -103,3 +103,28 @@ describe("journeyFacts — plain counts only", () => {
     expect(journeyFacts([], TODAY)).toBeNull();
   });
 });
+
+describe("UX-11R.9 — guided completions in History", () => {
+  const guided = (date: string) => ({ executionId: `exec-${date}`, sessionDate: date, decisionId: "dec", finalPrescriptionId: "fp" });
+
+  it("V2 completed only: the day carries the guided completion and counts as recorded", () => {
+    const days = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN)], [], [], [], [guided("2026-09-24")]);
+    expect(days[0]!.guided).toMatchObject({ executionId: "exec-2026-09-24" });
+    expect(journeyFacts(days, TODAY)).toMatchObject({ recordedSessions: 1, unrecordedSessions: 0 });
+  });
+
+  it("legacy + V2 (history): the legacy record wins, no guided entry; V1 legacy only is unchanged", () => {
+    const both = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN)], [], [completed("2026-09-24", "done")], [], [guided("2026-09-24")]);
+    expect(both[0]!.guided).toBeNull();
+    expect(both[0]!.completed).not.toBeNull();
+    const legacyOnly = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN)], [], [completed("2026-09-24", "done")], []);
+    expect(legacyOnly[0]!.guided).toBeNull();
+    expect(journeyFacts(legacyOnly, TODAY)?.recordedSessions).toBe(1);
+  });
+
+  it("V2 started or abandoned never reaches the guided list: a past planned day stays unrecorded", () => {
+    const days = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN)], [], [], [], []);
+    expect(days[0]!.guided).toBeNull();
+    expect(journeyFacts(days, TODAY)?.unrecordedSessions).toBe(1);
+  });
+});

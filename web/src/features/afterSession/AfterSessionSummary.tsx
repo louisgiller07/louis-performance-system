@@ -26,7 +26,8 @@ export function AfterSessionSummary({
   planned: TrainingIntervention | null;
   /** Just saved: the check mark pops. */
   fresh: boolean;
-  onEdit: () => void;
+  /** UX-11R.9 — absent when the day was completed as a guided session: the legacy record is read-only. */
+  onEdit?: () => void;
 }) {
   const body = [
     record.post_leg_fatigue !== null ? `${BODY.legs.label} ${record.post_leg_fatigue}/10` : null,
@@ -68,9 +69,11 @@ export function AfterSessionSummary({
         <br />
         <span className="text-gold">{SUMMARY.promise[1]}</span>
       </p>
-      <SecondaryButton onClick={onEdit} className="mt-4 self-start">
-        {BUTTONS.edit}
-      </SecondaryButton>
+      {onEdit && (
+        <SecondaryButton onClick={onEdit} className="mt-4 self-start">
+          {BUTTONS.edit}
+        </SecondaryButton>
+      )}
     </section>
   );
 }

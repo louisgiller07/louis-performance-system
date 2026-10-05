@@ -2,7 +2,7 @@ import { addDays } from "../../lib/date";
 import { loadCheckinsForDates } from "../checkin/checkinRepo";
 import { loadObjective, loadRaces } from "../today/todayContextRepo";
 import type { TodayRace } from "../today/todayContext";
-import { loadCompletedSessionsForDates, loadDecisionHistory } from "./historyRepo";
+import { loadCompletedSessionsForDates, loadDecisionHistory, loadGuidedCompletionsForDates } from "./historyRepo";
 import { buildHistoryDays, type HistoryDay } from "./historyDays";
 
 // UX-07 — every read behind History's journey, all RLS-scoped, existing
@@ -33,16 +33,19 @@ export async function loadHistoryJourney(athleteId: string, today: string, limit
   const rows = await loadDecisionHistory(athleteId, limit);
   const dates = [...new Set(rows.map((row) => row.decisionDate))];
   const firstDate = dates.slice().sort()[0] ?? today;
-  const [completed, checkins, races, objective] = await Promise.allSettled([
+  const [completed, guided, checkins, races, objective] = await Promise.allSettled([
     loadCompletedSessionsForDates(athleteId, dates),
+    loadGuidedCompletionsForDates(athleteId, dates),
     loadCheckinsForDates(athleteId, dates),
     loadRaces(athleteId, firstDate, addDays(today, RACE_LOOKAHEAD_DAYS)),
     loadObjective(),
   ]);
   if (completed.status === "rejected") throw completed.reason;
+  // UX-11R.9 — same failure policy as completed_sessions: a missing source would show a done day as not recorded.
+  if (guided.status === "rejected") throw guided.reason;
   const raceList = valueOr(races, []);
   return {
-    days: buildHistoryDays(rows, valueOr(checkins, []), completed.value, raceList),
+    days: buildHistoryDays(rows, valueOr(checkins, []), completed.value, raceList, guided.value),
     races: raceList,
     objective: valueOr(objective, null),
   };

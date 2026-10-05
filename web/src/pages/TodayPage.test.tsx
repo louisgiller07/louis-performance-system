@@ -24,7 +24,7 @@ vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFl
 
 beforeEach(() => {
   getActivePlanVersionId.mockResolvedValue("plan-1");
-  todayContextValue.current = { firstName: "Louis", races: [], objective: "Performance en course", planned: [], completed: [], checkinDates: [] };
+  todayContextValue.current = { firstName: "Louis", races: [], objective: "Performance en course", planned: [], completed: [], guided: [], checkinDates: [] };
 });
 
 // UX-04 — Today's read-only coach context (its loading and rules are covered by
@@ -100,6 +100,7 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     minAnalysisMs,
     checkinSnapshot,
     detailsTarget,
+    guidedSessionEntry,
   }: {
     date: string;
     hasCheckin: boolean;
@@ -109,8 +110,10 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     minAnalysisMs?: number;
     checkinSnapshot?: { sleep_hours: number } | null;
     detailsTarget?: HTMLElement | null;
+    guidedSessionEntry?: import("react").ReactNode;
   }) => (
     <div data-testid="daily-plan-panel-stub">
+      <div data-testid="guided-entry-slot">{guidedSessionEntry}</div>
       daily-plan-panel date={date} hasCheckin={String(hasCheckin)} checkinRevision={checkinRevision} hideIdle={String(hideIdleWithoutCheckin)} autoGenerate=
       {String(autoGenerateOnCheckinSave)} minAnalysisMs={minAnalysisMs} checkinSnapshot=
       {checkinSnapshot === undefined ? "undefined" : checkinSnapshot === null ? "null" : `sleep:${checkinSnapshot.sleep_hours}`} details=
@@ -150,7 +153,7 @@ describe("TodayPage — UX-04 coach context", () => {
   });
 
   it("no race and no declared objective: no context banner at all (never 'aucun objectif')", () => {
-    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], checkinDates: [] };
+    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], guided: [], checkinDates: [] };
     renderTodayPage();
 
     for (const name of ["Prochaine course", "Objectif de saison", "Ton objectif", "En course"]) {
@@ -166,6 +169,7 @@ describe("TodayPage — UX-04 coach context", () => {
       objective: "Performance en course",
       planned: [],
       completed: [],
+      guided: [],
       checkinDates: [],
     };
     renderTodayPage();
@@ -203,7 +207,7 @@ describe("TodayPage — UX-04 coach context", () => {
 
   it("regularity: today's check-in + the plain count of days with a check-in this week (Monday → today)", async () => {
     const monday = weekDates(todayLocal())[0]!;
-    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], checkinDates: monday === todayLocal() ? [] : [monday] };
+    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], guided: [], checkinDates: monday === todayLocal() ? [] : [monday] };
     renderTodayPage();
     screen.getByText("simulate checkin available (load)").click();
 
@@ -436,5 +440,25 @@ describe("TodayPage (UX-03)", () => {
       expect(screen.queryByRole("link", { name: "Construire ma préparation →" })).not.toBeInTheDocument();
       expect(screen.getByTestId("daily-plan-panel-stub")).toBeInTheDocument();
     });
+  });
+});
+
+describe("TodayPage — UX-11R.9 a completed guided session", () => {
+  const guided = (date: string) => ({ executionId: "exec-1", sessionDate: date, decisionId: "dec-1", finalPrescriptionId: "fp-1" });
+
+  it("today's guided session completed: 'Séance terminée' with a read-only link, never 'Ouvrir la séance guidée'; the week counts it", () => {
+    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], guided: [guided(todayLocal())], checkinDates: [] };
+    renderTodayPage();
+    const slot = screen.getByTestId("guided-entry-slot");
+    expect(within(slot).getByText("Séance terminée")).toBeInTheDocument();
+    expect(within(slot).getByRole("link", { name: "Voir la séance guidée" })).toHaveAttribute("href", "/today/session");
+    expect(within(slot).queryByText("Ouvrir la séance guidée")).not.toBeInTheDocument();
+    expect(screen.getByText("1 réalisée")).toBeInTheDocument();
+  });
+
+  it("no guided completion today (or another day's): the normal entry", () => {
+    todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], guided: [guided(addDays(todayLocal(), -1))], checkinDates: [] };
+    renderTodayPage();
+    expect(within(screen.getByTestId("guided-entry-slot")).getByRole("link", { name: "Ouvrir la séance guidée" })).toBeInTheDocument();
   });
 });

@@ -98,3 +98,18 @@ describe("weekCheckinCount (UX-05) — a plain count, no streak", () => {
     expect(weekCheckinCount([], "2026-09-29", false)).toBe(0);
   });
 });
+
+describe("weekSummary — UX-11R.9 guided completions", () => {
+  const guided = (date: string) => ({ executionId: `exec-${date}`, sessionDate: date, decisionId: "dec", finalPrescriptionId: "fp" });
+
+  it("a completed guided session counts as performed (no completed_sessions row needed)", () => {
+    const summary = weekSummary("2026-09-29", [planned("2026-09-29", "DH_TECHNICAL")], [], [], [guided("2026-09-29")]);
+    expect(summary.performedCount).toBe(1);
+    expect(summary.days[1]).toMatchObject({ isToday: true, performed: true });
+  });
+
+  it("legacy skipped + guided completion → performed once; no guided list (V1) → unchanged", () => {
+    expect(weekSummary("2026-09-29", [], [done("2026-09-29", "skipped")], [], [guided("2026-09-29")]).performedCount).toBe(1);
+    expect(weekSummary("2026-09-29", [], [done("2026-09-28", "done")], []).performedCount).toBe(1);
+  });
+});

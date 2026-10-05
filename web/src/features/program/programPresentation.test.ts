@@ -126,3 +126,19 @@ describe("decisions and adaptations (today and past only)", () => {
     expect(adaptationFrom(undefined)).toBeNull();
   });
 });
+
+describe("UX-11R.9 — guided completions in Programme", () => {
+  const guided = (date: string) => ({ executionId: `exec-${date}`, sessionDate: date, decisionId: "dec", finalPrescriptionId: "fp" });
+
+  it("a completed guided session marks the day performed and reads as 'done'", () => {
+    const days = programWeekDays("2026-10-19", TODAY, plan([session("2026-10-20")]), [], [], [guided("2026-10-20")]);
+    expect(days[1]!.performed).toBe(true);
+    expect(completionOn("2026-10-20", [], [guided("2026-10-20")])).toBe("done");
+  });
+
+  it("a legacy record says more and wins; legacy skipped stays skipped without a guided completion", () => {
+    expect(completionOn("2026-10-20", [completed("2026-10-20", "partial")], [guided("2026-10-20")])).toBe("partial");
+    expect(completionOn("2026-10-20", [completed("2026-10-20", "skipped")], [])).toBe("skipped");
+    expect(completionOn("2026-10-20", [completed("2026-10-20", "skipped")], [guided("2026-10-20")])).toBe("done");
+  });
+});

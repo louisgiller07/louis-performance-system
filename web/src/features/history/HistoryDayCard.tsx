@@ -58,8 +58,13 @@ const RECORDED: Record<CompletedSessionRecord["completion_status"], string> = {
   skipped: "Séance non réalisée",
 };
 
+/** UX-11R.9 — a day done through a completed guided session. */
+const GUIDED_RECORDED = "✓ Séance guidée terminée";
+
 /** What was recorded for the day; null when there is nothing to say. */
 function recordedLine(day: HistoryDay, today: string): { text: string; recorded: boolean } | null {
+  // UX-11R.9 — a guided session completed that day (and no legacy record saying more).
+  if (day.guided) return { text: GUIDED_RECORDED, recorded: true };
   if (day.completed) {
     const duration = day.completed.completion_status !== "skipped" && day.completed.actual_duration_min !== null ? ` · ${formatDuration(day.completed.actual_duration_min)}` : "";
     return { text: `${RECORDED[day.completed.completion_status]}${duration}`, recorded: day.completed.completion_status !== "skipped" };
@@ -204,7 +209,7 @@ export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string 
         </>
       )}
 
-      {day.completed ? (
+      {day.completed && !day.guided ? (
         <Realisation day={day} />
       ) : (
         recorded && <p className="mt-4 border-t border-line pt-3 text-sm text-muted">{recorded.text}</p>

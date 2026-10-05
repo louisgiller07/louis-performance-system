@@ -3,6 +3,7 @@ import { hasActiveSafetyRule } from "../dailyPlan/safetyPresentation";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
 import type { CheckinRow } from "../checkin/checkinTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
+import { dayCompletion, type GuidedCompletion } from "../completion/dayCompletion";
 import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import { weekDates } from "../today/todayContext";
 import type { DecisionHistoryRow } from "./historyTypes";
@@ -26,6 +27,11 @@ export interface HistoryDay {
   decisions: DecisionHistoryRow[];
   checkin: CheckinRow | null;
   completed: CompletedSessionRecord | null;
+  /**
+   * UX-11R.9 (F-5) — the day's completed guided V2 session, set only when it is
+   * what makes the day done (no legacy non-skipped row: dayCompletion.ts).
+   */
+  guided: GuidedCompletion | null;
   race: RaceOverlayEvent | null;
 }
 
@@ -56,7 +62,8 @@ export function buildHistoryDays(
   rows: DecisionHistoryRow[],
   checkins: CheckinRow[],
   completed: CompletedSessionRecord[],
-  races: RaceOverlayEvent[]
+  races: RaceOverlayEvent[],
+  guided: readonly GuidedCompletion[] = []
 ): HistoryDay[] {
   const byDate = new Map<string, DecisionHistoryRow[]>();
   for (const row of rows) byDate.set(row.decisionDate, [...(byDate.get(row.decisionDate) ?? []), row]);
@@ -67,6 +74,7 @@ export function buildHistoryDays(
       const chronological = dayRows.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       const newestFirst = chronological.slice().reverse();
       const main = newestFirst.find((row) => isValidDailyPlan(row.dailyPlan)) ?? newestFirst[0]!;
+      const done = dayCompletion(date, completed, guided);
       return {
         date,
         main,
@@ -74,6 +82,7 @@ export function buildHistoryDays(
         decisions: chronological,
         checkin: checkins.find((checkin) => checkin.checkin_date === date) ?? null,
         completed: completed.find((session) => session.session_date === date) ?? null,
+        guided: done?.source === "guided" ? done.guided : null,
         race: races.find((race) => race.startDate <= date && date <= race.endDate) ?? null,
       };
     });
@@ -126,7 +135,7 @@ export function journeyFacts(days: HistoryDay[], today: string): JourneyFacts | 
     analysedDays: days.length,
     adaptations: days.filter((day) => dayOutcome(day).kind === "adapted" && !isSafetyRest(day)).length,
     safetyRests: days.filter(isSafetyRest).length,
-    recordedSessions: days.filter((day) => day.completed !== null).length,
-    unrecordedSessions: days.filter((day) => day.date < today && day.completed === null && day.dailyPlan?.planned_session_before != null).length,
+    recordedSessions: days.filter((day) => day.completed !== null || day.guided !== null).length,
+    unrecordedSessions: days.filter((day) => day.date < today && day.completed === null && day.guided === null && day.dailyPlan?.planned_session_before != null).length,
   };
 }

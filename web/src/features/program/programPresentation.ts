@@ -1,4 +1,5 @@
 import type { TrainingPlanReview, TrainingPlanReviewSession, TrainingPlanReviewWeek } from "../trainingPlanReview/trainingPlanReviewTypes";
+import { dayCompletion, isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord, CompletionStatus } from "../completedSession/completedSessionTypes";
 import type { DecisionHistoryRow } from "../history/historyTypes";
 import type { DailyPlan, TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
@@ -86,8 +87,9 @@ export function initialMonday(mondays: string[], today: string): string {
   return current < mondays[0]! ? mondays[0]! : mondays[mondays.length - 1]!;
 }
 
-function performedOn(date: string, completed: CompletedSessionRecord[]): boolean {
-  return completed.some((session) => session.session_date === date && session.completion_status !== "skipped");
+function performedOn(date: string, completed: CompletedSessionRecord[], guided: readonly GuidedCompletion[]): boolean {
+  // UX-11R.9 — the shared "day done" rule (Today, Programme, History).
+  return isDayDone(date, completed, guided);
 }
 
 /** One calendar week of the plan, in the shared WeekDay shape (Today's strip language). */
@@ -96,7 +98,8 @@ export function programWeekDays(
   today: string,
   review: TrainingPlanReview,
   completed: CompletedSessionRecord[],
-  races: RaceOverlayEvent[]
+  races: RaceOverlayEvent[],
+  guided: readonly GuidedCompletion[] = []
 ): WeekDay[] {
   return weekDates(monday).map((date) => {
     const session = sessionOn(review, date);
@@ -108,7 +111,7 @@ export function programWeekDays(
       planned: session ? sessionTitle(session) : null,
       plannedLabel: session ? sessionTitle(session) : null,
       plannedDurationMin: session?.durationMin ?? null,
-      performed: performedOn(date, completed),
+      performed: performedOn(date, completed, guided),
       race: race ? race.eventName : null,
     };
   });
@@ -129,11 +132,14 @@ export function splitByToday(review: TrainingPlanReview, today: string): Program
   };
 }
 
-/** The day's recorded completion, if any (most informative first: done, partial, replaced, skipped). */
-export function completionOn(date: string, completed: CompletedSessionRecord[]): CompletionStatus | null {
-  const order: CompletionStatus[] = ["done", "partial", "replaced", "skipped"];
-  const statuses = completed.filter((session) => session.session_date === date).map((session) => session.completion_status);
-  return order.find((status) => statuses.includes(status)) ?? null;
+/**
+ * The day's recorded completion, if any (most informative first: done, partial, replaced, skipped).
+ * UX-11R.9 — a completed guided session reads as "done" when no legacy row says more (dayCompletion.ts).
+ */
+export function completionOn(date: string, completed: CompletedSessionRecord[], guided: readonly GuidedCompletion[] = []): CompletionStatus | null {
+  const day = dayCompletion(date, completed, guided);
+  if (day) return day.source === "legacy" ? day.status : "done";
+  return completed.some((session) => session.session_date === date && session.completion_status === "skipped") ? "skipped" : null;
 }
 
 /** The latest valid Head Coach decision of each day (decisions are append-only; the latest is the one the athlete saw last). */

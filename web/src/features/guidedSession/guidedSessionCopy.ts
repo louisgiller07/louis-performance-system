@@ -34,6 +34,9 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   execution_terminal: "Cette séance est terminée : ses résultats ne peuvent plus changer.",
   activity_result_exists: "Une activité a déjà été enregistrée pour cette séance (autre appareil ou onglet) : la valeur enregistrée est affichée.",
   activity_result_required: "Enregistre l'activité réalisée avant de terminer la séance.",
+  // UX-11R.9 — server invariants (migration 20261005120000).
+  dh_pass_required: "Enregistre au moins un passage avant de terminer la séance.",
+  session_already_completed: "Une séance est déjà terminée aujourd'hui : une nouvelle séance ne peut pas être commencée.",
 };
 
 export const PARTIAL_COMPLETION_MESSAGE =

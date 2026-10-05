@@ -8,6 +8,7 @@ import {
   getTrainingPlanDrafts,
   getTrainingPlanReview,
   getActivePlanVersionId,
+  getPlanVersionGeneratedAt,
   getManualPlannedDates,
   TrainingPlanVersionNotFoundError,
 } from "../features/trainingPlanReview/trainingPlanReviewRepo";
@@ -64,6 +65,8 @@ export function TrainingPlanPreviewPage() {
   const [drafts, setDrafts] = useState<TrainingPlanDraftSummary[]>([]);
   const [review, setReview] = useState<TrainingPlanReview | null>(null);
   const [hasActivePlan, setHasActivePlan] = useState(false);
+  // UX-11R.9 (F-4) — generated_at of the active plan: only a draft generated strictly after it is a "new version".
+  const [activeGeneratedAt, setActiveGeneratedAt] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>(LOAD_ERROR_MESSAGE);
   // V06-02 — keyed by plan version so a result can never be shown against a
   // different plan than the one it was computed for.
@@ -75,6 +78,7 @@ export function TrainingPlanPreviewPage() {
       const [draftList, activePlanVersionId] = await Promise.all([getTrainingPlanDrafts(), getActivePlanVersionId()]);
       setDrafts(draftList);
       setHasActivePlan(activePlanVersionId !== null);
+      setActiveGeneratedAt(activePlanVersionId !== null ? await getPlanVersionGeneratedAt(activePlanVersionId) : null);
 
       if (routePlanVersionId) {
         // The URL is the exact reference — never overridden by draftList[0],
@@ -216,12 +220,13 @@ export function TrainingPlanPreviewPage() {
       {review && (
         <>
           <ProgramHero review={review} horizon={horizon} objective={context?.objective ?? null} today={today} />
-          <ProgramDraftSummary drafts={drafts} review={review} hasActivePlan={hasActivePlan} onSelect={handleSelectDraft} onAccepted={handleAccepted} />
-          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} races={context?.races ?? []} />
+          <ProgramDraftSummary drafts={drafts} review={review} hasActivePlan={hasActivePlan} activeGeneratedAt={activeGeneratedAt} onSelect={handleSelectDraft} onAccepted={handleAccepted} />
+          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} guided={isAccepted ? (context?.guided ?? []) : []} races={context?.races ?? []} />
           <ProgramSessions
             review={review}
             today={today}
             completed={isAccepted ? (context?.completed ?? []) : []}
+            guided={isAccepted ? (context?.guided ?? []) : []}
             decisionsByDate={isAccepted && context ? context.decisionsByDate : new Map()}
             modifiedDates={athleteModifiedDates ?? []}
           />

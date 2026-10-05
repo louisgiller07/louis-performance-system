@@ -35,6 +35,13 @@ export const ENTRY = {
   loadError: "Impossible de charger ta séance. Réessaie dans un instant.",
 } as const;
 
+/** UX-11R.9 (F-5) — the day was completed as a guided session: no separate debrief. */
+export const GUIDED_DONE = {
+  title: "Séance guidée terminée",
+  body: "Ta séance du jour est enregistrée dans la séance guidée.",
+  link: "Voir la séance guidée",
+} as const;
+
 export const BUTTONS = {
   next: "Continuer",
   back: "Retour",

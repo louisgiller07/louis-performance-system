@@ -459,6 +459,22 @@ export async function getManualPlannedDates(fromDate: string, toDate: string): P
  * own trainingPlanCurrentVersionRepo.getCurrentPlanVersion, the RLS-scoped
  * equivalent for the web client).
  */
+/**
+ * UX-11R.9 (F-4) — `generated_at` of one of the athlete's plan versions (RLS),
+ * the canonical order used to tell a newer draft from a stale one. Null when
+ * the version is not visible.
+ */
+export async function getPlanVersionGeneratedAt(planVersionId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("training_plan_versions").select("generated_at").eq("id", planVersionId).maybeSingle();
+
+  if (error) {
+    console.error("trainingPlanReviewRepo.getPlanVersionGeneratedAt failed", error.code);
+    throw new TrainingPlanReviewError();
+  }
+
+  return (data as { generated_at: string } | null)?.generated_at ?? null;
+}
+
 export async function getActivePlanVersionId(): Promise<string | null> {
   const { data, error } = await supabase.from("training_plan_current_version").select("plan_version_id").maybeSingle();
 

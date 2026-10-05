@@ -1,4 +1,5 @@
 import type { TrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewTypes";
+import type { GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
 import { adaptationFrom, completionOn, splitByToday } from "./programPresentation";
@@ -22,12 +23,15 @@ export function ProgramSessions({
   review,
   today,
   completed,
+  guided = [],
   decisionsByDate,
   modifiedDates,
 }: {
   review: TrainingPlanReview;
   today: string;
   completed: CompletedSessionRecord[];
+  /** UX-11R.9 — completed guided sessions (dayCompletion.ts). */
+  guided?: readonly GuidedCompletion[];
   decisionsByDate: Map<string, DailyPlan>;
   modifiedDates: readonly string[];
 }) {
@@ -40,7 +44,7 @@ export function ProgramSessions({
       session={session}
       today={today}
       variant={variant}
-      completion={variant === "past" ? completionOn(session.date, completed) : null}
+      completion={variant === "past" ? completionOn(session.date, completed, guided) : null}
       adaptation={variant === "past" ? adaptationFrom(decisionsByDate.get(session.date)) : null}
       modifiedByAthlete={modifiedDates.includes(session.date)}
     />
@@ -54,7 +58,7 @@ export function ProgramSessions({
           session={todaySession}
           today={today}
           variant="today"
-          completion={completionOn(today, completed)}
+          completion={completionOn(today, completed, guided)}
           adaptation={adaptationFrom(decisionsByDate.get(today))}
           modifiedByAthlete={modifiedDates.includes(today)}
         />

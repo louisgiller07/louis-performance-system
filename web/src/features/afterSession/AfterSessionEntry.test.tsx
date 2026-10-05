@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { AfterSessionEntry } from "./AfterSessionEntry";
 
@@ -11,14 +12,15 @@ import { AfterSessionEntry } from "./AfterSessionEntry";
 const signOut = vi.fn();
 vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ signOut }) }));
 vi.mock("../completedSession/completedSessionRepo", () => ({ getCompletedSession: vi.fn(), putCompletedSession: vi.fn() }));
-vi.mock("../history/historyRepo", () => ({ loadValidDecisionsForDate: vi.fn() }));
+vi.mock("../history/historyRepo", () => ({ loadValidDecisionsForDate: vi.fn(), loadGuidedCompletionsForDates: vi.fn(async () => []) }));
 
 import { getCompletedSession, putCompletedSession } from "../completedSession/completedSessionRepo";
-import { loadValidDecisionsForDate } from "../history/historyRepo";
+import { loadGuidedCompletionsForDates, loadValidDecisionsForDate } from "../history/historyRepo";
 
 const mockedGet = getCompletedSession as unknown as ReturnType<typeof vi.fn>;
 const mockedPut = putCompletedSession as unknown as ReturnType<typeof vi.fn>;
 const mockedLoadDecisions = loadValidDecisionsForDate as unknown as ReturnType<typeof vi.fn>;
+const mockedLoadGuided = loadGuidedCompletionsForDates as unknown as ReturnType<typeof vi.fn>;
 
 const DATE = "2026-09-29";
 
@@ -97,6 +99,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mockedGet.mockResolvedValue({ ok: true, data: null });
   mockedLoadDecisions.mockResolvedValue([DH]);
+  mockedLoadGuided.mockResolvedValue([]);
 });
 
 describe("AfterSessionEntry — the invitation", () => {
@@ -302,5 +305,37 @@ describe("AfterSessionEntry — what NALYNT keeps", () => {
     await stepTitle("Ta séance");
     expect(within(sheet()).getByRole("button", { name: /Terminée/ })).toHaveAttribute("aria-pressed", "true");
     expect(within(sheet()).getByRole("button", { name: "Continuer" })).toBeEnabled();
+  });
+});
+
+describe("AfterSessionEntry — UX-11R.9 a day completed as a guided session", () => {
+  const guided = { executionId: "exec-1", sessionDate: DATE, decisionId: "dec-1", finalPrescriptionId: "fp-1" };
+  const renderEntry = () =>
+    render(
+      <MemoryRouter>
+        <AfterSessionEntry date={DATE} athleteId="athlete-1" />
+      </MemoryRouter>
+    );
+
+  it("no legacy record: 'Séance guidée terminée' + read-only link, never the 'Raconter ma séance' invitation", async () => {
+    mockedLoadGuided.mockResolvedValue([guided]);
+    renderEntry();
+    expect(await screen.findByRole("heading", { name: "Séance guidée terminée" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voir la séance guidée" })).toHaveAttribute("href", "/today/session");
+    expect(screen.queryByRole("button", { name: "Raconter ma séance →" })).not.toBeInTheDocument();
+    expect(mockedLoadGuided).toHaveBeenCalledWith("athlete-1", [DATE]);
+  });
+
+  it("an existing legacy record stays readable but can no longer be edited", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record() });
+    mockedLoadGuided.mockResolvedValue([guided]);
+    renderEntry();
+    expect(await screen.findByText(/Séance enregistrée/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Modifier" })).not.toBeInTheDocument();
+  });
+
+  it("no guided completion: the legacy invitation is unchanged", async () => {
+    renderEntry();
+    expect(await screen.findByRole("button", { name: "Raconter ma séance →" })).toBeInTheDocument();
   });
 });

@@ -4,7 +4,8 @@ import { addDays } from "../../lib/date";
 import type { RacePriority } from "../planning/raceOverlayRepo";
 import { loadPlannedSessions } from "../planning/planningRepo";
 import type { PlannedSessionRow } from "../planning/planningTypes";
-import { loadCompletedSessionsForDates } from "../history/historyRepo";
+import { loadCompletedSessionsForDates, loadGuidedCompletionsForDates } from "../history/historyRepo";
+import type { GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import { loadPerformanceSetupAnswers } from "../performanceSetup/performanceSetupRepo";
 import { loadOnboardingAnswers } from "../athleteOnboarding/athleteOnboardingRepo";
@@ -29,11 +30,13 @@ export interface TodayContext {
   objective: string | null;
   planned: PlannedSessionRow[];
   completed: CompletedSessionRecord[];
+  /** UX-11R.9 — this week's guided V2 executions that reached `completed` (dayCompletion.ts). */
+  guided: GuidedCompletion[];
   /** Dates (YYYY-MM-DD) of this week's saved check-ins, Monday → today. */
   checkinDates: string[];
 }
 
-const EMPTY: TodayContext = { firstName: null, races: [], objective: null, planned: [], completed: [], checkinDates: [] };
+const EMPTY: TodayContext = { firstName: null, races: [], objective: null, planned: [], completed: [], guided: [], checkinDates: [] };
 
 /** Days ahead scanned for the next planned session ("Prochaine étape"). */
 const NEXT_SESSION_LOOKAHEAD_DAYS = 14;
@@ -105,12 +108,13 @@ function valueOr<T>(result: PromiseSettledResult<T>, fallback: T): T {
 export async function loadTodayContext(athleteId: string, today: string): Promise<TodayContext> {
   const week = weekDates(today);
   const lastDate = [week[6]!, addDays(today, NEXT_SESSION_LOOKAHEAD_DAYS)].sort().at(-1)!;
-  const [firstName, races, objective, planned, completed, checkinDates] = await Promise.allSettled([
+  const [firstName, races, objective, planned, completed, guided, checkinDates] = await Promise.allSettled([
     loadFirstName(),
     loadRaces(athleteId, week[0]!, addDays(today, RACE_LOOKAHEAD_DAYS)),
     loadObjective(),
     loadPlannedSessions(athleteId, week[0]!, lastDate),
     loadCompletedSessionsForDates(athleteId, week),
+    loadGuidedCompletionsForDates(athleteId, week),
     loadCheckinDates(athleteId, week[0]!, today),
   ]);
   return {
@@ -119,6 +123,7 @@ export async function loadTodayContext(athleteId: string, today: string): Promis
     objective: valueOr(objective, null),
     planned: valueOr(planned, []),
     completed: valueOr(completed, []),
+    guided: valueOr(guided, []),
     checkinDates: valueOr(checkinDates, []),
   };
 }

@@ -6,6 +6,7 @@
 import { supabase } from "../../lib/supabase";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
+import type { GuidedCompletion } from "../completion/dayCompletion";
 import type { DecisionHistoryRow } from "./historyTypes";
 
 // Single string literal — see checkinRepo.ts's CHECKIN_COLUMNS for why a
@@ -212,4 +213,39 @@ export async function loadCompletedSessionsForDates(athleteId: string, dates: st
   }
 
   return (data ?? []) as unknown as CompletedSessionRecord[];
+}
+
+/**
+ * UX-11R.9 (F-5) — the guided V2 executions of `athleteId` that reached
+ * `completed` on one of `dates` (one query, RLS session_executions_own_select
+ * + execution_events_own_select, never a write). Same selection as the M1
+ * bridge (completedSessionExecutionsRepo.ts): a `completed` event and a
+ * decision. Combined with completed_sessions by dayCompletion.ts. Empty
+ * input returns `[]` without a query.
+ */
+export async function loadGuidedCompletionsForDates(athleteId: string, dates: string[]): Promise<GuidedCompletion[]> {
+  const uniqueDates = Array.from(new Set(dates));
+  if (uniqueDates.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("session_executions")
+    .select("id, session_date, decision_id, final_prescription_id, execution_events!inner(event_type)")
+    .eq("athlete_id", athleteId)
+    .in("session_date", uniqueDates)
+    .eq("execution_events.event_type", "completed")
+    .not("decision_id", "is", null)
+    .order("session_date", { ascending: true })
+    .order("id", { ascending: true });
+
+  if (error) {
+    console.error("historyRepo.loadGuidedCompletionsForDates failed", error.code);
+    throw new HistoryLoadError();
+  }
+
+  return ((data ?? []) as Array<{ id: string; session_date: string; decision_id: string; final_prescription_id: string | null }>).map((row) => ({
+    executionId: row.id,
+    sessionDate: row.session_date,
+    decisionId: row.decision_id,
+    finalPrescriptionId: row.final_prescription_id,
+  }));
 }

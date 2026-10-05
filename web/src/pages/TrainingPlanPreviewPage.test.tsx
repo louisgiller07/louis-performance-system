@@ -6,18 +6,19 @@ import { TrainingPlanPreviewPage } from "./TrainingPlanPreviewPage";
 import { TrainingPlanVersionNotFoundError } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import type { TrainingPlanDraftSummary, TrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewTypes";
 
-const { getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates } = vi.hoisted(() => ({
+const { getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates, getPlanVersionGeneratedAt } = vi.hoisted(() => ({
   getTrainingPlanDrafts: vi.fn(),
   getTrainingPlanReview: vi.fn(),
   getActivePlanVersionId: vi.fn(),
   getManualPlannedDates: vi.fn(),
+  getPlanVersionGeneratedAt: vi.fn(),
 }));
 
 vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", async () => {
   const actual = await vi.importActual<typeof import("../features/trainingPlanReview/trainingPlanReviewRepo")>(
     "../features/trainingPlanReview/trainingPlanReviewRepo"
   );
-  return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates };
+  return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates, getPlanVersionGeneratedAt };
 });
 
 const { acceptTrainingPlan } = vi.hoisted(() => ({ acceptTrainingPlan: vi.fn() }));
@@ -74,6 +75,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   getActivePlanVersionId.mockResolvedValue(null);
   getManualPlannedDates.mockResolvedValue([]);
+  // UX-11R.9 — the active plan's generated_at; "active" stands for DRAFT_1's generation time.
+  getPlanVersionGeneratedAt.mockImplementation(async (id: string) => (id === DRAFT_2.id ? DRAFT_2.generatedAt : DRAFT_1.generatedAt));
 });
 
 describe("TrainingPlanPreviewPage", () => {
@@ -379,5 +382,50 @@ describe("TrainingPlanPreviewPage — athlete modifications (V06-02)", () => {
 
     expect(await screen.findByText("Semaine standard de développement. Charge allégée car plusieurs séances récentes ont été manquées ou remplacées.")).toBeInTheDocument();
     expect(getManualPlannedDates).not.toHaveBeenCalled();
+  });
+});
+
+// UX-11R.9 (F-4) — with an active plan, a draft is "new" only when generated strictly after it.
+describe("TrainingPlanPreviewPage — UX-11R.9 stale drafts", () => {
+  it("accepted plan with only an OLDER draft: no 'Nouvelle version' card, the draft is listed as an older version", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([DRAFT_1]);
+    getTrainingPlanReview.mockImplementation(async (id: string) =>
+      id === "active" ? { ...reviewFor(DRAFT_2), version: { ...DRAFT_2, id: "active", relaxedConstraints: [] }, lifecycleState: "accepted" } : reviewFor(DRAFT_1)
+    );
+    getActivePlanVersionId.mockResolvedValue("active");
+    getPlanVersionGeneratedAt.mockResolvedValue(DRAFT_2.generatedAt);
+
+    renderPage("/training-plan-preview/active");
+
+    expect(await screen.findByText("Ton plan actuel")).toBeInTheDocument();
+    expect(await screen.findByText("1 ancienne version")).toBeInTheDocument();
+    expect(screen.queryByText("Nouvelle version de ton plan prête")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Voir la nouvelle version" })).not.toBeInTheDocument();
+  });
+
+  it("opening an older draft while a newer plan is active: readable, never 'Accepter ce plan'", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([DRAFT_1]);
+    getTrainingPlanReview.mockResolvedValue(reviewFor(DRAFT_1));
+    getActivePlanVersionId.mockResolvedValue("active");
+    getPlanVersionGeneratedAt.mockResolvedValue(DRAFT_2.generatedAt);
+
+    renderPage(`/training-plan-preview/${DRAFT_1.id}`);
+
+    expect(await screen.findByText("Version plus ancienne que ton plan actif")).toBeInTheDocument();
+    expect(screen.getByText("Une version plus récente de ton plan est déjà active : cette version ne peut plus être acceptée.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "← Revenir à mon plan actif" })).toHaveAttribute("href", "/training-plan");
+  });
+
+  it("a draft generated at the same instant as the active plan is stale too", async () => {
+    getTrainingPlanDrafts.mockResolvedValue([DRAFT_2]);
+    getTrainingPlanReview.mockResolvedValue(reviewFor(DRAFT_2));
+    getActivePlanVersionId.mockResolvedValue("active");
+    getPlanVersionGeneratedAt.mockResolvedValue(DRAFT_2.generatedAt);
+
+    renderPage(`/training-plan-preview/${DRAFT_2.id}`);
+
+    expect(await screen.findByText("Version plus ancienne que ton plan actif")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Accepter ce plan" })).not.toBeInTheDocument();
   });
 });

@@ -30,6 +30,14 @@ function mapHttpBody(status: number, code: string | undefined): CompletedSession
         retryable: false,
         action: "config_issue",
       };
+    case "completed_session_v2_exists":
+      // UX-11R.9 (F-5) — the day was completed as a guided session (server guard, migration 20261005120500).
+      return {
+        code,
+        message: "Ta séance du jour est déjà enregistrée dans la séance guidée : pas de récit séparé pour ce jour.",
+        retryable: false,
+        action: "user_fixable",
+      };
     case "decision_link_invalid":
       return {
         code,

@@ -31,6 +31,9 @@ function mapHttpBody(status: number, code: string | undefined): AcceptTrainingPl
         retryable: false,
         action: "generic",
       };
+    case "stale_plan_version":
+      // UX-11R.9 (F-4) — a more recent plan is already active (server guard, migration 20261005121000).
+      return { code, message: "Une version plus récente de ton plan est déjà active : cette version ne peut plus être acceptée.", retryable: false, action: "generic" };
     case "accept_rejected":
       return { code, message: "Ce plan ne peut pas être accepté dans son état actuel.", retryable: false, action: "generic" };
     case "invalid_request":
