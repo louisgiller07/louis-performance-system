@@ -631,7 +631,9 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 
 - [x] **UX-11R.9 hardening** — implémenté et vert en local, non déployé (relecture puis Approvals production à venir) : F-6A `dh_pass_required`, F-6B `session_already_completed`, F-5 garde serveur `completed_session_v2_exists` + lecture web « séance faite », F-4 garde serveur `stale_plan_version` + encart web. 3 migrations additives ; livraison Edge → base → web. Voir `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §37.
 - [ ] **F-6C** — fin d'une séance Force côté serveur (P0 avant bêta payante, ticket séparé).
-- [ ] **F-5d** — écart pont M1 / web pour un `skipped` legacy puis une séance V2 terminée (ticket séparé, moteur).
+- [x] **F-5d** — priorité canonique `skipped` legacy + V2 terminée = V2 terminée (pont M1, contexte de récupération, web) — corrigé dans UX-11R.9, en local.
+- [ ] **F-8** — en-tête « Ton plan actuel » sur la vue d'un brouillon (polish).
+- [ ] **Deno** — `accept-training-plan/index.test.ts` : 2 tests et 4 erreurs de typage antérieurs à UX-11R.9 (décision du reviewer).
 - [ ] **BUG-V2-1 / BUG-V2-2** — jours de ride, progression (bloquants avant bêta payante, tickets séparés).
 - [ ] **BUG-V2-3** — séance le jour de la génération (à corriger avant bêta).
 - [ ] **D2B2** — abandon, Restart, corrections, conflits en production : BLOQUÉE jusqu'au hardening UX-11R.9.

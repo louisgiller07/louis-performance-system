@@ -696,9 +696,12 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 ### T29. F-5 — débrief legacy (serveur)
 - Date avec exécution V2 `completed` : PUT `completed-session` → 409 `completed_session_v2_exists` ; même refus par appel direct de la RPC (SQLSTATE dédié).
 - Remplacement d'une ligne existante sur une telle date → même refus, ligne inchangée.
-- V2 en cours ou `abandoned` à cette date → débrief accepté.
+- **F-5b** : V2 ouverte (`started`, `paused`, `resumed`) à cette date → débrief refusé (`NX101`, et 409 via l'Edge), rien n'est écrit ; la séance ouverte peut encore être terminée normalement.
+- V2 `abandoned` (ou aucune) à cette date → débrief accepté.
+- **Défense finale** : état artificiel (ligne legacy `done` insérée par le propriétaire à côté d'une exécution ouverte) → la fin V2 est refusée (`session_already_completed`), aucune seconde complétion ; l'arrêt reste permis.
 - Autre date, ou athlète V1 → comportement inchangé.
-- Fin V2 et débrief concurrents → sérialisés ; jamais les deux (6 tours, concurrence réelle) ; Start V2 et débrief concurrents → jamais une exécution terminée plus une ligne legacy.
+- Fin V2 et débrief concurrents → sérialisés ; jamais les deux (6 tours, concurrence réelle).
+- Start V2 et débrief concurrents (8 tours) → exactement une branche gagne ; jamais une exécution active plus une ligne legacy non `skipped`.
 
 ### T30. F-5 — lecture « séance faite » (web)
 - Pure : legacy seul ; V2 seul ; les deux (le legacy l'emporte) ; V2 en cours ; V2 `abandoned` ; legacy `skipped`.
@@ -707,6 +710,11 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Programme : date marquée réalisée, même règle.
 - Séance guidée : « terminée », résultats visibles, ni Commencer ni Recommencer.
 - Non-régression V1 : débrief, compteur et Programme inchangés pour un athlète sans exécution V2.
+
+### T30b. F-5d — priorité canonique (pont M1)
+- Pure : `skipped` legacy + V2 terminée → une entrée V2 `done` ; `done`, `partial` ou `replaced` legacy + V2 → la ligne legacy ; `skipped` seul → inchangé ; `legacyRowsAfterGuidedPrecedence` ne retire que les `skipped` remplacés.
+- Intégration : `skipped` legacy + séance guidée terminée → la Daily suivante voit `DH_TECHNICAL` `done` dans `recent_sessions`, et aucun `skipped` dans le contexte de récupération.
+- Web : bloc « après séance » (carte de séance guidée au lieu de « non réalisée »), Aujourd'hui, Programme, Historique.
 
 ### T31. F-4 — acceptation d'une version périmée
 - Serveur : brouillon plus ancien que la version courante → `stale_plan_version` (409), aucune transition.
@@ -722,5 +730,17 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Edge nouvelle + base ancienne : les trois endpoints restent fonctionnels (aucun nouveau code émis).
 - Edge ancienne + base nouvelle : refus fermés (500 / 409 générique), 0 ligne écrite.
 - Migrations de retour : rejouées en local, elles restaurent exactement les corps précédents (comparaison du catalogue).
+
+### T33. Navigateur réel (stack locale, Chrome système via `playwright-core` hors dépôt)
+- **Cavalier A, desktop 1280×900** :
+  - séance DH : Start → passage 1 → Pause → Resume → passages 2–6 → Terminer (sans confirmation à 6/6) → refresh : « terminée », 6/6, ni Commencer ni Recommencer ;
+  - Aujourd'hui : « Séance terminée », lien de lecture, « 1 réalisée », « Séance guidée terminée », aucune invitation legacy ;
+  - Programme : « ✓ Faite » ;
+  - F-4 : brouillon plus récent → carte « Nouvelle version » et acceptation disponible ; brouillon plus ancien → « 1 ancienne version », vue « Version plus ancienne que ton plan actif », sans « Accepter ce plan » ;
+  - Historique : « ✓ Séance guidée terminée ».
+- **Cavalier A, mobile 390×844** : mêmes états finaux, aucun débordement horizontal.
+- **Cavalier B, mobile** (`skipped` legacy + V2 terminée) : Aujourd'hui, semaine, bloc « après séance », Programme et Historique comptent la séance comme faite.
+- **Réseau** : uniquement `localhost` et `127.0.0.1:54321`.
+- Résultat 2026-10-05 : **43/43 PASS**.
 
 **Non-régression obligatoire** : suites `head-coach-engine` (unitaires + intégration locale) et `web`, `npm run build`, `build:release:all` ; répétition locale de D2A et D2B1.

@@ -312,13 +312,17 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
 
   Elle bloque alors :
   - **la création** d'une exécution normale ;
-  - **la fin** (`completed`) d'une exécution ouverte : un débrief legacy enregistré pendant la séance l'emporte. L'arrêt (`abandoned`) reste possible.
+  - **la fin** (`completed`) d'une exécution ouverte, en **défense finale** pour un état historique ou incohérent (le chemin normal est fermé par la garde F-5b ci-dessous) : une ligne legacy non `skipped` déjà présente l'emporte. L'arrêt (`abandoned`) reste possible.
 
   - Refus : `session_already_completed` (HTTP 409).
   - Après `abandoned` sans complétion, le Restart (nouvelle exécution) reste permis.
   - Un renvoi idempotent d'une exécution existante reste `unchanged`.
   - Refaire après une fin, une double séance ou une décision du coach demanderont une **action explicite dédiée**, jamais un Start normal.
-- **F-5 — débrief legacy** (`persist_completed_session`, appelée par l'Edge Function `completed-session`, PUT) : refus d'écrire **ou de remplacer** la ligne `completed_sessions` d'une date pour laquelle l'athlète a une exécution V2 `completed`.
+- **F-5 — débrief legacy** (`persist_completed_session`, appelée par l'Edge Function `completed-session`, PUT) : refus d'écrire **ou de remplacer** la ligne `completed_sessions` d'une date pour laquelle l'athlète a une exécution V2 **non arrêtée**.
+  - Exécution ouverte (`started`, `paused`, `resumed`) : elle réserve la séance principale du jour (F-5b).
+  - Exécution terminée : c'est la séance du jour (F-5).
+  - Seules une exécution `abandoned`, ou aucune exécution, laissent le débrief legacy ouvert.
+  - Course Start V2 / débrief, sous le verrou commun : si le Start gagne, le débrief reçoit 409 ; si le débrief gagne, le Start reçoit `session_already_completed`. Jamais les deux.
   - Refus : `completed_session_v2_exists` (HTTP 409). La RPC lève un SQLSTATE dédié, l'Edge mappe le code SQLSTATE et ne lit jamais le texte.
   - Autres dates, parcours V1 : inchangés. Les lignes existantes ne sont jamais modifiées.
   - La RPC prend le même verrou consultatif par athlète que `record_session_execution` (`'record_session_execution:' || athlete_id`). Un Start V2, une fin V2 et un débrief legacy du même athlète sont donc sérialisés : une seule opération gagne, jamais deux états terminaux pour une même date.
@@ -332,11 +336,21 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
 - **Lecture « séance faite » côté web (F-5 UI)** : `web/src/features/completion/dayCompletion.ts`, une seule règle.
   - Une ligne `completed_sessions` non `skipped` l'emporte (son statut est affiché).
   - Sinon, une exécution V2 `completed` liée à une décision rend la date réalisée.
-  - Une exécution ouverte ou arrêtée ne compte jamais.
+  - Une exécution ouverte ou arrêtée ne compte jamais comme faite.
+  - Le bloc « après séance » affiche « Séance guidée en cours » pendant une séance ouverte, et « Séance guidée terminée » après la fin (`historyRepo.loadGuidedDayState`). Il ne propose alors ni invitation legacy ni modification ; un `skipped` legacy cède aussi la place à la séance guidée.
 
   Utilisée par Aujourd'hui (entrée « Séance terminée », semaine), Programme (semaine, séances), le bloc « après séance » (plus d'invitation ni de modification pour une date V2 réalisée) et l'Historique (journée, faits du parcours).
   - Lecture : `historyRepo.loadGuidedCompletionsForDates`, une requête RLS, même sélection que le pont M1.
-  - Écart connu avec le pont M1 : pour un `skipped` legacy suivi d'une séance V2 terminée, le pont garde la ligne legacy et le web compte la séance V2 (constat F-5d).
+- **F-5d — priorité canonique d'une date (pont M1 et web)** :
+  1. ligne legacy non `skipped` ;
+  2. sinon exécution V2 `completed` ;
+  3. sinon ligne legacy `skipped` ;
+  4. sinon aucune réalisation.
+
+  Donc **`skipped` legacy + V2 terminée = V2 terminée**.
+  - Côté moteur, la règle vit dans la couche d'intégration, jamais dans le moteur M1 figé : `legacyRowsAfterGuidedPrecedence` (`head-coach-engine/src/supabase/mapping/recentSessionsForDailyContext.ts`).
+  - Elle est appliquée à `recent_sessions` (pont) **et** au contexte de récupération (`buildRawContext` → `mapRecentRecoveryContext`).
+  - Côté web : `dayCompletion.ts`.
 
 **Limites V1** : une séance principale par jour ; « autre exercice réalisé » en nom libre sans lien au catalogue ; résultats de série non lus par le moteur de décision ; aucune progression automatique (UX-11E) ; suppression, anonymisation et conservation des données du pilote (RGPD) : sujet distinct, traité en UX-11B.2.
 

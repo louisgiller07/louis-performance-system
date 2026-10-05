@@ -5056,3 +5056,24 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Constat ouvert F-5d** : écart entre le pont M1 et le web pour un `skipped` legacy suivi d'une séance V2 terminée. Le pont garde la ligne legacy ; le web compte la séance V2. Le moteur n'est pas modifié ici.
 
 **Statut** : implémenté en local. Aucun push, aucun déploiement, aucune Approval production préparée avant la relecture du HPM et du reviewer indépendant.
+
+## 2026-10-05 — ADR UX-11R.9 (patch final) : séance guidée ouverte réservée, priorité canonique unique
+
+> **An open guided session reserves the day's main session: the legacy debrief is refused while a V2 execution is open or completed, so the completion-time check is only a final defence. One canonical precedence per date — non-skipped legacy, else completed V2, else legacy skipped, else nothing — is applied by the M1 bridge, the recovery context and the web, closing F-5d.**
+
+**Décisions (HPM).**
+- F-5b : garde de `persist_completed_session` élargie aux exécutions ouvertes (`started`, `paused`, `resumed`) ; seule `abandoned` laisse le débrief ouvert. Sous le verrou commun, Start et débrief : une seule branche gagne.
+- Défense finale conservée : la fin V2 est refusée si une ligne legacy non `skipped` existe malgré tout.
+- F-5d : P0, corrigé dans UX-11R.9. Couche d'intégration seulement (`legacyRowsAfterGuidedPrecedence`), le moteur M1 figé n'est pas modifié.
+
+**Conséquence de livraison** : `daily-run` doit être redéployée (graphe modifié par `buildRawContext`), en plus des trois Edge déjà prévues.
+
+**Preuves** :
+- navigateur réel 43/43 ;
+- intégration base 24 tests UX-11R.9 + Edge HTTP 3 tests ;
+- suites complètes vertes ;
+- rejeu C → D2B1 24/24.
+
+Deno : le test `accept-training-plan` a été exécuté pour la première fois (deno 2.1.4) ; ses 2 échecs et ses 4 erreurs de typage existaient déjà avant UX-11R.9.
+
+**Statut** : implémenté en local, en attente du reviewer indépendant. Aucun push ni déploiement.

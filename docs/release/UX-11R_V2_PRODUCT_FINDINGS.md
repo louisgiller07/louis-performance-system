@@ -12,7 +12,8 @@
 > | F-6 règles de la séance guidée côté UI seulement | **P0 / intégrité serveur** | hardening UX-11R.9 (F-6A, F-6B) |
 > | F-6C fin d'une séance Force côté serveur | **P0 avant bêta payante** | ticket séparé |
 > | F-7 `projectedSessionCount` sans contexte | polish, non bloquant | plus tard |
-> | F-5d écart pont M1 / web (`skipped` legacy puis V2 terminée) | à qualifier | ticket séparé (moteur) |
+> | F-5d écart pont M1 / web (`skipped` legacy puis V2 terminée) | P0, partie de UX-11R.9 | **CLOSED en local** (priorité canonique unique) |
+> | F-8 en-tête « Ton plan actuel » sur la vue d'un brouillon | polish, antérieur au patch | plus tard |
 > Constatés sur le premier plan V2 de production (`cd5cde79`, compte interne de simulation, Approbation D1) et reproduits dans la répétition locale avec le même profil (preflight §31.F, §32).
 
 Contexte du profil :
@@ -94,7 +95,7 @@ Contexte du profil :
 - Aucun correctif dans le cadre du rollout UX-11R : le moteur et le planificateur ne changent pas pendant les approbations.
 - Chaque correctif demandera une décision de spec (docs canoniques), un ticket, des tests, puis un nouveau cycle de release.
 
-## F-5d — Écart entre le pont M1 et le web pour un jour `skipped` puis terminé en séance guidée
+## F-5d — Écart entre le pont M1 et le web pour un jour `skipped` puis terminé en séance guidée (CLOSED en local, UX-11R.9)
 
 **Constat (UX-11R.9, lecture du code)** : une ligne legacy `skipped` ne bloque pas une séance V2 (décision HPM).
 - Si la séance V2 est ensuite terminée, le web (`dayCompletion.ts`) compte la journée comme réalisée.
@@ -102,4 +103,18 @@ Contexte du profil :
 
 **Impact** : rare (un `skipped` saisi puis une séance faite le même jour), mais la charge récente vue par M1 sous-estime ce jour-là.
 
-**Traitement** : ticket séparé. Le moteur et son pont ne sont pas modifiés dans UX-11R.9.
+**Correctif (UX-11R.9, patch final)** : priorité canonique unique.
+1. ligne legacy non `skipped` ;
+2. sinon V2 terminée ;
+3. sinon `skipped` ;
+4. sinon rien.
+
+- `legacyRowsAfterGuidedPrecedence` est appliqué au pont (`recent_sessions`) et au contexte de récupération ; le web utilise `dayCompletion.ts`.
+- Le moteur M1 figé n'est pas modifié.
+- Tests unitaires, d'intégration et navigateur.
+
+## F-8 — En-tête « Ton plan actuel » sur la vue d'un brouillon (observation, antérieure au patch)
+
+**Constat (navigateur réel, UX-11R.9)** : quand on ouvre une ancienne version ou un brouillon, l'en-tête de Programme affiche « Ton plan actuel », alors que la carte en dessous dit « Version non active » ou « Version plus ancienne que ton plan actif ». `ProgramHero.tsx` n'a pas changé depuis `6d01c88`.
+
+**Classement proposé** : polish, non bloquant ; hors de UX-11R.9.

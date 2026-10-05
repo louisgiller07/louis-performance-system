@@ -1396,7 +1396,7 @@ Si une étape échoue avec « Réessayer » (réseau), un seul « Réessayer » 
 | # | Fichier | Contenu | Retour arrière technique |
 |---|---|---|---|
 | 1 | `20261005120000_ux11r9_execution_completion_invariants.sql` | `create or replace record_session_execution` : corps de `20261002090000` + F-6A (`dh_pass_required`) + F-6B / F-5b (`session_already_completed` au Start et à la fin) | `supabase/rollbacks/ux11r9/20261005120000_rollback_record_session_execution.sql` |
-| 2 | `20261005120500_ux11r9_completed_session_v2_guard.sql` | `create or replace persist_completed_session` : corps de `20260910090000` + verrou consultatif partagé + refus `completed_session_v2_exists` (SQLSTATE `NX101`) | `supabase/rollbacks/ux11r9/20261005120500_rollback_persist_completed_session.sql` |
+| 2 | `20261005120500_ux11r9_completed_session_v2_guard.sql` | `create or replace persist_completed_session` : corps de `20260910090000` + verrou consultatif partagé + refus `completed_session_v2_exists` (SQLSTATE `NX101`) pour une exécution V2 ouverte ou terminée (F-5, F-5b) | `supabase/rollbacks/ux11r9/20261005120500_rollback_persist_completed_session.sql` |
 | 3 | `20261005121000_ux11r9_stale_plan_acceptance_guard.sql` | `create or replace accept_training_plan_version` : corps de `20260921092500` + refus `stale_plan_version` (SQLSTATE `NX102`, `generated_at` égal ou antérieur) | `supabase/rollbacks/ux11r9/20261005121000_rollback_accept_training_plan_version.sql` |
 
 - Aucune table, colonne, index ni donnée modifiés. Les trois migrations sont indépendantes ; ordre recommandé 1, 2, 3.
@@ -1412,6 +1412,11 @@ Si une étape échoue avec « Réessayer » (réseau), un seul « Réessayer » 
 | `session-execution` (v3, `6d01c88`) | refus métier = `{status: rejected, code}` → `REJECTION_STATUS` ; code inconnu → 500 `internal_error` | `dh_pass_required` → 422, `session_already_completed` → 409 | compatible : les nouveaux codes ne sont jamais émis | **500 `internal_error`** pour les deux nouveaux refus ; rien n'est écrit (fermé, mais mauvais statut) |
 | `completed-session` (PUT, v7, 2026-09-24) | refus métier = vérifications Edge avant la RPC (422) ; toute erreur RPC → 500 `persistence_failed` + `session_completion_failed` | vérification RLS **avant** la RPC (exécution V2 `completed` à cette date → 409 `completed_session_v2_exists`) + SQLSTATE `NX101` de la RPC → même 409 (course) | compatible, mais protection **best effort seulement** : une fin V2 concurrente peut passer entre la vérification et l'écriture. La garantie atomique n'existe qu'avec la migration 2 | **500 `persistence_failed`** (+ événement `session_completion_failed`) ; rien n'est écrit (fermé) |
 | `accept-training-plan` (v6, 2026-09-28) | toute erreur RPC → 409 `accept_rejected` + `plan_acceptance_failed` | SQLSTATE dédié → 409 `stale_plan_version` (+ `plan_acceptance_failed` avec ce code) ; `AcceptTrainingPlanVersionRpcError` garde le code d'erreur | compatible : jamais émis | **409 `accept_rejected`** générique ; rien n'est écrit (fermé) |
+
+**Edge à redéployer : 4.**
+- `session-execution`, `completed-session` et `accept-training-plan` (codes d'erreur).
+- **`daily-run`** : le correctif F-5d modifie `buildRawContext` et le pont M1. Le graphe passe de `661e556a…` à `a5c2f3f0…` ; le bundle `dailyRunV2` est inchangé (`951ca9bd…`).
+- Les autres fonctions ont un graphe inchangé.
 
 **Ordre de livraison sûr** (une approbation par étape, comme Stage 1 / B) :
 1. Edge `session-execution`, `completed-session`, `accept-training-plan`, avec preuve du contenu eszip comme pour B.
@@ -1446,6 +1451,21 @@ Détail par couche :
   - suites complètes vertes avec l'intégration locale : web 1990, moteur 1152, Edge 53, `session-execution` 24, `completed-session` 145 ;
   - `npm run build` et `build:release:all` OK ; bundle `dailyRunV2` inchangé (`951ca9bd…`) ;
   - rejeu local de la séquence C → D1 → D2A → D2B1 sur le profil exact : 24/24 PASS, nouveaux refus compris.
+
+### C bis. Patch final (HPM, 2026-10-05)
+
+- **F-5b, garde de la séance ouverte** :
+  - `persist_completed_session` et la vérification Edge refusent le débrief legacy dès qu'une exécution V2 non arrêtée existe (ouverte ou terminée) ;
+  - le contrôle à la fin V2 est conservé comme défense finale ;
+  - le web affiche « Séance guidée en cours » à la place de l'invitation.
+- **F-5d, CLOSED** : même priorité canonique dans le pont M1, le contexte de récupération et le web (`skipped` + V2 terminée = V2 terminée). Le graphe `daily-run` change en conséquence (voir plus haut).
+- **Navigateur réel** : stack locale, Chrome système ; desktop 1280×900 et mobile 390×844 ; 43/43 PASS (T33). Captures dans le dossier temporaire de session, non versionnées.
+  - Observation, antérieure au patch : la vue d'un brouillon affiche l'en-tête « Ton plan actuel » (`ProgramHero`, inchangé depuis `6d01c88`). C'est du polish, pas un correctif de ce lot.
+- **Deno** : `npx -y deno@2.1.4` (même version de Deno que le runtime Edge local 1.74.3 ; binaire npm officiel en cache npx ; aucune installation globale ni modification du projet).
+  - `deno test --no-check` du test `accept-training-plan` : 7 passés, 2 échoués (« 405 sur méthode non-POST » : le test construit un GET avec un corps, que Deno refuse ; « requête non authentifiée » : comportement de `withSupabase`).
+  - Le typecheck `deno check` échoue avec 4 erreurs dans `index.ts` (l. 160, 174, 211) et la sortie `dist`.
+  - **Mêmes résultats avec le `errorMapping.ts` d'origine** (`6d01c88`) : ces défauts sont antérieurs, indépendants de UX-11R.9, et ce test n'avait jamais été exécuté.
+  - Le comportement de l'Edge est couvert par les tests HTTP sur le runtime local. Décision laissée au reviewer indépendant.
 
 ### D. Questions ouvertes (historique de la préparation)
 
