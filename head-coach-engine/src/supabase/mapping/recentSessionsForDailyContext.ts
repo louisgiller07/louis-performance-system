@@ -10,8 +10,13 @@
  * Rules (ADR UX-11B.2.4):
  * - legacy rows are mapped exactly as before (mapCompletedSessionRow);
  * - one main session per athlete and day (ADR UX-11B.1 §7; completed_sessions
- *   is unique per day and is the day's summary): a date that has a legacy
- *   row takes no V2 entry;
+ *   is unique per day and is the day's summary). UX-11R.9 (F-5d) canonical
+ *   precedence for a date: (1) a legacy row that is not `skipped`, (2) else
+ *   a completed V2 execution, (3) else a legacy `skipped` row, (4) else
+ *   nothing. So a date with a non-skipped legacy row takes no V2 entry, and
+ *   a legacy `skipped` row yields to a completed V2 execution of the same
+ *   date (legacyRowsAfterGuidedPrecedence, also applied by buildRawContext to
+ *   the recovery context);
  * - otherwise the completed V2 executions of a date give ONE entry when they
  *   all carry the same intervention (retries / replays of the same session
  *   are never counted twice); if they carry different interventions no
@@ -44,6 +49,21 @@ function canonical(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/**
+ * UX-11R.9 (F-5d) — the legacy rows that keep their place under the
+ * canonical precedence: a `skipped` row is removed when the same date has a
+ * completed V2 execution (the guided session was done after all). Rows that
+ * are not skipped, and skipped rows of other dates, are returned unchanged
+ * (same order). Pure.
+ */
+export function legacyRowsAfterGuidedPrecedence(
+  legacyRows: readonly CompletedSessionRawRow[],
+  completedExecutions: readonly Pick<CompletedExecutionRow, "sessionDate">[]
+): CompletedSessionRawRow[] {
+  const v2Dates = new Set(completedExecutions.map((execution) => execution.sessionDate));
+  return legacyRows.filter((row) => !(row.completion_status === "skipped" && typeof row.session_date === "string" && v2Dates.has(row.session_date)));
+}
+
 export function mergeRecentSessionsForDailyContext(
   legacyRows: readonly CompletedSessionRawRow[],
   completedExecutions: readonly CompletedExecutionRow[]
@@ -52,7 +72,7 @@ export function mergeRecentSessionsForDailyContext(
   const sessions: CompletedSessionSummary[] = [];
   const legacyDates = new Set<string>();
 
-  for (const row of legacyRows) {
+  for (const row of legacyRowsAfterGuidedPrecedence(legacyRows, completedExecutions)) {
     if (typeof row.session_date === "string") legacyDates.add(row.session_date);
     const mapped = mapCompletedSessionRow(row);
     if (mapped) sessions.push(mapped);

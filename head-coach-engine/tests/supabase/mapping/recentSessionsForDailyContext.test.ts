@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mapCompletedSessionRow } from "../../../src/supabase/mapping/completedSessionRow.js";
-import { mergeRecentSessionsForDailyContext, RECENT_HISTORY_V2_CONFLICT_WARNING } from "../../../src/supabase/mapping/recentSessionsForDailyContext.js";
+import { legacyRowsAfterGuidedPrecedence, mergeRecentSessionsForDailyContext, RECENT_HISTORY_V2_CONFLICT_WARNING } from "../../../src/supabase/mapping/recentSessionsForDailyContext.js";
 import type { CompletedSessionRawRow } from "../../../src/supabase/repositories/completedSessionsRepo.js";
 import type { CompletedExecutionRow } from "../../../src/supabase/repositories/completedSessionExecutionsRepo.js";
 
@@ -61,9 +61,28 @@ describe("mergeRecentSessionsForDailyContext", () => {
     expect(sessions).toEqual([{ date: "2026-10-07", intervention: { kind: "STRENGTH_LOWER", load_profile: "MODERATE" }, completion_status: "done" }]);
   });
 
-  it("the legacy day summary wins even when it has no intervention (the day is still the legacy row's)", () => {
-    const { sessions } = mergeRecentSessionsForDailyContext([legacy("2026-10-07", "skipped", null)], [v2("e1", "2026-10-07")]);
-    expect(sessions).toEqual([]);
+  it("UX-11R.9 (F-5d) — a legacy `skipped` row yields to a completed V2 execution of the same date: the V2 session counts", () => {
+    const { sessions, warnings } = mergeRecentSessionsForDailyContext([legacy("2026-10-07", "skipped", null)], [v2("e1", "2026-10-07")]);
+    expect(sessions).toEqual([{ date: "2026-10-07", intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 }, completion_status: "done" }]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("UX-11R.9 (F-5d) — canonical precedence: non-skipped legacy > V2 completed > legacy skipped > nothing", () => {
+    for (const status of ["done", "partial", "replaced"]) {
+      const { sessions } = mergeRecentSessionsForDailyContext([legacy("2026-10-07", status)], [v2("e1", "2026-10-07")]);
+      expect(sessions).toEqual([mapCompletedSessionRow(legacy("2026-10-07", status))]);
+    }
+    // legacy skipped alone stays what the legacy mapping makes of it (no V2 that day).
+    expect(mergeRecentSessionsForDailyContext([legacy("2026-10-07", "skipped", null)], [v2("e1", "2026-10-08")]).sessions).toEqual([
+      { date: "2026-10-08", intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 }, completion_status: "done" },
+    ]);
+    expect(mergeRecentSessionsForDailyContext([], []).sessions).toEqual([]);
+  });
+
+  it("UX-11R.9 (F-5d) — legacyRowsAfterGuidedPrecedence removes only skipped rows superseded by a completed V2 execution", () => {
+    const rows = [legacy("2026-10-06", "skipped", null), legacy("2026-10-07", "skipped", null), legacy("2026-10-08", "done")];
+    expect(legacyRowsAfterGuidedPrecedence(rows, [v2("e1", "2026-10-07"), v2("e2", "2026-10-08")])).toEqual([rows[0], rows[2]]);
+    expect(legacyRowsAfterGuidedPrecedence(rows, [])).toEqual(rows);
   });
 
   it("mixed history: legacy days + V2 days, both present, date order", () => {

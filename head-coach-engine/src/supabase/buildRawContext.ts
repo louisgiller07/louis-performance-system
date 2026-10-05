@@ -25,7 +25,7 @@ import { getPlannedSessionFor } from "./repositories/plannedSessionsRepo.js";
 import { getRacesInWindow } from "./repositories/raceCalendarRepo.js";
 import { getRecentSessions, getRecentTechnicalCandidates, recentLoadWindowStart } from "./repositories/completedSessionsRepo.js";
 import { getCompletedExecutionsInWindow } from "./repositories/completedSessionExecutionsRepo.js";
-import { mergeRecentSessionsForDailyContext } from "./mapping/recentSessionsForDailyContext.js";
+import { legacyRowsAfterGuidedPrecedence, mergeRecentSessionsForDailyContext } from "./mapping/recentSessionsForDailyContext.js";
 import { getDecisionsByIds } from "./repositories/decisionsRepo.js";
 import { getOpenHealthFlags } from "./repositories/healthFlagsRepo.js";
 import { getTotalCheckinsCount, getTotalCompletedSessionsCount } from "./repositories/athleteCountsRepo.js";
@@ -161,7 +161,9 @@ export async function buildRawContext(
   // mapCompletedSessionRow, which would silently drop a `skipped` D-1 row —
   // see recentRecoveryContext.ts's own doc). recentLoad's own pipeline
   // above is untouched.
-  const recent_recovery_context = mapRecentRecoveryContext(sessionRows, today);
+  // UX-11R.9 (F-5d) — same canonical precedence as the bridge: a legacy
+  // `skipped` row yields to a completed V2 execution of the same date.
+  const recent_recovery_context = mapRecentRecoveryContext(legacyRowsAfterGuidedPrecedence(sessionRows, completedExecutions), today);
 
   // V0.3_008B — a SEPARATE bounded query (not the 7-day recentLoad window
   // above: a strictly inter-day D-14..D-1 window with its own filters), the
