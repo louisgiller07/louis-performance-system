@@ -633,6 +633,8 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **F-6C** — fin d'une séance Force côté serveur (P0 avant bêta payante, ticket séparé).
 - [x] **F-5d** — priorité canonique `skipped` legacy + V2 terminée = V2 terminée (pont M1, contexte de récupération, web) — corrigé dans UX-11R.9, en local.
 - [ ] **F-8** — en-tête « Ton plan actuel » sur la vue d'un brouillon (polish).
+- [ ] **F-9 / F-10** — skeleton permanent du bloc « après séance » en cas d'erreur de lecture ; libellés legacy des Edge.
+- [ ] **T-1** — isoler `athletePurge.integration.test.ts` (trigger DDL sur `athletes`) de la suite parallèle (deadlock observé une fois, vert seul et à la relance).
 - [ ] **Deno** — `accept-training-plan/index.test.ts` : 2 tests et 4 erreurs de typage antérieurs à UX-11R.9 (décision du reviewer).
 - [ ] **BUG-V2-1 / BUG-V2-2** — jours de ride, progression (bloquants avant bêta payante, tickets séparés).
 - [ ] **BUG-V2-3** — séance le jour de la génération (à corriger avant bêta).

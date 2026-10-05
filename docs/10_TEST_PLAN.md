@@ -731,6 +731,14 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Edge ancienne + base nouvelle : refus fermés (500 / 409 générique), 0 ligne écrite.
 - Migrations de retour : rejouées en local, elles restaurent exactement les corps précédents (comparaison du catalogue).
 
+### T34. R9-OPS-01 — suspension des écritures (`NALYNT_WRITES_SUSPENDED`)
+- Unitaire (`tests/edge/writesSuspended.test.ts`) : seul `"true"` suspend. Absent, vide, `false`, `TRUE`, ` true`, `1`, `yes` → normal. Réponse 503 au format `{ error: { code, message } }`, message neutre.
+- Intégration Edge locale (`tests/supabase/ux11r9WriteSuspension.integration.test.ts`), lancée dans les 3 modes du runtime (`functions serve`, sans fichier ou avec `--env-file`) :
+  - **absent** et **false** : Start, PUT legacy et acceptation se comportent comme avant (lignes, transitions, pointeur courant) ;
+  - **true** : `503 writes_suspended` pour Start (et Pause), PUT et acceptation ; aucune exécution, aucun événement, aucune ligne `completed_sessions`, aucune transition, pointeur inchangé, aucun `session_completion_*` ni `plan_acceptance_*` ;
+  - dans les 3 modes : GET `completed-session` reste disponible et `daily-run` n'est pas suspendu.
+- Résultat 2026-10-05 : 4/4 dans chaque mode.
+
 ### T33. Navigateur réel (stack locale, Chrome système via `playwright-core` hors dépôt)
 - **Cavalier A, desktop 1280×900** :
   - séance DH : Start → passage 1 → Pause → Resume → passages 2–6 → Terminer (sans confirmation à 6/6) → refresh : « terminée », 6/6, ni Commencer ni Recommencer ;

@@ -1471,3 +1471,94 @@ Détail par couche :
 
 1. **Doublon inverse (F-5b)** : une ligne `completed_sessions` legacy existe d'abord pour la date, puis une séance guidée V2 est démarrée et terminée. Le contrat validé ne couvre que « V2 complétée → legacy refusé ». Proposition : à la création d'une exécution, refuser si une ligne `completed_sessions` non `skipped` existe déjà pour la date, avec le code `session_already_completed`.
 2. **Historique** (`historyRepo`) : il lit aussi `completed_sessions` seul. Faut-il l'inclure dans F-5 UI, ou en faire un ticket séparé ?
+
+## 38. Livraison UX-11R.9 — transition avec suspension des écritures (R9-OPS-01, plan validé localement, NON exécuté)
+
+**Mécanisme.** Secret Edge `NALYNT_WRITES_SUSPENDED`, lu au début des 3 handlers mutants (`supabase/functions/_shared/writesSuspended.ts`, commit `af5c74a`).
+- Valeur exactement `"true"` : réponse `503 { error: { code: "writes_suspended", message } }`, sans aucune écriture.
+- Absent, `"false"` ou toute autre valeur : comportement normal. Jamais fermé par défaut : les bundles sont déployés avant l'activation.
+
+Le flag `NALYNT_V2_PLAN_GENERATION_ENABLED` ne joue aucun rôle ici.
+
+| Endpoint | Position du garde | Ce qui n'est jamais atteint sous suspension |
+|---|---|---|
+| `session-execution` (POST) | après l'authentification (`withSupabase`) et le contrôle de méthode | lecture du corps, résolution de l'athlète, `record_session_execution`. Toutes les actions (Start, Pause, Resume, résultats, Complete, Abandon) passent par ce handler |
+| `completed-session` (PUT seulement ; GET reste une lecture) | début de la branche PUT | lecture du corps, résolution de l'athlète, pré-vérification, `persist_completed_session`, événement `session_completion_failed` |
+| `accept-training-plan` (POST) | après l'authentification et le contrôle de méthode | lecture du corps, résolution de l'athlète, `accept_training_plan_version`, projection, événements `plan_acceptance_*` |
+
+`daily-run` n'est pas concerné : son graphe est identique à `0ae4f81`.
+
+**Release set** (`build:release:all`, graphes source) :
+
+| Edge | Graphe |
+|---|---|
+| `session-execution` | `a9a82f8b…` (3 fichiers) |
+| `completed-session` | `e69e3208…` (5) |
+| `accept-training-plan` | `afd766c0…` (16) |
+| `daily-run` | `a5c2f3f0…` (75, inchangé ; bundle `dailyRunV2` `951ca9bd…`) |
+
+**Sonde non destructive** (identique pour l'activation et la réouverture) :
+- requête authentifiée du compte interne avec un corps volontairement invalide `{}` : POST `session-execution`, PUT `completed-session`, POST `accept-training-plan` ;
+- écritures suspendues : `503 writes_suspended` ;
+- écritures ouvertes : `400` de validation (`invalid_body` / `invalid_request`), sans aucune écriture.
+
+Le jeton est celui de la session de Louis dans son environnement, jamais collé dans le chat.
+
+### A. Préparer les handlers
+1. Déployer les 4 Edge candidates (`session-execution`, `completed-session`, `accept-training-plan`, `daily-run`) avec preuve du contenu eszip, comme pour l'Approbation B.
+   - `NALYNT_WRITES_SUSPENDED` est absent : les écritures restent ouvertes.
+   - Combinaison Edge nouvelle + base ancienne : compatibilité déjà auditée.
+
+### B. Fermer les écritures
+2. `npx supabase secrets set NALYNT_WRITES_SUSPENDED=true --project-ref uvolpldwwyvadlamulvr`.
+   - Vérifier l'empreinte du secret = sha256(`true`), sans afficher la valeur.
+3. Sonde sur les 3 endpoints : chacun doit répondre `503 writes_suspended` **trois fois de suite**. Les nouveaux isolats lisent le secret à chaque requête.
+4. **Attendre la fin des requêtes parties avant l'activation.** Aucune durée fixe n'est retenue (pas de maximum fiable garanti par le runtime) ; on avance seulement quand les deux critères sont vrais :
+   - **logs Edge** des 3 fonctions : toute invocation commencée avant l'activation a une réponse journalisée ;
+   - **base, en lecture seule**, sur deux relevés consécutifs : `pg_stat_activity` ne montre aucun backend (`active` ou `idle in transaction`) dont la requête contient `record_session_execution`, `persist_completed_session`, `accept_training_plan_version` ou `project_training_plan`, ni de transaction ouverte avant l'activation.
+
+### C. Base
+5. `npx supabase db push` : migrations `20261005120000`, `20261005120500`, `20261005121000`, après sauvegarde vérifiée.
+6. Vérifier en lecture seule :
+   - 63 migrations appliquées (si la base est toujours à 60), 0 pending, aucune migration inconnue ;
+   - empreinte `md5(pg_get_functiondef)` des 3 fonctions (retours chariot normalisés) = celle de la stack locale migrée ;
+   - grants : `service_role` EXECUTE ; `anon` et `authenticated` sans droit.
+
+### D. Web
+7. Merge du candidat sur `main` : déploiement automatique Vercel du web et du marketing.
+8. Vercel READY sur le SHA attendu ; pages de lecture (Aujourd'hui, séance guidée, Programme, Historique) avec le compte interne.
+
+### E. Réouvrir
+9. **Méthode retenue : `npx supabase secrets set NALYNT_WRITES_SUSPENDED=false --project-ref uvolpldwwyvadlamulvr`.** Empreinte = sha256(`false`). C'est la même pratique que le flag V2 en D1.
+   - Le retrait du secret (`secrets unset`) n'est pas utilisé pour la réouverture. C'est une opération de nettoyage séparée, après la clôture de la release.
+10. Sonde : plus aucun `503 writes_suspended` ; `400` de validation sur les 3 endpoints.
+11. Smoke contrôlé avec le compte interne, selon une approbation dédiée. Aucun `*_failed` inattendu.
+
+**Critères de réouverture** (tous requis) :
+- étape 6 conforme ;
+- web READY ;
+- aucune migration partielle ;
+- aucun `*_failed` pendant la fenêtre.
+
+### F. Incident pendant une migration
+Cas : la migration 1 passe, la migration 2 ou 3 échoue.
+- **Ne pas lever la suspension.** Garder les nouvelles Edge.
+- Lire l'état exact en lecture seule : migrations appliquées, empreintes des 3 fonctions.
+  - Chaque migration ne contient qu'un `create or replace` et ses grants. Une migration en échec doit laisser sa fonction inchangée, ce qu'on vérifie.
+- Décider (approbation HPM) :
+  - soit corriger et terminer la migration avant ;
+  - soit revenir en arrière sur les migrations déjà appliquées, dans l'ordre inverse, avec les scripts `supabase/rollbacks/ux11r9/` copiés sous un nouvel horodatage.
+- Vérifier une base cohérente (les 3 fonctions toutes nouvelles, ou toutes anciennes), puis seulement rouvrir.
+- **Aucune reprise utilisateur sur une base partiellement migrée.**
+
+### G. Retour arrière (après les migrations)
+1. Avec les nouvelles Edge encore actives : `secrets set NALYNT_WRITES_SUSPENDED=true`, puis la sonde : `503` sur les 3 chemins.
+2. Attendre la fin des requêtes en cours (mêmes critères qu'en B.4).
+3. Rollback web vers le déploiement de production précédent (Vercel, instantané).
+4. Scripts de retour de la base, dans l'ordre inverse des migrations : `20261005121000` → `20261005120500` → `20261005120000`, chacun sous un nouvel horodatage.
+5. Vérifier que les anciennes définitions sont en place (empreintes = celles de `6d01c88`, test T32) et les grants.
+6. **Seulement ensuite**, redéployer les Edge `6d01c88`.
+   - Elles ne connaissent pas `NALYNT_WRITES_SUSPENDED` : les écritures reprennent à cet instant.
+   - La base doit donc déjà être entièrement revenue.
+7. Contrôles de lecture et smoke.
+8. Le secret, devenu inutile, est ensuite remis à `false` (même méthode qu'en E.9).

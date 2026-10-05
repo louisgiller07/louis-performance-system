@@ -5077,3 +5077,23 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 Deno : le test `accept-training-plan` a été exécuté pour la première fois (deno 2.1.4) ; ses 2 échecs et ses 4 erreurs de typage existaient déjà avant UX-11R.9.
 
 **Statut** : implémenté en local, en attente du reviewer indépendant. Aucun push ni déploiement.
+
+## 2026-10-05 — ADR UX-11R.9 (R9-UI-01, R9-OPS-01) : séance terminée prioritaire, suspension des écritures pour la transition
+
+> **A completed guided session of the day is always shown read only with its own frozen prescription, before the day's current decision is read. The production transition Edge → DB → web runs with the three mutating Edge Functions suspended by an exact-"true" Edge secret, opened only once the database is fully migrated (or fully rolled back).**
+
+**R9-UI-01** (`2602856`, web) : `loadGuidedSession`, dans l'ordre :
+1. séance ouverte ;
+2. séance terminée (prescription figée, ordre déterministe de `selectDayExecution`) ;
+3. décision courante.
+
+Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séance terminée ce jour-là.
+
+**R9-OPS-01** (`af5c74a`, Edge) : `NALYNT_WRITES_SUSPENDED`.
+- `"true"` → 503 `writes_suspended`, avant toute écriture, dans `session-execution`, `completed-session` (PUT) et `accept-training-plan`.
+- Pas de garde dans `daily-run`, pas de mode maintenance général, aucune table.
+- Réouverture par `secrets set …=false`.
+
+**Plan** : preflight §38 (aller, attente des requêtes en cours par critères, migration partielle, retour arrière : web → base → Edge, la suspension restant active jusqu'à ce que la base soit cohérente).
+
+**Statut** : implémenté et vert en local, en attente de la re-revue ciblée. Aucun push, aucun déploiement.

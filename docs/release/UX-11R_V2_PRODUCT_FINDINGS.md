@@ -14,6 +14,9 @@
 > | F-7 `projectedSessionCount` sans contexte | polish, non bloquant | plus tard |
 > | F-5d écart pont M1 / web (`skipped` legacy puis V2 terminée) | P0, partie de UX-11R.9 | **CLOSED en local** (priorité canonique unique) |
 > | F-8 en-tête « Ton plan actuel » sur la vue d'un brouillon | polish, antérieur au patch | plus tard |
+> | F-9 skeleton permanent du bloc « après séance » si la lecture de la séance guidée échoue | non bloquant | plus tard |
+> | F-10 libellé legacy des messages Edge (`completed_session_v2_exists`, anglais/français) | non bloquant | plus tard |
+> | T-1 test `athletePurge` (UX-11R.1) instable en suite parallèle (trigger DDL sur `athletes`, deadlock) | dette de test, non bloquant | plus tard |
 > Constatés sur le premier plan V2 de production (`cd5cde79`, compte interne de simulation, Approbation D1) et reproduits dans la répétition locale avec le même profil (preflight §31.F, §32).
 
 Contexte du profil :
