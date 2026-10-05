@@ -19,6 +19,9 @@ import { computeDailyFor } from "../../src/supabase/computeDailyFor.js";
 const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 const TODAY = "2026-10-05";
 const ENDURANCE_DAY = "2026-10-09"; // AEROBIC_BASE MODERATE 45 in the development plan
+// UX-11R.9 — one main session per athlete and day: the second execution of the
+// first test runs on a day of its own, with a hand-made endurance prescription.
+const ENDURANCE_DAY_2 = "2026-10-21"; // outside the 2-week plan: no planned session, so the fixture decision stays current
 const FORCE_DAY = "2026-10-07";
 const DH_DAY = "2026-10-05";
 
@@ -28,6 +31,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.5 — session activity results (
   let admin: SupabaseClient;
   let athleteId: string;
   let enduranceFp: string;
+  let enduranceFp2: string;
 
   const record = async (payload: unknown, who = athleteId): Promise<Outcome> => {
     const { data, error } = await admin.rpc("record_session_execution", { p_athlete_id: who, p_payload: payload });
@@ -76,6 +80,17 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.5 — session activity results (
     if (p.status !== "persisted") throw new Error("V2 plan not persisted");
     await acceptTrainingPlanVersion(admin, athleteId, p.planVersionId, TODAY, "2026-10-18");
     enduranceFp = await keepRun(ENDURANCE_DAY);
+    // Owner-level fixture (same practice as the activity-list test below): a current v2 endurance decision on its own day.
+    await insertCheckin(admin, athleteId, ENDURANCE_DAY_2);
+    const decision2 = randomUUID();
+    enduranceFp2 = randomUUID();
+    execLocalSql(`
+insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
+  select ${sqlLiteral(decision2)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(ENDURANCE_DAY_2)}, 'AEROBIC_BASE', 'test fixture', 'test', 'created', c.id, c.updated_at
+    from public.daily_checkins c where c.athlete_id = ${sqlLiteral(athleteId)} and c.checkin_date = ${sqlLiteral(ENDURANCE_DAY_2)};
+insert into public.decision_final_prescriptions (id, decision_id, athlete_id, active_session_origin, reconciliation_action, schema_version, catalog_version, structure)
+  values (${sqlLiteral(enduranceFp2)}, ${sqlLiteral(decision2)}, ${sqlLiteral(athleteId)}, 'no_canonical_plan', 'keep', 'v2', 'test',
+          '{"schemaVersion":"v2","family":"endurance","activitySelection":{"mode":"restricted","activityIds":["mtb_rolling","road_bike"]},"blocks":[]}'::jsonb);`);
   }, 120_000);
 
   it("endurance: completed is refused without the activity result (whole batch rolled back), then accepted with it in the same batch", async () => {
@@ -110,7 +125,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.5 — session activity results (
     expect(await record({ activities: [activity(e.id, { duration_seconds: 2640, supersedes_id: act.id })] })).toEqual({ status: "rejected", code: "execution_terminal", target: "activities[0]" });
 
     // One activity per session (on an open execution): a second original is refused; a correction replaces it; never a correction of a correction.
-    const e2 = start(ENDURANCE_DAY, enduranceFp);
+    const e2 = start(ENDURANCE_DAY_2, enduranceFp2);
     expect(await record({ execution: e2.execution, events: [e2.started] })).toMatchObject({ status: "ok" });
     const act2 = activity(e2.id);
     expect(await record({ activities: [act2] })).toMatchObject({ status: "ok" });

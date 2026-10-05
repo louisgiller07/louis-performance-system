@@ -40,6 +40,10 @@ const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: t
 const DAY = "2026-10-01";
 const OTHER_DAY = "2026-10-02";
 const V1_DAY = "2026-10-03";
+// UX-11R.9 — one main session per athlete and day: tests that start another
+// normal execution after a completed one use a day of their own.
+const SETS_DAY = "2026-10-12";
+const CORRECTIONS_DAY = "2026-10-13";
 
 function v2Structure(items: Array<{ id: string; exerciseId: string; measure: Record<string, unknown> }>): unknown {
   return {
@@ -106,6 +110,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
   let fpA: string;
   let fpV1: string;
   let fpOtherDay: string;
+  let fpSets: string;
+  let fpCorrections: string;
   let fpB: string;
   let decisionA: string;
   const itemSquat = randomUUID();
@@ -164,6 +170,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
       insertCheckin(admin, a.athleteId, DAY),
       insertCheckin(admin, a.athleteId, V1_DAY),
       insertCheckin(admin, a.athleteId, OTHER_DAY),
+      insertCheckin(admin, a.athleteId, SETS_DAY),
+      insertCheckin(admin, a.athleteId, CORRECTIONS_DAY),
       insertCheckin(admin, b.athleteId, DAY),
     ]);
     const onDayA = fixtureDecision(
@@ -176,14 +184,22 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
       ])
     );
     // Its own day: a later decision on DAY would supersede decisionA (UX-11A.5c.2).
+    const dayItems = [
+      { id: itemSquat, exerciseId: "goblet_squat", measure: { type: "reps", min: 6, max: 8 } },
+      { id: itemPass, exerciseId: "cornering_drill", measure: { type: "pass", count: 6 } },
+    ];
+    const setsDay = fixtureDecision(a.athleteId, SETS_DAY, "v2", v2Structure(dayItems));
+    const correctionsDay = fixtureDecision(a.athleteId, CORRECTIONS_DAY, "v2", v2Structure(dayItems));
     const v1 = fixtureDecision(a.athleteId, V1_DAY, "v1", { domain: "strength", schemaVersion: "v1", blocks: [] });
     const otherDay = fixtureDecision(a.athleteId, OTHER_DAY, "v2", v2Structure([]));
     const ofB = fixtureDecision(b.athleteId, DAY, "v2", v2Structure([{ id: itemOfB, exerciseId: "pushup", measure: { type: "reps", min: 8, max: 12 } }]));
-    insertFixtureDecisions([onDayA, v1, otherDay, ofB]);
+    insertFixtureDecisions([onDayA, setsDay, correctionsDay, v1, otherDay, ofB]);
     decisionA = onDayA.decisionId;
     fpA = onDayA.finalPrescriptionId;
     fpV1 = v1.finalPrescriptionId;
     fpOtherDay = otherDay.finalPrescriptionId;
+    fpSets = setsDay.finalPrescriptionId;
+    fpCorrections = correctionsDay.finalPrescriptionId;
     fpB = ofB.finalPrescriptionId;
   }, 60_000);
 
@@ -233,9 +249,15 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     // UX-11B.2.6 — once terminal, the execution's results are frozen.
     expect(await record(a.athleteId, { sets: [squatSet(exec.id, 2)] })).toMatchObject({ status: "rejected", code: "execution_terminal" });
 
-    // Once completed, a new execution is allowed the same day; paused → completed is allowed.
+    // UX-11R.9 (F-6B) — once completed, the day takes no new normal execution (one main session per day); nothing is written.
     const next = newExecution(fpA);
-    expect((await record(a.athleteId, { execution: next.execution, events: [next.started, next.event("paused", 5), next.event("completed", 6)] })).status).toBe("ok");
+    expect(await record(a.athleteId, { execution: next.execution, events: [next.started, next.event("paused", 5), next.event("completed", 6)] })).toEqual({
+      status: "rejected",
+      code: "session_already_completed",
+      target: "execution",
+    });
+    const { data: refused } = await admin.from("session_executions").select("id").eq("id", next.id);
+    expect(refused).toEqual([]);
   });
 
   it("requires the started event with a new execution, and only accepts the athlete's own v2 prescription of that day", async () => {
@@ -266,7 +288,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
     expect(stored).toEqual({ exercise_id: null, other_exercise_name: "Presse à cuisses" });
     await completeExecution(free.id);
 
-    const onDay = newExecution(fpA);
+    const onDay = newExecution(fpSets, SETS_DAY);
     expect((await record(a.athleteId, { execution: onDay.execution, events: [onDay.started] })).status).toBe("ok");
     expect(await record(a.athleteId, { sets: [{ ...squatSet(onDay.id, 1), prescription_item_id: randomUUID() }] })).toMatchObject({ code: "invalid_item" });
     expect(await record(a.athleteId, { sets: [{ ...squatSet(onDay.id, 1), prescription_item_id: itemOfB }] })).toMatchObject({ code: "invalid_item" });
@@ -281,7 +303,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.2 — session execution schema a
   });
 
   it("corrections: one correction per set, never a correction of a correction, always the same set", async () => {
-    const exec = newExecution(fpA);
+    const exec = newExecution(fpCorrections, CORRECTIONS_DAY);
     expect((await record(a.athleteId, { execution: exec.execution, events: [exec.started] })).status).toBe("ok");
     const original = squatSet(exec.id, 1);
     const otherSet = squatSet(exec.id, 2);
