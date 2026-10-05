@@ -772,7 +772,7 @@ Louis fournit, hors dépôt (jamais dans un fichier versionné) :
 - son **`athlete_id`** complet ;
 - la confirmation écrite qu'il s'agit d'un compte interne / de test, et non d'un pilote réel ou d'un compte d'un tiers.
 
-Le préfixe documenté `41f21027-…` (« compte de test » des runbooks) n'est **pas** suffisant : il faut l'identifiant complet, et préciser s'il s'agit d'un `athlete_id` ou d'un `user_id`.
+**Résolu le 2026-10-05 (lecture seule)** : le préfixe `41f21027-…` des anciens runbooks est l'`athlete_id` d'un **autre** compte (ce n'est pas un `user_id`). Ce n'est pas le compte interne désigné pour les Approbations C et D, et il ne doit jamais être utilisé pour une écriture. Le compte cible est désigné par écrit par Louis ; son identité n'est pas écrite dans le dépôt.
 
 **Vérification en lecture seule** (opérateur, avec `PGPASSWORD` dans son terminal) :
 

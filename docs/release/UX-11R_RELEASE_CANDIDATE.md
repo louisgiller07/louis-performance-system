@@ -226,7 +226,7 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 - `supabase migration list` doit montrer les 50 migrations jusqu'à `20260924110000` et aucune des 8.
 - Vérifier en production que `decision_final_prescriptions` n'a aucun doublon par `decision_id` (garde de la migration 5) et que les tables d'exécution n'existent pas encore.
 - Noter les versions Edge déployées (`supabase functions list`).
-- Smoke V1 : génération, daily-run, completed-session sur le compte de test `41f21027-…`.
+- Smoke V1 : génération, daily-run, completed-session sur un compte de test explicitement désigné. Correction du 2026-10-05 : `41f21027-…` est l'`athlete_id` d'un **autre** compte (résolu en lecture seule le 2026-10-05) : il ne doit pas servir de compte de test pour les Approbations C et D.
 - *Justification* : point de retour connu, et préconditions des gardes de migration vérifiées avant d'écrire.
 
 **Stage 1 — schéma**
@@ -243,7 +243,7 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 - *Justification* : aucun plan V2 ne peut être créé, donc tous les chemins V2 restent inertes. Le web reste fail-closed.
 
 **Stage 3 — interne** (débloqué techniquement par UX-11R.2, §7)
-- Assigner V2 au seul compte de test `41f21027-…` (SQL §7), vérifier son profil V2, puis activer l'interrupteur.
+- Assigner V2 au seul compte interne désigné par écrit par Louis (preflight §28, identité hors dépôt), vérifier son profil V2, puis activer l'interrupteur (Approbation D, séparée). Correction du 2026-10-05 : `41f21027-…` est l'`athlete_id` d'un **autre** compte (résolu en lecture seule le 2026-10-05) : il ne doit pas servir de compte de test pour les Approbations C et D.
 - Générer, accepter, puis vérifier `plan_generation_succeeded` (`planningModel = v2`), Daily V2 et une séance guidée.
 - Les autres athlètes restent V1 (non assignés), interrupteur actif ou non.
 - Retour : interrupteur à `false` ou assignation `v1` (§7, §10).
