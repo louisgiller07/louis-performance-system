@@ -322,7 +322,7 @@ Vérifié en local : 128 lignes, 0 UUID ; événements V2 `created` / `blocked` 
 | Operations | Approbation D1 | PASS (2026-10-05) | Un plan V2 `cd5cde79` généré (`assigned_v2`), non accepté, 0 échec, 0 exécution ; flag remis à `false` (preflight §32) |
 | Operations | Approbation D2A | PASS (2026-10-05) | `cd5cde79` accepté et courant ; Daily V2 KEEP, prescription finale `a775ed62` (`v2`, `session-model-v2.5`) ; 0 exécution (preflight §34) |
 | Operations | Approbation D2B1 | PASS (2026-10-05) | Exécution `df8b83f2` : started → paused → resumed → completed, 6/6 passages, 0 `completed_sessions`, bridge V2 1 complétion (preflight §36) |
-| Engineering | Hardening UX-11R.9 | CONTRAT VALIDÉ, implémentation non autorisée | F-6A, F-6B, F-5 (serveur + UI), F-4 (serveur + UI) ; 3 migrations additives (preflight §37) |
+| Engineering | Hardening UX-11R.9 | IMPLÉMENTÉ ET VERT EN LOCAL, non déployé | F-6A, F-6B / F-5b, F-5 (serveur + UI + Historique), F-4 (serveur + UI) ; 3 migrations additives + scripts de retour ; en attente de relecture HPM + reviewer indépendant (preflight §37) |
 | Operations | Approbation D2B2 | BLOCKED | Jusqu'au hardening UX-11R.9 livré et validé |
 | Product | Constats V2 (8) | OPEN : F-5, F-6, F-6C = P0 ; BUG-V2-1/2 et F-4 bloquants avant bêta payante | `docs/release/UX-11R_V2_PRODUCT_FINDINGS.md` |
 | Operations | Préparation de l'Approbation B (historique) | READY (local) | Build propre, eszip local des 3 fonctions, déploiement en bundling Docker, vérification par `functions download` (preflight §26) |

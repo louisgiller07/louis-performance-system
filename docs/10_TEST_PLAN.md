@@ -664,9 +664,17 @@ Ferme le gate reporté par T14/002E et clôt V0.3_002 dans son ensemble :
 
 ---
 
-## Scénarios UX-11R.9 — Hardening exécution / complétion / acceptation (CONTRAT VALIDÉ 2026-10-05, NON IMPLÉMENTÉ)
+## Scénarios UX-11R.9 — Hardening exécution / complétion / acceptation (IMPLÉMENTÉ ET VERT EN LOCAL 2026-10-05, non déployé)
 
-Contrat : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9. Intégration = Supabase local réel + Edge Functions locales (`RUN_LOCAL_SUPABASE_INTEGRATION=1`), même schéma que les suites UX-11C existantes. Chaque refus est vérifié par son code exact **et** par l'absence de toute ligne écrite.
+Contrat : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9.
+
+Fichiers :
+- `head-coach-engine/tests/supabase/ux11r9Hardening.integration.test.ts` (base, 22 tests) ;
+- `head-coach-engine/tests/supabase/ux11r9Edge.integration.test.ts` (Edge locale, 2 tests) ;
+- `head-coach-engine/tests/edge/acceptTrainingPlanErrorMapping.test.ts` et `tests/edge/completedSession/apiErrors.test.ts` (unitaires) ;
+- web : `features/completion/dayCompletion.test.ts`, `features/trainingPlanReview/planVersionOrder.test.ts`, plus des ajouts dans les tests d'Aujourd'hui, de Programme, de l'Historique, du bloc « après séance » et de la page Programme (F-4).
+
+Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test.ts` (la nouvelle exécution après une fin est maintenant `session_already_completed` ; les autres cas ont leur propre jour) et `sessionActivityResults.integration.test.ts` (seconde exécution sur son propre jour). Intégration = Supabase local réel + Edge Functions locales (`RUN_LOCAL_SUPABASE_INTEGRATION=1`), même schéma que les suites UX-11C existantes. Chaque refus est vérifié par son code exact **et** par l'absence de toute ligne écrite.
 
 ### T27. F-6A — fin d'une séance DH
 - DH `completed` sans aucun passage → `dh_pass_required` (422), 0 ligne écrite.
@@ -676,7 +684,9 @@ Contrat : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9. Intégration = Supabase
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : comportement inchangé (F-6C hors périmètre).
 
-### T28. F-6B — une séance principale par jour
+### T28. F-6B / F-5b — une séance principale par jour
+- Ligne legacy `done` / `partial` / `replaced` puis Start V2 → `session_already_completed`, aucune exécution ; legacy `skipped` → Start et fin permis.
+- Ligne legacy enregistrée pendant une séance V2 ouverte → la fin V2 est refusée (`session_already_completed`), l'arrêt reste permis.
 - Exécution `completed` puis nouveau Start normal le même jour (même prescription, puis une autre prescription du jour) → `session_already_completed` (409).
 - `abandoned` puis Restart → `ok` (nouvelle exécution).
 - Renvoi idempotent du Start initial → `unchanged`.
@@ -688,10 +698,11 @@ Contrat : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9. Intégration = Supabase
 - Remplacement d'une ligne existante sur une telle date → même refus, ligne inchangée.
 - V2 en cours ou `abandoned` à cette date → débrief accepté.
 - Autre date, ou athlète V1 → comportement inchangé.
-- Fin V2 et débrief concurrents → sérialisés ; jamais les deux.
+- Fin V2 et débrief concurrents → sérialisés ; jamais les deux (6 tours, concurrence réelle) ; Start V2 et débrief concurrents → jamais une exécution terminée plus une ligne legacy.
 
 ### T30. F-5 — lecture « séance faite » (web)
 - Pure : legacy seul ; V2 seul ; les deux (le legacy l'emporte) ; V2 en cours ; V2 `abandoned` ; legacy `skipped`.
+- Historique : V1 legacy seul ; V2 terminé seul ; ancien jour avec les deux ; V2 commencé ou arrêté (non enregistré).
 - Aujourd'hui : séance terminée ; compteur de la semaine à jour ; plus d'invitation « Raconter ma séance » pour une date V2 réalisée ; lien de lecture vers la séance guidée.
 - Programme : date marquée réalisée, même règle.
 - Séance guidée : « terminée », résultats visibles, ni Commencer ni Recommencer.
@@ -699,6 +710,8 @@ Contrat : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9. Intégration = Supabase
 
 ### T31. F-4 — acceptation d'une version périmée
 - Serveur : brouillon plus ancien que la version courante → `stale_plan_version` (409), aucune transition.
+- `generated_at` égal à celui de la version courante → `stale_plan_version`.
+- Deux acceptations concurrentes → le candidat devenu périmé n'est jamais courant.
 - Brouillon plus récent → acceptation normale.
 - Renvoi idempotent de la version courante → `idempotent_replay`.
 - Premier plan (aucune version courante) → inchangé.

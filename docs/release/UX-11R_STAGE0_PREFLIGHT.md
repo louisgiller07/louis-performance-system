@@ -1387,28 +1387,30 @@ Si une étape échoue avec « Réessayer » (réseau), un seul « Réessayer » 
 
   Classement dans `UX-11R_V2_PRODUCT_FINDINGS.md`.
 
-## 37. Hardening UX-11R.9 avant D2B2 (contrat validé, implémentation NON autorisée)
+## 37. Hardening UX-11R.9 avant D2B2 (implémenté et vert en LOCAL, non déployé, aucune Approval production préparée)
 
 **D2B2 reste BLOQUÉE** jusqu'à la livraison et la validation en production de ce hardening. Contrat canonique : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9 ; tests : `docs/10_TEST_PLAN.md` §UX-11R.9 ; décisions : ADR UX-11R.9.
 
-### A. Migrations (additives, granulaires, noms provisoires)
+### A. Migrations (additives, granulaires)
 
 | # | Fichier | Contenu | Retour arrière technique |
 |---|---|---|---|
-| 1 | `<ts>_ux11r9_execution_completion_invariants.sql` | `create or replace record_session_execution` : corps de `20261002090000` + F-6A (`dh_pass_required`) + F-6B (`session_already_completed`) | Migration de retour qui recrée exactement le corps de `20261002090000` |
-| 2 | `<ts>_ux11r9_completed_session_v2_guard.sql` | `create or replace persist_completed_session` : corps de `20260910090000` + verrou consultatif partagé + refus `completed_session_v2_exists` (SQLSTATE dédié) | Migration de retour qui recrée exactement le corps de `20260910090000` |
-| 3 | `<ts>_ux11r9_stale_plan_acceptance_guard.sql` | `create or replace accept_training_plan_version` : corps de `20260921092500` + refus `stale_plan_version` (SQLSTATE dédié) | Migration de retour qui recrée exactement le corps de `20260921092500` |
+| 1 | `20261005120000_ux11r9_execution_completion_invariants.sql` | `create or replace record_session_execution` : corps de `20261002090000` + F-6A (`dh_pass_required`) + F-6B / F-5b (`session_already_completed` au Start et à la fin) | `supabase/rollbacks/ux11r9/20261005120000_rollback_record_session_execution.sql` |
+| 2 | `20261005120500_ux11r9_completed_session_v2_guard.sql` | `create or replace persist_completed_session` : corps de `20260910090000` + verrou consultatif partagé + refus `completed_session_v2_exists` (SQLSTATE `NX101`) | `supabase/rollbacks/ux11r9/20261005120500_rollback_persist_completed_session.sql` |
+| 3 | `20261005121000_ux11r9_stale_plan_acceptance_guard.sql` | `create or replace accept_training_plan_version` : corps de `20260921092500` + refus `stale_plan_version` (SQLSTATE `NX102`, `generated_at` égal ou antérieur) | `supabase/rollbacks/ux11r9/20261005121000_rollback_accept_training_plan_version.sql` |
 
 - Aucune table, colonne, index ni donnée modifiés. Les trois migrations sont indépendantes ; ordre recommandé 1, 2, 3.
 - Les migrations 1 et 2 partagent seulement la **clé** du verrou consultatif par athlète (`'record_session_execution:' || athlete_id`), pour sérialiser la fin d'une séance V2 et un débrief legacy. Cela ne justifie pas de les regrouper.
-- Une migration appliquée n'est jamais modifiée. Les migrations de retour sont rédigées et testées en local avant la release, puis ajoutées au dépôt seulement si un retour est décidé.
+- Une migration appliquée n'est jamais modifiée.
+- Les scripts de retour (`supabase/rollbacks/ux11r9/`, hors du dossier des migrations) sont générés depuis les blobs git des migrations source. Le test T32 prouve qu'ils restaurent exactement le corps de production (même empreinte, retours chariot normalisés).
+- En cas de retour, le script est copié dans `supabase/migrations/` sous un nouvel horodatage.
 
 ### B. Matrice Edge / base
 
 | Endpoint (nom réel) | Aujourd'hui | Nouveau mapping | Edge nouvelle + base ancienne | Edge ancienne + base nouvelle |
 |---|---|---|---|---|
 | `session-execution` (v3, `6d01c88`) | refus métier = `{status: rejected, code}` → `REJECTION_STATUS` ; code inconnu → 500 `internal_error` | `dh_pass_required` → 422, `session_already_completed` → 409 | compatible : les nouveaux codes ne sont jamais émis | **500 `internal_error`** pour les deux nouveaux refus ; rien n'est écrit (fermé, mais mauvais statut) |
-| `completed-session` (PUT, v7, 2026-09-24) | refus métier = vérifications Edge avant la RPC (422) ; toute erreur RPC → 500 `persistence_failed` + `session_completion_failed` | vérification RLS **avant** la RPC (exécution V2 `completed` à cette date → 409 `completed_session_v2_exists`) + SQLSTATE dédié de la RPC → même 409 (course) | compatible : la vérification Edge suffit, la RPC ancienne ne refuse pas | **500 `persistence_failed`** (+ événement `session_completion_failed`) ; rien n'est écrit (fermé) |
+| `completed-session` (PUT, v7, 2026-09-24) | refus métier = vérifications Edge avant la RPC (422) ; toute erreur RPC → 500 `persistence_failed` + `session_completion_failed` | vérification RLS **avant** la RPC (exécution V2 `completed` à cette date → 409 `completed_session_v2_exists`) + SQLSTATE `NX101` de la RPC → même 409 (course) | compatible, mais protection **best effort seulement** : une fin V2 concurrente peut passer entre la vérification et l'écriture. La garantie atomique n'existe qu'avec la migration 2 | **500 `persistence_failed`** (+ événement `session_completion_failed`) ; rien n'est écrit (fermé) |
 | `accept-training-plan` (v6, 2026-09-28) | toute erreur RPC → 409 `accept_rejected` + `plan_acceptance_failed` | SQLSTATE dédié → 409 `stale_plan_version` (+ `plan_acceptance_failed` avec ce code) ; `AcceptTrainingPlanVersionRpcError` garde le code d'erreur | compatible : jamais émis | **409 `accept_rejected`** générique ; rien n'est écrit (fermé) |
 
 **Ordre de livraison sûr** (une approbation par étape, comme Stage 1 / B) :
@@ -1419,7 +1421,14 @@ Si une étape échoue avec « Réessayer » (réseau), un seul « Réessayer » 
 
 Le web ancien face à l'Edge nouvelle : un code inconnu donne le message générique « Action refusée ». Acceptable.
 
-**Retour arrière** :
+**Retour arrière après déploiement complet** (ordre imposé) :
+1. web si nécessaire (rollback instantané Vercel) ;
+2. base : migrations de retour ;
+3. seulement ensuite, les Edge vers `6d01c88`.
+
+Ne jamais revenir sur les Edge avant la base : une base nouvelle peut encore émettre des codes que les anciennes Edge ne comprennent pas (500).
+
+Détail par couche :
 - Base : migration de retour par fonction.
 - Edge : la version nouvelle reste compatible avec la base ancienne, donc elle est normalement conservée. Si un retour est quand même nécessaire :
   - `session-execution` : redéploiement depuis `6d01c88` ;
@@ -1427,7 +1436,18 @@ Le web ancien face à l'Edge nouvelle : un code inconnu donne le message génér
 - Web : rollback instantané Vercel vers le déploiement `6d01c88`.
 - Aucune donnée à défaire : les nouvelles règles ne font que refuser.
 
-### C. Questions ouvertes (décision HPM requise avant le code)
+### C. Décisions finales (HPM, 2026-10-05) et implémentation
+
+- **F-5b, doublon inverse : bloqué côté serveur.** Une ligne legacy non `skipped` bloque un Start V2 normal (`session_already_completed`).
+  - Interprétation implémentée de « jamais les deux états terminaux » : la même règle s'applique aussi à la **fin** V2 si la ligne legacy a été écrite pendant que la séance était ouverte. L'arrêt reste permis.
+- **Historique** : inclus. Lecture seule, même sélecteur `dayCompletion.ts`, sans refonte : F-5c n'est pas nécessaire.
+- **F-4** : `candidate.generated_at > current.generated_at`, sinon `stale_plan_version`.
+- **Preuves locales** :
+  - suites complètes vertes avec l'intégration locale : web 1990, moteur 1152, Edge 53, `session-execution` 24, `completed-session` 145 ;
+  - `npm run build` et `build:release:all` OK ; bundle `dailyRunV2` inchangé (`951ca9bd…`) ;
+  - rejeu local de la séquence C → D1 → D2A → D2B1 sur le profil exact : 24/24 PASS, nouveaux refus compris.
+
+### D. Questions ouvertes (historique de la préparation)
 
 1. **Doublon inverse (F-5b)** : une ligne `completed_sessions` legacy existe d'abord pour la date, puis une séance guidée V2 est démarrée et terminée. Le contrat validé ne couvre que « V2 complétée → legacy refusé ». Proposition : à la création d'une exécution, refuser si une ligne `completed_sessions` non `skipped` existe déjà pour la date, avec le code `session_already_completed`.
 2. **Historique** (`historyRepo`) : il lit aussi `completed_sessions` seul. Faut-il l'inclure dans F-5 UI, ou en faire un ticket séparé ?

@@ -5033,3 +5033,26 @@ Le refus d'un backend Supabase distant en développement n'apparaissait que dans
 **Détail** : `docs/05_DATA_MODEL.md` §Invariants UX-11R.9 ; `docs/10_TEST_PLAN.md` T27–T32 ; `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §36, §37.
 
 **Statut** : Accepted (contrat). Implémentation non autorisée. Production : `6d01c88`, flag `false`, 1 exécution V2 `completed`.
+
+## 2026-10-05 — ADR UX-11R.9 (suite) : décisions finales et implémentation locale
+
+> **The hardening is implemented and green locally, not deployed. The one-main-session-per-day rule now also counts a legacy completed_sessions row that is not skipped, at start and at completion, under one per-athlete lock shared by the V2 write path and the legacy debrief; stale plan acceptance uses generated_at with equality treated as stale.**
+
+**Décisions finales (HPM).**
+- F-5b : bloqué côté serveur. Une ligne legacy non `skipped` bloque un Start V2 (`session_already_completed`) ; un `skipped` ne compte pas.
+- Le même verrou par athlète protège le Start V2, la fin V2 et `persist_completed_session`.
+- Historique inclus dans F-5, en lecture seule.
+- F-4 : `candidate.generated_at > current.generated_at`, égalité = périmé.
+
+**Interprétation signalée.** « Jamais les deux états terminaux pour une date » imposait aussi un contrôle à la **fin** V2 : une ligne legacy écrite pendant une séance V2 ouverte rend la fin `session_already_completed`. L'arrêt reste permis.
+
+**Implémentation (locale).**
+- 3 migrations additives ; scripts de retour générés depuis les blobs git, avec preuve d'exactitude (T32).
+- Edge : `session-execution`, `completed-session` (vérification avant la RPC + SQLSTATE `NX101`) et `accept-training-plan` (`AcceptTrainingPlanVersionRpcError` porte son SQLSTATE, `NX102` → 409).
+- Web : `dayCompletion.ts` (Aujourd'hui, semaine, Programme, après-séance, Historique) ; `planVersionOrder.ts` (encart F-4, brouillon périmé non acceptable).
+
+**Contrat UX-11B.2.2 modifié délibérément** : « une fois terminée, une nouvelle exécution est permise le même jour » devient `session_already_completed`. Les tests existants ont été adaptés.
+
+**Constat ouvert F-5d** : écart entre le pont M1 et le web pour un `skipped` legacy suivi d'une séance V2 terminée. Le pont garde la ligne legacy ; le web compte la séance V2. Le moteur n'est pas modifié ici.
+
+**Statut** : implémenté en local. Aucun push, aucun déploiement, aucune Approval production préparée avant la relecture du HPM et du reviewer indépendant.

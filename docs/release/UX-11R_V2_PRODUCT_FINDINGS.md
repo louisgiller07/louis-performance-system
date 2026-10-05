@@ -1,6 +1,6 @@
 # UX-11R — Constats produit Session Model V2
 
-> **Statut au 2026-10-05 : 8 constats OUVERTS, non corrigés.** Classement HPM (2026-10-05) :
+> **Statut au 2026-10-05 : F-4, F-5 et F-6 corrigés EN LOCAL (UX-11R.9, non déployés) ; les autres constats restent OUVERTS.** Classement HPM (2026-10-05) :
 >
 > | Constat | Classement | Traitement |
 > |---|---|---|
@@ -12,6 +12,7 @@
 > | F-6 règles de la séance guidée côté UI seulement | **P0 / intégrité serveur** | hardening UX-11R.9 (F-6A, F-6B) |
 > | F-6C fin d'une séance Force côté serveur | **P0 avant bêta payante** | ticket séparé |
 > | F-7 `projectedSessionCount` sans contexte | polish, non bloquant | plus tard |
+> | F-5d écart pont M1 / web (`skipped` legacy puis V2 terminée) | à qualifier | ticket séparé (moteur) |
 > Constatés sur le premier plan V2 de production (`cd5cde79`, compte interne de simulation, Approbation D1) et reproduits dans la répétition locale avec le même profil (preflight §31.F, §32).
 
 Contexte du profil :
@@ -92,3 +93,13 @@ Contexte du profil :
 
 - Aucun correctif dans le cadre du rollout UX-11R : le moteur et le planificateur ne changent pas pendant les approbations.
 - Chaque correctif demandera une décision de spec (docs canoniques), un ticket, des tests, puis un nouveau cycle de release.
+
+## F-5d — Écart entre le pont M1 et le web pour un jour `skipped` puis terminé en séance guidée
+
+**Constat (UX-11R.9, lecture du code)** : une ligne legacy `skipped` ne bloque pas une séance V2 (décision HPM).
+- Si la séance V2 est ensuite terminée, le web (`dayCompletion.ts`) compte la journée comme réalisée.
+- Le pont M1 (`recentSessionsForDailyContext.ts`) garde la ligne legacy : « une date avec une ligne `completed_sessions` ne prend aucune entrée V2 ». M1 voit donc un `skipped`.
+
+**Impact** : rare (un `skipped` saisi puis une séance faite le même jour), mais la charge récente vue par M1 sous-estime ce jour-là.
+
+**Traitement** : ticket séparé. Le moteur et son pont ne sont pas modifiés dans UX-11R.9.
