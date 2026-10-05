@@ -130,3 +130,84 @@ describe("loadGuidedSession", () => {
     expect(await loadGuidedSession("a", "2026-10-09")).toEqual({ kind: "ready_to_start", finalPrescriptionId: dh.prescription.id, prescription: dh.prescription });
   });
 });
+
+// UX-11R.9 (R9-UI-01) — a completed execution of the day stays authoritative and readable,
+// whatever the day's current decision has become.
+describe("loadGuidedSession — UX-11R.9 a completed execution of the day wins", () => {
+  it("Test 1 — completed on fp-old + a newer current decision on fp-new → the completed execution (fp-old), never ready_to_start on fp-new", async () => {
+    const old = created("DH_TECHNICAL");
+    const fresh = created("STRENGTH_LOWER");
+    loadDayExecutions.mockResolvedValue([execution("e1", old.prescription.id, ["started", "paused", "resumed", "completed"])]);
+    loadExecutionPrescription.mockResolvedValue(old);
+    loadFinalPrescriptionV2State.mockResolvedValue(fresh);
+    const snapshot = await loadGuidedSession("a", "2026-10-09");
+    expect(snapshot).toMatchObject({ kind: "execution", phase: "completed", execution: { id: "e1" }, prescription: old });
+    expect(snapshot).not.toHaveProperty("restartFinalPrescriptionId");
+    expect(loadExecutionPrescription).toHaveBeenCalledWith(old.prescription.id);
+    // Decided before (and independently of) the day's current decision.
+    expect(loadLatestDecisionForDate).not.toHaveBeenCalled();
+    expect(loadFinalPrescriptionV2State).not.toHaveBeenCalled();
+  });
+
+  it("Test 2 — completed + the latest decision is stale → the completed execution stays readable", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadDayExecutions.mockResolvedValue([execution("e1", dh.prescription.id, ["started", "completed"])]);
+    loadExecutionPrescription.mockResolvedValue(dh);
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "checkin_changed" });
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "completed", prescription: dh });
+  });
+
+  it("Test 3 — completed + the latest decision is REST (not_required) or blocked → the completed execution stays readable", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadDayExecutions.mockResolvedValue([execution("e1", dh.prescription.id, ["started", "completed"])]);
+    loadExecutionPrescription.mockResolvedValue(dh);
+    for (const state of [{ kind: "not_required" }, { kind: "blocked", code: "final_prescription_adaptation_not_defined", detail: null }]) {
+      loadFinalPrescriptionV2State.mockResolvedValue(state);
+      expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "completed", prescription: dh });
+    }
+  });
+
+  it("Test 4 — abandoned only, on the prescription that is still current → restart stays available (UX-11C.2 unchanged)", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadFinalPrescriptionV2State.mockResolvedValue(dh);
+    loadDayExecutions.mockResolvedValue([execution("e1", dh.prescription.id, ["started", "paused", "abandoned"])]);
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "abandoned", restartFinalPrescriptionId: dh.prescription.id });
+  });
+
+  it("Test 5 — abandoned (more recent) + completed (historical) → the completion wins, no restart", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadFinalPrescriptionV2State.mockResolvedValue(dh);
+    loadExecutionPrescription.mockResolvedValue(dh);
+    loadDayExecutions.mockResolvedValue([
+      execution("e1", dh.prescription.id, ["started", "completed"], "2026-10-09T16:00:00Z"),
+      execution("e2", dh.prescription.id, ["started", "abandoned"], "2026-10-09T17:00:00Z"),
+    ]);
+    const snapshot = await loadGuidedSession("a", "2026-10-09");
+    expect(snapshot).toMatchObject({ kind: "execution", phase: "completed", execution: { id: "e1" } });
+    expect(snapshot).not.toHaveProperty("restartFinalPrescriptionId");
+  });
+
+  it("several completions (historical data only): deterministic — the most recently recorded one", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadExecutionPrescription.mockResolvedValue(dh);
+    loadDayExecutions.mockResolvedValue([
+      execution("e1", "fp-a", ["started", "completed"], "2026-10-09T16:00:00Z"),
+      execution("e2", "fp-b", ["started", "completed"], "2026-10-09T17:00:00Z"),
+    ]);
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "completed", execution: { id: "e2" } });
+    expect(loadExecutionPrescription).toHaveBeenCalledWith("fp-b");
+  });
+
+  it("Test 6 — an OPEN execution + a new Daily → the open execution wins with its own frozen prescription (non-regression)", async () => {
+    const dh = created("DH_TECHNICAL");
+    loadDayExecutions.mockResolvedValue([
+      execution("e0", "fp-done", ["started", "completed"], "2026-10-09T15:00:00Z"),
+      execution("e1", dh.prescription.id, ["started", "paused", "resumed"], "2026-10-09T17:00:00Z"),
+    ]);
+    loadExecutionPrescription.mockResolvedValue(dh);
+    loadFinalPrescriptionV2State.mockResolvedValue(created("STRENGTH_LOWER"));
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "active", execution: { id: "e1" }, prescription: dh });
+    expect(loadExecutionPrescription).toHaveBeenCalledWith(dh.prescription.id);
+    expect(loadLatestDecisionForDate).not.toHaveBeenCalled();
+  });
+});

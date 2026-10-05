@@ -4,11 +4,14 @@
 // 1. an OPEN execution of the day (at most one, backend rule) → resume it,
 //    with the final prescription it is linked to (frozen: a newer daily
 //    decision never replaces it);
-// 2. otherwise the day's CURRENT decision (latest valid, still current for
+// 2. otherwise a COMPLETED execution of the day (UX-11R.9, R9-UI-01) → shown
+//    read only with its own frozen final prescription, whatever the day's
+//    current decision has become; never a new start or a restart;
+// 3. otherwise the day's CURRENT decision (latest valid, still current for
 //    its inputs, newest row — the same notion as Today and
 //    record_session_execution): a `created` V2 final prescription can be
-//    started; a terminal execution of that same prescription is shown read
-//    only (an abandoned one may be restarted as a NEW execution, UX-11C.2);
+//    started; an abandoned execution of that same prescription is shown read
+//    only and may be restarted as a NEW execution (UX-11C.2);
 //    REST, blocked, V1, missing or unsupported → unavailable.
 // Starting from a planned prescription or planned_sessions is impossible by
 // construction.
@@ -58,6 +61,20 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
       ? await loadExecutionPrescription(dayExecution.execution.final_prescription_id)
       : { kind: "final_prescription_missing" };
     return { kind: "execution", ...dayExecution, prescription };
+  }
+
+  // UX-11R.9 (R9-UI-01) — a COMPLETED execution of the day is the day's session (one main session per
+  // day): shown read only with ITS OWN frozen final prescription, before and independently of the
+  // day's current decision (newer, stale, REST, blocked or linked to another prescription). Never
+  // ready_to_start, never a restart. Several completions (historical data only, the server now
+  // refuses a second one): selectDayExecution's existing deterministic order — the most recently
+  // recorded, then the highest id.
+  const completed = selectDayExecution(executions.filter((e) => phaseOf(e) === "completed"));
+  if (completed) {
+    const prescription: FinalPrescriptionV2State = completed.execution.final_prescription_id
+      ? await loadExecutionPrescription(completed.execution.final_prescription_id)
+      : { kind: "final_prescription_missing" };
+    return { kind: "execution", ...completed, prescription };
   }
 
   const decision = await loadLatestDecisionForDate(athleteId, date);
