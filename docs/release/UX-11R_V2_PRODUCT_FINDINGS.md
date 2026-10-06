@@ -6,7 +6,7 @@
 > |---|---|---|
 > | BUG-V2-1 jours de ride | bloquant avant bêta payante | **implémenté en local** (branche `feat/bug-v2-1-availability`, ADR BUG-V2-1), non déployé |
 > | BUG-V2-2 progression | bloquant avant bêta payante | **implémenté en local** (branche `feat/bug-v2-2-progression`, ADR BUG-V2-2), non déployé |
-> | BUG-V2-3 séance le jour de la génération | à corriger avant bêta | ticket séparé |
+> | BUG-V2-3 séance le jour de la génération | à corriger avant bêta | **implémenté en local** (branche `feat/bug-v2-3-start-date`, ADR BUG-V2-3), non déployé |
 > | F-4 brouillon périmé acceptable | priorité 2, bloquant avant bêta payante | hardening UX-11R.9 (UI + serveur) |
 > | F-5 complétion V2 hors séance guidée + doublon legacy | **P0 avant bêta** | hardening UX-11R.9 (UI + serveur) |
 > | F-6 règles de la séance guidée côté UI seulement | **P0 / intégrité serveur** | hardening UX-11R.9 (F-6A, F-6B) |

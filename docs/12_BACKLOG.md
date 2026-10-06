@@ -638,7 +638,10 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **Deno** — `accept-training-plan/index.test.ts` : 2 tests et 4 erreurs de typage antérieurs à UX-11R.9 (décision du reviewer).
 - [ ] **BUG-V2-1** — disponibilités physique / vélo : implémenté et vert en local (branche `feat/bug-v2-1-availability`), livraison à approuver (migration → Edge `generate-training-plan` → web).
 - [ ] **BUG-V2-2** — progression réelle (rôles de semaine, doses exécutables, courses, maintiens) : implémenté et vert en local (branche `feat/bug-v2-2-progression`, ADR BUG-V2-2), livraison à approuver (web → Edge `daily-run` → Edge `generate-training-plan`, sans migration).
-- [ ] **BUG-V2-3** — séance le jour de la génération (à corriger avant bêta).
+- [ ] **BUG-V2-2 / coaching** — valider la semaine de consolidation (gabarit deload, 105 min, −70 % par rapport à un build) (HPM 2026-10-06).
+- [ ] **M1 / SYSTEMIC_RED** — un check-in SYSTEMIC_RED peut conserver (KEEP) une Force LIGHT (semaine d'introduction V2) : à reprendre dans le chantier adaptations MODIFY / REPLACE (constat BUG-V2-2).
+- [ ] **Glossaire** — ajouter les termes de progression (introduction, build, build+, consolidation, race-specific) à `docs/07_GLOSSARY.md` lors du packaging docs.
+- [ ] **BUG-V2-3** — date de démarrage (plan au lendemain, « aujourd'hui » Europe/Zurich, ligne de date de début) : implémenté et vert en local (branche `feat/bug-v2-3-start-date`, ADR BUG-V2-3), livraison à approuver (Edge `generate-training-plan` + `accept-training-plan`, puis web ; sans migration).
 - [ ] **D2B2** — abandon, Restart, corrections, conflits en production : BLOQUÉE jusqu'au hardening UX-11R.9.
 
 ## P1 — Après M2

@@ -731,6 +731,23 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Edge ancienne + base nouvelle : refus fermés (500 / 409 générique), 0 ligne écrite.
 - Migrations de retour : rejouées en local, elles restaurent exactement les corps précédents (comparaison du catalogue).
 
+### T37. BUG-V2-3 — date de démarrage d'un plan
+- **Unitaires head-coach-engine** (`tests/generation/bugV23StartDate.test.ts`) :
+  - `productToday` : matin, après-midi, 22 h, 23:59, 00:30 Zurich (= 22:30 UTC la veille), nuit des changements d'heure, passage d'année ;
+  - génération V2 réelle, cas A (matin) et B (22 h) : même plan, début le lendemain, rien aujourd'hui ;
+  - C : séance déjà faite → rien le jour même ;
+  - D : aujourd'hui indisponible → première séance le lendemain ;
+  - E : pas de vélo avant samedi → première DH samedi ;
+  - F : minuit UTC → date locale ;
+  - G : course proche → race_specific / taper / race conservés, rôles intacts ;
+  - H : profil legacy.
+- **Intégration locale** (`tests/supabase/bugV23StartDate.integration.test.ts`) :
+  - plan persisté commençant à J + 1 (horizon, séances, semaine 1 introduction) ;
+  - régénération le jour d'une séance faite : jour gardé (`skipped_completed`), rien de nouveau ;
+  - régénération tardive sans séance : aucune séance le jour même (`removed_superseded`) ;
+  - Edge locales `generate-training-plan` / `accept-training-plan` sur la date Zurich réelle.
+- **Web :** ligne « Ton programme commence … » (premier plan), texte du premier jour sur Today, helper `planStart`.
+
 ### T36. BUG-V2-2 — progression réelle sur 6 semaines
 - **Unitaires planning-engine** (`tests/unit/bugV22Progression.test.ts`), tableau exact par semaine (rôle, type, cycle, cibles, séances placées, minutes physique / vélo, raisons) :
   - **A** sans course : introduction → build → build+ → consolidation → build (c1) → build+ (c1) ; séries / RPE force, passages DH et minutes d'endurance changent ; aucune semaine clone de la précédente ; déterministe ;

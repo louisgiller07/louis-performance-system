@@ -5170,3 +5170,40 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 **Livraison (non faite)** : sans migration, dans cet ordre : web (lit v2.5 et v2.6) → Edge `daily-run` → Edge `generate-training-plan`. Si BUG-V2-1 est livré ensemble, sa migration passe en premier.
 
 **Statut** : implémenté et vert en local (branche `feat/bug-v2-2-progression`). Aucun push, aucun déploiement.
+
+## 2026-10-06 — ADR BUG-V2-3 : date de démarrage d'un plan, « aujourd'hui » du produit
+
+> **"Today" on the server is the product calendar's date (Europe/Zurich), never the UTC date. A newly generated plan starts the day after its generation date, whatever the hour; the first session lands on the next compatible day (BUG-V2-1). The rider reads when the plan starts.**
+
+**Cause racine**
+- `deriveTrainingPlanBlock(today, n)` fait commencer le bloc **le jour de la génération** (`startDate = today`). Une séance peut donc tomber le jour même, à 22 h comme à 8 h.
+- `today` est la date **UTC** du serveur (`new Date().toISOString().slice(0, 10)`) dans `generate-training-plan` et `accept-training-plan`. Entre 00:00 et 01:00/02:00 à Zurich, c'est encore la veille : le plan peut alors commencer **hier** et la projection partir d'hier.
+- Le web, lui, utilise la date locale de l'appareil (`todayLocal()`) : serveur et web divergent autour de minuit.
+
+**Décision**
+- `head-coach-engine/src/supabase/productCalendar.ts` :
+  - `productToday()` = date du calendrier Europe/Zurich. Même fuseau produit fixe que le moteur longitudinal (§V0.3_001) : aucun fuseau par athlète n'existe ;
+  - `planStartDateFor(today) = today + 1`.
+- `deriveTrainingPlanBlock` : le bloc commence à `planStartDateFor(today)` (V1 et V2). Aucune séance n'est jamais générée le jour de la génération.
+- **Règle volontairement simple et identique matin et soir.** Le planificateur connaît la durée des créneaux, jamais leur heure réelle (BUG-V2-1). Il ne sait pas non plus si le rider s'est déjà entraîné aujourd'hui. Il n'a donc jamais de raison explicite de programmer le jour même.
+- Edge `generate-training-plan` et `accept-training-plan` : `today = productToday()`. La fenêtre de projection part du jour Zurich.
+- **Journée déjà utilisée :**
+  - le nouveau plan n'a rien ce jour-là ;
+  - à l'acceptation, la projection garde la ligne d'un jour réalisé (`skipped_completed`, garde existante) ;
+  - sinon elle retire la séance de l'ancien plan ce jour-là (`removed_superseded`). Aucune séance n'apparaît ni ne reste par surprise ;
+  - F-6B (une séance principale par jour) est inchangé.
+- **BUG-V2-1 / BUG-V2-2 :** inchangés. Le segmenteur place la première séance sur le premier jour compatible à partir du lendemain. Les rôles de semaine se calculent sur les semaines décalées : pas de semaine dupliquée, courses / taper / race-specific conservés.
+- **Web :**
+  - écran du premier plan : « Ton programme commence demain, mercredi 7 octobre. » ;
+  - premier jour sur Today : « Rien n'est prévu aujourd'hui » au lieu de « ta première séance » ;
+  - confirmation d'acceptation : « Ton programme commence le … et se termine le … ».
+
+**Limites connues**
+- Fuseau produit fixe (Europe/Zurich), pas de fuseau par rider.
+- La Simulation clock reste web seulement : le serveur génère avec la date réelle (pré-existant, jamais une date fournie par le client).
+- Une exécution V2 terminée n'écrit pas dans `completed_sessions`. Une régénération acceptée le même jour retire donc la ligne prévue de l'ancien plan ce jour-là. Aucune nouvelle séance n'est ajoutée et F-6B empêche une seconde séance.
+- Les semaines suivent le jour de début (mardi → lundi, etc.), comme avant.
+
+**Livraison (non faite)** : sans migration ; Edge `generate-training-plan` + `accept-training-plan`, puis web.
+
+**Statut** : implémenté et vert en local (branche `feat/bug-v2-3-start-date`). Aucun push, aucun déploiement.
