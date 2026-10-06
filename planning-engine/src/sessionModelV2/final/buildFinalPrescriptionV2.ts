@@ -14,8 +14,9 @@
  *     endurance: the SAME protocol and activity choice, shorter (the plan
  *       dose policy's LIGHT endurance duration).
  *   Items get new ids and `derivedFromItemId` = the planned id (§3).
- *   An upward MODIFY never raises the dose (§6): the planned dose is kept,
- *   traced by its own rule id.
+ *   A MODIFY that does not lower the planned load is never a document (§6):
+ *   upward → `upward_modify_not_supported`, no load change → `modify_not_supported`
+ *   (a "modified" session whose content is just the planned dose is never produced).
  * - REPLACE (another session kind) → a really prescribed session of the new
  *   kind, built by the V2 builders (Force, DH, endurance, recovery), all ids
  *   new, no item lineage (§3): STRENGTH_* from the plan's tier and equipment,
@@ -82,7 +83,6 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   strengthLightDose: "v2.modify.strength_light_dose",
   dhLightPasses: "v2.modify.dh_light_passes",
   enduranceLightDuration: "v2.modify.endurance_light_duration",
-  noUpwardModify: "v2.modify.planned_dose_kept_no_upward",
   replaceStrength: "v2.replace.strength",
   replaceDh: "v2.replace.dh",
   replaceEndurance: "v2.replace.endurance",
@@ -132,8 +132,11 @@ const composition = (c: { templateId?: string; blocks: readonly { items: readonl
 
 /** MODIFY content: same session, lower dose (or the planned dose when M1 did not lower it). */
 function modifiedContent(planned: PrescriptionV2, plannedLoad: LoadProfile | null, finalLoad: LoadProfile | undefined, context: DailyAdaptationContextV2): Built {
+  const upward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] > LOAD_RANK[plannedLoad];
+  // §6 — never raise the planned dose automatically, never a "modified" copy of the planned dose.
+  if (upward) return { blocked: { reason: "upward_modify_not_supported", planned: plannedLoad, final: finalLoad } };
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
-  if (!downward) return { content: contentOf(planned), rule: DAILY_ADAPTATION_RULES_V2.noUpwardModify };
+  if (!downward) return { blocked: { reason: "modify_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
   const light = PLAN_ROLE_DOSES_V2.consolidation;
   switch (planned.family) {
     case "strength": {

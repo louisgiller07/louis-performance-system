@@ -10,7 +10,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertCheckin, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, setAthleteDiscipline, type CheckinFixture } from "./testDb.js";
+import { createTestAthlete, createTestClient, insertCheckin, insertRace, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, setAthleteDiscipline, type CheckinFixture } from "./testDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
@@ -210,5 +210,35 @@ describe.skipIf(!INTEGRATION_ENABLED)("A04 — MODIFY / REPLACE executable presc
     await insertCheckin(admin, athleteId, "2026-10-08");
     const { rawContext } = await computeDailyFor(admin, athleteId, "2026-10-08");
     expect(rawContext.recent_sessions.find((s) => s.date === "2026-10-07")).toMatchObject({ intervention: { kind: "RECOVERY_ACTIVE" }, completion_status: "done" });
+  });
+
+  it("K — §6 reachable on a normal V2 path: the T-6 race protocol (DH_TECHNICAL MODERATE) over a planned taper DH LIGHT → MODIFY upward → blocked upward_modify_not_supported (M1 logic ticket, not fixed here)", async () => {
+    const { athleteId: rider } = await createTestAthlete(admin, "A04 upward modify T-6");
+    await setAthleteDiscipline(admin, rider, "Downhill");
+    await upsertPerformanceProfileFor(admin, rider, {
+      strength_experience_tier: "intermediate",
+      equipment: ["dumbbells", "bench"],
+      terrain_access: ["flow_trail", "bermed_trail"],
+      declared_limitations: [],
+      technical_priorities: { strengths: [], weaknesses: [], priorityAreas: ["cornering", "braking"] },
+      dh_technical_tier: "intermediate",
+    });
+    // Physical Monday–Thursday evenings, riding on Sunday only.
+    for (const d of [1, 2, 3, 4]) await insertAvailabilityWindow(admin, rider, { day_of_week: d, start_time: "18:00:00", end_time: "19:30:00", activity: "physical" });
+    await insertAvailabilityWindow(admin, rider, { day_of_week: 0, start_time: "08:00:00", end_time: "18:00:00", activity: "riding" });
+    await insertRace(admin, rider, { event_name: "Hot Trail", start_date: "2026-10-24", end_date: "2026-10-25", priority: "A", race_format: "HOT_TRAIL_2DAY" });
+    // Generated on Monday 10-05 → starts 10-06: race_specific, taper (10-13..10-19), race week.
+    const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: rider, generationRequestId: randomUUID(), durationWeeks: 3, today: "2026-10-05" });
+    if (p.status !== "persisted") throw new Error("plan");
+    await acceptTrainingPlanVersion(admin, rider, p.planVersionId, "2026-10-06", "2026-10-26");
+    const { data: dh } = await admin.from("training_plan_generated_sessions").select("kind, load_profile").eq("plan_version_id", p.planVersionId).eq("date", "2026-10-18").single();
+    expect(dh).toEqual({ kind: "DH_TECHNICAL", load_profile: "LIGHT" }); // the taper DH falls on T-6
+
+    await insertCheckin(admin, rider, "2026-10-18");
+    const r = await runDailyFor(admin, rider, "2026-10-18");
+    expect([r.dailyPlan.decision, r.dailyPlan.final_session.kind, r.dailyPlan.final_session.load_profile]).toEqual(["MODIFY", "DH_TECHNICAL", "MODERATE"]);
+    expect(r.finalPrescriptionStatus).toBe("blocked");
+    expect(r.finalPrescriptionStatusCode).toBe("final_prescription_adaptation_not_defined");
+    expect(r.finalPrescriptionStatusDetail).toMatchObject({ reason: "upward_modify_not_supported", planned: "LIGHT", final: "MODERATE" });
   });
 });

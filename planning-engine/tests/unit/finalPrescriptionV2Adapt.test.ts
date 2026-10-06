@@ -54,15 +54,32 @@ const session = (kind: string): PlanSessionV2InMemory => {
   return s;
 };
 
-function input(s: PlanSessionV2InMemory, decision: "KEEP" | "MODIFY" | "REPLACE" | "REST", finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"], ridingAvailable = true): BuildFinalPrescriptionV2Input {
+// No recent history: week 1 is an introduction week, every session at the LIGHT load.
+const LIGHT_PLAN: PlanV2InMemory = (() => {
+  const r = generatePlanV2InMemory({
+    block: { sequenceNumber: 1, name: "Plan", mode: "UNSPECIFIED", primaryFocus: "Test", startDate: "2026-10-05", endDate: "2026-10-18" },
+    snapshot: { ...SNAPSHOT, recentHistory: { recentSessionKinds: [], recentMissedOrReplacedCount: 0, trailingVolumeMinutes: 0 } },
+    mintId: counter("c"),
+  });
+  if (r.status !== "generated") throw new Error("expected a generated plan");
+  return r.plan;
+})();
+
+function input(
+  s: PlanSessionV2InMemory,
+  decision: "KEEP" | "MODIFY" | "REPLACE" | "REST",
+  finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"],
+  ridingAvailable = true,
+  plan: PlanV2InMemory = PLAN
+): BuildFinalPrescriptionV2Input {
   return {
     finalPrescriptionId: "final-1",
     decision: { decisionId: "decision-1", decision, finalSession },
     lineage: {
       plannedSessionSource: "generated",
-      sourcePlanVersionId: PLAN.planVersionId,
+      sourcePlanVersionId: plan.planVersionId,
       sourceGeneratedSessionId: s.generatedPlanSessionId,
-      currentPlanVersionId: PLAN.planVersionId,
+      currentPlanVersionId: plan.planVersionId,
       generatedSession: { id: s.generatedPlanSessionId, kind: s.kind, loadProfile: s.loadProfile ?? null, durationMin: s.durationMin },
     },
     plannedPrescription: { ...s.plannedPrescription, generatedPlanSessionId: s.generatedPlanSessionId, structure: JSON.parse(JSON.stringify(s.plannedPrescription.structure)) },
@@ -147,11 +164,24 @@ describe("A04 — MODIFY: same session, lower dose, real content", () => {
     expect(minutes(f.structure)).toBe(45);
   });
 
-  it("an upward MODIFY never raises the dose: the planned dose, traced by its own rule", () => {
+  it.each([
+    ["STRENGTH_LOWER", "MODERATE"],
+    ["STRENGTH_LOWER", "HEAVY"],
+    ["DH_TECHNICAL", "MODERATE"],
+    ["AEROBIC_BASE", "HEAVY"],
+  ] as const)("§6 — planned LIGHT %s + requested %s → blocked upward_modify_not_supported (never the planned dose relabelled MODIFY)", (kind, requested) => {
+    const s = LIGHT_PLAN.weeks[0]!.sessions.find((x) => x.kind === kind)!;
+    expect(s.loadProfile).toBe("LIGHT");
+    expect(buildFinalPrescriptionV2(input(s, "MODIFY", { kind, loadProfile: requested }, true, LIGHT_PLAN))).toEqual({
+      status: "blocked",
+      code: "final_prescription_adaptation_not_defined",
+      detail: { reason: "upward_modify_not_supported", planned: "LIGHT", final: requested },
+    });
+  });
+
+  it("a MODIFY that does not change the planned load is not a document either (modify_not_supported)", () => {
     const s = session("STRENGTH_UPPER");
-    const f = created(buildFinalPrescriptionV2(input(s, "MODIFY", { kind: s.kind, loadProfile: "HEAVY" })));
-    expect(f.adaptationRuleIds).toEqual([DAILY_ADAPTATION_RULES_V2.noUpwardModify]);
-    expect(work(f.structure).map((i) => [i.sets, i.rpeTarget])).toEqual(work(s.plannedPrescription.structure).map((i) => [i.sets, i.rpeTarget]));
+    expect(buildFinalPrescriptionV2(input(s, "MODIFY", { kind: s.kind, loadProfile: "MODERATE" }))).toMatchObject({ status: "blocked", detail: { reason: "modify_not_supported" } });
   });
 
   it("an older planned aggregate is a catalogue mismatch (never adapted with the current tables)", () => {
