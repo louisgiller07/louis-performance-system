@@ -5128,3 +5128,45 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 **Livraison (non faite)**, dans cet ordre : migration → Edge `generate-training-plan` (seule Edge dont le graphe change) → web. Le nouveau code lit la colonne, la migration doit donc précéder.
 
 **Statut** : implémenté et vert en local (branche `feat/bug-v2-1-availability`). Aucun push, aucun déploiement.
+
+## 2026-10-06 — ADR BUG-V2-2 : progression réelle d'un bloc V2 (rôles de semaine)
+
+> **A V2 block is shaped as a whole: each week gets a role (introduction, build, build+, consolidation, race-specific, taper, race) and that role's executable dose, fitted to the real availability. Races reshape the block; fixed sessions and recent missed sessions hold the load; availability (BUG-V2-1) stays the top constraint. V1 is unchanged.**
+
+**Cause racine**
+- `TemplateSelector` ne reçoit jamais de `candidateWeekType` : toute semaine sans course est `development`.
+- `PLAN_DOSE_POLICY_V2` (v2.3) n'a qu'une dose `development` et une dose `taper` : toutes les semaines de développement sont identiques (Force MODERATE 60 / 4 séries, DH 90 min / 6 passages, endurance 45 min).
+- Seule variation existante : la rotation du thème DH par ordinal.
+
+**Décision**
+- **Façonnage du bloc** (`planning-engine/src/sessionModelV2/orchestration/blockProgressionV2.ts`), injecté par le point existant `SessionDoseModel` (nouvelle méthode facultative `shapeWeeks`, pas de second moteur de charge). Sans elle (V1), le pipeline est inchangé. Rôle de chaque semaine, par priorité :
+  1. course dans la semaine → `race` (aucune séance) ;
+  2. course la semaine suivante → `taper` ;
+  3. course dans deux semaines → `race_specific` (gabarit variante `development_race_specific` 1 force / 2 DH / 1 endurance) ;
+  4. sinon `introduction` (début de bloc sans entraînement récent, ou semaine après une course), puis le cycle `build` → `build_plus` → `consolidation` (gabarit `deload`), répété avec cycle + 1.
+- **Doses** (`plan-dose-policy-v2.4`, `PLAN_ROLE_DOSES_V2`, PROVISIONAL) — un levier par domaine et par pas :
+  - Force : palier de dose `LIGHT` (45 min, 3 × 8-10, RPE 5-6) → `MODERATE` (60 min, 4 × 6-8, RPE 7-8) → `MODERATE_PLUS` (60 min, 5 × 6-8, RPE 8 ; `strength-doses-v2.2`). `MODERATE_PLUS` garde le `load_profile` MODERATE : le daily M1 voit la même charge, KEEP reste valide ;
+  - DH : passages 5 (intro, 75 min) → 6 → 7 → 8 (max de l'exercice), +1 par cycle ;
+  - endurance : 45 → 60 → 75 → 90 min (max du protocole), +15 par cycle ;
+  - consolidation : Force LIGHT 45, DH 60 min / 4 passages, pas d'endurance ;
+  - race_specific : Force MODERATE 60 (sans surcharge), DH 90 min / 8 passages, endurance 45 ;
+  - taper : inchangé (v2.3).
+- **Maintiens** (jamais d'augmentation mécanique) :
+  - ≥ 2 séances récentes manquées / remplacées → le premier `build_plus` reste `build` ;
+  - une date verrouillée (séance fixe / club) dans la semaine → semaine `build`, dose du cycle 0 ;
+  - débutant en force → jamais `MODERATE_PLUS` ;
+  - volume récent ≥ 180 min (fenêtre de charge récente) → pas de semaine d'introduction.
+- **Disponibilités (BUG-V2-1 prioritaire)** : si une séance ne tient dans aucun créneau compatible à sa durée cible, son domaine descend sa propre échelle (Force 60 → LIGHT 45 ; DH 90 → 75 (≤ 6 passages) → 60 (≤ 5) ; endurance −15 min jusqu'à 45), seulement si cela place plus de séances de ce domaine sans en retirer au total (priorité DH > force > endurance, l'ordre du segmenteur). Jamais de séance créée pour suivre la courbe.
+- **Traçabilité** : `training_plan_weeks.dose_summary.progression` (clé jsonb additive, V2 seulement) = rôle, cycle, codes de raison, cibles exécutables, séances placées, minutes physique / vélo. Justification de semaine et de séance : phrases fermées anglaises, traduites par le web.
+- **Versions** : `session-model-v2.6` (`strength-doses-v2.2`, `plan-dose-policy-v2.4`). Le web rend v2.6 et v2.5 (mêmes tables d'ids) ; le daily-run v2.6 copie toujours une prescription v2.5 avec son propre manifeste.
+
+**Limites connues (non inventées)** :
+- séance club / fixe = date verrouillée seulement : ni type, ni durée, ni intensité. Elle n'est jamais doublée et elle gèle la progression de sa semaine, mais sa charge n'est pas comptée en minutes ;
+- intention DH = passages, durée et rotation du thème : pas d'exercice « simulation de course » dans le catalogue ;
+- toute course (A à C) déclenche taper et race (règle existante) ; une course juste après la fin du bloc n'est pas vue ;
+- une séance par jour au plus (règle existante) ;
+- le volume récent ne compte que les durées enregistrées (`actual_duration_min`).
+
+**Livraison (non faite)** : sans migration, dans cet ordre : web (lit v2.5 et v2.6) → Edge `daily-run` → Edge `generate-training-plan`. Si BUG-V2-1 est livré ensemble, sa migration passe en premier.
+
+**Statut** : implémenté et vert en local (branche `feat/bug-v2-2-progression`). Aucun push, aucun déploiement.

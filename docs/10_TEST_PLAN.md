@@ -731,6 +731,20 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Edge ancienne + base nouvelle : refus fermés (500 / 409 générique), 0 ligne écrite.
 - Migrations de retour : rejouées en local, elles restaurent exactement les corps précédents (comparaison du catalogue).
 
+### T36. BUG-V2-2 — progression réelle sur 6 semaines
+- **Unitaires planning-engine** (`tests/unit/bugV22Progression.test.ts`), tableau exact par semaine (rôle, type, cycle, cibles, séances placées, minutes physique / vélo, raisons) :
+  - **A** sans course : introduction → build → build+ → consolidation → build (c1) → build+ (c1) ; séries / RPE force, passages DH et minutes d'endurance changent ; aucune semaine clone de la précédente ; déterministe ;
+  - **B** course en semaine 6 : … → race_specific → taper → race ; pas de force lourde dans les deux dernières semaines ;
+  - **C** course en semaine 2 : taper → race → reprise (introduction) → nouveau cycle ;
+  - **D** faible disponibilité : force raccourcie à LIGHT 45 pour tenir, progression portée par le DH, jamais de séance ajoutée ;
+  - **E** profil legacy : bloc progressif ;
+  - **F** déjà chargé + séance club fixe : départ en build, charge maintenue, date fixe jamais planifiée ;
+  - maintiens (séances manquées, débutant), plafonds (passages ≤ 8, endurance ≤ 90), doses jamais égales aux valeurs legacy ;
+  - non-régression BUG-V2-1 : chaque séance tient dans un créneau de son activité, jamais sur une date verrouillée (cas A–F et cas A–E de BUG-V2-1) ;
+  - V1 inchangé (aucune clé `progression`, semaines `development`).
+- **Intégration locale** (`tests/supabase/v2Persistence.integration.test.ts`) : semaines introduction puis build relues en base (séances, charges, `dose_summary.progression`, justification). `recentHistoryBridge` : un historique récent enregistré avant la génération fait démarrer le bloc en build.
+- **Web** : manifestes v2.6 et v2.5 décodés, manifeste hybride refusé ; chaque phrase de progression du moteur a sa traduction française.
+
 ### T35. BUG-V2-1 — disponibilités physique / vélo
 - **Unitaires planning-engine** (`tests/unit/availabilityActivity.test.ts`) :
   - capacité par date et par activité (legacy, typée, exceptions, dates verrouillées) ;
