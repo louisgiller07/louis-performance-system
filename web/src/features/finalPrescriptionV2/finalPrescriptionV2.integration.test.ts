@@ -23,6 +23,7 @@ const INTEGRATION_ENABLED =
   process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!LOCAL_ANON_KEY && /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(LOCAL_URL);
 
 const TODAY = "2026-10-05";
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 
 describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.4 — V2 final prescription restore after refresh (real local Supabase)", () => {
   let admin: SupabaseClient;
@@ -54,7 +55,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.4 — V2 final prescription res
       dh_technical_tier: "intermediate",
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
-    const persisted = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY });
+    const persisted = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
     if (persisted.status !== "persisted") throw new Error("V2 plan not persisted");
     await acceptTrainingPlanVersion(admin, athleteId, persisted.planVersionId, TODAY, "2026-10-18");
 

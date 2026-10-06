@@ -45,6 +45,7 @@
 import { withSupabase } from "@supabase/server";
 import { acceptTrainingPlanVersion } from "../../../head-coach-engine/dist/supabase/acceptTrainingPlanVersion.js";
 import { resolveTrainingPlanProjectionWindow } from "../../../head-coach-engine/dist/supabase/trainingPlanProjectionConfig.js";
+import { productToday } from "../../../head-coach-engine/dist/supabase/productCalendar.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapAcceptError } from "./errorMapping.ts";
 import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
@@ -70,9 +71,6 @@ function addDays(iso: string, days: number): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function errorResponse(status: number, code: string, message: string): Response {
   return Response.json({ error: { code, message } }, { status });
@@ -166,7 +164,8 @@ export async function handleAcceptTrainingPlan(
 
   const projectionConfig = resolveTrainingPlanProjectionWindow();
   const windowDays = projectionConfig.enabled ? projectionConfig.windowDays : FALLBACK_PROJECTION_WINDOW_DAYS;
-  const windowStart = todayUtc();
+  // BUG-V2-3 — the product calendar's today (Europe/Zurich), never the UTC date.
+  const windowStart = productToday();
   const windowEnd = addDays(windowStart, windowDays);
 
   try {

@@ -21,6 +21,7 @@ const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVI
 const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
 
 const TODAY = "2026-10-05";
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 const MODERATE_STRENGTH = { kind: "STRENGTH_LOWER", load_profile: "MODERATE" };
 
 describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.4b — M1 recent-history bridge (local Supabase)", () => {
@@ -81,13 +82,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.4b — M1 recent-history bridge 
   it("V2 completions reach M1: 3 legacy + 2 completed V2 sessions → recent_load RED → existing rule C3.7; started / abandoned / retry never add load", async () => {
     const athleteId = await athlete("bridge V2 completions");
     // Legacy day summaries: 3 MODERATE sessions before the V2 sessions. Recorded before the plan is
-    // generated (BUG-V2-2): 3 x 60 min of recent training → the block starts at build (MODERATE doses).
-    for (const d of ["2026-10-03", "2026-10-04", "2026-10-05"]) await insertCompletedSession(admin, athleteId, d, "STRENGTH_A", MODERATE_STRENGTH, { actualDurationMin: 60 });
+    // generated (BUG-V2-2): 180 min of recent training up to the generation day (10-04) → the block
+    // starts at build (MODERATE doses).
+    for (const d of ["2026-10-03", "2026-10-04", "2026-10-05"]) await insertCompletedSession(admin, athleteId, d, "STRENGTH_A", MODERATE_STRENGTH, { actualDurationMin: 90 });
     await acceptTrainingPlanVersion(
       admin,
       athleteId,
       (await (async () => {
-        const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY });
+        const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
         if (p.status !== "persisted") throw new Error("plan");
         return p.planVersionId;
       })()),
@@ -133,7 +135,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.4b — M1 recent-history bridge 
 
   it("a day with a legacy summary AND a completed V2 execution counts once (the legacy day summary)", async () => {
     const athleteId = await athlete("bridge same-day");
-    const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY });
+    const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
     if (p.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, p.planVersionId, TODAY, "2026-10-18");
     await execute(athleteId, "2026-10-07", await keepRun(athleteId, "2026-10-07"), "completed");

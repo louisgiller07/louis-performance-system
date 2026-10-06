@@ -2,6 +2,7 @@ import { StateCard } from "../components/StateCard";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { FIRST_DAY, TODAY_NO_PLAN } from "../features/firstRun/firstRunPresentation";
+import { planStartLine, planStartsLater } from "../features/trainingPlanReview/planStart";
 import { useAuth } from "../auth/AuthContext";
 import { useEffectiveToday } from "../lib/simulationClock";
 import { CheckinForm } from "../features/checkin/CheckinForm";
@@ -48,7 +49,8 @@ const FRIENDLY_DATE_FORMAT = new Intl.DateTimeFormat("fr-CH", {
 export function TodayPage() {
   const { athleteId } = useAuth();
   // UX-09 — arriving from the first run: this is the rider's first day.
-  const firstDay = (useLocation().state as { firstDay?: boolean } | null)?.firstDay === true;
+  const locationState = useLocation().state as { firstDay?: boolean; planStartDate?: string } | null;
+  const firstDay = locationState?.firstDay === true;
   const [hasCheckin, setHasCheckin] = useState(false);
   // Bumped only on an actual save (CheckinForm's onSaved), never on the
   // initial load of an existing row — see DailyPlanPanel's checkinRevision
@@ -122,6 +124,10 @@ export function TodayPage() {
   // Canonical YYYY-MM-DD — real date for any real athlete, simulated date
   // only for the configured simulation athlete (see simulationClock.ts).
   const canonicalDate = useEffectiveToday();
+  // BUG-V2-3 — a new plan starts later than today: the first day says when, never "your first session" today.
+  const planStartDate = locationState?.planStartDate;
+  const firstDayText =
+    planStartDate !== undefined && planStartsLater(planStartDate, canonicalDate) ? FIRST_DAY.textBeforeStart(planStartLine(planStartDate, canonicalDate)) : FIRST_DAY.text;
 
   const friendlyDate = useMemo(() => {
     // Parse the canonical date as a local calendar date (year, month, day
@@ -180,7 +186,7 @@ export function TodayPage() {
 
       {checkinKnown && !hasCheckin && (
         <CheckinHero
-          {...(firstDay ? { kicker: FIRST_DAY.kicker, title: FIRST_DAY.title, text: FIRST_DAY.text } : {})}
+          {...(firstDay ? { kicker: FIRST_DAY.kicker, title: FIRST_DAY.title, text: firstDayText } : {})}
           onStart={() => setSheetOpen(true)}
           planningSlot={athleteId && <TodayPlanningSummary athleteId={athleteId} date={canonicalDate} />}
         />

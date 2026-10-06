@@ -37,7 +37,8 @@ describe("runInMemoryPlanGenerationV2", () => {
       { buildPlanInputSnapshotV2, mintId: counter() }
     );
     expect(buildPlanInputSnapshotV2).toHaveBeenCalledTimes(1);
-    expect(buildPlanInputSnapshotV2).toHaveBeenCalledWith(expect.anything(), "a1", "2026-10-05", { startDate: "2026-10-05", endDate: "2026-10-18" });
+    // BUG-V2-3 — generated on 10-05, the plan starts on 10-06; recent history is still read at 10-05.
+    expect(buildPlanInputSnapshotV2).toHaveBeenCalledWith(expect.anything(), "a1", "2026-10-05", { startDate: "2026-10-06", endDate: "2026-10-19" });
     expect(result.status).toBe("generated");
     if (result.status !== "generated") return;
     const sessions = result.plan.weeks.flatMap((w) => w.sessions);

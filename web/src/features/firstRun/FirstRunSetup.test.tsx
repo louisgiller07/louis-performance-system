@@ -185,6 +185,8 @@ describe("FirstRunSetup — the first plan", () => {
     await waitFor(() => expect(heading()).toHaveTextContent("Ton premier plan est prêt"), { timeout: 4000 });
     const summary = screen.getByRole("region", { name: "Ton premier plan est prêt" });
     expect(within(summary).getByText("Top 10 aux Championnats suisses")).toBeInTheDocument();
+    // BUG-V2-3 — the start date is always shown (fixture plan: 19 October, rider's today: 21 October).
+    expect(within(summary).getByText("Ton programme commence le lundi 19 octobre.")).toBeInTheDocument();
     expect(within(summary).getByText("2 semaines")).toBeInTheDocument();
     expect(within(summary).getByText("Développement")).toBeInTheDocument();
     expect(within(summary).getAllByText(/DH technique|Renfo bas du corps/)).toHaveLength(3);

@@ -39,6 +39,7 @@ const INTEGRATION_ENABLED =
   process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(RESOLVED_ADMIN_URL);
 
 const TODAY = "2026-10-05"; // Monday — generated weeks run Mon..Sun
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 const DURATION_WEEKS = 6; // horizon 2026-10-05 .. 2026-11-15
 const RACE_DATE = "2026-11-04"; // J+30, beyond M1's short race window, inside the plan horizon
 const RACE_WEEK_START = "2026-11-02";
@@ -150,7 +151,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.5_053 — generated plan E2E: config -
       athleteId,
       generationRequestId,
       durationWeeks: DURATION_WEEKS,
-      today: TODAY,
+      today: GENERATED_ON,
     });
     const outcome = await acceptTrainingPlanVersion(admin, athleteId, generated.planVersionId, TODAY, PROJECTION_WINDOW_END);
     expect(outcome.warnings).toEqual([]);
@@ -168,7 +169,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.5_053 — generated plan E2E: config -
         athleteId: athlete.athleteId,
         generationRequestId,
         durationWeeks: DURATION_WEEKS,
-        today: TODAY,
+        today: GENERATED_ON,
       });
       expect(first.idempotentReplay).toBe(false);
       const planVersionId = first.planVersionId;
@@ -213,7 +214,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.5_053 — generated plan E2E: config -
         athleteId: athlete.athleteId,
         generationRequestId,
         durationWeeks: DURATION_WEEKS,
-        today: TODAY,
+        today: GENERATED_ON,
       });
       expect(replay.idempotentReplay).toBe(true);
       expect(replay.planVersionId).toBe(planVersionId);

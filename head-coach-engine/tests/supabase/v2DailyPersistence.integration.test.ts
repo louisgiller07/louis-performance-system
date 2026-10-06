@@ -29,6 +29,7 @@ import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/genera
 const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 
 const TODAY = "2026-10-05";
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 const STRENGTH_DAY = "2026-10-07"; // STRENGTH_LOWER of the plan's first week (BUG-V2-2: introduction week, LIGHT 45) — the KEEP source
 // Decision days, one per scenario (the day's current decision must not be shared between scenarios).
 const REFUSAL_DAY = "2026-10-12";
@@ -64,7 +65,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
     await setAthleteDiscipline(admin, athlete.athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, athlete.athleteId, PROFILE);
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athlete.athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
-    const persisted = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: athlete.athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY });
+    const persisted = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: athlete.athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
     if (persisted.status !== "persisted") throw new Error("expected a persisted V2 plan");
     const { data: session } = await admin
       .from("training_plan_generated_sessions")

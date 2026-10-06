@@ -22,6 +22,7 @@ const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVI
 const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
 
 const TODAY = "2026-10-05";
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 const WINDOW_END = "2026-10-18";
 // Development plan (all-day availability): DH 10-05/06/12/13, LOWER 10-07/14, UPPER 10-08/15, AEROBIC 10-09/16, nothing 10-10/11/17/18.
 const SYSTEMIC_RED: CheckinFixture = { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 };
@@ -52,7 +53,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
   async function withV2Plan(name: string, tamper?: (p: GenerateTrainingPlanVersionPayloadV2) => GenerateTrainingPlanVersionPayloadV2) {
     const athleteId = await athlete(name);
     const persisted = await generateAndPersistTrainingPlanV2(
-      { planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY },
+      { planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON },
       { buildPlanInputSnapshotV2, callRpc: (c, p) => generateTrainingPlanVersionRpcV2(c, tamper ? tamper(p) : p), mintId: () => randomUUID() }
     );
     if (persisted.status !== "persisted") throw new Error("expected a persisted V2 plan");
@@ -273,7 +274,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
 
     it("v1 plan: historical V1 path (legacy executable prescription lookup), no V2 field, NULL status", async () => {
       const athleteId = await athlete("5c.3 V1 plan");
-      const generated = await generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY });
+      const generated = await generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
       await acceptTrainingPlanVersion(admin, athleteId, generated.planVersionId, TODAY, WINDOW_END);
       const day = "2026-10-07";
       await insertCheckin(admin, athleteId, day);

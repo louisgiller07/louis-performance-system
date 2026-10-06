@@ -9,3 +9,5 @@ export { NoCompatibleDrillError, NoCompatibleExerciseError } from "prescription-
 // generation entry calling the validated V1 or V2 path; the V2 path is bundled here, no copy of any catalogue.
 export { generateTrainingPlanForAthlete, planningResolutionOf, type GenerateTrainingPlanForAthleteResult } from "../generation/generateTrainingPlanForAthlete.js";
 export { parseV2PlanGenerationFlag, PlanningModelAssignmentReadError, V2_PLAN_GENERATION_FLAG } from "../generation/planningModelRollout.js";
+// BUG-V2-3 — the product calendar (Europe/Zurich "today"), never the UTC date.
+export { productToday } from "../supabase/productCalendar.js";

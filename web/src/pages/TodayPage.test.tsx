@@ -277,6 +277,17 @@ describe("TodayPage (UX-03)", () => {
       });
     });
 
+    it("BUG-V2-3 — first day of a plan starting tomorrow: says when it starts and that nothing is expected today", () => {
+      renderTodayPage({ pathname: "/today", state: { firstDay: true, planStartDate: addDays(todayLocal(), 1) } });
+      screen.getByText("simulate no checkin (load)").click();
+
+      return waitFor(() => {
+        expect(screen.getByText("Ton premier jour avec NALYNT")).toBeInTheDocument();
+        expect(screen.getByText(/^Ton programme commence demain, .+\. Rien n'est prévu aujourd'hui\s: ton check-in aide NALYNT à préparer ta première séance\.$/)).toBeInTheDocument();
+        expect(screen.queryByText("Ton check-in permet à NALYNT d'adapter ta première séance à ton état.")).not.toBeInTheDocument();
+      });
+    });
+
     it("any other day: the usual check-in invitation, never 'premier jour'", () => {
       renderTodayPage();
       screen.getByText("simulate no checkin (load)").click();

@@ -35,6 +35,7 @@ import { sessionTitle } from "../program/programPresentation";
 import { FirstRunShell, ChoiceList } from "./FirstRunShell";
 import { useFirstRunSetup, type FirstRunSetupData } from "./useFirstRunSetup";
 import { nextSessions, planWeekCount, type SetupStep } from "./firstRunPlan";
+import { planStartLine } from "../trainingPlanReview/planStart";
 import {
   BUILDING,
   DEFAULT_PLAN_WEEKS,
@@ -163,7 +164,7 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
     await run(async () => {
       const result = await setup.start(review.version.id);
       if (!result.ok) throw new Error(result.error.message);
-      navigate("/today", { replace: true, state: { firstDay: true } });
+      navigate("/today", { replace: true, state: { firstDay: true, planStartDate: review.version.horizonStartDate } });
     });
   }
 
@@ -416,6 +417,8 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
         <div className="ux-skeleton h-64 rounded-2xl" aria-hidden="true" />
       ) : (
         <section aria-label={READY.title} className="ux-enter ux-grain relative overflow-hidden rounded-2xl border border-gold/40 bg-card p-5">
+          {/* BUG-V2-3 — when the plan starts (never silently today). */}
+          <p className="mb-3 border-b border-line pb-3 text-sm font-semibold text-ink">{planStartLine(review.version.horizonStartDate, today)}</p>
           <dl className="flex flex-col">
             {objective && (
               <div className="border-b border-line pb-3">

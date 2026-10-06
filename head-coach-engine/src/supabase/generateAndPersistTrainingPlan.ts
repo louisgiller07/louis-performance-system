@@ -69,6 +69,7 @@ import { buildPlanInputSnapshot } from "./buildPlanInputSnapshot.js";
 import { persistGeneratedTrainingPlan } from "./persistGeneratedTrainingPlan.js";
 import type { GenerationEngineInput } from "../generation/generationEngine.js";
 import type { GenerateTrainingPlanVersionResult } from "./rpc/generateTrainingPlanVersionRpc.js";
+import { addCalendarDays, planStartDateFor } from "./productCalendar.js";
 
 /** `PlanInputSnapshot`'s own structural schema version — no canonical exported constant exists yet anywhere (planning-engine cannot be modified in this ticket); "v1" matches the value already proven end to end against the real RPC (generationPersistence.integration.test.ts, V0.4_149). */
 const INPUT_SNAPSHOT_SCHEMA_VERSION = "v1";
@@ -101,28 +102,26 @@ const DERIVED_BLOCK_NAME = "Plan d'entraînement généré";
 const DERIVED_BLOCK_PRIMARY_FOCUS = "Objectif non précisé";
 const DERIVED_BLOCK_MODE = "UNSPECIFIED";
 
-/** Adds `days` (possibly 0) to an ISO calendar date in UTC — same technique as the `addDays` helper already used by daily-run/accept-training-plan/generate-training-plan's own Edge Functions. */
-function addDaysUtc(date: string, days: number): string {
-  const [year, month, day] = date.split("-").map(Number);
-  return new Date(Date.UTC(year as number, (month as number) - 1, (day as number) + days)).toISOString().slice(0, 10);
-}
-
 /**
  * Derives the single `TrainingPlanBlock` for a generation call from the only
- * user-supplied field — `durationWeeks` — plus the server-resolved `today`.
+ * user-supplied field — `durationWeeks` — plus the server-resolved `today`
+ * (the product calendar's date, see productCalendar.ts).
  * V0.5_031 lock: `startDate`/`endDate` are the only computed fields, using
  * inclusive-`endDate` UTC arithmetic matching `WeekSequenceBuilder`'s own
- * inclusive range semantics (`durationWeeks` weeks starting at `today`, both
- * ends inclusive, so `endDate = today + durationWeeks * 7 - 1` days).
+ * inclusive range semantics (`durationWeeks` weeks, both ends inclusive, so
+ * `endDate = startDate + durationWeeks * 7 - 1` days).
+ * BUG-V2-3: the block starts the day after `today` (`planStartDateFor`),
+ * never on the generation day — no session is ever added to the current day.
  */
 export function deriveTrainingPlanBlock(today: string, durationWeeks: number): GenerationEngineInput["block"] {
+  const startDate = planStartDateFor(today);
   return {
     sequenceNumber: DERIVED_BLOCK_SEQUENCE_NUMBER,
     name: DERIVED_BLOCK_NAME,
     mode: DERIVED_BLOCK_MODE,
     primaryFocus: DERIVED_BLOCK_PRIMARY_FOCUS,
-    startDate: today,
-    endDate: addDaysUtc(today, durationWeeks * 7 - 1),
+    startDate,
+    endDate: addCalendarDays(startDate, durationWeeks * 7 - 1),
   };
 }
 

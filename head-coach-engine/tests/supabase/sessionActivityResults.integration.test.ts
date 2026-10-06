@@ -18,6 +18,7 @@ import { computeDailyFor } from "../../src/supabase/computeDailyFor.js";
 
 const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 const TODAY = "2026-10-05";
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 const ENDURANCE_DAY = "2026-10-09"; // AEROBIC_BASE MODERATE 45 in the development plan
 // UX-11R.9 — one main session per athlete and day: the second execution of the
 // first test runs on a day of its own, with a hand-made endurance prescription.
@@ -76,7 +77,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.5 — session activity results (
       dh_technical_tier: "intermediate",
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
-    const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: TODAY });
+    const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
     if (p.status !== "persisted") throw new Error("V2 plan not persisted");
     await acceptTrainingPlanVersion(admin, athleteId, p.planVersionId, TODAY, "2026-10-18");
     enduranceFp = await keepRun(ENDURANCE_DAY);

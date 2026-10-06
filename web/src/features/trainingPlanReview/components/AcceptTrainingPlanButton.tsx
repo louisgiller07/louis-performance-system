@@ -54,7 +54,7 @@ export function AcceptTrainingPlanButton({ review, hasActivePlan, onAccepted, la
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-white/10 bg-card p-3">
       <p className="text-sm text-ink">
-        Du {formatShortDate(review.version.horizonStartDate)} au {formatShortDate(review.version.horizonEndDate)}.
+        Ton programme commence le {formatShortDate(review.version.horizonStartDate)} et se termine le {formatShortDate(review.version.horizonEndDate)}.
       </p>
       {hasActivePlan && (
         <p role="alert" className="text-sm text-amber-300">

@@ -110,6 +110,8 @@ export const FIRST_DAY = {
   kicker: "Ton premier jour avec NALYNT",
   title: "Comment tu te sens aujourd'hui ?",
   text: "Ton check-in permet à NALYNT d'adapter ta première séance à ton état.",
+  /** BUG-V2-3 — the plan starts later (always, for a new plan): nothing is expected today. */
+  textBeforeStart: (startLine: string) => `${startLine} Rien n'est prévu aujourd'hui : ton check-in aide NALYNT à préparer ta première séance.`,
 } as const;
 
 export const TODAY_NO_PLAN = {

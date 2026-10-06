@@ -62,28 +62,26 @@ describe("deriveTrainingPlanBlock — V0.5_031/032", () => {
     expect(block.mode).toBe("UNSPECIFIED");
   });
 
-  it("sets startDate to today, unchanged", () => {
-    const block = deriveTrainingPlanBlock(TODAY, DURATION_WEEKS);
-
-    expect(block.startDate).toBe(TODAY);
+  it("BUG-V2-3 — starts the day after today (never on the generation day)", () => {
+    expect(deriveTrainingPlanBlock("2026-10-05", DURATION_WEEKS).startDate).toBe("2026-10-06");
+    expect(deriveTrainingPlanBlock("2026-10-31", DURATION_WEEKS).startDate).toBe("2026-11-01");
   });
 
-  it("computes an inclusive endDate: durationWeeks * 7 - 1 days after today", () => {
-    const block = deriveTrainingPlanBlock("2026-10-19", 1);
+  it("computes an inclusive endDate: durationWeeks * 7 - 1 days after the start date", () => {
+    const block = deriveTrainingPlanBlock("2026-10-18", 1);
 
-    expect(block.endDate).toBe("2026-10-25"); // 7 days inclusive, matching WeekSequenceBuilder's own single-week fixture
+    expect([block.startDate, block.endDate]).toEqual(["2026-10-19", "2026-10-25"]); // 7 days inclusive, matching WeekSequenceBuilder's own single-week fixture
   });
 
   it("computes endDate correctly for a multi-week duration", () => {
-    const block = deriveTrainingPlanBlock("2026-09-23", 6);
+    const block = deriveTrainingPlanBlock("2026-09-22", 6);
 
-    expect(block.endDate).toBe("2026-11-03"); // 42 days inclusive
+    expect([block.startDate, block.endDate]).toEqual(["2026-09-23", "2026-11-03"]); // 42 days inclusive
   });
 
-  it("computes endDate correctly across a month/year boundary", () => {
-    const block = deriveTrainingPlanBlock("2026-12-20", 4);
-
-    expect(block.endDate).toBe("2027-01-16"); // 28 days inclusive, crosses both month and year
+  it("computes start and end correctly across a month/year boundary", () => {
+    expect(deriveTrainingPlanBlock("2026-12-19", 4)).toMatchObject({ startDate: "2026-12-20", endDate: "2027-01-16" }); // 28 days inclusive, crosses both month and year
+    expect(deriveTrainingPlanBlock("2026-12-31", 1)).toMatchObject({ startDate: "2027-01-01", endDate: "2027-01-07" });
   });
 });
 

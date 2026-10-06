@@ -21,7 +21,7 @@
 // a real JWT/session or mutating any ESM import binding (V0.5_014 fix,
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
-import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, V2_PLAN_GENERATION_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
+import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, productToday, V2_PLAN_GENERATION_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
@@ -37,9 +37,6 @@ const UUID_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 // endDate are never accepted from the client anymore.
 const ALLOWED_BODY_KEYS = ["generationRequestId", "durationWeeks"];
 
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function errorResponse(status: number, code: string, message: string): Response {
   return Response.json({ error: { code, message } }, { status });
@@ -163,7 +160,8 @@ export async function handleGenerateTrainingPlan(
       athleteId,
       generationRequestId: generationRequestIdValue,
       durationWeeks: durationWeeksResult.durationWeeks,
-      today: todayUtc(),
+      // BUG-V2-3 — the product calendar's today (Europe/Zurich), never the UTC date; the plan starts the next day.
+      today: productToday(),
       globalV2Enabled: parseV2PlanGenerationFlag(deps.readV2Flag()),
     });
     const modelTrace = { planningModel: result.planningModel, rolloutReason: result.reason };

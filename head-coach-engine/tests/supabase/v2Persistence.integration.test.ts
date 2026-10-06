@@ -27,6 +27,7 @@ const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVI
 const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
 
 const TODAY = "2026-10-05"; // Monday
+const GENERATED_ON = "2026-10-04"; // BUG-V2-3 — a plan starts the day after its generation: generated the eve, its first day is TODAY
 
 const PROFILE: AthletePerformanceProfileWriteFields = {
   strength_experience_tier: "intermediate",
@@ -56,7 +57,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
   }
 
   const persistV2 = (athleteId: string, generationRequestId: string, durationWeeks = 2) =>
-    generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId, durationWeeks, today: TODAY });
+    generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId, durationWeeks, today: GENERATED_ON });
 
   async function versionsOf(athleteId: string) {
     const { data, error } = await admin
@@ -159,7 +160,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
   it("V1 then V2 (and V2 then V1) with the same generation_request_id → explicit refusal; the first version is untouched", async () => {
     const athleteId = await seedAthlete("V2 persistence — V1/V2 collision");
     const requestId = randomUUID();
-    await generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: requestId, durationWeeks: 2, today: TODAY });
+    await generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: requestId, durationWeeks: 2, today: GENERATED_ON });
     await expect(persistV2(athleteId, requestId)).rejects.toThrow(/different generation environment/);
     const versions = await versionsOf(athleteId);
     expect(versions).toHaveLength(1);
@@ -167,7 +168,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
 
     const otherRequest = randomUUID();
     await persistV2(athleteId, otherRequest);
-    await expect(generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: otherRequest, durationWeeks: 2, today: TODAY })).rejects.toThrow(/different generation environment/);
+    await expect(generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: otherRequest, durationWeeks: 2, today: GENERATED_ON })).rejects.toThrow(/different generation environment/);
     const v2 = (await versionsOf(athleteId)).find((v) => v.generation_request_id === otherRequest)!;
     expect(v2).toMatchObject({ input_snapshot_schema_version: "v2", prescription_schema_version: "v2" });
   });
