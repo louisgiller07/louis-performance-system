@@ -5258,7 +5258,11 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
   - DH : **même drill, même repère, même critère de réussite**, passages ramenés à la dose LIGHT DH de la politique (4). La durée reste celle de M1 (la fenêtre prévue) : c'est la densité qui baisse. Règle `v2.modify.dh_light_passes`.
   - Endurance : même protocole, même choix d'activités, durée LIGHT de la politique (45 min). Règle `v2.modify.endurance_light_duration`.
   - Identifiants : tous nouveaux ; chaque élément porte `derivedFromItemId` = identifiant prévu (§3) ; `planned_prescription_id` est renseigné.
-  - **Amendement de §6** : un MODIFY vers le haut n'augmente jamais la dose. Au lieu d'un blocage, la dose prévue est gardée (règle `v2.modify.planned_dose_kept_no_upward`), pour qu'aucun chemin normal ne reste sans séance.
+  - **§6 maintenu** (l'amendement proposé « dose prévue gardée » a été **rejeté** par HPM le 2026-10-06) :
+    - un MODIFY vers le haut est bloqué : `final_prescription_adaptation_not_defined` / `upward_modify_not_supported` (détail : charge prévue, charge demandée) ;
+    - un MODIFY sans baisse de charge donne `modify_not_supported` ;
+    - jamais un document « modifié » qui ne serait que la dose prévue.
+  - **Atteignabilité** : le cas est atteignable sur un chemin V2 normal. Le protocole T-X à T-6 (`DH_TECHNICAL MODERATE`, format `HOT_TRAIL_2DAY` / `IXS_3DAY`) remplace une DH d'affûtage `LIGHT` non engagée. Exemple prouvé en intégration : un rider qui roule le dimanche, course le samedi suivant. Ticket M1 séparé ; M1 n'est pas corrigé dans A04.
 
 - **REPLACE** (autre type de séance) :
   - Préconditions et identité : lignée de plan obligatoire, manifeste courant, identifiants tous nouveaux, aucune lignée d'élément, pas de `planned_prescription_id`.
@@ -5276,7 +5280,7 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - **SYSTEMIC_RED (constat BUG-V2-2)** : M1 (gelé) garde KEEP quand C3.3 ne peut plus baisser une Force déjà LIGHT. Sur le chemin V2, après M1, `applyV2SystemicFloor` remplace explicitement la décision par **REPLACE → RECOVERY_ACTIVE**.
   - Traçabilité : règle `V2_SYSTEMIC_FLOOR` (couche ARBITRATION, mêmes signaux que C3.3), ajoutée à `triggered_rules` et `decision_reasoning`, avec une explication en français. C3.3 reste dans `triggered_rules` pour l'audit ; les autres champs du DailyPlan restent ceux de M1.
   - Périmètre : Force seulement. Une DH ou une endurance LIGHT un jour SYSTEMIC_RED reste KEEP (C3.3 « nature préservée », note de surveillance DH) — à valider côté coaching.
-  - **Exception au principe 5c.3** « M1's DailyPlan is never changed » : seule cette transformation, tracée, sur le chemin V2. M1 lui-même est inchangé. À refléter dans `docs/04_DAILY_DECISION_ENGINE.md` après validation (proposition, non appliquée).
+  - **Exception au principe 5c.3** « M1's DailyPlan is never changed » : seule cette transformation, tracée, sur le chemin V2. M1 lui-même est inchangé. **Approuvée par HPM le 2026-10-06**, documentée dans `docs/04_DAILY_DECISION_ENGINE.md` §5.
 
 - **Guided (web)** :
   - nouveau module « récupération active » : contenu affiché, rien à mesurer, fin possible ; le serveur n'exige aucun résultat pour cette famille ;

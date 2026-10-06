@@ -415,6 +415,32 @@ Seule la couche SAFETY est réellement hard.
 
 **Toute dérogation significative à une soft constraint ou à une `recommended_session` doit être loggée avec `override_reason`.**
 
+### Exception V2 en aval de M1 — `V2_SYSTEMIC_FLOOR` (ADR A04, approuvée 2026-10-06)
+
+M1 (ce moteur) est gelé et inchangé. Sur le **chemin V2 uniquement**, après M1 et avant la persistance, la couche d'intégration applique **une** transformation tracée du `DailyPlan` :
+
+- **Condition :** toutes les conditions suivantes sont réunies :
+  - décision M1 `KEEP` ;
+  - séance finale de force (`STRENGTH_LOWER` / `STRENGTH_UPPER`) déjà en charge `LIGHT` ;
+  - C3.3 (systemic RED) déclenchée.
+
+  C3.3 n'a donc plus aucune charge à baisser.
+- **Effet :** `REPLACE` → `RECOVERY_ACTIVE`.
+- **Traçabilité :**
+  - règle `V2_SYSTEMIC_FLOOR` (couche `ARBITRATION`, mêmes signaux que C3.3), ajoutée à `triggered_rules` et à `decision_reasoning` ;
+  - `reasoning` et `training.objective` portent son explication ;
+  - C3.3 reste visible dans `triggered_rules` (audit).
+- **Non concernés :** DH et endurance `LIGHT` un jour systemic RED restent `KEEP` (C3.3, « nature préservée »). C'est un finding de calibration coaching, pas une règle.
+- **Chemin V1 :** inchangé.
+
+### Prescription du jour V2 et MODIFY vers le haut (ADR UX-11A.5c.0 §6, A04)
+
+Un `MODIFY` qui demande une charge **supérieure** à la séance prévue ne produit jamais de prescription du jour V2 :
+- statut : `blocked` / `final_prescription_adaptation_not_defined` ;
+- raison : `upward_modify_not_supported`.
+
+Aucune augmentation automatique, et jamais la dose prévue rebaptisée « modifiée ». Ce cas est atteignable : le protocole T-X à T-6 (`DH_TECHNICAL MODERATE`) remplace une DH d'affûtage V2 `LIGHT` non engagée. Il est suivi par un ticket séparé côté logique M1.
+
 ### Priorisation des domaines
 
 Cible normale : 2 à 4 domaines actifs par jour.

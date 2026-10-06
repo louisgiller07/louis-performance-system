@@ -690,7 +690,7 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
   - MODIFY Force LIGHT (mêmes exercices, séries / répétitions / RPE / repos LIGHT, `derivedFromItemId`) ;
   - MODIFY DH (même drill, 4 passages) ;
   - MODIFY endurance (45 min) ;
-  - MODIFY vers le haut : dose prévue gardée ;
+  - MODIFY vers le haut : séance prévue LIGHT et demande MODERATE ou HEAVY (Force, DH, endurance) → `upward_modify_not_supported` ; MODIFY sans baisse de charge → `modify_not_supported` ;
   - manifeste ancien → `catalog_mismatch` ;
   - REPLACE : DH → Force, bas → haut, DH → DH léger, → endurance (vélo et hors vélo), → récupération active ;
   - cible non supportée → blocage explicite ;
@@ -707,6 +707,7 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
   - **H :** prescription adaptée d'une décision remplacée → `final_prescription_not_current` ;
   - **I :** document relu identique ;
   - **J :** exécution rattachée à la prescription adaptée et à sa décision ; M1 compte la séance finale ;
+  - **K :** atteignabilité du §6 — T-6 Hot Trail sur une DH d'affûtage LIGHT → MODIFY vers le haut → bloqué `upward_modify_not_supported` ;
   - `v2DailyIntegration` : MODIFY endurance et REPLACE bas → haut créent une prescription exécutable.
 - **Web** (`a04AdaptedSessions.test.tsx`, documents générés par le moteur) : décodage ; module Guided résolu ; Force adaptée (avec F-6C), DH adaptée et récupération ouvertes puis terminées.
 
