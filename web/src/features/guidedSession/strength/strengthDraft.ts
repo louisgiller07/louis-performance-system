@@ -4,7 +4,7 @@ import type { SetResultRow } from "../executionState";
 import type { SetResultInput } from "../sessionExecutionClient";
 import type { ModuleCompletion, ModuleContext } from "../sessionModules";
 import { isEmptyForm, strengthProgress, validateSetForm, type SetFormErrors, type SetFormValues, type StrengthMeasureType } from "./strengthSets";
-import { STRENGTH_COPY } from "./strengthCopy";
+import { STRENGTH_COPY, strengthPartialCompletionMessage } from "./strengthCopy";
 import { entryStillOpen } from "../results/activeResults";
 import { PARTIAL_COMPLETION_MESSAGE } from "../guidedSessionCopy";
 
@@ -73,6 +73,13 @@ export function strengthCompletion(context: ModuleContext, now: () => string): M
   if (draft.kind === "invalid") return { canComplete: false, completionNeedsConfirmation: false, hint: STRENGTH_COPY.finishEntryFirst, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pending: {} };
   const pendingSets = draft.kind === "valid" ? [draft.set] : [];
   const progress = strengthProgress(context.prescription, context.setResults, pendingSets.map(asRow));
-  return { canComplete: progress.canComplete, completionNeedsConfirmation: progress.completionNeedsConfirmation, hint: STRENGTH_COPY.needOneWorkSet, confirmationMessage: PARTIAL_COMPLETION_MESSAGE, pending: pendingSets.length > 0 ? { sets: pendingSets } : {} };
+  return {
+    canComplete: progress.canComplete,
+    completionNeedsConfirmation: progress.completionNeedsConfirmation,
+    hint: STRENGTH_COPY.needOneWorkSet,
+    // A02 — the question names what is missing (sets without a result, sets not done).
+    confirmationMessage: progress.completionNeedsConfirmation ? strengthPartialCompletionMessage(progress) : PARTIAL_COMPLETION_MESSAGE,
+    pending: pendingSets.length > 0 ? { sets: pendingSets } : {},
+  };
 }
 

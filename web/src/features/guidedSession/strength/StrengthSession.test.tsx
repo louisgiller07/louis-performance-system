@@ -3,7 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fakeBackend, prescriptionView } from "../../../test/guidedSessionFakeBackend";
 import { GuidedSessionHarness as Harness } from "../../../test/GuidedSessionHarness";
-import { ACTION_ERROR_MESSAGES, PARTIAL_COMPLETION_MESSAGE } from "../guidedSessionCopy";
+import { ACTION_ERROR_MESSAGES } from "../guidedSessionCopy";
 import { STRENGTH_COPY } from "./strengthCopy";
 import type { ExerciseItemView, FinalPrescriptionV2View } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 
@@ -67,7 +67,7 @@ describe("Guided Force session — rendering (UX-11C.2)", () => {
       expect(slotText(it, n)).toBe(STRENGTH_COPY.noResult);
     }
     expect(screen.queryByRole("button", { name: `Saisir la série 5 — ${SQUAT.name}` })).toBeNull();
-    expect(screen.getByTestId("strength-progress")).toHaveTextContent("Séries de travail enregistrées : 0 / 10");
+    expect(screen.getByTestId("strength-progress")).toHaveTextContent("Séries de travail réalisées : 0 / 10");
     expect(b.executions[0]!.exercise_set_results).toEqual([]);
     expect((document.querySelector(`[data-item-id="${SQUAT.prescriptionItemId}"]`) as HTMLElement).textContent).toContain("Prévu : 4 séries × 6–8 répétitions · RPE 7–8 · repos 2–3 min");
     // The current set is highlighted in words, not only by colour.
@@ -313,7 +313,8 @@ describe("Guided Force session — completion", () => {
     await recordSet(SQUAT, 1, "8");
     await userEvent.click(completeButton());
     const dialog = screen.getByRole("alertdialog");
-    expect(dialog).toHaveTextContent(PARTIAL_COMPLETION_MESSAGE);
+    // A02 — the question says what is missing, in work sets.
+    expect(dialog).toHaveTextContent("1 série de travail réalisée sur 10 (9 séries de travail sans résultat). Terminer quand même la séance avec ces résultats ?");
     expect(within(dialog).getByRole("button", { name: "Revenir à la séance" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("alertdialog")).toBeNull();

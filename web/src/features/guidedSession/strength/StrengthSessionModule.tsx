@@ -23,7 +23,7 @@ import {
   type StrengthMeasureType,
   type StrengthSlot,
 } from "./strengthSets";
-import { STRENGTH_COPY, formatResult } from "./strengthCopy";
+import { STRENGTH_COPY, formatResult, strengthProgressLine } from "./strengthCopy";
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -249,7 +249,7 @@ export function StrengthSessionModule({ prescription, executionId, setResults, e
     <div className="flex flex-col gap-5">
       {showSlots && (
         <p className="text-sm font-medium text-ink" aria-live="polite" data-testid="strength-progress">
-          Séries de travail enregistrées : {progress.recorded} / {progress.slots.length}
+          {strengthProgressLine(progress)}
         </p>
       )}
       {prescription.blocks.map((block) =>

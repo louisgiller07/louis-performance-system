@@ -1,3 +1,4 @@
+import { strengthSummary } from "../finalPrescriptionV2/strengthSummary";
 import type { TrainingPlanReview, TrainingPlanReviewSession, TrainingPlanReviewWeek } from "../trainingPlanReview/trainingPlanReviewTypes";
 import { dayCompletion, isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord, CompletionStatus } from "../completedSession/completedSessionTypes";
@@ -41,6 +42,14 @@ export function sessionTitle(session: Pick<TrainingPlanReviewSession, "kind">): 
 /** First exercise / drill of the stored prescription, when its French name is known; otherwise null (the line is hidden). A prescription format this app cannot read (UX-11A.5b.1) has no focus; the session card itself says so. */
 export function sessionFocus(session: Pick<TrainingPlanReviewSession, "prescription">): string | null {
   if (session.prescription?.status !== "supported") return null;
+  // A02 — V2: the first work exercise of a Force session, or the main drill of a DH session.
+  if (session.prescription.schemaVersion === "v2") {
+    const view = session.prescription.prescription;
+    const summary = strengthSummary(view);
+    if (summary) return summary.workExercises[0]?.name ?? null;
+    const drill = view.blocks.flatMap((b) => b.items).find((i) => i.kind === "drill");
+    return drill?.name ?? null;
+  }
   const structure = session.prescription.prescription.structure;
   if (typeof structure !== "object" || structure === null) return null;
   const record = structure as Record<string, unknown>;

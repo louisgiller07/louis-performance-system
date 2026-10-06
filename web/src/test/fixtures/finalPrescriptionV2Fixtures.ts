@@ -12,7 +12,9 @@ export type FixtureKind =
   | "MODIFY_STRENGTH_LOWER"
   | "MODIFY_DH_TECHNICAL"
   | "REPLACE_DH_TO_STRENGTH"
-  | "REPLACE_TO_RECOVERY";
+  | "REPLACE_TO_RECOVERY"
+  // A02 — the overload week's Force (MODERATE_PLUS dose).
+  | "STRENGTH_LOWER_BUILD_PLUS";
 
 /** The live daily-run shape, the persisted row shape and the decoder input of one KEEP final prescription (deep copies). */
 export function keepFinalPrescription(kind: FixtureKind) {

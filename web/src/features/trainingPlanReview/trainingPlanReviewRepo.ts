@@ -35,6 +35,7 @@
 // idiom as everything else in this file.
 import { supabase } from "../../lib/supabase";
 import { SUPPORTED_PRESCRIPTION_SCHEMA_VERSION } from "../prescriptions/prescriptionRead";
+import { decodePlannedPrescriptionV2 } from "../finalPrescriptionV2/decodeFinalPrescriptionV2";
 import type {
   TrainingPlanReview,
   TrainingPlanReviewVersion,
@@ -72,7 +73,7 @@ const BLOCK_COLUMNS = "id, plan_version_id, sequence_number, name, mode, primary
 const WEEK_COLUMNS = "id, block_id, plan_version_id, week_number, start_date, end_date, week_type, dose_summary, rationale";
 const SESSION_COLUMNS = "id, week_id, plan_version_id, date, kind, load_profile, duration_min, dose_target, rationale";
 // UX-11A.5b.1 — schema_version is read so a non-v1 row is never assumed to be v1.
-const PRESCRIPTION_COLUMNS = "id, generated_plan_session_id, plan_version_id, schema_version, structure";
+const PRESCRIPTION_COLUMNS = "id, generated_plan_session_id, plan_version_id, schema_version, catalog_version, structure";
 const TRANSITION_COLUMNS = "plan_version_id, transition_number, state";
 
 export interface TrainingPlanVersionRawRow {
@@ -131,6 +132,8 @@ export interface TrainingPlanPlannedPrescriptionRawRow {
   generated_plan_session_id: string;
   plan_version_id: string;
   schema_version: string;
+  /** A02 — read for v2 rows (manifest gate of the decoder). */
+  catalog_version?: string;
   structure: unknown;
 }
 
@@ -197,6 +200,11 @@ export function latestStateByVersion(
 }
 
 function mapPrescription(row: TrainingPlanPlannedPrescriptionRawRow): TrainingPlanReviewPrescriptionRead {
+  // A02 — a v2 planned prescription is decoded exactly like Today's final prescription (same decoder, same manifests).
+  if (row.schema_version === "v2") {
+    const decoded = decodePlannedPrescriptionV2({ id: row.id, generatedPlanSessionId: row.generated_plan_session_id, schemaVersion: row.schema_version, catalogVersion: row.catalog_version, structure: row.structure });
+    return decoded.ok ? { status: "supported", schemaVersion: "v2", prescription: decoded.view } : { status: "unsupported_by_reader", schemaVersion: row.schema_version, prescriptionId: row.id };
+  }
   if (row.schema_version !== SUPPORTED_PRESCRIPTION_SCHEMA_VERSION) {
     return { status: "unsupported_by_reader", schemaVersion: row.schema_version, prescriptionId: row.id };
   }

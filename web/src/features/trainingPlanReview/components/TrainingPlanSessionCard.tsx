@@ -8,6 +8,7 @@ import { translateDrill, translateExercise, UNKNOWN_DRILL_LABEL, UNKNOWN_EXERCIS
 // REV-015.4b — French drill instruction only when the stored English matches its known source; otherwise the stored text is kept.
 import { translateDrillExecutionCue } from "../../trainingLabels/drillInstructionLabels";
 import { translateExplanation } from "../trainingPlanExplanationLabels";
+import { PrescriptionV2Details } from "../../finalPrescriptionV2/FinalPrescriptionV2Card";
 import {
   formatRepetitionRange,
   formatRepetitions,
@@ -166,9 +167,15 @@ export function TrainingPlanSessionCard({ session }: { session: TrainingPlanRevi
       {domainLabel && <p className="text-xs text-muted">{domainLabel}</p>}
       {/* REV-013 — the stored English rationale is translated for display only. */}
       {sessionExplanation && <p className="text-sm text-ink/90">{sessionExplanation}</p>}
-      {session.prescription?.status === "supported" && (
+      {session.prescription?.status === "supported" && session.prescription.schemaVersion === "v1" && (
         <div className="mt-1 border-t border-white/5 pt-2">
           <PrescriptionStructure structure={session.prescription.prescription.structure} />
+        </div>
+      )}
+      {/* A02 — a V2 planned session shows its real content (same component as Today). */}
+      {session.prescription?.status === "supported" && session.prescription.schemaVersion === "v2" && (
+        <div className="mt-1 border-t border-white/5 pt-2">
+          <PrescriptionV2Details prescription={session.prescription.prescription} title="Séance prévue" />
         </div>
       )}
       {/* UX-11A.5b.1 — a prescription in a format this app cannot display stays visible as such, never silently dropped. */}

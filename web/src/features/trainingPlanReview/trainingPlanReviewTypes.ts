@@ -15,6 +15,7 @@
 // `relaxedConstraints` ARE mirrored precisely below — both are small, stable
 // shapes already identified as UI-relevant (V0.5_026).
 
+import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 import type { PrescriptionRead } from "../prescriptions/prescriptionRead";
 
 /** The real lifecycle enum (public.training_plan_lifecycle_state) — never a new value invented here. Reconstructed from training_plan_version_lifecycle_transitions; no `status` column exists on training_plan_versions itself. */
@@ -45,11 +46,14 @@ export interface TrainingPlanReviewPrescription {
 }
 
 /**
- * UX-11A.5b.1 — what the plan review can interpret: v1 only. Any other
- * `schema_version` is "unsupported_by_reader" (the session stays visible
- * with an explicit "not displayable" state), never read as a v1 structure.
+ * UX-11A.5b.1 — what the plan review can interpret: v1, and since A02 a v2
+ * planned prescription decoded by the SAME decoder and supported manifests as
+ * Today's final prescription (decodePlannedPrescriptionV2). Anything else
+ * (another schema, an unsupported manifest, an invalid document) is
+ * "unsupported_by_reader": the session stays visible with an explicit "not
+ * displayable" state, never read as another format.
  */
-export type TrainingPlanReviewPrescriptionRead = PrescriptionRead<TrainingPlanReviewPrescription, never>;
+export type TrainingPlanReviewPrescriptionRead = PrescriptionRead<TrainingPlanReviewPrescription, FinalPrescriptionV2View>;
 
 export interface TrainingPlanReviewSession {
   id: string;

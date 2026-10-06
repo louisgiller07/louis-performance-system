@@ -54,6 +54,24 @@ const out = { generatedFrom: v2.SESSION_MODEL_V2_AGGREGATE_VERSION, finalPrescri
   if (r.status !== "created") throw new Error(`${kind}: KEEP not created`);
   out.finalPrescriptions[kind] = r.finalPrescription;
 });
+// A02 — the overload week's Force (build+, MODERATE_PLUS dose), KEEP copy of week 2.
+{
+  const s = plan.weeks[1].sessions.find((x) => x.kind === "STRENGTH_LOWER");
+  const r = v2.buildKeepFinalPrescriptionV2({
+    finalPrescriptionId: "f2000000-0000-4000-8000-000000000001",
+    decision: { decisionId: "d2000000-0000-4000-8000-000000000001", decision: "KEEP", finalSession: { kind: s.kind, loadProfile: s.loadProfile, durationMin: s.durationMin } },
+    lineage: {
+      plannedSessionSource: "generated",
+      sourcePlanVersionId: plan.planVersionId,
+      sourceGeneratedSessionId: s.generatedPlanSessionId,
+      currentPlanVersionId: plan.planVersionId,
+      generatedSession: { id: s.generatedPlanSessionId, kind: s.kind, loadProfile: s.loadProfile ?? null, durationMin: s.durationMin },
+    },
+    plannedPrescription: { ...s.plannedPrescription, generatedPlanSessionId: s.generatedPlanSessionId },
+  });
+  if (r.status !== "created") throw new Error("build+ KEEP not created");
+  out.finalPrescriptions.STRENGTH_LOWER_BUILD_PLUS = r.finalPrescription;
+}
 // A04 — genuine MODIFY / REPLACE final prescriptions (deterministic ids).
 const ADAPTED = {
   MODIFY_STRENGTH_LOWER: { from: "STRENGTH_LOWER", decision: "MODIFY", finalSession: { kind: "STRENGTH_LOWER", loadProfile: "LIGHT" } },

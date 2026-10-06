@@ -582,6 +582,214 @@
         ]
       }
     },
+    "STRENGTH_LOWER_BUILD_PLUS": {
+      "id": "f2000000-0000-4000-8000-000000000001",
+      "decisionId": "d2000000-0000-4000-8000-000000000001",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000077",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "keep",
+      "adaptationRuleIds": [],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "strength",
+        "sessionKind": "STRENGTH_LOWER",
+        "intentId": "lower_body_strength_control",
+        "templateId": "strength_lower_intermediate_v1",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000067"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "knee_to_wall_ankle",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.knee_to_wall_ankle",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000068"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bird_dog",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 8,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 30
+                },
+                "cueId": "cue.bird_dog",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000069"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000066"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "goblet_squat",
+                "role": "principal",
+                "sets": 5,
+                "measure": {
+                  "type": "reps",
+                  "min": 6,
+                  "max": 8,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 150,
+                  "max": 180
+                },
+                "rpeTarget": {
+                  "min": 8,
+                  "max": 8
+                },
+                "cueId": "cue.goblet_squat",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range"
+                ],
+                "rampUp": {
+                  "instructionId": "instruction.strength_warm_up.main_movement_ramp",
+                  "sets": {
+                    "min": 1,
+                    "max": 2
+                  }
+                },
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000071"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000070"
+          },
+          {
+            "role": "complementary",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "dumbbell_romanian_deadlift",
+                "role": "secondary",
+                "sets": 4,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 10,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 90,
+                  "max": 120
+                },
+                "rpeTarget": {
+                  "min": 7,
+                  "max": 8
+                },
+                "cueId": "cue.dumbbell_romanian_deadlift",
+                "vigilanceIds": [
+                  "vigilance.back_stop_before_rounding"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000073"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000072"
+          },
+          {
+            "role": "complementary",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "bulgarian_split_squat",
+                "role": "unilateral",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 10,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 60,
+                  "max": 90
+                },
+                "rpeTarget": {
+                  "min": 7,
+                  "max": 8
+                },
+                "cueId": "cue.bulgarian_split_squat",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000075"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000074"
+          }
+        ]
+      }
+    },
     "MODIFY_STRENGTH_LOWER": {
       "id": "f1000000-0000-4000-8000-000000000001",
       "decisionId": "d1000000-0000-4000-8000-000000000001",

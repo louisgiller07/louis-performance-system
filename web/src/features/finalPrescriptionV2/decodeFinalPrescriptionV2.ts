@@ -146,6 +146,16 @@ function supportedManifest(catalog: Record<string, unknown>): boolean {
   return SUPPORTED_SESSION_MODEL_V2_MANIFESTS.some((expected) => catalog.aggregate === expected.aggregate && sameManifest(catalog, expected));
 }
 
+/**
+ * A02 — a PLANNED prescription v2 (training_plan_planned_prescriptions) has the
+ * same structure as a final one: decoded by the same function, same manifest
+ * gate, same fail-closed states. Its owner is the generated plan session, put
+ * in the view's `decisionId` slot (a plan prescription has no decision).
+ */
+export function decodePlannedPrescriptionV2(row: { id: unknown; generatedPlanSessionId: unknown; schemaVersion: unknown; catalogVersion: unknown; structure: unknown }): DecodeFinalPrescriptionV2Result {
+  return decodeFinalPrescriptionV2({ id: row.id, decisionId: row.generatedPlanSessionId, schemaVersion: row.schemaVersion, catalogVersion: row.catalogVersion, structure: row.structure });
+}
+
 export function decodeFinalPrescriptionV2(record: FinalPrescriptionV2Record): DecodeFinalPrescriptionV2Result {
   const s = record.structure;
   if (record.schemaVersion !== "v2") return { ok: false, kind: "unsupported_schema_or_catalog", reason: "schema_version is not v2" };

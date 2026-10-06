@@ -11,8 +11,9 @@ export { activeResultsBySlot, isCorrectable, slotKey } from "../results/activeRe
 
 export const STRENGTH_SESSION_KINDS = ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const;
 
-/** Blocks whose exercise items take set results (warm_up and the ramp-up stay instructions). */
-export const WORK_BLOCK_ROLES = ["main", "complementary"] as const;
+/** Blocks whose exercise items take set results (warm_up and the ramp-up stay instructions) — one definition, shared with the prescription summary (A02). */
+export { WORK_BLOCK_ROLES } from "../../finalPrescriptionV2/strengthSummary";
+import { WORK_BLOCK_ROLES } from "../../finalPrescriptionV2/strengthSummary";
 
 /** Measures a Force set result can carry in C.2 (duration in seconds, never converted to repetitions). */
 export type StrengthMeasureType = "reps" | "duration";
@@ -46,6 +47,10 @@ export interface StrengthProgress {
   slots: StrengthSlot[];
   /** Prescribed work sets with an active, performed result. */
   recorded: number;
+  /** A02 — prescribed work sets whose active result says « non réalisée » (done = false). */
+  notDone: number;
+  /** A02 — prescribed work sets without any result yet. */
+  missing: number;
   /** The first prescribed work set without a result (highlighted, never enforced). */
   current: StrengthSlot | null;
   /** Locked rule: at least one active performed result on a main / complementary exercise. */
@@ -65,6 +70,8 @@ export function strengthProgress(p: FinalPrescriptionV2View, rows: readonly SetR
   return {
     slots,
     recorded,
+    notDone: slots.filter((s) => s.result !== null && !s.result.done).length,
+    missing: slots.filter((s) => s.result === null).length,
     current: slots.find((s) => s.result === null && s.measureType !== null) ?? null,
     canComplete: recorded > 0,
     completionNeedsConfirmation: recorded > 0 && recorded < slots.length,

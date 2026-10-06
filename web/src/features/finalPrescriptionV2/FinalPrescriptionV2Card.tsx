@@ -6,6 +6,7 @@ import { PlanSection } from "../../components/PlanSection";
 import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionRead";
 import type { BlockView, DrillItemView, ExerciseItemView, FinalPrescriptionV2State, FinalPrescriptionV2View } from "./finalPrescriptionV2Types";
 import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
+import { strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
 
 function Vigilances({ items }: { items: string[] }) {
   if (items.length === 0) return null;
@@ -18,10 +19,14 @@ function Vigilances({ items }: { items: string[] }) {
   );
 }
 
-function ExerciseItem({ item }: { item: ExerciseItemView }) {
+function ExerciseItem({ item, work }: { item: ExerciseItemView; work: boolean }) {
+  const role = work ? WORK_ROLE_LABELS[item.role] : undefined;
   return (
     <li className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0" data-item-id={item.prescriptionItemId}>
-      <p className="font-medium text-ink">{item.name}</p>
+      <p className="font-medium text-ink">
+        {item.name}
+        {role && <span className="ml-2 text-xs uppercase tracking-wide text-muted">{role}</span>}
+      </p>
       <p className="text-ink/80">
         {setsLabel(item.sets)} × {formatMeasure(item.measure)}
         {item.rpeTarget && ` — RPE ${span(item.rpeTarget)}`}
@@ -67,17 +72,36 @@ function Block({ block }: { block: BlockView }) {
       {block.talkTest && <p className="text-sm text-ink/80">{block.talkTest}</p>}
       {block.items.length > 0 && (
         <ul className="flex flex-col gap-3">
-          {block.items.map((item) => (item.kind === "exercise" ? <ExerciseItem key={item.prescriptionItemId} item={item} /> : <DrillItem key={item.prescriptionItemId} item={item} />))}
+          {block.items.map((item) =>
+            item.kind === "exercise" ? (
+              <ExerciseItem key={item.prescriptionItemId} item={item} work={(WORK_BLOCK_ROLES as readonly string[]).includes(block.role)} />
+            ) : (
+              <DrillItem key={item.prescriptionItemId} item={item} />
+            )
+          )}
         </ul>
       )}
     </section>
   );
 }
 
-function Prescription({ prescription }: { prescription: FinalPrescriptionV2View }) {
+/**
+ * A02 — the content of a V2 prescription (Today, Program): its intent, for a
+ * Force session what the counts mean (work exercises and work sets, warm-up
+ * and ramp-up shown apart), then every block in order.
+ */
+export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { prescription: FinalPrescriptionV2View; title?: string }) {
+  const summary = strengthSummary(prescription);
+  const extras = summary ? strengthExtrasLine(summary) : null;
   return (
-    <PlanSection title="Ta séance">
+    <PlanSection title={title}>
       <p className="font-medium text-ink">{prescription.intent}</p>
+      {summary && (
+        <div data-testid="strength-summary">
+          <p className="text-sm font-semibold text-ink">{strengthSummaryLine(summary)}</p>
+          {extras && <p className="text-xs text-muted">{extras}</p>}
+        </div>
+      )}
       {prescription.activities && <p className="text-sm text-ink/80">Activité au choix : {prescription.activities.join(", ")}</p>}
       <div className="flex flex-col gap-4">
         {prescription.blocks.map((block) => (
@@ -92,7 +116,7 @@ function Prescription({ prescription }: { prescription: FinalPrescriptionV2View 
 export function FinalPrescriptionV2Card({ state }: { state: FinalPrescriptionV2State }) {
   switch (state.kind) {
     case "created":
-      return <Prescription prescription={state.prescription} />;
+      return <PrescriptionV2Details prescription={state.prescription} />;
     case "not_required":
       return (
         <PlanSection title="Ta séance">
