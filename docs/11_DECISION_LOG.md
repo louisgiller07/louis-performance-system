@@ -5297,3 +5297,40 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 **Temps disponible** : aucun champ structuré « temps disponible aujourd'hui » dans le check-in (seulement un commentaire libre) ; rien n'est inventé ici. Le module reçoit déjà une durée cible (MODIFY et REPLACE endurance) : une future contrainte `available_minutes_today` (A10) se branchera sur le contexte d'adaptation.
 
 **Statut** : implémenté et vert en local (branche `feat/a04-modify-replace`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (bundle reconstruit), puis web.
+
+## 2026-10-06 — ADR A02 : séances de Force complètes et sans ambiguïté
+
+> **A V2 Force session reads without interpretation: every count says what it counts (work exercises, work sets; warm-up and ramp-up named apart), every work exercise shows its role, sets × measure, RPE, rest and cue, and Today, Program and the guided session derive all of it from the same V2 prescription.**
+
+**Cause du « 12 séries »**
+- **Chemin V1** (défaut de génération hors pilote V2) : `LoadDerivation` fixe un volume de séance (`BASE_STRENGTH_SET_VOLUME = 12`, 8 en affûtage). Le résolveur Force V1 (`prescription-engine/src/strength/strengthResolver.ts`) le pose tel quel comme `sets` d'**un seul** bloc, donc d'un seul exercice. Program et Today V1 affichent alors « 12 × 8-12 répétitions » sous ce seul exercice, ou « 12 séries » sans schéma de répétitions. Le chiffre est le volume de toute la séance, présenté comme les séries d'un seul exercice.
+- **En V2**, ce 12 n'existe que dans `dose_target.setVolume` (métadonnée legacy, jamais lue par V2).
+- **Plans V2** : Program n'affichait **aucun** contenu, seulement « Le détail de cette séance n'est pas disponible » (lecteur v1 seulement). Rien n'était donc affiché au-delà de « Renfo bas du corps · 60 min ».
+- En V2, une Force bas du corps MODERATE_PLUS compte bien 12 séries de travail (5 + 4 + 3), désormais étiquetées comme telles.
+
+**Décision (web, aucune donnée ni moteur changé)**
+- `strengthSummary` (pur, dérivé de la prescription) :
+  - les séries de travail sont celles des exercices des blocs `main` et `complementary` (la même définition que le Guided, partagée) ;
+  - échauffement et montée en charge sont nommés à part (« Non comptés : … ») ;
+  - libellé « N exercices de travail · M séries de travail », jamais « M séries » seul.
+- **Today** (`FinalPrescriptionV2Card`, prescription du jour effective, donc adaptée après MODIFY / REPLACE) : résumé, plus le rôle de chaque exercice de travail (Principal, Secondaire, Unilatéral, Prévention) à côté des séries × mesure, RPE, repos, montée en charge et consigne déjà affichés.
+- **Program** : une prescription v2 prévue est décodée par **le même décodeur et les mêmes manifestes** que Today (`decodePlannedPrescriptionV2`) et affichée par le même composant (« Séance prévue »). Le focus est le premier exercice de travail. Un manifeste non supporté ou un document invalide reste « indisponible ».
+- **Guided Force** :
+  - « Séries de travail réalisées : X / Y », les séries « non réalisées » comptées à part ;
+  - la confirmation de fin partielle dit ce qui manque (séries sans résultat, séries non réalisées) ;
+  - une correction compte une fois (résultat actif seulement), F-6C est inchangé.
+
+**Vérifié sur le moteur** (3 niveaux × bas / haut × 5 jeux de matériel × 3 doses) :
+- toujours 3 exercices réels, chacun avec séries, mesure, RPE, repos et consigne, et une montée en charge sur le principal ;
+- aucun exercice impossible pour le matériel déclaré, échauffement compris (sans matériel : variantes au poids du corps) ;
+- LIGHT < MODERATE < MODERATE_PLUS en séries de travail (bas du corps 7 → 10 → 12), RPE du principal 5–6 → 7–8 → 8, mêmes exercices ;
+- MODIFY → LIGHT et REPLACE DH → Force sont **identiques** à la Force générée par le planificateur pour ce rider ;
+- durée : estimation grossière (échauffement, montée en charge, travail plus repos moyen) de 26 à 47 min, pour 45 min (LIGHT) ou 60 min (MODERATE) annoncés. Plausible, aucune incohérence.
+
+**Restes (non corrigés ici)**
+- **V1** : le contenu Force V1 reste un seul exercice × 12 (ou 8) séries ; c'est le contenu V1 lui-même qui est en cause. Ticket séparé ou retrait de V1 au passage à V2.
+- **A07** :
+  - la durée de l'en-tête de Today vient de M1 (ex. une Force MODIFY LIGHT peut afficher la durée prévue de 60 min) ;
+  - History ne montre que la décision.
+
+**Statut** : implémenté et vert en local (branche `feat/a02-force-sessions`). Aucun push, aucun déploiement. Livraison : web seulement.

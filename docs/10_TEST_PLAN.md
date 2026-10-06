@@ -684,6 +684,19 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T40. A02 — séances de Force complètes et sans ambiguïté
+- **Moteur** (`planning-engine/tests/unit/a02ForceSessions.test.ts`) :
+  - 3 niveaux × bas / haut × 5 jeux de matériel × LIGHT / MODERATE / MODERATE_PLUS : exercices réels, chacun avec séries / mesure / RPE / repos / consigne, montée en charge du principal ;
+  - aucun exercice impossible pour le matériel déclaré (G), échauffement compris ;
+  - doses distinctes (C, D) ;
+  - durée plausible ;
+  - MODIFY → LIGHT (E) et REPLACE DH → Force (F) identiques à une Force générée.
+- **Web** (`a02ForceSessions.test.tsx`, documents moteur réels) :
+  - résumé « exercices de travail · séries de travail » (bas 10, haut 9, LIGHT 7, MODERATE_PLUS 12), échauffement et montée en charge à part ;
+  - Today complet (A, B, E, F), avec la dose LIGHT du MODIFY ;
+  - Program : prescription v2 décodée et affichée, focus = premier exercice, jamais le `setVolume` legacy ;
+  - Guided : reload (H), fin partielle avec série non réalisée et message chiffré, F-6C (I), correction comptée une fois (J).
+
 ### T39. A04 — MODIFY / REPLACE exécutables
 - **Unitaires planning-engine** (`tests/unit/finalPrescriptionV2Adapt.test.ts`, plan V2 réel en mémoire) :
   - KEEP verbatim ; REST sans document ;
