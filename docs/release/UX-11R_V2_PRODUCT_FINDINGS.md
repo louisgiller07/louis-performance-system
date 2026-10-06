@@ -10,7 +10,7 @@
 > | F-4 brouillon périmé acceptable | priorité 2, bloquant avant bêta payante | hardening UX-11R.9 (UI + serveur) |
 > | F-5 complétion V2 hors séance guidée + doublon legacy | **P0 avant bêta** | hardening UX-11R.9 (UI + serveur) |
 > | F-6 règles de la séance guidée côté UI seulement | **P0 / intégrité serveur** | hardening UX-11R.9 (F-6A, F-6B) |
-> | F-6C fin d'une séance Force côté serveur | **P0 avant bêta payante** | ticket séparé |
+> | F-6C fin d'une séance Force côté serveur | **P0 avant bêta payante** | **implémenté en local** (branche `feat/f6c-force-completion`, ADR F-6C), non déployé |
 > | F-7 `projectedSessionCount` sans contexte | polish, non bloquant | plus tard |
 > | F-5d écart pont M1 / web (`skipped` legacy puis V2 terminée) | P0, partie de UX-11R.9 | **CLOSED en local** (priorité canonique unique) |
 > | F-8 en-tête « Ton plan actuel » sur la vue d'un brouillon | polish, antérieur au patch | plus tard |

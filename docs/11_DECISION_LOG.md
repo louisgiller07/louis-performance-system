@@ -5207,3 +5207,34 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 **Livraison (non faite)** : sans migration ; Edge `generate-training-plan` + `accept-training-plan`, puis web.
 
 **Statut** : implémenté et vert en local (branche `feat/bug-v2-3-start-date`). Aucun push, aucun déploiement.
+
+## 2026-10-06 — ADR F-6C : fin d'une séance Force, invariant serveur
+
+> **A Force execution (final prescription family `strength`) receives `completed` only with at least one ACTIVE, PERFORMED set result on an exercise its own prescription plans in a work block (`main` / `complementary`); otherwise `strength_set_required` (422), whole batch rolled back. "Completed" keeps its meaning: a partial session is a legitimate end.**
+
+**État incohérent identifié**
+- La règle « au moins une série de travail réalisée » (UX-11C.2, `strengthProgress.canComplete`) n'existait que dans l'écran Force guidé.
+- `record_session_execution` acceptait `completed` sur une exécution Force sans aucun résultat : une requête directe suffisait.
+
+**Décision**
+- Migration additive `20261006120000`, corps de fonction seulement. Le contrôle est ajouté en fin de lot, après F-6A et `activity_result_required`. Rollback : `supabase/rollbacks/f6c/`.
+- **Résultats comptés :** lignes **actives** (aucune correction ne les remplace) et **réalisées** (`done`), sur un `prescription_item_id` de **la** prescription de l'exécution, dans un bloc `main` / `complementary`.
+- **Ne comptent pas :** une série non réalisée, un échauffement, un « autre exercice », une ligne remplacée par une correction. Une correction ne compte donc jamais deux fois.
+- **Sémantique préservée :** une seule série réalisée suffit ; séance partielle, séries non réalisées et arrêt anticipé restent permis, avec la confirmation côté web existante. Le serveur interdit l'état impossible (une Force « faite » sans travail), il n'impose pas 100 % du programme.
+- **Déjà garantis par la fonction (non dupliqués), vérifiés pour la Force :**
+  - propriété : l'Edge résout l'athlète depuis le JWT ; `execution_not_found` / `prescription_not_found` pour un autre athlète ;
+  - cycle de vie : pas de fin avant `started`, après `abandoned` ou une seconde fois (`invalid_transition`) ;
+  - rejeu idempotent par id ;
+  - verrou consultatif par athlète (fins concurrentes sérialisées, un seul `completed`) ;
+  - F-6B ;
+  - prescription courante vérifiée au départ : une exécution démarrée n'est jamais interrompue.
+- **Edge `session-execution`** : `strength_set_required` → 422. **Web** : message français identique à la règle de l'écran Force.
+- **Code :** `strength_set_required` plutôt que `force_results_required`, par cohérence avec les codes existants (famille + unité : `dh_pass_required`, `activity_result_required`).
+
+**Limites**
+- Une séance Force sans prescription liée (exécution libre) n'est pas concernée, comme pour F-6A.
+- Aucune règle sur la qualité des valeurs au-delà des bornes existantes.
+
+**Livraison (non faite)** : Edge `session-execution` (nouveau code mappé) → migration → web. La migration ne change que le corps de fonction. Si la migration précédait l'Edge, l'ancienne Edge ne connaîtrait pas le code : elle répondrait 500 (refus fermé, rien n'est écrit, mais sans code métier). D'où l'Edge en premier.
+
+**Statut** : implémenté et vert en local (branche `feat/f6c-force-completion`). Aucun push, aucun déploiement.

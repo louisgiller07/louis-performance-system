@@ -630,7 +630,7 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 ## UX-11R — Hardening avant D2B2 et bêta payante (ajouté 2026-10-05)
 
 - [x] **UX-11R.9 hardening** — implémenté et vert en local, non déployé (relecture puis Approvals production à venir) : F-6A `dh_pass_required`, F-6B `session_already_completed`, F-5 garde serveur `completed_session_v2_exists` + lecture web « séance faite », F-4 garde serveur `stale_plan_version` + encart web. 3 migrations additives ; livraison Edge → base → web. Voir `docs/release/UX-11R_STAGE0_PREFLIGHT.md` §37.
-- [ ] **F-6C** — fin d'une séance Force côté serveur (P0 avant bêta payante, ticket séparé).
+- [ ] **F-6C** — fin d'une séance Force côté serveur : implémenté et vert en local (branche `feat/f6c-force-completion`, migration additive `20261006120000`, `strength_set_required`), livraison à approuver (Edge `session-execution` → migration → web).
 - [x] **F-5d** — priorité canonique `skipped` legacy + V2 terminée = V2 terminée (pont M1, contexte de récupération, web) — corrigé dans UX-11R.9, en local.
 - [ ] **F-8** — en-tête « Ton plan actuel » sur la vue d'un brouillon (polish).
 - [ ] **F-9 / F-10** — skeleton permanent du bloc « après séance » en cas d'erreur de lecture ; libellés legacy des Edge.

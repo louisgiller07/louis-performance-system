@@ -329,7 +329,13 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
   - Le contrôle se fait en fin de lot, avec les autres préconditions de fin (`activity_result_required`).
   - Refus : `dh_pass_required` (HTTP 422) ; tout le lot est annulé.
   - Un renvoi idempotent d'un `completed` déjà enregistré reste `unchanged` et n'est pas revérifié.
-  - Force : inchangé dans ce lot (F-6C, ticket séparé). Endurance : inchangé.
+  - Force : voir F-6C ci-dessous. Endurance : inchangé.
+- **F-6C — fin d'une séance Force** (`record_session_execution`, migration additive `20261006120000`, branche `feat/f6c-force-completion`, non déployée) : une exécution dont la prescription du jour est de famille `strength` ne peut recevoir `completed` que s'il existe, pour cette exécution, au moins un résultat **actif** (aucune correction ne le remplace), **réalisé** (`done = true`), sur un exercice que **sa** prescription place dans un bloc de travail (`main` / `complementary`).
+  - Ne comptent pas : une série non réalisée, un échauffement, un « autre exercice », une ligne remplacée par une correction.
+  - Les séries envoyées dans le **même lot** que `completed` comptent.
+  - « Terminée » garde son sens : une séance partielle reste une fin légitime (règle de l'écran Force guidé, UX-11C.2), sans exiger 100 % des séries.
+  - Refus : `strength_set_required` (HTTP 422) ; tout le lot est annulé.
+  - Une prescription Force sans aucune série de travail n'exige rien (défensif).
 - **F-6B / F-5b — une séance principale par jour** (`record_session_execution`) : pour le **même athlète** et la **même `session_date`**, une séance est déjà terminée si :
   - une exécution V2 a un événement `completed`, quelle que soit sa prescription ;
   - ou une ligne legacy `completed_sessions` existe avec un statut autre que `skipped` (un `skipped` ne compte pas).

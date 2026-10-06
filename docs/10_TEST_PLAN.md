@@ -682,7 +682,23 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Passage corrigé (correction active `done = true`) puis `completed` → `ok`.
 - Renvoi idempotent du lot `completed` → `unchanged`, pas de second contrôle.
 - Exécution sans prescription du jour : non concernée.
-- Endurance : `activity_result_required` inchangé. Force : comportement inchangé (F-6C hors périmètre).
+- Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
+
+### T38. F-6C — fin d'une séance Force
+`tests/supabase/f6cStrengthCompletion.integration.test.ts` (base locale + Edge locale) :
+- **A :** une série réalisée (bloc `main` ou `complementary`), avant ou dans le même lot → `completed` ; une séance partielle est légitime.
+- **B :** aucun résultat de travail → `strength_set_required` (422), 0 ligne écrite, exécution toujours ouverte. Une série non réalisée, un échauffement ou un « autre exercice » ne comptent pas.
+- **C :** seul le résultat actif compte. Réalisée corrigée en non réalisée → refus ; non réalisée corrigée en réalisée → fin ; une correction ne compte jamais deux fois.
+- **D :** après `abandoned`, la fin est refusée (`invalid_transition`) et les résultats sont figés. Une reprise est une nouvelle exécution, avec sa propre règle.
+- **E :** le lot `completed` rejoué reste `unchanged` ; un autre `completed` → `invalid_transition`, un seul événement terminal.
+- **F :** deux fins concurrentes (3 tours) → exactement un `completed`, l'autre est refusée.
+- **G :** un autre athlète ne peut ni terminer, ni ajouter un résultat (`execution_not_found`), ni démarrer sur la prescription (`prescription_not_found`).
+- **H :** décision remplacée après le départ : l'exécution n'est pas interrompue et F-6C s'applique toujours. Un nouveau départ sur l'ancienne prescription → `final_prescription_not_current`.
+- **Non-régression :**
+  - F-6B après une fin Force ;
+  - Edge : 422 `strength_set_required`, puis 200 avec une série ;
+  - tests existants adaptés (une fin Force porte une série) : `ux11r9Hardening`, `recentHistoryBridge`.
+- **Contre-preuve locale :** avec le corps UX-11R.9 (script de rollback), les 5 cas propres à F-6C échouent.
 
 ### T28. F-6B / F-5b — une séance principale par jour
 - Ligne legacy `done` / `partial` / `replaced` puis Start V2 → `session_already_completed`, aucune exécution ; legacy `skipped` → Start et fin permis.
