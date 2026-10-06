@@ -212,3 +212,38 @@ describe("buildPlanInputSnapshot — horizon-aware races (V0.5_041/042)", () => 
     expect(deps.getLockedDatesFor).toHaveBeenCalledWith(FAKE_CLIENT, ATHLETE_ID);
   });
 });
+
+describe("buildPlanInputSnapshot — BUG-V2-1 physical / riding availability", () => {
+  const TYPED: AthleteAvailabilityWindowRawRow[] = [
+    { id: "w3", day_of_week: 6, start_time: "08:00:00", end_time: "18:00:00", label: null, activity: "riding" },
+    { id: "w1", day_of_week: 1, start_time: "18:00:00", end_time: "19:20:00", label: null, activity: "physical" },
+    { id: "w2", day_of_week: 2, start_time: "18:00:00", end_time: "19:30:00", label: null, activity: "any" },
+  ];
+
+  it("carries 'physical' / 'riding' to the snapshot and maps 'any' (legacy) to no field at all", async () => {
+    const snapshot = await buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, HORIZON, buildDeps({ getAvailabilityWindowsFor: vi.fn(async () => TYPED) }));
+    expect(snapshot.availability.windows).toEqual([
+      { dayOfWeek: 1, startTime: "18:00:00", endTime: "19:20:00", activity: "physical" },
+      { dayOfWeek: 2, startTime: "18:00:00", endTime: "19:30:00" },
+      { dayOfWeek: 6, startTime: "08:00:00", endTime: "18:00:00", activity: "riding" },
+    ]);
+  });
+
+  it("a legacy 'any' window produces exactly the pre-BUG-V2-1 snapshot", async () => {
+    const legacy = await buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, HORIZON, buildDeps({ getAvailabilityWindowsFor: vi.fn(async () => [{ ...ONE_WINDOW[0]!, activity: "any" as const }]) }));
+    const before = await buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, HORIZON, buildDeps());
+    expect(legacy).toEqual(before);
+    expect(JSON.stringify(legacy)).toBe(JSON.stringify(before));
+  });
+
+  it("orders same-time windows of one day deterministically by activity (absent first)", async () => {
+    const rows: AthleteAvailabilityWindowRawRow[] = [
+      { id: "b", day_of_week: 6, start_time: "08:00", end_time: "18:00", label: null, activity: "riding" },
+      { id: "a", day_of_week: 6, start_time: "08:00", end_time: "18:00", label: null, activity: "physical" },
+    ];
+    const one = await buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, HORIZON, buildDeps({ getAvailabilityWindowsFor: vi.fn(async () => rows) }));
+    const two = await buildPlanInputSnapshot(FAKE_CLIENT, ATHLETE_ID, TODAY, HORIZON, buildDeps({ getAvailabilityWindowsFor: vi.fn(async () => [...rows].reverse()) }));
+    expect(one.availability.windows.map((w) => w.activity)).toEqual(["physical", "riding"]);
+    expect(JSON.stringify(one)).toBe(JSON.stringify(two));
+  });
+});

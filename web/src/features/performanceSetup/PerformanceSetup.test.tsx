@@ -68,9 +68,14 @@ const PROFILE = {
 };
 const ONBOARDING = { discipline: "Downhill", competitionLevel: "Amateur racer", primaryGoal: "Race performance", weeklyTrainingHours: "5-10h", preferredRidingDays: ["Saturday", "Sunday"] };
 const WINDOWS = [
-  { id: "w1", dayOfWeek: 6 as const, startTime: "08:00", endTime: "18:00", label: null },
-  { id: "w2", dayOfWeek: 0 as const, startTime: "08:00", endTime: "18:00", label: null },
-  { id: "w3", dayOfWeek: 2 as const, startTime: "17:00", endTime: "21:00", label: null },
+  { id: "w1", dayOfWeek: 6 as const, startTime: "08:00", endTime: "18:00", label: null, activity: "any" as const },
+  { id: "w2", dayOfWeek: 0 as const, startTime: "08:00", endTime: "18:00", label: null, activity: "any" as const },
+  { id: "w3", dayOfWeek: 2 as const, startTime: "17:00", endTime: "21:00", label: null, activity: "any" as const },
+];
+const TYPED_WINDOWS = [
+  { id: "t1", dayOfWeek: 2 as const, startTime: "18:00", endTime: "19:30", label: null, activity: "physical" as const },
+  { id: "t2", dayOfWeek: 6 as const, startTime: "08:00", endTime: "18:00", label: null, activity: "riding" as const },
+  { id: "t3", dayOfWeek: 0 as const, startTime: "08:00", endTime: "18:00", label: null, activity: "riding" as const },
 ];
 
 beforeEach(() => {
@@ -264,23 +269,27 @@ describe("Affiner ton profil — Ta préparation (a new version, never the curre
     expect(within(screen.getByRole("region", { name: "Ta préparation" })).getByText(/Aucun créneau/)).toBeInTheDocument();
   });
 
-  it("slots: unsaved edits block, a successful save unblocks and refreshes the summary", async () => {
+  it("slots: unsaved edits block, a successful save unblocks and refreshes the summary (BUG-V2-1 physical / riding)", async () => {
     const user = userEvent.setup();
-    repo.saveAvailabilityWindows.mockResolvedValue([{ id: "w9", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null }]);
+    repo.saveAvailabilityWindows.mockResolvedValue([{ id: "w9", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null, activity: "physical" }]);
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Modifier tes créneaux" }));
     const slots = section("Tes créneaux");
-    await waitFor(() => expect(within(slots).getByRole("group", { name: "Lundi" })).toBeInTheDocument());
-    await user.click(within(within(slots).getByRole("group", { name: "Lundi" })).getByRole("button"));
+    await waitFor(() => expect(within(slots).getByRole("combobox", { name: "Physique — Lundi" })).toBeInTheDocument());
+    await user.selectOptions(within(slots).getByRole("combobox", { name: "Physique — Lundi" }), "120");
     await waitFor(() => expect(generate()).toBeDisabled());
 
-    const monday = within(slots).getByRole("group", { name: "Lundi" });
-    await user.type(within(monday).getByLabelText("Heure de début — Lundi"), "18:00");
-    await user.type(within(monday).getByLabelText("Heure de fin — Lundi"), "20:00");
     await user.click(within(slots).getByRole("button", { name: "Enregistrer mes disponibilités" }));
     await waitFor(() => expect(generate()).toBeEnabled());
     await user.click(within(slots).getByRole("button", { name: "Fermer" }));
-    expect(within(section("Tes créneaux")).getByText("lun. · 18 h – 20 h")).toBeInTheDocument();
+    expect(within(section("Tes créneaux")).getByText("Physique · Lun 2 h")).toBeInTheDocument();
+  });
+
+  it("BUG-V2-1 — typed availability is summarised per activity", async () => {
+    repo.loadAvailabilityWindows.mockResolvedValue(TYPED_WINDOWS);
+    renderPage();
+    await waitFor(() => expect(within(section("Tes créneaux")).getByText("Physique · Mar 1 h 30")).toBeInTheDocument());
+    expect(within(section("Tes créneaux")).getByText("Vélo · Sam Journée, Dim Journée")).toBeInTheDocument();
   });
 });
 

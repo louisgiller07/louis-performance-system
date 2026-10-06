@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, within, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
+import { AvailabilitySection, LEGACY_AVAILABILITY_HINT, type AvailabilityGateState } from "./AvailabilitySection";
 import type { AvailabilityWindow } from "./availabilityRepo";
+import type { RidingDay } from "../athleteOnboarding/onboardingOptions";
 
 const { loadAvailabilityWindows, saveAvailabilityWindows } = vi.hoisted(() => ({
   loadAvailabilityWindows: vi.fn(),
@@ -18,13 +19,12 @@ vi.mock("../../auth/AuthContext", () => ({
   useAuth: () => ({ athleteId: "athlete-1" }),
 }));
 
-function renderSection(onGateStateChange: (state: AvailabilityGateState) => void = vi.fn()) {
-  return render(<AvailabilitySection onGateStateChange={onGateStateChange} />);
+function renderSection(onGateStateChange: (state: AvailabilityGateState) => void = vi.fn(), ridingDays: RidingDay[] = []) {
+  return render(<AvailabilitySection onGateStateChange={onGateStateChange} ridingDays={ridingDays} />);
 }
 
-function dayGroup(label: string) {
-  return within(screen.getByRole("group", { name: label }));
-}
+const select = (name: string) => screen.getByRole("combobox", { name });
+const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -32,123 +32,62 @@ beforeEach(() => {
   saveAvailabilityWindows.mockResolvedValue([]);
 });
 
-describe("AvailabilitySection — empty state", () => {
-  it("shows all 7 days as unavailable, with no arbitrary default times, when nothing is saved", async () => {
+describe("AvailabilitySection — BUG-V2-1 physical / riding", () => {
+  it("empty state: every day at '—' for both physical and riding, and the generation blocker is shown", async () => {
     renderSection();
-
     await screen.findByText("Disponibilités");
-    for (const label of ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]) {
-      expect(dayGroup(label).getByRole("button", { name: "Non disponible" })).toBeInTheDocument();
-      expect(screen.queryByLabelText(`Heure de début — ${label}`)).not.toBeInTheDocument();
+    for (const day of DAYS) {
+      expect(select(`Physique — ${day}`)).toHaveValue("0");
+      expect(select(`Vélo — ${day}`)).toHaveValue("0");
     }
     expect(screen.getByText(/Aucune disponibilité enregistrée/)).toBeInTheDocument();
   });
-});
 
-describe("AvailabilitySection — existing state", () => {
-  it("pre-fills the correct day and times from an existing window", async () => {
-    const existing: AvailabilityWindow[] = [{ id: "w1", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null }];
+  it("pre-fills each day from the saved typed windows (a non-preset duration stays selectable)", async () => {
+    const existing: AvailabilityWindow[] = [
+      { id: "w1", dayOfWeek: 1, startTime: "18:00", endTime: "19:20", label: null, activity: "physical" },
+      { id: "w2", dayOfWeek: 6, startTime: "08:00", endTime: "18:00", label: null, activity: "riding" },
+    ];
     loadAvailabilityWindows.mockResolvedValue(existing);
-
-    renderSection();
-
+    renderSection(vi.fn(), ["Tuesday"]);
     await screen.findByText("Disponibilités");
-    expect(dayGroup("Lundi").getByRole("button", { name: "Disponible" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Heure de début — Lundi")).toHaveValue("18:00");
-    expect(screen.getByLabelText("Heure de fin — Lundi")).toHaveValue("20:00");
-    // Untouched days remain unavailable.
-    expect(dayGroup("Mardi").getByRole("button", { name: "Non disponible" })).toBeInTheDocument();
+    expect(select("Physique — Lundi")).toHaveValue("80");
+    expect(select("Vélo — Samedi")).toHaveValue("600");
+    expect(select("Vélo — Mardi")).toHaveValue("0"); // typed data saved: onboarding riding days not re-applied
+    expect(screen.queryByText(LEGACY_AVAILABILITY_HINT)).not.toBeInTheDocument();
   });
-});
 
-describe("AvailabilitySection — toggle", () => {
-  it("shows time inputs only once a day is marked available, and hides them again when toggled off", async () => {
-    const user = userEvent.setup();
-    renderSection();
+  it("a legacy profile is asked to specify physical vs riding, starting from its windows and its riding days", async () => {
+    loadAvailabilityWindows.mockResolvedValue([{ id: "old", dayOfWeek: 2, startTime: "17:00", endTime: "18:30", label: null, activity: "any" }]);
+    renderSection(vi.fn(), ["Sunday"]);
     await screen.findByText("Disponibilités");
-
-    expect(screen.queryByLabelText("Heure de début — Lundi")).not.toBeInTheDocument();
-
-    await user.click(dayGroup("Lundi").getByRole("button", { name: "Non disponible" }));
-    expect(screen.getByLabelText("Heure de début — Lundi")).toBeInTheDocument();
-
-    await user.click(dayGroup("Lundi").getByRole("button", { name: "Disponible" }));
-    expect(screen.queryByLabelText("Heure de début — Lundi")).not.toBeInTheDocument();
+    expect(screen.getByText(LEGACY_AVAILABILITY_HINT)).toBeInTheDocument();
+    expect(select("Physique — Mardi")).toHaveValue("90");
+    expect(select("Vélo — Dimanche")).toHaveValue("600");
   });
-});
 
-describe("AvailabilitySection — validation", () => {
-  async function markMondayAvailable(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(dayGroup("Lundi").getByRole("button", { name: "Non disponible" }));
-  }
-
-  it("rejects a missing start time", async () => {
+  it("saves typed windows, replacing every existing one by id, and reports a clean gate", async () => {
+    loadAvailabilityWindows.mockResolvedValue([{ id: "old", dayOfWeek: 2, startTime: "17:00", endTime: "18:30", label: null, activity: "any" }]);
+    const saved: AvailabilityWindow[] = [{ id: "n1", dayOfWeek: 2, startTime: "18:00", endTime: "19:30", label: null, activity: "physical" }];
+    saveAvailabilityWindows.mockResolvedValue(saved);
+    const onGateStateChange = vi.fn();
     const user = userEvent.setup();
-    renderSection();
+    renderSection(onGateStateChange);
     await screen.findByText("Disponibilités");
-    await markMondayAvailable(user);
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "20:00");
 
+    await user.selectOptions(select("Vélo — Samedi"), "600");
     await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
 
-    expect(await screen.findByText(/Indique une heure de début et de fin pour Lundi/)).toBeInTheDocument();
-    expect(saveAvailabilityWindows).not.toHaveBeenCalled();
-  });
-
-  it("rejects a missing end time", async () => {
-    const user = userEvent.setup();
-    renderSection();
-    await screen.findByText("Disponibilités");
-    await markMondayAvailable(user);
-    await user.type(screen.getByLabelText("Heure de début — Lundi"), "18:00");
-
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-
-    expect(await screen.findByText(/Indique une heure de début et de fin pour Lundi/)).toBeInTheDocument();
-    expect(saveAvailabilityWindows).not.toHaveBeenCalled();
-  });
-
-  it("rejects endTime equal to startTime", async () => {
-    const user = userEvent.setup();
-    renderSection();
-    await screen.findByText("Disponibilités");
-    await markMondayAvailable(user);
-    await user.type(screen.getByLabelText("Heure de début — Lundi"), "18:00");
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "18:00");
-
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-
-    expect(await screen.findByText(/L'heure de fin doit être après l'heure de début pour Lundi/)).toBeInTheDocument();
-    expect(saveAvailabilityWindows).not.toHaveBeenCalled();
-  });
-
-  it("rejects endTime before startTime", async () => {
-    const user = userEvent.setup();
-    renderSection();
-    await screen.findByText("Disponibilités");
-    await markMondayAvailable(user);
-    await user.type(screen.getByLabelText("Heure de début — Lundi"), "20:00");
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "18:00");
-
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-
-    expect(await screen.findByText(/L'heure de fin doit être après l'heure de début pour Lundi/)).toBeInTheDocument();
-    expect(saveAvailabilityWindows).not.toHaveBeenCalled();
-  });
-
-  it("accepts a valid window and calls saveAvailabilityWindows", async () => {
-    const user = userEvent.setup();
-    renderSection();
-    await screen.findByText("Disponibilités");
-    await markMondayAvailable(user);
-    await user.type(screen.getByLabelText("Heure de début — Lundi"), "18:00");
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "20:00");
-
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-
-    await waitFor(() =>
-      expect(saveAvailabilityWindows).toHaveBeenCalledWith("athlete-1", [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], [])
+    await screen.findByText("Disponibilités enregistrées.");
+    expect(saveAvailabilityWindows).toHaveBeenCalledWith(
+      "athlete-1",
+      [
+        { dayOfWeek: 2, startTime: "18:00", endTime: "19:30", activity: "physical" },
+        { dayOfWeek: 6, startTime: "08:00", endTime: "18:00", activity: "riding" },
+      ],
+      ["old"]
     );
+    expect(onGateStateChange).toHaveBeenLastCalledWith({ loading: false, dirty: false, saving: false, hasSavedAvailability: true });
   });
 });
 
@@ -160,25 +99,9 @@ describe("AvailabilitySection — dirty tracking and save outcome", () => {
     await screen.findByText("Disponibilités");
     onGateStateChange.mockClear();
 
-    await user.click(dayGroup("Lundi").getByRole("button", { name: "Non disponible" }));
+    await user.selectOptions(select("Physique — Lundi"), "60");
 
     expect(onGateStateChange).toHaveBeenCalledWith(expect.objectContaining({ dirty: true }));
-  });
-
-  it("clears dirty after a successful save", async () => {
-    saveAvailabilityWindows.mockResolvedValue([{ id: "w1", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null }]);
-    const onGateStateChange = vi.fn();
-    const user = userEvent.setup();
-    renderSection(onGateStateChange);
-    await screen.findByText("Disponibilités");
-    await user.click(dayGroup("Lundi").getByRole("button", { name: "Non disponible" }));
-    await user.type(screen.getByLabelText("Heure de début — Lundi"), "18:00");
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "20:00");
-
-    await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
-
-    await screen.findByText("Disponibilités enregistrées.");
-    expect(onGateStateChange).toHaveBeenLastCalledWith({ loading: false, dirty: false, saving: false, hasSavedAvailability: true });
   });
 
   it("keeps dirty true when the save fails", async () => {
@@ -187,9 +110,7 @@ describe("AvailabilitySection — dirty tracking and save outcome", () => {
     const user = userEvent.setup();
     renderSection(onGateStateChange);
     await screen.findByText("Disponibilités");
-    await user.click(dayGroup("Lundi").getByRole("button", { name: "Non disponible" }));
-    await user.type(screen.getByLabelText("Heure de début — Lundi"), "18:00");
-    await user.type(screen.getByLabelText("Heure de fin — Lundi"), "20:00");
+    await user.selectOptions(select("Physique — Lundi"), "60");
 
     await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
 
@@ -198,31 +119,16 @@ describe("AvailabilitySection — dirty tracking and save outcome", () => {
   });
 });
 
-describe("AvailabilitySection — no arbitrary defaults", () => {
-  it("leaves time inputs empty when a day is newly toggled available, never inventing a default time", async () => {
-    const user = userEvent.setup();
-    renderSection();
-    await screen.findByText("Disponibilités");
-
-    await user.click(dayGroup("Mardi").getByRole("button", { name: "Non disponible" }));
-
-    expect(screen.getByLabelText("Heure de début — Mardi")).toHaveValue("");
-    expect(screen.getByLabelText("Heure de fin — Mardi")).toHaveValue("");
-  });
-});
-
 describe("AvailabilitySection — generation blocker message (PILOT_015)", () => {
   it("the 'no availability saved' blocker disappears once a window is actually saved, and stays gone on reload", async () => {
-    const saved = [{ id: "w1", dayOfWeek: 6 as const, startTime: "09:00", endTime: "12:00", label: null }];
+    const saved: AvailabilityWindow[] = [{ id: "w1", dayOfWeek: 6, startTime: "08:00", endTime: "12:00", label: null, activity: "riding" }];
     saveAvailabilityWindows.mockResolvedValue(saved);
     const user = userEvent.setup();
     const { unmount } = renderSection();
     await screen.findByText("Disponibilités");
     expect(screen.getByText(/Aucune disponibilité enregistrée/)).toBeInTheDocument();
 
-    await user.click(dayGroup("Samedi").getByRole("button", { name: "Non disponible" }));
-    await user.type(screen.getByLabelText("Heure de début — Samedi"), "09:00");
-    await user.type(screen.getByLabelText("Heure de fin — Samedi"), "12:00");
+    await user.selectOptions(select("Vélo — Samedi"), "240");
     await user.click(screen.getByRole("button", { name: "Enregistrer mes disponibilités" }));
 
     await screen.findByText("Disponibilités enregistrées.");
@@ -232,7 +138,7 @@ describe("AvailabilitySection — generation blocker message (PILOT_015)", () =>
     loadAvailabilityWindows.mockResolvedValue(saved);
     renderSection();
     await screen.findByText("Disponibilités");
-    expect(screen.getByLabelText("Heure de début — Samedi")).toHaveValue("09:00");
+    await waitFor(() => expect(select("Vélo — Samedi")).toHaveValue("240"));
     expect(screen.queryByText(/Aucune disponibilité enregistrée/)).not.toBeInTheDocument();
   });
 });

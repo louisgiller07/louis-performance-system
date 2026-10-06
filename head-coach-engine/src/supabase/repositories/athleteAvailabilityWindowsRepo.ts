@@ -16,6 +16,8 @@ export interface AthleteAvailabilityWindowRawRow {
   start_time: string;
   end_time: string;
   label: string | null;
+  /** BUG-V2-1 — 'any' (legacy rows, both), 'physical' or 'riding'. Absent only in pre-BUG-V2-1 test fixtures = 'any'. */
+  activity?: "any" | "physical" | "riding";
 }
 
 /** Fetches every recurring availability window declared for `athleteId`. An athlete with none returns an empty array, never an error. */
@@ -25,7 +27,7 @@ export async function getAvailabilityWindowsFor(
 ): Promise<AthleteAvailabilityWindowRawRow[]> {
   const { data, error } = await client
     .from("athlete_availability_windows")
-    .select("id, day_of_week, start_time, end_time, label")
+    .select("id, day_of_week, start_time, end_time, label, activity")
     .eq("athlete_id", athleteId);
 
   assertNoSupabaseError(error, "athlete_availability_windows");
@@ -37,6 +39,8 @@ export interface AthleteAvailabilityWindowInsert {
   start_time: string;
   end_time: string;
   label?: string;
+  /** BUG-V2-1 — omitted = the DB default 'any'. */
+  activity?: "any" | "physical" | "riding";
 }
 
 /**

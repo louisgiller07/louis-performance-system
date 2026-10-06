@@ -2,30 +2,10 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { Card } from "../../components/Card";
 import { PrimaryButton } from "../../components/PrimaryButton";
-import {
-  loadAvailabilityWindows,
-  saveAvailabilityWindows,
-  deriveAvailabilityForm,
-  AvailabilityError,
-  type AvailabilityFormDay,
-  type AvailabilityDayOfWeek,
-  type SaveAvailabilityWindowInput,
-  type AvailabilityWindow,
-} from "./availabilityRepo";
-
-const DAY_LABELS: Record<AvailabilityDayOfWeek, string> = {
-  1: "Lundi",
-  2: "Mardi",
-  3: "Mercredi",
-  4: "Jeudi",
-  5: "Vendredi",
-  6: "Samedi",
-  0: "Dimanche",
-};
-
-// French display order (Monday first) — independent of the DB's own
-// 0=Sunday storage convention, which stays untouched end to end.
-const DISPLAY_ORDER: readonly AvailabilityDayOfWeek[] = [1, 2, 3, 4, 5, 6, 0];
+import { loadAvailabilityWindows, saveAvailabilityWindows, AvailabilityError, type AvailabilityWindow } from "./availabilityRepo";
+import type { RidingDay } from "../athleteOnboarding/onboardingOptions";
+import { TrainingAvailabilityEditor } from "../availability/TrainingAvailabilityEditor";
+import { emptyWeek, isLegacyAvailability, weekFromWindows, windowsFromWeek, type WeekAvailability } from "../availability/trainingAvailability";
 
 export interface AvailabilityGateState {
   loading: boolean;
@@ -42,57 +22,24 @@ export interface AvailabilitySectionProps {
   onSaved?: (windows: AvailabilityWindow[]) => void;
   /** UX-10B-1 — inside "Tes créneaux": no own card or title. */
   bare?: boolean;
+  /** BUG-V2-1 — onboarding riding days, a starting point for a profile without typed availability. */
+  ridingDays?: readonly RidingDay[];
 }
 
-/** Local toggle — same visual language as PerformanceSetup.tsx's own ToggleChip, not imported (siblings in the same feature folder, kept decoupled — same reasoning as TrainingPlanGenerationPanel.tsx staying self-contained). */
-function DayToggle({ available, onClick }: { available: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={available}
-      className={`rounded-full border px-3 py-2 text-sm transition-colors ${
-        available ? "border-gold bg-gold/10 text-ink" : "border-white/10 bg-bg text-ink/80 hover:border-white/25"
-      }`}
-    >
-      {available ? "Disponible" : "Non disponible"}
-    </button>
-  );
-}
-
-function validateDays(days: readonly AvailabilityFormDay[]): string | null {
-  for (const day of days) {
-    if (!day.available) continue;
-    if (!day.startTime || !day.endTime) {
-      return `Indique une heure de début et de fin pour ${DAY_LABELS[day.dayOfWeek]}.`;
-    }
-    if (day.endTime <= day.startTime) {
-      return `L'heure de fin doit être après l'heure de début pour ${DAY_LABELS[day.dayOfWeek]}.`;
-    }
-  }
-  return null;
-}
+export const LEGACY_AVAILABILITY_HINT = "Précise ce qui est physique et ce qui est vélo : ton plan placera chaque séance sur un jour qui lui convient.";
 
 /**
- * /performance-setup's "Disponibilités" section (V0.5_045) — the athlete's
- * only real way to satisfy `missing_availability` today. Owns its own
- * load/edit/validate/save lifecycle entirely (no component outside this
- * file ever calls Supabase for this data), and reports only the 4 booleans
- * PerformanceSetup.tsx actually needs for its generation gate via
- * `onGateStateChange` — never the form data itself.
- *
- * V0.5_045 scope lock: `athlete_availability_windows` only. Exceptions and
- * locked dates are out of scope (V0.5_044 decision) — not represented here
- * even as disabled/placeholder UI.
+ * BUG-V2-1 — physical and riding availability, per day. Saving replaces the
+ * whole set (availabilityRepo.saveAvailabilityWindows), every window typed.
  */
-export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }: AvailabilitySectionProps) {
+export function AvailabilitySection({ onGateStateChange, onSaved, bare = false, ridingDays = [] }: AvailabilitySectionProps) {
   const { athleteId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState<AvailabilityFormDay[]>(deriveAvailabilityForm([]));
-  const [existingIds, setExistingIds] = useState<string[]>([]);
+  const [week, setWeek] = useState<WeekAvailability>(emptyWeek());
+  const [existing, setExisting] = useState<AvailabilityWindow[]>([]);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -102,8 +49,8 @@ export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }
     loadAvailabilityWindows()
       .then((windows) => {
         if (!active) return;
-        setDays(deriveAvailabilityForm(windows));
-        setExistingIds(windows.map((w) => w.id));
+        setWeek(weekFromWindows(windows, ridingDays));
+        setExisting(windows);
         setLoading(false);
       })
       .catch(() => {
@@ -115,54 +62,32 @@ export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }
     return () => {
       active = false;
     };
+    // ridingDays only seeds the very first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [athleteId]);
 
-  const hasSavedAvailability = existingIds.length > 0;
+  const hasSavedAvailability = existing.length > 0;
 
   useEffect(() => {
     onGateStateChange({ loading, dirty, saving, hasSavedAvailability });
   }, [loading, dirty, saving, hasSavedAvailability, onGateStateChange]);
 
-  function updateDay(dayOfWeek: AvailabilityDayOfWeek, updater: (d: AvailabilityFormDay) => AvailabilityFormDay) {
-    setDays((prev) => prev.map((d) => (d.dayOfWeek === dayOfWeek ? updater(d) : d)));
+  function handleChange(next: WeekAvailability) {
+    setWeek(next);
     setDirty(true);
     setSaved(false);
     setError(null);
   }
 
-  function handleToggle(dayOfWeek: AvailabilityDayOfWeek) {
-    updateDay(dayOfWeek, (d) => ({ ...d, available: !d.available }));
-  }
-
-  function handleStartTimeChange(dayOfWeek: AvailabilityDayOfWeek, value: string) {
-    updateDay(dayOfWeek, (d) => ({ ...d, startTime: value }));
-  }
-
-  function handleEndTimeChange(dayOfWeek: AvailabilityDayOfWeek, value: string) {
-    updateDay(dayOfWeek, (d) => ({ ...d, endTime: value }));
-  }
-
   async function handleSave() {
     if (!athleteId || saving) return;
-
-    const validationError = validateDays(days);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
     setError(null);
     setSaving(true);
     setSaved(false);
     try {
-      const newWindows: SaveAvailabilityWindowInput[] = days
-        .filter((d) => d.available)
-        .map((d) => ({ dayOfWeek: d.dayOfWeek, startTime: d.startTime, endTime: d.endTime }));
-
-      const result = await saveAvailabilityWindows(athleteId, newWindows, existingIds);
-
-      setExistingIds(result.map((w) => w.id));
-      setDays(deriveAvailabilityForm(result));
+      const result = await saveAvailabilityWindows(athleteId, windowsFromWeek(week), existing.map((w) => w.id));
+      setExisting(result);
+      setWeek(weekFromWindows(result));
       setDirty(false);
       setSaved(true);
       onSaved?.(result);
@@ -179,7 +104,7 @@ export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }
       {!bare && (
         <div>
           <p className="text-sm font-medium text-ink">Disponibilités</p>
-          <p className="text-sm text-ink/70">Indique les jours où tu peux généralement t'entraîner.</p>
+          <p className="text-sm text-ink/70">Le temps dont tu disposes chaque jour, pour le physique et pour le vélo.</p>
         </div>
       )}
 
@@ -190,40 +115,8 @@ export function AvailabilitySection({ onGateStateChange, onSaved, bare = false }
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-3">
-            {DISPLAY_ORDER.map((dayOfWeek) => {
-              const day = days.find((d) => d.dayOfWeek === dayOfWeek);
-              if (!day) return null;
-              return (
-                <div key={dayOfWeek} role="group" aria-label={DAY_LABELS[dayOfWeek]} className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-ink">{DAY_LABELS[dayOfWeek]}</span>
-                    <DayToggle available={day.available} onClick={() => handleToggle(dayOfWeek)} />
-                  </div>
-                  {day.available && (
-                    <div className="flex items-center gap-2 text-sm text-ink/80">
-                      <span>De</span>
-                      <input
-                        type="time"
-                        aria-label={`Heure de début — ${DAY_LABELS[dayOfWeek]}`}
-                        value={day.startTime}
-                        onChange={(e) => handleStartTimeChange(dayOfWeek, e.target.value)}
-                        className="rounded border border-white/10 bg-transparent px-3 py-2 text-sm text-ink"
-                      />
-                      <span>à</span>
-                      <input
-                        type="time"
-                        aria-label={`Heure de fin — ${DAY_LABELS[dayOfWeek]}`}
-                        value={day.endTime}
-                        onChange={(e) => handleEndTimeChange(dayOfWeek, e.target.value)}
-                        className="rounded border border-white/10 bg-transparent px-3 py-2 text-sm text-ink"
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {isLegacyAvailability(existing) && !dirty && <p className="text-sm text-gold">{LEGACY_AVAILABILITY_HINT}</p>}
+          <TrainingAvailabilityEditor value={week} onChange={handleChange} />
 
           {error && <p className="text-sm text-red-400">{error}</p>}
           {saved && !error && <p className="text-sm text-gold">Disponibilités enregistrées.</p>}

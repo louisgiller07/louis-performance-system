@@ -36,6 +36,8 @@ import { deriveDhSessionOrdinals } from "../builders/dhSessionOrdinals.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
 import { PLAN_DOSE_MODEL_V2 } from "./planDoseModelV2.js";
+import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
+import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 
 export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE"];
 
@@ -133,7 +135,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   // Sport content of every session first (pure); any locked block stops the whole plan before any id.
   let contents: PrescriptionV2Content[];
   try {
-    contents = flat.map(({ session }) => buildContent(session, modelInput, dhOrdinals, catalog));
+    contents = flat.map(({ session }) => buildContent(session, modelInput, dhOrdinals, catalog, snapshot.availability, snapshot.lockedDates));
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return { status: "blocked", code: error.code, detail: error.detail };
     throw error;
@@ -206,7 +208,9 @@ function buildContent(
   session: { date: string; kind: SessionKind; loadProfile?: LoadProfile; durationMin: number; doseTarget: SessionDoseTarget },
   modelInput: ReturnType<typeof toSessionModelV2Input>,
   dhOrdinals: ReadonlyMap<string, number>,
-  catalog: SessionModelV2CatalogManifest
+  catalog: SessionModelV2CatalogManifest,
+  availability: PlanInputAvailability,
+  lockedDates: readonly PlanInputLockedDate[]
 ): PrescriptionV2Content {
   switch (session.kind) {
     case "STRENGTH_LOWER":
@@ -237,7 +241,13 @@ function buildContent(
       });
     }
     case "AEROBIC_BASE":
-      return buildAerobicBasePrescriptionV2Content({ sessionKind: session.kind, durationMin: session.durationMin, catalog });
+      return buildAerobicBasePrescriptionV2Content({
+        sessionKind: session.kind,
+        durationMin: session.durationMin,
+        catalog,
+        // BUG-V2-1 — no riding window that day: off-terrain endurance only.
+        ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
+      });
     default:
       throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
   }

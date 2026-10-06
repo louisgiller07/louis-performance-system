@@ -24,7 +24,9 @@ import {
   type StrengthExperienceTier,
   type Terrain,
 } from "../performanceSetup/performanceSetupOptions";
-import type { AvailabilityDayOfWeek, AvailabilityWindow } from "../performanceSetup/availabilityRepo";
+import type { AvailabilityWindow } from "../performanceSetup/availabilityRepo";
+import { TrainingAvailabilityEditor } from "../availability/TrainingAvailabilityEditor";
+import { hasAnyAvailability, weekFromWindows, type WeekAvailability } from "../availability/trainingAvailability";
 import type { PerformanceSetupAnswers } from "../performanceSetup/performanceSetupRepo";
 import type { TrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewTypes";
 import type { GenerateTrainingPlanError } from "../trainingPlanGeneration/generateTrainingPlanErrors";
@@ -32,19 +34,14 @@ import { translateWeekType } from "../trainingLabels/trainingLabels";
 import { sessionTitle } from "../program/programPresentation";
 import { FirstRunShell, ChoiceList } from "./FirstRunShell";
 import { useFirstRunSetup, type FirstRunSetupData } from "./useFirstRunSetup";
-import { WEEK_ORDER, initialSlot, initialTrainingDays, isValidSlot, nextSessions, planWeekCount, presetFor, type SetupStep, type Slot } from "./firstRunPlan";
+import { nextSessions, planWeekCount, type SetupStep } from "./firstRunPlan";
 import {
   BUILDING,
-  CUSTOM_SLOT,
-  DAY_FULL,
-  DAY_SHORT,
   DEFAULT_PLAN_WEEKS,
   PLAN_DURATIONS,
   READY,
   SETUP_STEPS,
   SHELL,
-  TIME_SLOTS,
-  slotHours,
 } from "./firstRunPresentation";
 
 // UX-09 — "your training → your plan", the second half of the first run
@@ -92,9 +89,8 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
   const [error, setError] = useState<string | null>(null);
 
   const [windows, setWindows] = useState<AvailabilityWindow[]>(data.windows);
-  const [days, setDays] = useState<AvailabilityDayOfWeek[]>(() => initialTrainingDays(data.windows, data.ridingDays));
-  const [slot, setSlot] = useState<Slot | null>(() => initialSlot(data.windows));
-  const [custom, setCustom] = useState(() => initialSlot(data.windows) !== null && presetFor(initialSlot(data.windows)) === null);
+  // BUG-V2-1 — physical and riding time per day (prefilled from what is saved, else the riding days).
+  const [week, setWeek] = useState<WeekAvailability>(() => weekFromWindows(data.windows, data.ridingDays));
   const [profile, setProfile] = useState<PerformanceSetupAnswers>(data.profile);
   const [weeks, setWeeks] = useState<number>(DEFAULT_PLAN_WEEKS);
 
@@ -130,10 +126,6 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
     } finally {
       setBusy(false);
     }
-  }
-
-  function toggleDay(day: AvailabilityDayOfWeek) {
-    setDays((current) => (current.includes(day) ? current.filter((d) => d !== day) : WEEK_ORDER.filter((d) => d === day || current.includes(d))));
   }
 
   function toggle<T extends string>(list: readonly T[], value: T): T[] {
@@ -177,7 +169,7 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
 
   if (step === "training") {
     const copy = SETUP_STEPS.training;
-    const valid = days.length > 0 && isValidSlot(slot);
+    const valid = hasAnyAvailability(week);
     return (
       <FirstRunShell
         chapter={copy.chapter}
@@ -186,7 +178,7 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
         hint={copy.hint}
         onNext={() =>
           void run(async () => {
-            setWindows(await setup.saveTraining(days, slot!, windows));
+            setWindows(await setup.saveTraining(week, windows));
             setStep(
               profile.terrainAccess.length === 0
                 ? "terrain"
@@ -203,67 +195,8 @@ function FirstRunSteps({ data, setup }: { data: FirstRunSetupData; setup: Return
         error={error}
         stepKey="training"
       >
-        <div role="group" aria-label={copy.question} className="grid grid-cols-7 gap-1.5">
-          {WEEK_ORDER.map((day) => (
-            <button
-              key={day}
-              type="button"
-              aria-pressed={days.includes(day)}
-              aria-label={DAY_FULL[day]}
-              onClick={() => toggleDay(day)}
-              className={`ux-press min-h-12 rounded-lg border text-xs font-semibold ${days.includes(day) ? "border-gold bg-gold text-bg" : "border-line text-ink/80"}`}
-            >
-              {DAY_SHORT[day]}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-col gap-2">
-          <p className="text-base text-ink">{copy.slotQuestion}</p>
-          <div role="group" aria-label={copy.slotQuestion} className="grid grid-cols-2 gap-2">
-            {TIME_SLOTS.map((preset) => {
-              const pressed = !custom && slot?.start === preset.start && slot?.end === preset.end;
-              return (
-                <button
-                  key={preset.id}
-                  type="button"
-                  aria-pressed={pressed}
-                  onClick={() => {
-                    setCustom(false);
-                    setSlot({ start: preset.start, end: preset.end });
-                  }}
-                  className={`ux-press min-h-14 rounded-lg border px-3 py-2 text-left ${pressed ? "border-gold bg-gold/12" : "border-line hover:border-gold/50"}`}
-                >
-                  <span className="block text-sm font-medium text-ink">{preset.label}</span>
-                  <span className="block text-xs text-muted">{slotHours(preset.start, preset.end)}</span>
-                </button>
-              );
-            })}
-          </div>
-          <button
-            type="button"
-            aria-pressed={custom}
-            onClick={() => {
-              setCustom(true);
-              setSlot((current) => current ?? { start: "", end: "" });
-            }}
-            className={`ux-press min-h-11 rounded-lg border px-3 text-left text-sm ${custom ? "border-gold bg-gold/12 text-ink" : "border-line text-ink/80"}`}
-          >
-            {CUSTOM_SLOT}
-          </button>
-          {custom && (
-            <div className="flex items-center gap-3">
-              <label className="flex flex-1 flex-col gap-1 text-xs text-muted">
-                {copy.customStart}
-                <input type="time" value={slot?.start ?? ""} onChange={(e) => setSlot((s) => ({ start: e.target.value, end: s?.end ?? "" }))} className="rounded border border-line bg-card px-3 py-2.5 text-base text-ink" />
-              </label>
-              <label className="flex flex-1 flex-col gap-1 text-xs text-muted">
-                {copy.customEnd}
-                <input type="time" value={slot?.end ?? ""} onChange={(e) => setSlot((s) => ({ start: s?.start ?? "", end: e.target.value }))} className="rounded border border-line bg-card px-3 py-2.5 text-base text-ink" />
-              </label>
-            </div>
-          )}
-          <p className="text-xs text-muted">{copy.later}</p>
-        </div>
+        <TrainingAvailabilityEditor value={week} onChange={setWeek} />
+        <p className="text-xs text-muted">{copy.later}</p>
       </FirstRunShell>
     );
   }

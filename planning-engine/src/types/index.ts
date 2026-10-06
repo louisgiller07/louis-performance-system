@@ -4,6 +4,7 @@ export { LOAD_VARIABLE_SESSION_KINDS } from "./sharedVocabulary.js";
 export type {
   StrengthExperienceTier,
   PlanInputRace,
+  PlanInputAvailabilityActivity,
   PlanInputAvailabilityWindow,
   PlanInputAvailabilityException,
   PlanInputAvailability,

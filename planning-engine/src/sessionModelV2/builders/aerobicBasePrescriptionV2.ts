@@ -6,7 +6,9 @@
  * Uses ONLY the `endurance_base_continuous` protocol (protocolCatalogV2):
  * - intent: the protocol's own `intentId` (explicit catalogue relation);
  * - activitySelection: "restricted" over the protocol's `activityOptions`,
- *   in catalogue order — the builder never picks the activity;
+ *   in catalogue order — the builder never picks the activity; BUG-V2-1: on
+ *   a day without riding availability only the off-terrain options
+ *   (home trainer, running) are offered — never an invented bike outing;
  * - blocks: the protocol blocks with their duration, RPE, talk test and
  *   instructions, `items: []` (no fake item).
  *
@@ -29,7 +31,12 @@ export interface AerobicBasePrescriptionV2Input {
   /** The planned session's durationMin. */
   durationMin: number;
   catalog: SessionModelV2CatalogManifest;
+  /** BUG-V2-1 — riding availability on the session's date; absent = available (legacy behavior). */
+  ridingAvailable?: boolean;
 }
+
+/** BUG-V2-1 — endurance activities that need neither a riding window nor terrain. */
+export const OFF_TERRAIN_ENDURANCE_ACTIVITIES_V2 = ["home_trainer", "running"] as const;
 
 function fixedDuration(block: ProtocolBlockV2): number {
   const d = block.durationMinutes;
@@ -70,6 +77,14 @@ export function buildAerobicBasePrescriptionV2Content(input: AerobicBasePrescrip
     });
   }
 
+  const activityIds =
+    input.ridingAvailable === false
+      ? protocol.activityOptions.filter((a) => (OFF_TERRAIN_ENDURANCE_ACTIVITIES_V2 as readonly string[]).includes(a))
+      : [...protocol.activityOptions];
+  if (activityIds.length === 0) {
+    throw new SessionModelV2ContractError(`${AEROBIC_BASE_PROTOCOL_ID} offers no off-terrain activity for a day without riding availability`);
+  }
+
   const blocks: BlockV2Content[] = protocol.blocks.map((block) => {
     const minutes = block === main ? mainMinutes : fixedDuration(block);
     return {
@@ -89,7 +104,7 @@ export function buildAerobicBasePrescriptionV2Content(input: AerobicBasePrescrip
     sessionKind: input.sessionKind,
     intentId: protocol.intentId,
     protocolId: AEROBIC_BASE_PROTOCOL_ID,
-    activitySelection: { mode: "restricted", activityIds: [...protocol.activityOptions] },
+    activitySelection: { mode: "restricted", activityIds },
     catalog: input.catalog,
     blocks,
   };

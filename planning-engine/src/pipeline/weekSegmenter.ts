@@ -21,11 +21,27 @@
  * orchestrator from LoadDerivation's own reference figures — never decided
  * here). A slot that fits no remaining date is reported unplaceable, never
  * shortened: this module still never decides or changes a duration.
+ *
+ * BUG-V2-1 — each window hosts "physical", "riding" or both (legacy windows,
+ * no `activity`). A DH session needs a riding window, a strength session a
+ * physical one, an aerobic session either. Strength is steered away from
+ * riding days so they stay for riding; with only legacy windows every date
+ * serves both, so placement is exactly the previous one.
  */
-import type { PlanInputAvailability, PlanInputAvailabilityWindow, PlanInputLockedDate } from "../types/planInputSnapshot.js";
+import type { PlanInputAvailability, PlanInputLockedDate } from "../types/planInputSnapshot.js";
 import type { WeekTemplateCatalogEntry } from "../catalog/weekTemplateCatalog.js";
+import { availabilityByDate, dayOfWeekFor, type ActivityCapacity, type AvailabilityActivity, type DateAvailability } from "./availabilityActivity.js";
+
+export { windowCapacityMinutes, InvalidAvailabilityWindowError } from "./availabilityActivity.js";
 
 export type SessionDomain = "strength" | "dh_technical" | "aerobic";
+
+/** BUG-V2-1 — the availability kinds a session of each domain can use (any one of them). */
+export const DOMAIN_ACTIVITIES: Readonly<Record<SessionDomain, readonly AvailabilityActivity[]>> = {
+  dh_technical: ["riding"],
+  strength: ["physical"],
+  aerobic: ["physical", "riding"],
+};
 
 export interface PlacedSlot {
   date: string; // ISO date
@@ -70,44 +86,8 @@ export class InvalidWeekRangeError extends Error {
   }
 }
 
-/** A window time that is not "HH:mm" / "HH:mm:ss", or a window that does not end after it starts — never guessed around. */
-export class InvalidAvailabilityWindowError extends Error {
-  constructor(public readonly window: PlanInputAvailabilityWindow) {
-    super(`Invalid availability window on dayOfWeek ${window.dayOfWeek}: "${window.startTime}"-"${window.endTime}"`);
-    this.name = "InvalidAvailabilityWindowError";
-  }
-}
-
-// "HH:mm" (snapshot contract) or "HH:mm:ss" (what Postgres `time` returns
-// through PostgREST, passed through unchanged by buildPlanInputSnapshot).
-const TIME_PATTERN = /^(\d{2}):(\d{2})(?::(\d{2}))?$/;
-
-function parseTimeSeconds(value: string): number | null {
-  const match = TIME_PATTERN.exec(value);
-  if (match === null) return null;
-  const [hours, minutes, seconds] = [Number(match[1]), Number(match[2]), Number(match[3] ?? "0")];
-  if (hours > 24 || minutes > 59 || seconds > 59 || (hours === 24 && (minutes > 0 || seconds > 0))) return null;
-  return hours * 3600 + minutes * 60 + seconds;
-}
-
-/** Whole minutes between a window's start and end ("18:00"-"19:00" -> 60). Throws InvalidAvailabilityWindowError for a malformed or non-positive window (the DB itself enforces end_time > start_time). */
-export function windowCapacityMinutes(window: PlanInputAvailabilityWindow): number {
-  const start = parseTimeSeconds(window.startTime);
-  const end = parseTimeSeconds(window.endTime);
-  if (start === null || end === null || end <= start) {
-    throw new InvalidAvailabilityWindowError(window);
-  }
-  return Math.floor((end - start) / 60);
-}
-
 /** The only terrain tag any golden scenario treats as weekend-only (Scenario F) — not generalized to any other tag (V0.4_105 decision). */
 const WEEKEND_ONLY_TERRAIN_TAG = "bike_park_jump_line";
-
-/** Manual UTC parsing, never `new Date(isoString)` — same discipline as runDailyFor.ts's own addDays, for the same local-timezone-ambiguity reason. */
-function dayOfWeekFor(isoDate: string): number {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(Date.UTC(year as number, (month as number) - 1, day as number)).getUTCDay();
-}
 
 function addDays(isoDate: string, days: number): string {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -128,96 +108,80 @@ function enumerateDates(weekStartDate: string, weekEndDate: string): string[] {
   return dates;
 }
 
-/**
- * A date is available iff: an exception exists for it (its `available`
- * value wins outright, in either direction — an exception can grant
- * availability on a day with no recurring window, or revoke it on one that
- * has one) — otherwise, available iff its day-of-week has at least one
- * `availability.windows` entry. Locked dates are excluded unconditionally
- * afterward, regardless of either of these.
- */
-function computeAvailableDates(dates: readonly string[], availability: PlanInputAvailability, lockedDates: readonly PlanInputLockedDate[]): string[] {
-  const lockedSet = new Set(lockedDates.map((l) => l.date));
-  const exceptionByDate = new Map(availability.exceptions.map((e) => [e.date, e.available]));
-  const windowDaysOfWeek = new Set(availability.windows.map((w) => w.dayOfWeek));
-
-  return dates.filter((date) => {
-    if (lockedSet.has(date)) return false;
-    if (exceptionByDate.has(date)) return exceptionByDate.get(date)!;
-    return windowDaysOfWeek.has(dayOfWeekFor(date) as 0 | 1 | 2 | 3 | 4 | 5 | 6);
-  });
-}
-
-/**
- * Longest single window on each date's day of week (a session must fit in
- * one window — two short windows on the same day are never added up).
- * `null` = no time information at all: only possible for a date granted by
- * an `available: true` exception on a day with no recurring window
- * (exceptions carry no hours), so no capacity limit can be known — the
- * date keeps its pre-V06-03 behavior rather than being guessed short.
- */
-function computeDateCapacities(dates: readonly string[], availability: PlanInputAvailability): Map<string, number | null> {
-  const longestByDayOfWeek = new Map<number, number>();
-  for (const window of availability.windows) {
-    const capacity = windowCapacityMinutes(window);
-    longestByDayOfWeek.set(window.dayOfWeek, Math.max(capacity, longestByDayOfWeek.get(window.dayOfWeek) ?? 0));
-  }
-  return new Map(dates.map((date) => [date, longestByDayOfWeek.get(dayOfWeekFor(date)) ?? null]));
-}
-
 function isWeekend(date: string): boolean {
   const dow = dayOfWeekFor(date);
   return dow === 0 || dow === 6;
 }
+
+/**
+ * What a session of `domain` can use on a date: `undefined` = none of its
+ * activities is available; `null` = available without a known time limit
+ * (an `available: true` exception on a day without a compatible window);
+ * else the longest compatible window, in minutes.
+ */
+function domainCapacity(day: DateAvailability, domain: SessionDomain): ActivityCapacity {
+  const capacities = DOMAIN_ACTIVITIES[domain].map((activity) => day[activity]).filter((c) => c !== undefined);
+  if (capacities.length === 0) return undefined;
+  if (capacities.some((c) => c === null)) return null;
+  return Math.max(...(capacities as number[]));
+}
+
+const byDate = (a: DateAvailability, b: DateAvailability): number => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
 export function segmentWeek(input: WeekSegmentationInput): WeekSegmentationResult {
   if (input.weekEndDate < input.weekStartDate) {
     throw new InvalidWeekRangeError(input.weekStartDate, input.weekEndDate);
   }
 
-  const allDates = enumerateDates(input.weekStartDate, input.weekEndDate);
-  const availableDates = computeAvailableDates(allDates, input.availability, input.lockedDates);
-  const capacityByDate = computeDateCapacities(availableDates, input.availability);
+  const days = availabilityByDate(enumerateDates(input.weekStartDate, input.weekEndDate), input.availability, input.lockedDates);
   const claimed = new Set<string>();
 
   const placedSlots: PlacedSlot[] = [];
   const unplaceable: UnplaceableSlot[] = [];
 
-  // Earliest free candidate whose window holds the session; if free
-  // candidates remain but none is long enough, the shortfall is reported as
-  // a time problem, not a missing-date one.
-  const placeSlot = (domain: SessionDomain, candidates: readonly string[], noDateReason: UnplaceableReason): void => {
+  // First free candidate (in the domain's preference order) whose window
+  // holds the session; if free candidates remain but none is long enough,
+  // the shortfall is reported as a time problem, not a missing-date one.
+  const placeSlot = (domain: SessionDomain, candidates: readonly DateAvailability[], noDateReason: UnplaceableReason): void => {
     const durationMin = input.sessionDurationMinByDomain[domain];
-    const free = candidates.filter((d) => !claimed.has(d));
-    const date = free.find((d) => {
-      const capacity = capacityByDate.get(d) ?? null;
-      return capacity === null || durationMin <= capacity;
+    const free = candidates.filter((d) => !claimed.has(d.date));
+    const day = free.find((d) => {
+      const capacity = domainCapacity(d, domain);
+      return capacity === null || (capacity !== undefined && durationMin <= capacity);
     });
-    if (date === undefined) {
+    if (day === undefined) {
       unplaceable.push({ domain, reason: free.length > 0 ? "insufficient_available_time" : noDateReason });
       return;
     }
-    claimed.add(date);
-    placedSlots.push({ date, domain });
+    claimed.add(day.date);
+    placedSlots.push({ date: day.date, domain });
   };
 
+  const candidatesFor = (domain: SessionDomain): DateAvailability[] => days.filter((d) => domainCapacity(d, domain) !== undefined);
+
   // dh_technical placed first: it may draw from a strictly smaller pool
-  // (terrain-restricted) than strength/aerobic, which share the full pool —
-  // processing the most-constrained domain first avoids strength/aerobic
-  // incidentally claiming the only dates dh_technical could have used.
+  // (riding days, terrain-restricted) than strength/aerobic — processing the
+  // most-constrained domain first avoids the others incidentally claiming the
+  // only dates dh_technical could have used.
   const dhWeekendOnly = input.terrainAccess.length > 0 && input.terrainAccess.every((tag) => tag === WEEKEND_ONLY_TERRAIN_TAG);
-  const dhCandidates = availableDates.filter((date) => !dhWeekendOnly || isWeekend(date));
+  const dhCandidates = candidatesFor("dh_technical").filter((d) => !dhWeekendOnly || isWeekend(d.date));
   for (let i = 0; i < input.template.dhTechnicalSlotCount; i++) {
     placeSlot("dh_technical", dhCandidates, dhWeekendOnly ? "terrain_incompatible" : "insufficient_available_dates");
   }
 
-  for (const [domain, count] of [
-    ["strength", input.template.strengthSlotCount],
-    ["aerobic", input.template.aerobicSlotCount],
-  ] as const) {
-    for (let i = 0; i < count; i++) {
-      placeSlot(domain, availableDates, "insufficient_available_dates");
-    }
+  // Strength prefers days WITHOUT riding availability, so riding days stay
+  // for riding (date order within each group). With legacy windows every
+  // available date also serves riding: a single group, the previous order.
+  const strengthCandidates = [...candidatesFor("strength")].sort(
+    (a, b) => Number(a.riding !== undefined) - Number(b.riding !== undefined) || byDate(a, b)
+  );
+  for (let i = 0; i < input.template.strengthSlotCount; i++) {
+    placeSlot("strength", strengthCandidates, "insufficient_available_dates");
+  }
+
+  const aerobicCandidates = candidatesFor("aerobic");
+  for (let i = 0; i < input.template.aerobicSlotCount; i++) {
+    placeSlot("aerobic", aerobicCandidates, "insufficient_available_dates");
   }
 
   return { placedSlots, unplaceable };

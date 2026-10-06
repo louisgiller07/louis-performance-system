@@ -22,12 +22,22 @@ export interface PlanInputRace {
   priority: "A_PLUS" | "A" | "B" | "C";
 }
 
+/**
+ * BUG-V2-1 — what a window can host. "physical": off-bike training (strength,
+ * home trainer / running endurance); "riding": on the bike / on terrain (DH,
+ * outdoor endurance). Absent = both (every window declared before BUG-V2-1),
+ * so a legacy snapshot is unchanged and keeps its previous planning.
+ */
+export type PlanInputAvailabilityActivity = "physical" | "riding";
+
 /** One usable window on one recurring day of the week — e.g. "Tuesday, 17:00-19:00". */
 export interface PlanInputAvailabilityWindow {
   dayOfWeek: 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = Sunday, matches JS Date convention
   startTime: string; // "HH:mm"
   endTime: string; // "HH:mm"
   label?: string;
+  /** BUG-V2-1 — absent = both physical and riding (legacy windows). */
+  activity?: PlanInputAvailabilityActivity;
 }
 
 /** A one-off override for a specific date — e.g. "unavailable 2026-10-03, travel." */

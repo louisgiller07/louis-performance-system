@@ -91,6 +91,9 @@ function mapAvailabilityWindow(row: AthleteAvailabilityWindowRawRow): PlanInputA
     startTime: row.start_time,
     endTime: row.end_time,
     ...(row.label !== null ? { label: row.label } : {}),
+    // BUG-V2-1 — 'any' (legacy) maps to no field at all: a legacy snapshot,
+    // its hash and its planning stay exactly what they were.
+    ...(row.activity === "physical" || row.activity === "riding" ? { activity: row.activity } : {}),
   };
 }
 
@@ -148,9 +151,15 @@ function mapRace(row: RaceCalendarRawRow): PlanInputRace {
  */
 const compareText = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** Day of week → start time → end time → label (absent first). */
+/** Day of week → start time → end time → label (absent first) → activity (absent first, BUG-V2-1). */
 export function compareAvailabilityWindows(a: PlanInputAvailabilityWindow, b: PlanInputAvailabilityWindow): number {
-  return a.dayOfWeek - b.dayOfWeek || compareText(a.startTime, b.startTime) || compareText(a.endTime, b.endTime) || compareText(a.label ?? "", b.label ?? "");
+  return (
+    a.dayOfWeek - b.dayOfWeek ||
+    compareText(a.startTime, b.startTime) ||
+    compareText(a.endTime, b.endTime) ||
+    compareText(a.label ?? "", b.label ?? "") ||
+    compareText(a.activity ?? "", b.activity ?? "")
+  );
 }
 
 /** Date (unique per athlete) → availability → note (absent first). */

@@ -46,12 +46,9 @@ export const SETUP_STEPS = {
   training: {
     chapter: 2 as Chapter,
     title: "Tes créneaux",
-    question: "Quand peux-tu t'entraîner ?",
-    hint: "Préremplis avec tes jours de roulage. Ajoute les jours de renfo ou de mobilité.",
-    slotQuestion: "En général, tu t'entraînes plutôt :",
-    customStart: "Début",
-    customEnd: "Fin",
-    later: "Tu pourras régler chaque jour plus tard.",
+    question: "De combien de temps disposes-tu chaque jour ?",
+    hint: "Physique et vélo séparément : ton plan ne place une séance que là où elle tient.",
+    later: "Tu pourras modifier tes disponibilités plus tard dans ton profil.",
   },
   terrain: { chapter: 2 as Chapter, title: "Ton terrain", question: "Sur quels terrains peux-tu rouler ?", hint: "Au moins un. Ta première séance technique en dépend." },
   // UX-11A.5a.2b — declared DH technical tier + 1–3 ordered priorities.
@@ -82,24 +79,6 @@ export const SETUP_STEPS = {
   },
 } as const;
 
-/** A typical training window, shown with its exact hours (what is stored). */
-export const TIME_SLOTS = [
-  { id: "morning", label: "Matin", start: "08:00", end: "12:00" },
-  { id: "afternoon", label: "Après-midi", start: "13:00", end: "17:00" },
-  { id: "evening", label: "Soir", start: "17:00", end: "21:00" },
-  { id: "day", label: "Toute la journée", start: "08:00", end: "18:00" },
-] as const;
-export const CUSTOM_SLOT = "Autre plage";
-
-export function slotHours(start: string, end: string): string {
-  const h = (time: string) => {
-    const [hh, mm] = time.split(":");
-    return mm === "00" ? `${Number(hh)} h` : `${Number(hh)} h ${mm}`;
-  };
-  return `${h(start)} – ${h(end)}`;
-}
-
-/** Monday first; keyed by the DB day of week (0 = Sunday). */
 export const DAY_SHORT: Record<number, string> = { 1: "Lun", 2: "Mar", 3: "Mer", 4: "Jeu", 5: "Ven", 6: "Sam", 0: "Dim" };
 export const DAY_FULL: Record<number, string> = { 1: "Lundi", 2: "Mardi", 3: "Mercredi", 4: "Jeudi", 5: "Vendredi", 6: "Samedi", 0: "Dimanche" };
 

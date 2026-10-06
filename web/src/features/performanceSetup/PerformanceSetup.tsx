@@ -56,6 +56,7 @@ import {
 import { getActivePlanVersionId } from "../trainingPlanReview/trainingPlanReviewRepo";
 import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
 import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
+import { isLegacyAvailability, weekFromWindows, weekSummary } from "../availability/trainingAvailability";
 import {
   ACTIONS,
   DAY_SHORT,
@@ -113,7 +114,9 @@ function joinLabels<T extends string>(values: readonly T[], labels: Record<T, st
   return values.map((value) => labels[value]).join(", ");
 }
 
+/** BUG-V2-1 — typed availability as "Physique · …" / "Vélo · …"; a legacy profile keeps its day / hours lines. */
 function slotsSummary(windows: readonly AvailabilityWindow[]): string[] {
+  if (!isLegacyAvailability(windows)) return weekSummary(weekFromWindows(windows));
   const order = [1, 2, 3, 4, 5, 6, 0];
   const groups = new Map<string, number[]>();
   for (const w of windows) {
@@ -558,7 +561,7 @@ export function PerformanceSetup() {
           </SecondaryButton>
         }
       >
-        <AvailabilitySection bare onGateStateChange={setAvailabilityGate} onSaved={onWindowsSaved} />
+        <AvailabilitySection bare onGateStateChange={setAvailabilityGate} onSaved={onWindowsSaved} ridingDays={onboarding.preferredRidingDays} />
       </Section>
 
       <section id="preparation" aria-labelledby="refine-preparation" className="ux-enter scroll-mt-4">

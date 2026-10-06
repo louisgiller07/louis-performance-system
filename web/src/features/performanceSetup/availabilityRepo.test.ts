@@ -8,7 +8,6 @@ import { supabase } from "../../lib/supabase";
 import {
   loadAvailabilityWindows,
   saveAvailabilityWindows,
-  deriveAvailabilityForm,
   AvailabilityError,
   type AvailabilityWindow,
 } from "./availabilityRepo";
@@ -22,6 +21,7 @@ interface RawRow {
   start_time: string;
   end_time: string;
   label: string | null;
+  activity?: "any" | "physical" | "riding";
 }
 
 function rawRow(overrides: Partial<RawRow> = {}): RawRow {
@@ -51,42 +51,29 @@ describe("loadAvailabilityWindows", () => {
 
     const result = await loadAvailabilityWindows();
 
-    expect(result).toEqual<AvailabilityWindow[]>([{ id: "row-1", dayOfWeek: 2, startTime: "17:00", endTime: "19:30", label: "Evening" }]);
-    expect(selectMock).toHaveBeenCalledWith("id, day_of_week, start_time, end_time, label");
+    expect(result).toEqual<AvailabilityWindow[]>([{ id: "row-1", dayOfWeek: 2, startTime: "17:00", endTime: "19:30", label: "Evening", activity: "any" }]);
+    expect(selectMock).toHaveBeenCalledWith("id, day_of_week, start_time, end_time, label, activity");
+  });
+
+  it("BUG-V2-1 — reads the activity: physical / riding kept, 'any' or missing = a legacy window (both)", async () => {
+    mockedFrom.mockReturnValue({
+      select: vi.fn().mockResolvedValue({
+        data: [rawRow({ id: "p", activity: "physical" }), rawRow({ id: "r", activity: "riding" }), rawRow({ id: "a", activity: "any" }), rawRow({ id: "old" })],
+        error: null,
+      }),
+    });
+    expect((await loadAvailabilityWindows()).map((w) => [w.id, w.activity])).toEqual([
+      ["p", "physical"],
+      ["r", "riding"],
+      ["a", "any"],
+      ["old", "any"],
+    ]);
   });
 
   it("throws AvailabilityError, never a raw Supabase error, on failure", async () => {
     mockedFrom.mockReturnValue({ select: vi.fn().mockResolvedValue({ data: null, error: { code: "500", message: "boom" } }) });
 
     await expect(loadAvailabilityWindows()).rejects.toBeInstanceOf(AvailabilityError);
-  });
-});
-
-describe("deriveAvailabilityForm — multiple rows on the same day", () => {
-  it("returns exactly 7 days, all unavailable, when no windows exist", () => {
-    const days = deriveAvailabilityForm([]);
-
-    expect(days).toHaveLength(7);
-    expect(days.every((d) => d.available === false && d.startTime === "" && d.endTime === "")).toBe(true);
-  });
-
-  it("marks a day available with its window's own times when exactly one window exists", () => {
-    const days = deriveAvailabilityForm([{ id: "w1", dayOfWeek: 3, startTime: "17:00", endTime: "19:00", label: null }]);
-
-    const wednesday = days.find((d) => d.dayOfWeek === 3)!;
-    expect(wednesday).toEqual({ dayOfWeek: 3, available: true, startTime: "17:00", endTime: "19:00" });
-  });
-
-  it("deterministically picks the earliest startTime when several windows exist for the same day", () => {
-    const windows: AvailabilityWindow[] = [
-      { id: "w-late", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null },
-      { id: "w-early", dayOfWeek: 1, startTime: "07:00", endTime: "08:00", label: null },
-    ];
-
-    const days = deriveAvailabilityForm(windows);
-
-    const monday = days.find((d) => d.dayOfWeek === 1)!;
-    expect(monday).toEqual({ dayOfWeek: 1, available: true, startTime: "07:00", endTime: "08:00" });
   });
 });
 
@@ -105,7 +92,7 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
     };
     mockedFrom.mockReturnValue(table);
 
-    await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], ["old-1", "old-2"]);
+    await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" }], ["old-1", "old-2"]);
 
     expect(callOrder).toEqual(["insert", "delete"]);
   });
@@ -117,15 +104,15 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
     await saveAvailabilityWindows(
       ATHLETE_ID,
       [
-        { dayOfWeek: 1, startTime: "18:00", endTime: "20:00" },
-        { dayOfWeek: 3, startTime: "07:00", endTime: "08:00" },
+        { dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" },
+        { dayOfWeek: 3, startTime: "07:00", endTime: "08:00", activity: "riding" },
       ],
       []
     );
 
     expect(insertMock).toHaveBeenCalledWith([
-      { athlete_id: ATHLETE_ID, day_of_week: 1, start_time: "18:00", end_time: "20:00" },
-      { athlete_id: ATHLETE_ID, day_of_week: 3, start_time: "07:00", end_time: "08:00" },
+      { athlete_id: ATHLETE_ID, day_of_week: 1, start_time: "18:00", end_time: "20:00", activity: "physical" },
+      { athlete_id: ATHLETE_ID, day_of_week: 3, start_time: "07:00", end_time: "08:00", activity: "riding" },
     ]);
   });
 
@@ -136,7 +123,7 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
       delete: vi.fn().mockReturnValue({ in: inMock }),
     });
 
-    await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], ["old-1", "old-2"]);
+    await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" }], ["old-1", "old-2"]);
 
     expect(inMock).toHaveBeenCalledWith("id", ["old-1", "old-2"]);
   });
@@ -149,10 +136,10 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
       delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: null }) }),
     });
 
-    const result = await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], []);
+    const result = await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" }], []);
 
     expect(result).toEqual<AvailabilityWindow[]>([
-      { id: "server-generated-id", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null },
+      { id: "server-generated-id", dayOfWeek: 1, startTime: "18:00", endTime: "20:00", label: null, activity: "any" },
     ]);
   });
 
@@ -175,7 +162,7 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
       delete: deleteMock,
     });
 
-    await expect(saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], ["old-1"])).rejects.toBeInstanceOf(
+    await expect(saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" }], ["old-1"])).rejects.toBeInstanceOf(
       AvailabilityError
     );
     expect(deleteMock).not.toHaveBeenCalled();
@@ -187,7 +174,7 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
       delete: vi.fn().mockReturnValue({ in: vi.fn().mockResolvedValue({ error: { code: "500" } }) }),
     });
 
-    await expect(saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], ["old-1"])).rejects.toBeInstanceOf(
+    await expect(saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" }], ["old-1"])).rejects.toBeInstanceOf(
       AvailabilityError
     );
   });
@@ -208,7 +195,7 @@ describe("saveAvailabilityWindows — insert-then-delete replacement", () => {
       delete: deleteMock,
     });
 
-    await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00" }], []);
+    await saveAvailabilityWindows(ATHLETE_ID, [{ dayOfWeek: 1, startTime: "18:00", endTime: "20:00", activity: "physical" }], []);
 
     expect(deleteMock).not.toHaveBeenCalled();
   });

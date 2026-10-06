@@ -71,7 +71,7 @@ beforeEach(() => {
   repo.loadPerformanceSetupAnswers.mockResolvedValue(PROFILE);
   repo.loadOnboardingAnswers.mockResolvedValue({ discipline: "Downhill", competitionLevel: "Amateur racer", primaryGoal: "Race performance", weeklyTrainingHours: "5-10h", preferredRidingDays: ["Saturday", "Sunday"] });
   repo.loadFirstName.mockResolvedValue("Louis");
-  repo.saveAvailabilityWindows.mockImplementation(async (_id: string, windows: { dayOfWeek: number; startTime: string; endTime: string }[]) =>
+  repo.saveAvailabilityWindows.mockImplementation(async (_id: string, windows: { dayOfWeek: number; startTime: string; endTime: string; activity: string }[]) =>
     windows.map((w, i) => ({ id: `w-${i}`, label: null, ...w }))
   );
   repo.savePerformanceSetup.mockResolvedValue(undefined);
@@ -80,27 +80,27 @@ beforeEach(() => {
 });
 
 describe("FirstRunSetup — the essentials", () => {
-  it("training days are prefilled with the riding days; one typical window; saved as availability windows", async () => {
+  it("BUG-V2-1 — physical and riding time per day: riding days prefilled, saved as typed windows", async () => {
     const user = userEvent.setup();
     renderSetup();
     await waitFor(() => expect(heading()).toHaveTextContent("Tes créneaux"));
-    expect(screen.getByText("Quand peux-tu t'entraîner ?")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Samedi" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Dimanche" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
+    expect(screen.getByText(/De combien de temps disposes-tu chaque jour/)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Vélo — Samedi" })).toHaveValue("600");
+    expect(screen.getByRole("combobox", { name: "Vélo — Dimanche" })).toHaveValue("600");
+    expect(screen.getByRole("combobox", { name: "Physique — Mardi" })).toHaveValue("0");
 
-    await user.click(screen.getByRole("button", { name: "Mardi" }));
-    await user.click(screen.getByRole("button", { name: /Soir/ }));
-    expect(screen.getByText("17 h – 21 h")).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Physique — Mardi" }), "90");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Physique — Jeudi" }), "45");
     await user.click(screen.getByRole("button", { name: "Continuer" }));
 
     await waitFor(() =>
       expect(repo.saveAvailabilityWindows).toHaveBeenCalledWith(
         "athlete-1",
         [
-          { dayOfWeek: 2, startTime: "17:00", endTime: "21:00" },
-          { dayOfWeek: 6, startTime: "17:00", endTime: "21:00" },
-          { dayOfWeek: 0, startTime: "17:00", endTime: "21:00" },
+          { dayOfWeek: 2, startTime: "18:00", endTime: "19:30", activity: "physical" },
+          { dayOfWeek: 4, startTime: "18:00", endTime: "18:45", activity: "physical" },
+          { dayOfWeek: 6, startTime: "08:00", endTime: "18:00", activity: "riding" },
+          { dayOfWeek: 0, startTime: "08:00", endTime: "18:00", activity: "riding" },
         ],
         []
       )
@@ -108,15 +108,15 @@ describe("FirstRunSetup — the essentials", () => {
     await waitFor(() => expect(heading()).toHaveTextContent("Ton terrain"));
   });
 
-  it("a custom window needs a start before its end", async () => {
+  it("BUG-V2-1 — nothing declared (no physical, no riding time) cannot continue", async () => {
     const user = userEvent.setup();
-    const { container } = renderSetup();
+    renderSetup();
     await waitFor(() => expect(heading()).toHaveTextContent("Tes créneaux"));
-    await user.click(screen.getByRole("button", { name: "Autre plage" }));
-    const [start, end] = container.querySelectorAll<HTMLInputElement>('input[type="time"]');
-    await user.type(start!, "19:00");
-    await user.type(end!, "18:00");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Vélo — Samedi" }), "0");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Vélo — Dimanche" }), "0");
     expect(screen.getByRole("button", { name: "Continuer" })).toBeDisabled();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Physique — Lundi" }), "60");
+    expect(screen.getByRole("button", { name: "Continuer" })).toBeEnabled();
   });
 
   it("terrain (at least one), then pilotage, then renfo; the profile is saved merged — earlier fine settings are kept", async () => {

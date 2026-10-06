@@ -16,6 +16,10 @@ import { supabase } from "../../lib/supabase";
 
 export type AvailabilityDayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+/** BUG-V2-1 — physical (off-bike) or riding (bike / terrain); "any" = a window saved before BUG-V2-1 (both). */
+export type AvailabilityActivity = "physical" | "riding";
+export type StoredAvailabilityActivity = AvailabilityActivity | "any";
+
 export interface AvailabilityWindow {
   id: string;
   dayOfWeek: AvailabilityDayOfWeek;
@@ -23,6 +27,7 @@ export interface AvailabilityWindow {
   startTime: string;
   endTime: string;
   label: string | null;
+  activity: StoredAvailabilityActivity;
 }
 
 export class AvailabilityError extends Error {
@@ -38,9 +43,10 @@ interface AvailabilityWindowRawRow {
   start_time: string;
   end_time: string;
   label: string | null;
+  activity?: StoredAvailabilityActivity | null;
 }
 
-const WINDOW_COLUMNS = "id, day_of_week, start_time, end_time, label";
+const WINDOW_COLUMNS = "id, day_of_week, start_time, end_time, label, activity";
 
 /**
  * PostgREST round-trips a `time` column as `"HH:MM:SS"` (confirmed
@@ -61,6 +67,7 @@ function mapRow(row: AvailabilityWindowRawRow): AvailabilityWindow {
     startTime: normalizeTime(row.start_time),
     endTime: normalizeTime(row.end_time),
     label: row.label,
+    activity: row.activity === "physical" || row.activity === "riding" ? row.activity : "any",
   };
 }
 
@@ -84,40 +91,12 @@ export async function loadAvailabilityWindows(): Promise<AvailabilityWindow[]> {
   return ((data ?? []) as AvailabilityWindowRawRow[]).map(mapRow);
 }
 
-export interface AvailabilityFormDay {
-  dayOfWeek: AvailabilityDayOfWeek;
-  available: boolean;
-  /** "" when `available` is false, or when no time has been entered yet — never a fabricated default. */
-  startTime: string;
-  endTime: string;
-}
-
-const ALL_DAYS: readonly AvailabilityDayOfWeek[] = [0, 1, 2, 3, 4, 5, 6];
-
-/**
- * Collapses however many DB rows exist per day into exactly one form entry
- * per day of week — the V0.5 UI's own "at most one window per day" model.
- * This is a faithful simplification, not a data-losing one (V0.5_044
- * audit): the Planning Engine only ever reads `dayOfWeek` presence from
- * `availability.windows`, never a specific window's `startTime`/`endTime`,
- * so multiple rows on the same day carry no additional meaning to it today.
- * When several rows exist for the same day, the one with the earliest
- * `startTime` is shown — deterministic, never arbitrary. Pure, no I/O.
- */
-export function deriveAvailabilityForm(windows: readonly AvailabilityWindow[]): AvailabilityFormDay[] {
-  return ALL_DAYS.map((dayOfWeek) => {
-    const windowsForDay = windows.filter((w) => w.dayOfWeek === dayOfWeek).slice().sort((a, b) => a.startTime.localeCompare(b.startTime));
-    const chosen = windowsForDay[0];
-    return chosen
-      ? { dayOfWeek, available: true, startTime: chosen.startTime, endTime: chosen.endTime }
-      : { dayOfWeek, available: false, startTime: "", endTime: "" };
-  });
-}
-
 export interface SaveAvailabilityWindowInput {
   dayOfWeek: AvailabilityDayOfWeek;
   startTime: string;
   endTime: string;
+  /** BUG-V2-1 — every window saved from now on says what it can host. */
+  activity: AvailabilityActivity;
 }
 
 /**
@@ -165,6 +144,7 @@ export async function saveAvailabilityWindows(
           day_of_week: w.dayOfWeek,
           start_time: w.startTime,
           end_time: w.endTime,
+          activity: w.activity,
         }))
       )
       .select(WINDOW_COLUMNS);

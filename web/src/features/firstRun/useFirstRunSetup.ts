@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { loadAvailabilityWindows, saveAvailabilityWindows, type AvailabilityDayOfWeek, type AvailabilityWindow } from "../performanceSetup/availabilityRepo";
+import { loadAvailabilityWindows, saveAvailabilityWindows, type AvailabilityWindow } from "../performanceSetup/availabilityRepo";
+import { windowsFromWeek, type WeekAvailability } from "../availability/trainingAvailability";
 import {
   loadPerformanceSetupAnswers,
   saveDhTechnicalProfile,
@@ -15,12 +16,12 @@ import { generateTrainingPlan, type GenerateTrainingPlanResult } from "../traini
 import { acceptTrainingPlan, type AcceptTrainingPlanResult } from "../trainingPlanReview/acceptTrainingPlan";
 import { getActivePlanVersionId, getTrainingPlanDrafts, getTrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewRepo";
 import type { TrainingPlanReview } from "../trainingPlanReview/trainingPlanReviewTypes";
-import { availabilityWindows, resumeStep, type SetupStep, type Slot } from "./firstRunPlan";
+import { resumeStep, type SetupStep } from "./firstRunPlan";
 
 // UX-09 — the reads and writes behind "your training → your plan", through
 // the repositories the configuration page already uses (no new table, no new
 // endpoint, no text here):
-// - availability: athlete_availability_windows (replaced by the typical window);
+// - availability: athlete_availability_windows (replaced by the physical / riding week, BUG-V2-1);
 // - performance profile: athlete_performance_profiles, merged with what is
 //   already saved (strengths, priorities… are never erased);
 // - plan: the generate-training-plan / accept-training-plan Edge Functions.
@@ -72,8 +73,8 @@ export function useFirstRunSetup() {
   // Stable across renders (effects can depend on them).
   const actions = useMemo(
     () => ({
-      saveTraining: (days: readonly AvailabilityDayOfWeek[], slot: Slot, existing: readonly AvailabilityWindow[]): Promise<AvailabilityWindow[]> =>
-        saveAvailabilityWindows(athleteId!, availabilityWindows(days, slot), existing.map((w) => w.id)),
+      saveTraining: (week: WeekAvailability, existing: readonly AvailabilityWindow[]): Promise<AvailabilityWindow[]> =>
+        saveAvailabilityWindows(athleteId!, windowsFromWeek(week), existing.map((w) => w.id)),
       saveProfile: (profile: PerformanceSetupAnswers): Promise<void> => savePerformanceSetup(athleteId!, profile),
       // UX-11A.5a.2b — writes only the DH tier and priorityAreas (strengths / weaknesses kept).
       saveTechnique: (input: SaveDhTechnicalProfileInput): Promise<void> => saveDhTechnicalProfile(athleteId!, input),
