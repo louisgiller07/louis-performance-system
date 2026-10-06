@@ -636,7 +636,8 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **F-9 / F-10** — skeleton permanent du bloc « après séance » en cas d'erreur de lecture ; libellés legacy des Edge.
 - [ ] **T-1** — isoler `athletePurge.integration.test.ts` (trigger DDL sur `athletes`) de la suite parallèle (deadlock observé une fois, vert seul et à la relance).
 - [ ] **Deno** — `accept-training-plan/index.test.ts` : 2 tests et 4 erreurs de typage antérieurs à UX-11R.9 (décision du reviewer).
-- [ ] **BUG-V2-1 / BUG-V2-2** — jours de ride, progression (bloquants avant bêta payante, tickets séparés).
+- [ ] **BUG-V2-1** — disponibilités physique / vélo : implémenté et vert en local (branche `feat/bug-v2-1-availability`), livraison à approuver (migration → Edge `generate-training-plan` → web).
+- [ ] **BUG-V2-2** — progression (bloquant avant bêta payante, ticket séparé).
 - [ ] **BUG-V2-3** — séance le jour de la génération (à corriger avant bêta).
 - [ ] **D2B2** — abandon, Restart, corrections, conflits en production : BLOQUÉE jusqu'au hardening UX-11R.9.
 

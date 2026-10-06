@@ -731,6 +731,21 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Edge ancienne + base nouvelle : refus fermés (500 / 409 générique), 0 ligne écrite.
 - Migrations de retour : rejouées en local, elles restaurent exactement les corps précédents (comparaison du catalogue).
 
+### T35. BUG-V2-1 — disponibilités physique / vélo
+- **Unitaires planning-engine** (`tests/unit/availabilityActivity.test.ts`) :
+  - capacité par date et par activité (legacy, typée, exceptions, dates verrouillées) ;
+  - `segmentWeek`, cas A à E et préférence force / jours sans vélo ;
+  - génération V2 en mémoire : jours des séances et activités d'endurance.
+- **Unitaires head-coach-engine** (`tests/supabase/buildPlanInputSnapshot.test.ts`) : `any` sans champ (snapshot legacy identique), `physical` / `riding` transmis, tri déterministe.
+- **Intégration locale** (`tests/supabase/bugV21Availability.integration.test.ts`) : fenêtres typées → snapshot persisté → plan V2 persisté relu en base (cas A), profil legacy (cas E), valeur d'activité refusée par la base.
+- **Web :** module `trainingAvailability`, éditeur au premier lancement et dans le profil, repository (`activity` lu et écrit), résumé du profil.
+- **Cas attendus :**
+  - **A :** DH samedi / dimanche seulement, physique lundi / mardi / jeudi seulement, rien mercredi / vendredi ;
+  - **B :** pas de vélo le samedi ;
+  - **C :** 45 min physiques ne portent pas une séance de 60 ou 90 min ;
+  - **D :** sans fenêtre vélo, pas de DH et une endurance hors terrain ;
+  - **E :** placement legacy inchangé.
+
 ### T34. R9-OPS-01 — suspension des écritures (`NALYNT_WRITES_SUSPENDED`)
 - Unitaire (`tests/edge/writesSuspended.test.ts`) : seul `"true"` suspend. Absent, vide, `false`, `TRUE`, ` true`, `1`, `yes` → normal. Réponse 503 au format `{ error: { code, message } }`, message neutre.
 - Intégration Edge locale (`tests/supabase/ux11r9WriteSuspension.integration.test.ts`), lancée dans les 3 modes du runtime (`functions serve`, sans fichier ou avec `--env-file`) :

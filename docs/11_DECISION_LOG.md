@@ -5097,3 +5097,34 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 **Plan** : preflight §38 (aller, attente des requêtes en cours par critères, migration partielle, retour arrière : web → base → Edge, la suspension restant active jusqu'à ce que la base soit cohérente).
 
 **Statut** : implémenté et vert en local, en attente de la re-revue ciblée. Aucun push, aucun déploiement.
+
+## 2026-10-06 — ADR BUG-V2-1 : disponibilités physique et vélo, contrainte forte du planificateur
+
+> **Each availability window says what it can host (physical, riding, or both for legacy rows). The planner places DH only on riding windows, strength only on physical windows (preferably on days without riding), endurance on either; a session that does not fit the longest compatible window is not placed. Legacy profiles (every window 'any') keep exactly their previous planning.**
+
+**Cause racine**
+- `athlete_availability_windows` ne portait qu'un seul type de créneau, générique.
+- `preferred_riding_days` (onboarding) n'atteignait jamais le planificateur.
+- `segmentWeek` plaçait le DH sur la première date libre assez longue. Résultat : DH le lundi et le mardi soir, force le week-end, alors que le rider déclarait rouler le samedi et le dimanche.
+
+**Décision**
+- **Base :** migration additive `20261006090000` ajoutant `athlete_availability_windows.activity` (`any` par défaut, `physical`, `riding`). Pas de seconde table : la table V0.4 de fenêtres récurrentes reste l'unique source.
+- **Snapshot :** `activity` facultatif ; `any` est transmis sans champ, ce qui garde les snapshots legacy et leur hash identiques. Le tri canonique ajoute l'activité.
+- **Planificateur** (`planning-engine/src/pipeline/availabilityActivity.ts`, `weekSegmenter.ts`) :
+  - DH → vélo ;
+  - force → physique, en préférant les jours sans vélo ;
+  - endurance → l'un ou l'autre ;
+  - capacité = plus longue fenêtre compatible ;
+  - si aucune fenêtre ne convient, la séance n'est pas placée (`relaxedConstraints`), jamais déplacée au hasard ni raccourcie.
+- **V2 :** l'endurance d'un jour sans fenêtre vélo propose `home_trainer` et `running` seulement.
+- **Web :** un éditeur unique (premier lancement et profil) avec deux durées par jour, « Physique » et « Vélo ». L'heure réelle n'est pas demandée : le planificateur lit le jour et la durée, pas l'heure de début. La valeur enregistrée part d'une heure de référence fixe (physique 18:00, vélo 08:00).
+- **Fallback legacy :** des fenêtres toutes `any` donnent exactement le placement antérieur. Le profil invite à préciser physique / vélo, en préremplissant à partir des fenêtres existantes et des jours de roulage de l'onboarding. Rien n'est enregistré sans confirmation.
+
+**Hors périmètre, connu :**
+- une séance au plus par jour (règle antérieure) ;
+- les exceptions datées restent sans activité ;
+- les séances club ou fixes et la progression relèvent de BUG-V2-2.
+
+**Livraison (non faite)**, dans cet ordre : migration → Edge `generate-training-plan` (seule Edge dont le graphe change) → web. Le nouveau code lit la colonne, la migration doit donc précéder.
+
+**Statut** : implémenté et vert en local (branche `feat/bug-v2-1-availability`). Aucun push, aucun déploiement.
