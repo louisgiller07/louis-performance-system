@@ -29,7 +29,7 @@ import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/genera
 const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 
 const TODAY = "2026-10-05";
-const STRENGTH_DAY = "2026-10-07"; // STRENGTH_LOWER MODERATE 60 in the development plan (the KEEP source)
+const STRENGTH_DAY = "2026-10-07"; // STRENGTH_LOWER of the plan's first week (BUG-V2-2: introduction week, LIGHT 45) — the KEEP source
 // Decision days, one per scenario (the day's current decision must not be shared between scenarios).
 const REFUSAL_DAY = "2026-10-12";
 const UNIQUE_DAY = "2026-10-13";
@@ -55,7 +55,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
   interface Fixture {
     athleteId: string;
     planVersionId: string;
-    strengthSession: { id: string; kind: string; load_profile: "MODERATE"; duration_min: number };
+    strengthSession: { id: string; kind: string; load_profile: "LIGHT" | "MODERATE"; duration_min: number };
     strengthPlanned: { id: string; generated_plan_session_id: string; schema_version: string; catalog_version: string; structure: unknown };
   }
 
@@ -108,7 +108,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
   function keep(f: Fixture, decisionId: string): FinalPrescriptionV2 {
     const r = buildKeepFinalPrescriptionV2({
       finalPrescriptionId: randomUUID(),
-      decision: { decisionId, decision: "KEEP", finalSession: { kind: "STRENGTH_LOWER", loadProfile: "MODERATE", durationMin: f.strengthSession.duration_min } },
+      decision: { decisionId, decision: "KEEP", finalSession: { kind: "STRENGTH_LOWER", loadProfile: f.strengthSession.load_profile, durationMin: f.strengthSession.duration_min } },
       lineage: {
         plannedSessionSource: "generated",
         sourcePlanVersionId: f.planVersionId,
@@ -191,7 +191,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
         reconciliation_action: "keep",
         adaptation_rule_ids: [],
         schema_version: "v2",
-        catalog_version: "session-model-v2.5",
+        catalog_version: "session-model-v2.6",
       });
       // Exact document: the planned structure, same ids, nothing recomputed by SQL.
       expect(finals[0]!.structure).toEqual(f.strengthPlanned.structure);

@@ -8,7 +8,7 @@ const text = (id: string) => COACHING_TEXTS_V1_0[id]!.text;
 
 describe("decodeFinalPrescriptionV2 — genuine engine documents", () => {
   it("fixtures were produced under the supported version", () => {
-    expect(FIXTURES_GENERATED_FROM).toBe("session-model-v2.5");
+    expect(FIXTURES_GENERATED_FROM).toBe("session-model-v2.6");
   });
 
   it("Force: intent, ordered blocks and items, exact sets, measures, RPE, rest, ramp-up, cues and vigilances, all resolved by id", () => {
@@ -55,13 +55,24 @@ describe("decodeFinalPrescriptionV2 — genuine engine documents", () => {
 describe("decodeFinalPrescriptionV2 — version gate before any id resolution, fail-closed", () => {
   it.each([
     ["an older aggregate (session-model-v2.4)", "session-model-v2.4"],
-    ["a future aggregate (session-model-v2.6)", "session-model-v2.6"],
+    ["a future aggregate (session-model-v2.7)", "session-model-v2.7"],
   ])("%s → unsupported, even with ids the current tables do not know (nothing resolved)", (_label, aggregate) => {
     const { record } = keepFinalPrescription("STRENGTH_LOWER");
     record.structure.catalog.aggregate = aggregate;
     record.catalogVersion = aggregate;
     record.structure.blocks.find((b: { role: string }) => b.role === "main").items[0].exerciseId = "exercise_of_another_version";
     expect(decodeFinalPrescriptionV2(record)).toMatchObject({ ok: false, kind: "unsupported_schema_or_catalog" });
+  });
+
+  it("BUG-V2-2 — a prescription of an existing session-model-v2.5 plan (same id tables) still decodes; a hybrid manifest does not", () => {
+    const { record } = keepFinalPrescription("STRENGTH_LOWER");
+    Object.assign(record.structure.catalog, { aggregate: "session-model-v2.5", strengthDoses: "strength-doses-v2.1", planDosePolicy: "plan-dose-policy-v2.3" });
+    record.catalogVersion = "session-model-v2.5";
+    expect(decodeFinalPrescriptionV2(record)).toMatchObject({ ok: true });
+    const hybrid = keepFinalPrescription("STRENGTH_LOWER").record;
+    Object.assign(hybrid.structure.catalog, { aggregate: "session-model-v2.5" });
+    hybrid.catalogVersion = "session-model-v2.5";
+    expect(decodeFinalPrescriptionV2(hybrid)).toMatchObject({ ok: false, kind: "unsupported_schema_or_catalog" });
   });
 
   it("same aggregate but another component version (texts) → unsupported", () => {

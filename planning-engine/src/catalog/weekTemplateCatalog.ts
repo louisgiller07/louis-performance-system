@@ -57,6 +57,12 @@ export interface WeekTemplateCatalogEntry {
 
   deprecated?: boolean;
   replacedBy?: string;
+  /**
+   * BUG-V2-2 — a named variant of its week type's default template. Never
+   * picked by TemplateSelector (which keeps exactly one default entry per
+   * weekType); only a block progression model selects it explicitly by id.
+   */
+  variant?: string;
 }
 
 const ENTRIES: WeekTemplateCatalogEntry[] = [
@@ -69,6 +75,17 @@ const ENTRIES: WeekTemplateCatalogEntry[] = [
     restEmphasis: false,
     rationale:
       'Golden Scenario A ("Normal development week"): "Development week_type template applies: strength x2, DH-technical x2, aerobic x1, remainder rest/recovery." Counts taken verbatim from the already-committed scenario text.',
+  },
+  {
+    id: "development_race_specific",
+    weekType: "development",
+    variant: "race_specific",
+    strengthSlotCount: 1,
+    dhTechnicalSlotCount: 2,
+    aerobicSlotCount: 1,
+    restEmphasis: false,
+    rationale:
+      "BUG-V2-2 — race-specific development week, two weeks before a race (V2 block progression only). Riding takes priority: DH-technical x2 kept, strength reduced to x1 (maintenance, no overload), aerobic x1 kept. No golden scenario specifies it; PROVISIONAL, coaching validation required.",
   },
   {
     id: "race",

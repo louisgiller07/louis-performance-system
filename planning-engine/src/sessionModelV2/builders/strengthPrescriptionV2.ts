@@ -41,7 +41,14 @@ import {
   type StrengthWarmUpItemV2,
   type StrengthWorkSlotV2,
 } from "../../catalog/strengthTemplateCatalogV2.js";
-import { STRENGTH_DOSE_CATALOG_V2, STRENGTH_LOAD_LEVELS_V2, type StrengthLoadLevelV2 } from "../../catalog/strengthDoseCatalogV2.js";
+import {
+  STRENGTH_DOSE_CATALOG_V2,
+  STRENGTH_DOSE_STEP_LOAD_V2,
+  STRENGTH_DOSE_STEPS_V2,
+  STRENGTH_LOAD_LEVELS_V2,
+  type StrengthDoseStepV2,
+  type StrengthLoadLevelV2,
+} from "../../catalog/strengthDoseCatalogV2.js";
 import type { SessionModelV2CatalogManifest } from "../catalogManifest.js";
 import type { BlockV2Content, ExerciseItemV2Content, ExerciseMeasureV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError } from "../generationErrors.js";
@@ -56,6 +63,8 @@ export interface StrengthPrescriptionV2Input {
   equipment: readonly string[];
   /** LIGHT or MODERATE only (HEAVY is out of the V2 scope). */
   loadProfile: StrengthLoadLevelV2;
+  /** BUG-V2-2 — the block's dose step; absent = the load profile's own step. Must map to `loadProfile`. */
+  doseStep?: StrengthDoseStepV2;
   catalog: SessionModelV2CatalogManifest;
 }
 
@@ -166,7 +175,11 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
 
   const template = strengthTemplateFor(input.sessionKind, input.athleteTier);
   const intentId = strengthIntentFor(input.sessionKind);
-  const doses = STRENGTH_DOSE_CATALOG_V2[input.loadProfile];
+  const doseStep: StrengthDoseStepV2 = input.doseStep ?? input.loadProfile;
+  if (!(STRENGTH_DOSE_STEPS_V2 as readonly string[]).includes(doseStep) || STRENGTH_DOSE_STEP_LOAD_V2[doseStep] !== input.loadProfile) {
+    throw new SessionModelV2ContractError(`dose step ${doseStep} does not belong to load profile ${input.loadProfile}`);
+  }
+  const doses = STRENGTH_DOSE_CATALOG_V2[doseStep];
   const rampUpInstructionId = protocolInstructionId("main_movement_prep");
 
   const warmUp: BlockV2Content = {

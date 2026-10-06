@@ -139,12 +139,19 @@ describe("week template catalog", () => {
     expect(() => validateCatalogConsistency("week template catalog", broken)).toThrow(PlanningEngineValidationError);
   });
 
-  it("has exactly one non-deprecated entry per WeekType — weekType is a function to a template, not a one-to-many relation", () => {
+  it("has exactly one non-deprecated default entry per WeekType — weekType is a function to a template, not a one-to-many relation", () => {
     const requiredWeekTypes = ["development", "deload", "taper", "race", "recovery"] as const;
     for (const weekType of requiredWeekTypes) {
-      const matches = WEEK_TEMPLATE_CATALOG_ENTRIES.filter((e) => e.weekType === weekType && !e.deprecated);
-      expect(matches, `weekType "${weekType}" must have exactly one non-deprecated entry`).toHaveLength(1);
+      const matches = WEEK_TEMPLATE_CATALOG_ENTRIES.filter((e) => e.weekType === weekType && !e.deprecated && e.variant === undefined);
+      expect(matches, `weekType "${weekType}" must have exactly one non-deprecated default entry`).toHaveLength(1);
     }
+  });
+
+  it("BUG-V2-2 — named variants only: development_race_specific (1 strength / 2 DH / 1 aerobic), unique variant per weekType", () => {
+    const variants = WEEK_TEMPLATE_CATALOG_ENTRIES.filter((e) => e.variant !== undefined);
+    expect(variants.map((e) => [e.id, e.weekType, e.variant, e.strengthSlotCount, e.dhTechnicalSlotCount, e.aerobicSlotCount])).toEqual([
+      ["development_race_specific", "development", "race_specific", 1, 2, 1],
+    ]);
   });
 
   it("never carries a date, weekday, exercise id, drill id, or exact duration — slot counts only (V0.4_103 scope boundary)", () => {

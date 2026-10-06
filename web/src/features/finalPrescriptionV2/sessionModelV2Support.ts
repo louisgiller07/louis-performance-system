@@ -1,10 +1,14 @@
 // UX-11A.5c.4 — what this web build can render of the Session Model V2.
 //
-// One supported version only: the full catalogue manifest of
-// `session-model-v2.5`. A prescription written under any other manifest
-// (older `v2.4`, a future `v2.6`, a changed component) is reported as
-// unsupported: its ids are never resolved with the current tables, since the
-// same id may mean something else in another version.
+// Supported: the full catalogue manifest of the current engine version
+// (`session-model-v2.6`) and of the versions it renders identically
+// (`session-model-v2.5`: same exercises, drills, intents, protocols, texts
+// and templates — BUG-V2-2 only changed which strength doses / plan dose
+// policy a plan may choose, never the meaning of an id). A prescription
+// written under any other manifest (older `v2.4`, a future `v2.7`, a changed
+// component) is reported as unsupported: its ids are never resolved with the
+// current tables, since the same id may mean something else in another
+// version.
 //
 // Coaching texts (cues, instructions, success criteria, vigilances, intents)
 // come only from the generated mirror of the engine catalogue
@@ -15,19 +19,26 @@
 import { COACHING_TEXTS_V1_0, type CoachingTextKindV1_0 } from "./coachingTextsV1_0.generated";
 import { DRILL_LABELS, EXERCISE_LABELS } from "../trainingLabels/exerciseLabels";
 
+/** The current engine manifest. */
 export const SUPPORTED_SESSION_MODEL_V2_MANIFEST = {
-  aggregate: "session-model-v2.5",
+  aggregate: "session-model-v2.6",
   exercises: "session-exercises-v2.1",
   drills: "session-drills-v2.0",
   intents: "session-intents-v2.0",
   protocols: "session-protocols-v2.0",
   texts: "coaching-text-v1.0",
   templates: "strength-templates-v2.1",
-  strengthDoses: "strength-doses-v2.1",
-  planDosePolicy: "plan-dose-policy-v2.3",
+  strengthDoses: "strength-doses-v2.2",
+  planDosePolicy: "plan-dose-policy-v2.4",
 } as const;
 
 export const SUPPORTED_SESSION_MODEL_V2_AGGREGATE = SUPPORTED_SESSION_MODEL_V2_MANIFEST.aggregate;
+
+/** Every manifest this build renders: the current one first, then the earlier ones with the same id tables. */
+export const SUPPORTED_SESSION_MODEL_V2_MANIFESTS: readonly Readonly<Record<string, string>>[] = [
+  SUPPORTED_SESSION_MODEL_V2_MANIFEST,
+  { ...SUPPORTED_SESSION_MODEL_V2_MANIFEST, aggregate: "session-model-v2.5", strengthDoses: "strength-doses-v2.1", planDosePolicy: "plan-dose-policy-v2.3" },
+];
 
 /** The text of `id` if it exists in the supported catalogue with the expected kind, else null (never a partial guess). */
 export function resolveCoachingText(id: unknown, kind: CoachingTextKindV1_0): string | null {

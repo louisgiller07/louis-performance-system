@@ -145,7 +145,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     });
 
     it("MODIFY stays MODIFY: blocked final_prescription_adaptation_not_defined / modify_not_supported, no final prescription", async () => {
-      const day = "2026-10-08";
+      const day = "2026-10-16"; // build week (BUG-V2-2): AEROBIC_BASE MODERATE
       await insertCheckin(admin, a.athleteId, day, SYSTEMIC_RED);
       const result = await runDailyFor(admin, a.athleteId, day);
       expect(result.dailyPlan.decision).toBe("MODIFY");
@@ -247,7 +247,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     expect(decision).toMatchObject({
       final_prescription_status: "blocked",
       final_prescription_status_code: "final_prescription_catalog_mismatch",
-      final_prescription_status_detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.5" },
+      final_prescription_status_detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.6" },
     });
     expect(await finalsOf(decision!.id)).toEqual([]);
   });

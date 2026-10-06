@@ -2,7 +2,8 @@
  * UX-11A.5b.5a — in-memory V2 plan generation (no persistence).
  *
  * PlanInputSnapshotV2 → shared planning pipeline with the V2 dose model
- * (week type → plan dose policy → final durations → placement) → generated
+ * (BUG-V2-2: block progression — each week's role and dose, fitted to the
+ * availability → final durations → placement) → generated
  * sessions → V2 builders (Force, DH, AEROBIC_BASE) → assignPrescriptionIds
  * (injected mintId) → validatePrescriptionV2 → sport fingerprints.
  *
@@ -38,6 +39,7 @@ import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescrip
 import { PLAN_DOSE_MODEL_V2 } from "./planDoseModelV2.js";
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
+import type { StrengthDoseStepV2 } from "../../catalog/strengthDoseCatalogV2.js";
 
 export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE"];
 
@@ -135,7 +137,9 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   // Sport content of every session first (pure); any locked block stops the whole plan before any id.
   let contents: PrescriptionV2Content[];
   try {
-    contents = flat.map(({ session }) => buildContent(session, modelInput, dhOrdinals, catalog, snapshot.availability, snapshot.lockedDates));
+    contents = flat.map(({ week, session }) =>
+      buildContent(session, modelInput, dhOrdinals, catalog, snapshot.availability, snapshot.lockedDates, week.doseSummary.progression?.targets.forceDoseStep ?? undefined)
+    );
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return { status: "blocked", code: error.code, detail: error.detail };
     throw error;
@@ -210,7 +214,9 @@ function buildContent(
   dhOrdinals: ReadonlyMap<string, number>,
   catalog: SessionModelV2CatalogManifest,
   availability: PlanInputAvailability,
-  lockedDates: readonly PlanInputLockedDate[]
+  lockedDates: readonly PlanInputLockedDate[],
+  /** BUG-V2-2 — the week's Force dose step (absent = the load profile's own step). */
+  forceDoseStep: StrengthDoseStepV2 | undefined
 ): PrescriptionV2Content {
   switch (session.kind) {
     case "STRENGTH_LOWER":
@@ -223,6 +229,7 @@ function buildContent(
         athleteTier: modelInput.strengthExperienceTier,
         equipment: modelInput.equipment,
         loadProfile: session.loadProfile,
+        ...(forceDoseStep !== undefined ? { doseStep: forceDoseStep } : {}),
         catalog,
       });
     }

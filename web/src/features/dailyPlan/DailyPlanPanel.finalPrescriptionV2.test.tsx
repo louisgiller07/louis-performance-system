@@ -175,7 +175,7 @@ describe("Today — guided session entry", () => {
 
   it("unsupported catalogue → no entry", async () => {
     loadLatestDecisionForDate.mockResolvedValue(restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }));
-    eq.mockResolvedValue({ data: [{ ...force.row, catalog_version: "session-model-v2.6" }], error: null });
+    eq.mockResolvedValue({ data: [{ ...force.row, catalog_version: "session-model-v2.7" }], error: null });
     renderPanel();
     await waitFor(() => expect(eq).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByText("Goblet squat")).toBeNull());

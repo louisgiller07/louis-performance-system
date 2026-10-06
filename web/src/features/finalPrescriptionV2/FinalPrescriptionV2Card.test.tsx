@@ -94,7 +94,7 @@ describe("FinalPrescriptionV2Card — read-only rendering (UX-11A.5c.4)", () => 
   it("fail-closed states: missing row, unsupported version, invalid document", () => {
     render(<FinalPrescriptionV2Card state={{ kind: "final_prescription_missing" }} />);
     expect(screen.getByText(MISSING_MESSAGE)).toBeInTheDocument();
-    render(<FinalPrescriptionV2Card state={{ kind: "unsupported_schema_or_catalog", reason: "catalogue session-model-v2.6" }} />);
+    render(<FinalPrescriptionV2Card state={{ kind: "unsupported_schema_or_catalog", reason: "catalogue session-model-v2.7" }} />);
     expect(screen.getByText(PRESCRIPTION_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
     render(<FinalPrescriptionV2Card state={{ kind: "invalid", reason: "x" }} />);
     expect(screen.getByText(INVALID_MESSAGE)).toBeInTheDocument();

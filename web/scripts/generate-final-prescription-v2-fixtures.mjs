@@ -22,7 +22,8 @@ const snapshot = {
   declaredLimitations: [],
   technicalPriorities: { strengths: [], weaknesses: [], priorityAreas: ["cornering", "braking"] },
   lockedDates: [],
-  recentHistory: { recentSessionKinds: [], recentMissedOrReplacedCount: 0, trailingVolumeMinutes: 0 },
+  // BUG-V2-2 — a rider already training: the block starts at build (MODERATE doses).
+  recentHistory: { recentSessionKinds: [], recentMissedOrReplacedCount: 0, trailingVolumeMinutes: 240 },
   dhTechnicalTier: "intermediate",
 };
 let n = 0;

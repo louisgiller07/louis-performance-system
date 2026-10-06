@@ -15,9 +15,39 @@
  * in the Session Model V2 module and is injected by its caller.
  */
 import type { SessionKind } from "../types/sharedVocabulary.js";
-import type { WeekType } from "../types/planWeek.js";
+import type { WeekProgressionSummary, WeekType } from "../types/planWeek.js";
 import type { SessionDomain } from "./weekSegmenter.js";
 import type { LoadDerivationOutput } from "./loadDerivation.js";
+import type { WeekTemplateCatalogEntry } from "../catalog/weekTemplateCatalog.js";
+import type {
+  PlanInputAvailability,
+  PlanInputLockedDate,
+  PlanInputRace,
+  PlanInputRecentHistory,
+  StrengthExperienceTier,
+} from "../types/planInputSnapshot.js";
+
+/** BUG-V2-2 — everything a block progression model may read to shape the weeks of a block. */
+export interface BlockShapingInput {
+  weeks: readonly { weekNumber: number; startDate: string; endDate: string }[];
+  races: readonly PlanInputRace[];
+  availability: PlanInputAvailability;
+  terrainAccess: readonly string[];
+  lockedDates: readonly PlanInputLockedDate[];
+  strengthExperienceTier: StrengthExperienceTier;
+  recentHistory: PlanInputRecentHistory;
+}
+
+/** BUG-V2-2 — one shaped week: its type, template, final placement durations and progression targets. */
+export interface WeekShape {
+  weekType: WeekType;
+  template: WeekTemplateCatalogEntry;
+  /** Closed English phrases, the first part of the week and session rationales. */
+  rationale: string;
+  /** null only when the template places no session. */
+  placementDurationMinByDomain: Readonly<Record<SessionDomain, number>> | null;
+  progression: Omit<WeekProgressionSummary, "sessionCount" | "physicalMinutes" | "ridingMinutes">;
+}
 
 export interface SessionDoseModel {
   /** Identifies the model in errors and traces (e.g. the plan dose policy version). */
@@ -27,8 +57,14 @@ export interface SessionDoseModel {
    * places no session at all (its template has zero slots).
    */
   placementDurationMinByDomain(weekType: WeekType): Readonly<Record<SessionDomain, number>> | null;
-  /** Final load of one placed session (replaces HistoryAdjuster for this model). */
-  resolveSessionLoad(input: { kind: SessionKind; domain: SessionDomain; weekType: WeekType; baseline: LoadDerivationOutput }): LoadDerivationOutput;
+  /** Final load of one placed session (replaces HistoryAdjuster for this model); `shape` = the week's shape when the model shapes the block. */
+  resolveSessionLoad(input: { kind: SessionKind; domain: SessionDomain; weekType: WeekType; baseline: LoadDerivationOutput; shape?: WeekShape }): LoadDerivationOutput;
+  /**
+   * BUG-V2-2 — optional block progression: one shape per week of the block,
+   * in order. Absent: each week is selected alone (TemplateSelector) and
+   * dosed by its week type, as before.
+   */
+  shapeWeeks?(input: BlockShapingInput): readonly WeekShape[];
 }
 
 export class SessionDoseModelContractError extends Error {

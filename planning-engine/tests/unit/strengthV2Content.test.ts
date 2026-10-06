@@ -7,7 +7,7 @@ import {
   STRENGTH_TEMPLATE_CATALOG_V2_VERSION,
   STRENGTH_TRANSVERSAL_FAMILIES_V2,
 } from "../../src/catalog/strengthTemplateCatalogV2.js";
-import { STRENGTH_DOSE_CATALOG_V2, STRENGTH_DOSE_CATALOG_V2_VERSION, STRENGTH_LOAD_LEVELS_V2 } from "../../src/catalog/strengthDoseCatalogV2.js";
+import { STRENGTH_DOSE_CATALOG_V2, STRENGTH_DOSE_CATALOG_V2_VERSION, STRENGTH_DOSE_STEP_LOAD_V2, STRENGTH_DOSE_STEPS_V2, STRENGTH_LOAD_LEVELS_V2 } from "../../src/catalog/strengthDoseCatalogV2.js";
 import { PLAN_DOSE_POLICY_V2, PLAN_DOSE_POLICY_V2_VERSION } from "../../src/catalog/planDosePolicyV2.js";
 import { SESSION_EXERCISE_CATALOG_V2, SESSION_EXERCISE_CATALOG_V2_VERSION } from "../../src/catalog/sessionExerciseCatalogV2.js";
 import { EXERCISE_CATALOG } from "../../src/catalog/exerciseCatalog.js";
@@ -177,14 +177,16 @@ describe("Strength template catalogue V2", () => {
 });
 
 describe("Strength dose catalogue V2", () => {
-  it("has its own version, LIGHT and MODERATE only (HEAVY absent)", () => {
-    expect(STRENGTH_DOSE_CATALOG_V2_VERSION).toBe("strength-doses-v2.1");
+  it("has its own version, LIGHT and MODERATE load levels only (HEAVY absent); v2.2 adds the MODERATE_PLUS step at load MODERATE", () => {
+    expect(STRENGTH_DOSE_CATALOG_V2_VERSION).toBe("strength-doses-v2.2");
     expect([...STRENGTH_LOAD_LEVELS_V2]).toEqual(["LIGHT", "MODERATE"]);
-    expect(Object.keys(STRENGTH_DOSE_CATALOG_V2).sort()).toEqual(["LIGHT", "MODERATE"]);
+    expect([...STRENGTH_DOSE_STEPS_V2]).toEqual(["LIGHT", "MODERATE", "MODERATE_PLUS"]);
+    expect(STRENGTH_DOSE_STEP_LOAD_V2).toEqual({ LIGHT: "LIGHT", MODERATE: "MODERATE", MODERATE_PLUS: "MODERATE" });
+    expect(Object.keys(STRENGTH_DOSE_CATALOG_V2).sort()).toEqual(["LIGHT", "MODERATE", "MODERATE_PLUS"]);
     expect("HEAVY" in STRENGTH_DOSE_CATALOG_V2).toBe(false);
   });
 
-  const row = (level: "LIGHT" | "MODERATE", role: "principal" | "secondary" | "unilateral" | "prevention") => {
+  const row = (level: "LIGHT" | "MODERATE" | "MODERATE_PLUS", role: "principal" | "secondary" | "unilateral" | "prevention") => {
     const d = STRENGTH_DOSE_CATALOG_V2[level][role];
     return { sets: d.sets, volume: d.volume, rpe: d.rpeTarget, rest: d.restSeconds };
   };
@@ -196,6 +198,13 @@ describe("Strength dose catalogue V2", () => {
     expect(row("MODERATE", "prevention")).toEqual({ sets: 2, volume: { source: "exercise_reference" }, rpe: { min: 6, max: 7 }, rest: { min: 45, max: 60 } });
   });
 
+  it("BUG-V2-2 — MODERATE_PLUS exact: +1 set on principal / secondary, RPE 8; same reps as MODERATE", () => {
+    expect(row("MODERATE_PLUS", "principal")).toEqual({ sets: 5, volume: { source: "dose_catalog", reps: { min: 6, max: 8 } }, rpe: { min: 8, max: 8 }, rest: { min: 150, max: 180 } });
+    expect(row("MODERATE_PLUS", "secondary")).toEqual({ sets: 4, volume: { source: "dose_catalog", reps: { min: 8, max: 10 } }, rpe: { min: 7, max: 8 }, rest: { min: 90, max: 120 } });
+    expect(row("MODERATE_PLUS", "unilateral")).toEqual({ sets: 3, volume: { source: "dose_catalog", reps: { min: 8, max: 10 } }, rpe: { min: 7, max: 8 }, rest: { min: 60, max: 90 } });
+    expect(row("MODERATE_PLUS", "prevention")).toEqual({ sets: 2, volume: { source: "exercise_reference" }, rpe: { min: 6, max: 7 }, rest: { min: 45, max: 60 } });
+  });
+
   it("LIGHT exact", () => {
     expect(row("LIGHT", "principal")).toEqual({ sets: 3, volume: { source: "dose_catalog", reps: { min: 8, max: 10 } }, rpe: { min: 5, max: 6 }, rest: { min: 90, max: 120 } });
     expect(row("LIGHT", "secondary")).toEqual({ sets: 2, volume: { source: "dose_catalog", reps: { min: 10, max: 12 } }, rpe: { min: 5, max: 6 }, rest: { min: 60, max: 90 } });
@@ -204,7 +213,7 @@ describe("Strength dose catalogue V2", () => {
   });
 
   it("sets are exact positive integers; prevention takes its measure from the exercise reference explicitly (no empty object); everything PROVISIONAL", () => {
-    for (const level of STRENGTH_LOAD_LEVELS_V2) {
+    for (const level of STRENGTH_DOSE_STEPS_V2) {
       for (const [role, d] of Object.entries(STRENGTH_DOSE_CATALOG_V2[level])) {
         expect(Number.isInteger(d.sets) && d.sets > 0, `${level}/${role}`).toBe(true);
         expect(d.validationStatus).toBe("PROVISIONAL");
@@ -239,8 +248,8 @@ describe("UX-11A.5a.4.1 — floor_ytw_raise holds `secondary` in V2 only", () =>
 });
 
 describe("V2 Plan Dose Policy", () => {
-  it("v2.3: every generated kind has its load, duration and passages in the policy; race = no normal session", () => {
-    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.3");
+  it("v2.3: every generated kind has its load, duration and passages in the policy; race = no normal session (kept in v2.4)", () => {
+    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.4");
     expect(PLAN_DOSE_POLICY_V2).toEqual({
       development: { forceLoad: "MODERATE", forceDurationMin: 60, dhLoad: "MODERATE", dhDurationMin: 90, dhFocusedPasses: 6, aerobicLoad: "MODERATE", aerobicBaseDurationMin: 45 },
       taper: { forceLoad: "LIGHT", forceDurationMin: 45, dhLoad: "LIGHT", dhDurationMin: 60, dhFocusedPasses: 4, aerobicLoad: "LIGHT", aerobicBaseDurationMin: 45 },

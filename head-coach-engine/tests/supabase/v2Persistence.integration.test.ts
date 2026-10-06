@@ -7,7 +7,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PLAN_DOSE_POLICY_V2 } from "planning-engine";
+import { PLAN_DOSE_POLICY_V2, PLAN_ROLE_DOSES_V2 } from "planning-engine";
 import {
   createTestAthlete,
   createTestClient,
@@ -86,36 +86,49 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
       id: result.planVersionId,
       input_snapshot_schema_version: "v2",
       prescription_schema_version: "v2",
-      catalog_version: "session-model-v2.5",
+      catalog_version: "session-model-v2.6",
       planner_version: "v2",
       relaxed_constraints: [],
     });
     expect((version!.input_snapshot as { dhTechnicalTier: string }).dhTechnicalTier).toBe("intermediate");
 
     const { sessions, prescriptions } = await rowsOf(result.planVersionId);
+    // BUG-V2-2 — no recent history: an introduction week, then a build week (not two cloned weeks).
     expect(sessions.map((s) => [s.date, s.kind, s.load_profile, s.duration_min])).toEqual([
-      ["2026-10-05", "DH_TECHNICAL", "MODERATE", 90],
-      ["2026-10-06", "DH_TECHNICAL", "MODERATE", 90],
-      ["2026-10-07", "STRENGTH_LOWER", "MODERATE", 60],
-      ["2026-10-08", "STRENGTH_UPPER", "MODERATE", 60],
-      ["2026-10-09", "AEROBIC_BASE", "MODERATE", 45],
+      ["2026-10-05", "DH_TECHNICAL", "LIGHT", 75],
+      ["2026-10-06", "DH_TECHNICAL", "LIGHT", 75],
+      ["2026-10-07", "STRENGTH_LOWER", "LIGHT", 45],
+      ["2026-10-08", "STRENGTH_UPPER", "LIGHT", 45],
+      ["2026-10-09", "AEROBIC_BASE", "LIGHT", 45],
       ["2026-10-12", "DH_TECHNICAL", "MODERATE", 90],
       ["2026-10-13", "DH_TECHNICAL", "MODERATE", 90],
       ["2026-10-14", "STRENGTH_LOWER", "MODERATE", 60],
       ["2026-10-15", "STRENGTH_UPPER", "MODERATE", 60],
       ["2026-10-16", "AEROBIC_BASE", "MODERATE", 45],
     ]);
-    // Load authority lock: every stored load is the plan dose policy's load for its kind.
-    const policyLoad = { STRENGTH_LOWER: PLAN_DOSE_POLICY_V2.development.forceLoad, STRENGTH_UPPER: PLAN_DOSE_POLICY_V2.development.forceLoad, DH_TECHNICAL: PLAN_DOSE_POLICY_V2.development.dhLoad, AEROBIC_BASE: PLAN_DOSE_POLICY_V2.development.aerobicLoad } as Record<string, string>;
-    for (const s of sessions) expect(s.load_profile, s.kind).toBe(policyLoad[s.kind as string]);
+    // Load authority lock: every stored load is the role dose's load for its kind.
+    const roleLoad = (role: "introduction" | "build", kind: string) =>
+      kind.startsWith("STRENGTH") ? PLAN_ROLE_DOSES_V2[role].forceLoad : kind === "DH_TECHNICAL" ? PLAN_ROLE_DOSES_V2[role].dhLoad : PLAN_ROLE_DOSES_V2[role].aerobicLoad;
+    for (const s of sessions) expect(s.load_profile, `${s.date} ${s.kind}`).toBe(roleLoad(s.date < "2026-10-12" ? "introduction" : "build", s.kind));
+
+    // The week's progression is persisted with its dose summary (additive jsonb key) and its rationale.
+    const { data: weeks } = await admin.from("training_plan_weeks").select("week_number, week_type, dose_summary, rationale").eq("plan_version_id", result.planVersionId).order("week_number");
+    expect(weeks!.map((w) => [w.week_number, w.week_type, w.rationale])).toEqual([
+      [1, "development", "Introduction week: baseline doses to start the block."],
+      [2, "development", "Build week: standard development load."],
+    ]);
+    expect(weeks!.map((w) => (w.dose_summary as { progression: unknown }).progression)).toEqual([
+      { model: "plan-dose-policy-v2.4", role: "introduction", cycle: 0, reasonCodes: ["block_start_baseline"], targets: { forceDoseStep: "LIGHT", forceDurationMin: 45, dhDurationMin: 75, dhPasses: 5, aerobicDurationMin: 45 }, sessionCount: 5, physicalMinutes: 135, ridingMinutes: 150 },
+      { model: "plan-dose-policy-v2.4", role: "build", cycle: 0, reasonCodes: ["cycle_progression"], targets: { forceDoseStep: "MODERATE", forceDurationMin: 60, dhDurationMin: 90, dhPasses: 6, aerobicDurationMin: 45 }, sessionCount: 5, physicalMinutes: 165, ridingMinutes: 180 },
+    ]);
     expect(prescriptions).toHaveLength(sessions.length);
     expect(new Set(prescriptions.map((p) => p.generated_plan_session_id))).toEqual(new Set(sessions.map((s) => s.id)));
-    expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.5"]));
+    expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.6"]));
 
     // The first session of that kind by date (sessions are ordered; prescription rows are not).
     const byKind = (kind: string) => prescriptions.find((p) => p.generated_plan_session_id === sessions.find((s) => s.kind === kind)!.id)!.structure as Record<string, any>;
     expect(byKind("STRENGTH_LOWER").templateId).toBe("strength_lower_intermediate_v1");
-    expect(byKind("DH_TECHNICAL").blocks.find((b: any) => b.role === "main").items[0]).toMatchObject({ kind: "drill", drillId: "cornering_berm_speed", measure: { type: "pass", count: 6 } });
+    expect(byKind("DH_TECHNICAL").blocks.find((b: any) => b.role === "main").items[0]).toMatchObject({ kind: "drill", drillId: "cornering_berm_speed", measure: { type: "pass", count: 5 } });
     expect(byKind("DH_TECHNICAL").blocks.find((b: any) => b.role === "main").items[0].exerciseId).toBeUndefined();
     expect(byKind("AEROBIC_BASE").activitySelection).toEqual({ mode: "restricted", activityIds: ["road_bike", "mtb_rolling", "home_trainer", "running"] });
 

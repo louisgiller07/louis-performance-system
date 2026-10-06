@@ -18,12 +18,22 @@
  * V2 dose. Legacy doseTarget fields kept on a session (strength setVolume /
  * targetRpeOrRir, aerobic intensityZone) are LoadDerivation's unadjusted
  * baseline and are never read by the V2 builders.
+ *
+ * BUG-V2-2 (policy v2.4): the model shapes the whole block
+ * (blockProgressionV2.ts) — each week gets a role (introduction, build,
+ * build+, consolidation, race-specific, taper, race) and that role's dose,
+ * fitted to the real availability. Every placed session's load and duration
+ * then come from its week's shape. placementDurationMinByDomain(weekType) is
+ * kept for callers without shapes (development = build cycle 0).
  */
 import { PLAN_DOSE_POLICY_V2, PLAN_DOSE_POLICY_V2_VERSION, type PlanWeekDoseV2 } from "../../catalog/planDosePolicyV2.js";
 import type { LoadDerivationOutput } from "../../pipeline/loadDerivation.js";
-import type { SessionDoseModel } from "../../pipeline/sessionDoseModel.js";
+import type { SessionDoseModel, WeekShape } from "../../pipeline/sessionDoseModel.js";
+import type { SessionDomain } from "../../pipeline/weekSegmenter.js";
+import type { SessionKind } from "../../types/sharedVocabulary.js";
 import type { WeekType } from "../../types/planWeek.js";
 import { SessionModelV2ContractError } from "../generationErrors.js";
+import { shapeBlockWeeksV2, shapedLoadV2 } from "./blockProgressionV2.js";
 
 function weekDose(weekType: WeekType): PlanWeekDoseV2 | null {
   if (weekType === "development") return PLAN_DOSE_POLICY_V2.development;
@@ -45,7 +55,10 @@ export const PLAN_DOSE_MODEL_V2: SessionDoseModel = {
     };
   },
 
-  resolveSessionLoad({ kind, weekType, baseline }): LoadDerivationOutput {
+  shapeWeeks: shapeBlockWeeksV2,
+
+  resolveSessionLoad({ kind, domain, weekType, baseline, shape }): LoadDerivationOutput {
+    if (shape !== undefined) return resolveShapedSessionLoad(kind, domain, baseline, shape);
     const dose = weekDose(weekType);
     if (dose === null) throw new SessionModelV2ContractError(`no session expected in a "${weekType}" week (${kind})`);
     switch (kind) {
@@ -66,3 +79,23 @@ export const PLAN_DOSE_MODEL_V2: SessionDoseModel = {
     }
   },
 };
+
+/** BUG-V2-2 — a session of a shaped week: the shape's duration, load and DH passes. */
+function resolveShapedSessionLoad(kind: SessionKind, domain: SessionDomain, baseline: LoadDerivationOutput, shape: WeekShape): LoadDerivationOutput {
+  const durations = shape.placementDurationMinByDomain;
+  if (durations === null) throw new SessionModelV2ContractError(`no session expected in a "${shape.progression.role}" week (${kind})`);
+  const loadProfile = shapedLoadV2(shape, domain);
+  switch (kind) {
+    case "STRENGTH_LOWER":
+    case "STRENGTH_UPPER":
+    case "AEROBIC_BASE":
+      return { loadProfile, durationMin: durations[domain], doseTarget: baseline.doseTarget };
+    case "DH_TECHNICAL": {
+      const passes = shape.progression.targets.dhPasses;
+      if (passes === null) throw new SessionModelV2ContractError(`DH session in a week without a DH target`);
+      return { loadProfile, durationMin: durations.dh_technical, doseTarget: { domain: "dh_technical", skillTargets: [], focusedRunsCount: passes } };
+    }
+    default:
+      throw new SessionModelV2ContractError(`session kind ${kind} has no V2 dose (not produced by the current planner)`);
+  }
+}

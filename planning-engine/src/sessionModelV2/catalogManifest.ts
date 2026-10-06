@@ -15,7 +15,9 @@
  * session-model-v2.2. UX-11A.5a.4.2: planDosePolicy v2.1 (Force durations),
  * aggregate session-model-v2.3. UX-11A.5a.4.3: planDosePolicy v2.2 (DH
  * duration), aggregate session-model-v2.4. Load authority lock: planDosePolicy
- * v2.3 (DH / endurance loads), aggregate session-model-v2.5.
+ * v2.3 (DH / endurance loads), aggregate session-model-v2.5. BUG-V2-2:
+ * planDosePolicy v2.4 (block progression), strengthDoses v2.2 (MODERATE_PLUS
+ * step), aggregate session-model-v2.6.
  *
  * Any component version change must come with a new aggregate version
  * (locked by test).
@@ -29,7 +31,7 @@ import { STRENGTH_TEMPLATE_CATALOG_V2_VERSION } from "../catalog/strengthTemplat
 import { STRENGTH_DOSE_CATALOG_V2_VERSION } from "../catalog/strengthDoseCatalogV2.js";
 import { PLAN_DOSE_POLICY_V2_VERSION } from "../catalog/planDosePolicyV2.js";
 
-export const SESSION_MODEL_V2_AGGREGATE_VERSION = "session-model-v2.5";
+export const SESSION_MODEL_V2_AGGREGATE_VERSION = "session-model-v2.6";
 
 export interface SessionModelV2CatalogManifest {
   aggregate: string;

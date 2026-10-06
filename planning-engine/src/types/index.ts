@@ -28,7 +28,15 @@ export { VALID_LIFECYCLE_TRANSITIONS } from "./planLifecycle.js";
 
 export type { TrainingPlanBlock } from "./planBlock.js";
 
-export type { WeekType, WeekDoseSummary, TrainingPlanWeek } from "./planWeek.js";
+export type {
+  WeekType,
+  WeekDoseSummary,
+  TrainingPlanWeek,
+  WeekProgressionRole,
+  WeekProgressionReasonCode,
+  WeekProgressionTargets,
+  WeekProgressionSummary,
+} from "./planWeek.js";
 
 export type { SessionDoseTarget, GeneratedPlanSession } from "./generatedSession.js";
 

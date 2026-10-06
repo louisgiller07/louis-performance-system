@@ -11,6 +11,9 @@
 // - planning-engine planningPipelineOrchestrator.ts PHRASE_FOR_SELECTION_REASON
 //   (first part of every week and session rationale), plus its
 //   "N constraint(s) relaxed." week suffix;
+// - planning-engine blockProgressionV2.ts BLOCK_PROGRESSION_PHRASES_V2 (V2
+//   week roles and their holds / adaptations, BUG-V2-2: first parts of a V2
+//   week and session rationale);
 // - planning-engine historyAdjuster.ts ADJUSTMENT_REASON and
 //   constraintResolver.ts's recovery_spacing reason (session suffixes).
 // The engines join these parts with a single space (composeWeekRationale/
@@ -36,6 +39,22 @@ const KNOWN_PHRASES: ReadonlyArray<readonly [english: string, french: string]> =
   ],
   ["Week type set by an explicit upstream recovery/deload indication.", "Type de semaine défini par une indication de récupération ou d'allègement."],
   ["Standard development week.", "Semaine standard de développement."],
+  // V2 block progression (BLOCK_PROGRESSION_PHRASES_V2) — week role, then its holds / adaptations.
+  ["Introduction week: baseline doses to start the block.", "Semaine d'introduction : doses de base pour démarrer le bloc."],
+  ["Return week after the race: back to baseline doses.", "Semaine de reprise après la course : retour aux doses de base."],
+  ["Build week: standard development load.", "Semaine de construction : charge de développement standard."],
+  ["Build week: load raised from the previous cycle.", "Semaine de construction : charge augmentée par rapport au cycle précédent."],
+  ["Overload week: the highest load of the cycle.", "Semaine de surcharge : la charge la plus haute du cycle."],
+  ["Consolidation week: reduced load to absorb the previous weeks.", "Semaine de consolidation : charge réduite pour assimiler les semaines précédentes."],
+  [
+    "Race-specific week, two weeks before the race: riding first, strength maintained without overload.",
+    "Semaine spécifique course, deux semaines avant : priorité au pilotage, force maintenue sans surcharge.",
+  ],
+  ["Recent training history: the block starts at build level.", "Entraînement récent pris en compte : le bloc démarre directement en construction."],
+  ["Overload postponed: several recent sessions were missed or replaced.", "Surcharge reportée : plusieurs séances récentes ont été manquées ou remplacées."],
+  ["Fixed sessions this week: load held, no increase.", "Séances fixes cette semaine : charge maintenue, sans augmentation."],
+  ["Strength volume kept moderate for a beginner level.", "Volume de force maintenu modéré pour un niveau débutant."],
+  ["Sessions shortened to fit the available time.", "Séances raccourcies pour tenir dans le temps disponible."],
   // Session suffixes (no trailing period in the engine).
   ["Adjusted due to recent missed or replaced sessions pattern", "Charge allégée car plusieurs séances récentes ont été manquées ou remplacées."],
   ["Reduced heavy strength load to avoid consecutive heavy strength sessions", "Charge de force réduite pour éviter deux séances lourdes d'affilée."],

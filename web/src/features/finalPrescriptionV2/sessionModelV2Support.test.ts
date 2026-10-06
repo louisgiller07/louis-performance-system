@@ -20,12 +20,20 @@ import {
   resolveCoachingText,
   SESSION_FAMILIES_V2,
   SUPPORTED_SESSION_MODEL_V2_MANIFEST,
+  SUPPORTED_SESSION_MODEL_V2_MANIFESTS,
 } from "./sessionModelV2Support";
 
 describe("supported Session Model V2 version (UX-11A.5c.4)", () => {
-  it("the supported manifest is exactly the engine's session-model-v2.5 manifest", () => {
+  it("the supported manifest is exactly the engine's session-model-v2.6 manifest", () => {
     expect(SUPPORTED_SESSION_MODEL_V2_MANIFEST).toEqual(buildSessionModelV2CatalogManifest());
-    expect(SUPPORTED_SESSION_MODEL_V2_MANIFEST.aggregate).toBe("session-model-v2.5");
+    expect(SUPPORTED_SESSION_MODEL_V2_MANIFEST.aggregate).toBe("session-model-v2.6");
+  });
+
+  it("BUG-V2-2 — v2.5 stays readable: it differs from v2.6 only by the strength dose / plan dose policy versions (same id tables)", () => {
+    expect(SUPPORTED_SESSION_MODEL_V2_MANIFESTS.map((m) => m.aggregate)).toEqual(["session-model-v2.6", "session-model-v2.5"]);
+    const [current, previous] = SUPPORTED_SESSION_MODEL_V2_MANIFESTS;
+    const differing = Object.keys(current!).filter((k) => current![k] !== previous![k]);
+    expect(differing).toEqual(["aggregate", "strengthDoses", "planDosePolicy"]);
   });
 
   it("the generated text mirror equals the engine catalogue of the supported texts version (regenerate with scripts/generate-session-model-v2-texts.mjs)", () => {

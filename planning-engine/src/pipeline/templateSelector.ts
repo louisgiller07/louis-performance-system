@@ -68,7 +68,7 @@ function overlaps(rangeStart: string, rangeEnd: string, otherStart: string, othe
 }
 
 function findTemplate(weekType: WeekType): WeekTemplateCatalogEntry {
-  const entry = WEEK_TEMPLATE_CATALOG_ENTRIES.find((e) => e.weekType === weekType && !e.deprecated);
+  const entry = WEEK_TEMPLATE_CATALOG_ENTRIES.find((e) => e.weekType === weekType && !e.deprecated && e.variant === undefined);
   if (!entry) throw new TemplateNotFoundError(weekType);
   return entry;
 }

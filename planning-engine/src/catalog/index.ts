@@ -93,7 +93,15 @@ export {
   STRENGTH_WORK_SLOT_ROLES_V2,
 } from "./strengthTemplateCatalogV2.js";
 export type { StrengthTemplateV2, StrengthWorkSlotV2, StrengthWarmUpV2, StrengthWarmUpItemV2, StrengthWorkSlotRoleV2, StrengthTemplateSessionKindV2 } from "./strengthTemplateCatalogV2.js";
-export { STRENGTH_DOSE_CATALOG_V2_VERSION, STRENGTH_DOSE_CATALOG_V2, STRENGTH_LOAD_LEVELS_V2 } from "./strengthDoseCatalogV2.js";
-export type { StrengthRoleDoseV2, StrengthLoadLevelV2, StrengthDoseVolumeV2 } from "./strengthDoseCatalogV2.js";
-export { PLAN_DOSE_POLICY_V2_VERSION, PLAN_DOSE_POLICY_V2 } from "./planDosePolicyV2.js";
-export type { PlanDosePolicyV2, PlanWeekDoseV2 } from "./planDosePolicyV2.js";
+export { STRENGTH_DOSE_CATALOG_V2_VERSION, STRENGTH_DOSE_CATALOG_V2, STRENGTH_LOAD_LEVELS_V2, STRENGTH_DOSE_STEPS_V2, STRENGTH_DOSE_STEP_LOAD_V2 } from "./strengthDoseCatalogV2.js";
+export type { StrengthRoleDoseV2, StrengthLoadLevelV2, StrengthDoseVolumeV2, StrengthDoseStepV2 } from "./strengthDoseCatalogV2.js";
+export {
+  PLAN_DOSE_POLICY_V2_VERSION,
+  PLAN_DOSE_POLICY_V2,
+  PLAN_ROLE_DOSES_V2,
+  PLAN_PROGRESSION_CAPS_V2,
+  PLAN_DH_DURATION_STEPS_V2,
+  PLAN_RECENT_TRAINING_MINUTES_V2,
+  PLAN_MISSED_SESSIONS_HOLD_V2,
+} from "./planDosePolicyV2.js";
+export type { PlanDosePolicyV2, PlanWeekDoseV2, PlanRoleDoseV2, PlanDosedRoleV2 } from "./planDosePolicyV2.js";

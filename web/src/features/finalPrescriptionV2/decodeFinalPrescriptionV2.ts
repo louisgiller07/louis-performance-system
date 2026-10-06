@@ -16,7 +16,7 @@ import {
   exerciseNameV2,
   resolveCoachingText,
   SESSION_FAMILIES_V2,
-  SUPPORTED_SESSION_MODEL_V2_MANIFEST,
+  SUPPORTED_SESSION_MODEL_V2_MANIFESTS,
 } from "./sessionModelV2Support";
 
 export interface FinalPrescriptionV2Record {
@@ -136,10 +136,14 @@ function block(v: unknown, path: string): BlockView {
   };
 }
 
-function sameManifest(catalog: Record<string, unknown>): boolean {
-  const expected = SUPPORTED_SESSION_MODEL_V2_MANIFEST as Readonly<Record<string, string>>;
+function sameManifest(catalog: Record<string, unknown>, expected: Readonly<Record<string, string>>): boolean {
   const keys = Object.keys(catalog);
   return keys.length === Object.keys(expected).length && keys.every((k) => catalog[k] === expected[k]);
+}
+
+/** A supported manifest, exactly (aggregate and every component). */
+function supportedManifest(catalog: Record<string, unknown>): boolean {
+  return SUPPORTED_SESSION_MODEL_V2_MANIFESTS.some((expected) => catalog.aggregate === expected.aggregate && sameManifest(catalog, expected));
 }
 
 export function decodeFinalPrescriptionV2(record: FinalPrescriptionV2Record): DecodeFinalPrescriptionV2Result {
@@ -149,7 +153,7 @@ export function decodeFinalPrescriptionV2(record: FinalPrescriptionV2Record): De
   if (!isObject(s.catalog) || !isNonEmptyString(s.catalog.aggregate)) return { ok: false, kind: "invalid", reason: "missing catalogue manifest" };
   if (record.catalogVersion !== s.catalog.aggregate) return { ok: false, kind: "invalid", reason: "catalog_version differs from structure.catalog.aggregate" };
   // Version gate BEFORE any id resolution.
-  if (s.catalog.aggregate !== SUPPORTED_SESSION_MODEL_V2_MANIFEST.aggregate || !sameManifest(s.catalog)) {
+  if (!supportedManifest(s.catalog)) {
     return { ok: false, kind: "unsupported_schema_or_catalog", reason: `catalogue ${String(s.catalog.aggregate)} is not supported by this version` };
   }
   try {

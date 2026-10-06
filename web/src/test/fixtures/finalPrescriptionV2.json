@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "session-model-v2.5",
+  "generatedFrom": "session-model-v2.6",
   "finalPrescriptions": {
     "STRENGTH_LOWER": {
       "id": "f0000000-0000-4000-8000-000000000001",
@@ -10,7 +10,7 @@
       "reconciliationAction": "keep",
       "adaptationRuleIds": [],
       "schemaVersion": "v2",
-      "catalogVersion": "session-model-v2.5",
+      "catalogVersion": "session-model-v2.6",
       "structure": {
         "schemaVersion": "v2",
         "family": "strength",
@@ -18,15 +18,15 @@
         "intentId": "lower_body_strength_control",
         "templateId": "strength_lower_intermediate_v1",
         "catalog": {
-          "aggregate": "session-model-v2.5",
+          "aggregate": "session-model-v2.6",
           "exercises": "session-exercises-v2.1",
           "drills": "session-drills-v2.0",
           "intents": "session-intents-v2.0",
           "protocols": "session-protocols-v2.0",
           "texts": "coaching-text-v1.0",
           "templates": "strength-templates-v2.1",
-          "strengthDoses": "strength-doses-v2.1",
-          "planDosePolicy": "plan-dose-policy-v2.3"
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
         },
         "blocks": [
           {
@@ -218,7 +218,7 @@
       "reconciliationAction": "keep",
       "adaptationRuleIds": [],
       "schemaVersion": "v2",
-      "catalogVersion": "session-model-v2.5",
+      "catalogVersion": "session-model-v2.6",
       "structure": {
         "schemaVersion": "v2",
         "family": "strength",
@@ -226,15 +226,15 @@
         "intentId": "upper_bike_control",
         "templateId": "strength_upper_intermediate_v1",
         "catalog": {
-          "aggregate": "session-model-v2.5",
+          "aggregate": "session-model-v2.6",
           "exercises": "session-exercises-v2.1",
           "drills": "session-drills-v2.0",
           "intents": "session-intents-v2.0",
           "protocols": "session-protocols-v2.0",
           "texts": "coaching-text-v1.0",
           "templates": "strength-templates-v2.1",
-          "strengthDoses": "strength-doses-v2.1",
-          "planDosePolicy": "plan-dose-policy-v2.3"
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
         },
         "blocks": [
           {
@@ -422,22 +422,22 @@
       "reconciliationAction": "keep",
       "adaptationRuleIds": [],
       "schemaVersion": "v2",
-      "catalogVersion": "session-model-v2.5",
+      "catalogVersion": "session-model-v2.6",
       "structure": {
         "schemaVersion": "v2",
         "family": "dh_technical",
         "sessionKind": "DH_TECHNICAL",
         "intentId": "dh_corner_exit_speed",
         "catalog": {
-          "aggregate": "session-model-v2.5",
+          "aggregate": "session-model-v2.6",
           "exercises": "session-exercises-v2.1",
           "drills": "session-drills-v2.0",
           "intents": "session-intents-v2.0",
           "protocols": "session-protocols-v2.0",
           "texts": "coaching-text-v1.0",
           "templates": "strength-templates-v2.1",
-          "strengthDoses": "strength-doses-v2.1",
-          "planDosePolicy": "plan-dose-policy-v2.3"
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
         },
         "blocks": [
           {
@@ -503,7 +503,7 @@
       "reconciliationAction": "keep",
       "adaptationRuleIds": [],
       "schemaVersion": "v2",
-      "catalogVersion": "session-model-v2.5",
+      "catalogVersion": "session-model-v2.6",
       "structure": {
         "schemaVersion": "v2",
         "family": "endurance",
@@ -520,15 +520,15 @@
           ]
         },
         "catalog": {
-          "aggregate": "session-model-v2.5",
+          "aggregate": "session-model-v2.6",
           "exercises": "session-exercises-v2.1",
           "drills": "session-drills-v2.0",
           "intents": "session-intents-v2.0",
           "protocols": "session-protocols-v2.0",
           "texts": "coaching-text-v1.0",
           "templates": "strength-templates-v2.1",
-          "strengthDoses": "strength-doses-v2.1",
-          "planDosePolicy": "plan-dose-policy-v2.3"
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
         },
         "blocks": [
           {

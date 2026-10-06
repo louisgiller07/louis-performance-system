@@ -63,30 +63,34 @@ describe("A — development plan: every session kind gets a valid V2 prescriptio
       inputSnapshotSchemaVersion: "v2",
       prescriptionSchemaVersion: "v2",
       plannerVersion: "v2",
-      catalogVersion: "session-model-v2.5",
+      catalogVersion: "session-model-v2.6",
     });
-    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.3");
+    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.4");
   });
 
-  it("Force MODERATE 60 min, DH 6 passages, AEROBIC_BASE 45 min; N sessions → N V2 prescriptions", () => {
+  it("BUG-V2-2 — introduction then build (no recent history): Force LIGHT 45 (3 sets) → MODERATE 60 (4 sets), DH 75 min / 5 passages → 90 / 6, AEROBIC_BASE 45; N sessions → N V2 prescriptions", () => {
     const all = sessions(plan);
     expect(all.map((s) => s.kind).sort()).toEqual(["AEROBIC_BASE", "AEROBIC_BASE", "DH_TECHNICAL", "DH_TECHNICAL", "DH_TECHNICAL", "DH_TECHNICAL", "STRENGTH_LOWER", "STRENGTH_LOWER", "STRENGTH_UPPER", "STRENGTH_UPPER"]);
-    for (const s of all) {
-      expect(s.plannedPrescription.schemaVersion).toBe("v2");
-      expect(s.plannedPrescription.structure.sessionKind).toBe(s.kind);
-      if (s.kind.startsWith("STRENGTH")) {
-        expect([s.loadProfile, s.durationMin]).toEqual(["MODERATE", 60]);
-        expect(workItems(s)[0]!.sets).toBe(4);
+    expect(plan.weeks.map((w) => w.doseSummary.progression?.role)).toEqual(["introduction", "build"]);
+    const expected = [
+      { force: ["LIGHT", 45, 3], dh: [75, 5] },
+      { force: ["MODERATE", 60, 4], dh: [90, 6] },
+    ];
+    plan.weeks.forEach((week, i) => {
+      for (const s of week.sessions) {
+        expect(s.plannedPrescription.schemaVersion).toBe("v2");
+        expect(s.plannedPrescription.structure.sessionKind).toBe(s.kind);
+        if (s.kind.startsWith("STRENGTH")) expect([s.loadProfile, s.durationMin, workItems(s)[0]!.sets]).toEqual(expected[i]!.force);
+        if (s.kind === "DH_TECHNICAL") {
+          expect(s.durationMin).toBe(expected[i]!.dh[0]);
+          expect(s.plannedPrescription.structure.blocks.find((b) => b.role === "main")!.items[0]).toMatchObject({ kind: "drill", measure: { type: "pass", count: expected[i]!.dh[1] } });
+        }
+        if (s.kind === "AEROBIC_BASE") {
+          expect(s.durationMin).toBe(45);
+          expect(s.plannedPrescription.structure.blocks.map((b) => b.durationMinutes?.min)).toEqual([10, 30, 5]);
+        }
       }
-      if (s.kind === "DH_TECHNICAL") {
-        expect(s.durationMin).toBe(90);
-        expect(s.plannedPrescription.structure.blocks.find((b) => b.role === "main")!.items[0]).toMatchObject({ kind: "drill", measure: { type: "pass", count: 6 } });
-      }
-      if (s.kind === "AEROBIC_BASE") {
-        expect(s.durationMin).toBe(45);
-        expect(s.plannedPrescription.structure.blocks.map((b) => b.durationMinutes?.min)).toEqual([10, 30, 5]);
-      }
-    }
+    });
   });
 
   it("DH rotation restarts at 0 in this version and follows the declared priorities in plan date order", () => {
@@ -168,8 +172,8 @@ describe("D — DH preconditions only when the plan contains DH", () => {
     expect(generatePlanV2InMemory({ block: TWO_WEEKS, snapshot: snapshot({ terrainAccess: ["flow_trail"] }), mintId: counter() })).toMatchObject({ status: "blocked", code: "unavailable_dh_drill_terrain" });
   });
 
-  it("plan without any DH session + dhTechnicalTier null → generated (60-min windows only: no DH fits)", () => {
-    const short = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d as PlanInputAvailabilityWindow["dayOfWeek"], startTime: "08:00", endTime: "09:00" }));
+  it("plan without any DH session + dhTechnicalTier null → generated (45-min windows only: no DH fits, even shortened to 60 min)", () => {
+    const short = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d as PlanInputAvailabilityWindow["dayOfWeek"], startTime: "08:00", endTime: "08:45" }));
     const plan = generated(generatePlanV2InMemory({ block: TWO_WEEKS, snapshot: snapshot({ dhTechnicalTier: null, availability: { windows: short, exceptions: [] } }), mintId: counter() }));
     expect(sessions(plan).some((s) => s.kind === "DH_TECHNICAL")).toBe(false);
     expect(sessions(plan).length).toBeGreaterThan(0);
@@ -177,15 +181,18 @@ describe("D — DH preconditions only when the plan contains DH", () => {
 });
 
 describe("E — Force composition is stable over the whole version", () => {
-  it("same kind → same template and exercises in development and taper; only the dose changes", () => {
-    const plan = generated(generatePlanV2InMemory({ block: RACE_PLAN, snapshot: snapshot({ races: [RACE] }), mintId: counter() }));
+  it("same kind → same template and exercises over a 6-week block (introduction … taper); only the dose changes", () => {
+    const sixWeeks = block("2026-10-05", "2026-11-15");
+    const race = { eventName: "Swiss Cup", startDate: "2026-11-14", endDate: "2026-11-15", priority: "A" as const };
+    const plan = generated(generatePlanV2InMemory({ block: sixWeeks, snapshot: snapshot({ races: [race] }), mintId: counter() }));
     for (const kind of ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const) {
       const ofKind = sessions(plan).filter((s) => s.kind === kind);
       expect(ofKind.length).toBeGreaterThan(0);
       expect(new Set(ofKind.map((s) => JSON.stringify([s.plannedPrescription.structure.templateId, exerciseIds(s)]))).size).toBe(1);
     }
+    const roleOf = new Map(plan.weeks.flatMap((w) => w.sessions.map((s) => [s.date, w.doseSummary.progression!.role] as const)));
     const lower = sessions(plan).filter((s) => s.kind === "STRENGTH_LOWER");
-    expect(new Set(lower.map((s) => `${s.weekType}:${workItems(s)[0]!.sets}`))).toEqual(new Set(["development:4", "taper:3"]));
+    expect(lower.map((s) => `${roleOf.get(s.date)}:${workItems(s)[0]!.sets}`)).toEqual(["introduction:3", "build:4", "build_plus:5", "race_specific:4", "taper:3"]);
   });
 });
 

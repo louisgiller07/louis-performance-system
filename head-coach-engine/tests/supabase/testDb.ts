@@ -332,6 +332,8 @@ export interface InsertCompletedSessionOptions {
   /** V0.3_008B — exact FK linkage to a `decisions.id` row, e.g. from {@link insertDecision}. */
   decisionId?: string;
   technicalOutcome?: "yes" | "partial" | "no";
+  /** BUG-V2-2 — recorded duration (feeds the plan's recent training volume). */
+  actualDurationMin?: number;
 }
 
 export async function insertCompletedSession(
@@ -353,6 +355,7 @@ export async function insertCompletedSession(
     ...(options.postGripFatigue !== undefined ? { post_grip_fatigue: options.postGripFatigue } : {}),
     ...(options.decisionId !== undefined ? { decision_id: options.decisionId } : {}),
     ...(options.technicalOutcome !== undefined ? { technical_outcome: options.technicalOutcome } : {}),
+    ...(options.actualDurationMin !== undefined ? { actual_duration_min: options.actualDurationMin } : {}),
   });
   if (error) throw new Error(`insertCompletedSession failed: ${error.message}`);
 }

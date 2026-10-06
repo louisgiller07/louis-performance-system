@@ -80,6 +80,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.4b — M1 recent-history bridge 
 
   it("V2 completions reach M1: 3 legacy + 2 completed V2 sessions → recent_load RED → existing rule C3.7; started / abandoned / retry never add load", async () => {
     const athleteId = await athlete("bridge V2 completions");
+    // Legacy day summaries: 3 MODERATE sessions before the V2 sessions. Recorded before the plan is
+    // generated (BUG-V2-2): 3 x 60 min of recent training → the block starts at build (MODERATE doses).
+    for (const d of ["2026-10-03", "2026-10-04", "2026-10-05"]) await insertCompletedSession(admin, athleteId, d, "STRENGTH_A", MODERATE_STRENGTH, { actualDurationMin: 60 });
     await acceptTrainingPlanVersion(
       admin,
       athleteId,
@@ -91,8 +94,6 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.4b — M1 recent-history bridge 
       TODAY,
       "2026-10-18"
     );
-    // Legacy day summaries: 3 MODERATE sessions before the V2 sessions.
-    for (const d of ["2026-10-03", "2026-10-04", "2026-10-05"]) await insertCompletedSession(admin, athleteId, d, "STRENGTH_A", MODERATE_STRENGTH);
 
     const day = "2026-10-10"; // no planned session; window 2026-10-03 .. 2026-10-10
     await insertCheckin(admin, athleteId, day);

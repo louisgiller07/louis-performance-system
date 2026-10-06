@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatWeekAttentionSummary, translateExplanation } from "./trainingPlanExplanationLabels";
+// Cross-boundary read of the engine phrases, test only (same practice as sessionModelV2Support.test.ts).
+import { BLOCK_PROGRESSION_PHRASES_V2 } from "../../../../planning-engine/src/sessionModelV2/orchestration/blockProgressionV2.ts";
 
 // Verbatim engine phrases (see the module doc for their sources).
 const VERSION_PHRASES: ReadonlyArray<readonly [string, string]> = [
@@ -69,6 +71,23 @@ describe("translateExplanation — engine composition (parts joined by a space)"
     ].join(" ");
 
     expect(all).not.toMatch(ENGLISH_LEAK);
+  });
+});
+
+describe("BUG-V2-2 — V2 block progression phrases", () => {
+  it.each(Object.entries(BLOCK_PROGRESSION_PHRASES_V2))("%s: every engine phrase has a French translation, no English left", (_key, english) => {
+    const { text } = translateExplanation(english, "week");
+    expect(text).not.toBeNull();
+    expect(text).not.toBe("Semaine planifiée à partir de ta configuration.");
+    expect(text).not.toMatch(ENGLISH_LEAK);
+  });
+
+  it("a V2 week rationale = role phrase + holds / adaptations + relaxed count, all translated in engine order", () => {
+    const p = BLOCK_PROGRESSION_PHRASES_V2;
+    expect(translateExplanation(`${p.build} ${p.recent_training_history} ${p.fixed_sessions_hold} ${p.adapted_to_availability} 1 constraint(s) relaxed.`, "week")).toEqual({
+      text: "Semaine de construction : charge de développement standard. Entraînement récent pris en compte : le bloc démarre directement en construction. Séances fixes cette semaine : charge maintenue, sans augmentation. Séances raccourcies pour tenir dans le temps disponible.",
+      attentionPointCount: 1,
+    });
   });
 });
 

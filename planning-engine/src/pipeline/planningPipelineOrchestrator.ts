@@ -12,14 +12,14 @@
  * architecture lock (tests/unit/boundaries.test.ts).
  */
 import { buildWeekSequence } from "./weekSequenceBuilder.js";
-import { selectWeekTemplate, type TemplateSelectionReason } from "./templateSelector.js";
+import { selectWeekTemplate, type TemplateSelectionReason, type TemplateSelectionResult } from "./templateSelector.js";
 import { segmentWeek } from "./weekSegmenter.js";
 import type { SessionDomain } from "./weekSegmenter.js";
 import { assignSessionKinds } from "./sessionKindAssignment.js";
 import { deriveLoad, referenceDurationMinFor, type LoadDerivationOutput } from "./loadDerivation.js";
 import { adjustHistory, type HistoryAdjusterOutput } from "./historyAdjuster.js";
 import { resolveConstraints, type ConstraintResolverSessionEntry } from "./constraintResolver.js";
-import { SessionDoseModelContractError, type SessionDoseModel } from "./sessionDoseModel.js";
+import { SessionDoseModelContractError, type SessionDoseModel, type WeekShape } from "./sessionDoseModel.js";
 import type { PipelineSessionEnvelope } from "../types/pipelineSessionEnvelope.js";
 import type { TrainingPlanBlock } from "../types/planBlock.js";
 import type {
@@ -29,7 +29,7 @@ import type {
   StrengthExperienceTier,
   PlanInputRecentHistory,
 } from "../types/planInputSnapshot.js";
-import type { WeekDoseSummary, WeekType } from "../types/planWeek.js";
+import type { WeekDoseSummary, WeekProgressionSummary, WeekType } from "../types/planWeek.js";
 import type { RelaxedConstraint } from "../types/planVersion.js";
 
 /**
@@ -83,20 +83,30 @@ const PHRASE_FOR_SELECTION_REASON: Record<TemplateSelectionReason, string> = {
 };
 
 function composeSessionRationale(
-  selectionReason: TemplateSelectionReason,
+  selectionPhrase: string,
   adjustmentReason: string | undefined,
   relaxedConstraint: RelaxedConstraint | undefined
 ): string {
-  const parts = [PHRASE_FOR_SELECTION_REASON[selectionReason]];
+  const parts = [selectionPhrase];
   if (adjustmentReason !== undefined) parts.push(adjustmentReason);
   if (relaxedConstraint !== undefined) parts.push(relaxedConstraint.reason);
   return parts.join(" ");
 }
 
-function composeWeekRationale(selectionReason: TemplateSelectionReason, relaxedConstraintCount: number): string {
-  const parts = [PHRASE_FOR_SELECTION_REASON[selectionReason]];
+function composeWeekRationale(selectionPhrase: string, relaxedConstraintCount: number): string {
+  const parts = [selectionPhrase];
   if (relaxedConstraintCount > 0) parts.push(`${relaxedConstraintCount} constraint(s) relaxed.`);
   return parts.join(" ");
+}
+
+function selectedWeek(selection: TemplateSelectionResult): { weekType: WeekType; template: TemplateSelectionResult["template"]; selectionPhrase: string } {
+  return { weekType: selection.weekType, template: selection.template, selectionPhrase: PHRASE_FOR_SELECTION_REASON[selection.selectionReason] };
+}
+
+/** BUG-V2-2 — the shape's progression plus what was really placed (physical = strength + endurance, riding = DH). */
+function progressionSummary(shape: WeekShape, sessions: readonly OrchestratedSession[]): WeekProgressionSummary {
+  const minutes = (domains: readonly SessionDomain[]) => sessions.filter((s) => domains.includes(s.domain)).reduce((sum, s) => sum + s.durationMin, 0);
+  return { ...shape.progression, sessionCount: sessions.length, physicalMinutes: minutes(["strength", "aerobic"]), ridingMinutes: minutes(["dh_technical"]) };
 }
 
 /** Manual UTC parsing, never `new Date(isoString)` — same discipline as every other date helper already in this package. */
@@ -120,9 +130,10 @@ function computeDoseSummary(weekStartDate: string, weekEndDate: string, sessions
 function placementDurationsFromModel(
   model: SessionDoseModel,
   weekType: WeekType,
-  template: { strengthSlotCount: number; dhTechnicalSlotCount: number; aerobicSlotCount: number }
+  template: { strengthSlotCount: number; dhTechnicalSlotCount: number; aerobicSlotCount: number },
+  shape: WeekShape | undefined
 ): Readonly<Record<SessionDomain, number>> {
-  const durations = model.placementDurationMinByDomain(weekType);
+  const durations = shape !== undefined ? shape.placementDurationMinByDomain : model.placementDurationMinByDomain(weekType);
   if (durations !== null) return durations;
   if (template.strengthSlotCount + template.dhTechnicalSlotCount + template.aerobicSlotCount > 0) {
     throw new SessionDoseModelContractError(`${model.modelId} gives no duration for week type "${weekType}", whose template places sessions`);
@@ -140,9 +151,10 @@ function resolveWithModel(
   identity: { date: string; domain: SessionDomain; kind: PipelineSessionEnvelope<unknown>["kind"] },
   weekType: WeekType,
   baseline: LoadDerivationOutput,
-  placementDurations: Readonly<Record<SessionDomain, number>>
+  placementDurations: Readonly<Record<SessionDomain, number>>,
+  shape: WeekShape | undefined
 ): HistoryAdjusterOutput {
-  const resolved = model.resolveSessionLoad({ kind: identity.kind, domain: identity.domain, weekType, baseline });
+  const resolved = model.resolveSessionLoad({ kind: identity.kind, domain: identity.domain, weekType, baseline, ...(shape !== undefined ? { shape } : {}) });
   if (resolved.durationMin !== placementDurations[identity.domain]) {
     throw new SessionDoseModelContractError(
       `${model.modelId}: ${identity.kind} on ${identity.date} resolves to ${resolved.durationMin} min but was placed with ${placementDurations[identity.domain]} min`
@@ -154,23 +166,45 @@ function resolveWithModel(
 export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): PlanningPipelineOrchestratorResult {
   const { weeks: weekSequence } = buildWeekSequence({ block: input.block });
 
+  // BUG-V2-2 — a dose model that shapes the block decides every week's role,
+  // type, template and durations up front (it sees the whole block: races
+  // ahead, cycle position); otherwise each week is selected alone, as before.
+  const shapes = input.sessionDoseModel?.shapeWeeks?.({
+    weeks: weekSequence.map((w) => ({ weekNumber: w.weekNumber, startDate: w.startDate, endDate: w.endDate })),
+    races: input.races,
+    availability: input.availability,
+    terrainAccess: input.terrainAccess,
+    lockedDates: input.lockedDates,
+    strengthExperienceTier: input.strengthExperienceTier,
+    recentHistory: input.recentHistory,
+  });
+  if (shapes !== undefined && shapes.length !== weekSequence.length) {
+    throw new SessionDoseModelContractError(`${input.sessionDoseModel?.modelId}: ${shapes.length} week shape(s) for ${weekSequence.length} week(s)`);
+  }
+
   const weeks: OrchestratedWeek[] = weekSequence.map((weekEntry, index) => {
     const nextWeekEntry = weekSequence[index + 1];
+    const shape = shapes?.[index];
 
     // --- Week-level calls: TemplateSelector, WeekSegmenter, SessionKindAssignment, ConstraintResolver ---
-    const { weekType, template, selectionReason } = selectWeekTemplate({
-      weekStartDate: weekEntry.startDate,
-      weekEndDate: weekEntry.endDate,
-      ...(nextWeekEntry !== undefined
-        ? { nextWeekStartDate: nextWeekEntry.startDate, nextWeekEndDate: nextWeekEntry.endDate }
-        : {}),
-      races: input.races,
-    });
+    const { weekType, template, selectionPhrase } =
+      shape !== undefined
+        ? { weekType: shape.weekType, template: shape.template, selectionPhrase: shape.rationale }
+        : selectedWeek(
+            selectWeekTemplate({
+              weekStartDate: weekEntry.startDate,
+              weekEndDate: weekEntry.endDate,
+              ...(nextWeekEntry !== undefined
+                ? { nextWeekStartDate: nextWeekEntry.startDate, nextWeekEndDate: nextWeekEntry.endDate }
+                : {}),
+              races: input.races,
+            })
+          );
 
     // UX-11A.5b.5a — with a dose model (V2), placement uses the model's FINAL
     // durations; without one (V1), the legacy reference durations, unchanged.
     const sessionDurationMinByDomain = input.sessionDoseModel
-      ? placementDurationsFromModel(input.sessionDoseModel, weekType, template)
+      ? placementDurationsFromModel(input.sessionDoseModel, weekType, template, shape)
       : {
           // V06-03 — the same reference figures deriveLoad() assigns below
           // (HistoryAdjuster can only lower them), so a placed slot always fits.
@@ -204,7 +238,7 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
       const afterLoadDerivation: PipelineSessionEnvelope<LoadDerivationOutput> = { ...identity, payload: loadBaseline };
 
       const historyAdjusted: HistoryAdjusterOutput = input.sessionDoseModel
-        ? resolveWithModel(input.sessionDoseModel, identity, weekType, afterLoadDerivation.payload, sessionDurationMinByDomain)
+        ? resolveWithModel(input.sessionDoseModel, identity, weekType, afterLoadDerivation.payload, sessionDurationMinByDomain, shape)
         : adjustHistory({
             baseline: afterLoadDerivation.payload,
             kind: identity.kind,
@@ -235,16 +269,17 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
     const sessionsWithRationale: OrchestratedSession[] = finalSessions.map((session) => {
       const adjustmentReason = historyAdjustedEnvelopes.find((e) => e.date === session.date)?.payload.adjustmentReason;
       const relaxedConstraint = relaxedConstraints.find((rc) => rc.date === session.date);
-      return { ...session, rationale: composeSessionRationale(selectionReason, adjustmentReason, relaxedConstraint) };
+      return { ...session, rationale: composeSessionRationale(selectionPhrase, adjustmentReason, relaxedConstraint) };
     });
 
+    const doseSummary = computeDoseSummary(weekEntry.startDate, weekEntry.endDate, sessionsWithRationale);
     return {
       weekNumber: weekEntry.weekNumber,
       startDate: weekEntry.startDate,
       endDate: weekEntry.endDate,
       weekType,
-      rationale: composeWeekRationale(selectionReason, relaxedConstraints.length),
-      doseSummary: computeDoseSummary(weekEntry.startDate, weekEntry.endDate, sessionsWithRationale),
+      rationale: composeWeekRationale(selectionPhrase, relaxedConstraints.length),
+      doseSummary: shape !== undefined ? { ...doseSummary, progression: progressionSummary(shape, sessionsWithRationale) } : doseSummary,
       sessions: sessionsWithRationale,
       relaxedConstraints,
     };

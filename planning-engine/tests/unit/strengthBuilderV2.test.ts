@@ -191,15 +191,15 @@ describe("Force builder — stability, fingerprint, blocks and contract errors",
 
   it("carries the current manifest", () => {
     expect(build({ sessionKind: "STRENGTH_LOWER", athleteTier: "beginner" }).catalog).toEqual({
-      aggregate: "session-model-v2.5",
+      aggregate: "session-model-v2.6",
       exercises: "session-exercises-v2.1",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
       protocols: "session-protocols-v2.0",
       texts: "coaching-text-v1.0",
       templates: "strength-templates-v2.1",
-      strengthDoses: "strength-doses-v2.1",
-      planDosePolicy: "plan-dose-policy-v2.3",
+      strengthDoses: "strength-doses-v2.2",
+      planDosePolicy: "plan-dose-policy-v2.4",
     });
   });
 
