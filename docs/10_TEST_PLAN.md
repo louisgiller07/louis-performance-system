@@ -684,6 +684,32 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T39. A04 — MODIFY / REPLACE exécutables
+- **Unitaires planning-engine** (`tests/unit/finalPrescriptionV2Adapt.test.ts`, plan V2 réel en mémoire) :
+  - KEEP verbatim ; REST sans document ;
+  - MODIFY Force LIGHT (mêmes exercices, séries / répétitions / RPE / repos LIGHT, `derivedFromItemId`) ;
+  - MODIFY DH (même drill, 4 passages) ;
+  - MODIFY endurance (45 min) ;
+  - MODIFY vers le haut : dose prévue gardée ;
+  - manifeste ancien → `catalog_mismatch` ;
+  - REPLACE : DH → Force, bas → haut, DH → DH léger, → endurance (vélo et hors vélo), → récupération active ;
+  - cible non supportée → blocage explicite ;
+  - sans lignée → `no_lineage` ;
+  - déterminisme.
+- **Bundle Edge daily-run** (`tests/edge/dailyRunV2Bundle.test.ts`) : MODIFY / REPLACE identiques via le bundle Deno et via Node.
+- **Intégration locale** (`tests/supabase/a04ModifyReplace.integration.test.ts`, M1 réel) :
+  - **A :** KEEP ;
+  - **B :** REST sans prescription ;
+  - **C :** MODIFY DH, puis exécution d'un passage sur l'élément adapté ;
+  - **D :** MODIFY Force, F-6C sur les éléments adaptés ;
+  - **F :** REPLACE DH → DH léger ;
+  - **G :** SYSTEMIC_RED sur une Force LIGHT → REPLACE récupération, règle `V2_SYSTEMIC_FLOOR`, exécution sans résultat ;
+  - **H :** prescription adaptée d'une décision remplacée → `final_prescription_not_current` ;
+  - **I :** document relu identique ;
+  - **J :** exécution rattachée à la prescription adaptée et à sa décision ; M1 compte la séance finale ;
+  - `v2DailyIntegration` : MODIFY endurance et REPLACE bas → haut créent une prescription exécutable.
+- **Web** (`a04AdaptedSessions.test.tsx`, documents générés par le moteur) : décodage ; module Guided résolu ; Force adaptée (avec F-6C), DH adaptée et récupération ouvertes puis terminées.
+
 ### T38. F-6C — fin d'une séance Force
 `tests/supabase/f6cStrengthCompletion.integration.test.ts` (base locale + Edge locale) :
 - **A :** une série réalisée (bloc `main` ou `complementary`), avant ou dans le même lot → `completed` ; une séance partielle est légitime.

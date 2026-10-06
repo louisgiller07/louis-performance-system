@@ -5238,3 +5238,58 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 **Livraison (non faite)** : Edge `session-execution` (nouveau code mappé) → migration → web. La migration ne change que le corps de fonction. Si la migration précédait l'Edge, l'ancienne Edge ne connaîtrait pas le code : elle répondrait 500 (refus fermé, rien n'est écrit, mais sans code métier). D'où l'Edge en premier.
 
 **Statut** : implémenté et vert en local (branche `feat/f6c-force-completion`). Aucun push, aucun déploiement.
+
+## 2026-10-06 — ADR A04 : MODIFY / REPLACE produisent une prescription exécutable
+
+> **Every daily decision of a V2 athlete ends in something executable: KEEP = the planned prescription (verbatim), REST = explicit rest (no document), MODIFY = the planned session adjusted with real content, REPLACE = a really prescribed session of the new kind. `final_prescription_adaptation_not_defined` remains only for targets the V2 builders cannot produce (not reachable from a V2 planned session).**
+
+**Cause racine**
+- `buildKeepFinalPrescriptionV2` (5c.1) ne savait produire qu'une copie KEEP.
+- MODIFY et REPLACE renvoyaient `final_prescription_adaptation_not_defined` (ADR 5c.0 §2, §6–§8 : « avant 5c.5 »).
+- Le rider recevait la décision M1 (type, charge) sans contenu exécutable, et ne pouvait pas faire de séance guidée.
+
+**Décision** (`planning-engine/src/sessionModelV2/final/buildFinalPrescriptionV2.ts`, module pur ; aucune migration, aucun nouveau catalogue, aucun nouveau manifeste)
+
+- **KEEP / REST :** inchangés (5c.1).
+
+- **MODIFY** (même type de séance, M1 baisse la charge) :
+  - Préconditions : lignée de plan obligatoire, et manifeste prévu égal au manifeste courant ; sinon `final_prescription_catalog_mismatch` (§9).
+  - Force : **mêmes template et exercices**, doses **LIGHT** de `strengthDoseCatalogV2` (§5, verrouillé). La séance est reconstruite par le builder Force avec le niveau et le matériel du snapshot du plan ; la composition doit rester identique. Règle `v2.modify.strength_light_dose`.
+  - DH : **même drill, même repère, même critère de réussite**, passages ramenés à la dose LIGHT DH de la politique (4). La durée reste celle de M1 (la fenêtre prévue) : c'est la densité qui baisse. Règle `v2.modify.dh_light_passes`.
+  - Endurance : même protocole, même choix d'activités, durée LIGHT de la politique (45 min). Règle `v2.modify.endurance_light_duration`.
+  - Identifiants : tous nouveaux ; chaque élément porte `derivedFromItemId` = identifiant prévu (§3) ; `planned_prescription_id` est renseigné.
+  - **Amendement de §6** : un MODIFY vers le haut n'augmente jamais la dose. Au lieu d'un blocage, la dose prévue est gardée (règle `v2.modify.planned_dose_kept_no_upward`), pour qu'aucun chemin normal ne reste sans séance.
+
+- **REPLACE** (autre type de séance) :
+  - Préconditions et identité : lignée de plan obligatoire, manifeste courant, identifiants tous nouveaux, aucune lignée d'élément, pas de `planned_prescription_id`.
+  - `STRENGTH_LOWER` / `STRENGTH_UPPER` : builder Force, avec niveau et matériel du snapshot du plan, et charge M1 plafonnée à MODERATE. Produit exercices, séries, répétitions, RPE, repos et montée en charge. Règle `v2.replace.strength`.
+  - `DH_TECHNICAL` / `DH_LIGHT` : le drill prévu (même compétence), 4 passages en LIGHT. S'il n'y avait pas de DH prévue : le builder DH sur la première priorité déclarée, seulement si le jour a une fenêtre vélo (BUG-V2-1). Règle `v2.replace.dh`.
+  - `AEROBIC_BASE` : builder endurance, 45–90 min, activités selon la disponibilité vélo du jour (sinon home trainer / course). Règle `v2.replace.endurance`.
+  - `RECOVERY_ACTIVE` : nouveau builder issu du protocole existant `recovery_active_v1` (activité très facile 20–40 min, RPE 2–3, mobilité, respiration) ; les plages du protocole sont la prescription. Règle `v2.replace.recovery_active`.
+  - Toute autre cible (`RACE_ACTIVITY`, `MOBILITY`…, jamais produite par M1 contre une séance V2) : `adaptation_not_defined` / `replace_target_not_supported`, explicite.
+
+- **Intégration** (`reconcileFinalPrescriptionV2`) :
+  - MODIFY / REPLACE lisent le snapshot d'entrée de la version courante (`training_plan_versions.input_snapshot`, jamais le profil vivant) et la disponibilité vélo de la date.
+  - Identifiants : `mintId` de `runDailyFor`.
+  - Persistance : `persist_daily_run_v2` accepte déjà `modify` / `replace` (action = décision, règles d'adaptation non vides). Aucune migration.
+
+- **SYSTEMIC_RED (constat BUG-V2-2)** : M1 (gelé) garde KEEP quand C3.3 ne peut plus baisser une Force déjà LIGHT. Sur le chemin V2, après M1, `applyV2SystemicFloor` remplace explicitement la décision par **REPLACE → RECOVERY_ACTIVE**.
+  - Traçabilité : règle `V2_SYSTEMIC_FLOOR` (couche ARBITRATION, mêmes signaux que C3.3), ajoutée à `triggered_rules` et `decision_reasoning`, avec une explication en français. C3.3 reste dans `triggered_rules` pour l'audit ; les autres champs du DailyPlan restent ceux de M1.
+  - Périmètre : Force seulement. Une DH ou une endurance LIGHT un jour SYSTEMIC_RED reste KEEP (C3.3 « nature préservée », note de surveillance DH) — à valider côté coaching.
+  - **Exception au principe 5c.3** « M1's DailyPlan is never changed » : seule cette transformation, tracée, sur le chemin V2. M1 lui-même est inchangé. À refléter dans `docs/04_DAILY_DECISION_ENGINE.md` après validation (proposition, non appliquée).
+
+- **Guided (web)** :
+  - nouveau module « récupération active » : contenu affiché, rien à mesurer, fin possible ; le serveur n'exige aucun résultat pour cette famille ;
+  - Force, DH et endurance utilisent les modules existants sur les identifiants **adaptés** (F-6C compris) ;
+  - REST n'a pas de prescription, donc pas de bouton Start ;
+  - le double de backend web applique F-6C.
+
+**Source de vérité (A07, constaté, non corrigé)**
+- Today et Guided lisent la même ligne `decision_final_prescriptions`.
+- History lit la décision (type et étiquette), pas le contenu.
+- Program lit le plan prévu.
+- La durée affichée sur Today vient de `final_session.duration_min` de M1 — la fenêtre prévue en DH, la durée prévue pour la Force et l'endurance quand elle est projetée — et non du contenu adapté. Exemple : un MODIFY endurance à 45 min, alors que l'en-tête affiche la durée prévue.
+
+**Temps disponible** : aucun champ structuré « temps disponible aujourd'hui » dans le check-in (seulement un commentaire libre) ; rien n'est inventé ici. Le module reçoit déjà une durée cible (MODIFY et REPLACE endurance) : une future contrainte `available_minutes_today` (A10) se branchera sur le contexte d'adaptation.
+
+**Statut** : implémenté et vert en local (branche `feat/a04-modify-replace`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (bundle reconstruit), puis web.

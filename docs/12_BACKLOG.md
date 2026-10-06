@@ -639,7 +639,11 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **BUG-V2-1** — disponibilités physique / vélo : implémenté et vert en local (branche `feat/bug-v2-1-availability`), livraison à approuver (migration → Edge `generate-training-plan` → web).
 - [ ] **BUG-V2-2** — progression réelle (rôles de semaine, doses exécutables, courses, maintiens) : implémenté et vert en local (branche `feat/bug-v2-2-progression`, ADR BUG-V2-2), livraison à approuver (web → Edge `daily-run` → Edge `generate-training-plan`, sans migration).
 - [ ] **BUG-V2-2 / coaching** — valider la semaine de consolidation (gabarit deload, 105 min, −70 % par rapport à un build) (HPM 2026-10-06).
-- [ ] **M1 / SYSTEMIC_RED** — un check-in SYSTEMIC_RED peut conserver (KEEP) une Force LIGHT (semaine d'introduction V2) : à reprendre dans le chantier adaptations MODIFY / REPLACE (constat BUG-V2-2).
+- [x] **M1 / SYSTEMIC_RED** — Force LIGHT un jour SYSTEMIC_RED : traité sur le chemin V2 par `V2_SYSTEMIC_FLOOR` (REPLACE → récupération active, ADR A04), M1 inchangé. Reste : DH / endurance LIGHT un jour SYSTEMIC_RED (KEEP, C3.3) — validation coaching.
+- [ ] **A04** — MODIFY / REPLACE exécutables : implémenté et vert en local (branche `feat/a04-modify-replace`, ADR A04), livraison à approuver (Edge `daily-run` → web).
+- [ ] **A07** — source de vérité de la prescription effective : History (décision seule), Program (plan prévu) et la durée de l'en-tête Today (M1) ne lisent pas le contenu adapté (constat A04).
+- [ ] **A10** — temps disponible aujourd'hui : aucun champ structuré ; le contexte d'adaptation A04 est prêt à recevoir une durée cible.
+- [ ] **Docs 04** — refléter `V2_SYSTEMIC_FLOOR` dans `docs/04_DAILY_DECISION_ENGINE.md` (proposition ADR A04, après validation).
 - [ ] **Glossaire** — ajouter les termes de progression (introduction, build, build+, consolidation, race-specific) à `docs/07_GLOSSARY.md` lors du packaging docs.
 - [ ] **BUG-V2-3** — date de démarrage (plan au lendemain, « aujourd'hui » Europe/Zurich, ligne de date de début) : implémenté et vert en local (branche `feat/bug-v2-3-start-date`, ADR BUG-V2-3), livraison à approuver (Edge `generate-training-plan` + `accept-training-plan`, puis web ; sans migration).
 - [ ] **D2B2** — abandon, Restart, corrections, conflits en production : BLOQUÉE jusqu'au hardening UX-11R.9.
