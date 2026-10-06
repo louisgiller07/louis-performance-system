@@ -43,6 +43,7 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   result_slot_out_of_range: "This set or pass number is outside what the prescription plans.",
   result_slot_exists: "A result was already recorded for this set or pass; send a correction instead.",
   dh_pass_required: "Record at least one pass before completing this session.",
+  strength_set_required: "Record at least one performed work set before completing this session.",
   session_already_completed: "A session was already completed for this day: a new session cannot be started.",
 };
 

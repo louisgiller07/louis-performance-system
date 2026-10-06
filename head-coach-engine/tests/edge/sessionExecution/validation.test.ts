@@ -143,11 +143,14 @@ describe("REJECTION_STATUS — stable codes", () => {
         "result_slot_exists",
         "dh_pass_required",
         "session_already_completed",
+        "strength_set_required",
       ].sort()
     );
     // UX-11R.9 — a DH completion without a pass is unprocessable; a day already completed is a conflict.
     expect(REJECTION_STATUS.dh_pass_required).toBe(422);
     expect(REJECTION_STATUS.session_already_completed).toBe(409);
+    // F-6C — a Force completion without an active performed work set is unprocessable (same as F-6A).
+    expect(REJECTION_STATUS.strength_set_required).toBe(422);
     // UX-11B.2.6 — frozen terminal results and an existing original are conflicts; an ordinal outside the prescription is unprocessable.
     expect(REJECTION_STATUS.execution_terminal).toBe(409);
     expect(REJECTION_STATUS.result_slot_exists).toBe(409);

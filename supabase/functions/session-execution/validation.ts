@@ -352,6 +352,8 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   // UX-11R.9 — completion and one-main-session-per-day invariants (migration 20261005120000).
   dh_pass_required: 422,
   session_already_completed: 409,
+  // F-6C — a Force session is completed only with an active performed work set (migration 20261006120000).
+  strength_set_required: 422,
 };
 
 /**

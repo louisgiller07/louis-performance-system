@@ -57,7 +57,16 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11B.2.4b — M1 recent-history bridge 
       execution: { id, session_date: day, started_at: `${day}T17:00:00Z`, final_prescription_id: finalPrescriptionId },
       events: [{ id: randomUUID(), execution_id: id, event_type: "started", occurred_at: `${day}T17:00:00Z` }],
     });
-    if (end) await record(athleteId, { events: [{ id: randomUUID(), execution_id: id, event_type: end, occurred_at: `${day}T18:00:00Z` }] });
+    // F-6C — a Force session is completed with a performed work set (the first exercise of its main block).
+    const sets = end === "completed" ? await oneWorkSet(id, finalPrescriptionId, day) : [];
+    if (end) await record(athleteId, { sets, events: [{ id: randomUUID(), execution_id: id, event_type: end, occurred_at: `${day}T18:00:00Z` }] });
+  }
+  async function oneWorkSet(executionId: string, finalPrescriptionId: string, day: string): Promise<unknown[]> {
+    const { data } = await admin.from("decision_final_prescriptions").select("structure").eq("id", finalPrescriptionId).single();
+    const structure = data!.structure as { family: string; blocks: { role: string; items: { kind: string; prescriptionItemId: string; measure: { type: string } }[] }[] };
+    if (structure.family !== "strength") return [];
+    const item = structure.blocks.find((b) => b.role === "main")!.items.find((i) => i.kind === "exercise")!;
+    return [{ id: randomUUID(), execution_id: executionId, prescription_item_id: item.prescriptionItemId, set_number: 1, done: true, measure_type: item.measure.type, measure_value: item.measure.type === "duration" ? 30 : 8, occurred_at: `${day}T17:30:00Z` }];
   }
   async function keepRun(athleteId: string, day: string): Promise<string> {
     await insertCheckin(admin, athleteId, day);

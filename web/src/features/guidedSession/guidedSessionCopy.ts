@@ -36,6 +36,8 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   activity_result_required: "Enregistre l'activité réalisée avant de terminer la séance.",
   // UX-11R.9 — server invariants (migration 20261005120000).
   dh_pass_required: "Enregistre au moins un passage avant de terminer la séance.",
+  // F-6C — server invariant (migration 20261006120000), same wording as the Force screen's own rule.
+  strength_set_required: "Enregistre au moins une série de travail pour pouvoir terminer la séance.",
   session_already_completed: "Une séance est déjà terminée aujourd'hui : une nouvelle séance ne peut pas être commencée.",
 };
 

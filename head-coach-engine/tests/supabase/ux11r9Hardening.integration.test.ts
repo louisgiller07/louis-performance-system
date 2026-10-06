@@ -157,10 +157,13 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
       expect(await record({ events: [e2.event("abandoned")] })).toMatchObject({ status: "ok" });
     });
 
-    it("Force, endurance and an execution without prescription keep their completion rules (F-6C out of scope)", async () => {
+    it("Force (F-6C: a performed work set), endurance and an execution without prescription keep their own completion rules", async () => {
       const forceDay = await freshDay(forceStructure, "STRENGTH_A");
       const f = await started(forceDay);
-      expect(await record({ events: [f.event("completed")] })).toMatchObject({ status: "ok" });
+      const completed = f.event("completed");
+      expect(await record({ events: [completed] })).toMatchObject({ status: "rejected", code: "strength_set_required" });
+      const set = { id: randomUUID(), execution_id: f.id, prescription_item_id: FORCE_ITEM, set_number: 1, done: true, measure_type: "reps", measure_value: 8, occurred_at: at(forceDay, 20) };
+      expect(await record({ sets: [set], events: [completed] })).toMatchObject({ status: "ok" });
 
       const enduranceDay = await freshDay(enduranceStructure, "AEROBIC_BASE");
       const n = await started(enduranceDay);
