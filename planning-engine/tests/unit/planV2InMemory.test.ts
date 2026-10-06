@@ -52,7 +52,7 @@ function generated(result: GeneratePlanV2InMemoryResult): PlanV2InMemory {
 
 const sessions = (plan: PlanV2InMemory) => plan.weeks.flatMap((w) => w.sessions.map((s) => ({ ...s, weekType: w.weekType })));
 const exerciseIds = (s: ReturnType<typeof sessions>[number]) => s.plannedPrescription.structure.blocks.flatMap((b) => b.items.map((i) => (i as ExerciseItemV2Content).exerciseId));
-const workItems = (s: ReturnType<typeof sessions>[number]) => s.plannedPrescription.structure.blocks.filter((b) => b.role !== "warm_up").flatMap((b) => b.items) as ExerciseItemV2Content[];
+const workItems = (s: Pick<ReturnType<typeof sessions>[number], "plannedPrescription">) => s.plannedPrescription.structure.blocks.filter((b) => b.role !== "warm_up").flatMap((b) => b.items) as ExerciseItemV2Content[];
 
 describe("A — development plan: every session kind gets a valid V2 prescription", () => {
   const plan = generated(generatePlanV2InMemory({ block: TWO_WEEKS, snapshot: snapshot(), mintId: counter() }));

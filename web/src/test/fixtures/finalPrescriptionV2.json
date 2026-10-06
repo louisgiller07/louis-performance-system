@@ -581,6 +581,670 @@
           }
         ]
       }
+    },
+    "MODIFY_STRENGTH_LOWER": {
+      "id": "f1000000-0000-4000-8000-000000000001",
+      "decisionId": "d1000000-0000-4000-8000-000000000001",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000031",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "modify",
+      "adaptationRuleIds": [
+        "v2.modify.strength_light_dose"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "strength",
+        "sessionKind": "STRENGTH_LOWER",
+        "intentId": "lower_body_strength_control",
+        "templateId": "strength_lower_intermediate_v1",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "a0000000-0000-4000-8000-000000000002",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000021"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "knee_to_wall_ankle",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.knee_to_wall_ankle",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "a0000000-0000-4000-8000-000000000003",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000022"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bird_dog",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 8,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 30
+                },
+                "cueId": "cue.bird_dog",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "a0000000-0000-4000-8000-000000000004",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000023"
+              }
+            ],
+            "blockId": "a0000000-0000-4000-8000-000000000001"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "goblet_squat",
+                "role": "principal",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 10,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 90,
+                  "max": 120
+                },
+                "rpeTarget": {
+                  "min": 5,
+                  "max": 6
+                },
+                "cueId": "cue.goblet_squat",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range"
+                ],
+                "rampUp": {
+                  "instructionId": "instruction.strength_warm_up.main_movement_ramp",
+                  "sets": {
+                    "min": 1,
+                    "max": 2
+                  }
+                },
+                "prescriptionItemId": "a0000000-0000-4000-8000-000000000006",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000025"
+              }
+            ],
+            "blockId": "a0000000-0000-4000-8000-000000000005"
+          },
+          {
+            "role": "complementary",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "dumbbell_romanian_deadlift",
+                "role": "secondary",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 10,
+                  "max": 12,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 60,
+                  "max": 90
+                },
+                "rpeTarget": {
+                  "min": 5,
+                  "max": 6
+                },
+                "cueId": "cue.dumbbell_romanian_deadlift",
+                "vigilanceIds": [
+                  "vigilance.back_stop_before_rounding"
+                ],
+                "prescriptionItemId": "a0000000-0000-4000-8000-000000000008",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000027"
+              }
+            ],
+            "blockId": "a0000000-0000-4000-8000-000000000007"
+          },
+          {
+            "role": "complementary",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "bulgarian_split_squat",
+                "role": "unilateral",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 10,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 60,
+                  "max": 60
+                },
+                "rpeTarget": {
+                  "min": 5,
+                  "max": 6
+                },
+                "cueId": "cue.bulgarian_split_squat",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "a0000000-0000-4000-8000-000000000010",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000029"
+              }
+            ],
+            "blockId": "a0000000-0000-4000-8000-000000000009"
+          }
+        ]
+      }
+    },
+    "MODIFY_DH_TECHNICAL": {
+      "id": "f1000000-0000-4000-8000-000000000002",
+      "decisionId": "d1000000-0000-4000-8000-000000000002",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000011",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "modify",
+      "adaptationRuleIds": [
+        "v2.modify.dh_light_passes"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "dh_technical",
+        "sessionKind": "DH_TECHNICAL",
+        "intentId": "dh_corner_exit_speed",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "brief",
+            "instructionIds": [
+              "instruction.dh.brief"
+            ],
+            "items": [],
+            "blockId": "a1000000-0000-4000-8000-000000000001"
+          },
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.dh.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "a1000000-0000-4000-8000-000000000002"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "drill",
+                "drillId": "cornering_berm_speed",
+                "measure": {
+                  "type": "pass",
+                  "count": 4
+                },
+                "cueId": "cue.cornering_berm_speed",
+                "successCriterionId": "criterion.cornering_berm_speed",
+                "vigilanceIds": [],
+                "prescriptionItemId": "a1000000-0000-4000-8000-000000000004",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000007"
+              }
+            ],
+            "blockId": "a1000000-0000-4000-8000-000000000003"
+          },
+          {
+            "role": "application",
+            "instructionIds": [
+              "instruction.dh.apply_cue"
+            ],
+            "items": [],
+            "blockId": "a1000000-0000-4000-8000-000000000005"
+          },
+          {
+            "role": "cool_down",
+            "instructionIds": [
+              "instruction.dh.debrief_and_check"
+            ],
+            "items": [],
+            "blockId": "a1000000-0000-4000-8000-000000000006"
+          }
+        ]
+      }
+    },
+    "REPLACE_DH_TO_STRENGTH": {
+      "id": "f1000000-0000-4000-8000-000000000003",
+      "decisionId": "d1000000-0000-4000-8000-000000000003",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "replace",
+      "adaptationRuleIds": [
+        "v2.replace.strength"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "strength",
+        "sessionKind": "STRENGTH_UPPER",
+        "intentId": "upper_bike_control",
+        "templateId": "strength_upper_intermediate_v1",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "thoracic_rotation_mobility",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.thoracic_rotation_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "a2000000-0000-4000-8000-000000000002"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "wrist_mobility",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.wrist_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.wrist_gentle_load"
+                ],
+                "prescriptionItemId": "a2000000-0000-4000-8000-000000000003"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bear_crawl",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 20,
+                  "maxSeconds": 30,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 45
+                },
+                "cueId": "cue.bear_crawl",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "a2000000-0000-4000-8000-000000000004"
+              }
+            ],
+            "blockId": "a2000000-0000-4000-8000-000000000001"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "dumbbell_bench_press",
+                "role": "principal",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 10,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 90,
+                  "max": 120
+                },
+                "rpeTarget": {
+                  "min": 5,
+                  "max": 6
+                },
+                "cueId": "cue.dumbbell_bench_press",
+                "vigilanceIds": [
+                  "vigilance.shoulder_pain_free"
+                ],
+                "rampUp": {
+                  "instructionId": "instruction.strength_warm_up.main_movement_ramp",
+                  "sets": {
+                    "min": 1,
+                    "max": 2
+                  }
+                },
+                "prescriptionItemId": "a2000000-0000-4000-8000-000000000006"
+              }
+            ],
+            "blockId": "a2000000-0000-4000-8000-000000000005"
+          },
+          {
+            "role": "complementary",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "one_arm_dumbbell_row",
+                "role": "secondary",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 10,
+                  "max": 12,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 60,
+                  "max": 90
+                },
+                "rpeTarget": {
+                  "min": 5,
+                  "max": 6
+                },
+                "cueId": "cue.one_arm_dumbbell_row",
+                "vigilanceIds": [],
+                "prescriptionItemId": "a2000000-0000-4000-8000-000000000008"
+              }
+            ],
+            "blockId": "a2000000-0000-4000-8000-000000000007"
+          },
+          {
+            "role": "complementary",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "dead_bug",
+                "role": "prevention",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 10,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 45,
+                  "max": 60
+                },
+                "rpeTarget": {
+                  "min": 5,
+                  "max": 6
+                },
+                "cueId": "cue.dead_bug",
+                "vigilanceIds": [],
+                "prescriptionItemId": "a2000000-0000-4000-8000-000000000010"
+              }
+            ],
+            "blockId": "a2000000-0000-4000-8000-000000000009"
+          }
+        ]
+      }
+    },
+    "REPLACE_TO_RECOVERY": {
+      "id": "f1000000-0000-4000-8000-000000000004",
+      "decisionId": "d1000000-0000-4000-8000-000000000004",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "replace",
+      "adaptationRuleIds": [
+        "v2.replace.recovery_active"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "recovery",
+        "sessionKind": "RECOVERY_ACTIVE",
+        "intentId": "recovery_without_fatigue",
+        "protocolId": "recovery_active_v1",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 20,
+              "max": 40
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 3
+            },
+            "instructionIds": [
+              "instruction.recovery.very_easy_activity"
+            ],
+            "items": [],
+            "blockId": "a3000000-0000-4000-8000-000000000001"
+          },
+          {
+            "role": "complementary",
+            "focus": "mobility",
+            "durationMinutes": {
+              "min": 5,
+              "max": 10
+            },
+            "instructionIds": [
+              "instruction.recovery.light_mobility"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "cat_cow",
+                "role": "recovery",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.cat_cow",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "a3000000-0000-4000-8000-000000000003"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "recovery",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "a3000000-0000-4000-8000-000000000004"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "thoracic_rotation_mobility",
+                "role": "recovery",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.thoracic_rotation_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "a3000000-0000-4000-8000-000000000005"
+              }
+            ],
+            "blockId": "a3000000-0000-4000-8000-000000000002"
+          },
+          {
+            "role": "cool_down",
+            "focus": "breathing",
+            "durationMinutes": {
+              "min": 3,
+              "max": 5
+            },
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "breathing_long_exhale",
+                "role": "recovery",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 180,
+                  "maxSeconds": 300,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 0
+                },
+                "cueId": "cue.breathing_long_exhale",
+                "vigilanceIds": [
+                  "vigilance.breathing_normal_if_dizzy"
+                ],
+                "prescriptionItemId": "a3000000-0000-4000-8000-000000000007"
+              }
+            ],
+            "blockId": "a3000000-0000-4000-8000-000000000006"
+          }
+        ]
+      }
     }
   }
 }

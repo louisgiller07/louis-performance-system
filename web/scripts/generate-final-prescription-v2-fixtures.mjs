@@ -54,5 +54,31 @@ const out = { generatedFrom: v2.SESSION_MODEL_V2_AGGREGATE_VERSION, finalPrescri
   if (r.status !== "created") throw new Error(`${kind}: KEEP not created`);
   out.finalPrescriptions[kind] = r.finalPrescription;
 });
+// A04 — genuine MODIFY / REPLACE final prescriptions (deterministic ids).
+const ADAPTED = {
+  MODIFY_STRENGTH_LOWER: { from: "STRENGTH_LOWER", decision: "MODIFY", finalSession: { kind: "STRENGTH_LOWER", loadProfile: "LIGHT" } },
+  MODIFY_DH_TECHNICAL: { from: "DH_TECHNICAL", decision: "MODIFY", finalSession: { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: 90 } },
+  REPLACE_DH_TO_STRENGTH: { from: "DH_TECHNICAL", decision: "REPLACE", finalSession: { kind: "STRENGTH_UPPER", loadProfile: "LIGHT" } },
+  REPLACE_TO_RECOVERY: { from: "STRENGTH_LOWER", decision: "REPLACE", finalSession: { kind: "RECOVERY_ACTIVE" } },
+};
+Object.entries(ADAPTED).forEach(([name, c], i) => {
+  const s = plan.weeks.flatMap((w) => w.sessions).find((x) => x.kind === c.from);
+  let m = 0;
+  const r = v2.buildFinalPrescriptionV2({
+    finalPrescriptionId: `f1000000-0000-4000-8000-00000000000${i + 1}`,
+    decision: { decisionId: `d1000000-0000-4000-8000-00000000000${i + 1}`, decision: c.decision, finalSession: c.finalSession },
+    lineage: {
+      plannedSessionSource: "generated",
+      sourcePlanVersionId: plan.planVersionId,
+      sourceGeneratedSessionId: s.generatedPlanSessionId,
+      currentPlanVersionId: plan.planVersionId,
+      generatedSession: { id: s.generatedPlanSessionId, kind: s.kind, loadProfile: s.loadProfile ?? null, durationMin: s.durationMin },
+    },
+    plannedPrescription: { ...s.plannedPrescription, generatedPlanSessionId: s.generatedPlanSessionId },
+    adaptation: { athlete: v2.toSessionModelV2Input(snapshot), ridingAvailable: true, mintId: () => `a${i}000000-0000-4000-8000-${String(++m).padStart(12, "0")}` },
+  });
+  if (r.status !== "created") throw new Error(`${name}: not created (${JSON.stringify(r)})`);
+  out.finalPrescriptions[name] = r.finalPrescription;
+});
 writeFileSync(join(here, "..", "src", "test", "fixtures", "finalPrescriptionV2.json"), JSON.stringify(out, null, 2) + "\n");
 console.log(`wrote ${Object.keys(out.finalPrescriptions).length} final prescriptions (${out.generatedFrom})`);

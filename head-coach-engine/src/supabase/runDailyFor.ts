@@ -84,6 +84,7 @@ import { PRESCRIPTION_SCHEMA_UNSUPPORTED } from "./prescriptionRead.js";
 import { resolveDailyPrescriptionModel } from "./dailyV2/dailyPrescriptionModel.js";
 import { toFinalPrescriptionOutcome } from "./dailyV2/finalPrescriptionOutcome.js";
 import { persistDailyRunV2, type FinalPrescriptionStatus } from "./dailyV2/persistDailyRunV2.js";
+import { applyV2SystemicFloor } from "./dailyV2/applyV2SystemicFloor.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
@@ -372,18 +373,21 @@ export async function runDailyFor(
   }
 
   if (prescriptionModel.model === "v2") {
-    // M1 is done and final; nothing below changes its decision.
+    // M1 is done; the only V2 change to its decision is the explicit, traced
+    // systemic floor (A04: a LIGHT Force session on a C3.3 day → active recovery).
+    const dailyPlanV2 = applyV2SystemicFloor(computed.dailyPlan);
     const decisionId = deps.mintId();
     const reconciliation = await deps.reconcileFinalPrescriptionV2({
       client,
       currentPlanVersionId: prescriptionModel.planVersionId,
       decisionId,
       finalPrescriptionId: deps.mintId(),
-      dailyPlan: computed.dailyPlan,
+      dailyPlan: dailyPlanV2,
       observation: plannedSessionObservation ?? null,
+      mintId: deps.mintId,
     });
 
-    const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, computed.dailyPlan, deps.getAthleteCoachingContext);
+    const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, dailyPlanV2, deps.getAthleteCoachingContext);
 
     const decisionRowV2 = {
       id: decisionId,

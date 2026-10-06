@@ -101,7 +101,8 @@ describe("V2 content — import boundary", () => {
 
   it("UX-11A.5b.4 — the V2 builders are DH, aerobic base and Force; only the Force builder reads the strength templates and doses; none reads the plan dose policy yet", () => {
     const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "builders");
-    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts", "strengthPrescriptionV2.ts"]);
+    // A04 — recovery content (REPLACE → RECOVERY_ACTIVE), from the recovery protocol only.
+    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts", "recoveryActivePrescriptionV2.ts", "strengthPrescriptionV2.ts"]);
     for (const file of sourceFiles(dir)) {
       const text = readFileSync(file, "utf8");
       expect(text, file).not.toMatch(/planDosePolicyV2|PLAN_DOSE_POLICY/);
@@ -142,23 +143,27 @@ describe("V2 content — import boundary", () => {
 
   it("UX-11A.5c.1 / 5c.3 — KEEP final prescription is a copy: the final module calls no sport builder, catalogue, dose policy or legacy dose; outside the V2 module only the head-coach V2 daily integration references it", () => {
     const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "final");
-    expect(readdirSync(dir).sort()).toEqual(["buildKeepFinalPrescriptionV2.ts", "finalPrescriptionV2.ts", "validateKeepFinalPrescriptionV2.ts"]);
+    // A04 — buildFinalPrescriptionV2 (MODIFY / REPLACE) builds real content with the V2 builders and the
+    // plan dose policy; the KEEP copy itself stays pure. No module of final/ ever reads a legacy dose field.
+    expect(readdirSync(dir).sort()).toEqual(["buildFinalPrescriptionV2.ts", "buildKeepFinalPrescriptionV2.ts", "finalPrescriptionV2.ts", "validateKeepFinalPrescriptionV2.ts"]);
     for (const file of sourceFiles(dir)) {
       const text = readFileSync(file, "utf8");
-      expect(text, file).not.toMatch(/\/builders\/|\/catalog\/|\/orchestration\/|planDosePolicyV2|strengthDoseCatalogV2|strengthTemplateCatalogV2|protocolCatalogV2|setVolume|targetRpeOrRir|intensityZone/);
+      expect(text, file).not.toMatch(/setVolume|targetRpeOrRir|intensityZone/);
+      if (file.endsWith("buildFinalPrescriptionV2.ts") && !file.endsWith("buildKeepFinalPrescriptionV2.ts")) continue;
+      expect(text, file).not.toMatch(/\/builders\/|\/catalog\/|\/orchestration\/|planDosePolicyV2|strengthDoseCatalogV2|strengthTemplateCatalogV2|protocolCatalogV2/);
     }
     const offenders: string[] = [];
     for (const root of ["planning-engine/src", "prescription-engine/src", "head-coach-engine/src", "longitudinal-engine/src"].map((r) => join(REPO, r))) {
       for (const file of sourceFiles(root)) {
         const rel = relative(REPO, file);
         if (isSessionModelV2(rel) || rel.startsWith(join("head-coach-engine", "src", "supabase", "dailyV2") + sep) || rel === join("head-coach-engine", "src", "supabase", "runDailyFor.ts") || rel === join("head-coach-engine", "src", "edge", "dailyRunV2EdgeEntry.ts")) continue;
-        if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2|FinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
+        if (/buildKeepFinalPrescriptionV2|buildFinalPrescriptionV2|validateKeepFinalPrescriptionV2|FinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(rel);
       }
     }
     // UX-11A.5c.4 — the web has its own read-only V2 contract (its own types named
     // FinalPrescriptionV2*), but never calls the engine's builder or validator.
     for (const file of sourceFiles(join(REPO, "web", "src"))) {
-      if (/buildKeepFinalPrescriptionV2|validateKeepFinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(relative(REPO, file));
+      if (/buildKeepFinalPrescriptionV2|buildFinalPrescriptionV2|validateKeepFinalPrescriptionV2/.test(readFileSync(file, "utf8"))) offenders.push(relative(REPO, file));
     }
     expect(offenders).toEqual([]);
   });

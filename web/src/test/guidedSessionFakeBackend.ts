@@ -176,6 +176,14 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       if (prescriptions.get(exec.final_prescription_id ?? "")?.activityOptions && exec.session_activity_results.length === 0) {
         throw new Rejected({ ok: false, error: { code: "activity_result_required", status: 422, retryable: false } } as never);
       }
+      // F-6C — a Force execution completes only with an active, performed set on a main / complementary exercise.
+      const p = prescriptions.get(exec.final_prescription_id ?? "");
+      if (p?.family === "strength") {
+        const work = new Set(p.blocks.filter((bl) => bl.role === "main" || bl.role === "complementary").flatMap((bl) => bl.items.filter((i) => i.kind === "exercise").map((i) => i.prescriptionItemId.toLowerCase())));
+        const superseded = new Set(exec.exercise_set_results.map((r) => r.supersedes_id?.toLowerCase()).filter(Boolean));
+        const performed = exec.exercise_set_results.some((r) => r.done && r.prescription_item_id !== null && work.has(r.prescription_item_id.toLowerCase()) && !superseded.has(r.id.toLowerCase()));
+        if (work.size > 0 && !performed) throw new Rejected({ ok: false, error: { code: "strength_set_required", status: 422, retryable: false } } as never);
+      }
     }
     return { inserted, unchanged };
   }

@@ -145,34 +145,42 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       expect(result).not.toHaveProperty("finalPrescription");
     });
 
-    it("MODIFY stays MODIFY: blocked final_prescription_adaptation_not_defined / modify_not_supported, no final prescription", async () => {
+    it("A04 — MODIFY (systemic RED on a MODERATE endurance day): created, the same protocol and activities, 45 min, lineage to the planned prescription", async () => {
       const day = "2026-10-16"; // build week (BUG-V2-2): AEROBIC_BASE MODERATE
       await insertCheckin(admin, a.athleteId, day, SYSTEMIC_RED);
       const result = await runDailyFor(admin, a.athleteId, day);
       expect(result.dailyPlan.decision).toBe("MODIFY");
       const [decision] = await decisionsOn(a.athleteId, day);
       expect((decision!.daily_plan as { decision: string }).decision).toBe("MODIFY");
-      expect(decision).toMatchObject({
-        final_prescription_status: "blocked",
-        final_prescription_status_code: "final_prescription_adaptation_not_defined",
-        final_prescription_status_detail: { reason: "modify_not_supported" },
-      });
-      expect(await finalsOf(decision!.id)).toEqual([]);
+      expect(decision).toMatchObject({ final_prescription_status: "created", final_prescription_status_code: null, final_prescription_status_detail: null });
+      const planned = await plannedOn(a.planVersionId, day);
+      const [final] = await finalsOf(decision!.id);
+      expect(final).toMatchObject({ reconciliation_action: "modify", active_session_origin: "generated", planned_prescription_id: planned.id, plan_version_id: a.planVersionId, adaptation_rule_ids: ["v2.modify.endurance_light_duration"] });
+      const st = final!.structure as { protocolId: string; activitySelection: unknown; blocks: { durationMinutes?: { min: number } }[] };
+      expect(st.protocolId).toBe((planned.structure as { protocolId: string }).protocolId);
+      expect(st.activitySelection).toEqual((planned.structure as { activitySelection: unknown }).activitySelection);
+      expect(st.blocks.reduce((n, b) => n + (b.durationMinutes?.min ?? 0), 0)).toBe(45);
+      // Executable: the current final prescription starts.
+      expect(await record(a.athleteId, start(final!.id, day).payload)).toMatchObject({ status: "ok" });
     });
 
-    it("REPLACE stays REPLACE: blocked / replace_not_supported, no final prescription", async () => {
+    it("A04 — REPLACE (legs RED on a lower-body day, M1 C3.6 → STRENGTH_UPPER): created, a complete upper-body Force session, no planned prescription lineage", async () => {
       const day = "2026-10-14";
       await insertCheckin(admin, a.athleteId, day, LEGS_RED);
       const result = await runDailyFor(admin, a.athleteId, day);
       expect(result.dailyPlan.decision).toBe("REPLACE");
+      expect(result.dailyPlan.final_session.kind).toBe("STRENGTH_UPPER");
       const [decision] = await decisionsOn(a.athleteId, day);
       expect((decision!.daily_plan as { decision: string }).decision).toBe("REPLACE");
-      expect(decision).toMatchObject({
-        final_prescription_status: "blocked",
-        final_prescription_status_code: "final_prescription_adaptation_not_defined",
-        final_prescription_status_detail: { reason: "replace_not_supported" },
-      });
-      expect(await finalsOf(decision!.id)).toEqual([]);
+      expect(decision).toMatchObject({ final_prescription_status: "created", final_prescription_status_code: null });
+      const [final] = await finalsOf(decision!.id);
+      expect(final).toMatchObject({ reconciliation_action: "replace", active_session_origin: "generated", planned_prescription_id: null, plan_version_id: a.planVersionId, adaptation_rule_ids: ["v2.replace.strength"] });
+      const st = final!.structure as { sessionKind: string; templateId: string; blocks: { role: string; items: { sets: number; rpeTarget?: unknown; restSeconds?: unknown }[] }[] };
+      expect([st.sessionKind, st.templateId]).toEqual(["STRENGTH_UPPER", "strength_upper_intermediate_v1"]);
+      const workItems = st.blocks.filter((b) => b.role === "main" || b.role === "complementary").flatMap((b) => b.items);
+      expect(workItems.length).toBeGreaterThan(0);
+      for (const i of workItems) expect(i.sets > 0 && i.rpeTarget !== undefined && i.restSeconds !== undefined).toBe(true);
+      expect(await record(a.athleteId, start(final!.id, day).payload)).toMatchObject({ status: "ok" });
     });
 
     it("second run, case A (KEEP again): D2/F2 current; F1 final_prescription_not_current, F2 executable", async () => {
@@ -194,7 +202,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       expect(await abandon(a.athleteId, e2.id, day)).toMatchObject({ status: "ok" });
     });
 
-    it("second run, case C (now MODIFY → blocked): F1 is no longer executable", async () => {
+    it("second run, case C (now MODIFY → created F2): F1 is no longer executable, F2 is", async () => {
       const day = "2026-10-15";
       await insertCheckin(admin, a.athleteId, day);
       const run1 = await runDailyFor(admin, a.athleteId, day);
@@ -202,8 +210,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       await updateCheckin(a.athleteId, day, SYSTEMIC_RED);
       const run2 = await runDailyFor(admin, a.athleteId, day);
       expect(run2.dailyPlan.decision).toBe("MODIFY");
-      expect(run2.finalPrescriptionStatus).toBe("blocked");
+      expect(run2.finalPrescriptionStatus).toBe("created");
+      expect(run2.finalPrescription!.reconciliationAction).toBe("modify");
       expect(await record(a.athleteId, start(run1.finalPrescription!.id, day).payload)).toEqual({ status: "rejected", code: "final_prescription_not_current", target: "execution" });
+      expect(await record(a.athleteId, start(run2.finalPrescription!.id, day).payload)).toMatchObject({ status: "ok" });
     });
   });
 

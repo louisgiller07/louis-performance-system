@@ -54,6 +54,11 @@ function input(s: PlanSessionV2InMemory) {
       sourceGeneratedSessionId: s.generatedPlanSessionId,
       plannedSession: null,
     },
+    // A04 — deterministic ids of a MODIFY / REPLACE document (each call gets a fresh, identical sequence).
+    mintId: (() => {
+      let n = 0;
+      return () => `10000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+    })(),
   };
 }
 // Plan reads served from the in-memory plan (same rows for both runtimes); stored structures are plain JSON.
@@ -67,6 +72,7 @@ function reads(s: PlanSessionV2InMemory) {
       catalog_version: s.plannedPrescription.catalogVersion,
       structure: JSON.parse(JSON.stringify(s.plannedPrescription.structure)),
     }),
+    getPlanInputSnapshotOfVersion: async () => ({ input_snapshot: JSON.parse(JSON.stringify(SNAPSHOT)), input_snapshot_schema_version: "v2" }),
   };
 }
 
@@ -83,6 +89,24 @@ describe("daily-run V2 bundle — parity with the Node source", () => {
     expect(bundle.sportFingerprint(viaBundle.finalPrescription.structure)).toBe(sportFingerprint(s.plannedPrescription.structure));
   });
 
+  it("A04 — MODIFY (week 2 build → LIGHT) and REPLACE (DH → Force, Force → recovery): same documents through the bundle", async () => {
+    const week2 = (kind: string) => plan.weeks[1]!.sessions.find((x) => x.kind === kind)!;
+    const cases = [
+      { s: week2("STRENGTH_LOWER"), decision: "MODIFY", final: { kind: "STRENGTH_LOWER", load_profile: "LIGHT" } },
+      { s: week2("DH_TECHNICAL"), decision: "MODIFY", final: { kind: "DH_TECHNICAL", load_profile: "LIGHT", duration_min: 90 } },
+      { s: session("DH_TECHNICAL"), decision: "REPLACE", final: { kind: "STRENGTH_UPPER", load_profile: "LIGHT" } },
+      { s: session("STRENGTH_LOWER"), decision: "REPLACE", final: { kind: "RECOVERY_ACTIVE" } },
+    ];
+    for (const c of cases) {
+      const base = input(c.s);
+      const adapted = { ...base, dailyPlan: { ...base.dailyPlan, date: c.s.date, decision: c.decision, final_session: c.final } as unknown as DailyPlan };
+      const viaBundle = await bundle.reconcileFinalPrescriptionV2({ ...adapted, mintId: input(c.s).mintId }, reads(c.s));
+      const viaNode = await nodeReconcile({ ...adapted, mintId: input(c.s).mintId }, reads(c.s));
+      expect(viaBundle.status, `${c.decision} ${c.final.kind}`).toBe("created");
+      expect(viaBundle).toEqual(viaNode);
+    }
+  });
+
   it("blocked and REST outcomes are identical too", async () => {
     const s = session("STRENGTH_UPPER");
     const noLineage = { ...input(s), observation: null };
@@ -91,13 +115,17 @@ describe("daily-run V2 bundle — parity with the Node source", () => {
     expect(await bundle.reconcileFinalPrescriptionV2(rest, reads(s))).toEqual({ status: "none", reason: "rest" });
   });
 
-  it("the bundle is Deno-resolvable and minimal: only node:* imports, no plan generation code", () => {
+  it("the bundle is Deno-resolvable and minimal: only node:* imports, no plan generation code (A04: session builders only)", () => {
     const text = readFileSync(new URL("../../dist/edge/dailyRunV2.bundle.js", import.meta.url), "utf8");
     const imports = [...text.matchAll(/^import\s[^;]*?from\s+"([^"]+)"/gm)].map((m) => m[1]);
     expect(imports.every((spec) => spec!.startsWith("node:"))).toBe(true);
     expect(text).not.toMatch(/import\(/);
-    for (const symbol of ["buildStrengthPrescriptionV2Content", "buildDhPrescriptionV2Content", "buildAerobicBasePrescriptionV2Content", "generatePlanV2InMemory", "runPlanningPipeline", "PLAN_DOSE_POLICY_V2"]) {
+    // A04 — the daily builds MODIFY / REPLACE content with the V2 session builders; it never generates a plan.
+    for (const symbol of ["generatePlanV2InMemory", "runPlanningPipeline", "PLAN_DOSE_POLICY_V2 ="]) {
       expect(text, symbol).not.toContain(symbol);
+    }
+    for (const symbol of ["buildFinalPrescriptionV2", "buildStrengthPrescriptionV2Content", "buildRecoveryActivePrescriptionV2Content"]) {
+      expect(text, symbol).toContain(symbol);
     }
   });
 });

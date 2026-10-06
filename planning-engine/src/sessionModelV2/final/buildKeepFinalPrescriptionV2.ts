@@ -83,7 +83,7 @@ function blocked(code: FinalPrescriptionV2BlockCode, detail: Record<string, unkn
 }
 
 /** Lineage check (ADR UX-11A.5c.0 §1): returns the failing reason, or null when the lineage is real. */
-function lineageFailure(lineage: PlannedSessionLineageV2 | null, planned: PlannedPrescriptionRecordV2 | null): string | null {
+export function lineageFailure(lineage: PlannedSessionLineageV2 | null, planned: PlannedPrescriptionRecordV2 | null): string | null {
   if (lineage === null) return "no_planned_session";
   if (lineage.plannedSessionSource !== "generated") return "planned_session_not_generated";
   if (lineage.sourceGeneratedSessionId === null || lineage.sourcePlanVersionId === null) return "missing_generated_session_lineage";
@@ -107,7 +107,7 @@ function declaredAggregate(structure: unknown): string | undefined {
  * catalogue mismatch (returned as such); any other inconsistency is a
  * contract error (bug / corrupt data).
  */
-function trustedPlannedStructure(planned: PlannedPrescriptionRecordV2, generatedKind: string): PrescriptionV2 | { catalogMismatch: Record<string, unknown> } {
+export function trustedPlannedStructure(planned: PlannedPrescriptionRecordV2, generatedKind: string): PrescriptionV2 | { catalogMismatch: Record<string, unknown> } {
   if (planned.schemaVersion !== "v2") {
     throw new SessionModelV2ContractError(`planned prescription ${planned.id} has schema_version "${planned.schemaVersion}", not v2 (no v2 → v1 fallback)`);
   }

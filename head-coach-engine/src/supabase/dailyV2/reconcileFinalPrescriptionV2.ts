@@ -8,12 +8,15 @@
  * are read only in the CURRENT plan version captured by the discriminant;
  * never by date, never in another version, never a V1 fallback.
  *
- * The decision itself is made by the pure 5c.1 module
- * (`buildKeepFinalPrescriptionV2`): KEEP with real lineage → created (verbatim
- * copy); REST → none; no lineage → final_prescription_no_lineage; MODIFY /
- * REPLACE / KEEP hiding a difference → final_prescription_adaptation_not_defined;
- * older unreadable catalogue → final_prescription_catalog_mismatch. Corrupt
- * data raises a contract error.
+ * The decision itself is made by the pure module (`buildFinalPrescriptionV2`,
+ * A04): KEEP with real lineage → created (verbatim copy); REST → none;
+ * MODIFY → the planned session adjusted with real content (LIGHT Force dose,
+ * fewer DH passages, shorter endurance); REPLACE → a really prescribed
+ * session of the new kind; no lineage → final_prescription_no_lineage; older
+ * unreadable catalogue → final_prescription_catalog_mismatch. MODIFY /
+ * REPLACE build from the CURRENT plan version's input snapshot (never the
+ * live profile) and the decision date's riding availability. Corrupt data
+ * raises a contract error.
  *
  * Loaded lazily by runDailyFor (V2 path only): this is the only daily module
  * with a runtime import of the Session Model V2 daily entry
@@ -22,11 +25,12 @@
  * Function loads it through the esbuild bundle of src/edge/dailyRunV2EdgeEntry.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildKeepFinalPrescriptionV2, type FinalPrescriptionV2, type FinalPrescriptionV2Result } from "planning-engine/session-model-v2/daily";
+import { buildFinalPrescriptionV2, dailyAdaptationContextV2, type FinalPrescriptionV2, type FinalPrescriptionV2Result, type PlanInputSnapshotV2 } from "planning-engine/session-model-v2/daily";
 import type { DailyPlan } from "../../types/index.js";
 import type { PlannedSessionObservation } from "../buildRawContext.js";
 import { getGeneratedSessionOfVersion } from "../repositories/trainingPlanGeneratedSessionsRepo.js";
 import { getPlannedPrescriptionRowOfVersion } from "../repositories/trainingPlanPlannedPrescriptionsRepo.js";
+import { getPlanInputSnapshotOfVersion } from "../repositories/trainingPlanVersionSnapshotRepo.js";
 
 export type { FinalPrescriptionV2, FinalPrescriptionV2Result };
 
@@ -41,14 +45,17 @@ export interface ReconcileFinalPrescriptionV2Input {
   dailyPlan: DailyPlan;
   /** The planned_sessions observation M1 consumed; null when today has no planned session. */
   observation: PlannedSessionObservation | null;
+  /** A04 — ids of a MODIFY / REPLACE document (random at runtime, deterministic in tests). */
+  mintId: () => string;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
   getGeneratedSessionOfVersion: typeof getGeneratedSessionOfVersion;
   getPlannedPrescriptionRowOfVersion: typeof getPlannedPrescriptionRowOfVersion;
+  getPlanInputSnapshotOfVersion: typeof getPlanInputSnapshotOfVersion;
 }
 
-const DEFAULT_DEPS: ReconcileFinalPrescriptionV2Deps = { getGeneratedSessionOfVersion, getPlannedPrescriptionRowOfVersion };
+const DEFAULT_DEPS: ReconcileFinalPrescriptionV2Deps = { getGeneratedSessionOfVersion, getPlannedPrescriptionRowOfVersion, getPlanInputSnapshotOfVersion };
 
 export async function reconcileFinalPrescriptionV2(
   input: ReconcileFinalPrescriptionV2Input,
@@ -64,13 +71,22 @@ export async function reconcileFinalPrescriptionV2(
     observation.source === "generated" &&
     observation.sourceGeneratedSessionId !== null &&
     observation.sourcePlanVersionId === currentPlanVersionId;
-  const needsPlanRows = decision === "KEEP" || decision === "MODIFY";
+  const needsPlanRows = decision !== "REST";
   const generated =
     lineageInCurrentVersion && needsPlanRows ? await deps.getGeneratedSessionOfVersion(client, currentPlanVersionId, observation.sourceGeneratedSessionId!) : null;
   const planned = generated !== null ? await deps.getPlannedPrescriptionRowOfVersion(client, currentPlanVersionId, generated.id) : null;
 
+  // A04 — MODIFY / REPLACE build from the current version's snapshot (read only when they can use it).
+  const adaptable = (decision === "MODIFY" || decision === "REPLACE") && planned !== null;
+  const snapshotRow = adaptable ? await deps.getPlanInputSnapshotOfVersion(client, currentPlanVersionId) : null;
+  const adaptation =
+    snapshotRow !== null && snapshotRow.input_snapshot_schema_version === "v2"
+      ? dailyAdaptationContextV2(snapshotRow.input_snapshot as PlanInputSnapshotV2, dailyPlan.date, input.mintId)
+      : null;
+
   const final = dailyPlan.final_session;
-  return buildKeepFinalPrescriptionV2({
+  return buildFinalPrescriptionV2({
+    adaptation,
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {
       decisionId: input.decisionId,
