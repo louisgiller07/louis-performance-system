@@ -166,6 +166,13 @@ export async function handleGenerateTrainingPlan(
     });
     const modelTrace = { planningModel: result.planningModel, rolloutReason: result.reason };
 
+    if (result.status === "v2_disabled") {
+      // A09 — paid-beta guard: an athlete assigned V2 while the V2 switch is off is refused; never a V1 plan.
+      console.warn("generate-training-plan: athlete assigned V2 while V2 generation is disabled -> refused");
+      await recordPilotEvent(ctx.supabaseAdmin, { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: "v2_generation_disabled", ...modelTrace });
+      return errorResponse(503, "v2_generation_disabled", "Training plan generation is temporarily unavailable.");
+    }
+
     if (result.status === "blocked") {
       // A V2 generation blocked by a stable Session Model V2 code (missing declared data, unsupported
       // duration…): an explicit refusal, never a V1 plan in its place.

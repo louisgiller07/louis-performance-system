@@ -53,6 +53,7 @@ import {
 import { getActivePlanVersionId } from "../trainingPlanReview/trainingPlanReviewRepo";
 import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
 import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
+import { RacesSection } from "../races/RacesSection";
 import { isLegacyAvailability, ridingDaysFromWindows, weekFromWindows, weekSummary } from "../availability/trainingAvailability";
 import {
   ACTIONS,
@@ -569,6 +570,8 @@ export function PerformanceSetup() {
       >
         <AvailabilitySection bare onGateStateChange={setAvailabilityGate} onSaved={onWindowsSaved} ridingDays={onboarding.preferredRidingDays} />
       </Section>
+
+      <RacesSection />
 
       <section id="preparation" aria-labelledby="refine-preparation" className="ux-enter scroll-mt-4">
         <h2 id="refine-preparation" className="sr-only">

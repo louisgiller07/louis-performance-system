@@ -65,12 +65,13 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
     expect(execLocalSql(`select count(*) from public.training_plan_model_assignments where athlete_id = ${sqlLiteral(b.athleteId)};`).trim()).toBe("0");
   });
 
-  it("global OFF: A (assigned v2) → V1, B → V1", async () => {
-    for (const athlete of [a, b]) {
-      const r = await generate(athlete.athleteId, false);
-      expect(r).toMatchObject({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted" });
-      if (r.status === "persisted") expect(await schemaOf(r.planVersionId)).toBe("v1");
-    }
+  it("global OFF: A (assigned v2) → refused, no version written (A09 guard: never V1); B → V1", async () => {
+    const before = versionsSnapshot(a.athleteId);
+    expect(await generate(a.athleteId, false)).toEqual({ planningModel: "v2", reason: "assigned_v2_disabled", status: "v2_disabled" });
+    expect(versionsSnapshot(a.athleteId)).toBe(before);
+    const r = await generate(b.athleteId, false);
+    expect(r).toMatchObject({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted" });
+    if (r.status === "persisted") expect(await schemaOf(r.planVersionId)).toBe("v1");
   }, 120_000);
 
   it("global ON: A → V2 (persisted V2 plan), B → V1 (V2-ready profile never triggers V2)", async () => {
@@ -94,9 +95,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
   }, 120_000);
 
   it("the model changes between two calls with the same request id → refused (different generation environment), nothing rewritten", async () => {
+    // A09: an athlete assigned V2 can no longer produce V1 with the switch off — the model change is made by reassignment.
     const r = randomUUID();
-    const v1 = await generate(a.athleteId, false, r);
+    assign(a.athleteId, "v1");
+    const v1 = await generate(a.athleteId, true, r);
     expect(v1).toMatchObject({ planningModel: "v1", status: "persisted" });
+    assign(a.athleteId, "v2");
     const before = versionsSnapshot(a.athleteId);
     await expect(generate(a.athleteId, true, r)).rejects.toThrow(/different generation environment/);
     expect(versionsSnapshot(a.athleteId)).toBe(before);
@@ -104,11 +108,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
     const r2 = randomUUID();
     expect(await generate(a.athleteId, true, r2)).toMatchObject({ planningModel: "v2", status: "persisted" });
     const before2 = versionsSnapshot(a.athleteId);
-    await expect(generate(a.athleteId, false, r2)).rejects.toThrow(/different generation environment/);
+    // The same request replayed with the switch off: refused by the A09 guard before any generation, nothing rewritten.
+    expect(await generate(a.athleteId, false, r2)).toEqual({ planningModel: "v2", reason: "assigned_v2_disabled", status: "v2_disabled" });
     expect(versionsSnapshot(a.athleteId)).toBe(before2);
   }, 120_000);
 
-  it("global rollback after a real V2 plan: A's Daily and guided session stay V2, A's NEW generation is V1, B stays V1", async () => {
+  it("global rollback after a real V2 plan: A's Daily and guided session stay V2, A's NEW generation is refused (never V1), B stays V1", async () => {
     const v2 = await generate(a.athleteId, true);
     if (v2.status !== "persisted") throw new Error("V2 plan expected");
     await acceptTrainingPlanVersion(admin, a.athleteId, v2.planVersionId, TODAY, "2026-10-18");
@@ -142,9 +147,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
     }
     expect(executed).not.toBeNull();
 
-    // Global OFF: a NEW generation of A is V1; the V2 plan stays current → Daily stays V2.
-    const v1 = await generate(a.athleteId, false);
-    expect(v1).toMatchObject({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted" });
+    // Global OFF: a NEW generation of A is refused (A09 guard), nothing written; the V2 plan stays current → Daily stays V2.
+    const versionsBefore = versionsSnapshot(a.athleteId);
+    expect(await generate(a.athleteId, false)).toEqual({ planningModel: "v2", reason: "assigned_v2_disabled", status: "v2_disabled" });
+    expect(versionsSnapshot(a.athleteId)).toBe(versionsBefore);
     await insertCheckin(admin, a.athleteId, "2026-10-10");
     const after = await runDailyFor(admin, a.athleteId, "2026-10-10");
     expect(after.finalPrescriptionStatus).toBeDefined();

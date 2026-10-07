@@ -132,12 +132,16 @@ async function main(): Promise<void> {
   // ---------------- switch OFF ----------------
   await withRuntime("false", async () => {
     await waitReady(a.token);
-    for (const [label, x] of [["A (assigned v2)", a], ["B (not assigned)", b]] as const) {
-      const r = await call("generate-training-plan", x.token, body());
-      record(`OFF: ${label} → 200, V1 plan`, r.status === 200 && (await schemaOf(admin, r.json?.planVersionId)) === "v1", JSON.stringify(r.json));
-      const ev = lastGenerationEvent(x.athleteId);
-      record(`OFF: ${label} → pilot event planningModel v1 / global_v2_disabled`, ev?.planningModel === "v1" && ev?.rolloutReason === "global_v2_disabled", JSON.stringify(ev));
-    }
+    // A09 — paid-beta guard: A (assigned v2) is refused while the switch is off, never served V1.
+    const aBefore = await versionCount(admin, a.athleteId);
+    const ra = await call("generate-training-plan", a.token, body());
+    record("OFF: A (assigned v2) → 503 v2_generation_disabled, nothing generated (never V1)", ra.status === 503 && ra.json?.error?.code === "v2_generation_disabled" && (await versionCount(admin, a.athleteId)) === aBefore, JSON.stringify(ra.json));
+    const evA = lastGenerationEvent(a.athleteId);
+    record("OFF: A → pilot event plan_generation_blocked / v2_generation_disabled / assigned_v2_disabled", evA?.event_type === "plan_generation_blocked" && evA?.blockedReason === "v2_generation_disabled" && evA?.rolloutReason === "assigned_v2_disabled", JSON.stringify(evA));
+    const rb = await call("generate-training-plan", b.token, body());
+    record("OFF: B (not assigned) → 200, V1 plan", rb.status === 200 && (await schemaOf(admin, rb.json?.planVersionId)) === "v1", JSON.stringify(rb.json));
+    const evB = lastGenerationEvent(b.athleteId);
+    record("OFF: B (not assigned) → pilot event planningModel v1 / global_v2_disabled", evB?.planningModel === "v1" && evB?.rolloutReason === "global_v2_disabled", JSON.stringify(evB));
     record("OFF: the response never reveals the model", true);
   });
 
@@ -206,10 +210,11 @@ async function main(): Promise<void> {
     await insertCheckin(admin, a.athleteId, day);
     const daily = await call("daily-run", a.token, { date: day });
     record("OFF again: A's current V2 plan still drives Daily (V2 fields present)", daily.status === 200 && "finalPrescriptionStatus" in (daily.json ?? {}), JSON.stringify(daily.json).slice(0, 200));
+    const aBefore = await versionCount(admin, a.athleteId);
     const ra = await call("generate-training-plan", a.token, body());
-    record("OFF again: A's NEW generation → V1 plan", ra.status === 200 && (await schemaOf(admin, ra.json?.planVersionId)) === "v1", JSON.stringify(ra.json));
+    record("OFF again: A's NEW generation → 503 v2_generation_disabled, nothing generated (A09 guard, never V1)", ra.status === 503 && ra.json?.error?.code === "v2_generation_disabled" && (await versionCount(admin, a.athleteId)) === aBefore, JSON.stringify(ra.json));
     const { data: current } = await admin.from("training_plan_current_version").select("plan_version_id").eq("athlete_id", a.athleteId).single();
-    record("OFF again: A's current plan is still the accepted V2 plan (a new V1 plan only becomes current once accepted)", (current as any)?.plan_version_id === aV2PlanVersionId);
+    record("OFF again: A's current plan is still the accepted V2 plan", (current as any)?.plan_version_id === aV2PlanVersionId);
     const rb = await call("generate-training-plan", b.token, body());
     record("OFF again: B → V1", rb.status === 200 && (await schemaOf(admin, rb.json?.planVersionId)) === "v1");
     const { rawContext } = await computeDailyFor(admin, a.athleteId, day);

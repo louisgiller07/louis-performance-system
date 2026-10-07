@@ -74,6 +74,15 @@ function mapHttpBody(status: number, code: string | undefined): GenerateTraining
       action: "user_fixable",
     };
   }
+  // A09 — paid-beta guard: an athlete assigned V2 while V2 generation is off is refused (never served V1).
+  if (code === "v2_generation_disabled") {
+    return {
+      code,
+      message: "Pendant la bêta, nous reconstruisons ta préparation avec toi. Contacte-nous pour la mettre à jour.",
+      retryable: false,
+      action: "config_issue",
+    };
+  }
   switch (code) {
     case "invalid_request":
       return { code, message: "Requête invalide.", retryable: false, action: "generic" };

@@ -55,6 +55,11 @@ vi.mock("../athleteOnboarding/athleteOnboardingRepo", async () => {
 });
 vi.mock("../trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId: repo.getActivePlanVersionId, getTrainingPlanDrafts: repo.getTrainingPlanDrafts }));
 vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ athleteId: "athlete-1" }) }));
+// A09 — « Tes courses » is mounted in the page; its own behaviour is covered by races/RacesSection.test.tsx.
+vi.mock("../races/raceRepo", async () => {
+  const actual = await vi.importActual<typeof import("../races/raceRepo")>("../races/raceRepo");
+  return { ...actual, loadRaces: vi.fn(async () => []) };
+});
 
 const PROFILE = {
   equipment: ["dumbbells"],
@@ -116,6 +121,15 @@ describe("Affiner ton profil — what NALYNT knows (summaries)", () => {
 
     const text = container.textContent ?? "";
     for (const raw of ["Downhill", "Amateur racer", "flow_trail", "dumbbells", "braking", "intermediate", "5-10h", "Saturday"]) expect(text).not.toContain(raw);
+  });
+
+  it("A09 — « Tes courses » sits between « Tes créneaux » and « Ta préparation »", async () => {
+    renderPage();
+    const races = await screen.findByRole("region", { name: "Tes courses" });
+    expect(await within(races).findByText("Aucune course à venir.")).toBeInTheDocument();
+    const order = [section("Tes créneaux"), races, generate()];
+    expect(order[0]!.compareDocumentPosition(order[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1]!.compareDocumentPosition(order[2]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("empty answers read honestly: bodyweight, no terrain yet, no slot yet", async () => {

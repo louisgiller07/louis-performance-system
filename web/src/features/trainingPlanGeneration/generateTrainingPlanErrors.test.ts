@@ -39,6 +39,16 @@ describe("mapGenerateTrainingPlanError", () => {
     expect(mapped.message).toMatch(/configuration/i);
   });
 
+  it("A09 — v2_generation_disabled (503): a non-retryable contact message, never a generic « Réessaie »", async () => {
+    const mapped = await mapGenerateTrainingPlanError(httpError(503, { error: { code: "v2_generation_disabled", message: "Training plan generation is temporarily unavailable." } }));
+    expect(mapped).toEqual({
+      code: "v2_generation_disabled",
+      message: "Pendant la bêta, nous reconstruisons ta préparation avec toi. Contacte-nous pour la mettre à jour.",
+      retryable: false,
+      action: "config_issue",
+    });
+  });
+
   it("maps no_athlete_for_user (403) to a config_issue", async () => {
     const mapped = await mapGenerateTrainingPlanError(httpError(403, { error: { code: "no_athlete_for_user" } }));
     expect(mapped.action).toBe("config_issue");

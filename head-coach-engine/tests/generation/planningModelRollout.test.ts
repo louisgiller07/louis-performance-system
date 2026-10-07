@@ -14,7 +14,8 @@ describe("UX-11R.2 — global switch parsing (server-only)", () => {
 describe("UX-11R.2 — resolvePlanningModelForAthlete", () => {
   it.each([
     [false, null, "v1", "global_v2_disabled"],
-    [false, "v2", "v1", "global_v2_disabled"],
+    // A09 — paid-beta guard: an athlete assigned V2 is refused while the switch is off, never served V1.
+    [false, "v2", "v2", "assigned_v2_disabled"],
     [false, "v1", "v1", "global_v2_disabled"],
     [true, null, "v1", "default_v1"],
     [true, "v1", "v1", "assigned_v1"],
@@ -35,11 +36,19 @@ function fakeDeps(assignment: "v1" | "v2" | null) {
 const input = (globalV2Enabled: boolean) => ({ client: {} as never, athleteId: "a", generationRequestId: "r", durationWeeks: 2, today: "2026-10-05", globalV2Enabled });
 
 describe("UX-11R.2 — generateTrainingPlanForAthlete (single server entry)", () => {
-  it("switch off: the assignment is not even read; the exact V1 path runs", async () => {
+  it("A09 — switch off + assigned v2: refused (v2_disabled), nothing generated — never a V1 plan", async () => {
     const deps = fakeDeps("v2");
-    expect(await generateTrainingPlanForAthlete(input(false), deps)).toEqual({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted", planVersionId: "v1-plan", idempotentReplay: false });
-    expect(deps.getPlanningModelAssignment).not.toHaveBeenCalled();
+    expect(await generateTrainingPlanForAthlete(input(false), deps)).toEqual({ planningModel: "v2", reason: "assigned_v2_disabled", status: "v2_disabled" });
+    expect(deps.generateAndPersistTrainingPlan).not.toHaveBeenCalled();
     expect(deps.generateAndPersistTrainingPlanV2).not.toHaveBeenCalled();
+  });
+
+  it("switch off + not assigned / assigned v1: the exact legacy V1 path runs (unchanged)", async () => {
+    for (const assignment of [null, "v1"] as const) {
+      const deps = fakeDeps(assignment);
+      expect(await generateTrainingPlanForAthlete(input(false), deps)).toEqual({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted", planVersionId: "v1-plan", idempotentReplay: false });
+      expect(deps.generateAndPersistTrainingPlanV2).not.toHaveBeenCalled();
+    }
   });
 
   it("switch on + assigned v2: the validated V2 path, with the explicit planningModel", async () => {

@@ -10,7 +10,8 @@
  *        plan dose policy, builders, the same transactional RPC).
  * No second V2 pipeline. No fallback: an assigned athlete whose V2
  * generation is blocked or fails gets that outcome, never a V1 plan.
- * The assignment is read only when the global switch is on.
+ * A09 — the assignment is read whatever the switch: an athlete assigned V2
+ * while the switch is off is refused (`v2_disabled`), nothing generated.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateAndPersistTrainingPlan } from "../supabase/generateAndPersistTrainingPlan.js";
@@ -35,6 +36,7 @@ export type GenerateTrainingPlanForAthleteResult = PlanningModelResolution &
   (
     | { status: "persisted"; planVersionId: string; idempotentReplay: boolean }
     | { status: "blocked"; code: V2BlockedOutcome["code"]; detail: V2BlockedOutcome["detail"] }
+    | { status: "v2_disabled" }
   );
 
 export interface GenerateTrainingPlanForAthleteDeps {
@@ -49,8 +51,9 @@ export async function generateTrainingPlanForAthlete(
   input: GenerateTrainingPlanForAthleteInput,
   deps: GenerateTrainingPlanForAthleteDeps = DEFAULT_DEPS
 ): Promise<GenerateTrainingPlanForAthleteResult> {
-  const assignment = input.globalV2Enabled ? await deps.getPlanningModelAssignment(input.client, input.athleteId) : null;
+  const assignment = await deps.getPlanningModelAssignment(input.client, input.athleteId);
   const resolution = resolvePlanningModelForAthlete({ globalV2Enabled: input.globalV2Enabled, assignment });
+  if (resolution.reason === "assigned_v2_disabled") return { ...resolution, status: "v2_disabled" };
   const common = { client: input.client, athleteId: input.athleteId, generationRequestId: input.generationRequestId, durationWeeks: input.durationWeeks, today: input.today };
 
   try {

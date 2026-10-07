@@ -117,7 +117,10 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   const blockId = mintId();
   const planning = runPlanningPipeline({
     block: { ...input.block, id: blockId, planVersionId },
-    races: snapshot.races,
+    // A09 — a C race (secondary / training) never restructures the V2 macro plan
+    // (no race, taper or race-specific week). It stays in the persisted snapshot,
+    // and M1 still reads it live for its race day and recovery. A+ / A / B unchanged.
+    races: snapshot.races.filter((race) => race.priority !== "C"),
     availability: snapshot.availability,
     terrainAccess: snapshot.terrainAccess,
     lockedDates: snapshot.lockedDates,
