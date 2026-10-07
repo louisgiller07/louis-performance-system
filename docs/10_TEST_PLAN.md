@@ -684,6 +684,18 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T48. A09 — gestion minimale des courses
+- **Web** (`races/raceForm.test.ts`, `races/RacesSection.test.tsx`, `PerformanceSetup.test.tsx`) :
+  - liste à venir (modifiable) et 30 derniers jours (suppression seule) ;
+  - création 2 jours (fin suivant le début), écrite telle quelle, message bêta, aucun « Reconstruire » ;
+  - « Autre format » : mention honnête, fin libre ; course entièrement passée refusée ;
+  - A+ / Swiss Cup existants conservés à la modification ; suppression confirmée ;
+  - contrat : chaque ligne écrite est acceptée telle quelle par `mapRaceCalendarRow` ;
+  - placement de la section dans la page.
+- **RLS** (`a09RaceCalendarRls.integration.test.ts`) : le rider crée, lit, modifie et supprime ses courses, lues par `getRacesInWindow` ; il ne lit, n'insère, ne modifie ni ne supprime celles d'un autre.
+- **Garde V2** (`planningModelRollout.test.ts`, `v2RolloutFlag.integration.test.ts`, scénario HTTP `generatePlanV2Rollout.orchestrate.ts`) : affecté v2 + interrupteur inactif → refusé, aucune version écrite, jamais V1 (y compris un rejeu) ; affecté v2 + actif → V2 ; non affecté / v1 → legacy ; web : message `v2_generation_disabled`.
+- **Course C** (`a09RacePriorityMacro.test.ts`) : A+ / A / B → semaines spécifique / affûtage / course inchangées ; C → plan identique au plan sans course ; C à côté d'une B → seule la B structure.
+
 ### T47. P1 — pas de phrase d'objectif un jour REST
 - **Unitaires** (`tests/supabase/goalReasoning.test.ts`) : REST × les 5 objectifs → aucun ajout, même référence (décision, séance, sections intactes) ; KEEP / MODIFY / REPLACE → phrase toujours ajoutée.
 - **Intégration locale** (`tests/supabase/p1RestObjectiveCopy.integration.test.ts`, chemin V2, objectif « Technical skills ») : fièvre sur une DH planifiée → REST persisté, raisonnement = « Fièvre ou maladie déclarée. Repos complet jusqu'à résolution des symptômes. » sans phrase d'objectif, aucune prescription ; jour neutre (KEEP) → phrase toujours présente.

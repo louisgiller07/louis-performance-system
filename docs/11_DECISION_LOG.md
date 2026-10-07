@@ -5689,3 +5689,41 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
   - M1 inchangé (`src/supabase`).
 - **Historique** : les décisions REST déjà persistées gardent la phrase (append-only, pas de réécriture). Elle disparaît à la prochaine décision du jour.
 - **Statut** : implémenté et vert en local (branche `fix/p1-rest-objective-copy`). Livraison : Edge `daily-run` seule ; ni web, ni migration, ni flag.
+
+## 2026-10-07 — ADR A09 : gestion minimale des courses pour la bêta payante
+
+> **The rider creates, edits and deletes their races in « Tes courses ». An athlete assigned V2 is refused generation while the V2 switch is off — never a V1 fallback. A C race never restructures the V2 macro plan.**
+
+**1. « Tes courses » (web, aucune migration)**
+- Écriture directe de `race_calendar` sous la RLS existante `race_calendar_own_data` (FOR ALL, `WITH CHECK`) ; aucune colonne ni policy ajoutée.
+- Section dans « Affiner ton profil », entre « Tes créneaux » et « Ta préparation » :
+  - courses à venir : modifier, supprimer ;
+  - 30 derniers jours : lecture et suppression ;
+  - `cancelled` / `skipped` masquées (même règle que le moteur).
+- Champs : nom, début, fin, importance, format. `status = planned` à la création, jamais modifié ensuite.
+- **Importance** : A (objectif principal), B (course importante), C (course secondaire / entraînement). A+ reste lisible et conservé à la modification, jamais proposé à la création.
+- **Format** : « Course sur 2 jours » (`HOT_TRAIL_2DAY`), « Course sur 3 jours » (`IXS_3DAY`), « Autre format » (`OTHER`, « Pas d'affûtage spécifique automatique les jours précédents. »). Un format existant (`SWISS_CUP`, `UCI_*`, `NULL`) reste lisible et conservé.
+- **Validation** :
+  - fin ≥ début ;
+  - aucune course entièrement passée, avec le jour effectif (`useEffectiveToday`, dogfood Simulation) ;
+  - en 2 / 3 jours, la fin suit le début (pas de couple contradictoire) ;
+  - aucune limite générale de durée.
+- Après enregistrement : « Ta course est prise en compte dès maintenant dans ton coaching quotidien. Pendant la bêta, contacte-nous si tu veux que nous reconstruisions aussi ta préparation autour de cette course. » Aucun CTA « Reconstruire ».
+
+**2. Garde anti-repli V1 (`planningModelRollout`, `generateTrainingPlanForAthlete`, Edge `generate-training-plan`)**
+- L'affectation est désormais lue quel que soit l'interrupteur.
+- Affecté `v2` + interrupteur actif → V2 (inchangé).
+- Affecté `v2` + interrupteur inactif → refusé, motif `assigned_v2_disabled`, résultat `v2_disabled`, HTTP 503 `v2_generation_disabled`, événement `plan_generation_blocked`, rien n'est écrit. **Jamais de V1.**
+- Non affecté ou affecté `v1` → comportement legacy inchangé.
+- L'interrupteur reste un vrai kill switch V2 (option « défaut » refusée par HPM).
+- Web : message dédié, non relançable (« Pendant la bêta, nous reconstruisons ta préparation avec toi. Contacte-nous pour la mettre à jour. »).
+- Procédure bêta : affectation `v2`, interrupteur `true` le temps d'une génération, contrôle, retour immédiat à `false`.
+
+**3. Course C et plan V2 (`generatePlanV2InMemory`)**
+- Les courses C sont retirées des entrées macro du pipeline V2 : ni semaine de course, ni affûtage, ni semaine spécifique.
+- Elles restent dans le snapshot persisté, et M1 les lit en direct (jour de course, récupération).
+- A+ / A / B inchangés. Pipeline V1 inchangé.
+
+**Docs canoniques** : `docs/05` (lecture de l'affectation ; `race_calendar.status` désormais écrit à la création) et `docs/03` (course C) — diffs proposés, à appliquer après validation HPM.
+
+**Statut** : implémenté et vert en local (branche `feat/a09-race-management`). Livraison : web + Edge `generate-training-plan` (garde, et planificateur dans son bundle) ; `daily-run` inchangée ; aucune migration, aucun flag.
