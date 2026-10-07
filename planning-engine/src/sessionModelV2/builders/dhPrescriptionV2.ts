@@ -8,7 +8,9 @@
  *   the declared priorities, in their declared order, and the session's
  *   ordinal in the plan version (never an id, the date, history, strengths,
  *   weaknesses, ranking or competition level);
- * - intent = DH_SKILL_TO_INTENT_V2[skill];
+ * - intent = DH_SKILL_TO_INTENT_V2[skill], or the skill's non-race intent
+ *   when that intent demands race intensity and the drill carries none
+ *   (dhIntentForDrillV2, P0 replace stale copy);
  * - drill = THE catalogue drill of (skill, declared dhTechnicalTier); its
  *   required terrain must be declared, otherwise the plan is blocked — no
  *   other priority, no other tier, no easier or harder drill;
@@ -31,7 +33,7 @@
  */
 import { DH_SKILLS_V2, DH_DRILL_PASSES_RANGE_V2, SESSION_DRILL_CATALOG_V2, SESSION_DRILL_CATALOG_V2_ENTRIES, type DhSkillV2, type DhTechnicalTierV2, type SessionDrillV2 } from "../../catalog/sessionDrillCatalogV2.js";
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
-import { DH_SKILL_TO_INTENT_V2, INTENT_CATALOG_V2 } from "../../catalog/intentCatalogV2.js";
+import { DH_SKILL_NON_RACE_INTENT_V2, DH_SKILL_TO_INTENT_V2, INTENT_CATALOG_V2 } from "../../catalog/intentCatalogV2.js";
 import { DH_SESSION_FRAME_V2 } from "../../catalog/sessionFrameV2.js";
 import type { SessionKind } from "../../types/sharedVocabulary.js";
 import type { SessionModelV2CatalogManifest } from "../catalogManifest.js";
@@ -99,6 +101,17 @@ export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefi
   return terrainAccess.includes(current.requiredTerrain) || terrainAccess.includes(drill.requiredTerrain) ? current : null;
 }
 
+/**
+ * P0 replace stale copy — the intent follows the drill actually prescribed:
+ * the skill's intent, except when that intent demands race intensity and the
+ * drill carries none (a LIGHT regression, the beginner drill), which takes
+ * the skill's non-race intent (DH_SKILL_NON_RACE_INTENT_V2).
+ */
+export function dhIntentForDrillV2(drill: SessionDrillV2): string {
+  const nonRace = DH_SKILL_NON_RACE_INTENT_V2[drill.skill];
+  return nonRace !== undefined && !RACE_SPEED_DRILL_IDS_V2.has(drill.drillId) ? nonRace : DH_SKILL_TO_INTENT_V2[drill.skill];
+}
+
 const isDhSkill = (value: string): value is DhSkillV2 => (DH_SKILLS_V2 as readonly string[]).includes(value);
 
 /**
@@ -140,11 +153,6 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
   }
 
   const skill = priorities[input.dhSessionOrdinal % priorities.length] as DhSkillV2;
-  const intentId = DH_SKILL_TO_INTENT_V2[skill];
-  const intent = INTENT_CATALOG_V2[intentId];
-  if (!intent || intent.family !== "dh_technical" || !intent.sessionKinds.includes("DH_TECHNICAL")) {
-    throw new SessionModelV2ContractError(`no DH intent for skill ${skill}`);
-  }
 
   const canonical = canonicalDhDrill(skill, tier);
   if (!input.terrainAccess.includes(canonical.requiredTerrain)) {
@@ -158,6 +166,11 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
   // P0 — the canonical drill's terrain is declared, so its LIGHT regression always exists.
   const drill = dhDrillForLoad(canonical, input.loadProfile, input.terrainAccess);
   if (drill === null) throw new SessionModelV2ContractError(`no LIGHT regression for ${canonical.drillId}`);
+  const intentId = dhIntentForDrillV2(drill);
+  const intent = INTENT_CATALOG_V2[intentId];
+  if (!intent || intent.family !== "dh_technical" || !intent.sessionKinds.includes("DH_TECHNICAL")) {
+    throw new SessionModelV2ContractError(`no DH intent for skill ${skill}`);
+  }
 
   const blocks: BlockV2Content[] = DH_SESSION_FRAME_V2.map((frame) => ({
     role: frame.role,

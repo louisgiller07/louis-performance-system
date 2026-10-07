@@ -34,7 +34,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 — adapted sessions persist a mission
     const { data } = await admin.from("decisions").select("id, daily_plan").eq("athlete_id", athleteId).eq("decision_date", day).order("created_at", { ascending: false }).limit(1).single();
     const row = data as { id: string; daily_plan: Plan };
     const { data: fp } = await admin.from("decision_final_prescriptions").select("reconciliation_action, structure").eq("decision_id", row.id);
-    const f = (fp as { reconciliation_action: string; structure: { sessionKind: string; blocks: { items: { kind: string; drillId?: string; measure: { count?: number } }[] }[] } }[])[0];
+    const f = (fp as { reconciliation_action: string; structure: { sessionKind: string; intentId: string; blocks: { items: { kind: string; drillId?: string; measure: { count?: number } }[] }[] } }[])[0];
     return { plan: row.daily_plan, fp: f, drills: f ? f.structure.blocks.flatMap((b) => b.items).filter((i) => i.kind === "drill").map((i) => i.drillId!) : [] };
   }
 
@@ -73,6 +73,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 — adapted sessions persist a mission
     const first = await persisted(day!);
     expect([first.plan.decision, first.plan.final_session.kind, first.plan.final_session.load_profile]).toEqual(["REPLACE", "DH_LIGHT", "LIGHT"]);
     expect(first.drills).toEqual(["race_execution_section_consistency"]);
+    // P0 replace stale copy — the intent follows the regressed drill (never « allure de course »).
+    expect(first.fp!.structure.intentId).toBe("dh_race_consistency");
     expect(RACE_DRILLS.some((id) => first.drills.includes(id))).toBe(false);
     const again = await persisted(day!);
     expect(again.drills).toEqual(first.drills);
@@ -84,7 +86,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 — adapted sessions persist a mission
     await insertCheckin(admin, athleteId, day);
     await runDailyFor(admin, athleteId, day);
     const r = await persisted(day);
-    expect([r.plan.decision, r.drills]).toEqual(["KEEP", ["race_execution_full_run_sim"]]);
+    expect([r.plan.decision, r.drills, r.fp!.structure.intentId]).toEqual(["KEEP", ["race_execution_full_run_sim"], "dh_race_pace"]);
   });
 
   it("Recovery — 30 min on a DH day: active recovery persisted without DH technique, nutrition, recovery or monitoring advice", async () => {

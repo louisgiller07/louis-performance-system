@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DH_SKILL_NON_RACE_INTENT_V2,
   DH_SKILL_TO_INTENT_V2,
   INTENT_CATALOG_V2,
   INTENT_CATALOG_V2_ENTRIES,
@@ -27,7 +28,7 @@ describe("Session Model V2 intent catalogue", () => {
       expect(i.textId, i.intentId).toBe(`intent.${i.intentId}`);
       expect(COACHING_TEXT_CATALOG[i.textId]?.kind, i.intentId).toBe("intent");
       expect(i.validationStatus, i.intentId).toBe("PROVISIONAL");
-      expect(i.selectable, i.intentId).toBe(i.selection.type === "session_kind" || i.selection.type === "declared_priority");
+      expect(i.selectable, i.intentId).toBe(i.selection.type === "session_kind" || i.selection.type === "declared_priority" || i.selection.type === "declared_priority_non_race_drill");
     }
   });
 
@@ -39,8 +40,14 @@ describe("Session Model V2 intent catalogue", () => {
       expect(DH_SKILL_TO_INTENT_V2[skill], skill).toBe(dhIntents[0]!.intentId);
     }
     for (const i of INTENTS.filter((x) => x.family === "dh_technical")) {
-      expect(i.selection.type, i.intentId).toBe("declared_priority");
+      expect(["declared_priority", "declared_priority_non_race_drill"], i.intentId).toContain(i.selection.type);
     }
+  });
+
+  it("P0 — only race_execution has a non-race intent (its own intent demands race pace); it is reached only through the declared priority", () => {
+    expect(DH_SKILL_NON_RACE_INTENT_V2).toEqual({ race_execution: "dh_race_consistency" });
+    expect(INTENTS.filter((i) => i.selection.type === "declared_priority_non_race_drill").map((i) => i.intentId)).toEqual(["dh_race_consistency"]);
+    expect(COACHING_TEXT_CATALOG["intent.dh_race_consistency"]!.text["fr-CH"]).not.toMatch(/course|vitesse|allure/i);
   });
 
   it("never activates the grip intent: inactive until a validated rule exists", () => {

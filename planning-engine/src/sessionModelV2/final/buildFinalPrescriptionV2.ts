@@ -57,7 +57,7 @@ import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { BlockV2, DrillItemV2Content, ExerciseItemV2Content, PrescriptionItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
-import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND, dhDrillForLoad } from "../builders/dhPrescriptionV2.js";
+import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND, dhDrillForLoad, dhIntentForDrillV2 } from "../builders/dhPrescriptionV2.js";
 import { SESSION_DRILL_CATALOG_V2 } from "../../catalog/sessionDrillCatalogV2.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
 import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
@@ -176,10 +176,13 @@ const flatItems = (blocks: readonly { items: readonly unknown[] }[]) => blocks.f
  * P0 adapted-session coherence — the DH drills of a content at the target
  * load: a LIGHT dose follows the catalogue regression of a race-intensity
  * drill (dhDrillForLoad), with that drill's own cue, criterion and
- * vigilances. null when no declared-terrain regression exists.
+ * vigilances, and the intent of that drill (dhIntentForDrillV2: never the
+ * replaced drill's « allure de course »). null when no declared-terrain
+ * regression exists.
  */
 function drillsForLoad(content: PrescriptionV2Content, load: LoadProfile | undefined, terrainAccess: readonly string[]): PrescriptionV2Content | null {
   let blockedDrill = false;
+  let intentId = content.intentId;
   const blocks = content.blocks.map((b) => ({
     ...b,
     items: b.items.map((item) => {
@@ -191,12 +194,12 @@ function drillsForLoad(content: PrescriptionV2Content, load: LoadProfile | undef
         blockedDrill = true;
         return item;
       }
-      return drill.drillId === item.drillId
-        ? item
-        : ({ ...item, drillId: drill.drillId, cueId: drill.cueId, successCriterionId: drill.criterionId, vigilanceIds: [...drill.vigilanceIds] } as DrillItemV2Content);
+      if (drill.drillId === item.drillId) return item;
+      intentId = dhIntentForDrillV2(drill);
+      return { ...item, drillId: drill.drillId, cueId: drill.cueId, successCriterionId: drill.criterionId, vigilanceIds: [...drill.vigilanceIds] } as DrillItemV2Content;
     }),
   }));
-  return blockedDrill ? null : { ...content, blocks };
+  return blockedDrill ? null : { ...content, intentId, blocks };
 }
 
 /** Endurance total = the sum of its blocks' fixed minutes. */

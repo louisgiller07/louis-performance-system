@@ -49,6 +49,8 @@ export type IntentSessionKindV2 = (typeof INTENT_SESSION_KINDS_V2)[number];
 export type IntentSelectionV2 =
   | { type: "session_kind" }
   | { type: "declared_priority"; skill: DhSkillV2 }
+  /** P0 — the declared priority's intent when its drill carries no race intensity (the skill intent would ask for it). */
+  | { type: "declared_priority_non_race_drill"; skill: DhSkillV2 }
   | { type: "candidate" }
   | { type: "inactive_until_validated_rule" };
 
@@ -71,7 +73,7 @@ function intent(intentId: string, family: SessionFamilyV2, sessionKinds: readonl
     family,
     sessionKinds,
     selection,
-    selectable: selection.type === "session_kind" || selection.type === "declared_priority",
+    selectable: selection.type === "session_kind" || selection.type === "declared_priority" || selection.type === "declared_priority_non_race_drill",
     textId: `intent.${intentId}`,
     validationStatus: "PROVISIONAL",
   };
@@ -95,6 +97,7 @@ const ENTRIES: SessionIntentV2[] = [
   intent("dh_rough_terrain_flow", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "roots_rocks" }),
   intent("dh_jump_control", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "jumps" }),
   intent("dh_race_pace", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "race_execution" }),
+  intent("dh_race_consistency", "dh_technical", DH_KINDS, { type: "declared_priority_non_race_drill", skill: "race_execution" }),
   // Endurance, mobility, recovery
   intent("aerobic_base_lucidity", "endurance", ["AEROBIC_BASE"], { type: "session_kind" }),
   intent("aerobic_repeat_efforts", "endurance", ["AEROBIC_INTERVALS"], { type: "session_kind" }),
@@ -110,3 +113,12 @@ export const INTENT_CATALOG_V2: Readonly<Record<string, SessionIntentV2>> = Obje
 export const DH_SKILL_TO_INTENT_V2: Readonly<Record<DhSkillV2, string>> = Object.fromEntries(
   ENTRIES.flatMap((i) => (i.selection.type === "declared_priority" ? [[i.selection.skill, i.intentId]] : []))
 ) as Record<DhSkillV2, string>;
+
+/**
+ * P0 replace stale copy — a skill whose own intent demands race intensity
+ * (race_execution: « allure de course du départ à l'arrivée ») takes this
+ * intent when its drill carries none (dhIntentForDrillV2).
+ */
+export const DH_SKILL_NON_RACE_INTENT_V2: Readonly<Partial<Record<DhSkillV2, string>>> = Object.fromEntries(
+  ENTRIES.flatMap((i) => (i.selection.type === "declared_priority_non_race_drill" ? [[i.selection.skill, i.intentId]] : []))
+);

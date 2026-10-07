@@ -248,3 +248,54 @@ describe("P0 — the planner: a LIGHT DH week never prescribes a race mission", 
     }
   });
 });
+
+// P0 replace stale copy (dogfood: REPLACE → DH LIGHT still read « Tenir une allure de course du départ à l'arrivée »):
+// every text a screen resolves from the prescription — intent, instructions, cue, criterion, vigilances.
+const RACE_COPY = /mode course|vitesse course|allure de course/i;
+function resolvedTexts(st: { intentId: string; blocks: readonly { instructionIds: readonly string[]; items: readonly unknown[] }[] }): string[] {
+  const ids = [`intent.${st.intentId}`, ...st.blocks.flatMap((b) => [...b.instructionIds, ...(b.items.filter((i) => (i as DrillItemV2).kind === "drill") as DrillItemV2[]).flatMap((d) => [d.cueId, d.successCriterionId, ...d.vigilanceIds])])];
+  return ids.map((id) => {
+    const t = COACHING_TEXT_CATALOG[id];
+    if (!t) throw new Error(`unresolved text ${id}`);
+    return t.text["fr-CH"];
+  });
+}
+
+describe("P0 — a session adapted to LIGHT keeps no race coaching copy (intent included)", () => {
+  const p = plan(RACE);
+  const moderate = dhOf(p, "MODERATE");
+
+  it("A — DH race MODERATE → REPLACE DH_LIGHT LIGHT: the intent follows the regressed drill; no text asks for race pace", () => {
+    const f = created(buildFinalPrescriptionV2(input(p, RACE, moderate, "REPLACE", { kind: "DH_LIGHT", loadProfile: "LIGHT" })));
+    expect([f.structure.intentId, drills(f.structure).map((d) => d.drillId)]).toEqual(["dh_race_consistency", ["race_execution_section_consistency"]]);
+    expect(resolvedTexts(f.structure).filter((t) => RACE_COPY.test(t))).toEqual([]);
+    expect(validatePrescriptionV2(f.structure)).toMatchObject({ ok: true });
+  });
+
+  it("MODIFY → LIGHT and A10 at LIGHT: same intent rule, no race copy", () => {
+    const m = created(buildFinalPrescriptionV2(input(p, RACE, moderate, "MODIFY", { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: moderate.durationMin })));
+    expect(m.structure.intentId).toBe("dh_race_consistency");
+    expect(resolvedTexts(m.structure).filter((t) => RACE_COPY.test(t))).toEqual([]);
+    const t = buildFinalPrescriptionWithinTodayTimeV2({ ...input(p, RACE, moderate, "MODIFY", { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: moderate.durationMin }), availableMinutes: 75 });
+    expect(t.status).toBe("created");
+    if (t.status === "created") expect(resolvedTexts(t.finalPrescription.structure).filter((x) => RACE_COPY.test(x))).toEqual([]);
+  });
+
+  it("C — KEEP of the race MODERATE DH: the race intent and race cue are kept verbatim", () => {
+    const k = created(buildFinalPrescriptionV2(input(p, RACE, moderate, "KEEP", { kind: "DH_TECHNICAL", loadProfile: "MODERATE", durationMin: moderate.durationMin })));
+    expect(k.structure.intentId).toBe("dh_race_pace");
+    expect(k.structure).toEqual(moderate.plannedPrescription.structure);
+    expect(resolvedTexts(k.structure).some((t) => RACE_COPY.test(t))).toBe(true);
+  });
+
+  it("the planner: a LIGHT race_execution week carries the non-race intent; other skills keep their own intent", () => {
+    const light = plan(snapshot("race_execution", 0));
+    for (const s of light.weeks.flatMap((w) => w.sessions).filter((x) => x.kind === "DH_TECHNICAL")) {
+      const st = s.plannedPrescription.structure;
+      expect(st.intentId, `${s.date} ${s.loadProfile}`).toBe(s.loadProfile === "LIGHT" ? "dh_race_consistency" : "dh_race_pace");
+      if (s.loadProfile === "LIGHT") expect(resolvedTexts(st).filter((t) => RACE_COPY.test(t))).toEqual([]);
+    }
+    const lineLight = dhOf(plan(snapshot("line_choice", 0)), "LIGHT");
+    expect(lineLight.plannedPrescription.structure.intentId).toBe("dh_line_reading");
+  });
+});
