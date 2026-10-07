@@ -86,12 +86,13 @@ describe("P0 — the race-intensity drill set is the catalogue's own words", () 
     }
   });
 
-  it("dhDrillForLoad: LIGHT follows the catalogue regression to a non-race drill; any other load keeps the drill; no regression on a declared terrain → null", () => {
+  it("dhDrillForLoad: LIGHT follows the catalogue regression to a non-race drill; any other load keeps the drill; ridden on its own or the source drill's terrain, else null", () => {
     const full = SESSION_DRILL_CATALOG_V2["race_execution_full_run_sim"]!;
     expect(dhDrillForLoad(full, "LIGHT", TERRAIN)?.drillId).toBe("race_execution_section_consistency");
     expect(dhDrillForLoad(full, "MODERATE", TERRAIN)?.drillId).toBe("race_execution_full_run_sim");
     expect(dhDrillForLoad(SESSION_DRILL_CATALOG_V2["cornering_berm_speed"]!, "LIGHT", TERRAIN)?.drillId).toBe("cornering_berm_speed");
-    expect(dhDrillForLoad(full, "LIGHT", ["full_dh_track", "technical_trail"])).toBeNull();
+    expect(dhDrillForLoad(full, "LIGHT", ["full_dh_track"])?.drillId).toBe("race_execution_section_consistency");
+    expect(dhDrillForLoad(full, "LIGHT", ["technical_trail"])).toBeNull();
   });
 
   it("every race drill regresses, at LIGHT, to a drill whose texts carry no race intensity", () => {
@@ -139,16 +140,81 @@ describe("P0 — daily adaptations to LIGHT carry a LIGHT mission", () => {
     if (light.status === "created") expect(drills(light.finalPrescription.structure).map((d) => d.drillId)).toEqual(["race_execution_section_consistency"]);
   });
 
-  it("a rider without the regression terrain: the LIGHT adaptation is blocked explicitly (never an invented drill)", () => {
-    const narrow = { ...RACE, terrainAccess: ["full_dh_track", "technical_trail"] };
+  it("a planned drill whose terrain is no longer declared and whose regression terrain is not either: the LIGHT adaptation is blocked (never an invented drill)", () => {
+    const narrow = { ...RACE, terrainAccess: ["technical_trail"] };
     const r = buildFinalPrescriptionV2(input(p, narrow, moderate, "MODIFY", { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: 90 }));
     expect(r).toMatchObject({ status: "blocked", code: "final_prescription_adaptation_not_defined", detail: { reason: "no_light_dh_drill" } });
   });
+});
 
-  it("limit — the planner with such a profile blocks the plan (a LIGHT week has no honest DH), as for an undeclared drill terrain", () => {
-    const narrow = { ...RACE, terrainAccess: ["full_dh_track", "technical_trail"] };
-    const r = generatePlanV2InMemory({ block: { sequenceNumber: 1, name: "P", mode: "UNSPECIFIED", primaryFocus: "T", startDate: "2026-10-05", endDate: "2026-11-15" }, snapshot: narrow, mintId: counter("c") });
-    expect(r).toMatchObject({ status: "blocked", code: "unavailable_dh_drill_terrain" });
+// Onboarding terrains are 9 independent toggles (web TERRAIN_OPTIONS, backend assertValidTerrainAccess):
+// any non-empty subset is a valid profile.
+const ONBOARDING_TERRAINS = ["any_groomed_trail", "flow_trail", "bermed_trail", "technical_trail", "rock_garden", "steep_technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track"];
+const SKILLS = ["braking", "cornering", "line_choice", "steep_terrain", "roots_rocks", "jumps", "race_execution"] as const;
+const TIERS = ["beginner", "intermediate", "advanced"] as const;
+const LIGHT_DECISIONS = (mod: PlanSessionV2InMemory) =>
+  [
+    ["MODIFY", { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: mod.durationMin }],
+    ["REPLACE", { kind: "DH_LIGHT", loadProfile: "LIGHT" }],
+  ] as const;
+
+describe("P0 — no_light_dh_drill is unreachable from a valid onboarding profile", () => {
+  it("every (tier, skill, non-empty terrain subset) that can receive its DH has a LIGHT non-race drill of the same skill on a declared terrain", () => {
+    let checked = 0;
+    for (let mask = 1; mask < 1 << ONBOARDING_TERRAINS.length; mask++) {
+      const terrain = ONBOARDING_TERRAINS.filter((_, i) => mask & (1 << i));
+      for (const tier of TIERS) {
+        for (const skill of SKILLS) {
+          const canonical = SESSION_DRILL_CATALOG_V2_ENTRIES.find((d) => d.skill === skill && d.technicalTier === tier)!;
+          if (!terrain.includes(canonical.requiredTerrain)) continue; // cannot receive this DH (pre-existing generation block)
+          const light = dhDrillForLoad(canonical, "LIGHT", terrain);
+          expect(light, `${tier} ${skill} ${terrain.join("+")}`).not.toBeNull();
+          expect(RACE_SPEED_DRILL_IDS_V2.has(light!.drillId)).toBe(false);
+          expect(light!.skill).toBe(skill);
+          expect(terrain.includes(light!.requiredTerrain) || terrain.includes(canonical.requiredTerrain)).toBe(true);
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(5000);
+  });
+
+  it("the real Simulation profile (advanced; cornering, line_choice, race_execution; no any_groomed_trail): plan generated, LIGHT weeks without race drill, MODIFY / REPLACE → LIGHT created on every MODERATE DH", () => {
+    const sim: PlanInputSnapshotV2 = {
+      ...snapshot("race_execution", 0),
+      terrainAccess: ["flow_trail", "bermed_trail", "technical_trail", "rock_garden", "full_dh_track"],
+      technicalPriorities: { strengths: [], weaknesses: [], priorityAreas: ["cornering", "line_choice", "race_execution"] },
+    };
+    const p = plan(sim);
+    const dh = p.weeks.flatMap((w) => w.sessions).filter((s) => s.kind === "DH_TECHNICAL");
+    const lightIds = dh.filter((s) => s.loadProfile === "LIGHT").flatMap((s) => drills(s.plannedPrescription.structure).map((d) => d.drillId));
+    expect(lightIds.length).toBeGreaterThan(0);
+    expect(lightIds.filter((id) => RACE_SPEED_DRILL_IDS_V2.has(id))).toEqual([]);
+    const moderate = dh.filter((s) => s.loadProfile === "MODERATE");
+    expect(moderate.some((s) => drills(s.plannedPrescription.structure)[0]!.drillId === "race_execution_full_run_sim")).toBe(true);
+    for (const mod of moderate) {
+      const planned = drills(mod.plannedPrescription.structure)[0]!.drillId;
+      for (const [dec, fin] of LIGHT_DECISIONS(mod)) {
+        const ids = drills(created(buildFinalPrescriptionV2(input(p, sim, mod, dec, fin))).structure).map((d) => d.drillId);
+        expect(ids.filter((id) => RACE_SPEED_DRILL_IDS_V2.has(id)), `${mod.date} ${dec}`).toEqual([]);
+        if (planned === "race_execution_full_run_sim") expect(ids, `${mod.date} ${dec}`).toEqual(["race_execution_section_consistency"]);
+      }
+    }
+  });
+
+  it("each race drill on its minimum valid profile (only its own terrain): plan generated, LIGHT weeks and MODIFY / REPLACE → LIGHT carry the regression", () => {
+    for (const race of [...RACE_SPEED_DRILL_IDS_V2]) {
+      const d = SESSION_DRILL_CATALOG_V2[race]!;
+      const snap: PlanInputSnapshotV2 = { ...snapshot(d.skill, 0), terrainAccess: [d.requiredTerrain], dhTechnicalTier: d.technicalTier };
+      const p = plan(snap);
+      const expected = dhDrillForLoad(d, "LIGHT", snap.terrainAccess)!.drillId;
+      const dh = p.weeks.flatMap((w) => w.sessions).filter((s) => s.kind === "DH_TECHNICAL");
+      for (const s of dh) expect(drills(s.plannedPrescription.structure)[0]!.drillId, `${race} ${s.date}`).toBe(s.loadProfile === "LIGHT" ? expected : race);
+      const mod = dhOf(p, "MODERATE");
+      for (const [dec, fin] of LIGHT_DECISIONS(mod)) {
+        expect(drills(created(buildFinalPrescriptionV2(input(p, snap, mod, dec, fin))).structure).map((x) => x.drillId), `${race} ${dec}`).toEqual([expected]);
+      }
+    }
   });
 });
 
@@ -176,8 +242,8 @@ describe("P0 — the planner: a LIGHT DH week never prescribes a race mission", 
         ["MODIFY", { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: mod.durationMin }],
         ["REPLACE", { kind: "DH_LIGHT", loadProfile: "LIGHT" }],
       ] as const) {
-        const r = buildFinalPrescriptionV2(input(p, snap, mod, dec, fin));
-        if (r.status === "created") expect(drills(r.finalPrescription.structure).every((d) => !RACE_SPEED_DRILL_IDS_V2.has(d.drillId)), `${skill} ${dec}`).toBe(true);
+        const r = created(buildFinalPrescriptionV2(input(p, snap, mod, dec, fin)));
+        expect(drills(r.structure).every((d) => !RACE_SPEED_DRILL_IDS_V2.has(d.drillId)), `${skill} ${dec}`).toBe(true);
       }
     }
   });

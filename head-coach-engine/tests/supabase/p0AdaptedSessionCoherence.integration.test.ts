@@ -45,7 +45,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 — adapted sessions persist a mission
     await upsertPerformanceProfileFor(admin, athleteId, {
       strength_experience_tier: "intermediate",
       equipment: ["dumbbells", "bench"],
-      terrain_access: ["any_groomed_trail", "technical_trail", "full_dh_track", "flow_trail"],
+      terrain_access: ["flow_trail", "bermed_trail", "technical_trail", "rock_garden", "full_dh_track"], // the real Simulation terrain: no any_groomed_trail
       declared_limitations: [],
       technical_priorities: { strengths: [], weaknesses: [], priorityAreas: ["race_execution"] },
       dh_technical_tier: "advanced",

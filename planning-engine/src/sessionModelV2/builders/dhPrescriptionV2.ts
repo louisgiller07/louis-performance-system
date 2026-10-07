@@ -78,9 +78,16 @@ export const RACE_SPEED_DRILL_IDS_V2: ReadonlySet<string> = new Set([
 
 /**
  * P0 — the drill a dose can honestly carry. Any load but LIGHT: the drill
- * itself. LIGHT: the catalogue regression chain (`regressesTo`) until a drill
- * without race intensity whose terrain is declared. null when the chain
- * offers none (the caller blocks: never an invented drill).
+ * itself. LIGHT: the catalogue regression chain (`regressesTo`) until the
+ * first drill without race intensity — never an invented drill.
+ *
+ * Terrain: the regression is ridden on its own terrain or on the terrain of
+ * the drill it regresses from. A regression lowers the demand of the same
+ * skill; it never asks for a harder terrain than the session's own, which
+ * the rider declared (onboarding terrains are independent: a rider may hold
+ * full_dh_track without any_groomed_trail). The regression texts are
+ * terrain-agnostic (« choisis une courte section », « juste avant l'entrée
+ * du virage »). null only when neither terrain is declared (the caller blocks).
  */
 export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefined, terrainAccess: readonly string[]): SessionDrillV2 | null {
   if (load !== "LIGHT" || !RACE_SPEED_DRILL_IDS_V2.has(drill.drillId)) return drill;
@@ -88,7 +95,8 @@ export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefi
   while (current && RACE_SPEED_DRILL_IDS_V2.has(current.drillId)) {
     current = current.regressesTo !== undefined ? SESSION_DRILL_CATALOG_V2[current.regressesTo] : undefined;
   }
-  return current && terrainAccess.includes(current.requiredTerrain) ? current : null;
+  if (!current) return null;
+  return terrainAccess.includes(current.requiredTerrain) || terrainAccess.includes(drill.requiredTerrain) ? current : null;
 }
 
 const isDhSkill = (value: string): value is DhSkillV2 => (DH_SKILLS_V2 as readonly string[]).includes(value);
@@ -139,18 +147,17 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
   }
 
   const canonical = canonicalDhDrill(skill, tier);
-  const drill = dhDrillForLoad(canonical, input.loadProfile, input.terrainAccess);
-  if (drill === null) {
-    throw new SessionModelV2GenerationBlockedError("unavailable_dh_drill_terrain", { skill, dhTechnicalTier: tier, drillId: canonical.drillId, loadProfile: input.loadProfile ?? null, reason: "no_light_regression" });
-  }
-  if (!input.terrainAccess.includes(drill.requiredTerrain)) {
+  if (!input.terrainAccess.includes(canonical.requiredTerrain)) {
     throw new SessionModelV2GenerationBlockedError("unavailable_dh_drill_terrain", {
       skill,
       dhTechnicalTier: tier,
-      drillId: drill.drillId,
-      requiredTerrain: drill.requiredTerrain,
+      drillId: canonical.drillId,
+      requiredTerrain: canonical.requiredTerrain,
     });
   }
+  // P0 — the canonical drill's terrain is declared, so its LIGHT regression always exists.
+  const drill = dhDrillForLoad(canonical, input.loadProfile, input.terrainAccess);
+  if (drill === null) throw new SessionModelV2ContractError(`no LIGHT regression for ${canonical.drillId}`);
 
   const blocks: BlockV2Content[] = DH_SESSION_FRAME_V2.map((frame) => ({
     role: frame.role,
