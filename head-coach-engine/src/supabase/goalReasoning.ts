@@ -32,11 +32,15 @@ export function resolveGoalRationale(primaryGoal?: string): string | undefined {
 /**
  * Appends the goal sentence to `DailyPlan.reasoning` — strictly additive,
  * new paragraph (blank line), never touches any other field. Returns the
- * SAME object reference when there is nothing to add (no goal declared, or
- * unrecognized), so "reasoning unchanged" is provably true by identity, not
- * just by value.
+ * SAME object reference when there is nothing to add (REST day, no goal
+ * declared, or unrecognized), so "reasoning unchanged" is provably true by
+ * identity, not just by value.
  */
 export function applyGoalPersonalization(dailyPlan: DailyPlan, primaryGoal?: string): DailyPlan {
+  // P1 REST objective copy (HPM 2026-10-07) — a REST day keeps the reasoning of
+  // the rule that decided it (often SAFETY): never a goal sentence about
+  // progression on a day without training. Same reference, as when no goal is declared.
+  if (dailyPlan.decision === "REST") return dailyPlan;
   const sentence = resolveGoalRationale(primaryGoal);
   if (!sentence) return dailyPlan;
   return { ...dailyPlan, reasoning: `${dailyPlan.reasoning}\n\n${sentence}` };

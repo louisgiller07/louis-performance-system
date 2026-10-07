@@ -96,3 +96,30 @@ describe("applyGoalPersonalization", () => {
     expect(personalized.triggered_rules).toBe(plan.triggered_rules);
   });
 });
+
+// P1 REST objective copy (HPM 2026-10-07) — a REST day carries no goal sentence; KEEP / MODIFY / REPLACE unchanged.
+describe("applyGoalPersonalization — REST day", () => {
+  const GOALS = ["Race performance", "Consistency", "Technical skills", "Fitness", "Injury prevention"];
+  const SAFETY_REST = "Fièvre ou maladie déclarée. Repos complet jusqu'à résolution des symptômes.";
+  const restPlan = (): DailyPlan => ({
+    ...buildFixtureDailyPlan(SAFETY_REST),
+    decision: "REST",
+    training: { active: false },
+    final_session: { kind: "REST" },
+    recovery: { active: true, actions: ["Repos complet"] },
+  } as DailyPlan);
+
+  it.each(GOALS)("REST × %s: nothing appended, the exact same reference (decision, session and sections untouched)", (goal) => {
+    const plan = restPlan();
+    const personalized = applyGoalPersonalization(plan, goal);
+    expect(personalized).toBe(plan);
+    expect(personalized.reasoning).toBe(SAFETY_REST);
+  });
+
+  it.each(["KEEP", "MODIFY", "REPLACE"] as const)("%s: the goal sentence is still appended (existing behaviour)", (decision) => {
+    const plan = { ...buildFixtureDailyPlan("Raisonnement du jour."), decision };
+    const personalized = applyGoalPersonalization(plan, "Technical skills");
+    expect(personalized.reasoning).toBe(`Raisonnement du jour.\n\n${resolveGoalRationale("Technical skills")}`);
+    expect(personalized.decision).toBe(decision);
+  });
+});
