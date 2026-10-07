@@ -5385,3 +5385,62 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - `docs/04` et `docs/07` : `V2_EFFECTIVE_SESSION` et « séance effective » documentés après validation HPM (2026-10-07).
 
 **Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07). Implémenté et vert en local (branche `feat/a07-effective-session`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (bundle), puis web ; sans migration.
+
+## 2026-10-07 — ADR A10 : temps disponible aujourd'hui
+
+> **When the rider says « today I have X minutes », no executable final prescription asks for more than X minutes. The session is fitted with validated content only (never a shortened text, never arbitrarily removed sets or drills, never a higher load) or becomes active recovery / REST. The multi-week plan is unchanged.**
+
+**Donnée**
+- **Colonne** : `daily_checkins.available_minutes_today integer NULL` (migration additive `20261007090000`, `CHECK` 1–1440).
+- **NULL** : « Comme prévu », aucune contrainte (comportement historique).
+- **Jamais déduite du commentaire libre.**
+- **Distincte des disponibilités hebdomadaires** (BUG-V2-1) : celles-ci disent quand le rider peut normalement s'entraîner ; ce champ dit combien de temps il a aujourd'hui.
+- **Lecture** : faite avec la version du check-in de la décision (même ligne, même lecture, `getDailyRunInputVersions`). Changer le temps rend donc la décision courante périmée (`checkin_changed`).
+
+**UX**
+- **Étape « Temps »** du check-in guidé, avant « Santé » : « Combien de temps as-tu aujourd'hui ? ».
+- **Choix** : « Comme prévu » (présélectionné), 30, 45, 60 ou 90 min, ou « Autre durée » (minutes entières).
+- **Affichée seulement si le plan courant est V2.** C'est le chemin qui honore la réponse ; ailleurs, la question promettrait ce que rien ne tient. Une valeur jamais montrée n'est jamais enregistrée.
+- **Rappel affiché** : « Ton plan ne change pas : seule la séance du jour est adaptée pour tenir dans ce temps. »
+
+**Moteur (chemin daily V2 seulement, M1 inchangé)**
+1. `buildFinalPrescriptionWithinTodayTimeV2` (planning-engine, appelé par la réconciliation) :
+   - la prescription est d'abord construite comme avant (A04) ;
+   - si elle tient en X (durée effective, ou somme des bornes hautes des blocs), elle reste telle quelle ;
+   - sinon, des candidats sont essayés dans l'ordre, chacun construit par les vrais builders et vérifié ≤ X, la charge ne montant jamais :
+     - **Force** : la dose LIGHT (45 min, même template, mêmes exercices ; MODIFY, ou REPLACE si la Force était déjà un remplacement). Aucune Force plus courte n'existe : pas de « mini-Force ».
+     - **DH** : les fenêtres de disponibilité du planificateur (`PLAN_DH_DURATION_STEPS_V2` : 90 / 75 / 60 min, passages plafonnés à 8 / 6 / 5), même drill. Rien sous 60 min.
+     - **Endurance** : le même protocole et le même choix d'activité, plus court par paliers de 15 min (`PLAN_PROGRESSION_CAPS_V2`), jamais sous les 45 min du protocole.
+     - **Puis récupération active** (REPLACE), protocole `recovery_active_v1` : ses plages sont resserrées pour tenir dans X (borne haute du bloc principal abaissée, blocs optionnels omis s'ils ne tiennent pas), jamais sous son minimum de 20 min. Aucune activité vélo n'y est choisie (BUG-V2-1).
+     - **Puis REST** : aucune séance inventée.
+   - les documents adaptés au temps portent la règle `v2.time.today_limit` en plus de leur règle A04.
+2. `applyV2TodayTimeConstraint` (head-coach) :
+   - la décision dit la séance retenue : `decision`, `final_session` et `training` (et la section DH désactivée si ce n'est plus une DH) ;
+   - A07 aligne ensuite la durée effective.
+3. **Priorité avec les autres adaptations**
+   - **Ordre** : M1 (Safety, signaux, race context), puis `V2_SYSTEMIC_FLOOR`, puis la prescription A04, puis la contrainte de temps.
+   - **La contrainte part de la séance déjà décidée et ne fait que descendre.** Exemple : MODIFY Force LIGHT 45 (C3.3) avec 30 min disponibles → récupération active.
+   - **Un REST de M1 reste REST.**
+   - **Une prescription bloquée** (MODIFY vers le haut, P0) reste bloquée (`not_evaluated`).
+
+**Trace**
+- **Règle** `V2_TODAY_TIME_CONSTRAINT` (couche `ARBITRATION`), ajoutée à `triggered_rules` dès qu'un temps est donné. Elle contient :
+  - les minutes disponibles ;
+  - la séance avant ;
+  - l'action (`fits` / `adapted` / `rest` / `not_evaluated`) ;
+  - la séance après.
+- **Quand la séance change**, elle s'ajoute aussi à `decision_reasoning`, après les raisons de M1, avec une phrase pour le rider, reprise dans `training.objective`. Par exemple : « Tu as 45 min aujourd'hui : la séance a été allégée pour tenir dans ce temps. »
+
+**Exécution déjà commencée**
+- **Inchangée.** L'exécution garde sa prescription figée (R9-UI-01) : une nouvelle décision D2 peut être calculée, mais pas une seconde séance principale (`active_execution_exists`).
+- **La séance commencée fait foi** (A07).
+
+**Hors périmètre / restes**
+- **V1** : la question n'est pas posée et le champ n'est pas lu (V1 lisible seulement, critère de release).
+- **Calibration coaching** (PROVISIONAL), deux choix conservateurs à valider :
+  - une DH qui ne tient pas devient récupération (jamais une Force de remplacement) ;
+  - le palier de 15 min de l'endurance (60 → 45 avec 50 min disponibles).
+- **Interaction avec le P0 « MODIFY vers le haut »** : non traitée ici.
+- **`docs/04`, `docs/05`, `docs/07`** : diffs proposés dans le rapport, non appliqués.
+
+**Statut** : implémenté et vert en local (branche `feat/a10-today-time`). Aucun push, aucun déploiement. Livraison à approuver : migration, puis Edge `daily-run` (bundle), puis web.

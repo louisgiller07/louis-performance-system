@@ -684,6 +684,34 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T42. A10 — temps disponible aujourd'hui
+- **Unitaires planning-engine** (`tests/unit/a10TodayTime.test.ts`, plans V2 réels en mémoire) :
+  - **A :** sans temps, résultat identique à A04 ;
+  - **B :** 90 min pour une Force de 60 min → KEEP, `fits` ; 60 min exactement → `fits` ;
+  - **C :** Force 60 + 45 → MODIFY LIGHT 45, mêmes exercices et séries que le MODIFY A04, règles `strength_light_dose` + `today_limit` ;
+  - **D :** Force 60 + 30 → récupération ≤ 30 min ; Force LIGHT 45 + 40 → récupération ;
+  - **E :** endurance 60 + 45 → même protocole et même activité à 45 ; endurance 45 + 30 → récupération ;
+  - **F :** DH 90 + 75 → fenêtre 75 (≤ 6 passages) ; + 60 → fenêtre 60 (≤ 5) ; + 30 → récupération ;
+  - **G :** 30 min sans fenêtre vélo → récupération sans choix d'activité ;
+  - **H :** 15 min → REST ;
+  - REST de M1 inchangé ;
+  - **L :** MODIFY C3.3 + 30 → récupération ; REPLACE haut MODERATE + 45 → REPLACE haut LIGHT 45 ; MODIFY DH LIGHT + 75 → fenêtre 75 à ≤ 4 passages ; MODIFY vers le haut → bloqué, `not_evaluated` ;
+  - **balayage** : chaque séance d'un plan de 3 semaines × limites 15–120 → jamais plus que la limite, document toujours valide.
+- **Unitaires head-coach** (`tests/supabase/applyV2TodayTimeConstraint.test.ts`) : pas de temps → plan inchangé ; `fits` → trace seule ; DH 60 (« raccourcie ») ; Force LIGHT (« allégée ») ; récupération (section DH désactivée) ; REST.
+- **Intégration locale** (`tests/supabase/a10TodayTime.integration.test.ts`, M1 réel, plan de 6 semaines, jours choisis dans le plan) :
+  - **A ;**
+  - **B puis C** (90, puis 45 et recalcul) ;
+  - **D, E, F** (60 et 30), **H ;**
+  - **I / J :** 60 puis 30 → D2, D1 périmée, prescription D1 refusée `final_prescription_not_current`, relecture identique ;
+  - **K :** exécution démarrée, nouvelle contrainte → D2 récupération, Start D2 refusé `active_execution_exists`, l'exécution D1 se termine ;
+  - **L :** C3.3 + 30 → récupération ; C3.3 + 60 → Force LIGHT 45 ;
+  - `CHECK` de la colonne.
+  - Chaque cas vérifie que la décision et la prescription persistées demandent au plus X minutes.
+- **Web** :
+  - `CheckinForm.availableTime.test.tsx` : étape « Temps » (V2 seulement), 45 → 45, « Comme prévu » → null (jamais lu du commentaire), « Autre durée » ; reload ; sans V2, pas de question et null ; validation ;
+  - `a10Screens.test.tsx` : la phrase du coach ; Programme, History et Après séance à 45 min ;
+  - `a10TimeFittedSessions.test.tsx` : documents moteur (récupération 25 min, DH fenêtre 60) décodés, module Guided résolu, récupération ouverte puis terminée.
+
 ### T41. A07 — séance effective, source de vérité unique
 - **Unitaires planning-engine** : `effectiveDurationMin` de la prescription finale (KEEP, MODIFY, REPLACE), couverts par les suites A04 existantes.
 - **Unitaires head-coach** (`tests/supabase/applyV2EffectiveSession.test.ts`) :

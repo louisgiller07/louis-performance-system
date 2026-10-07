@@ -653,7 +653,14 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **A02** — Force complète et claire : implémenté et vert en local (branche `feat/a02-force-sessions`, ADR A02), livraison web à approuver.
 - [x] **V1 Force — 1 exercice × 12 séries** (finding A02) : **ACCEPTED LEGACY DEBT** (HPM 2026-10-06). La Force V1 n'est pas corrigée.
 - [ ] **Critère de release — avant bêta payante** : aucune nouvelle génération client ne doit utiliser V1. V1 reste seulement lisible, pour la compatibilité historique.
-- [ ] **A10** — temps disponible aujourd'hui : aucun champ structuré ; le contexte d'adaptation A04 est prêt à recevoir une durée cible.
+- [ ] **A10** — temps disponible aujourd'hui : implémenté et vert en local (branche `feat/a10-today-time`, ADR A10).
+  - `daily_checkins.available_minutes_today` (migration additive `20261007090000`) ;
+  - étape « Temps » du check-in (plan V2) ;
+  - prescription ajustée au temps avec du contenu validé, sinon récupération ou REST, tracée par `V2_TODAY_TIME_CONSTRAINT`.
+  - Livraison à approuver : migration, puis Edge `daily-run`, puis web.
+- [ ] **A10 / calibration coaching** (PROVISIONAL) : une DH qui ne tient pas (< 60 min) devient récupération, jamais une Force de remplacement ; endurance par paliers de 15 min (planificateur). À valider.
+- [ ] **A10 / docs** : `docs/04` (`V2_TODAY_TIME_CONSTRAINT`), `docs/05` (colonne) et `docs/07` (« temps disponible aujourd'hui ») — diffs proposés, à valider.
+- [ ] **T-2** — `ux11r9Hardening` F-5b (8 tours de concurrence réelle) dépassait le délai de 5 s dans une suite parallèle chargée ; délai explicite de 30 s (A10), assertions inchangées.
 - [ ] **Glossaire** — ajouter les termes de progression (introduction, build, build+, consolidation, race-specific) à `docs/07_GLOSSARY.md` lors du packaging docs.
 - [ ] **BUG-V2-3** — date de démarrage (plan au lendemain, « aujourd'hui » Europe/Zurich, ligne de date de début) : implémenté et vert en local (branche `feat/bug-v2-3-start-date`, ADR BUG-V2-3), livraison à approuver (Edge `generate-training-plan` + `accept-training-plan`, puis web ; sans migration).
 - [ ] **D2B2** — abandon, Restart, corrections, conflits en production : BLOQUÉE jusqu'au hardening UX-11R.9.
