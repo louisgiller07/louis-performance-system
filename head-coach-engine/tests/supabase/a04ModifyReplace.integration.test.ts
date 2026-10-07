@@ -212,7 +212,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("A04 — MODIFY / REPLACE executable presc
     expect(rawContext.recent_sessions.find((s) => s.date === "2026-10-07")).toMatchObject({ intervention: { kind: "RECOVERY_ACTIVE" }, completion_status: "done" });
   });
 
-  it("K — §6 reachable on a normal V2 path: the T-6 race protocol (DH_TECHNICAL MODERATE) over a planned taper DH LIGHT → MODIFY upward → blocked upward_modify_not_supported (M1 logic ticket, not fixed here)", async () => {
+  it("K — (P0 fixed) the T-6 race protocol (DH_TECHNICAL MODERATE) over a planned taper DH LIGHT: M1 keeps the planned DH LIGHT (PLANNED_LOAD_CAP), the prescription is executable — §6 is no longer reached", async () => {
     const { athleteId: rider } = await createTestAthlete(admin, "A04 upward modify T-6");
     await setAthleteDiscipline(admin, rider, "Downhill");
     await upsertPerformanceProfileFor(admin, rider, {
@@ -236,9 +236,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("A04 — MODIFY / REPLACE executable presc
 
     await insertCheckin(admin, rider, "2026-10-18");
     const r = await runDailyFor(admin, rider, "2026-10-18");
-    expect([r.dailyPlan.decision, r.dailyPlan.final_session.kind, r.dailyPlan.final_session.load_profile]).toEqual(["MODIFY", "DH_TECHNICAL", "MODERATE"]);
-    expect(r.finalPrescriptionStatus).toBe("blocked");
-    expect(r.finalPrescriptionStatusCode).toBe("final_prescription_adaptation_not_defined");
-    expect(r.finalPrescriptionStatusDetail).toMatchObject({ reason: "upward_modify_not_supported", planned: "LIGHT", final: "MODERATE" });
+    expect([r.dailyPlan.decision, r.dailyPlan.final_session.kind, r.dailyPlan.final_session.load_profile]).toEqual(["KEEP", "DH_TECHNICAL", "LIGHT"]);
+    expect(r.dailyPlan.triggered_rules.some((t) => t.rule_id === "PLANNED_LOAD_CAP")).toBe(true);
+    expect(r.finalPrescriptionStatus).toBe("created");
   });
 });

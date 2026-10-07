@@ -14,6 +14,7 @@ import { SignalTrace } from "./signalTrace.js";
 import { evaluateSafety } from "../rules/safety.js";
 import { getModeSoftConstraints, describeStrongConstraintViolation } from "../rules/modes.js";
 import { computeRaceProtocolRecommendation } from "../rules/raceProtocol.js";
+import { capToPlannedLoad, plannedLoadCapDetail, PLANNED_LOAD_CAP_RULE_ID } from "../rules/plannedLoadCap.js";
 import { preserveCommittedActivityFamily } from "../rules/committedActivityFamily.js";
 import { evaluatePainNonSafety } from "../rules/painNonSafety.js";
 
@@ -259,6 +260,19 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     if (DH_KINDS.has(session.kind)) {
       session = { kind: "RECOVERY_ACTIVE" };
     }
+  }
+
+  // P0 (HPM 2026-10-07) — a planned session's load is never raised automatically (same activity family
+  // only, load_profile only). Last arbitration step, so no rule above can raise it — see rules/plannedLoadCap.ts.
+  const capped = capToPlannedLoad(session, ctx.planned_session);
+  if (capped) {
+    triggeredRules.push({
+      layer: "ARBITRATION",
+      rule_id: PLANNED_LOAD_CAP_RULE_ID,
+      detail: plannedLoadCapDetail(ctx.planned_session!, session, capped, raceProtocol?.recommended_session ?? null),
+      signals_used: [],
+    });
+    session = capped;
   }
 
   // V0.3_006B — Session Prescription V1 (DH-first). Applied to the FULLY

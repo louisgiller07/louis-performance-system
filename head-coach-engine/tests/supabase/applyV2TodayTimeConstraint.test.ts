@@ -6,7 +6,7 @@ import { applyV2TodayTimeConstraint, V2_TODAY_TIME_CONSTRAINT_RULE_ID } from "..
 // A10 — the decision says the session that fits in the rider's time, traced.
 
 const DH_90: TrainingIntervention = { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 };
-const C33 = { layer: "TRAINING" as const, rule_id: "C3.3", detail: "Fatigue générale.", signals_used: ["sleep_deficit"] };
+const C33 = { layer: "C" as const, rule_id: "C3.3", detail: "Fatigue générale.", signals_used: ["sleep_deficit"] };
 
 function plan(final: TrainingIntervention, decision: DailyPlan["decision"] = "KEEP"): DailyPlan {
   return {

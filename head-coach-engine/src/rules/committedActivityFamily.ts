@@ -39,6 +39,22 @@ const STRENGTH_FAMILY_KINDS: ReadonlySet<TrainingInterventionKind> = new Set([
   "GRIP_WORK",
 ]);
 
+export type ActivityFamily = "DH" | "STRENGTH" | "AEROBIC";
+
+/**
+ * P0 (HPM 2026-10-07) — the activity family of a load-variable kind, from the
+ * SAME groups this module already uses (DH family, strength family, the
+ * AEROBIC_BASE / AEROBIC_INTERVALS pair). Within one family `load_profile` is
+ * comparable (LIGHT < MODERATE < HEAVY); across families it is never compared.
+ * `null` for every other kind (fixed load, or no family-level comparison).
+ */
+export function activityFamily(kind: TrainingInterventionKind): ActivityFamily | null {
+  if (DH_FAMILY_KINDS.has(kind)) return "DH";
+  if (STRENGTH_FAMILY_KINDS.has(kind)) return "STRENGTH";
+  if (kind === "AEROBIC_BASE" || kind === "AEROBIC_INTERVALS") return "AEROBIC";
+  return null;
+}
+
 /**
  * Given the athlete's committed `TrainingIntervention`, returns a truthful
  * same-family, equal-or-lower-load adaptation reflecting an ordinary T-X

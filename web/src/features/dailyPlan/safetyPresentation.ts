@@ -117,6 +117,9 @@ const COMMITTED_FAMILY_PRESERVED_RAW =
   /^Activité engagée \(([A-Z_]+)\) — famille d'activité préservée, adaptation appliquée au lieu de la recommandation T-X \(([A-Z_]+)\)\.$/;
 const COMMITTED_FAMILY_NO_ADAPTATION_RAW =
   /^Activité engagée \(([A-Z_]+)\) — aucune adaptation de même famille disponible pour cette activité, recommandation T-X \(([A-Z_]+)\) utilisée\.$/;
+/** P0 (HPM 2026-10-07) — rules/plannedLoadCap.ts: the planned load kept instead of a stronger proposal. */
+const PLANNED_LOAD_CAP_RAW =
+  /^Séance planifiée ([A-Z_]+) ([A-Z]+) — proposition ([A-Z_]+) ([A-Z]+) \((protocole T-X|arbitrage du jour)\) plafonnée à la charge planifiée : ([A-Z_]+) ([A-Z]+)\.$/;
 /** override_reason's own fallback sentence (engine/buildDailyPlan.ts), not a triggered rule detail. */
 const OVERRIDE_FALLBACK_RAW = /^Séance finale \(([A-Z_]+)\) différente de la recommandation T-X \(([A-Z_]+)\), sans cause de domaine tracée\.$/;
 
@@ -157,6 +160,15 @@ function sanitizeCommittedFamilyDetail(detail: string): string | undefined {
   return undefined;
 }
 
+/** P0 — a plain sentence, never the rejected stronger proposal as if it were the session. */
+function sanitizePlannedLoadCapDetail(detail: string): string | undefined {
+  const match = PLANNED_LOAD_CAP_RAW.exec(detail);
+  if (!match) return undefined;
+  return match[5] === "protocole T-X"
+    ? "La charge prévue est conservée pour respecter ton affûtage."
+    : "La charge prévue est conservée : NALYNT n'alourdit jamais automatiquement une séance de ton plan.";
+}
+
 function sanitizeOverrideFallback(text: string): string | undefined {
   const match = OVERRIDE_FALLBACK_RAW.exec(text);
   if (!match) return undefined;
@@ -177,6 +189,7 @@ function resolveOverrideFor(rule: TriggeredRule): string | undefined {
   if (rule.rule_id === "POST_EVENT") return sanitizePostEventDetail(rule.detail);
   if (rule.rule_id === "RACE_DAY_ACTIVE") return sanitizeRaceDayActiveDetail(rule.detail);
   if (rule.rule_id === "COMMITTED_FAMILY_PRESERVED" || rule.rule_id === "COMMITTED_FAMILY_NO_ADAPTATION") return sanitizeCommittedFamilyDetail(rule.detail);
+  if (rule.rule_id === "PLANNED_LOAD_CAP") return sanitizePlannedLoadCapDetail(rule.detail);
   const override = FIXED_RULE_OVERRIDES[rule.rule_id];
   return override && rule.detail === override.rawDetail ? override.safeDetail : undefined;
 }
