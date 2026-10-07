@@ -633,7 +633,8 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **F-6C** — fin d'une séance Force côté serveur : implémenté et vert en local (branche `feat/f6c-force-completion`, migration additive `20261006120000`, `strength_set_required`), livraison à approuver (Edge `session-execution` → migration → web).
 - [x] **F-5d** — priorité canonique `skipped` legacy + V2 terminée = V2 terminée (pont M1, contexte de récupération, web) — corrigé dans UX-11R.9, en local.
 - [ ] **F-8** — en-tête « Ton plan actuel » sur la vue d'un brouillon (polish).
-- [ ] **F-9 / F-10** — skeleton permanent du bloc « après séance » en cas d'erreur de lecture ; libellés legacy des Edge.
+- [x] **F-9** — skeleton permanent du bloc « après séance » en cas d'erreur de lecture : corrigé dans A11 (carte d'erreur avec « Réessayer »).
+- [ ] **F-10** — libellés legacy des Edge.
 - [ ] **T-1** — isoler `athletePurge.integration.test.ts` (trigger DDL sur `athletes`) de la suite parallèle (deadlock observé une fois, vert seul et à la relance).
 - [ ] **Deno** — `accept-training-plan/index.test.ts` : 2 tests et 4 erreurs de typage antérieurs à UX-11R.9 (décision du reviewer).
 - [ ] **BUG-V2-1** — disponibilités physique / vélo : implémenté et vert en local (branche `feat/bug-v2-1-availability`), livraison à approuver (migration → Edge `generate-training-plan` → web).
@@ -643,6 +644,9 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **Calibration coaching — SYSTEMIC_RED sur DH / endurance LIGHT** (finding A04) : ces séances restent KEEP (C3.3 « nature préservée »). Décider s'il faut une règle (aucun changement pour l'instant).
 - [ ] **M1 / T-X — MODIFY vers le haut** (finding A04, ticket M1 séparé) : la recommandation T-6 `DH_TECHNICAL MODERATE` remplace une DH d'affûtage V2 `LIGHT` non engagée. M1 étiquette MODIFY vers le haut, et la prescription V2 est bloquée (`upward_modify_not_supported`) : pas de séance guidée ce jour-là. Atteignable (rider qui roule le dimanche, course le samedi suivant). Décider côté logique M1 / T-X ; M1 non modifié dans A04.
 - [ ] **A04** — MODIFY / REPLACE exécutables : implémenté et vert en local (branche `feat/a04-modify-replace`, ADR A04), livraison à approuver (Edge `daily-run` → web).
+- [ ] **A11** — bilan après séance court, clair et sûr en cas de réseau instable : implémenté et vert en local (branche `feat/a11-after-session`, ADR A11).
+  - Décision effective liée automatiquement ; non réalisée en 3 taps ; seuls les champs consommés sont demandés ; effort nommé ; progression stable ; « Réessayer » ; envoi unique ; F-5 conservé (HPM).
+  - Livraison à approuver : Edge `completed-session` (fatigue facultative), puis web ; sans migration.
 - [ ] **P0 BEFORE PAID BETA — M1 UPWARD MODIFY NORMAL PATH** (HPM 2026-10-07, bloquant avant rollout bêta, après A10 et A11) :
   - **Cas reproduit :** DH prévue `LIGHT` + protocole course T-X demandant `DH_TECHNICAL MODERATE` → MODIFY vers le haut côté M1 → prescription du jour bloquée (`upward_modify_not_supported`), donc aucune séance exécutable ce jour-là.
   - À fermer avant le rollout bêta ; non corrigé dans A07 ni A10.

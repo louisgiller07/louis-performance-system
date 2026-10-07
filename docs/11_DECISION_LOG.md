@@ -5447,3 +5447,56 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - **`docs/04`, `docs/05`, `docs/07`** : documentés après validation HPM (2026-10-07).
 
 **Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07). Implémenté et vert en local (branche `feat/a10-today-time`). Aucun push, aucun déploiement. Livraison à approuver : migration, puis Edge `daily-run` (bundle), puis web.
+
+## 2026-10-07 — ADR A11 : bilan après séance court, clair et sûr en cas de réseau instable
+
+> **The after-session debrief asks only what is used, about the day's effective session, in as few taps as possible, and survives a bad network: a failed send is visible and retried with the same answers, and the server keeps one debrief per day whatever the retries.**
+
+**Décision HPM (2026-10-07, Phase 0) : F-5 conservé**
+- **Séance guidée V2 terminée ou en cours** : elle EST l'enregistrement du jour. Elle est attachée automatiquement à son exécution, à sa prescription figée et à sa décision (A07, R9-UI-01).
+- **Pas de bilan séparé** ce jour-là (`completed_session_v2_exists`). Le bloc nomme la séance exécutée, par exemple « Séance guidée terminée — Renfo bas du corps · 45 min ».
+- **Le bilan legacy A11** couvre tous les autres jours : non réalisée, partielle, autre chose, séance libre, guidée abandonnée, V1.
+- **Écarté** : une table additive de bilan V2 (aucun consommateur M1 pour une séance terminée) et la levée de F-5 (double comptage de la charge récente).
+
+**Audit — ce que le lendemain consomme réellement**
+
+| Champ | Consommateur | Après A11 |
+|---|---|---|
+| statut, activité réalisée, durée | M1 charge récente, historique de plan | gardés (activité préremplie, « Comme prévu » en un tap) |
+| `change_reason` | M1 continuité J-1 (`fatigue_control` sur séance non terminée) | gardé pour tout statut non terminé |
+| fatigue jambes / avant-bras | M1 seulement avec `fatigue_control` (statut non terminé) ; snapshots longitudinaux | **facultative**, posée dans l'étape raison seulement pour `fatigue_control` |
+| `technical_outcome` | M1 continuité technique DH | gardé (DH liée) |
+| effort (RPE) | charge de séance (`session_load`), snapshots | gardé, avec repères |
+| nouvelle douleur | snapshots, rappel check-in | gardée pour une séance réalisée ; pour une séance non réalisée, posée seulement si la raison est la douleur |
+
+**Parcours avant → après**
+- **Terminée** : 5 étapes → **4** (statut, séance + durée, effort, signal) ; 7 taps → 5.
+- **Partielle / autre chose** : 6 → **5** (la fatigue ne s'ajoute pas comme étape).
+- **Non réalisée** : 5 étapes → **2** (« Séance terminée ? » → « Ce qui s'est passé » + détail facultatif → envoyer), 3 taps. Plus une étape seulement si aucune décision ne dit quelle séance était prévue.
+- **Raisons « non réalisée »** (vocabulaire existant, pas de nouvel enum) : manque de temps, fatigue, douleur, météo / terrain, problème mécanique, motivation, autre.
+
+**Séance attachée (A07)**
+- **Rattachement automatique** : le bilan se rattache à la décision effective du jour, la plus récente valide (décisions append-only : la dernière est courante). Elle est préremplie et corrigible (« Ce n'était pas ce plan »).
+- **Titre** : « Bilan — Renfo bas du corps », avec le vocabulaire de History.
+- **Choix manuel** seulement pour une vraie ambiguïté legacy, deux décisions au même instant. Il est expliqué : « NALYNT ne peut pas savoir laquelle tu as suivie. »
+
+**Effort et progression**
+- **Effort** : repères sous l'échelle (0 · Aucun effort, 5 · Modéré, 10 · Maximal) et la valeur choisie nommée (Très facile, Facile, Modéré, Difficile, Très difficile, Maximal). La valeur envoyée reste le nombre choisi.
+- **Progression** : « Étape 1 » tant que le chemin est inconnu, puis « Étape i / N ». Le total ne grandit plus : les questions conditionnelles (fatigue, nouvelle douleur) s'ouvrent dans l'étape raison.
+
+**Réseau et idempotence**
+- **Serveur** : idempotent par construction. L'upsert sur `unique_completed_per_day` (athlète, date) donne une contribution logique par jour, quels que soient les retries, la réponse perdue, les envois simultanés ou les modifications. Aucune clé d'idempotence supplémentaire.
+- **Client** :
+  - un seul envoi en vol (double tap = un envoi) ;
+  - échec visible avec « Réessayer » (même payload) ;
+  - réponses gardées en mémoire, même si la feuille est fermée puis rouverte, à la même étape ;
+  - aucun stockage navigateur : une note de douleur est une donnée de santé ;
+  - erreur de lecture : carte d'erreur avec « Réessayer », jamais un skeleton infini (F-9).
+- **Bug trouvé et corrigé** : `CheckinSheet` refocalisait « Fermer » à chaque rendu quand l'appelant passait un nouveau `onClose`. Toute saisie texte du bilan perdait le focus après le premier caractère. Le focus se fait désormais à l'ouverture seulement.
+
+**Contrat serveur modifié (Edge `completed-session`, sans migration)**
+- La fatigue post-séance est `null` ou 0–10 pour **tous** les statuts. Elle n'est plus obligatoire pour terminé / partiel / autre chose.
+- C'est rétro-compatible : un client qui l'envoie reste valide. La DB et la RPC l'acceptaient déjà nulle.
+- Durée et effort restent obligatoires pour une séance réalisée.
+
+**Statut** : implémenté et vert en local (branche `feat/a11-after-session`). Aucun push, aucun déploiement. Livraison : Edge `completed-session`, puis web ; sans migration.

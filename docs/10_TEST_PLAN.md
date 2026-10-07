@@ -684,6 +684,33 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T43. A11 — bilan après séance
+- **Edge, validation** (`tests/edge/completedSession/validation.test.ts`) : fatigue post-séance `null` acceptée pour terminé / partiel / autre chose ; hors plage toujours refusée.
+- **Web, unitaires** :
+  - `afterSessionSteps.test.ts` : terminée 4 étapes ; partielle 5 ; non réalisée (séance connue) 2 ; « plan » seulement en cas d'ambiguïté ; fatigue et nouvelle douleur dans l'étape raison ;
+  - `useCompletedSessionFlow.test.tsx` : décision effective liée et préremplie ; ambiguïté au même instant = choix explicite (L) ; matrice de liaison ;
+  - `completedSessionValidation.test.ts` : fatigue facultative.
+- **Web, écrans** :
+  - `AfterSessionEntry.test.tsx` : terminée en 5 taps ; non réalisée en 3 taps sans durée, effort, corps ni signal ; signal avec note ; H (erreur réseau, réponses gardées, « Réessayer » avec le même payload) ;
+  - `a11AfterSession.test.tsx` :
+    - **B / C :** « Bilan — Renfo bas du corps », lié au REPLACE recalculé ;
+    - **L ;**
+    - **A / D :** séance guidée terminée sous une ancienne décision → séance exécutée nommée, pas de bilan ;
+    - progression stable ;
+    - **F :** manque de temps ; douleur avec nouvelle douleur intégrée ;
+    - **G :** effort nommé ;
+    - **J :** double tap = un envoi ;
+    - brouillon gardé après fermeture ;
+    - **K :** relecture après succès ;
+    - erreur de lecture avec « Réessayer » ;
+    - focus conservé dans une note.
+- **Web, intégration** (`a11AfterSession.integration.test.ts`, Supabase et Edge `completed-session` locales réelles) :
+  - **H :** `fetch` rejeté → `network_error` réessayable, rien d'écrit, puis le même envoi réussit ;
+  - **I :** le serveur enregistre mais la réponse est perdue → le retry réécrit la même ligne ;
+  - **J :** deux envois simultanés → une ligne ;
+  - **K :** relecture, puis modification → toujours une ligne ;
+  - séance terminée sans fatigue acceptée.
+
 ### T42. A10 — temps disponible aujourd'hui
 - **Unitaires planning-engine** (`tests/unit/a10TodayTime.test.ts`, plans V2 réels en mémoire) :
   - **A :** sans temps, résultat identique à A04 ;
