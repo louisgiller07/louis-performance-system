@@ -401,6 +401,7 @@ L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, res
   - semaine de développement : Force modérée en 60 min, DH modérée en 90 min et 6 passages, endurance fondamentale modérée en 45 min ;
   - semaine d'affûtage : Force légère en 45 min, DH légère en 60 min et 4 passages, endurance fondamentale légère en 45 min ;
   - semaine de course : aucune séance normale.
+  - **Courses et macro-plan V2** (A09, HPM 2026-10-07) : une course A+, A ou B structure le plan (semaine spécifique deux semaines avant, affûtage la semaine d'avant, semaine de course) ; une course **C** ne crée ni semaine de course, ni affûtage, ni semaine spécifique. Elle reste connue du moteur quotidien (jour de course, récupération).
 
   Les réductions génériques liées à l'historique (V1) et les durées d'affûtage V1 ne sont pas reprises en V2. Depuis `plan-dose-policy-v2.3`, la charge (`load_profile`) de chaque type de séance V2 vient de cette politique uniquement.
 

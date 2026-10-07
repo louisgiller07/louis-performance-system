@@ -400,7 +400,9 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
 
 Résultats stockés : result_position, result_time_seconds, result_gap_to_winner, result_field_size.
 
-**`status`** (`race_status` enum : `planned`/`registered`/`confirmed`/`completed`/`cancelled`/`skipped`, défaut `planned`) — aucun chemin applicatif ne l'écrit à ce jour (valeur figée à la création ou éditée manuellement). Deux consommateurs, deux définitions distinctes et volontairement différentes (V0.3_005, voir `04_DAILY_DECISION_ENGINE.md` §Statut de la course et `11_DECISION_LOG.md` V0.3_005B/NAL-007A) :
+**Écriture par le rider (A09)** : l'UI « Tes courses » (Affiner ton profil) crée, modifie et supprime les courses du rider, via la RLS existante `race_calendar_own_data` (le rider ne gère que ses propres lignes). Elle écrit `event_name`, `start_date`, `end_date`, `priority` (A / B / C ; A_PLUS existant conservé) et `race_format` (`HOT_TRAIL_2DAY` / `IXS_3DAY` / `OTHER` ; un format existant conservé).
+
+**`status`** (`race_status` enum : `planned`/`registered`/`confirmed`/`completed`/`cancelled`/`skipped`, défaut `planned`) — écrit `planned` à la création par « Tes courses » (A09), jamais modifié ensuite par un chemin applicatif (autres valeurs : éditées manuellement). Deux consommateurs, deux définitions distinctes et volontairement différentes (V0.3_005, voir `04_DAILY_DECISION_ENGINE.md` §Statut de la course et `11_DECISION_LOG.md` V0.3_005B/NAL-007A) :
 - **Pertinence coaching** (`head-coach-engine`, adapter uniquement, M1 reste sans connaissance du statut) : `cancelled`/`skipped` exclus de toute phase (PRE_EVENT/IN_PROGRESS/POST_EVENT) ; `completed` exclus de PRE_EVENT/IN_PROGRESS mais **inclus** pour POST_EVENT (aucun writer ne transitionne jamais vers `completed`, l'exiger désactiverait silencieusement la récupération post-course) ; `planned`/`registered`/`confirmed` toujours inclus.
 - **Overlay Planning** (`web`, lecture seule, V0.3_005/NAL-007) : seuls `planned`/`registered`/`confirmed` sont affichés dans l'horizon `/plan` (aujourd'hui→J+6) — reprend la définition déjà existante de l'index partiel `idx_race_calendar_upcoming`. Différence intentionnelle avec le moteur : un événement `completed` n'a pas besoin d'apparaître comme "à venir" dans Planning tout en restant coaching-pertinent pour POST_EVENT.
 
@@ -445,7 +447,7 @@ Accès : RLS activée sans policy ; `service_role` = `INSERT` uniquement ; aucun
 
 ### `training_plan_model_assignments` (UX-11R.2 — choix serveur du modèle de planification, migration appliquée en production le 2026-10-04, Stage 1 ; table vide, code de génération V2 non déployé)
 
-Configuration serveur, hors modèle coaching : quel modèle de planification utiliser pour les **nouvelles** générations d'un athlète. Lue uniquement par `generate-training-plan` (service role), et seulement si le secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED` vaut exactement `true`. Migration `20261003090000_ux11r2_training_plan_model_assignments`.
+Configuration serveur, hors modèle coaching : quel modèle de planification utiliser pour les **nouvelles** générations d'un athlète. Lue uniquement par `generate-training-plan` (service role), **à chaque génération** (A09, HPM 2026-10-07), quel que soit le secret Edge `NALYNT_V2_PLAN_GENERATION_ENABLED`. Migration `20261003090000_ux11r2_training_plan_model_assignments`.
 
 | Colonne | Type | Note |
 |---|---|---|
@@ -454,7 +456,7 @@ Configuration serveur, hors modèle coaching : quel modèle de planification uti
 | `note` | `text NULL` | `CHECK` : non blanche, ≤ 500 caractères ; note d'opérateur |
 | `created_at`, `updated_at` | `timestamptz` | `now()` ; `updated_at` par trigger `set_updated_at` |
 
-Accès : RLS activée sans policy ; aucun privilège pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`, `UPDATE`, `DELETE` seulement. Aucune ligne créée par la migration : table vide → tout le monde en V1. Résolution : interrupteur inactif → V1 ; actif sans ligne → V1 ; `v1` → V1 ; `v2` → V2. Ne gouverne pas Daily, les prescriptions du jour ni les exécutions, qui suivent les plans persistés. Les événements `plan_generation_*` de `pilot_observability_events` portent `metadata.planningModel` et `metadata.rolloutReason`. Voir `11_DECISION_LOG.md` (ADR UX-11R.2) et `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7.
+Accès : RLS activée sans policy ; aucun privilège pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`, `UPDATE`, `DELETE` seulement. Aucune ligne créée par la migration : table vide → tout le monde en V1. Résolution : interrupteur inactif → V1, **sauf athlète affecté `v2` → génération refusée** (`assigned_v2_disabled`, HTTP 503 `v2_generation_disabled`, rien n'est écrit) ; actif sans ligne → V1 ; `v1` → V1 ; `v2` → V2. **Aucun repli V1 n'est autorisé pour un athlète explicitement affecté `v2`** (garde de la bêta payante, A09). L'interrupteur reste un vrai kill switch de la génération V2. Ne gouverne pas Daily, les prescriptions du jour ni les exécutions, qui suivent les plans persistés. Les événements `plan_generation_*` de `pilot_observability_events` portent `metadata.planningModel` et `metadata.rolloutReason`. Voir `11_DECISION_LOG.md` (ADR UX-11R.2) et `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7.
 
 ### `athlete_onboarding_profiles` — consentement données de santé (PILOT_012, additif)
 
