@@ -643,9 +643,13 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **Calibration coaching — SYSTEMIC_RED sur DH / endurance LIGHT** (finding A04) : ces séances restent KEEP (C3.3 « nature préservée »). Décider s'il faut une règle (aucun changement pour l'instant).
 - [ ] **M1 / T-X — MODIFY vers le haut** (finding A04, ticket M1 séparé) : la recommandation T-6 `DH_TECHNICAL MODERATE` remplace une DH d'affûtage V2 `LIGHT` non engagée. M1 étiquette MODIFY vers le haut, et la prescription V2 est bloquée (`upward_modify_not_supported`) : pas de séance guidée ce jour-là. Atteignable (rider qui roule le dimanche, course le samedi suivant). Décider côté logique M1 / T-X ; M1 non modifié dans A04.
 - [ ] **A04** — MODIFY / REPLACE exécutables : implémenté et vert en local (branche `feat/a04-modify-replace`, ADR A04), livraison à approuver (Edge `daily-run` → web).
-- [ ] **A07** — source de vérité de la prescription effective : History (décision seule), Program (plan prévu) et la durée de l'en-tête Today (M1) ne lisent pas le contenu adapté (constat A04 ; A02 : une Force MODIFY LIGHT peut afficher la durée prévue de 60 min).
+- [ ] **A07** — séance effective, source de vérité unique : implémenté et vert en local (branche `feat/a07-effective-session`, ADR A07). La décision V2 persistée porte la durée de la prescription (`V2_EFFECTIVE_SESSION`), et un modèle de lecture web partagé alimente Today (semaine), Program, History et Après séance. Livraison à approuver (Edge `daily-run`, puis web ; sans migration).
+- [ ] **A07 / restes** :
+  - les décisions antérieures à A07 gardent la durée M1, sans réécriture historique ;
+  - `docs/04` et `docs/07` : documenter `V2_EFFECTIVE_SESSION` et le terme « séance effective » (diff proposé, à valider).
 - [ ] **A02** — Force complète et claire : implémenté et vert en local (branche `feat/a02-force-sessions`, ADR A02), livraison web à approuver.
-- [ ] **V1 Force — 1 exercice × 12 séries** (finding A02) : le résolveur Force V1 pose le volume de séance (`setVolume` 12 / 8) comme séries d'un seul exercice. À corriger côté prescription-engine ou à retirer avec V1.
+- [x] **V1 Force — 1 exercice × 12 séries** (finding A02) : **ACCEPTED LEGACY DEBT** (HPM 2026-10-06). La Force V1 n'est pas corrigée.
+- [ ] **Critère de release — avant bêta payante** : aucune nouvelle génération client ne doit utiliser V1. V1 reste seulement lisible, pour la compatibilité historique.
 - [ ] **A10** — temps disponible aujourd'hui : aucun champ structuré ; le contexte d'adaptation A04 est prêt à recevoir une durée cible.
 - [ ] **Glossaire** — ajouter les termes de progression (introduction, build, build+, consolidation, race-specific) à `docs/07_GLOSSARY.md` lors du packaging docs.
 - [ ] **BUG-V2-3** — date de démarrage (plan au lendemain, « aujourd'hui » Europe/Zurich, ligne de date de début) : implémenté et vert en local (branche `feat/bug-v2-3-start-date`, ADR BUG-V2-3), livraison à approuver (Edge `generate-training-plan` + `accept-training-plan`, puis web ; sans migration).

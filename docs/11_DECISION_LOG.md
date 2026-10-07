@@ -5334,3 +5334,54 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
   - History ne montre que la décision.
 
 **Statut** : implémenté et vert en local (branche `feat/a02-force-sessions`). Aucun push, aucun déploiement. Livraison : web seulement.
+
+## 2026-10-07 — ADR A07 : séance effective, source de vérité unique
+
+> **Every screen tells the day from ONE effective session: the V2 execution's frozen prescription when there is one, otherwise the day's latest decision (KEEP / MODIFY / REPLACE / REST), otherwise the planned session. The original plan is only ever secondary.**
+
+**Sources avant A07**
+- **Today, en-tête** : `daily_plan.final_session` de M1. Sa durée est celle de M1 (prévue, ou fenêtre DH), même quand la prescription du jour en définit une autre. Exemple : une Force MODIFY LIGHT affichait 60 min pour une séance de 45 min.
+- **Today, semaine** : `planned_sessions`, débriefs legacy et exécutions terminées, sans les décisions. Un REST décidé ressemblait à une séance manquée ; un REPLACE gardait le libellé prévu.
+- **Program** : le titre est la séance prévue, l'adaptation n'apparaît que dans un encart à côté. Un jour passé REST était « Non enregistrée ».
+- **History** : la décision la plus récente du jour, même quand une séance a été terminée sous une décision antérieure. La ligne disait seulement « Séance guidée terminée ».
+- **Après séance** : bloc générique, sans nommer la séance exécutée.
+
+**Décision**
+1. **Serveur, chemin daily V2 seulement** (`applyV2EffectiveSession`, après la réconciliation, avant `persist_daily_run_v2` ; M1 inchangé) :
+   - la prescription finale créée expose sa durée effective (`effectiveDurationMin`, pas une colonne) :
+     - KEEP : la durée générée ;
+     - MODIFY : Force LIGHT 45 min, endurance selon la prescription, DH = durée M1 ;
+     - REPLACE : Force 45 / 60 min, DH = durée M1 ou 60 / 90 min, endurance selon la prescription, récupération sans durée ;
+   - quand elle diffère de celle de M1, `final_session.duration_min` et `training` la prennent ;
+   - le changement est tracé par la règle `V2_EFFECTIVE_SESSION` (couche `ARBITRATION`, durée M1 dans le détail), jamais dans l'explication au rider ;
+   - type et charge sont déjà ceux de la prescription (A04). Un type différent est une erreur de contrat (`EffectiveSessionMismatchError`), jamais un alignement silencieux.
+2. **Web, un modèle de lecture partagé** (`web/src/features/effectiveSession/`) :
+   - `effectiveDay(date, sources)` est pur : séance, statut, source, adaptation, séance prévue, et ids de décision, d'exécution et de prescription ;
+   - **un seul chargeur** (`loadEffectiveSources`) : 3 lectures parallèles (décisions des dates, exécutions avec leurs événements, débriefs legacy). Les séances prévues viennent de l'écran appelant ;
+   - Today (semaine), Program, History et Après séance le lisent tous.
+3. **Priorité**
+   - **Exécution V2** : sa prescription figée fait foi, sur **sa propre** décision, même après une décision plus récente (R9-UI-01). Statuts :
+     - une exécution `completed` → `completed` ;
+     - une exécution ouverte → `in_progress` ;
+     - un abandon seul → `abandoned`, sur la décision courante ;
+     - après un abandon, la reprise fait foi.
+   - **Décision la plus récente** : KEEP, MODIFY ou REPLACE (`decided`) ; REST → `rest`, jamais « manquée ».
+   - **Séance prévue** (`planned`), seulement si aucune décision n'existe.
+   - **Débrief legacy** : il complète le jour sans changer quelle séance c'était. Un `skipped` legacy correspond au statut `skipped`.
+4. **Compteurs de semaine, une règle**
+   - **« Prévues »** : jours dont la séance effective est un entraînement. Un REPLACE compte une fois, comme son remplacement. Un REST décidé ne compte pas.
+   - **« Réalisées »** : jours terminés (exécution V2 ou débrief legacy).
+5. **Écrans**
+   - **Program** : la séance effective est le titre et la méta (« 45 min · charge légère »). La séance prévue est secondaire (« Voir la séance initialement prévue »). Statuts affichés : Réalisée, Repos décidé, En cours, Arrêtée.
+   - **History** :
+     - jour exécuté : la décision de l'exécution, avec la ligne « ✓ Séance guidée terminée — <séance> » ;
+     - autres libellés : « Repos décidé par NALYNT », « Séance guidée en cours », « Séance guidée arrêtée ».
+   - **Après séance** : nomme la séance exécutée.
+
+**Hors périmètre / restes**
+- **Décisions antérieures à A07** : pas de réécriture de `daily_plan`. Elles gardent la durée M1 dans l'en-tête Today et History.
+- **V1** : lecture inchangée (pas de prescription finale, donc pas d'alignement).
+- **F-8** : non traité.
+- `docs/04` et `docs/07` : ajout de `V2_EFFECTIVE_SESSION` et du terme « séance effective », proposé dans le rapport et non appliqué.
+
+**Statut** : implémenté et vert en local (branche `feat/a07-effective-session`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (bundle), puis web ; sans migration.

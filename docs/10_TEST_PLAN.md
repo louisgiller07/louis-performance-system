@@ -684,6 +684,28 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T41. A07 — séance effective, source de vérité unique
+- **Unitaires planning-engine** : `effectiveDurationMin` de la prescription finale (KEEP, MODIFY, REPLACE), couverts par les suites A04 existantes.
+- **Unitaires head-coach** (`tests/supabase/applyV2EffectiveSession.test.ts`) :
+  - MODIFY Force 60 → 45 : séance finale et `training` à 45, règle `V2_EFFECTIVE_SESSION` avec la durée M1, rien d'autre ne change ;
+  - même durée, pas de durée, ou pas de prescription → plan inchangé ;
+  - type différent → `EffectiveSessionMismatchError`.
+- **Intégration locale** (`tests/supabase/a07EffectiveSession.integration.test.ts`, M1 réel, base locale) :
+  - **B :** KEEP DH 90, sans trace ;
+  - **C :** MODIFY Force → `daily_plan` 45 min (séance finale et `training`), tracé, prescription = cette Force ;
+  - **D :** MODIFY DH garde la fenêtre M1 ;
+  - **E :** REPLACE bas → haut à 60 min ;
+  - MODIFY endurance à 45 min ;
+  - **G :** REST sans prescription.
+- **Web, modèle** (`effectiveSession/effectiveDay.test.ts`) :
+  - priorité A–L : pas de Daily, KEEP, MODIFY, REPLACE (Force, récupération), REST, exécution ouverte puis terminée sur sa propre décision après une nouvelle décision, abandon puis reprise, débrief legacy, reload ;
+  - compteurs de semaine (REPLACE compté une fois, REST ni prévu ni manqué).
+- **Web, écrans** (`effectiveSession/a07Screens.test.tsx`) :
+  - Program : REPLACE DH → Force (titre Force, DH « initialement prévue ») ; MODIFY 45 min ; REST passé « Repos décidé » ; semaine du plan ;
+  - Today : semaine (libellés effectifs, compteurs) ;
+  - History : I / K (exécution terminée sous d1 après d2) et J (« Séance guidée arrêtée ») ;
+  - Après séance : nomme la Force exécutée.
+
 ### T40. A02 — séances de Force complètes et sans ambiguïté
 - **Moteur** (`planning-engine/tests/unit/a02ForceSessions.test.ts`) :
   - 3 niveaux × bas / haut × 5 jeux de matériel × LIGHT / MODERATE / MODERATE_PLUS : exercices réels, chacun avec séries / mesure / RPE / repos / consigne, montée en charge du principal ;
