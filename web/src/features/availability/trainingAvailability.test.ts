@@ -77,3 +77,31 @@ describe("BUG-V2-1 — physical / riding week", () => {
     expect(weekSummary(week)).toEqual(["Physique · Lun 1 h 30, Mar 1 h 30", "Vélo · Sam Journée, Dim Journée"]);
   });
 });
+
+// P1 riding days single source — the riding days shown are exactly the days the planner can ride on.
+import { ridingDaysFromWindows } from "./trainingAvailability";
+import { windowServes } from "../../../../planning-engine/src/pipeline/availabilityActivity.ts";
+
+describe("P1 — ridingDaysFromWindows mirrors the planner's windowServes(window, 'riding')", () => {
+  const w = (id: string, dayOfWeek: AvailabilityWindow["dayOfWeek"], startTime: string, endTime: string, activity: AvailabilityWindow["activity"]): AvailabilityWindow => ({ id, dayOfWeek, startTime, endTime, label: null, activity });
+  const DOW_TO_DAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+  // What the planner sees: buildPlanInputSnapshot passes "physical" / "riding" through and drops "any" (a legacy window serves both).
+  const plannerRidingDays = (windows: AvailabilityWindow[]) => {
+    const dows = new Set(windows.filter((x) => windowServes({ dayOfWeek: x.dayOfWeek, startTime: x.startTime, endTime: x.endTime, ...(x.activity === "any" ? {} : { activity: x.activity }) }, "riding")).map((x) => x.dayOfWeek));
+    return ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].filter((d) => dows.has(DOW_TO_DAY.indexOf(d as (typeof DOW_TO_DAY)[number]) as AvailabilityWindow["dayOfWeek"]));
+  };
+
+  it("riding → a riding day; physical alone → never; legacy any → a riding day whatever its length (no web threshold)", () => {
+    const cases: AvailabilityWindow[][] = [
+      [w("a", 6, "08:00", "18:00", "riding"), w("b", 0, "08:00", "10:00", "riding")],
+      [w("a", 2, "18:00", "19:30", "physical")],
+      [w("a", 2, "18:00", "19:00", "any"), w("b", 6, "08:00", "18:00", "any")],
+      [w("a", 1, "18:00", "19:30", "physical"), w("b", 1, "08:00", "10:00", "riding"), w("c", 3, "18:00", "19:00", "physical")],
+      [],
+    ];
+    for (const windows of cases) expect(ridingDaysFromWindows(windows)).toEqual(plannerRidingDays(windows));
+    expect(ridingDaysFromWindows(cases[1]!)).toEqual([]);
+    expect(ridingDaysFromWindows(cases[2]!)).toEqual(["Tuesday", "Saturday"]);
+    expect(ridingDaysFromWindows(cases[0]!)).toEqual(["Saturday", "Sunday"]);
+  });
+});

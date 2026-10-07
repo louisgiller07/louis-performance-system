@@ -30,7 +30,6 @@ import {
   saveCompetitionLevel,
   savePrimaryGoal,
   saveWeeklyTrainingHours,
-  saveRidingDays,
   AthleteOnboardingError,
   type OnboardingAnswers,
 } from "../athleteOnboarding/athleteOnboardingRepo";
@@ -39,12 +38,10 @@ import {
   COMPETITION_LEVEL_OPTIONS,
   PRIMARY_GOAL_OPTIONS,
   WEEKLY_TRAINING_HOURS_OPTIONS,
-  RIDING_DAY_OPTIONS,
   type Discipline,
   type CompetitionLevel,
   type PrimaryGoal,
   type WeeklyTrainingHours,
-  type RidingDay,
 } from "../athleteOnboarding/onboardingOptions";
 import {
   DISCIPLINE_LABELS,
@@ -56,7 +53,7 @@ import {
 import { getActivePlanVersionId } from "../trainingPlanReview/trainingPlanReviewRepo";
 import { TrainingPlanGenerationPanel } from "./TrainingPlanGenerationPanel";
 import { AvailabilitySection, type AvailabilityGateState } from "./AvailabilitySection";
-import { isLegacyAvailability, weekFromWindows, weekSummary } from "../availability/trainingAvailability";
+import { isLegacyAvailability, ridingDaysFromWindows, weekFromWindows, weekSummary } from "../availability/trainingAvailability";
 import {
   ACTIONS,
   DAY_SHORT,
@@ -95,7 +92,6 @@ interface Practice {
   competitionLevel: CompetitionLevel | null;
   primaryGoal: PrimaryGoal | null;
   weeklyTrainingHours: WeeklyTrainingHours | null;
-  ridingDays: RidingDay[];
   seasonObjective: string;
 }
 
@@ -306,7 +302,6 @@ export function PerformanceSetup() {
       competitionLevel: onboarding.competitionLevel,
       primaryGoal: onboarding.primaryGoal,
       weeklyTrainingHours: onboarding.weeklyTrainingHours,
-      ridingDays: onboarding.preferredRidingDays,
       seasonObjective: profile.seasonObjective ?? "",
     });
     setOpen(id);
@@ -348,7 +343,6 @@ export function PerformanceSetup() {
       if (draft.competitionLevel !== onboarding.competitionLevel) await saveCompetitionLevel(id, draft.competitionLevel!);
       if (draft.primaryGoal !== onboarding.primaryGoal) await savePrimaryGoal(id, draft.primaryGoal!);
       if (draft.weeklyTrainingHours !== onboarding.weeklyTrainingHours) await saveWeeklyTrainingHours(id, draft.weeklyTrainingHours!);
-      if (draft.ridingDays.join() !== onboarding.preferredRidingDays.join()) await saveRidingDays(id, draft.ridingDays);
       const objective = draft.seasonObjective.trim() || null;
       const nextProfile = { ...profile, seasonObjective: objective };
       if (objective !== (profile.seasonObjective?.trim() || null)) await savePerformanceSetup(id, nextProfile);
@@ -362,7 +356,8 @@ export function PerformanceSetup() {
                 competitionLevel: draft.competitionLevel,
                 primaryGoal: draft.primaryGoal,
                 weeklyTrainingHours: draft.weeklyTrainingHours,
-                preferredRidingDays: draft.ridingDays,
+                // P1 — the onboarding answer is only the first pre-fill of the slots: never edited here.
+                preferredRidingDays: onboarding.preferredRidingDays,
               },
             }
           : current
@@ -390,7 +385,14 @@ export function PerformanceSetup() {
 
   const p = practiceDraft;
   const d = profileDraft;
-  const practiceComplete = !!p && !!p.discipline && !!p.competitionLevel && !!p.primaryGoal && !!p.weeklyTrainingHours && p.ridingDays.length > 0;
+  const practiceComplete = !!p && !!p.discipline && !!p.competitionLevel && !!p.primaryGoal && !!p.weeklyTrainingHours;
+  // P1 riding days single source — the slots are the only truth after the first run (never preferred_riding_days).
+  const ridingDays = ridingDaysFromWindows(windows);
+  const ridingDaysLine = ridingDays.length > 0 ? PRACTICE.summaryRidingDays(joinLabels(ridingDays, RIDING_DAY_LABELS).toLowerCase()) : PRACTICE.noRidingSlot;
+  function goToSlots() {
+    edit("slots");
+    document.getElementById("slots")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
   const availabilityReady = open === "slots" ? !availabilityGate.loading && !availabilityGate.dirty && !availabilityGate.saving && availabilityGate.hasSavedAvailability : windows.length > 0;
   const configurationReady = (open === null || open === "slots" || open === "preparation") && !saving && availabilityReady;
 
@@ -420,8 +422,12 @@ export function PerformanceSetup() {
             </p>
             {onboarding.primaryGoal && <p>{PRACTICE.summaryGoal(PRIMARY_GOAL_LABELS[onboarding.primaryGoal])}</p>}
             {onboarding.weeklyTrainingHours && (
-              <p>{PRACTICE.summaryHours(WEEKLY_TRAINING_HOURS_LABELS[onboarding.weeklyTrainingHours], joinLabels(onboarding.preferredRidingDays, RIDING_DAY_LABELS).toLowerCase())}</p>
+              <p>{PRACTICE.summaryHours(WEEKLY_TRAINING_HOURS_LABELS[onboarding.weeklyTrainingHours])}</p>
             )}
+            <p>{ridingDaysLine}</p>
+            <button type="button" onClick={goToSlots} className="ux-press min-h-11 self-start text-sm font-medium text-gold underline-offset-4 hover:underline">
+              {PRACTICE.editSlots}
+            </button>
             {profile.seasonObjective && <p>{PRACTICE.summarySeason(profile.seasonObjective)}</p>}
           </>
         }
@@ -442,7 +448,7 @@ export function PerformanceSetup() {
               <Chips options={WEEKLY_TRAINING_HOURS_OPTIONS} labels={WEEKLY_TRAINING_HOURS_LABELS} selected={p.weeklyTrainingHours ? [p.weeklyTrainingHours] : []} onToggle={(v) => setPracticeDraft({ ...p, weeklyTrainingHours: v })} label={PRACTICE.hours} />
             </Field>
             <Field label={PRACTICE.ridingDays} hint={PRACTICE.ridingDaysHint}>
-              <Chips options={RIDING_DAY_OPTIONS} labels={RIDING_DAY_LABELS} selected={p.ridingDays} onToggle={(v) => setPracticeDraft({ ...p, ridingDays: toggleValue(p.ridingDays, v) })} label={PRACTICE.ridingDays} />
+              <p className="text-sm text-ink/80">{ridingDaysLine}</p>
             </Field>
             <label className="flex flex-col gap-2 text-sm font-medium text-ink">
               {PRACTICE.seasonObjective}

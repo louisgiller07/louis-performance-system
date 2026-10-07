@@ -41,11 +41,15 @@ export const PRACTICE = {
   goal: "Ton objectif principal",
   hours: "Ton temps par semaine",
   ridingDays: "Tes jours de roulage",
-  ridingDaysHint: "Au moins un.",
+  // P1 riding days single source — read from the riding slots, never edited here.
+  ridingDaysHint: "Ils viennent de tes créneaux vélo : modifie-les dans Tes créneaux.",
+  summaryRidingDays: (days: string) => `Roule ${days} · d'après tes créneaux`,
+  noRidingSlot: "Aucun créneau vélo · d'après tes créneaux",
+  editSlots: "Modifier dans Tes créneaux",
   seasonObjective: "Ton objectif de saison (facultatif)",
   seasonObjectivePlaceholder: "Ex. : top 10 aux Championnats suisses",
   summaryGoal: (goal: string) => `Objectif : ${goal}`,
-  summaryHours: (hours: string, days: string) => `${hours} par semaine · roule ${days}`,
+  summaryHours: (hours: string) => `${hours} par semaine`,
   summarySeason: (objective: string) => `Objectif de saison : ${objective}`,
 } as const;
 

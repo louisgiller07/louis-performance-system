@@ -102,7 +102,9 @@ describe("Affiner ton profil — what NALYNT knows (summaries)", () => {
 
     expect(within(section("Ta pratique")).getByText("Descente (DH) · Compétiteur amateur")).toBeInTheDocument();
     expect(within(section("Ta pratique")).getByText("Objectif : Performance en course")).toBeInTheDocument();
-    expect(within(section("Ta pratique")).getByText("5 à 10 h par semaine · roule samedi, dimanche")).toBeInTheDocument();
+    expect(within(section("Ta pratique")).getByText("5 à 10 h par semaine")).toBeInTheDocument();
+    // Legacy "any" windows serve riding for the planner (Tue 17–21 h included): the days come from the slots.
+    expect(within(section("Ta pratique")).getByText("Roule mardi, samedi, dimanche · d'après tes créneaux")).toBeInTheDocument();
     expect(within(section("Ta pratique")).getByText("Objectif de saison : Top 10 aux Championnats suisses")).toBeInTheDocument();
     expect(within(section("Ton terrain")).getByText("Flow trail")).toBeInTheDocument();
     expect(within(section("Ton matériel")).getByText("Haltères")).toBeInTheDocument();
@@ -200,14 +202,13 @@ describe("Affiner ton profil — Ta pratique (the first-run answers, now editabl
     await user.click(await screen.findByRole("button", { name: "Modifier ta pratique" }));
     const practice = section("Ta pratique");
     await user.click(within(practice).getByRole("button", { name: "Enduro" }));
-    await user.click(within(practice).getByRole("button", { name: "Mercredi" }));
     const objective = within(practice).getByLabelText("Ton objectif de saison (facultatif)");
     await user.clear(objective);
     await user.type(objective, "Podium Enduro Series");
     await user.click(within(practice).getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() => expect(repo.saveDiscipline).toHaveBeenCalledWith("athlete-1", "Enduro"));
-    expect(repo.saveRidingDays).toHaveBeenCalledWith("athlete-1", ["Saturday", "Sunday", "Wednesday"]);
+    expect(repo.saveRidingDays).not.toHaveBeenCalled();
     expect(repo.saveCompetitionLevel).not.toHaveBeenCalled();
     expect(repo.savePrimaryGoal).not.toHaveBeenCalled();
     expect(repo.saveWeeklyTrainingHours).not.toHaveBeenCalled();
@@ -216,14 +217,52 @@ describe("Affiner ton profil — Ta pratique (the first-run answers, now editabl
     expect(within(section("Ta pratique")).getByRole("status")).toHaveTextContent("Ton plan actuel reste inchangé");
   });
 
-  it("at least one riding day", async () => {
+});
+
+// P1 riding days single source — after the first run the slots are the only truth; preferred_riding_days is never edited nor shown.
+describe("Affiner ton profil — riding days come from the slots only", () => {
+  it("contradiction: preferred_riding_days = [Monday], riding slots Sat + Sun (physical Tue) → only samedi, dimanche", async () => {
+    repo.loadOnboardingAnswers.mockResolvedValue({ ...ONBOARDING, preferredRidingDays: ["Monday"] });
+    repo.loadAvailabilityWindows.mockResolvedValue(TYPED_WINDOWS);
+    renderPage();
+    const line = await within(await screen.findByRole("region", { name: "Ta pratique" })).findByText("Roule samedi, dimanche · d'après tes créneaux");
+    expect(line).toBeInTheDocument();
+    expect(within(section("Ta pratique")).queryByText(/lundi|mardi/)).toBeNull();
+  });
+
+  it("editing « Ta pratique »: no riding-day chips, the slots' days read-only, saving never writes preferred_riding_days", async () => {
     const user = userEvent.setup();
+    repo.loadAvailabilityWindows.mockResolvedValue(TYPED_WINDOWS);
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Modifier ta pratique" }));
     const practice = section("Ta pratique");
-    await user.click(within(practice).getByRole("button", { name: "Samedi" }));
-    await user.click(within(practice).getByRole("button", { name: "Dimanche" }));
-    expect(within(practice).getByRole("button", { name: "Enregistrer" })).toBeDisabled();
+    for (const day of ["Lundi", "Samedi", "Dimanche"]) expect(within(practice).queryByRole("button", { name: day })).toBeNull();
+    expect(within(practice).getByText("Roule samedi, dimanche · d'après tes créneaux")).toBeInTheDocument();
+    expect(within(practice).getByText("Ils viennent de tes créneaux vélo : modifie-les dans Tes créneaux.")).toBeInTheDocument();
+    await user.click(within(practice).getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(within(section("Ta pratique")).getByRole("status")).toBeInTheDocument());
+    expect(repo.saveRidingDays).not.toHaveBeenCalled();
+  });
+
+  it("physical slots only: never a riding day", async () => {
+    repo.loadAvailabilityWindows.mockResolvedValue([TYPED_WINDOWS[0]]);
+    renderPage();
+    expect(await within(await screen.findByRole("region", { name: "Ta pratique" })).findByText("Aucun créneau vélo · d'après tes créneaux")).toBeInTheDocument();
+  });
+
+  it("« Modifier dans Tes créneaux » opens the slots; once they are saved, the summary follows them (never the old column)", async () => {
+    const user = userEvent.setup();
+    repo.loadAvailabilityWindows.mockResolvedValue(TYPED_WINDOWS);
+    repo.saveAvailabilityWindows.mockResolvedValue([{ id: "n1", dayOfWeek: 3, startTime: "08:00", endTime: "11:00", label: null, activity: "riding" }]);
+    renderPage();
+    await user.click(await within(await screen.findByRole("region", { name: "Ta pratique" })).findByRole("button", { name: "Modifier dans Tes créneaux" }));
+    const slots = section("Tes créneaux");
+    await waitFor(() => expect(within(slots).getByRole("combobox", { name: "Physique — Lundi" })).toBeInTheDocument());
+    await user.selectOptions(within(slots).getByRole("combobox", { name: "Physique — Lundi" }), "120");
+    await user.click(within(slots).getByRole("button", { name: "Enregistrer mes disponibilités" }));
+    await waitFor(() => expect(within(section("Ta pratique")).getByText("Roule mercredi · d'après tes créneaux")).toBeInTheDocument());
+    expect(within(section("Ta pratique")).queryByText(/samedi|dimanche/)).toBeNull();
+    expect(repo.saveRidingDays).not.toHaveBeenCalled();
   });
 });
 

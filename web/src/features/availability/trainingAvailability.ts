@@ -1,5 +1,5 @@
 import type { AvailabilityActivity, AvailabilityDayOfWeek, AvailabilityWindow, SaveAvailabilityWindowInput } from "../performanceSetup/availabilityRepo";
-import type { RidingDay } from "../athleteOnboarding/onboardingOptions";
+import { RIDING_DAY_OPTIONS, type RidingDay } from "../athleteOnboarding/onboardingOptions";
 
 // BUG-V2-1 — the rider declares two separate weekly availabilities: physical
 // training (strength, home trainer, running) and riding (bike / terrain). A
@@ -103,6 +103,19 @@ export function weekFromWindows(windows: readonly AvailabilityWindow[], ridingDa
     }
   }
   return week;
+}
+
+/**
+ * P1 riding days single source — the days the planner can place a riding
+ * session on, read from the saved windows only (never preferred_riding_days).
+ * Mirror of planning-engine `windowServes(window, "riding")` (locked by
+ * test): a "riding" window, or a legacy "any" window (the snapshot passes it
+ * without activity, so it serves both, whatever its length); a "physical"
+ * window never. Monday first.
+ */
+export function ridingDaysFromWindows(windows: readonly AvailabilityWindow[]): RidingDay[] {
+  const days = new Set(windows.filter((w) => w.activity === "riding" || w.activity === "any").map((w) => w.dayOfWeek));
+  return RIDING_DAY_OPTIONS.filter((day) => days.has(RIDING_DAY_TO_DOW[day]));
 }
 
 /** True once windows exist but none says physical or riding (a profile from before BUG-V2-1). */
