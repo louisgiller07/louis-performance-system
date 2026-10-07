@@ -84,6 +84,15 @@ Champs principaux : sleep_hours, sleep_quality, sleep_wake_ups, energy, work_str
 
 Les trois champs `pain_traumatic`, `pain_function_loss`, `pain_getting_worse` ont été ajoutés en M2 (migration `M2_001`). Ils alimentent SAFETY A4. **Type : `boolean NULL` sans valeur par défaut.** Les rows antérieures à M2 n'ont jamais collecté ces critères : `NULL = inconnu`, pas `false`. Toute nouvelle row M2 (créée via le DAL) doit fournir explicitement `true` ou `false` pour chaque critère. L'adapter Supabase (`buildRawContextFromSupabase`) **rejette** un checkin courant dont un des trois critères est `NULL`, plutôt que de convertir silencieusement en `false` — le moteur M1 reçoit toujours des booleans valides ou aucun contexte du tout. Voir `11_DECISION_LOG.md` (2026-08-13 — Option A, correction NULL).
 
+**A10 — `available_minutes_today`** (migration additive `20261007090000_a10_available_minutes_today.sql`, ADR A10) : `integer NULL`, sans valeur par défaut, `CHECK` 1–1440, jamais backfillé.
+- **Sens :** le temps que le rider a réellement aujourd'hui, en minutes.
+- **`NULL`** = « Comme prévu » : aucune contrainte exceptionnelle (comportement historique).
+- **Distinct des disponibilités hebdomadaires** (`athlete_availability_windows`, BUG-V2-1) : celles-ci disent quand le rider peut normalement s'entraîner.
+- **Jamais déduit de `free_comment`.**
+- **Écriture :** par le web avec le check-in (RLS `daily_checkins_own_data` inchangée), seulement quand le plan courant est V2.
+- **Lecture :** par le chemin daily V2, avec la version du check-in de la décision (`getDailyRunInputVersions`). Le modifier rend la décision courante périmée (`checkin_changed`).
+- **M1 ne le lit pas.**
+
 ### `athlete_state`
 
 État dérivé, une ligne par jour. Recalculé après chaque check-in.

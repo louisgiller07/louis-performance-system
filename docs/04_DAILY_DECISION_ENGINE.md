@@ -451,6 +451,33 @@ Sur le **chemin V2 uniquement**, après la réconciliation de la prescription du
 - **Décisions antérieures :** jamais réécrites.
 - **Chemin V1 :** inchangé.
 
+### Temps disponible aujourd'hui — `V2_TODAY_TIME_CONSTRAINT` (ADR A10, approuvée 2026-10-07)
+
+Sur le **chemin V2 uniquement**, quand le rider a indiqué un temps disponible aujourd'hui (`daily_checkins.available_minutes_today` = X), la prescription du jour exécutable ne demande jamais plus de X minutes. M1 reste inchangé.
+
+- **Condition :** X renseigné, et une prescription du jour V2 créée qui demande plus de X minutes (sa durée effective, ou la somme des bornes hautes de ses blocs).
+- **Effet :** la première séance candidate qui tient en X, construite par les vrais builders et vérifiée. La charge ne monte jamais. Ordre des candidats :
+  1. **Force** → dose LIGHT 45 min (mêmes exercices). Aucune Force plus courte.
+  2. **DH** → fenêtres du planificateur 90 / 75 / 60 min (passages plafonnés à 8 / 6 / 5), même drill.
+  3. **Endurance** → même protocole et même activité, par paliers de 15 min, minimum 45.
+  4. Puis **récupération active** (REPLACE), plages resserrées, minimum 20 min, sans activité vélo.
+  5. Puis **REST**.
+- **Priorité :** la contrainte s'applique après M1, `V2_SYSTEMIC_FLOOR` et la prescription A04. Elle part de la séance déjà décidée et ne fait que descendre.
+  - Un REST de M1 reste REST.
+  - Une prescription bloquée reste bloquée (`not_evaluated`).
+- **Traçabilité :**
+  - règle `V2_TODAY_TIME_CONSTRAINT` (couche `ARBITRATION`) dans `triggered_rules` dès que X est renseigné : minutes, séance avant, action (`fits` / `adapted` / `rest` / `not_evaluated`), séance après ;
+  - si la séance change : `decision`, `final_session` et `training` prennent la séance retenue ;
+  - la règle s'ajoute à `decision_reasoning`, avec une phrase pour le rider reprise dans `training.objective` ;
+  - les documents adaptés portent `v2.time.today_limit`.
+- **Calibration coaching (approuvée HPM 2026-10-07)** :
+  - **DH** : une DH qui ne tient pas dans le temps disponible descend vers une vraie dose DH supportée (fenêtre plus courte du planificateur). Sinon : récupération active ou REST, jamais une Force à cause du temps seul.
+    *Justification :* le temps ne change pas l'objectif technique du jour. Remplacer une DH par une Force pour une simple raison de temps déplacerait le stimulus hebdomadaire (Force placée par le planificateur selon ses propres règles) sans qu'aucun signal d'état ne le justifie.
+  - **Endurance** : 60 min avec 50 min disponibles → 45 min, la prochaine dose réellement supportée (paliers de 15 min du planificateur, minimum 45 du protocole).
+    *Justification :* une seule règle d'adaptation à la disponibilité (celle du planificateur), pas de durée « au fil de l'eau ».
+- **Exécution déjà commencée :** inchangée (prescription figée, R9-UI-01).
+- **Chemin V1 :** inchangé (le champ n'est ni demandé ni lu).
+
 ### Prescription du jour V2 et MODIFY vers le haut (ADR UX-11A.5c.0 §6, A04)
 
 Un `MODIFY` qui demande une charge **supérieure** à la séance prévue ne produit jamais de prescription du jour V2 :

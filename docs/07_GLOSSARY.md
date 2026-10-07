@@ -95,6 +95,13 @@ La séance qui fait foi pour une date, après prise en compte de la décision qu
 
 Today, Program, Guided, History et Après séance la lisent tous. La séance prévue d'origine n'y apparaît qu'en second (« initialement prévue »). Un REST décidé n'est jamais une séance manquée.
 
+**Temps disponible aujourd'hui** (ADR A10)
+Le temps que le rider a réellement pour s'entraîner un jour donné, déclaré au check-in (`daily_checkins.available_minutes_today`, en minutes ; absent = « Comme prévu »).
+- C'est une contrainte exceptionnelle du jour : le plan multi-semaines ne change pas.
+- La séance effective de ce jour ne demande jamais plus que ce temps (`V2_TODAY_TIME_CONSTRAINT`).
+- Ne pas confondre avec les **disponibilités hebdomadaires** (fenêtres où le rider peut normalement s'entraîner, BUG-V2-1).
+- Jamais déduit du commentaire libre.
+
 **duration_min (session DH)** (V0.3_006B, PROVISIONAL ; wiring Planning V0.3_006C2)
 Champ existant de `TrainingIntervention`, en minutes. Pour une session DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`), représente la **fenêtre totale de session / temps sur site** — descente, remontée mécanique, pauses, attente, reconnaissance, récupération entre runs inclus conceptuellement. **N'est jamais** le temps de pédalage/descente continu ni le temps physiologique effectif. Ne pas confondre avec un temps d'effort. Sémantique athlète (V0.3_006C2) : durée que l'athlète prévoit de consacrer à la séance — exacte si l'arbitrage ne change ni le kind ni la charge (vrai KEEP), borne supérieure sinon (jamais un plancher, voir `resolveDhDuration`). **Jamais** une pure contrainte de disponibilité maximale à elle seule — un futur concept de disponibilité pure serait distinct, non créé par ce jalon. Écrit par Planning (`web/src/features/planning/planningRepo.ts#savePlannedSession`) uniquement pour un kind DH-family en V0.3_006C2 — `planned_sessions.planned_duration_min` (colonne séparée) reste délibérément dormante, jamais activée. Voir `docs/03_COACHING_MODEL.md` §Session Prescription V1 et §DH Execution Guidance.
 

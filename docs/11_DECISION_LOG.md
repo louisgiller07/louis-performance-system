@@ -5435,12 +5435,15 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - **Inchangée.** L'exécution garde sa prescription figée (R9-UI-01) : une nouvelle décision D2 peut être calculée, mais pas une seconde séance principale (`active_execution_exists`).
 - **La séance commencée fait foi** (A07).
 
+- **Calibration coaching (approuvée HPM 2026-10-07)** :
+  - **DH** : une DH qui ne tient pas dans le temps disponible descend vers une vraie dose DH supportée (fenêtre plus courte du planificateur). Sinon : récupération active ou REST, jamais une Force à cause du temps seul.
+    *Justification :* le temps ne change pas l'objectif technique du jour. Remplacer une DH par une Force pour une simple raison de temps déplacerait le stimulus hebdomadaire (Force placée par le planificateur selon ses propres règles) sans qu'aucun signal d'état ne le justifie.
+  - **Endurance** : 60 min avec 50 min disponibles → 45 min, la prochaine dose réellement supportée (paliers de 15 min du planificateur, minimum 45 du protocole).
+    *Justification :* une seule règle d'adaptation à la disponibilité (celle du planificateur), pas de durée « au fil de l'eau ».
+
 **Hors périmètre / restes**
 - **V1** : la question n'est pas posée et le champ n'est pas lu (V1 lisible seulement, critère de release).
-- **Calibration coaching** (PROVISIONAL), deux choix conservateurs à valider :
-  - une DH qui ne tient pas devient récupération (jamais une Force de remplacement) ;
-  - le palier de 15 min de l'endurance (60 → 45 avec 50 min disponibles).
 - **Interaction avec le P0 « MODIFY vers le haut »** : non traitée ici.
-- **`docs/04`, `docs/05`, `docs/07`** : diffs proposés dans le rapport, non appliqués.
+- **`docs/04`, `docs/05`, `docs/07`** : documentés après validation HPM (2026-10-07).
 
-**Statut** : implémenté et vert en local (branche `feat/a10-today-time`). Aucun push, aucun déploiement. Livraison à approuver : migration, puis Edge `daily-run` (bundle), puis web.
+**Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07). Implémenté et vert en local (branche `feat/a10-today-time`). Aucun push, aucun déploiement. Livraison à approuver : migration, puis Edge `daily-run` (bundle), puis web.
