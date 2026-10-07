@@ -643,10 +643,13 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **Calibration coaching — SYSTEMIC_RED sur DH / endurance LIGHT** (finding A04) : ces séances restent KEEP (C3.3 « nature préservée »). Décider s'il faut une règle (aucun changement pour l'instant).
 - [ ] **M1 / T-X — MODIFY vers le haut** (finding A04, ticket M1 séparé) : la recommandation T-6 `DH_TECHNICAL MODERATE` remplace une DH d'affûtage V2 `LIGHT` non engagée. M1 étiquette MODIFY vers le haut, et la prescription V2 est bloquée (`upward_modify_not_supported`) : pas de séance guidée ce jour-là. Atteignable (rider qui roule le dimanche, course le samedi suivant). Décider côté logique M1 / T-X ; M1 non modifié dans A04.
 - [ ] **A04** — MODIFY / REPLACE exécutables : implémenté et vert en local (branche `feat/a04-modify-replace`, ADR A04), livraison à approuver (Edge `daily-run` → web).
-- [ ] **A07** — séance effective, source de vérité unique : implémenté et vert en local (branche `feat/a07-effective-session`, ADR A07). La décision V2 persistée porte la durée de la prescription (`V2_EFFECTIVE_SESSION`), et un modèle de lecture web partagé alimente Today (semaine), Program, History et Après séance. Livraison à approuver (Edge `daily-run`, puis web ; sans migration).
+- [ ] **P0 BEFORE PAID BETA — M1 UPWARD MODIFY NORMAL PATH** (HPM 2026-10-07, bloquant avant rollout bêta, après A10 et A11) :
+  - **Cas reproduit :** DH prévue `LIGHT` + protocole course T-X demandant `DH_TECHNICAL MODERATE` → MODIFY vers le haut côté M1 → prescription du jour bloquée (`upward_modify_not_supported`), donc aucune séance exécutable ce jour-là.
+  - À fermer avant le rollout bêta ; non corrigé dans A07 ni A10.
+- [x] **A07** — séance effective, source de vérité unique : **PASS / CLOSED LOCAL** (HPM 2026-10-07), implémenté et vert en local (branche `feat/a07-effective-session`, ADR A07). La décision V2 persistée porte la durée de la prescription (`V2_EFFECTIVE_SESSION`), et un modèle de lecture web partagé alimente Today (semaine), Program, History et Après séance. Livraison à approuver (Edge `daily-run`, puis web ; sans migration).
 - [ ] **A07 / restes** :
   - les décisions antérieures à A07 gardent la durée M1, sans réécriture historique ;
-  - `docs/04` et `docs/07` : documenter `V2_EFFECTIVE_SESSION` et le terme « séance effective » (diff proposé, à valider).
+  - `docs/04` et `docs/07` : `V2_EFFECTIVE_SESSION` et « séance effective » documentés (validé HPM 2026-10-07).
 - [ ] **A02** — Force complète et claire : implémenté et vert en local (branche `feat/a02-force-sessions`, ADR A02), livraison web à approuver.
 - [x] **V1 Force — 1 exercice × 12 séries** (finding A02) : **ACCEPTED LEGACY DEBT** (HPM 2026-10-06). La Force V1 n'est pas corrigée.
 - [ ] **Critère de release — avant bêta payante** : aucune nouvelle génération client ne doit utiliser V1. V1 reste seulement lisible, pour la compatibilité historique.

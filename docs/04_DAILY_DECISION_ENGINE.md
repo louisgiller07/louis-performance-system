@@ -433,6 +433,24 @@ M1 (ce moteur) est gelé et inchangé. Sur le **chemin V2 uniquement**, après M
 - **Non concernés :** DH et endurance `LIGHT` un jour systemic RED restent `KEEP` (C3.3, « nature préservée »). C'est un finding de calibration coaching, pas une règle.
 - **Chemin V1 :** inchangé.
 
+### Séance effective V2 — `V2_EFFECTIVE_SESSION` (ADR A07, approuvée 2026-10-07)
+
+Sur le **chemin V2 uniquement**, après la réconciliation de la prescription du jour et avant la persistance, la couche d'intégration aligne la décision sur la prescription exécutable. M1 reste inchangé.
+
+- **Condition :** toutes les conditions suivantes sont réunies :
+  - une prescription du jour V2 a été créée ;
+  - elle définit une durée effective ;
+  - cette durée diffère de celle du `final_session` de M1.
+- **Effet :**
+  - `final_session.duration_min` et `training` (`session_type`, `duration_min`) prennent la durée de la prescription ;
+  - type et charge sont déjà ceux de la prescription (A04) ;
+  - un type différent est une erreur de contrat, jamais un alignement silencieux.
+- **Traçabilité :**
+  - règle `V2_EFFECTIVE_SESSION` (couche `ARBITRATION`), ajoutée à `triggered_rules` avec la durée M1 dans le détail ;
+  - jamais dans l'explication athlète.
+- **Décisions antérieures :** jamais réécrites.
+- **Chemin V1 :** inchangé.
+
 ### Prescription du jour V2 et MODIFY vers le haut (ADR UX-11A.5c.0 §6, A04)
 
 Un `MODIFY` qui demande une charge **supérieure** à la séance prévue ne produit jamais de prescription du jour V2 :

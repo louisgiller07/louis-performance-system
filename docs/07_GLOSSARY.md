@@ -87,6 +87,14 @@ L'implémentation TypeScript exacte (interface, record, class) est laissée à C
 
 Le mapping `TrainingIntervention → DbSessionType` est **une fonction pure déterministe** : pour un couple `(kind, load_profile)` donné, la sortie est unique. Voir `05_DATA_MODEL.md`.
 
+**Séance effective** (ADR A07)
+La séance qui fait foi pour une date, après prise en compte de la décision quotidienne et de l'exécution éventuelle. Priorité :
+1. **Exécution V2** : sa prescription est figée et fait foi, même après une décision plus récente.
+2. **Prescription du jour courante**, ou REST décidé.
+3. **Séance prévue**, seulement si aucune décision n'existe.
+
+Today, Program, Guided, History et Après séance la lisent tous. La séance prévue d'origine n'y apparaît qu'en second (« initialement prévue »). Un REST décidé n'est jamais une séance manquée.
+
 **duration_min (session DH)** (V0.3_006B, PROVISIONAL ; wiring Planning V0.3_006C2)
 Champ existant de `TrainingIntervention`, en minutes. Pour une session DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`), représente la **fenêtre totale de session / temps sur site** — descente, remontée mécanique, pauses, attente, reconnaissance, récupération entre runs inclus conceptuellement. **N'est jamais** le temps de pédalage/descente continu ni le temps physiologique effectif. Ne pas confondre avec un temps d'effort. Sémantique athlète (V0.3_006C2) : durée que l'athlète prévoit de consacrer à la séance — exacte si l'arbitrage ne change ni le kind ni la charge (vrai KEEP), borne supérieure sinon (jamais un plancher, voir `resolveDhDuration`). **Jamais** une pure contrainte de disponibilité maximale à elle seule — un futur concept de disponibilité pure serait distinct, non créé par ce jalon. Écrit par Planning (`web/src/features/planning/planningRepo.ts#savePlannedSession`) uniquement pour un kind DH-family en V0.3_006C2 — `planned_sessions.planned_duration_min` (colonne séparée) reste délibérément dormante, jamais activée. Voir `docs/03_COACHING_MODEL.md` §Session Prescription V1 et §DH Execution Guidance.
 

@@ -5382,6 +5382,6 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - **Décisions antérieures à A07** : pas de réécriture de `daily_plan`. Elles gardent la durée M1 dans l'en-tête Today et History.
 - **V1** : lecture inchangée (pas de prescription finale, donc pas d'alignement).
 - **F-8** : non traité.
-- `docs/04` et `docs/07` : ajout de `V2_EFFECTIVE_SESSION` et du terme « séance effective », proposé dans le rapport et non appliqué.
+- `docs/04` et `docs/07` : `V2_EFFECTIVE_SESSION` et « séance effective » documentés après validation HPM (2026-10-07).
 
-**Statut** : implémenté et vert en local (branche `feat/a07-effective-session`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (bundle), puis web ; sans migration.
+**Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07). Implémenté et vert en local (branche `feat/a07-effective-session`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (bundle), puis web ; sans migration.
