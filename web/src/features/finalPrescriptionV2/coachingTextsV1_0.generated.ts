@@ -124,7 +124,7 @@ export const COACHING_TEXTS_V1_0: Readonly<Record<string, { kind: CoachingTextKi
   "intent.dh_corner_exit_speed": { kind: "intent", text: "Sortir des virages avec plus de vitesse." },
   "intent.dh_jump_control": { kind: "intent", text: "Contrôler tes sauts de l'appel à la réception." },
   "intent.dh_line_reading": { kind: "intent", text: "Lire le terrain plus tôt et choisir ta ligne." },
-  "intent.dh_race_consistency": { kind: "intent", text: "Rouler ta section avec régularité : même ligne, mêmes repères." },
+  "intent.dh_race_consistency": { kind: "intent", text: "Répéter la section avec régularité : même ligne, mêmes repères." },
   "intent.dh_race_pace": { kind: "intent", text: "Tenir une allure de course du départ à l'arrivée." },
   "intent.dh_rough_terrain_flow": { kind: "intent", text: "Laisser le vélo travailler dans les racines et les rochers." },
   "intent.dh_steep_confidence": { kind: "intent", text: "Rester maître du vélo dans les pentes raides." },

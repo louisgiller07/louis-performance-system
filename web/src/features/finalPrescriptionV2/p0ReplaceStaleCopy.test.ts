@@ -12,7 +12,7 @@ describe("P0 — the intent shown is the effective prescription's intent", () =>
     const r = decodeFinalPrescriptionV2(record);
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.view.intent).toBe("Rouler ta section avec régularité : même ligne, mêmes repères.");
+      expect(r.view.intent).toBe("Répéter la section avec régularité : même ligne, mêmes repères.");
       expect(r.view.intent).not.toMatch(/allure de course|mode course/);
     }
   });

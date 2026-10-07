@@ -226,7 +226,7 @@ const ENTRIES: CoachingTextEntry[] = [
   intent("intent.dh_jump_control", "Contrôler tes sauts de l'appel à la réception."),
   intent("intent.dh_race_pace", "Tenir une allure de course du départ à l'arrivée."),
   // P0 replace stale copy — the race_execution intent of a drill without race intensity (section consistency).
-  intent("intent.dh_race_consistency", "Rouler ta section avec régularité : même ligne, mêmes repères."),
+  intent("intent.dh_race_consistency", "Répéter la section avec régularité : même ligne, mêmes repères."),
   intent("intent.aerobic_base_lucidity", "Développer ta base d'endurance pour rester lucide en fin de piste."),
   intent("intent.aerobic_repeat_efforts", "Répéter les efforts intenses sans t'éteindre."),
   intent("intent.mobility_on_bike_range", "Garder l'amplitude des hanches, des chevilles et du dos pour bouger sur le vélo."),

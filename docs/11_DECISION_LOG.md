@@ -5635,7 +5635,7 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 - Couche fautive : construction de la prescription (planning-engine), pas Guidée.
 
 **Correctif**
-- Nouvelle intention `dh_race_consistency`, sélection `declared_priority_non_race_drill` pour `race_execution`. Texte PROVISIONAL, à valider : « Rouler ta section avec régularité : même ligne, mêmes repères. »
+- Nouvelle intention `dh_race_consistency`, sélection `declared_priority_non_race_drill` pour `race_execution`. Texte validé HPM (2026-10-07) : « Répéter la section avec régularité : même ligne, mêmes repères. »
 - `dhIntentForDrillV2` : l'intention de la compétence, sauf si elle exige l'intensité course alors que le drill n'en porte pas.
 - Utilisée par le builder et par `drillsForLoad`, qui reprend l'intention du drill régressé.
 - KEEP inchangé (copie conforme). Les autres compétences gardent leur intention.
@@ -5653,4 +5653,4 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 - Un jour REST, `coachWhy` affiche `athleteSafeReasoning`, donc cette phrase.
 - Ce n'est pas un résidu de la séance remplacée : c'est la couche de personnalisation (tous jours, tous objectifs). Classé **P1** (backlog), à confirmer par la lecture persistée (`p0-replace-stale.sql`).
 
-**Statut** : implémenté et vert en local (branche `fix/p0-replace-stale-copy`). Aucun push, aucun déploiement. Livraison : web, puis Edge `daily-run` et `generate-training-plan` ; sans migration.
+**Statut** : cause confirmée en prod (8 nov. : REPLACE, drill régressé `section_consistency` ×4, intention persistée `dh_race_pace`). Correctif, ajout sans changement de version et texte validés HPM (2026-10-07) ; déploiement approuvé : web, puis Edge `daily-run`, puis `generate-training-plan` ; sans migration. Finding REST confirmé (phrase d'objectif), maintenu en P1.
