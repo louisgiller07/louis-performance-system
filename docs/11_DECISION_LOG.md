@@ -5585,7 +5585,8 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
   - `roots_rocks_committed` ;
   - `race_execution_split_pace` ;
   - `race_execution_full_run_sim`.
-- **Charge LIGHT** : suivre `regressesTo` jusqu'au premier drill non-course de la même compétence. Ce drill doit être sur un terrain déclaré par le rider ; sinon : bloqué. Exemple : `full_run_sim` → `split_pace` → `race_execution_section_consistency`.
+- **Charge LIGHT** : suivre `regressesTo` jusqu'au premier drill non-course de la même compétence. Exemple : `full_run_sim` → `split_pace` → `race_execution_section_consistency`.
+- **Terrain de la régression** : son propre terrain **ou celui du drill qu'elle remplace** (déclaré par le rider). Une régression baisse l'exigence de la même compétence et ne demande jamais un terrain plus dur que celui de la séance ; ses textes ne dépendent pas du terrain (« choisis une courte section », « juste avant l'entrée du virage »). Les terrains de l'onboarding sont indépendants : un rider peut avoir `full_dh_track` sans `any_groomed_trail` (profil Simulation réel).
 - **Charge MODERATE / HIGH** : drill inchangé.
 - **Contenu** : drill, cue, critère et vigilances du catalogue validé ; aucun drill improvisé.
 - **Utilisée par** :
@@ -5593,7 +5594,7 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
   - A04 MODIFY (passages LIGHT + régression) ;
   - A04 REPLACE vers une DH (builder avec la charge, puis régression) ;
   - A10 (fenêtre plus courte : même drill si la charge reste MODERATE, régression si la charge finale est LIGHT).
-- **Blocage** : pas de régression sur terrain déclaré → `no_light_dh_drill` (adaptation) ou `unavailable_dh_drill_terrain` (génération).
+- **Blocage** : `no_light_dh_drill` est **inatteignable depuis un profil onboarding valide** (matrice : 3 tiers × 7 compétences × 511 sous-ensembles de terrains). Il reste une garde défensive (drill planifié dont aucun terrain n'est déclaré).
 - **KEEP** : inchangé (copie conforme de la prescription planifiée).
 
 **Sections dérivées de la séance (findings adjacents)**
@@ -5612,7 +5613,7 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Choix et limites**
 - **Agrégat `session-model-v2.6` non incrémenté** : A04 MODIFY exige cet agrégat (§9). L'incrémenter bloquerait MODIFY sur tous les plans actuels.
 - **Plans déjà persistés** : une semaine LIGHT déjà générée avec un drill course le garde sur KEEP (pas de réécriture historique). Les adaptations du jour, elles, régressent.
-- **Nouveau blocage de génération** : un profil dont le terrain ne permet aucune régression non-course (ex. priorité `race_execution` avec seulement `full_dh_track` et `technical_trail`, sans `any_groomed_trail`) est désormais bloqué à la génération (`unavailable_dh_drill_terrain`) au lieu de recevoir une semaine LIGHT en mode course.
+- **Aucun nouveau blocage de génération** : seul le blocage préexistant demeure (terrain du drill canonique non déclaré). Une première version exigeait le terrain propre de la régression ; elle bloquait le profil Simulation réel (pas de `any_groomed_trail`), corrigé avant livraison (final check HPM).
 - **Classification** : liste fermée de 5 drills, verrouillée par test contre les textes. Un nouveau drill course doit y être ajouté.
 - **docs/03 / docs/04** : la règle LIGHT et la précision A10 « même drill » sont à documenter après validation HPM (diff proposé dans le rapport).
 

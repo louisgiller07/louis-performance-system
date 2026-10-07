@@ -692,11 +692,11 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
   - **C :** REPLACE → `DH_LIGHT` LIGHT, et REPLACE Force → DH LIGHT : aucun drill course ;
   - **E :** KEEP MODERATE : copie conforme (drill course conservé) ;
   - **F :** A10 fenêtre plus courte : MODERATE garde le drill ; LIGHT régresse ;
-  - terrain sans régression : adaptation bloquée `no_light_dh_drill` ; génération bloquée `unavailable_dh_drill_terrain` (limite) ;
+  - **`no_light_dh_drill` inatteignable** : 3 tiers × 7 compétences × 511 sous-ensembles de terrains onboarding ; profil Simulation réel (avancé, virages / choix de ligne / exécution en course, sans `any_groomed_trail`) : plan généré, semaines LIGHT sans drill course, MODIFY / REPLACE → LIGHT créés ; chaque drill course sur son profil minimal (son seul terrain) : plan, semaines LIGHT, MODIFY, REPLACE ; garde défensive seulement si aucun terrain n'est déclaré ;
   - **D :** semaines LIGHT du planificateur sans drill course ; KEEP LIGHT copie conforme ;
   - matrice : toutes les compétences, tier avancé.
 - **head-coach unitaires** (`tests/supabase/realignSessionSections.test.ts`) : DH → récupération (A10) sans conseil DH (nutrition, récupération, technique, monitoring, mental) ; protection conservée ; DH gardée en DH inchangée ; plancher systémique → conseils de récupération.
-- **Intégration locale** (`tests/supabase/p0AdaptedSessionCoherence.integration.test.ts`, profil dogfood : avancé, priorité `race_execution`) :
+- **Intégration locale** (`tests/supabase/p0AdaptedSessionCoherence.integration.test.ts`, profil dogfood : avancé, priorité `race_execution`, terrain Simulation réel sans `any_groomed_trail`) :
   - planificateur : semaines LIGHT sans drill course, MODERATE `race_execution_full_run_sim` ;
   - **A / C / G :** jambes RED sur la DH MODERATE → REPLACE `DH_LIGHT` LIGHT persisté avec `race_execution_section_consistency`, relecture identique ;
   - **E :** check-in neutre → KEEP, drill course conservé ;

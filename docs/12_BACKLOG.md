@@ -659,8 +659,8 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
   - Une séance changée par la couche V2 (plancher systémique, A10) ne garde aucun conseil secondaire de la séance remplacée (`realignSessionSections`, M1 inchangé).
   - Web : jamais « Aucun signal… » après MODIFY / REPLACE / REST ; A10 adapté = signal retenu « Temps disponible limité ».
   - Livraison à approuver : Edge `daily-run` et `generate-training-plan`, puis web ; sans migration.
-  - À confirmer : lecture persistée du 17 oct. (`p0-oct17-readonly.sql`, compte Simulation) ; diffs `docs/03` / `docs/04` proposés (règle DH LIGHT, précision A10 « même drill »).
-- [ ] **P0 / limites** : semaines LIGHT déjà générées avec un drill course conservées sur KEEP (pas de réécriture) ; nouveau blocage de génération pour un profil sans terrain de régression ; liste des drills course fermée (5), à étendre avec tout nouveau drill course.
+  - Cause confirmée en prod (17 oct. : REPLACE `DH_LIGHT` LIGHT avec `race_execution_full_run_sim` ×4). `no_light_dh_drill` inatteignable depuis l'onboarding (final check). Diffs `docs/03` / `docs/04` proposés (règle DH LIGHT, précision A10 « même drill »).
+- [ ] **P0 / limites** : semaines LIGHT déjà générées avec un drill course conservées sur KEEP (pas de réécriture) ; liste des drills course fermée (5), à étendre avec tout nouveau drill course.
 - [x] **A07** — séance effective, source de vérité unique : **PASS / CLOSED LOCAL** (HPM 2026-10-07), implémenté et vert en local (branche `feat/a07-effective-session`, ADR A07). La décision V2 persistée porte la durée de la prescription (`V2_EFFECTIVE_SESSION`), et un modèle de lecture web partagé alimente Today (semaine), Program, History et Après séance. Livraison à approuver (Edge `daily-run`, puis web ; sans migration).
 - [ ] **A07 / restes** :
   - les décisions antérieures à A07 gardent la durée M1, sans réécriture historique ;
