@@ -379,6 +379,7 @@ Version : `coaching-text-v1.0` · Source : `planning-engine/src/catalog/coaching
 | `intent.dh_rough_terrain_flow` | Laisser le vélo travailler dans les racines et les rochers. | pending | | | |
 | `intent.dh_jump_control` | Contrôler tes sauts de l'appel à la réception. | pending | | | |
 | `intent.dh_race_pace` | Tenir une allure de course du départ à l'arrivée. | pending | | | |
+| `intent.dh_race_consistency` | Rouler ta section avec régularité : même ligne, mêmes repères. | pending | | | |
 | `intent.aerobic_base_lucidity` | Développer ta base d'endurance pour rester lucide en fin de piste. | pending | | | |
 | `intent.aerobic_repeat_efforts` | Répéter les efforts intenses sans t'éteindre. | pending | | | |
 | `intent.mobility_on_bike_range` | Garder l'amplitude des hanches, des chevilles et du dos pour bouger sur le vélo. | pending | | | |

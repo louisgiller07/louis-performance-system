@@ -5618,3 +5618,39 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 - **docs/03 / docs/04** : la règle LIGHT et la précision A10 « même drill » sont à documenter après validation HPM (diff proposé dans le rapport).
 
 **Statut** : implémenté et vert en local (branche `fix/p0-adapted-session-coherence`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` et `generate-training-plan` (planning-engine dans les bundles), puis web ; sans migration.
+
+## 2026-10-07 — ADR P0 REPLACE STALE COACHING COPY : l'intention suit le drill prescrit
+
+> **The intent of a DH prescription follows the drill actually prescribed. A skill whose own intent demands race intensity (race_execution: « Tenir une allure de course du départ à l'arrivée ») takes its non-race intent when the drill carries no race intensity (LIGHT regression, beginner drill).**
+
+**Bug dogfood (prod, scénario 5)**
+- Après REPLACE → DH LIGHT, Guidée affichait encore « Tenir une allure de course du départ à l'arrivée. »
+
+**Cause exacte**
+- C'est le texte de `intent.dh_race_pace`, résolu par Guidée depuis `structure.intentId` de la **prescription finale persistée** (`decodeFinalPrescriptionV2`).
+- Guidée, Today et Programme ne lisent pas la séance planifiée.
+- L'intention DH était choisie par compétence (`DH_SKILL_TO_INTENT_V2`), jamais par drill. La correction P0 régressait le drill (`section_consistency`) sans changer l'intention, et ce aux deux endroits :
+  - `drillsForLoad` (MODIFY / REPLACE / A10) ;
+  - le builder (semaines LIGHT du planificateur, REPLACE via le builder).
+- Couche fautive : construction de la prescription (planning-engine), pas Guidée.
+
+**Correctif**
+- Nouvelle intention `dh_race_consistency`, sélection `declared_priority_non_race_drill` pour `race_execution`. Texte PROVISIONAL, à valider : « Rouler ta section avec régularité : même ligne, mêmes repères. »
+- `dhIntentForDrillV2` : l'intention de la compétence, sauf si elle exige l'intensité course alors que le drill n'en porte pas.
+- Utilisée par le builder et par `drillsForLoad`, qui reprend l'intention du drill régressé.
+- KEEP inchangé (copie conforme). Les autres compétences gardent leur intention.
+- Effet de bord assumé : le drill débutant `race_execution_section_consistency` (MODERATE) prend aussi l'intention de régularité dans les nouveaux plans.
+
+**Versions de catalogue (choix)**
+- Ajout de contenu **sans** changement de version (`session-intents-v2.0`, `coaching-text-v1.0`, agrégat `session-model-v2.6`).
+- Raison : un nouvel agrégat bloquerait MODIFY (A04 §9) sur tous les plans v2.6 existants, dont le plan du dogfood.
+- Contenu strictement additif : toute prescription existante reste lisible.
+- Conséquence opérationnelle : le web doit être déployé **avant** les Edge. Un ancien web ne sait pas résoudre `intent.dh_race_consistency`.
+
+**Finding REST (audité, non corrigé ici)**
+- M1 REST ne produit aucun texte de progression.
+- Source probable : `applyGoalPersonalization` ajoute la phrase d'objectif du rider à `reasoning` chaque jour, y compris REST. Pour « Technical skills » : « Ton plan soutient ta progression technique… ».
+- Un jour REST, `coachWhy` affiche `athleteSafeReasoning`, donc cette phrase.
+- Ce n'est pas un résidu de la séance remplacée : c'est la couche de personnalisation (tous jours, tous objectifs). Classé **P1** (backlog), à confirmer par la lecture persistée (`p0-replace-stale.sql`).
+
+**Statut** : implémenté et vert en local (branche `fix/p0-replace-stale-copy`). Aucun push, aucun déploiement. Livraison : web, puis Edge `daily-run` et `generate-training-plan` ; sans migration.

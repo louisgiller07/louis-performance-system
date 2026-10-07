@@ -684,6 +684,17 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T46. P0 — aucune consigne course après une adaptation LIGHT (intention comprise)
+- **planning-engine** (`tests/unit/p0DhLoadCoherence.test.ts`, `intentCatalogV2.test.ts`) — tous les textes résolus (intention, instructions, cue, critère, vigilances) :
+  - **A :** DH course MODERATE → REPLACE `DH_LIGHT` LIGHT : `dh_race_consistency` + `section_consistency`, aucun texte « mode course / vitesse course / allure de course » ;
+  - MODIFY → LIGHT et A10 en LIGHT : même règle ;
+  - **C :** KEEP DH course : intention et cue course conservées (copie conforme) ;
+  - planificateur : semaine LIGHT `race_execution` → intention non-course ; autres compétences inchangées ;
+  - catalogue : seule `race_execution` a une intention non-course, atteinte par la priorité déclarée.
+- **Intégration locale** (`p0AdaptedSessionCoherence`) : intention persistée `dh_race_consistency` après REPLACE, relecture identique (**F**) ; KEEP `dh_race_pace`. **B** (DH → récupération sans coaching DH) : T45.
+- **Web** (`p0ReplaceStaleCopy.test.ts`) : Guidée résout la nouvelle intention sans texte course ; `dh_race_pace` inchangé. **E** : Today / Programme / Guidée lisent la même prescription finale (A07, T41).
+- **D (REST)** : M1 REST sans texte de progression ; phrase d'objectif = P1 (ADR).
+
 ### T45. P0 — une séance adaptée porte une mission cohérente avec sa charge
 - **planning-engine** (`tests/unit/p0DhLoadCoherence.test.ts`) :
   - la liste des 5 drills « intensité course » est verrouillée contre les textes (« mode course » / « vitesse course ») ;
