@@ -483,6 +483,18 @@ export async function getPlanVersionGeneratedAt(planVersionId: string): Promise<
   return (data as { generated_at: string } | null)?.generated_at ?? null;
 }
 
+/** A10 — a plan version's prescription schema ("v1" / "v2"); null when the version cannot be read. */
+export async function getPlanPrescriptionSchemaVersion(planVersionId: string): Promise<string | null> {
+  const { data, error } = await supabase.from("training_plan_versions").select("prescription_schema_version").eq("id", planVersionId).maybeSingle();
+
+  if (error) {
+    console.error("trainingPlanReviewRepo.getPlanPrescriptionSchemaVersion failed", error.code);
+    throw new TrainingPlanReviewError();
+  }
+
+  return (data as { prescription_schema_version: string } | null)?.prescription_schema_version ?? null;
+}
+
 export async function getActivePlanVersionId(): Promise<string | null> {
   const { data, error } = await supabase.from("training_plan_current_version").select("plan_version_id").maybeSingle();
 

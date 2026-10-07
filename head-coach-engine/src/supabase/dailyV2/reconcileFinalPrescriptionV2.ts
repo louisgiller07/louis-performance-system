@@ -16,7 +16,9 @@
  * unreadable catalogue → final_prescription_catalog_mismatch. MODIFY /
  * REPLACE build from the CURRENT plan version's input snapshot (never the
  * live profile) and the decision date's riding availability. Corrupt data
- * raises a contract error.
+ * raises a contract error. A10: when the rider gave a time today, the
+ * prescription fits in it (buildFinalPrescriptionWithinTodayTimeV2) and the
+ * result says how (`timeConstraint`).
  *
  * Loaded lazily by runDailyFor (V2 path only): this is the only daily module
  * with a runtime import of the Session Model V2 daily entry
@@ -25,14 +27,23 @@
  * Function loads it through the esbuild bundle of src/edge/dailyRunV2EdgeEntry.ts.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { buildFinalPrescriptionV2, dailyAdaptationContextV2, type FinalPrescriptionV2, type FinalPrescriptionV2Result, type PlanInputSnapshotV2 } from "planning-engine/session-model-v2/daily";
+import {
+  buildFinalPrescriptionWithinTodayTimeV2,
+  dailyAdaptationContextV2,
+  type FinalPrescriptionV2,
+  type FinalPrescriptionWithinTodayTimeV2Result,
+  type PlanInputSnapshotV2,
+  type TodayTimeConstraintV2,
+} from "planning-engine/session-model-v2/daily";
 import type { DailyPlan } from "../../types/index.js";
 import type { PlannedSessionObservation } from "../buildRawContext.js";
 import { getGeneratedSessionOfVersion } from "../repositories/trainingPlanGeneratedSessionsRepo.js";
 import { getPlannedPrescriptionRowOfVersion } from "../repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import { getPlanInputSnapshotOfVersion } from "../repositories/trainingPlanVersionSnapshotRepo.js";
 
-export type { FinalPrescriptionV2, FinalPrescriptionV2Result };
+/** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today. */
+export type FinalPrescriptionV2Result = FinalPrescriptionWithinTodayTimeV2Result;
+export type { FinalPrescriptionV2, TodayTimeConstraintV2 };
 
 export interface ReconcileFinalPrescriptionV2Input {
   client: SupabaseClient;
@@ -47,6 +58,8 @@ export interface ReconcileFinalPrescriptionV2Input {
   observation: PlannedSessionObservation | null;
   /** A04 — ids of a MODIFY / REPLACE document (random at runtime, deterministic in tests). */
   mintId: () => string;
+  /** A10 — the rider's time today (daily_checkins.available_minutes_today); null / absent = no constraint. */
+  availableMinutes?: number | null;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
@@ -76,8 +89,10 @@ export async function reconcileFinalPrescriptionV2(
     lineageInCurrentVersion && needsPlanRows ? await deps.getGeneratedSessionOfVersion(client, currentPlanVersionId, observation.sourceGeneratedSessionId!) : null;
   const planned = generated !== null ? await deps.getPlannedPrescriptionRowOfVersion(client, currentPlanVersionId, generated.id) : null;
 
-  // A04 — MODIFY / REPLACE build from the current version's snapshot (read only when they can use it).
-  const adaptable = (decision === "MODIFY" || decision === "REPLACE") && planned !== null;
+  // A04 — MODIFY / REPLACE build from the current version's snapshot (read only when they can use it);
+  // A10 — so does a time adaptation, whatever M1 decided.
+  const availableMinutes = input.availableMinutes ?? null;
+  const adaptable = (decision === "MODIFY" || decision === "REPLACE" || availableMinutes !== null) && planned !== null;
   const snapshotRow = adaptable ? await deps.getPlanInputSnapshotOfVersion(client, currentPlanVersionId) : null;
   const adaptation =
     snapshotRow !== null && snapshotRow.input_snapshot_schema_version === "v2"
@@ -85,7 +100,8 @@ export async function reconcileFinalPrescriptionV2(
       : null;
 
   const final = dailyPlan.final_session;
-  return buildFinalPrescriptionV2({
+  return buildFinalPrescriptionWithinTodayTimeV2({
+    availableMinutes,
     adaptation,
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {

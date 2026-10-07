@@ -33,9 +33,22 @@
  * Only a target kind the V2 builders cannot produce (e.g. RACE_ACTIVITY,
  * MOBILITY — never produced by M1 against a V2 planned session) keeps
  * `final_prescription_adaptation_not_defined`.
+ *
+ * A10 — `timeLimitMin` (the rider's time today, chosen by
+ * buildFinalPrescriptionWithinTodayTimeV2) allows the validated time
+ * adaptations only, never an invented dose:
+ *   DH: the planner's availability windows (PLAN_DH_DURATION_STEPS_V2: the
+ *     window and its maximum passages), same drill;
+ *   endurance: the same protocol and activity choice, at the requested
+ *     duration (the protocol's own range);
+ *   active recovery: the protocol's ranges narrowed to fit (main block upper
+ *     bound lowered, optional blocks left out when they do not fit), never
+ *     below the protocol's minimum.
+ * Force has no time variant: only its validated doses (LIGHT 45 / MODERATE 60).
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
-import { PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
+import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
+import { PROTOCOL_CATALOG_V2 } from "../../catalog/protocolCatalogV2.js";
 import { buildSessionModelV2CatalogManifest, SESSION_MODEL_V2_AGGREGATE_VERSION } from "../catalogManifest.js";
 import { assignPrescriptionIds } from "../assignPrescriptionIds.js";
 import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError } from "../generationErrors.js";
@@ -46,7 +59,7 @@ import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
 import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND } from "../builders/dhPrescriptionV2.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
-import { buildRecoveryActivePrescriptionV2Content } from "../builders/recoveryActivePrescriptionV2.js";
+import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
 import { buildKeepFinalPrescriptionV2, lineageFailure, trustedPlannedStructure, type BuildKeepFinalPrescriptionV2Input } from "./buildKeepFinalPrescriptionV2.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
 
@@ -76,6 +89,8 @@ export function dailyAdaptationContextV2(snapshot: PlanInputSnapshotV2, date: st
 export interface BuildFinalPrescriptionV2Input extends BuildKeepFinalPrescriptionV2Input {
   /** Needed for MODIFY / REPLACE; null → those decisions cannot be built (no plan snapshot). */
   adaptation: DailyAdaptationContextV2 | null;
+  /** A10 — minutes available today when a time adaptation is requested (see buildFinalPrescriptionWithinTodayTimeV2). */
+  timeLimitMin?: number;
 }
 
 /** Stable rule ids of a modify / replace document (`adaptation_rule_ids`, never empty for those actions). */
@@ -87,12 +102,53 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   replaceDh: "v2.replace.dh",
   replaceEndurance: "v2.replace.endurance",
   replaceRecovery: "v2.replace.recovery_active",
+  /** A10 — the content was adapted to the rider's time today. */
+  todayTimeLimit: "v2.time.today_limit",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
 const RIDING_ENDURANCE_ACTIVITIES = ["road_bike", "mtb_rolling"];
 const STRENGTH_KINDS = ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const;
 const DH_REPLACE_KINDS = ["DH_TECHNICAL", "DH_LIGHT"];
+
+/** A10 — the maximum DH passages of a planner availability window (null: not a supported window). */
+function dhWindowMaxPasses(durationMin: number | undefined): number | null {
+  return PLAN_DH_DURATION_STEPS_V2.find((s) => s.durationMin === durationMin)?.maxPasses ?? null;
+}
+
+/** A10 — the protocol's minimum: the main block's minimum plus every required block's. */
+function requiredMinutes(blocks: readonly { optional?: boolean; durationMinutes?: { min: number } }[]): number {
+  return blocks.filter((b) => !b.optional).reduce((sum, b) => sum + (b.durationMinutes?.min ?? 0), 0);
+}
+
+/**
+ * A10 — active recovery inside `limit` minutes: the protocol's own ranges,
+ * narrowed. Optional blocks are kept, in order, while the required minimum
+ * plus their maximum still fits; the main block's upper bound is then
+ * lowered to what remains. Never below the protocol's minimum.
+ */
+function recoveryWithin(content: PrescriptionV2Content, limit: number): PrescriptionV2Content | null {
+  const protocolBlocks = PROTOCOL_CATALOG_V2[RECOVERY_ACTIVE_PROTOCOL_ID]!.blocks;
+  const required = requiredMinutes(protocolBlocks);
+  if (required > limit) return null;
+  let budget = limit - required;
+  const kept = content.blocks.filter((block, index) => {
+    if (!protocolBlocks[index]!.optional) return true;
+    const range = block.durationMinutes;
+    if (range === undefined || range.max > budget) return false;
+    budget -= range.max;
+    return true;
+  });
+  return {
+    ...content,
+    blocks: kept.map((block, index) => {
+      const range = block.durationMinutes;
+      if (block.role !== "main" || range === undefined) return block;
+      const otherMax = kept.reduce((sum, b, i) => (i === index ? sum : sum + (b.durationMinutes?.max ?? 0)), 0);
+      return { ...block, durationMinutes: { min: range.min, max: Math.min(range.max, limit - otherMax) } };
+    }),
+  };
+}
 
 /** `durationMin` = the effective session duration the content was built for (absent: the decision's own, or a range). */
 type Built = { content: PrescriptionV2Content; rule: string; durationMin?: number } | { blocked: Record<string, unknown> };
@@ -132,11 +188,22 @@ const composition = (c: { templateId?: string; blocks: readonly { items: readonl
   JSON.stringify([c.templateId, flatItems(c.blocks).map((i) => (i as ExerciseItemV2Content).exerciseId)]);
 
 /** MODIFY content: same session, lower dose (or the planned dose when M1 did not lower it). */
-function modifiedContent(planned: PrescriptionV2, plannedLoad: LoadProfile | null, finalLoad: LoadProfile | undefined, context: DailyAdaptationContextV2): Built {
+function modifiedContent(
+  planned: PrescriptionV2,
+  plannedLoad: LoadProfile | null,
+  final: { loadProfile?: LoadProfile; durationMin?: number },
+  context: DailyAdaptationContextV2,
+  timeLimitMin: number | undefined
+): Built {
+  const finalLoad = final.loadProfile;
   const upward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] > LOAD_RANK[plannedLoad];
   // §6 — never raise the planned dose automatically, never a "modified" copy of the planned dose.
   if (upward) return { blocked: { reason: "upward_modify_not_supported", planned: plannedLoad, final: finalLoad } };
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
+  // A10 — a shorter DH or endurance session for the rider's time today (same or lower load).
+  if (timeLimitMin !== undefined && final.durationMin !== undefined && final.durationMin <= timeLimitMin && planned.family !== "strength") {
+    return timeModifiedContent(planned, final.durationMin, downward);
+  }
   if (!downward) return { blocked: { reason: "modify_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
   const light = PLAN_ROLE_DOSES_V2.consolidation;
   switch (planned.family) {
@@ -169,8 +236,37 @@ function modifiedContent(planned: PrescriptionV2, plannedLoad: LoadProfile | nul
   }
 }
 
+/** A10 — MODIFY for time: the same DH drill in a planner window, or the same endurance protocol, shorter. */
+function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downward: boolean): Built {
+  switch (planned.family) {
+    case "dh_technical": {
+      const maxPasses = dhWindowMaxPasses(durationMin);
+      if (maxPasses === null) return { blocked: { reason: "dh_window_not_supported", durationMin } };
+      const lightPasses = PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses;
+      const content = withPasses(contentOf(planned), (count) => Math.min(count, maxPasses, downward ? lightPasses : count));
+      return { content, rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses, durationMin };
+    }
+    case "endurance": {
+      if (durationMin >= enduranceMinutes(planned)) return { blocked: { reason: "modify_not_supported", durationMin } };
+      const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
+      return {
+        content: buildAerobicBasePrescriptionV2Content({ sessionKind: planned.sessionKind, durationMin, catalog: planned.catalog, ridingAvailable }),
+        rule: DAILY_ADAPTATION_RULES_V2.enduranceLightDuration,
+        durationMin,
+      };
+    }
+    default:
+      return { blocked: { reason: "time_modify_not_supported", family: planned.family } };
+  }
+}
+
 /** REPLACE content: a session of the target kind, really prescribed. */
-function replacementContent(planned: PrescriptionV2, final: { kind: string; loadProfile?: LoadProfile; durationMin?: number }, context: DailyAdaptationContextV2): Built {
+function replacementContent(
+  planned: PrescriptionV2,
+  final: { kind: string; loadProfile?: LoadProfile; durationMin?: number },
+  context: DailyAdaptationContextV2,
+  timeLimitMin: number | undefined
+): Built {
   const catalog = buildSessionModelV2CatalogManifest();
   const load: "LIGHT" | "MODERATE" = final.loadProfile === "LIGHT" ? "LIGHT" : "MODERATE";
   if ((STRENGTH_KINDS as readonly string[]).includes(final.kind)) {
@@ -201,7 +297,12 @@ function replacementContent(planned: PrescriptionV2, final: { kind: string; load
             })
           : null;
     if (source === null) return { blocked: { reason: "riding_not_available", target: final.kind } };
-    const content = withPasses({ ...source, sessionKind: final.kind as PrescriptionV2Content["sessionKind"] }, (count) => (load === "LIGHT" ? Math.min(count, passes) : count));
+    // A10 — under a time limit the DH window must be a planner window, its passages capped accordingly.
+    const windowPasses = timeLimitMin !== undefined ? dhWindowMaxPasses(final.durationMin) : null;
+    if (timeLimitMin !== undefined && (windowPasses === null || final.durationMin! > timeLimitMin)) return { blocked: { reason: "dh_window_not_supported", durationMin: final.durationMin ?? null } };
+    const content = withPasses({ ...source, sessionKind: final.kind as PrescriptionV2Content["sessionKind"] }, (count) =>
+      Math.min(load === "LIGHT" ? Math.min(count, passes) : count, windowPasses ?? count)
+    );
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceDh, durationMin: final.durationMin ?? (load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhDurationMin : PLAN_ROLE_DOSES_V2.build.dhDurationMin) };
   }
   if (final.kind === "AEROBIC_BASE") {
@@ -210,7 +311,10 @@ function replacementContent(planned: PrescriptionV2, final: { kind: string; load
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
   }
   if (final.kind === "RECOVERY_ACTIVE") {
-    return { content: buildRecoveryActivePrescriptionV2Content({ catalog }), rule: DAILY_ADAPTATION_RULES_V2.replaceRecovery };
+    const content = buildRecoveryActivePrescriptionV2Content({ catalog });
+    if (timeLimitMin === undefined) return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceRecovery };
+    const within = recoveryWithin(content, timeLimitMin);
+    return within === null ? { blocked: { reason: "recovery_duration_not_supported", timeLimitMin } } : { content: within, rule: DAILY_ADAPTATION_RULES_V2.replaceRecovery };
   }
   return { blocked: { reason: "replace_target_not_supported", target: final.kind } };
 }
@@ -253,7 +357,9 @@ export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): 
 
   let built: Built;
   try {
-    built = isModify ? modifiedContent(trusted, generated.loadProfile, final.loadProfile, adaptation) : replacementContent(trusted, final, adaptation);
+    built = isModify
+      ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin)
+      : replacementContent(trusted, final, adaptation, input.timeLimitMin);
   } catch (error) {
     // A V2 locked block (no compatible exercise for the declared equipment, DH data missing…) is an explicit refusal, never a fallback.
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
@@ -278,7 +384,7 @@ export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): 
     ...(isModify ? { plannedPrescriptionId: planned.id } : {}),
     activeSessionOrigin: "generated",
     reconciliationAction: isModify ? "modify" : "replace",
-    adaptationRuleIds: [built.rule],
+    adaptationRuleIds: input.timeLimitMin !== undefined ? [built.rule, DAILY_ADAPTATION_RULES_V2.todayTimeLimit] : [built.rule],
     schemaVersion: "v2",
     catalogVersion: structure.catalog.aggregate,
     structure,

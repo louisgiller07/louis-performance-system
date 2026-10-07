@@ -14,7 +14,10 @@ export type FixtureKind =
   | "REPLACE_DH_TO_STRENGTH"
   | "REPLACE_TO_RECOVERY"
   // A02 — the overload week's Force (MODERATE_PLUS dose).
-  | "STRENGTH_LOWER_BUILD_PLUS";
+  | "STRENGTH_LOWER_BUILD_PLUS"
+  // A10 — fitted into the rider's time today.
+  | "TIME_RECOVERY_25"
+  | "TIME_DH_60";
 
 /** The live daily-run shape, the persisted row shape and the decoder input of one KEEP final prescription (deep copies). */
 export function keepFinalPrescription(kind: FixtureKind) {

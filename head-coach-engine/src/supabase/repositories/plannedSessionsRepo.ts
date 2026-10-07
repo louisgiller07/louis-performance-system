@@ -84,8 +84,14 @@ export interface DailyRunInputVersion {
   updated_at: string;
 }
 
+/** A10 — the check-in's version and the rider's time today, read together (one row, one read). */
+export interface DailyRunCheckinVersion extends DailyRunInputVersion {
+  /** Minutes available today; null (or absent) = no exceptional time constraint. */
+  available_minutes_today?: number | null;
+}
+
 export interface DailyRunInputVersions {
-  checkin: DailyRunInputVersion | null;
+  checkin: DailyRunCheckinVersion | null;
   plannedSession: DailyRunInputVersion | null;
 }
 
@@ -98,13 +104,13 @@ export interface DailyRunInputVersions {
  */
 export async function getDailyRunInputVersions(client: SupabaseClient, athleteId: string, date: string): Promise<DailyRunInputVersions> {
   const [checkin, planned] = await Promise.all([
-    client.from("daily_checkins").select("id, updated_at").eq("athlete_id", athleteId).eq("checkin_date", date).maybeSingle(),
+    client.from("daily_checkins").select("id, updated_at, available_minutes_today").eq("athlete_id", athleteId).eq("checkin_date", date).maybeSingle(),
     client.from("planned_sessions").select("id, updated_at").eq("athlete_id", athleteId).eq("planned_date", date).maybeSingle(),
   ]);
   assertNoSupabaseError(checkin.error, "daily_checkins");
   assertNoSupabaseError(planned.error, "planned_sessions");
   return {
-    checkin: (checkin.data as DailyRunInputVersion | null) ?? null,
+    checkin: (checkin.data as DailyRunCheckinVersion | null) ?? null,
     plannedSession: (planned.data as DailyRunInputVersion | null) ?? null,
   };
 }

@@ -1453,6 +1453,173 @@
           }
         ]
       }
+    },
+    "TIME_RECOVERY_25": {
+      "id": "f1000000-0000-4000-8000-000000000005",
+      "decisionId": "d1000000-0000-4000-8000-000000000005",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "replace",
+      "adaptationRuleIds": [
+        "v2.replace.recovery_active",
+        "v2.time.today_limit"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "recovery",
+        "sessionKind": "RECOVERY_ACTIVE",
+        "intentId": "recovery_without_fatigue",
+        "protocolId": "recovery_active_v1",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 20,
+              "max": 20
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 3
+            },
+            "instructionIds": [
+              "instruction.recovery.very_easy_activity"
+            ],
+            "items": [],
+            "blockId": "a4000000-0000-4000-8000-000000000001"
+          },
+          {
+            "role": "cool_down",
+            "focus": "breathing",
+            "durationMinutes": {
+              "min": 3,
+              "max": 5
+            },
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "breathing_long_exhale",
+                "role": "recovery",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 180,
+                  "maxSeconds": 300,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 0
+                },
+                "cueId": "cue.breathing_long_exhale",
+                "vigilanceIds": [
+                  "vigilance.breathing_normal_if_dizzy"
+                ],
+                "prescriptionItemId": "a4000000-0000-4000-8000-000000000003"
+              }
+            ],
+            "blockId": "a4000000-0000-4000-8000-000000000002"
+          }
+        ]
+      }
+    },
+    "TIME_DH_60": {
+      "id": "f1000000-0000-4000-8000-000000000006",
+      "decisionId": "d1000000-0000-4000-8000-000000000006",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000011",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "modify",
+      "adaptationRuleIds": [
+        "v2.modify.dh_light_passes",
+        "v2.time.today_limit"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "dh_technical",
+        "sessionKind": "DH_TECHNICAL",
+        "intentId": "dh_corner_exit_speed",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "brief",
+            "instructionIds": [
+              "instruction.dh.brief"
+            ],
+            "items": [],
+            "blockId": "a5000000-0000-4000-8000-000000000001"
+          },
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.dh.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "a5000000-0000-4000-8000-000000000002"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "drill",
+                "drillId": "cornering_berm_speed",
+                "measure": {
+                  "type": "pass",
+                  "count": 5
+                },
+                "cueId": "cue.cornering_berm_speed",
+                "successCriterionId": "criterion.cornering_berm_speed",
+                "vigilanceIds": [],
+                "prescriptionItemId": "a5000000-0000-4000-8000-000000000004",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000007"
+              }
+            ],
+            "blockId": "a5000000-0000-4000-8000-000000000003"
+          },
+          {
+            "role": "application",
+            "instructionIds": [
+              "instruction.dh.apply_cue"
+            ],
+            "items": [],
+            "blockId": "a5000000-0000-4000-8000-000000000005"
+          },
+          {
+            "role": "cool_down",
+            "instructionIds": [
+              "instruction.dh.debrief_and_check"
+            ],
+            "items": [],
+            "blockId": "a5000000-0000-4000-8000-000000000006"
+          }
+        ]
+      }
     }
   }
 }

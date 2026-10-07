@@ -9,7 +9,7 @@ import type { CheckinInput, CheckinRow } from "./checkinTypes";
 // return type; a `string`-typed constant built from `+` falls back to an
 // untypeable `GenericStringError`.
 const CHECKIN_COLUMNS =
-  "checkin_date, sleep_hours, sleep_quality, sleep_wake_ups, energy, work_stress, motivation, leg_fatigue, grip_fatigue, pain, pain_intensity, pain_new, pain_location_code, pain_traumatic, pain_function_loss, pain_getting_worse, suspected_concussion, fever_or_illness, free_comment";
+  "checkin_date, sleep_hours, sleep_quality, sleep_wake_ups, energy, work_stress, motivation, leg_fatigue, grip_fatigue, pain, pain_intensity, pain_new, pain_location_code, pain_traumatic, pain_function_loss, pain_getting_worse, suspected_concussion, fever_or_illness, free_comment, available_minutes_today";
 
 export class CheckinLoadError extends Error {
   constructor() {

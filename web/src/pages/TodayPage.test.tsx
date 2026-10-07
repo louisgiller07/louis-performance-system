@@ -19,7 +19,7 @@ const signOut = vi.fn();
 // PILOT_012 — current-plan pointer (training_plan_current_version via the existing repo).
 // Defaults to an active plan so every test keeps the normal Today flow.
 const { getActivePlanVersionId } = vi.hoisted(() => ({ getActivePlanVersionId: vi.fn() }));
-vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId }));
+vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId, getPlanPrescriptionSchemaVersion: vi.fn(async () => "v1") }));
 vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFlags: vi.fn().mockResolvedValue([]) }));
 
 beforeEach(() => {

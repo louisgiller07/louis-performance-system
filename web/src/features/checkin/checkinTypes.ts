@@ -21,6 +21,9 @@
 //   (pain_intensity_requires_pain) demands NOT NULL iff pain=true, NULL iff
 //   pain=false.
 // - Optional always: pain_location_code, free_comment.
+// - A10 — optional: available_minutes_today (integer minutes, DB CHECK
+//   1–1440). null = "Comme prévu": no exceptional time constraint today.
+//   Never deduced from free_comment.
 // - System-managed, never user-editable: id, athlete_id, checkin_date,
 //   submitted_at, created_at, updated_at.
 //
@@ -128,6 +131,8 @@ export interface CheckinRow {
   suspected_concussion: boolean;
   fever_or_illness: boolean;
   free_comment: string | null;
+  /** A10 — absent on a row read before the column existed. */
+  available_minutes_today?: number | null;
 }
 
 /** Validated payload the repo saves — satisfies both the DB CHECKs and the M2 adapter's required-field contract. */
@@ -150,7 +155,12 @@ export interface CheckinInput {
   suspected_concussion: boolean;
   fever_or_illness: boolean;
   free_comment: string | null;
+  available_minutes_today: number | null;
 }
+
+/** A10 — the common answers to « Combien de temps as-tu aujourd'hui ? » (minutes). */
+export const AVAILABLE_TIME_PRESETS = [30, 45, 60, 90] as const;
+export const AVAILABLE_MINUTES_RANGE = { min: 1, max: 1440 } as const;
 
 /**
  * Raw, in-progress form state — numeric fields may be "" while the user is
@@ -180,6 +190,8 @@ export interface CheckinFormState {
   suspected_concussion: boolean | null;
   fever_or_illness: boolean | null;
   free_comment: string;
+  /** A10 — null: « Comme prévu »; "" : « Autre durée » chosen, not typed yet. */
+  available_minutes_today: number | "" | null;
 }
 
 export const EMPTY_CHECKIN_FORM_STATE: CheckinFormState = {
@@ -201,6 +213,7 @@ export const EMPTY_CHECKIN_FORM_STATE: CheckinFormState = {
   suspected_concussion: null,
   fever_or_illness: null,
   free_comment: "",
+  available_minutes_today: null,
 };
 
 export function rowToFormState(row: CheckinRow | null): CheckinFormState {
@@ -229,5 +242,6 @@ export function rowToFormState(row: CheckinRow | null): CheckinFormState {
     suspected_concussion: row.suspected_concussion,
     fever_or_illness: row.fever_or_illness,
     free_comment: row.free_comment ?? "",
+    available_minutes_today: row.available_minutes_today ?? null,
   };
 }

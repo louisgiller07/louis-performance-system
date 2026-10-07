@@ -78,6 +78,9 @@ const ADAPTED = {
   MODIFY_DH_TECHNICAL: { from: "DH_TECHNICAL", decision: "MODIFY", finalSession: { kind: "DH_TECHNICAL", loadProfile: "LIGHT", durationMin: 90 } },
   REPLACE_DH_TO_STRENGTH: { from: "DH_TECHNICAL", decision: "REPLACE", finalSession: { kind: "STRENGTH_UPPER", loadProfile: "LIGHT" } },
   REPLACE_TO_RECOVERY: { from: "STRENGTH_LOWER", decision: "REPLACE", finalSession: { kind: "RECOVERY_ACTIVE" } },
+  // A10 — fitted into the rider's time today (timeLimitMin).
+  TIME_RECOVERY_25: { from: "STRENGTH_LOWER", decision: "REPLACE", finalSession: { kind: "RECOVERY_ACTIVE" }, timeLimitMin: 25 },
+  TIME_DH_60: { from: "DH_TECHNICAL", decision: "MODIFY", finalSession: { kind: "DH_TECHNICAL", loadProfile: "MODERATE", durationMin: 60 }, timeLimitMin: 60 },
 };
 Object.entries(ADAPTED).forEach(([name, c], i) => {
   const s = plan.weeks.flatMap((w) => w.sessions).find((x) => x.kind === c.from);
@@ -94,6 +97,7 @@ Object.entries(ADAPTED).forEach(([name, c], i) => {
     },
     plannedPrescription: { ...s.plannedPrescription, generatedPlanSessionId: s.generatedPlanSessionId },
     adaptation: { athlete: v2.toSessionModelV2Input(snapshot), ridingAvailable: true, mintId: () => `a${i}000000-0000-4000-8000-${String(++m).padStart(12, "0")}` },
+    ...(c.timeLimitMin !== undefined ? { timeLimitMin: c.timeLimitMin } : {}),
   });
   if (r.status !== "created") throw new Error(`${name}: not created (${JSON.stringify(r)})`);
   out.finalPrescriptions[name] = r.finalPrescription;

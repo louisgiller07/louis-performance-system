@@ -6,6 +6,7 @@ import { SecondaryButton } from "../../components/SecondaryButton";
 import { Select } from "../../components/Select";
 import { loadCheckin, saveCheckin } from "./checkinRepo";
 import { validateCheckin, type CheckinFieldErrors } from "./checkinValidation";
+import { AvailableTimeChoice } from "./AvailableTimeChoice";
 import { EMPTY_CHECKIN_FORM_STATE, PAIN_LOCATION_CODES, PAIN_LOCATION_LABELS, rowToFormState, type CheckinFormState, type CheckinRow } from "./checkinTypes";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -18,7 +19,7 @@ type SaveState = "idle" | "saving" | "saved" | "error";
  * only advances once validateCheckin() reports no error for the current
  * step's own fields (the rules themselves are never re-implemented here).
  */
-type StepId = "sommeil" | "energie" | "fatigue" | "sante";
+type StepId = "sommeil" | "energie" | "fatigue" | "temps" | "sante";
 
 interface GuidedStep {
   id: StepId;
@@ -31,6 +32,8 @@ const GUIDED_STEPS: GuidedStep[] = [
   { id: "sommeil", title: "Sommeil", question: "Comment as-tu dormi cette nuit ?", fields: ["sleep_hours", "sleep_quality", "sleep_wake_ups"] },
   { id: "energie", title: "Énergie", question: "Où en est ta tête ce matin ?", fields: ["energy", "work_stress", "motivation"] },
   { id: "fatigue", title: "Fatigue", question: "Qu'est-ce que tes jambes et tes avant-bras te disent ?", fields: ["leg_fatigue", "grip_fatigue"] },
+  // A10 — only when the day's decision can honour it (askAvailableTime).
+  { id: "temps", title: "Temps", question: "Combien de temps as-tu aujourd'hui ?", fields: ["available_minutes_today"] },
   {
     id: "sante",
     title: "Santé",
@@ -96,13 +99,20 @@ interface CheckinFormProps {
    * none exists yet). Lets Today show the athlete's own declared values.
    */
   onValuesChange?: (row: CheckinRow | null) => void;
+  /**
+   * A10 — ask « Combien de temps as-tu aujourd'hui ? ». Only when the current
+   * plan is V2: the V2 daily path is the one that fits the session in that
+   * time; elsewhere the question would promise something nothing honours.
+   */
+  askAvailableTime?: boolean;
 }
 
 // M4_003 — real persistence, RLS-scoped. No daily-run call, no DailyPlan
 // rendering, no coaching/safety decision here — this component only
 // collects and saves facts.
-export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSaved, mode = "full", onValuesChange }: CheckinFormProps) {
+export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSaved, mode = "full", onValuesChange, askAvailableTime = false }: CheckinFormProps) {
   const guided = mode === "guided";
+  const steps = askAvailableTime ? GUIDED_STEPS : GUIDED_STEPS.filter((s) => s.id !== "temps");
   const [step, setStep] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [form, setForm] = useState<CheckinFormState>(EMPTY_CHECKIN_FORM_STATE);
@@ -165,7 +175,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
   // Guided mode — advance only when the current step's own fields pass the
   // existing validation; errors in later steps never block "Suivant".
   function handleNext() {
-    const fields = GUIDED_STEPS[step]!.fields;
+    const fields = steps[step]!.fields;
     const result = validateCheckin(form);
     const stepErrors: CheckinFieldErrors = {};
     if (!result.ok) {
@@ -174,7 +184,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
       }
     }
     setErrors(stepErrors);
-    if (Object.keys(stepErrors).length === 0) setStep((current) => Math.min(current + 1, GUIDED_STEPS.length - 1));
+    if (Object.keys(stepErrors).length === 0) setStep((current) => Math.min(current + 1, steps.length - 1));
   }
 
   function handleBack() {
@@ -184,11 +194,12 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (guided && step < GUIDED_STEPS.length - 1) {
+    if (guided && step < steps.length - 1) {
       handleNext();
       return;
     }
-    const result = validateCheckin(form);
+    // A10 — a time the rider could not see is never saved (the question is hidden): « Comme prévu ».
+    const result = validateCheckin(askAvailableTime ? form : { ...form, available_minutes_today: null });
     if (!result.ok) {
       setErrors(result.errors);
       return;
@@ -329,6 +340,9 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
         />
       </fieldset>
     ),
+    temps: (
+      <AvailableTimeChoice value={form.available_minutes_today} onChange={(value) => updateField("available_minutes_today", value)} error={errors.available_minutes_today} />
+    ),
     sante: (
       <>
         <fieldset className="flex flex-col gap-3">
@@ -439,6 +453,7 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
         {sections.sommeil}
         {sections.energie}
         {sections.fatigue}
+        {askAvailableTime && sections.temps}
         {sections.sante}
         {feedback}
         <PrimaryButton type="submit" disabled={saveState === "saving"}>
@@ -448,17 +463,17 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
     );
   }
 
-  const current = GUIDED_STEPS[step]!;
-  const isLast = step === GUIDED_STEPS.length - 1;
+  const current = steps[step]!;
+  const isLast = step === steps.length - 1;
   return (
     <form onSubmit={handleSubmit} className="flex min-h-full flex-col" aria-label="Check-in du jour">
       <div className="flex gap-1.5" aria-hidden="true">
-        {GUIDED_STEPS.map((guidedStep, index) => (
+        {steps.map((guidedStep, index) => (
           <span key={guidedStep.id} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${index <= step ? "bg-gold" : "bg-line"}`} />
         ))}
       </div>
       <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted">
-        Étape {step + 1} / {GUIDED_STEPS.length}
+        Étape {step + 1} / {steps.length}
       </p>
 
       <div key={current.id} className="ux-enter mt-2 flex flex-1 flex-col gap-6">

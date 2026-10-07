@@ -1,4 +1,4 @@
-import { PAIN_LOCATION_CODES, type CheckinFormState, type CheckinInput } from "./checkinTypes";
+import { AVAILABLE_MINUTES_RANGE, PAIN_LOCATION_CODES, type CheckinFormState, type CheckinInput } from "./checkinTypes";
 
 // Ranges mirror the real DB CHECK constraints exactly (see
 // supabase/migrations/20260814095000_baseline_v0_2.sql) — not invented.
@@ -98,6 +98,15 @@ export function validateCheckin(state: CheckinFormState): ValidateCheckinResult 
     errors.pain_location_code = "Localisation de douleur invalide.";
   }
 
+  // A10 — optional: null = « Comme prévu »; « Autre durée » needs a whole number of minutes.
+  const minutes = state.available_minutes_today;
+  if (minutes !== null) {
+    if (minutes === "") errors.available_minutes_today = "Indique une durée en minutes.";
+    else if (!Number.isInteger(minutes) || !inRange(minutes, AVAILABLE_MINUTES_RANGE)) {
+      errors.available_minutes_today = `La durée doit être un nombre entier de minutes entre ${AVAILABLE_MINUTES_RANGE.min} et ${AVAILABLE_MINUTES_RANGE.max}.`;
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors };
   }
@@ -129,6 +138,7 @@ export function validateCheckin(state: CheckinFormState): ValidateCheckinResult 
     suspected_concussion: state.suspected_concussion as boolean,
     fever_or_illness: state.fever_or_illness as boolean,
     free_comment: state.free_comment.trim() === "" ? null : state.free_comment.trim(),
+    available_minutes_today: minutes === "" ? null : minutes,
   };
 
   return { ok: true, values };

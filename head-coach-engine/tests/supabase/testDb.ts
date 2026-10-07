@@ -195,6 +195,8 @@ export interface CheckinFixture {
   pain_getting_worse?: boolean | null;
   suspected_concussion?: boolean;
   fever_or_illness?: boolean;
+  /** A10 — minutes available today (absent = no constraint, never part of the neutral defaults). */
+  available_minutes_today?: number | null;
 }
 
 // Deliberately identical to fixtures/louis.ts's baseCheckin() defaults (M2
@@ -205,7 +207,7 @@ export interface CheckinFixture {
 // would compare apples to oranges by accident. Keeping the two default sets
 // numerically identical removes that risk entirely rather than relying on
 // both sets happening to land in the same GREEN band.
-const NEUTRAL_CHECKIN: Required<Omit<CheckinFixture, "pain_location_code">> = {
+const NEUTRAL_CHECKIN: Required<Omit<CheckinFixture, "pain_location_code" | "available_minutes_today">> = {
   sleep_hours: 8,
   sleep_quality: 8,
   sleep_wake_ups: 0,

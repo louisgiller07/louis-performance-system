@@ -13,7 +13,7 @@ import { PageShell } from "../components/PageShell";
 import { AppHeader } from "../components/AppHeader";
 import { HealthFlagBanner } from "../features/healthFlags/HealthFlagBanner";
 import { loadOpenHealthFlags, type OpenHealthFlag } from "../features/healthFlags/openHealthFlagsRepo";
-import { getActivePlanVersionId } from "../features/trainingPlanReview/trainingPlanReviewRepo";
+import { getActivePlanVersionId, getPlanPrescriptionSchemaVersion } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { CheckinSheet } from "../features/checkin/CheckinSheet";
 import { CheckinHero } from "../features/checkin/CheckinHero";
@@ -106,12 +106,23 @@ export function TodayPage() {
   // Best-effort read of the existing current-plan pointer: on error nothing is shown and
   // the rest of Today is unaffected.
   const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
+  // A10 — « Combien de temps as-tu aujourd'hui ? » only for a V2 plan (the daily path that honours it); hidden when unknown.
+  const [askAvailableTime, setAskAvailableTime] = useState(false);
   useEffect(() => {
     if (!athleteId) return;
     let cancelled = false;
     getActivePlanVersionId()
       .then((planVersionId) => {
-        if (!cancelled) setHasActivePlan(planVersionId !== null);
+        if (cancelled) return;
+        setHasActivePlan(planVersionId !== null);
+        if (planVersionId === null) return;
+        getPlanPrescriptionSchemaVersion(planVersionId)
+          .then((schema) => {
+            if (!cancelled) setAskAvailableTime(schema === "v2");
+          })
+          .catch(() => {
+            // Best-effort — the question stays hidden.
+          });
       })
       .catch(() => {
         // Best-effort — see comment above.
@@ -264,6 +275,7 @@ export function TodayPage() {
             onCheckinAvailabilityChange={handleCheckinAvailability}
             onSaved={handleCheckinSaved}
             onValuesChange={setCheckinValues}
+            askAvailableTime={askAvailableTime}
           />
         )}
       </CheckinSheet>

@@ -320,7 +320,7 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
         }
       }
       expect(winners.start + winners.legacy).toBe(8);
-    });
+    }, 30_000); // 8 rounds of real concurrency: under a loaded parallel suite the 5-s default timed out (A10 run).
   });
 
   describe("F-5d — canonical precedence: legacy skipped + V2 completed = V2 completed (bridge / M1)", () => {

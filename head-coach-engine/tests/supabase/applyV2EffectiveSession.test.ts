@@ -53,7 +53,7 @@ describe("A07 — applyV2EffectiveSession", () => {
     const p = plan(FORCE_LIGHT_60);
     expect(applyV2EffectiveSession(p, created("STRENGTH_LOWER", 60))).toBe(p);
     expect(applyV2EffectiveSession(p, created("STRENGTH_LOWER"))).toBe(p);
-    expect(applyV2EffectiveSession(p, { status: "not_required" } as FinalPrescriptionV2Result)).toBe(p);
+    expect(applyV2EffectiveSession(p, { status: "none", reason: "rest" } as FinalPrescriptionV2Result)).toBe(p);
   });
 
   it("an M1 session without duration gets the prescription's, traced without an M1 value", () => {
