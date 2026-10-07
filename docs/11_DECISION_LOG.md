@@ -5500,3 +5500,67 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - Durée et effort restent obligatoires pour une séance réalisée.
 
 **Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07), F-5 conservé. Implémenté et vert en local (branche `feat/a11-after-session`). Aucun push, aucun déploiement. Livraison : Edge `completed-session`, puis web ; sans migration.
+
+## 2026-10-07 — ADR P0 M1 UPWARD MODIFY : une séance planifiée n'est jamais alourdie automatiquement
+
+> **When a real planned session exists for the day, M1 never raises its load automatically: within the same activity family, the final session's `load_profile` is capped at the planned one (the kind may still change for a valid reason). Different families are never compared. A04's `upward_modify_not_supported` stays as a defensive guard.**
+
+**Évolution du moteur M1 (gelé depuis le verdict M1 APPROVED, 2026-08-13)**
+- Décision architecte HPM du 2026-10-07 (ticket « P0 — M1 UPWARD MODIFY NORMAL PATH »).
+- Fichiers M1 touchés :
+  - nouveau `src/rules/plannedLoadCap.ts` ;
+  - `src/rules/committedActivityFamily.ts` : `activityFamily`, qui expose les groupes déjà existants ;
+  - `src/engine/buildDailyPlan.ts` : une étape ajoutée.
+- Aucun autre comportement M1 modifié.
+
+**Cause racine**
+- **Mécanisme** : un plan V2 ne marque pas ses séances comme « engagées ». En approche de course, le protocole T-X remplace donc la baseline par sa recommandation générique (`buildDailyPlan`, branche `raceProtocol`, sans `planned_session_committed`).
+- **Le cas Hot Trail** :
+  - rider qui roule le dimanche seulement, Hot Trail le samedi suivant ;
+  - DH d'affûtage planifiée `DH_TECHNICAL LIGHT` à T-6, alors que la table T-X recommande `DH_TECHNICAL MODERATE` ;
+  - M1 compare au planned : même kind et charge supérieure, d'où un MODIFY vers le haut ;
+  - A04 bloque (`upward_modify_not_supported`) : aucune prescription exécutable.
+
+**Audit des transformations M1 (planned → candidat, hausse possible ?)**
+
+| Transformation | Hausse possible avant | Après |
+|---|---|---|
+| Baseline T-X sur un planned non engagé | **oui** (T-6 DH MODERATE sur une DH LIGHT) | plafonnée |
+| `preserveCommittedActivityFamily` (planned engagé) | non (DH → DH_LIGHT LIGHT, sinon une charge en moins) | inchangé |
+| C3.5 grip RED | **oui** dans la famille Force (GRIP_WORK → STRENGTH_LOWER MODERATE) | plafonnée |
+| C3.6 jambes RED | **oui** dans la famille Force (STRENGTH_LOWER LIGHT → STRENGTH_UPPER MODERATE) | plafonnée (UPPER LIGHT) |
+| MENTAL_RED, C3.3 | non (une charge en moins) | inchangé |
+| C3.7 | non (informatif) | inchangé |
+| Douleur hors Safety | non (deux charges en moins) | inchangé |
+| Soft constraint `no_grip_heavy` | **oui** (GRIP_WORK → STRENGTH_LOWER MODERATE) | plafonnée |
+| Soft constraints `no_dh_intense` / `no_development` | non (DH_LIGHT LIGHT, récupération) | inchangé |
+| Safety REST / ZERO_DH | non | inchangé |
+| Fallback (pas de planned) | sans objet | **jamais plafonné** (aucun plan) |
+| `withDhDuration` | non (la durée n'est jamais un plancher) | inchangé |
+
+Les durées des tables T-X (endurance 30, récupération 20) sont toujours inférieures ou égales aux séances V2 : aucune hausse de durée.
+
+**Règle retenue (une seule étape, à la fin de l'arbitrage)**
+- **Placement** : `capToPlannedLoad` après le T-X, les règles de domaine, la douleur, les soft constraints et la Safety, avant `withDhDuration`.
+- **Condition** : le planned existe, les deux séances ont un `load_profile`, et elles sont de la **même famille d'activité**, selon les groupes existants de `committedActivityFamily` :
+  - DH (DH_TECHNICAL, DH_PERFORMANCE, PUMPTRACK, DH_LIGHT) ;
+  - Force (STRENGTH_LOWER/UPPER/FULL_LIGHT, POWER, GRIP_WORK) ;
+  - endurance (AEROBIC_BASE/INTERVALS).
+- **Effet** : seul le `load_profile` est ramené à celui du plan, le kind reste celui choisi.
+- **Libellé** : une séance égale au plan donne KEEP (`sameIntervention`), jamais un faux MODIFY.
+- **Hors plafond** : un changement de famille n'est jamais comparé ; une journée sans plan n'est jamais plafonnée.
+
+**Trace**
+- **Audit** : règle `PLANNED_LOAD_CAP` (couche `ARBITRATION`), avec la séance planifiée, la proposition plus forte et sa source (`protocole T-X` / `arbitrage du jour`), et la séance conservée.
+- **Rider** : le web affiche une phrase simple. Après un T-X : « La charge prévue est conservée pour respecter ton affûtage. » Sinon : « La charge prévue est conservée : NALYNT n'alourdit jamais automatiquement une séance de ton plan. »
+- **Overrides** : `overrode_race_protocol` et `override_reason` restent vrais. La séance diffère bien de la recommandation T-X.
+
+**Défense en profondeur**
+- **A04** : `upward_modify_not_supported` est conservé dans `buildFinalPrescriptionV2` (tests planning-engine inchangés).
+- **Chemin normal** : il ne l'atteint plus, ce que vérifie la matrice M1.
+- **A10** : il s'applique après, et ne fait que descendre.
+
+**Restes**
+- `docs/04` (§3 arbitrage T-X / planned, §5 MODIFY vers le haut) et `CLAUDE.md` (dossiers M1 gelés) : diffs proposés dans le rapport, non appliqués.
+
+**Statut** : implémenté et vert en local (branche `fix/p0-m1-upward-modify`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (M1 dans le bundle), puis web (phrase rider) ; sans migration.

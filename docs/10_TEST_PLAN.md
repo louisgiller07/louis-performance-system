@@ -684,6 +684,25 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T44. P0 — une séance planifiée n'est jamais alourdie automatiquement (M1)
+- **M1 unitaires** (`tests/p0_plannedLoadCap.test.ts`, fixtures La Berra HOT_TRAIL_2DAY) :
+  - **A / B :** T-6, DH_TECHNICAL LIGHT planifiée + T-X MODERATE → KEEP DH LIGHT, `PLANNED_LOAD_CAP` tracé ;
+  - **K :** `decision_reasoning` = T-X + plafond, `override_reason` décrit la séance conservée ;
+  - **C :** T-7, Force haut MODERATE → réduction LIGHT existante ;
+  - **D :** LIGHT + T-X LIGHT → KEEP, sans plafond ;
+  - **G :** sans planned → recommandation T-X inchangée ;
+  - **H :** changement de famille par T-X ou par fatigue inchangé ;
+  - **E :** jambes RED sur Force bas LIGHT → haut LIGHT (au lieu de MODERATE) ; MODERATE → haut MODERATE inchangé ;
+  - la fonction de plafond : même famille seulement, charge seulement ;
+  - **matrice** : 8 séances V2 générables (Force bas/haut, DH, endurance × LIGHT/MODERATE) × 8 jours (sans course, T-7..T-1) × 6 états du jour (neutre, systemic RED, jambes RED, grip RED, mental RED, douleur) × 4 modes = 1536 cas. Jamais une charge supérieure dans la même famille ; séance égale au plan → KEEP ; jamais un MODIFY vers le haut.
+  - **Contre-preuve** : sans le plafond, A/B, K, E et la matrice échouent.
+- **Intégration locale** (`tests/supabase/p0UpwardModify.integration.test.ts`, reproduction exacte A04 : vélo le dimanche, Hot Trail samedi, DH d'affûtage à T-6) :
+  - **A / K / L :** KEEP DH LIGHT, prescription créée (copie conforme), trace et reasoning, relecture identique, démarrage de la séance guidée possible ;
+  - **I :** 45 min → récupération (jamais MODERATE) ; 75 min → DH LIGHT.
+  - `a04ModifyReplace` K mis à jour (le chemin normal n'atteint plus §6).
+- **A04 défense (J)** : tests planning-engine `upward_modify_not_supported` inchangés et verts.
+- **Web** (`p0PlannedLoadCap.test.ts`) : phrase rider après un T-X / après l'arbitrage du jour, aucun identifiant moteur.
+
 ### T43. A11 — bilan après séance
 - **Edge, validation** (`tests/edge/completedSession/validation.test.ts`) : fatigue post-séance `null` acceptée pour terminé / partiel / autre chose ; hors plage toujours refusée.
 - **Web, unitaires** :
