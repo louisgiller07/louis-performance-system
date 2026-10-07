@@ -684,6 +684,11 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T47. P1 — pas de phrase d'objectif un jour REST
+- **Unitaires** (`tests/supabase/goalReasoning.test.ts`) : REST × les 5 objectifs → aucun ajout, même référence (décision, séance, sections intactes) ; KEEP / MODIFY / REPLACE → phrase toujours ajoutée.
+- **Intégration locale** (`tests/supabase/p1RestObjectiveCopy.integration.test.ts`, chemin V2, objectif « Technical skills ») : fièvre sur une DH planifiée → REST persisté, raisonnement = « Fièvre ou maladie déclarée. Repos complet jusqu'à résolution des symptômes. » sans phrase d'objectif, aucune prescription ; jour neutre (KEEP) → phrase toujours présente.
+- **Contre-preuve** : sans le correctif, les 5 cas REST unitaires et le REST d'intégration échouent.
+
 ### T46. P0 — aucune consigne course après une adaptation LIGHT (intention comprise)
 - **planning-engine** (`tests/unit/p0DhLoadCoherence.test.ts`, `intentCatalogV2.test.ts`) — tous les textes résolus (intention, instructions, cue, critère, vigilances) :
   - **A :** DH course MODERATE → REPLACE `DH_LIGHT` LIGHT : `dh_race_consistency` + `section_consistency`, aucun texte « mode course / vitesse course / allure de course » ;

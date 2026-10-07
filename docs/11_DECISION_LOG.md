@@ -5677,3 +5677,15 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Limite connue** : pour un profil legacy dont toutes les fenêtres valent `any`, l'éditeur de créneaux pré-remplit encore les jours d'onboarding comme jours vélo complets, jusqu'à ce que le rider enregistre (comportement BUG-V2-1 inchangé, jamais enregistré sans confirmation).
 
 **Statut** : implémenté et vert en local (branche `fix/p1-riding-days-single-source`). Livraison : web seul ; aucune migration, aucune Edge, aucun flag.
+
+## 2026-10-07 — ADR P1 REST OBJECTIVE COPY : pas de phrase d'objectif un jour REST (évolution de V0.3_011)
+
+> **On a REST day, `applyGoalPersonalization` appends no `primary_goal` sentence: the plan is returned unchanged (same reference), keeping the reasoning of the rule that decided the rest. KEEP, MODIFY and REPLACE are unchanged.**
+
+- **Cause** : `applyGoalPersonalization` (ADR V0.3_011, `runDailyFor.personalizeReasoning`, chemins V1 et V2) ajoutait la phrase d'objectif à `reasoning` quelle que soit la décision. En prod (12.11), un REST A3 se terminait donc par « Ton plan soutient ta progression technique… », affiché par le web un jour REST (`coachWhy` → `athleteSafeReasoning`).
+- **Décision HPM (2026-10-07)** :
+  - `decision === "REST"` → plan renvoyé tel quel (même référence, comme sans objectif déclaré) ;
+  - périmètre REST uniquement : `RECOVERY_ACTIVE` et les autres décisions sont inchangés ;
+  - M1 inchangé (`src/supabase`).
+- **Historique** : les décisions REST déjà persistées gardent la phrase (append-only, pas de réécriture). Elle disparaît à la prochaine décision du jour.
+- **Statut** : implémenté et vert en local (branche `fix/p1-rest-objective-copy`). Livraison : Edge `daily-run` seule ; ni web, ni migration, ni flag.
