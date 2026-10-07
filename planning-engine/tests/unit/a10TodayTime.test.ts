@@ -11,6 +11,7 @@ import {
   type DrillItemV2,
   type FinalPrescriptionV2,
   type FinalPrescriptionV2Result,
+  type FinalPrescriptionWithinTodayTimeV2Result,
   type PlanInputSnapshotV2,
   type PlanSessionV2InMemory,
   type PlanV2InMemory,
@@ -81,7 +82,7 @@ function input(
   };
 }
 
-function created(r: FinalPrescriptionV2Result): Extract<FinalPrescriptionV2Result, { status: "created" }> {
+function created(r: FinalPrescriptionWithinTodayTimeV2Result): Extract<FinalPrescriptionWithinTodayTimeV2Result, { status: "created" }> {
   if (r.status !== "created") throw new Error(`expected created, got ${JSON.stringify(r)}`);
   return r;
 }

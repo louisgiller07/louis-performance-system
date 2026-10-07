@@ -16,12 +16,21 @@
  *   drill (`pass` = focusedRunsCount, 4–8); every other block carries
  *   instructions only — never a number of runs for the day.
  *
+ * P0 adapted-session coherence — the dose shapes the mission: for a LIGHT
+ * DH dose, a catalogue drill that demands race intensity (its validated cue
+ * or criterion asks for « mode course » / « vitesse course »:
+ * RACE_SPEED_DRILL_IDS_V2) is replaced by following the catalogue's own
+ * regression link (`regressesTo`) until a drill without race intensity is
+ * reached — never an invented drill. The same rule serves the planner and
+ * the daily adaptations (dhDrillForLoad).
+ *
  * Blocks (locked codes): missing_dh_technical_tier,
  * missing_dh_priority_areas, too_many_dh_priority_areas,
  * duplicate_dh_priority_areas, dh_passes_out_of_range,
  * unavailable_dh_drill_terrain. No automatic correction.
  */
-import { DH_SKILLS_V2, DH_DRILL_PASSES_RANGE_V2, SESSION_DRILL_CATALOG_V2_ENTRIES, type DhSkillV2, type DhTechnicalTierV2, type SessionDrillV2 } from "../../catalog/sessionDrillCatalogV2.js";
+import { DH_SKILLS_V2, DH_DRILL_PASSES_RANGE_V2, SESSION_DRILL_CATALOG_V2, SESSION_DRILL_CATALOG_V2_ENTRIES, type DhSkillV2, type DhTechnicalTierV2, type SessionDrillV2 } from "../../catalog/sessionDrillCatalogV2.js";
+import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { DH_SKILL_TO_INTENT_V2, INTENT_CATALOG_V2 } from "../../catalog/intentCatalogV2.js";
 import { DH_SESSION_FRAME_V2 } from "../../catalog/sessionFrameV2.js";
 import type { SessionKind } from "../../types/sharedVocabulary.js";
@@ -50,6 +59,36 @@ export interface DhPrescriptionV2Input {
   /** The planned session's doseTarget.focusedRunsCount: passages of the session's single technical drill. */
   focusedRunsCount: number;
   catalog: SessionModelV2CatalogManifest;
+  /** P0 — the session's load: a LIGHT dose never carries a race-intensity drill (dhDrillForLoad). Absent = as before. */
+  loadProfile?: LoadProfile;
+}
+
+/**
+ * P0 — drills whose validated texts demand race intensity (cue / criterion:
+ * « mode course » or « vitesse course »). Locked against the text catalogue
+ * by test: a drill is in this set iff its texts say so.
+ */
+export const RACE_SPEED_DRILL_IDS_V2: ReadonlySet<string> = new Set([
+  "braking_marked_zone_at_speed",
+  "line_choice_fast_line_compare",
+  "roots_rocks_committed",
+  "race_execution_split_pace",
+  "race_execution_full_run_sim",
+]);
+
+/**
+ * P0 — the drill a dose can honestly carry. Any load but LIGHT: the drill
+ * itself. LIGHT: the catalogue regression chain (`regressesTo`) until a drill
+ * without race intensity whose terrain is declared. null when the chain
+ * offers none (the caller blocks: never an invented drill).
+ */
+export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefined, terrainAccess: readonly string[]): SessionDrillV2 | null {
+  if (load !== "LIGHT" || !RACE_SPEED_DRILL_IDS_V2.has(drill.drillId)) return drill;
+  let current: SessionDrillV2 | undefined = drill;
+  while (current && RACE_SPEED_DRILL_IDS_V2.has(current.drillId)) {
+    current = current.regressesTo !== undefined ? SESSION_DRILL_CATALOG_V2[current.regressesTo] : undefined;
+  }
+  return current && terrainAccess.includes(current.requiredTerrain) ? current : null;
 }
 
 const isDhSkill = (value: string): value is DhSkillV2 => (DH_SKILLS_V2 as readonly string[]).includes(value);
@@ -99,7 +138,11 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
     throw new SessionModelV2ContractError(`no DH intent for skill ${skill}`);
   }
 
-  const drill = canonicalDhDrill(skill, tier);
+  const canonical = canonicalDhDrill(skill, tier);
+  const drill = dhDrillForLoad(canonical, input.loadProfile, input.terrainAccess);
+  if (drill === null) {
+    throw new SessionModelV2GenerationBlockedError("unavailable_dh_drill_terrain", { skill, dhTechnicalTier: tier, drillId: canonical.drillId, loadProfile: input.loadProfile ?? null, reason: "no_light_regression" });
+  }
   if (!input.terrainAccess.includes(drill.requiredTerrain)) {
     throw new SessionModelV2GenerationBlockedError("unavailable_dh_drill_terrain", {
       skill,

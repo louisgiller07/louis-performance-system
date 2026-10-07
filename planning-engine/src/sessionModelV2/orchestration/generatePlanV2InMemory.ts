@@ -245,6 +245,8 @@ function buildContent(
         terrainAccess: modelInput.terrainAccess,
         focusedRunsCount: session.doseTarget.focusedRunsCount,
         catalog,
+        // P0 — a LIGHT DH week never carries a race-intensity drill.
+        ...(session.loadProfile !== undefined ? { loadProfile: session.loadProfile } : {}),
       });
     }
     case "AEROBIC_BASE":

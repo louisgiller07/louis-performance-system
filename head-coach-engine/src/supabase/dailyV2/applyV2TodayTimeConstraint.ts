@@ -13,17 +13,18 @@
  * `triggered_rules` whenever a time was given (minutes, session before,
  * action, session after). When the session changed, it is also in
  * `decision_reasoning` with a plain athlete-facing sentence, appended to
- * M1's own reasons, and `training.objective` carries that sentence. A DH
- * session that is no longer a DH session leaves the DH section inactive.
+ * M1's own reasons, and `training.objective` carries that sentence. The
+ * session-derived sections follow the new session (realignSessionSections:
+ * no DH technique, nutrition, recovery or monitoring advice on a recovery).
  * No time given → the plan is returned as is.
  */
 import { joinDecisionReasoning } from "../../engine/reasoningBuilder.js";
 import type { DailyPlan, TrainingIntervention, TriggeredRule } from "../../types/index.js";
 import type { FinalPrescriptionV2Result, TodayTimeConstraintV2 } from "./reconcileFinalPrescriptionV2.js";
+import { realignSessionSections } from "./realignSessionSections.js";
 
 export const V2_TODAY_TIME_CONSTRAINT_RULE_ID = "V2_TODAY_TIME_CONSTRAINT";
 
-const DH_KINDS = new Set(["DH_TECHNICAL", "DH_PERFORMANCE", "DH_LIGHT", "PUMPTRACK"]);
 const LOAD_RANK: Readonly<Record<string, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
 
 type Session = TodayTimeConstraintV2["before"];
@@ -73,7 +74,8 @@ export function applyV2TodayTimeConstraint(plan: DailyPlan, reconciliation: Fina
       ...(finalSession.duration_min !== undefined ? { duration_min: finalSession.duration_min } : {}),
       objective: sentence,
     },
-    ...(DH_KINDS.has(finalSession.kind) ? {} : { dh_or_technical: { active: false } }),
+    // P0 coherence — the session-derived sections follow the effective session (no DH advice on a recovery).
+    ...realignSessionSections(plan, finalSession),
     reasoning: joinDecisionReasoning(decisionReasoning),
     triggered_rules: [...plan.triggered_rules, trace],
     decision_reasoning: decisionReasoning,

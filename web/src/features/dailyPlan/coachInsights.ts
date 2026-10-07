@@ -26,6 +26,8 @@ export const SIGNAL_LABELS: Readonly<Record<string, string>> = {
   suspected_concussion: "Suspicion de commotion",
   unresolved_concussion_flag: "Suspicion de commotion",
   fever_or_illness: "Fièvre ou maladie",
+  // A10 — the V2 daily path's time constraint (V2_TODAY_TIME_CONSTRAINT): only in decision_reasoning when it adapted the session.
+  available_minutes_today: "Temps disponible limité",
 };
 
 /** Which check-in answer a signal comes from — lets Today highlight the matching value. */
@@ -100,7 +102,9 @@ export function coachWhy(dailyPlan: DailyPlan): string {
     hasActiveSafetyRule(dailyPlan) ||
     rules.some((rule) => rule.layer === "B") ||
     dailyPlan.overrode_race_protocol ||
-    dailyPlan.planned_session_before === null;
+    dailyPlan.planned_session_before === null ||
+    // P0 coherence — a session fitted into the rider's time is explained by its own validated sentence.
+    rules.some((rule) => rule.rule_id === "V2_TODAY_TIME_CONSTRAINT");
   if (engineDriven) return athleteSafeReasoning(dailyPlan);
 
   const signals = retainedSignals(dailyPlan);

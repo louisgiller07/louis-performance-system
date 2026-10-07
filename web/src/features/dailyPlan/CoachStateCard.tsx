@@ -13,6 +13,13 @@ import type { CheckinRow } from "../checkin/checkinTypes";
 //   engine retained a signal coming from that answer.
 // - The server-derived health signal and the first monitoring note keep
 //   exactly the ReadinessCard semantics (red when active, sanitized text).
+/** P0 coherence — the session WAS adapted, by context rather than a check-in signal (race protocol, plan…). */
+const NO_SIGNAL_ADAPTED: Record<"MODIFY" | "REPLACE" | "REST", string> = {
+  MODIFY: "Ta séance a été ajustée au contexte du jour.",
+  REPLACE: "Ta séance a été remplacée selon le contexte du jour.",
+  REST: "Le contexte du jour demande du repos.",
+};
+
 export function CoachStateCard({
   dailyPlan,
   hasHealthSignal,
@@ -55,7 +62,8 @@ export function CoachStateCard({
           </ul>
         ) : (
           <p className="ux-enter mt-3 text-sm leading-relaxed text-ink/80" style={{ ["--d" as string]: `${baseDelay}ms` }}>
-            Aucun signal de ton check-in n'a demandé d'adapter ta séance.
+            {/* P0 coherence — never « no adaptation » when the effective session differs from the plan. */}
+            {dailyPlan.decision === "KEEP" ? "Aucun signal de ton check-in n'a demandé d'adapter ta séance." : NO_SIGNAL_ADAPTED[dailyPlan.decision]}
           </p>
         )}
       </section>

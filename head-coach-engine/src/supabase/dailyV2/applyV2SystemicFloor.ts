@@ -23,6 +23,7 @@
  */
 import { joinDecisionReasoning } from "../../engine/reasoningBuilder.js";
 import type { DailyPlan, TrainingIntervention, TriggeredRule } from "../../types/index.js";
+import { realignSessionSections } from "./realignSessionSections.js";
 
 export const V2_SYSTEMIC_FLOOR_RULE_ID = "V2_SYSTEMIC_FLOOR";
 
@@ -44,6 +45,8 @@ export function applyV2SystemicFloor(plan: DailyPlan): DailyPlan {
     ...plan,
     decision: "REPLACE",
     final_session: recovery,
+    // P0 coherence — the session-derived sections follow the recovery, not the replaced Force.
+    ...realignSessionSections(plan, recovery),
     training: { ...training, active: true, session_type: recovery, objective: FLOOR_DETAIL },
     reasoning: joinDecisionReasoning(decisionReasoning),
     triggered_rules: [...plan.triggered_rules, rule],

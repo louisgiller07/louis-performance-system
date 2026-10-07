@@ -57,7 +57,8 @@ import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { BlockV2, DrillItemV2Content, ExerciseItemV2Content, PrescriptionItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
-import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND } from "../builders/dhPrescriptionV2.js";
+import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND, dhDrillForLoad } from "../builders/dhPrescriptionV2.js";
+import { SESSION_DRILL_CATALOG_V2 } from "../../catalog/sessionDrillCatalogV2.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
 import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
 import { buildKeepFinalPrescriptionV2, lineageFailure, trustedPlannedStructure, type BuildKeepFinalPrescriptionV2Input } from "./buildKeepFinalPrescriptionV2.js";
@@ -171,6 +172,33 @@ function contentOf(structure: PrescriptionV2): PrescriptionV2Content {
 
 const flatItems = (blocks: readonly { items: readonly unknown[] }[]) => blocks.flatMap((b) => b.items);
 
+/**
+ * P0 adapted-session coherence — the DH drills of a content at the target
+ * load: a LIGHT dose follows the catalogue regression of a race-intensity
+ * drill (dhDrillForLoad), with that drill's own cue, criterion and
+ * vigilances. null when no declared-terrain regression exists.
+ */
+function drillsForLoad(content: PrescriptionV2Content, load: LoadProfile | undefined, terrainAccess: readonly string[]): PrescriptionV2Content | null {
+  let blockedDrill = false;
+  const blocks = content.blocks.map((b) => ({
+    ...b,
+    items: b.items.map((item) => {
+      if (item.kind !== "drill") return item;
+      const entry = SESSION_DRILL_CATALOG_V2[item.drillId];
+      if (!entry) throw new SessionModelV2ContractError(`unknown DH drill ${item.drillId}`);
+      const drill = dhDrillForLoad(entry, load, terrainAccess);
+      if (drill === null) {
+        blockedDrill = true;
+        return item;
+      }
+      return drill.drillId === item.drillId
+        ? item
+        : ({ ...item, drillId: drill.drillId, cueId: drill.cueId, successCriterionId: drill.criterionId, vigilanceIds: [...drill.vigilanceIds] } as DrillItemV2Content);
+    }),
+  }));
+  return blockedDrill ? null : { ...content, blocks };
+}
+
 /** Endurance total = the sum of its blocks' fixed minutes. */
 function enduranceMinutes(structure: PrescriptionV2): number {
   return structure.blocks.reduce((sum, b) => sum + (b.durationMinutes?.min ?? 0), 0);
@@ -202,7 +230,7 @@ function modifiedContent(
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
   // A10 — a shorter DH or endurance session for the rider's time today (same or lower load).
   if (timeLimitMin !== undefined && final.durationMin !== undefined && final.durationMin <= timeLimitMin && planned.family !== "strength") {
-    return timeModifiedContent(planned, final.durationMin, downward);
+    return timeModifiedContent(planned, final.durationMin, downward, finalLoad, context.athlete.terrainAccess);
   }
   if (!downward) return { blocked: { reason: "modify_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
   const light = PLAN_ROLE_DOSES_V2.consolidation;
@@ -220,8 +248,11 @@ function modifiedContent(
       }
       return { content: rebuilt, rule: DAILY_ADAPTATION_RULES_V2.strengthLightDose, durationMin: light.forceDurationMin };
     }
-    case "dh_technical":
-      return { content: withPasses(contentOf(planned), (count) => Math.min(count, light.dhFocusedPasses)), rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses };
+    case "dh_technical": {
+      // P0 — fewer passages AND a mission the LIGHT dose can carry (no race-intensity drill).
+      const content = drillsForLoad(withPasses(contentOf(planned), (count) => Math.min(count, light.dhFocusedPasses)), finalLoad, context.athlete.terrainAccess);
+      return content === null ? { blocked: { reason: "no_light_dh_drill" } } : { content, rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses };
+    }
     case "endurance": {
       const minutes = Math.min(enduranceMinutes(planned), PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin);
       const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
@@ -237,14 +268,14 @@ function modifiedContent(
 }
 
 /** A10 — MODIFY for time: the same DH drill in a planner window, or the same endurance protocol, shorter. */
-function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downward: boolean): Built {
+function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downward: boolean, finalLoad: LoadProfile | undefined, terrainAccess: readonly string[]): Built {
   switch (planned.family) {
     case "dh_technical": {
       const maxPasses = dhWindowMaxPasses(durationMin);
       if (maxPasses === null) return { blocked: { reason: "dh_window_not_supported", durationMin } };
       const lightPasses = PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses;
-      const content = withPasses(contentOf(planned), (count) => Math.min(count, maxPasses, downward ? lightPasses : count));
-      return { content, rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses, durationMin };
+      const content = drillsForLoad(withPasses(contentOf(planned), (count) => Math.min(count, maxPasses, downward ? lightPasses : count)), finalLoad, terrainAccess);
+      return content === null ? { blocked: { reason: "no_light_dh_drill" } } : { content, rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses, durationMin };
     }
     case "endurance": {
       if (durationMin >= enduranceMinutes(planned)) return { blocked: { reason: "modify_not_supported", durationMin } };
@@ -294,15 +325,20 @@ function replacementContent(
               terrainAccess: context.athlete.terrainAccess,
               focusedRunsCount: passes,
               catalog,
+              loadProfile: load,
             })
           : null;
     if (source === null) return { blocked: { reason: "riding_not_available", target: final.kind } };
     // A10 — under a time limit the DH window must be a planner window, its passages capped accordingly.
     const windowPasses = timeLimitMin !== undefined ? dhWindowMaxPasses(final.durationMin) : null;
     if (timeLimitMin !== undefined && (windowPasses === null || final.durationMin! > timeLimitMin)) return { blocked: { reason: "dh_window_not_supported", durationMin: final.durationMin ?? null } };
-    const content = withPasses({ ...source, sessionKind: final.kind as PrescriptionV2Content["sessionKind"] }, (count) =>
-      Math.min(load === "LIGHT" ? Math.min(count, passes) : count, windowPasses ?? count)
+    // P0 — the replacement DH carries a mission its load can honestly hold (LIGHT: no race-intensity drill).
+    const content = drillsForLoad(
+      withPasses({ ...source, sessionKind: final.kind as PrescriptionV2Content["sessionKind"] }, (count) => Math.min(load === "LIGHT" ? Math.min(count, passes) : count, windowPasses ?? count)),
+      load,
+      context.athlete.terrainAccess
     );
+    if (content === null) return { blocked: { reason: "no_light_dh_drill", target: final.kind } };
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceDh, durationMin: final.durationMin ?? (load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhDurationMin : PLAN_ROLE_DOSES_V2.build.dhDurationMin) };
   }
   if (final.kind === "AEROBIC_BASE") {
