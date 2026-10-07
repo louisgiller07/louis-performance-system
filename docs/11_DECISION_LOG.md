@@ -5654,3 +5654,26 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 - Ce n'est pas un résidu de la séance remplacée : c'est la couche de personnalisation (tous jours, tous objectifs). Classé **P1** (backlog), à confirmer par la lecture persistée (`p0-replace-stale.sql`).
 
 **Statut** : cause confirmée en prod (8 nov. : REPLACE, drill régressé `section_consistency` ×4, intention persistée `dh_race_pace`). Correctif, ajout sans changement de version et texte validés HPM (2026-10-07) ; déploiement approuvé : web, puis Edge `daily-run`, puis `generate-training-plan` ; sans migration. Finding REST confirmé (phrase d'objectif), maintenu en P1.
+
+## 2026-10-07 — ADR P1 RIDING DAYS SINGLE SOURCE : les créneaux sont la seule vérité des jours de roulage
+
+> **After the first run, the rider's riding days are read from `athlete_availability_windows` only. `preferred_riding_days` remains an onboarding answer (DB compatibility) and the first pre-fill of the slots; it is never edited nor shown as truth afterwards.**
+
+**Constat**
+- Le planificateur V2 ne lit que les créneaux (BUG-V2-1). Aucun moteur ne lit `preferred_riding_days` : le contexte de coaching le charge sans consommateur.
+- « Ta pratique » permettait pourtant de modifier les jours de roulage et les affichait dans son résumé. Le rider changeait ses jours sans aucun effet sur son plan.
+
+**Décision (HPM 2026-10-07, web uniquement)**
+- « Ta pratique » :
+  - plus de puces de jours ; `savePractice` n'écrit plus `preferred_riding_days` ; la complétude n'en dépend plus ;
+  - le résumé et la vue d'édition affichent « Roule … · d'après tes créneaux » (ou « Aucun créneau vélo ») ;
+  - un lien « Modifier dans Tes créneaux » ouvre la section créneaux ;
+  - le résumé suit les créneaux dès leur enregistrement.
+- `ridingDaysFromWindows` (web) : miroir de `windowServes(window, "riding")` du planificateur, verrouillé par un test qui le compare au helper canonique. `riding` et `any` (fenêtre legacy, transmise sans activité : elle sert les deux, quelle que soit sa durée) font un jour de roulage ; `physical` seul, jamais. Aucun seuil propre au web.
+- Onboarding et `/start` : inchangés (réponse obligatoire, pré-remplissage initial des créneaux).
+- Non fait (HPM) : retrait du champ dans `AthleteCoachingContext` (head-coach), nettoyage ultérieur.
+- `docs/05` mis à jour (formulation approuvée HPM).
+
+**Limite connue** : pour un profil legacy dont toutes les fenêtres valent `any`, l'éditeur de créneaux pré-remplit encore les jours d'onboarding comme jours vélo complets, jusqu'à ce que le rider enregistre (comportement BUG-V2-1 inchangé, jamais enregistré sans confirmation).
+
+**Statut** : implémenté et vert en local (branche `fix/p1-riding-days-single-source`). Livraison : web seul ; aucune migration, aucune Edge, aucun flag.
