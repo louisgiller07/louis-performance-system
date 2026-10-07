@@ -5564,3 +5564,56 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 - `docs/04` (`PLANNED_LOAD_CAP`, MODIFY vers le haut) et `CLAUDE.md` (gel M1 = pas de modification non gouvernée) : appliqués après validation HPM.
 
 **Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07) ; `docs/04` et `CLAUDE.md` mis à jour. Implémenté et vert en local (branche `fix/p0-m1-upward-modify`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (M1 dans le bundle), puis web (phrase rider) ; sans migration.
+
+## 2026-10-07 — ADR P0 ADAPTED SESSION SEMANTIC COHERENCE : une DH LIGHT porte une mission LIGHT
+
+> **A DH whose final load is LIGHT never carries a race-intensity drill. The drill is the catalogue regression (`regressesTo`) of the planned/canonical drill, with that drill's own cue, criterion and vigilances, on declared terrain; otherwise the adaptation is blocked. A session the V2 layer changes after M1 carries no secondary advice from the replaced session.**
+
+**Bug dogfood (17 oct., date simulée, fatigue forte)**
+- Today / Programme : « DH léger, LIGHT ».
+- Guidée : « Simulation de run complet, 4 passages, piste complète, en mode course, du départ à l'arrivée, sans relâcher ».
+
+**Cause racine (reproduite en local ; lecture persistée prod en attente)**
+- **A04 MODIFY / REPLACE vers LIGHT** : `buildFinalPrescriptionV2` copie le drill prévu (`contentOf(planned)`) et ne réduit que les passages. Une DH MODERATE `race_execution_full_run_sim` devient donc une « DH LIGHT » de 4 runs complets en mode course.
+- **Le builder DH ignore la charge** : le drill est choisi par (priorité, `dhTechnicalTier`). Les semaines LIGHT du planificateur pouvaient aussi porter un drill course.
+- L'incohérence est **dans la prescription finale persistée**, pas dans l'affichage Guidée.
+
+**Règle retenue (un seul endroit : `dhDrillForLoad`, builder DH)**
+- **Drills « intensité course »** (textes « mode course » / « vitesse course », figés par test contre le catalogue de textes) :
+  - `braking_marked_zone_at_speed` ;
+  - `line_choice_fast_line_compare` ;
+  - `roots_rocks_committed` ;
+  - `race_execution_split_pace` ;
+  - `race_execution_full_run_sim`.
+- **Charge LIGHT** : suivre `regressesTo` jusqu'au premier drill non-course de la même compétence. Ce drill doit être sur un terrain déclaré par le rider ; sinon : bloqué. Exemple : `full_run_sim` → `split_pace` → `race_execution_section_consistency`.
+- **Charge MODERATE / HIGH** : drill inchangé.
+- **Contenu** : drill, cue, critère et vigilances du catalogue validé ; aucun drill improvisé.
+- **Utilisée par** :
+  - le planificateur (semaines LIGHT) ;
+  - A04 MODIFY (passages LIGHT + régression) ;
+  - A04 REPLACE vers une DH (builder avec la charge, puis régression) ;
+  - A10 (fenêtre plus courte : même drill si la charge reste MODERATE, régression si la charge finale est LIGHT).
+- **Blocage** : pas de régression sur terrain déclaré → `no_light_dh_drill` (adaptation) ou `unavailable_dh_drill_terrain` (génération).
+- **KEEP** : inchangé (copie conforme de la prescription planifiée).
+
+**Sections dérivées de la séance (findings adjacents)**
+- **Cause** : M1 calcule récupération, nutrition, technique DH, notes de monitoring DH et indice mental « avant de partir » à partir de **sa** séance finale. `V2_SYSTEMIC_FLOOR` et `V2_TODAY_TIME_CONSTRAINT` changent ensuite la séance : une récupération qui remplace une DH gardait les conseils DH.
+- **Correction (couche V2, M1 non modifié)** : `realignSessionSections` recalcule ces sections avec les fonctions de domaine M1 existantes, sur la séance retenue :
+  - récupération et nutrition recalculées ;
+  - `dh_or_technical` inactif hors famille DH ;
+  - notes de monitoring DH retirées ;
+  - indice mental DH remplacé par l'indice de base de la règle mentale déclenchée.
+  - Protection et lignes issues des signaux conservées.
+- **Explication rider (web)** :
+  - jamais « Aucun signal… n'a demandé d'adapter ta séance » après MODIFY / REPLACE / REST ; phrase neutre selon la décision (« ajustée », « remplacée », « repos ») ;
+  - `V2_TODAY_TIME_CONSTRAINT` adapté / repos est un signal retenu (« Temps disponible limité ») et le « pourquoi » reprend sa phrase validée ;
+  - KEEP : message neutre inchangé.
+
+**Choix et limites**
+- **Agrégat `session-model-v2.6` non incrémenté** : A04 MODIFY exige cet agrégat (§9). L'incrémenter bloquerait MODIFY sur tous les plans actuels.
+- **Plans déjà persistés** : une semaine LIGHT déjà générée avec un drill course le garde sur KEEP (pas de réécriture historique). Les adaptations du jour, elles, régressent.
+- **Nouveau blocage de génération** : un profil dont le terrain ne permet aucune régression non-course (ex. priorité `race_execution` avec seulement `full_dh_track` et `technical_trail`, sans `any_groomed_trail`) est désormais bloqué à la génération (`unavailable_dh_drill_terrain`) au lieu de recevoir une semaine LIGHT en mode course.
+- **Classification** : liste fermée de 5 drills, verrouillée par test contre les textes. Un nouveau drill course doit y être ajouté.
+- **docs/03 / docs/04** : la règle LIGHT et la précision A10 « même drill » sont à documenter après validation HPM (diff proposé dans le rapport).
+
+**Statut** : implémenté et vert en local (branche `fix/p0-adapted-session-coherence`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` et `generate-training-plan` (planning-engine dans les bundles), puis web ; sans migration.

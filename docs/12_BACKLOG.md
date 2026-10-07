@@ -654,6 +654,13 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
   - Livraison à approuver : Edge `daily-run`, puis web. `docs/04` et `CLAUDE.md` appliqués.
   - **Cas reproduit :** DH prévue `LIGHT` + protocole course T-X demandant `DH_TECHNICAL MODERATE` → MODIFY vers le haut côté M1 → prescription du jour bloquée (`upward_modify_not_supported`), donc aucune séance exécutable ce jour-là.
   - À fermer avant le rollout bêta ; non corrigé dans A07 ni A10.
+- [ ] **P0 — ADAPTED SESSION SEMANTIC COHERENCE** (HPM 2026-10-07, bug dogfood 17 oct.) : implémenté et vert en local (branche `fix/p0-adapted-session-coherence`, ADR P0 ADAPTED SESSION). Statut HPM en attente.
+  - Une DH LIGHT ne porte jamais de drill « intensité course » : régression catalogue (`regressesTo`) sur terrain déclaré, sinon bloqué. S'applique au planificateur, à A04 MODIFY / REPLACE et à A10 ; KEEP inchangé.
+  - Une séance changée par la couche V2 (plancher systémique, A10) ne garde aucun conseil secondaire de la séance remplacée (`realignSessionSections`, M1 inchangé).
+  - Web : jamais « Aucun signal… » après MODIFY / REPLACE / REST ; A10 adapté = signal retenu « Temps disponible limité ».
+  - Livraison à approuver : Edge `daily-run` et `generate-training-plan`, puis web ; sans migration.
+  - À confirmer : lecture persistée du 17 oct. (`p0-oct17-readonly.sql`, compte Simulation) ; diffs `docs/03` / `docs/04` proposés (règle DH LIGHT, précision A10 « même drill »).
+- [ ] **P0 / limites** : semaines LIGHT déjà générées avec un drill course conservées sur KEEP (pas de réécriture) ; nouveau blocage de génération pour un profil sans terrain de régression ; liste des drills course fermée (5), à étendre avec tout nouveau drill course.
 - [x] **A07** — séance effective, source de vérité unique : **PASS / CLOSED LOCAL** (HPM 2026-10-07), implémenté et vert en local (branche `feat/a07-effective-session`, ADR A07). La décision V2 persistée porte la durée de la prescription (`V2_EFFECTIVE_SESSION`), et un modèle de lecture web partagé alimente Today (semaine), Program, History et Après séance. Livraison à approuver (Edge `daily-run`, puis web ; sans migration).
 - [ ] **A07 / restes** :
   - les décisions antérieures à A07 gardent la durée M1, sans réécriture historique ;

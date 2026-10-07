@@ -684,6 +684,25 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T45. P0 — une séance adaptée porte une mission cohérente avec sa charge
+- **planning-engine** (`tests/unit/p0DhLoadCoherence.test.ts`) :
+  - la liste des 5 drills « intensité course » est verrouillée contre les textes (« mode course » / « vitesse course ») ;
+  - `dhDrillForLoad` : chaque drill course régresse vers un drill non-course de la même compétence ; MODERATE inchangé ;
+  - **A / B :** MODIFY DH → LIGHT : `race_execution_section_consistency` (cue, critère, vigilances du catalogue), passages LIGHT, `derivedFrom` ;
+  - **C :** REPLACE → `DH_LIGHT` LIGHT, et REPLACE Force → DH LIGHT : aucun drill course ;
+  - **E :** KEEP MODERATE : copie conforme (drill course conservé) ;
+  - **F :** A10 fenêtre plus courte : MODERATE garde le drill ; LIGHT régresse ;
+  - terrain sans régression : adaptation bloquée `no_light_dh_drill` ; génération bloquée `unavailable_dh_drill_terrain` (limite) ;
+  - **D :** semaines LIGHT du planificateur sans drill course ; KEEP LIGHT copie conforme ;
+  - matrice : toutes les compétences, tier avancé.
+- **head-coach unitaires** (`tests/supabase/realignSessionSections.test.ts`) : DH → récupération (A10) sans conseil DH (nutrition, récupération, technique, monitoring, mental) ; protection conservée ; DH gardée en DH inchangée ; plancher systémique → conseils de récupération.
+- **Intégration locale** (`tests/supabase/p0AdaptedSessionCoherence.integration.test.ts`, profil dogfood : avancé, priorité `race_execution`) :
+  - planificateur : semaines LIGHT sans drill course, MODERATE `race_execution_full_run_sim` ;
+  - **A / C / G :** jambes RED sur la DH MODERATE → REPLACE `DH_LIGHT` LIGHT persisté avec `race_execution_section_consistency`, relecture identique ;
+  - **E :** check-in neutre → KEEP, drill course conservé ;
+  - 30 min un jour de DH → récupération active persistée sans conseil DH.
+- **Web** (`p0AdaptationExplanation.test.tsx`) : A10 adapté → « Temps disponible limité » retenu, « pourquoi » = phrase validée ; MODIFY / REPLACE / REST sans signal → phrase neutre adaptée, jamais « Aucun signal… » ; KEEP inchangé ; contrainte `fits` non retenue.
+
 ### T44. P0 — une séance planifiée n'est jamais alourdie automatiquement (M1)
 - **M1 unitaires** (`tests/p0_plannedLoadCap.test.ts`, fixtures La Berra HOT_TRAIL_2DAY) :
   - **A / B :** T-6, DH_TECHNICAL LIGHT planifiée + T-X MODERATE → KEEP DH LIGHT, `PLANNED_LOAD_CAP` tracé ;
