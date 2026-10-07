@@ -5499,4 +5499,4 @@ Recommencer reste possible après un arrêt, et seulement s'il n'y a aucune séa
 - C'est rétro-compatible : un client qui l'envoie reste valide. La DB et la RPC l'acceptaient déjà nulle.
 - Durée et effort restent obligatoires pour une séance réalisée.
 
-**Statut** : implémenté et vert en local (branche `feat/a11-after-session`). Aucun push, aucun déploiement. Livraison : Edge `completed-session`, puis web ; sans migration.
+**Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07), F-5 conservé. Implémenté et vert en local (branche `feat/a11-after-session`). Aucun push, aucun déploiement. Livraison : Edge `completed-session`, puis web ; sans migration.

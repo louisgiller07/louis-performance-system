@@ -644,9 +644,11 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
 - [ ] **Calibration coaching — SYSTEMIC_RED sur DH / endurance LIGHT** (finding A04) : ces séances restent KEEP (C3.3 « nature préservée »). Décider s'il faut une règle (aucun changement pour l'instant).
 - [ ] **M1 / T-X — MODIFY vers le haut** (finding A04, ticket M1 séparé) : la recommandation T-6 `DH_TECHNICAL MODERATE` remplace une DH d'affûtage V2 `LIGHT` non engagée. M1 étiquette MODIFY vers le haut, et la prescription V2 est bloquée (`upward_modify_not_supported`) : pas de séance guidée ce jour-là. Atteignable (rider qui roule le dimanche, course le samedi suivant). Décider côté logique M1 / T-X ; M1 non modifié dans A04.
 - [ ] **A04** — MODIFY / REPLACE exécutables : implémenté et vert en local (branche `feat/a04-modify-replace`, ADR A04), livraison à approuver (Edge `daily-run` → web).
-- [ ] **A11** — bilan après séance court, clair et sûr en cas de réseau instable : implémenté et vert en local (branche `feat/a11-after-session`, ADR A11).
+- [x] **A11** — bilan après séance court, clair et sûr en cas de réseau instable : **PASS / CLOSED LOCAL** (HPM 2026-10-07), F-5 conservé ; implémenté et vert en local (branche `feat/a11-after-session`, ADR A11).
   - Décision effective liée automatiquement ; non réalisée en 3 taps ; seuls les champs consommés sont demandés ; effort nommé ; progression stable ; « Réessayer » ; envoi unique ; F-5 conservé (HPM).
   - Livraison à approuver : Edge `completed-session` (fatigue facultative), puis web ; sans migration.
+- [ ] **Future coaching — feedback subjectif après séance guidée V2** (HPM 2026-10-07) : à envisager seulement lorsqu'un consommateur moteur précis existe (F-5 conservé d'ici là).
+- [ ] **Pre-rollout gate — `test:m5:completed-session:http`** (HPM 2026-10-07) : l'exécuter dans un environnement où l'Edge locale peut être arrêtée / redémarrée sans perturber les autres suites.
 - [ ] **P0 BEFORE PAID BETA — M1 UPWARD MODIFY NORMAL PATH** (HPM 2026-10-07, bloquant avant rollout bêta, après A10 et A11) :
   - **Cas reproduit :** DH prévue `LIGHT` + protocole course T-X demandant `DH_TECHNICAL MODERATE` → MODIFY vers le haut côté M1 → prescription du jour bloquée (`upward_modify_not_supported`), donc aucune séance exécutable ce jour-là.
   - À fermer avant le rollout bêta ; non corrigé dans A07 ni A10.
