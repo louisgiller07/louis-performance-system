@@ -7,6 +7,7 @@ import { dayCompletion, type GuidedCompletion } from "../completion/dayCompletio
 import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import { weekDates } from "../today/todayContext";
 import type { DecisionHistoryRow } from "./historyTypes";
+import { effectiveDay, type EffectiveDay, type EffectiveExecution } from "../effectiveSession/effectiveDay";
 
 // UX-07 — History as the rider's journey. Pure presentation of rows that
 // already exist: decisions grouped into days, the day's check-in, recorded
@@ -33,6 +34,8 @@ export interface HistoryDay {
    */
   guided: GuidedCompletion | null;
   race: RaceOverlayEvent | null;
+  /** A07 — the day's effective session (shared read model): what the day really was. */
+  effective: EffectiveDay;
 }
 
 export type DayOutcome =
@@ -63,7 +66,8 @@ export function buildHistoryDays(
   checkins: CheckinRow[],
   completed: CompletedSessionRecord[],
   races: RaceOverlayEvent[],
-  guided: readonly GuidedCompletion[] = []
+  guided: readonly GuidedCompletion[] = [],
+  executions: readonly EffectiveExecution[] = []
 ): HistoryDay[] {
   const byDate = new Map<string, DecisionHistoryRow[]>();
   for (const row of rows) byDate.set(row.decisionDate, [...(byDate.get(row.decisionDate) ?? []), row]);
@@ -73,7 +77,10 @@ export function buildHistoryDays(
     .map(([date, dayRows]) => {
       const chronological = dayRows.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
       const newestFirst = chronological.slice().reverse();
-      const main = newestFirst.find((row) => isValidDailyPlan(row.dailyPlan)) ?? newestFirst[0]!;
+      const effective = effectiveDay(date, { decisions: rows, executions, legacy: completed, planned: [] });
+      // A07 / R9-UI-01 — a day with a V2 execution is about the execution's OWN decision, even when a newer one exists.
+      const executed = effective.source === "execution" ? newestFirst.find((row) => row.id === effective.decisionId && isValidDailyPlan(row.dailyPlan)) : undefined;
+      const main = executed ?? newestFirst.find((row) => isValidDailyPlan(row.dailyPlan)) ?? newestFirst[0]!;
       const done = dayCompletion(date, completed, guided);
       return {
         date,
@@ -84,6 +91,7 @@ export function buildHistoryDays(
         completed: completed.find((session) => session.session_date === date) ?? null,
         guided: done?.source === "guided" ? done.guided : null,
         race: races.find((race) => race.startDate <= date && date <= race.endDate) ?? null,
+        effective,
       };
     });
 }

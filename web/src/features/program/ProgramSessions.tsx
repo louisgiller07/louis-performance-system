@@ -4,6 +4,7 @@ import type { CompletedSessionRecord } from "../completedSession/completedSessio
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
 import { adaptationFrom, completionOn, splitByToday } from "./programPresentation";
 import { ProgramSessionCard } from "./ProgramSessionCard";
+import type { EffectiveDay } from "../effectiveSession/effectiveDay";
 
 // UX-06 — "Aujourd'hui" (dominant), "À venir" (compact, a few visible, the
 // rest one tap away) and "Terminé" (folded). Future sessions are always
@@ -26,6 +27,7 @@ export function ProgramSessions({
   guided = [],
   decisionsByDate,
   modifiedDates,
+  effectiveByDate = new Map(),
 }: {
   review: TrainingPlanReview;
   today: string;
@@ -34,6 +36,8 @@ export function ProgramSessions({
   guided?: readonly GuidedCompletion[];
   decisionsByDate: Map<string, DailyPlan>;
   modifiedDates: readonly string[];
+  /** A07 — the effective session of today / past plan days. */
+  effectiveByDate?: ReadonlyMap<string, EffectiveDay>;
 }) {
   const { today: todaySession, upcoming, past } = splitByToday(review, today);
   const visible = upcoming.slice(0, UPCOMING_VISIBLE);
@@ -47,6 +51,7 @@ export function ProgramSessions({
       completion={variant === "past" ? completionOn(session.date, completed, guided) : null}
       adaptation={variant === "past" ? adaptationFrom(decisionsByDate.get(session.date)) : null}
       modifiedByAthlete={modifiedDates.includes(session.date)}
+      effective={variant === "past" ? (effectiveByDate.get(session.date) ?? null) : null}
     />
   );
 
@@ -61,6 +66,7 @@ export function ProgramSessions({
           completion={completionOn(today, completed, guided)}
           adaptation={adaptationFrom(decisionsByDate.get(today))}
           modifiedByAthlete={modifiedDates.includes(today)}
+          effective={effectiveByDate.get(today) ?? null}
         />
       )}
 

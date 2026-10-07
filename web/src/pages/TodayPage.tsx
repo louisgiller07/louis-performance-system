@@ -237,7 +237,7 @@ export function TodayPage() {
       {todayContext && (
         <>
           <NextStepCard next={nextPlannedSession(todayContext.planned, canonicalDate)} today={canonicalDate} horizon={horizon} objective={todayContext.objective} />
-          <WeekStrip week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races, todayContext.guided)} />
+          <WeekStrip week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races, todayContext.guided, todayContext.effective)} />
           <RegularityCard
             checkedInToday={hasCheckin}
             weekCount={weekCheckinCount(todayContext.checkinDates, canonicalDate, hasCheckin)}

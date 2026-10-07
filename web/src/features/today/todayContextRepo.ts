@@ -4,7 +4,8 @@ import { addDays } from "../../lib/date";
 import type { RacePriority } from "../planning/raceOverlayRepo";
 import { loadPlannedSessions } from "../planning/planningRepo";
 import type { PlannedSessionRow } from "../planning/planningTypes";
-import { loadCompletedSessionsForDates, loadGuidedCompletionsForDates } from "../history/historyRepo";
+import { loadEffectiveSources } from "../effectiveSession/effectiveSessionRepo";
+import { effectiveDays, type EffectiveDay, type EffectiveSources, type PlannedDaySession } from "../effectiveSession/effectiveDay";
 import type { GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import { loadPerformanceSetupAnswers } from "../performanceSetup/performanceSetupRepo";
@@ -32,11 +33,25 @@ export interface TodayContext {
   completed: CompletedSessionRecord[];
   /** UX-11R.9 — this week's guided V2 executions that reached `completed` (dayCompletion.ts). */
   guided: GuidedCompletion[];
+  /** A07 — this week's effective sessions (shared read model); null when the week's decisions / executions could not be read. */
+  effective: EffectiveDay[] | null;
   /** Dates (YYYY-MM-DD) of this week's saved check-ins, Monday → today. */
   checkinDates: string[];
 }
 
-const EMPTY: TodayContext = { firstName: null, races: [], objective: null, planned: [], completed: [], guided: [], checkinDates: [] };
+const EMPTY: TodayContext = { firstName: null, races: [], objective: null, planned: [], completed: [], guided: [], effective: null, checkinDates: [] };
+
+/** A planned_sessions row as the effective-session read model takes it (a legacy coarse row without intervention stays plan-only). */
+function plannedDaySessions(rows: readonly PlannedSessionRow[]): PlannedDaySession[] {
+  return rows.flatMap((row) => (row.intervention ? [{ date: row.planned_date, session: row.intervention }] : []));
+}
+
+/** Completed guided executions, from the same execution rows as the read model (UX-11R.9 dayCompletion.ts shape). */
+function guidedCompletions(sources: EffectiveSources): GuidedCompletion[] {
+  return sources.executions
+    .filter((e) => e.events.includes("completed") && e.decisionId !== null)
+    .map((e) => ({ executionId: e.executionId, sessionDate: e.sessionDate, decisionId: e.decisionId!, finalPrescriptionId: e.finalPrescriptionId }));
+}
 
 /** Days ahead scanned for the next planned session ("Prochaine étape"). */
 const NEXT_SESSION_LOOKAHEAD_DAYS = 14;
@@ -108,22 +123,26 @@ function valueOr<T>(result: PromiseSettledResult<T>, fallback: T): T {
 export async function loadTodayContext(athleteId: string, today: string): Promise<TodayContext> {
   const week = weekDates(today);
   const lastDate = [week[6]!, addDays(today, NEXT_SESSION_LOOKAHEAD_DAYS)].sort().at(-1)!;
-  const [firstName, races, objective, planned, completed, guided, checkinDates] = await Promise.allSettled([
+  const plannedLoad = loadPlannedSessions(athleteId, week[0]!, lastDate);
+  // A07 — one read model for the week: decisions, executions and legacy debriefs (the completed / guided lists derive from it).
+  const sourcesLoad = plannedLoad.catch(() => [] as PlannedSessionRow[]).then((rows) => loadEffectiveSources(athleteId, week, plannedDaySessions(rows)));
+  const [firstName, races, objective, planned, sources, checkinDates] = await Promise.allSettled([
     loadFirstName(),
     loadRaces(athleteId, week[0]!, addDays(today, RACE_LOOKAHEAD_DAYS)),
     loadObjective(),
-    loadPlannedSessions(athleteId, week[0]!, lastDate),
-    loadCompletedSessionsForDates(athleteId, week),
-    loadGuidedCompletionsForDates(athleteId, week),
+    plannedLoad,
+    sourcesLoad,
     loadCheckinDates(athleteId, week[0]!, today),
   ]);
+  const loadedSources = sources.status === "fulfilled" ? sources.value : null;
   return {
     firstName: valueOr(firstName, null),
     races: valueOr(races, []),
     objective: valueOr(objective, null),
     planned: valueOr(planned, []),
-    completed: valueOr(completed, []),
-    guided: valueOr(guided, []),
+    completed: loadedSources ? [...loadedSources.legacy] : [],
+    guided: loadedSources ? guidedCompletions(loadedSources) : [],
+    effective: loadedSources ? effectiveDays(week, loadedSources) : null,
     checkinDates: valueOr(checkinDates, []),
   };
 }

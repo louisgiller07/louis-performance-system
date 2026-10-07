@@ -85,6 +85,7 @@ import { resolveDailyPrescriptionModel } from "./dailyV2/dailyPrescriptionModel.
 import { toFinalPrescriptionOutcome } from "./dailyV2/finalPrescriptionOutcome.js";
 import { persistDailyRunV2, type FinalPrescriptionStatus } from "./dailyV2/persistDailyRunV2.js";
 import { applyV2SystemicFloor } from "./dailyV2/applyV2SystemicFloor.js";
+import { applyV2EffectiveSession } from "./dailyV2/applyV2EffectiveSession.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
@@ -387,7 +388,9 @@ export async function runDailyFor(
       mintId: deps.mintId,
     });
 
-    const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, dailyPlanV2, deps.getAthleteCoachingContext);
+    // A07 — the persisted plan describes the effective session (the final prescription's duration).
+    const effectivePlanV2 = applyV2EffectiveSession(dailyPlanV2, reconciliation);
+    const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, effectivePlanV2, deps.getAthleteCoachingContext);
 
     const decisionRowV2 = {
       id: decisionId,

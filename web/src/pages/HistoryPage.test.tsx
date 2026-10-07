@@ -16,7 +16,7 @@ vi.mock("../lib/simulationClock", () => ({ useEffectiveToday: () => "2026-09-29"
 vi.mock("../features/history/historyRepo", () => ({
   loadDecisionHistory: vi.fn(),
   loadCompletedSessionsForDates: vi.fn(),
-  loadGuidedCompletionsForDates: vi.fn(async () => []),
+  loadExecutionsForDates: vi.fn(async () => []),
   HistoryLoadError: class HistoryLoadError extends Error {
     constructor() {
       super("Impossible de charger l'historique. Réessaie.");
@@ -26,14 +26,14 @@ vi.mock("../features/history/historyRepo", () => ({
 vi.mock("../features/checkin/checkinRepo", () => ({ loadCheckinsForDates: vi.fn() }));
 vi.mock("../features/today/todayContextRepo", () => ({ loadRaces: vi.fn(), loadObjective: vi.fn() }));
 
-import { loadDecisionHistory, loadCompletedSessionsForDates, loadGuidedCompletionsForDates } from "../features/history/historyRepo";
+import { loadDecisionHistory, loadCompletedSessionsForDates, loadExecutionsForDates } from "../features/history/historyRepo";
 import { decision as historyDecision, KEEP_PLAN as HISTORY_KEEP_PLAN } from "../features/history/historyFixtures";
 import { loadCheckinsForDates } from "../features/checkin/checkinRepo";
 import { loadObjective, loadRaces } from "../features/today/todayContextRepo";
 
 const mockedLoad = loadDecisionHistory as unknown as ReturnType<typeof vi.fn>;
 const mockedLoadCompleted = loadCompletedSessionsForDates as unknown as ReturnType<typeof vi.fn>;
-const mockedLoadGuided = loadGuidedCompletionsForDates as unknown as ReturnType<typeof vi.fn>;
+const mockedLoadGuided = loadExecutionsForDates as unknown as ReturnType<typeof vi.fn>;
 const mockedCheckins = loadCheckinsForDates as unknown as ReturnType<typeof vi.fn>;
 const mockedRaces = loadRaces as unknown as ReturnType<typeof vi.fn>;
 const mockedObjective = loadObjective as unknown as ReturnType<typeof vi.fn>;
@@ -188,7 +188,7 @@ describe("HistoryPage — the journey (UX-07)", () => {
     expect(within(card).queryByText(/non enregistrée|Séance à venir/)).not.toBeInTheDocument();
   });
 
-  it("a re-evaluated safety day: health signal, planned → adapted, why, 'Séance non enregistrée', re-evaluations with their times", async () => {
+  it("a re-evaluated safety day: health signal, planned → adapted, why, 'Repos décidé par NALYNT' (A07: a REST is never a missed session), re-evaluations with their times", async () => {
     mockedLoad.mockResolvedValue(JOURNEY_ROWS);
     renderHistoryPage();
 
@@ -200,7 +200,8 @@ describe("HistoryPage — the journey (UX-07)", () => {
     expect(within(card).getByText("NALYNT a adapté ton plan")).toBeInTheDocument();
     expect(within(card).getByText("Aérobie base · charge modérée · 45 min")).toBeInTheDocument();
     expect(within(card).getByText(/récupération devient prioritaire/)).toBeInTheDocument();
-    expect(within(card).getByText("Séance non enregistrée")).toBeInTheDocument();
+    expect(within(card).getByText("Repos décidé par NALYNT")).toBeInTheDocument();
+    expect(within(card).queryByText("Séance non enregistrée")).toBeNull();
     expect(within(card).queryByText(/Tu n'as pas fait/)).not.toBeInTheDocument();
 
     await userEvent.click(within(card).getByText("Journée réévaluée 2 fois"));
@@ -284,9 +285,11 @@ describe("HistoryPage — the journey (UX-07)", () => {
 describe("HistoryPage — UX-11R.9 a day completed as a guided session", () => {
   it("reads as recorded ('✓ Séance guidée terminée') without any completed_sessions row", async () => {
     mockedLoad.mockResolvedValue([historyDecision("d-today", "2026-09-29", "07:10", HISTORY_KEEP_PLAN)]);
-    mockedLoadGuided.mockResolvedValue([{ executionId: "exec-1", sessionDate: "2026-09-29", decisionId: "d-today", finalPrescriptionId: "fp-1" }]);
+    // A07 — the executions read (completed one: its event types).
+    mockedLoadGuided.mockResolvedValue([{ executionId: "exec-1", sessionDate: "2026-09-29", decisionId: "d-today", finalPrescriptionId: "fp-1", startedAt: "2026-09-29T17:00:00Z", events: ["started", "completed"] }]);
     renderHistoryPage();
-    expect(await screen.findByText("✓ Séance guidée terminée")).toBeInTheDocument();
+    // A07 — the line names the session executed (the execution's own decision).
+    expect(await screen.findByText(/^✓ Séance guidée terminée( — .+)?$/)).toBeInTheDocument();
     expect(screen.queryByText("Séance non enregistrée")).not.toBeInTheDocument();
   });
 });

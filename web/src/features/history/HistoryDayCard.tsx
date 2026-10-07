@@ -61,15 +61,29 @@ const RECORDED: Record<CompletedSessionRecord["completion_status"], string> = {
 /** UX-11R.9 — a day done through a completed guided session. */
 const GUIDED_RECORDED = "✓ Séance guidée terminée";
 
+/** A07 — "Renfo bas du corps · 45 min": the session the day was really about (the effective one). */
+function effectiveLabel(day: HistoryDay): string | null {
+  const session = day.effective.session;
+  if (!session || session.kind === "REST") return null;
+  return interventionMeta(session) ? `${kindLabel(session)} · ${interventionMeta(session)}` : kindLabel(session);
+}
+
 /** What was recorded for the day; null when there is nothing to say. */
 function recordedLine(day: HistoryDay, today: string): { text: string; recorded: boolean } | null {
-  // UX-11R.9 — a guided session completed that day (and no legacy record saying more).
-  if (day.guided) return { text: GUIDED_RECORDED, recorded: true };
+  // UX-11R.9 — a guided session completed that day (and no legacy record saying more); A07: it names the session executed.
+  if (day.guided) {
+    const label = effectiveLabel(day);
+    return { text: label ? `${GUIDED_RECORDED} — ${label}` : GUIDED_RECORDED, recorded: true };
+  }
   if (day.completed) {
     const duration = day.completed.completion_status !== "skipped" && day.completed.actual_duration_min !== null ? ` · ${formatDuration(day.completed.actual_duration_min)}` : "";
     return { text: `${RECORDED[day.completed.completion_status]}${duration}`, recorded: day.completed.completion_status !== "skipped" };
   }
   if (!day.dailyPlan || day.dailyPlan.planned_session_before === null) return null;
+  // A07 — a REST decided by NALYNT is a rest day, never a missed session; an open / stopped guided session says so.
+  if (day.effective.status === "rest") return { text: "Repos décidé par NALYNT", recorded: false };
+  if (day.effective.status === "in_progress") return { text: "Séance guidée en cours", recorded: false };
+  if (day.effective.status === "abandoned") return { text: day.date < today ? "Séance guidée arrêtée" : "Séance guidée arrêtée — tu peux la reprendre", recorded: false };
   // Validated wording: a day not yet passed is "à venir", never "non enregistrée".
   return { text: day.date < today ? "Séance non enregistrée" : "Séance à venir", recorded: false };
 }

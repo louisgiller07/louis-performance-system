@@ -1,3 +1,4 @@
+import type { EffectiveDay } from "../effectiveSession/effectiveDay";
 import { strengthSummary } from "../finalPrescriptionV2/strengthSummary";
 import type { TrainingPlanReview, TrainingPlanReviewSession, TrainingPlanReviewWeek } from "../trainingPlanReview/trainingPlanReviewTypes";
 import { dayCompletion, isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
@@ -108,11 +109,28 @@ export function programWeekDays(
   review: TrainingPlanReview,
   completed: CompletedSessionRecord[],
   races: RaceOverlayEvent[],
-  guided: readonly GuidedCompletion[] = []
+  guided: readonly GuidedCompletion[] = [],
+  effectiveByDate: ReadonlyMap<string, EffectiveDay> = new Map()
 ): WeekDay[] {
   return weekDates(monday).map((date) => {
     const session = sessionOn(review, date);
     const race = races.find((event) => event.startDate <= date && date <= event.endDate);
+    // A07 — a decided / executed day shows its effective session (a REPLACE as its replacement, a REST as rest).
+    const effective = effectiveByDate.get(date);
+    if (effective && effective.source !== "planned" && effective.source !== "none" && effective.session) {
+      const label = sessionTitle({ kind: effective.session.kind });
+      return {
+        date,
+        isToday: date === today,
+        isPast: date < today,
+        planned: label,
+        plannedLabel: label,
+        plannedDurationMin: effective.session.duration_min ?? null,
+        performed: effective.status === "completed",
+        adapted: effective.adaptation !== null,
+        race: race ? race.eventName : null,
+      };
+    }
     return {
       date,
       isToday: date === today,

@@ -1,5 +1,5 @@
 import { StateCard } from "../../components/StateCard";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { CheckinSheet } from "../checkin/CheckinSheet";
@@ -8,6 +8,17 @@ import { AfterSessionFlow } from "./AfterSessionFlow";
 import { AfterSessionSummary } from "./AfterSessionSummary";
 import { ENTRY, GUIDED_DONE, GUIDED_OPEN } from "./afterSessionPresentation";
 import { loadGuidedDayState, type GuidedDayState } from "../history/historyRepo";
+import { useEffectiveDays } from "../effectiveSession/effectiveSessionRepo";
+import { formatIntervention } from "../dailyPlan/dailyPlanLabels";
+import { formatDuration } from "../dailyPlan/durationLabels";
+import type { EffectiveDay } from "../effectiveSession/effectiveDay";
+
+/** A07 — the session the guided block is about: the execution's own (effective) session, never the plan's. */
+export function executedSessionLabel(day: EffectiveDay | undefined): string | null {
+  const session = day?.source === "execution" ? day.session : null;
+  if (!session) return null;
+  return session.duration_min !== undefined ? `${formatIntervention(session)} · ${formatDuration(session.duration_min)}` : formatIntervention(session);
+}
 
 // UX-08 — Today's after-session moment: an invitation until the session is
 // recorded, then what NALYNT keeps from it. The steps open in the same sheet
@@ -32,6 +43,8 @@ function useGuidedDayState(date: string, athleteId: string): GuidedDayState | "u
 export function AfterSessionEntry({ date, athleteId }: { date: string; athleteId: string }) {
   const flow = useCompletedSessionFlow(date, athleteId);
   const guided = useGuidedDayState(date, athleteId);
+  const dates = useMemo(() => [date], [date]);
+  const executed = executedSessionLabel(useEffectiveDays(athleteId, dates, [])?.[0]);
   const [fresh, setFresh] = useState(false);
   const [isNew, setIsNew] = useState(true);
 
@@ -67,6 +80,11 @@ export function AfterSessionEntry({ date, athleteId }: { date: string; athleteId
         <h2 id="after-session-guided-title" className="mt-3 font-display text-2xl font-extrabold uppercase leading-none text-ink">
           {copy.title}
         </h2>
+        {executed && (
+          <p className="mt-2 font-medium text-ink" data-testid="after-session-executed">
+            {executed}
+          </p>
+        )}
         <p className="mt-2 text-sm text-ink/80">{copy.body}</p>
         <Link to="/today/session" className="ux-press mt-3 inline-flex min-h-12 items-center text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
           {copy.link}

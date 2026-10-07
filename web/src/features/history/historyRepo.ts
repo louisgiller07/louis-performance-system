@@ -3,6 +3,7 @@
 // sole security boundary, exactly as for daily_checkins in checkinRepo.ts.
 // Never a service/secret key. This module never calls daily-run, never
 // recomputes a plan, and never writes to decisions.
+import type { EffectiveExecution } from "../effectiveSession/effectiveDay";
 import { supabase } from "../../lib/supabase";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
@@ -247,6 +248,42 @@ export async function loadGuidedCompletionsForDates(athleteId: string, dates: st
     sessionDate: row.session_date,
     decisionId: row.decision_id,
     finalPrescriptionId: row.final_prescription_id,
+  }));
+}
+
+/** A07 — every decision of `dates` (append-only: a few per day), for the effective-session read model. Empty input → no query. */
+export async function loadDecisionsForDates(athleteId: string, dates: readonly string[]): Promise<DecisionHistoryRow[]> {
+  const uniqueDates = Array.from(new Set(dates));
+  if (uniqueDates.length === 0) return [];
+  const { data, error } = await supabase.from("decisions").select(DECISION_COLUMNS).eq("athlete_id", athleteId).in("decision_date", uniqueDates);
+  if (error) {
+    console.error("historyRepo.loadDecisionsForDates failed", error.code);
+    throw new HistoryLoadError();
+  }
+  return ((data ?? []) as DecisionRow[]).map(toHistoryRow);
+}
+
+/** A07 — every V2 execution of `dates` with its lifecycle event types (open, completed, abandoned), one query. Empty input → no query. */
+export async function loadExecutionsForDates(athleteId: string, dates: readonly string[]): Promise<EffectiveExecution[]> {
+  const uniqueDates = Array.from(new Set(dates));
+  if (uniqueDates.length === 0) return [];
+  const { data, error } = await supabase
+    .from("session_executions")
+    .select("id, session_date, decision_id, final_prescription_id, started_at, execution_events(event_type)")
+    .eq("athlete_id", athleteId)
+    .in("session_date", uniqueDates);
+  if (error) {
+    console.error("historyRepo.loadExecutionsForDates failed", error.code);
+    throw new HistoryLoadError();
+  }
+  type Row = { id: string; session_date: string; decision_id: string | null; final_prescription_id: string | null; started_at: string; execution_events: { event_type: string }[] | null };
+  return ((data ?? []) as Row[]).map((row) => ({
+    executionId: row.id,
+    sessionDate: row.session_date,
+    decisionId: row.decision_id,
+    finalPrescriptionId: row.final_prescription_id,
+    startedAt: row.started_at,
+    events: (row.execution_events ?? []).map((e) => e.event_type),
   }));
 }
 

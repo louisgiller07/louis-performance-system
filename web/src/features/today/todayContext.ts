@@ -1,3 +1,4 @@
+import { isTrainingDay, type EffectiveDay } from "../effectiveSession/effectiveDay";
 import { addDays } from "../../lib/date";
 import { isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
 import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
@@ -94,6 +95,8 @@ export interface WeekDay {
   plannedDurationMin: number | null;
   /** A session was actually performed (done / partial / replaced) — "skipped" does not count. */
   performed: boolean;
+  /** A07 — the Head Coach adapted the planned session that day (MODIFY / REPLACE / REST); the labels above are the effective session. */
+  adapted?: boolean;
   race: string | null;
 }
 
@@ -112,9 +115,41 @@ export function weekSummary(
   planned: PlannedSessionRow[],
   completed: CompletedSessionRecord[],
   races: RaceOverlayEvent[],
-  guided: readonly GuidedCompletion[] = []
+  guided: readonly GuidedCompletion[] = [],
+  effective: readonly EffectiveDay[] | null = null
 ): WeekSummary {
   const dates = weekDates(today);
+  // A07 — with the effective read model, a day decided or executed shows its EFFECTIVE session
+  // (a REPLACE as its replacement, a REST as rest), and the counters follow weekCounts' rule.
+  if (effective) {
+    const days = dates.map((date) => {
+      const day = effective.find((d) => d.date === date);
+      const row = planned.find((candidate) => candidate.planned_date === date);
+      const race = races.find((event) => event.startDate <= date && date <= event.endDate);
+      const fromPlanOnly = !day || day.source === "planned" || day.source === "none";
+      const kind = fromPlanOnly ? row?.intervention?.kind : day.session?.kind;
+      const hasSession = fromPlanOnly ? row !== undefined : day.session !== null;
+      return {
+        date,
+        isToday: date === today,
+        isPast: date < today,
+        planned: hasSession ? (kind ? (SHORT_KIND_LABELS[kind] ?? "Séance") : "Séance") : null,
+        plannedLabel: hasSession ? (kind ? (TRAINING_KIND_LABELS[kind] ?? "Séance prévue") : "Séance prévue") : null,
+        plannedDurationMin: (fromPlanOnly ? row?.intervention?.duration_min : day.session?.duration_min) ?? null,
+        performed: day?.status === "completed",
+        adapted: day?.adaptation !== null && day?.adaptation !== undefined,
+        race: race ? race.eventName : null,
+      };
+    });
+    // « prévues »: the effective session is a training session (decided / executed days), else the plan row is one.
+    const isTraining = (date: string): boolean => {
+      const day = effective.find((d) => d.date === date);
+      if (day && day.source !== "planned" && day.source !== "none") return isTrainingDay(day);
+      const row = planned.find((candidate) => candidate.planned_date === date);
+      return row !== undefined && isTrainingSession(row);
+    };
+    return { days, plannedCount: dates.filter(isTraining).length, performedCount: days.filter((d) => d.performed).length };
+  }
   const days = dates.map((date) => {
     const row = planned.find((candidate) => candidate.planned_date === date);
     // UX-11R.9 — the shared "day done" rule (legacy non-skipped first, else a completed guided session).
@@ -129,6 +164,7 @@ export function weekSummary(
       plannedLabel: row ? (kind ? (TRAINING_KIND_LABELS[kind] ?? "Séance prévue") : "Séance prévue") : null,
       plannedDurationMin: row?.intervention?.duration_min ?? null,
       performed,
+      adapted: false,
       race: race ? race.eventName : null,
     };
   });

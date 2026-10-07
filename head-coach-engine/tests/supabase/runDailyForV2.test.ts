@@ -62,7 +62,7 @@ const CREATED: FinalPrescriptionV2Result = {
     adaptationRuleIds: [],
     schemaVersion: "v2",
     catalogVersion: "session-model-v2.5",
-    structure: { schemaVersion: "v2", catalog: { aggregate: "session-model-v2.5" }, blocks: [] } as never,
+    structure: { schemaVersion: "v2", sessionKind: "STRENGTH_LOWER", catalog: { aggregate: "session-model-v2.5" }, blocks: [] } as never,
   },
 };
 

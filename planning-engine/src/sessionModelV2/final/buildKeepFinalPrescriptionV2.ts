@@ -175,5 +175,5 @@ export function buildKeepFinalPrescriptionV2(input: BuildKeepFinalPrescriptionV2
 
   const check = validateKeepFinalPrescriptionV2(finalPrescription, { id: planned.id, structure });
   if (!check.ok) throw new SessionModelV2ContractError(`KEEP final prescription invariant violated: ${check.issues.join(", ")}`);
-  return { status: "created", finalPrescription };
+  return { status: "created", finalPrescription, ...(generated.durationMin !== null ? { effectiveDurationMin: generated.durationMin } : {}) };
 }

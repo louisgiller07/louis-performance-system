@@ -62,6 +62,17 @@ export class FinalPrescriptionV2BlockedError extends Error {
  * - blocked: no final prescription, with a stable code and detail.
  */
 export type FinalPrescriptionV2Result =
-  | { status: "created"; finalPrescription: FinalPrescriptionV2 }
+  | {
+      status: "created";
+      finalPrescription: FinalPrescriptionV2;
+      /**
+       * A07 — the effective session's duration (minutes) when the prescription
+       * defines one: the planned duration (KEEP), the adapted one (MODIFY /
+       * REPLACE). Absent when the content is a range (active recovery) or
+       * unknown. Not a column: the V2 daily path carries it in the persisted
+       * DailyPlan's final session.
+       */
+      effectiveDurationMin?: number;
+    }
   | { status: "none"; reason: "rest" }
   | { status: "blocked"; code: FinalPrescriptionV2BlockCode; detail: Readonly<Record<string, unknown>> };

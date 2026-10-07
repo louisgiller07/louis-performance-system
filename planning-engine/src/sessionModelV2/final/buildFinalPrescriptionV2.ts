@@ -94,7 +94,8 @@ const RIDING_ENDURANCE_ACTIVITIES = ["road_bike", "mtb_rolling"];
 const STRENGTH_KINDS = ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const;
 const DH_REPLACE_KINDS = ["DH_TECHNICAL", "DH_LIGHT"];
 
-type Built = { content: PrescriptionV2Content; rule: string } | { blocked: Record<string, unknown> };
+/** `durationMin` = the effective session duration the content was built for (absent: the decision's own, or a range). */
+type Built = { content: PrescriptionV2Content; rule: string; durationMin?: number } | { blocked: Record<string, unknown> };
 
 function blocked(code: "final_prescription_no_lineage" | "final_prescription_adaptation_not_defined" | "final_prescription_catalog_mismatch", detail: Record<string, unknown>): FinalPrescriptionV2Result {
   return { status: "blocked", code, detail };
@@ -150,7 +151,7 @@ function modifiedContent(planned: PrescriptionV2, plannedLoad: LoadProfile | nul
       if (composition(rebuilt) !== composition(planned)) {
         throw new SessionModelV2ContractError(`MODIFY Force: the LIGHT rebuild changed the planned composition (${composition(planned)} → ${composition(rebuilt)})`);
       }
-      return { content: rebuilt, rule: DAILY_ADAPTATION_RULES_V2.strengthLightDose };
+      return { content: rebuilt, rule: DAILY_ADAPTATION_RULES_V2.strengthLightDose, durationMin: light.forceDurationMin };
     }
     case "dh_technical":
       return { content: withPasses(contentOf(planned), (count) => Math.min(count, light.dhFocusedPasses)), rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses };
@@ -160,6 +161,7 @@ function modifiedContent(planned: PrescriptionV2, plannedLoad: LoadProfile | nul
       return {
         content: buildAerobicBasePrescriptionV2Content({ sessionKind: planned.sessionKind, durationMin: minutes, catalog: planned.catalog, ridingAvailable }),
         rule: DAILY_ADAPTATION_RULES_V2.enduranceLightDuration,
+        durationMin: minutes,
       };
     }
     default:
@@ -179,7 +181,7 @@ function replacementContent(planned: PrescriptionV2, final: { kind: string; load
       loadProfile: load,
       catalog,
     });
-    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceStrength };
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceStrength, durationMin: load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.forceDurationMin : PLAN_ROLE_DOSES_V2.build.forceDurationMin };
   }
   if (DH_REPLACE_KINDS.includes(final.kind)) {
     const passes = load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses : PLAN_ROLE_DOSES_V2.build.dhFocusedPasses;
@@ -200,12 +202,12 @@ function replacementContent(planned: PrescriptionV2, final: { kind: string; load
           : null;
     if (source === null) return { blocked: { reason: "riding_not_available", target: final.kind } };
     const content = withPasses({ ...source, sessionKind: final.kind as PrescriptionV2Content["sessionKind"] }, (count) => (load === "LIGHT" ? Math.min(count, passes) : count));
-    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceDh };
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceDh, durationMin: final.durationMin ?? (load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhDurationMin : PLAN_ROLE_DOSES_V2.build.dhDurationMin) };
   }
   if (final.kind === "AEROBIC_BASE") {
     const minutes = Math.min(Math.max(final.durationMin ?? PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin, 45), 90);
     const content = buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable: context.ridingAvailable });
-    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance };
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
   }
   if (final.kind === "RECOVERY_ACTIVE") {
     return { content: buildRecoveryActivePrescriptionV2Content({ catalog }), rule: DAILY_ADAPTATION_RULES_V2.replaceRecovery };
@@ -281,6 +283,8 @@ export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): 
     catalogVersion: structure.catalog.aggregate,
     structure,
   };
-  return { status: "created", finalPrescription };
+  // A07 — the effective duration: the content's own, else the decision's (a MODIFY DH keeps M1's window), else the planned one.
+  const effectiveDurationMin = built.durationMin ?? final.durationMin ?? (isModify && generated.durationMin !== null ? generated.durationMin : undefined);
+  return { status: "created", finalPrescription, ...(effectiveDurationMin !== undefined ? { effectiveDurationMin } : {}) };
 }
 

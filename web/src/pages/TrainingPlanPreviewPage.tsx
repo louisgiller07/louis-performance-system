@@ -221,7 +221,7 @@ export function TrainingPlanPreviewPage() {
         <>
           <ProgramHero review={review} horizon={horizon} objective={context?.objective ?? null} today={today} />
           <ProgramDraftSummary drafts={drafts} review={review} hasActivePlan={hasActivePlan} activeGeneratedAt={activeGeneratedAt} onSelect={handleSelectDraft} onAccepted={handleAccepted} />
-          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} guided={isAccepted ? (context?.guided ?? []) : []} races={context?.races ?? []} />
+          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} guided={isAccepted ? (context?.guided ?? []) : []} races={context?.races ?? []} effectiveByDate={isAccepted && context ? context.effectiveByDate : new Map()} />
           <ProgramSessions
             review={review}
             today={today}
@@ -229,6 +229,7 @@ export function TrainingPlanPreviewPage() {
             guided={isAccepted ? (context?.guided ?? []) : []}
             decisionsByDate={isAccepted && context ? context.decisionsByDate : new Map()}
             modifiedDates={athleteModifiedDates ?? []}
+            effectiveByDate={isAccepted && context ? context.effectiveByDate : new Map()}
           />
           <ProgramCoachSummary review={review} athleteModifiedDates={athleteModifiedDates} />
         </>

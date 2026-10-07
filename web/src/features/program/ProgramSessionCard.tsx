@@ -8,6 +8,8 @@ import type { LoadProfile } from "../dailyPlan/dailyPlanTypes";
 import { daysBetween } from "../today/todayContext";
 import { sessionFocus, sessionTitle, type Adaptation } from "./programPresentation";
 import { ProgramAdaptationCard } from "./ProgramAdaptationCard";
+import type { EffectiveDay } from "../effectiveSession/effectiveDay";
+import type { TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
 
 // UX-06 — one plan session as a premium card, in three weights:
 // - "today": the dominant card (focus, adaptation if NALYNT adapted today,
@@ -34,6 +36,30 @@ function metaLine(session: TrainingPlanReviewSession): string {
   return [session.durationMin !== null ? formatDuration(session.durationMin) : null, load].filter(Boolean).join(" · ");
 }
 
+/** A07 — "45 min · Légère" of the effective session (same format as the plan's meta line). */
+function effectiveMeta(session: TrainingIntervention): string {
+  const load = session.load_profile && Object.prototype.hasOwnProperty.call(LOAD_PROFILE_LABELS, session.load_profile) ? LOAD_PROFILE_LABELS[session.load_profile as LoadProfile] : null;
+  return [session.duration_min !== undefined ? formatDuration(session.duration_min) : null, load].filter(Boolean).join(" · ");
+}
+
+/** A07 — the day's status in the rider's words, from the effective session (a REST is never « Non enregistrée »). */
+function effectiveStatus(effective: EffectiveDay, completion: CompletionStatus | null): string | null {
+  switch (effective.status) {
+    case "completed":
+      return completion && completion !== "skipped" ? COMPLETION_STATUS_LABELS[completion] : "Réalisée";
+    case "rest":
+      return "Repos décidé";
+    case "in_progress":
+      return "En cours";
+    case "abandoned":
+      return "Arrêtée";
+    case "skipped":
+      return COMPLETION_STATUS_LABELS.skipped;
+    default:
+      return null;
+  }
+}
+
 function Chip({ children, tone = "muted" }: { children: string; tone?: "gold" | "muted" }) {
   return (
     <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] ${tone === "gold" ? "border-gold/60 text-gold" : "border-line text-ink/75"}`}>
@@ -49,11 +75,18 @@ interface ProgramSessionCardProps {
   completion?: CompletionStatus | null;
   adaptation?: Adaptation | null;
   modifiedByAthlete?: boolean;
+  /** A07 — the day's effective session (today / past days): an adapted day shows it first, the plan stays secondary. */
+  effective?: EffectiveDay | null;
 }
 
-export function ProgramSessionCard({ session, today, variant, completion = null, adaptation = null, modifiedByAthlete = false }: ProgramSessionCardProps) {
-  const focus = sessionFocus(session);
-  const meta = metaLine(session);
+export function ProgramSessionCard({ session, today, variant, completion = null, adaptation = null, modifiedByAthlete = false, effective = null }: ProgramSessionCardProps) {
+  const adapted = effective && effective.adaptation !== null && effective.session !== null ? effective.session : null;
+  // A07 — an adapted day is about its effective session: title and meta are the effective ones, the plan's focus is hidden.
+  const focus = adapted ? null : sessionFocus(session);
+  const meta = adapted ? effectiveMeta(adapted) : metaLine(session);
+  const title = adapted ? sessionTitle({ kind: adapted.kind }) : sessionTitle(session);
+  const dayStatus = effective ? effectiveStatus(effective, completion) : null;
+  const done = (completion !== null && completion !== "skipped") || effective?.status === "completed";
 
   if (variant === "today") {
     return (
@@ -63,11 +96,11 @@ export function ProgramSessionCard({ session, today, variant, completion = null,
           Aujourd'hui
         </p>
         <h2 id={`session-${session.id}`} className="mt-3 font-display text-[clamp(2.25rem,10vw,3rem)] font-extrabold uppercase leading-[0.95] text-ink">
-          {sessionTitle(session)}
+          {title}
         </h2>
         {meta && <p className="mt-2 font-display text-xl font-semibold uppercase tracking-wide text-gold">{meta}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
-          {completion && completion !== "skipped" && <Chip tone="gold">{`✓ ${COMPLETION_STATUS_LABELS[completion]}`}</Chip>}
+          {done ? <Chip tone="gold">{`✓ ${dayStatus ?? COMPLETION_STATUS_LABELS[completion!]}`}</Chip> : dayStatus && <Chip>{dayStatus}</Chip>}
           {modifiedByAthlete && <Chip>Modifiée par toi</Chip>}
         </div>
         {focus && (
@@ -80,7 +113,7 @@ export function ProgramSessionCard({ session, today, variant, completion = null,
         <div className="mt-5 flex flex-col gap-2">
           <details className="group rounded-lg border border-line">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-sm text-ink/85 [&::-webkit-details-marker]:hidden">
-              Voir la séance
+              {adapted ? "Voir la séance initialement prévue" : "Voir la séance"}
               <span className="text-gold transition-transform duration-300 group-open:rotate-90" aria-hidden="true">
                 →
               </span>
@@ -97,14 +130,14 @@ export function ProgramSessionCard({ session, today, variant, completion = null,
     );
   }
 
-  const status = variant === "upcoming" ? "Prévue" : completion ? COMPLETION_STATUS_LABELS[completion] : "Non enregistrée";
+  const status = variant === "upcoming" ? "Prévue" : (dayStatus ?? (completion ? COMPLETION_STATUS_LABELS[completion] : "Non enregistrée"));
   return (
     <li className="ux-enter rounded-xl border border-line bg-card p-4">
       <div className="flex items-baseline justify-between gap-3">
         <p className="text-sm text-muted">{dayLabel(session.date, today)}</p>
-        <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${variant === "past" && completion && completion !== "skipped" ? "text-gold" : "text-muted"}`}>{status}</p>
+        <p className={`text-xs font-semibold uppercase tracking-[0.14em] ${variant === "past" && done ? "text-gold" : "text-muted"}`}>{status}</p>
       </div>
-      <p className="mt-1 font-display text-2xl font-extrabold uppercase leading-tight text-ink">{sessionTitle(session)}</p>
+      <p className="mt-1 font-display text-2xl font-extrabold uppercase leading-tight text-ink">{title}</p>
       {meta && <p className="text-sm text-ink/75">{meta}</p>}
       {focus && (
         <p className="mt-1.5 text-sm text-ink/80">
