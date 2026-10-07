@@ -22,6 +22,11 @@ export function CheckinSheet({
   closeLabel?: string;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  // A11 — the close handler is read through a ref: the focus moves to « Fermer » when the sheet OPENS only.
+  // Depending on `onClose` itself re-ran this on every render of a caller passing a new function (the
+  // after-session flow), pulling the focus out of a text field after its first character.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -29,14 +34,14 @@ export function CheckinSheet({
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return (
     <div role="dialog" aria-modal="true" aria-label={label} hidden={!open} className="checkin-sheet fixed inset-0 z-50 overflow-y-auto bg-bg">

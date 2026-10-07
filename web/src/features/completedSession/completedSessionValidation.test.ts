@@ -120,16 +120,13 @@ describe("validateCompletedSessionForm", () => {
         if (!result.ok) expect(result.errors.rpe).toBeDefined();
       });
 
-      it("requires post_leg_fatigue and post_grip_fatigue", () => {
+      it("A11 — post-session fatigue is optional (sent as null), out of range still refused", () => {
         const result = validateCompletedSessionForm(
-          { ...VALID_DONE, completion_status: status, post_leg_fatigue: "", post_grip_fatigue: "" },
+          { ...VALID_DONE, completion_status: status, post_leg_fatigue: "", post_grip_fatigue: "", ...(status === "done" ? {} : { change_reason: "time_life" as const }) },
           DATE
         );
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.errors.post_leg_fatigue).toBeDefined();
-          expect(result.errors.post_grip_fatigue).toBeDefined();
-        }
+        expect(result).toMatchObject({ ok: true, values: { post_leg_fatigue: null, post_grip_fatigue: null } });
+        expect(validateCompletedSessionForm({ ...VALID_DONE, completion_status: status, post_leg_fatigue: 11 }, DATE).ok).toBe(false);
       });
     });
   }

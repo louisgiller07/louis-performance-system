@@ -112,8 +112,8 @@ describe("AfterSessionEntry — the invitation", () => {
 });
 
 describe("AfterSessionEntry — the steps", () => {
-  it("a completed session in 7 taps: Terminée → Comme prévu → effort → legs → forearms → Non → Enregistrer", async () => {
-    mockedPut.mockResolvedValue({ ok: true, data: { completedSession: record({ actual_duration_min: 90 }), warnings: [] } });
+  it("A11 — a completed session in 5 taps: Terminée → Comme prévu → effort → Non → Enregistrer (no body: M1 does not read it for a done session)", async () => {
+    mockedPut.mockResolvedValue({ ok: true, data: { completedSession: record({ actual_duration_min: 90, post_leg_fatigue: null, post_grip_fatigue: null }), warnings: [] } });
     const user = userEvent.setup();
     render(<AfterSessionEntry date={DATE} athleteId="athlete-1" />);
     await open(user);
@@ -133,14 +133,11 @@ describe("AfterSessionEntry — the steps", () => {
     await tap(/^Comme prévu · 1.h.30$/);
     await stepTitle("Ton effort");
     await tap("Ton effort 6 sur 10");
-    await stepTitle("Ton corps");
-    await tap("Jambes 5 sur 10");
-    await tap("Avant-bras 3 sur 10");
     await waitFor(() => expect(within(sheet()).getByText("Un signal physique à retenir ?")).toBeInTheDocument());
     await tap("Non");
     await tap("Enregistrer ma séance");
 
-    expect(taps).toHaveLength(7);
+    expect(taps).toHaveLength(5);
     await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
     expect(mockedPut.mock.calls[0]![0]).toMatchObject({
       decision_id: "d-a",
@@ -148,8 +145,8 @@ describe("AfterSessionEntry — the steps", () => {
       intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
       actual_duration_min: 90,
       rpe: 6,
-      post_leg_fatigue: 5,
-      post_grip_fatigue: 3,
+      post_leg_fatigue: null,
+      post_grip_fatigue: null,
       new_pain: false,
     });
     expect(await screen.findByRole("heading", { name: /Séance enregistrée/ })).toBeInTheDocument();
@@ -177,31 +174,22 @@ describe("AfterSessionEntry — the steps", () => {
     expect(within(sheet()).getByRole("button", { name: "Continuer" })).toBeEnabled();
   });
 
-  it("not done: never a failure — 'Qu'est-ce qui a changé aujourd'hui ?', no duration or effort", async () => {
-    mockedPut.mockResolvedValue({ ok: true, data: { completedSession: record({ completion_status: "skipped", intervention: null, actual_duration_min: null, rpe: null, change_reason: "weather_terrain" }), warnings: [] } });
+  it("A11 E — not done: Non réalisée → why → Enregistrer (3 taps); never a failure, no duration, effort, body or signal", async () => {
+    mockedPut.mockResolvedValue({ ok: true, data: { completedSession: record({ completion_status: "skipped", intervention: null, actual_duration_min: null, rpe: null, post_leg_fatigue: null, post_grip_fatigue: null, change_reason: "weather_terrain" }), warnings: [] } });
     const user = userEvent.setup();
     render(<AfterSessionEntry date={DATE} athleteId="athlete-1" />);
     await open(user);
 
     await user.click(within(sheet()).getByRole("button", { name: /Non réalisée/ }));
-    await waitFor(() => expect(within(sheet()).getByText("La séance qui était prévue.")).toBeInTheDocument());
-    expect(within(sheet()).getByText("DH technique")).toBeInTheDocument();
-    expect(within(sheet()).queryByText("Durée")).not.toBeInTheDocument();
-    await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
-
     await stepTitle("Ce qui s'est passé");
     expect(within(sheet()).getByText("Qu'est-ce qui a changé aujourd'hui ?")).toBeInTheDocument();
+    expect(within(sheet()).getByTestId("after-session-progress")).toHaveTextContent("Étape 2 / 2");
+    expect(within(sheet()).queryByText("Durée")).not.toBeInTheDocument();
     await user.click(within(sheet()).getByRole("button", { name: "Météo / terrain" }));
-    await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
-
-    await stepTitle("Ton corps");
-    expect(within(sheet()).getByText(/\(facultatif\)/)).toBeInTheDocument();
-    await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
-    await user.click(within(sheet()).getByRole("button", { name: "Non" }));
     await user.click(within(sheet()).getByRole("button", { name: "Enregistrer ma séance" }));
 
     await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
-    expect(mockedPut.mock.calls[0]![0]).toMatchObject({ completion_status: "skipped", intervention: null, actual_duration_min: null, rpe: null, change_reason: "weather_terrain" });
+    expect(mockedPut.mock.calls[0]![0]).toMatchObject({ completion_status: "skipped", session_type: "DH_TECHNICAL", decision_id: "d-a", intervention: null, actual_duration_min: null, rpe: null, post_leg_fatigue: null, post_grip_fatigue: null, new_pain: false, change_reason: "weather_terrain" });
     expect(document.body.textContent).not.toMatch(/Pourquoi tu n'as pas|tu n'as pas fait|empêché|échec/);
   });
 
@@ -227,8 +215,6 @@ describe("AfterSessionEntry — the steps", () => {
     await user.click(within(sheet()).getByRole("button", { name: /Terminée/ }));
     await waitFor(() => expect(within(sheet()).getByText("Ce que tu as fait.")).toBeInTheDocument());
     await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
-    await stepTitle("Ton corps");
-    await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
     await user.click(within(sheet()).getByRole("button", { name: "Oui" }));
     const save = within(sheet()).getByRole("button", { name: "Enregistrer ma séance" });
     expect(save).toBeDisabled();
@@ -236,8 +222,10 @@ describe("AfterSessionEntry — the steps", () => {
     expect(save).toBeEnabled();
   });
 
-  it("a save error stays in the sheet, answers kept", async () => {
-    mockedPut.mockResolvedValue({ ok: false, error: { code: "persistence_failed", message: "Erreur d'enregistrement côté serveur. Réessaie.", retryable: true, action: "retry" } });
+  it("A11 H — a save error is visible, the answers stay, « Réessayer » sends the same answers again and succeeds", async () => {
+    mockedPut
+      .mockResolvedValueOnce({ ok: false, error: { code: "network_error", message: "Problème de connexion. Vérifie ta connexion et réessaie.", retryable: true, action: "retry" } })
+      .mockResolvedValueOnce({ ok: true, data: { completedSession: record({ intervention: { kind: "REST" }, session_type: "REST", actual_duration_min: null, rpe: null }), warnings: [] } });
     mockedLoadDecisions.mockResolvedValue([decisionRow("d-a", { kind: "REST" })]);
     const user = userEvent.setup();
     render(<AfterSessionEntry date={DATE} athleteId="athlete-1" />);
@@ -245,12 +233,15 @@ describe("AfterSessionEntry — the steps", () => {
     await user.click(within(sheet()).getByRole("button", { name: /Terminée/ }));
     await waitFor(() => expect(within(sheet()).getByText("Ce que tu as fait.")).toBeInTheDocument());
     await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
-    await user.click(within(sheet()).getByRole("button", { name: "Continuer" }));
     await user.click(within(sheet()).getByRole("button", { name: "Non" }));
     await user.click(within(sheet()).getByRole("button", { name: "Enregistrer ma séance" }));
 
-    expect(await within(sheet()).findByRole("alert")).toHaveTextContent("Erreur d'enregistrement côté serveur. Réessaie.");
+    expect(await within(sheet()).findByRole("alert")).toHaveTextContent("Problème de connexion. Vérifie ta connexion et réessaie.");
     expect(within(sheet()).getByRole("button", { name: "Non" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(sheet()).getByRole("button", { name: "Réessayer" }));
+    await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(2));
+    expect(mockedPut.mock.calls[1]![0]).toEqual(mockedPut.mock.calls[0]![0]);
+    expect(await screen.findByRole("heading", { name: /Séance enregistrée/ })).toBeInTheDocument();
   });
 
   it("never shows 'RPE', 'grip' or a raw identifier", async () => {

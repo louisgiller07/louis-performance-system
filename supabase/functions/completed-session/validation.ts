@@ -389,7 +389,7 @@ interface NumericFields {
   post_grip_fatigue: number | null;
 }
 
-/** Shared by the skipped and REST branches below: both require duration/rpe null, fatigue null-or-0..10. */
+/** Post-session fatigue, every status: null or an integer 0..10 (A11 — never required). */
 function validateNullTrainingLoad(
   legFatigue: unknown,
   gripFatigue: unknown
@@ -419,8 +419,9 @@ function validateNullTrainingLoad(
  * deliberately never generalized to other session types here.
  * `session_type === "REST"` with `completion_status === "partial"` is
  * rejected outright: "partial rest" is not a meaningful M5 state. Every
- * other (session_type, completion_status) combination requires all four
- * numeric fields non-null and in range. `invalid_body_for_status` covers a
+ * other (session_type, completion_status) combination requires duration and
+ * rpe non-null and in range; post-session fatigue is null or 0..10 for every
+ * status (A11 — optional, asked by the debrief only when M1 reads it). `invalid_body_for_status` covers a
  * wrong-nullability violation (field present when it must be null, or vice
  * versa, or an outright invalid combination); `invalid_range` covers a
  * present field whose value is the wrong type or out of range.
@@ -476,20 +477,12 @@ function validateStatusDependentNumbers(
   if (!isIntegerInRange(rpe, 0, 10)) {
     return err("invalid_range", "rpe must be an integer between 0 and 10.");
   }
-  if (legFatigue === null) {
-    return err("invalid_body_for_status", "post_leg_fatigue is required for this completion_status (must not be null).");
-  }
-  if (!isIntegerInRange(legFatigue, 0, 10)) {
-    return err("invalid_range", "post_leg_fatigue must be an integer between 0 and 10.");
-  }
-  if (gripFatigue === null) {
-    return err("invalid_body_for_status", "post_grip_fatigue is required for this completion_status (must not be null).");
-  }
-  if (!isIntegerInRange(gripFatigue, 0, 10)) {
-    return err("invalid_range", "post_grip_fatigue must be an integer between 0 and 10.");
-  }
+  // A11 — post-session fatigue is optional for every status (null or 0..10): M1 reads it only for a
+  // non-done `fatigue_control` day (D-1 recovery continuity), where the debrief asks it.
+  const fatigue = validateNullTrainingLoad(legFatigue, gripFatigue);
+  if (!fatigue.ok) return fatigue;
 
-  return { ok: true, value: { actual_duration_min: duration, rpe, post_leg_fatigue: legFatigue, post_grip_fatigue: gripFatigue } };
+  return { ok: true, value: { actual_duration_min: duration, rpe, ...fatigue.value } };
 }
 
 interface PainFields {

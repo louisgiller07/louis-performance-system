@@ -6,7 +6,7 @@ import { CheckinSheet } from "../checkin/CheckinSheet";
 import { useCompletedSessionFlow } from "./useCompletedSessionFlow";
 import { AfterSessionFlow } from "./AfterSessionFlow";
 import { AfterSessionSummary } from "./AfterSessionSummary";
-import { ENTRY, GUIDED_DONE, GUIDED_OPEN } from "./afterSessionPresentation";
+import { BUTTONS, ENTRY, GUIDED_DONE, GUIDED_OPEN } from "./afterSessionPresentation";
 import { loadGuidedDayState, type GuidedDayState } from "../history/historyRepo";
 import { useEffectiveDays } from "../effectiveSession/effectiveSessionRepo";
 import { formatIntervention } from "../dailyPlan/dailyPlanLabels";
@@ -23,26 +23,30 @@ export function executedSessionLabel(day: EffectiveDay | undefined): string | nu
 // UX-08 — Today's after-session moment: an invitation until the session is
 // recorded, then what NALYNT keeps from it. The steps open in the same sheet
 // as the morning check-in.
-/** UX-11R.9 (F-5, F-5b) — the day's guided session: completed, open, none ("unknown" while loading or on a read error). */
-function useGuidedDayState(date: string, athleteId: string): GuidedDayState | "unknown" {
-  const [state, setState] = useState<GuidedDayState | "unknown">("unknown");
+/**
+ * UX-11R.9 (F-5, F-5b) — the day's guided session: completed, open, none ("unknown" while loading).
+ * A11 — a read error is an error (with a retry), never an endless skeleton.
+ */
+function useGuidedDayState(date: string, athleteId: string, reloadKey: number): GuidedDayState | "unknown" | "error" {
+  const [state, setState] = useState<GuidedDayState | "unknown" | "error">("unknown");
   useEffect(() => {
     let active = true;
     setState("unknown");
     loadGuidedDayState(athleteId, date).then(
       (loaded) => active && setState(loaded),
-      () => active && setState("unknown")
+      () => active && setState("error")
     );
     return () => {
       active = false;
     };
-  }, [athleteId, date]);
+  }, [athleteId, date, reloadKey]);
   return state;
 }
 
 export function AfterSessionEntry({ date, athleteId }: { date: string; athleteId: string }) {
   const flow = useCompletedSessionFlow(date, athleteId);
-  const guided = useGuidedDayState(date, athleteId);
+  const [reloadKey, setReloadKey] = useState(0);
+  const guided = useGuidedDayState(date, athleteId, reloadKey);
   const dates = useMemo(() => [date], [date]);
   const executed = executedSessionLabel(useEffectiveDays(athleteId, dates, [])?.[0]);
   const [fresh, setFresh] = useState(false);
@@ -54,14 +58,19 @@ export function AfterSessionEntry({ date, athleteId }: { date: string; athleteId
     void flow.startEdit();
   }
 
-  if (flow.loadState === "loading" || guided === "unknown") return <div className="ux-skeleton h-28 rounded-2xl" aria-hidden="true" />;
-  if (flow.loadState === "error") {
+  function retryLoad() {
+    flow.reload();
+    setReloadKey((key) => key + 1);
+  }
+
+  if (flow.loadState === "error" || guided === "error") {
     return (
-      <StateCard tone="error" title={ENTRY.kicker}>
+      <StateCard tone="error" title={ENTRY.kicker} action={{ label: BUTTONS.retry, onClick: retryLoad }}>
         {flow.loadError?.message ?? ENTRY.loadError}
       </StateCard>
     );
   }
+  if (flow.loadState === "loading" || guided === "unknown") return <div className="ux-skeleton h-28 rounded-2xl" aria-hidden="true" />;
 
   // UX-11R.9 (F-5, F-5b) — a guided session completed or open today closes the legacy debrief (no invitation,
   // no edit: the server refuses it too, completed_session_v2_exists). A legacy record that already exists stays readable.

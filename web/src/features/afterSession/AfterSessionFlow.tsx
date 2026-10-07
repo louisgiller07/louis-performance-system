@@ -4,7 +4,6 @@ import { SecondaryButton } from "../../components/SecondaryButton";
 import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
 import type { LoadProfile } from "../dailyPlan/dailyPlanTypes";
 import {
-  CHANGE_REASONS,
   CHANGE_REASON_LABELS,
   SESSION_TYPES,
   SESSION_TYPE_LABELS,
@@ -14,10 +13,10 @@ import {
 } from "../completedSession/completedSessionTypes";
 import { PERFORMED_KIND_GROUPS } from "../completedSession/performedKindGroups";
 import { isUpliftServedDhDurationKind } from "../completedSession/dhFamilyKind";
-import type { CompletedSessionFlow } from "./useCompletedSessionFlow";
+import { effectiveLinkableDecision, type CompletedSessionFlow } from "./useCompletedSessionFlow";
 import { afterSessionSteps, isStepAnswered, type AfterSessionStepId } from "./afterSessionSteps";
 import { ScaleChoice } from "./ScaleChoice";
-import { ACTIVITY, BODY, BUTTONS, EFFORT, PLAN, REASON, SIGNAL, STATUS_CHOICES, planOptionLabel, stepCopy } from "./afterSessionPresentation";
+import { ACTIVITY, BODY, BUTTONS, EFFORT, PLAN, REASON, SIGNAL, STATUS_CHOICES, effortLabel, flowTitle, planOptionLabel, reasonsFor, stepCopy } from "./afterSessionPresentation";
 
 // UX-08 — "Comment s'est passée ta séance ?" in short steps, one question at
 // a time (same rhythm as the guided check-in). Single-answer steps move on by
@@ -55,9 +54,12 @@ function Note({ label, value, onChange, error }: { label: string; value: string;
   );
 }
 
-export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; isNew: boolean }) {
-  const [index, setIndex] = useState(0);
-  const [statusChosen, setStatusChosen] = useState(!isNew);
+export function AfterSessionFlow({ flow }: { flow: CompletedSessionFlow; isNew?: boolean }) {
+  // A11 — the position lives with the draft (closing the sheet or a failed send never loses it).
+  const { index, statusChosen } = flow.progress;
+  const setIndex = (next: number | ((current: number) => number)) =>
+    flow.setProgress((p) => ({ ...p, index: typeof next === "function" ? next(p.index) : next }));
+  const setStatusChosen = (chosen: boolean) => flow.setProgress((p) => ({ ...p, statusChosen: chosen }));
   const [picking, setPicking] = useState(false);
   const [customDuration, setCustomDuration] = useState(false);
   const form = flow.form!;
@@ -109,6 +111,9 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
     ),
     plan: (
       <div role="group" aria-label={copy.question} className="flex flex-col gap-2">
+        <p className="text-sm text-muted" data-testid="after-session-plan-why">
+          {PLAN.ambiguous}
+        </p>
         {flow.linkableDecisions.map((decision) => (
           <Choice key={decision.decisionId} pressed={flow.decisionLinkResolved && form.decision_id === decision.decisionId} onClick={() => flow.setDecision(decision.decisionId)}>
             {planOptionLabel(decision)}
@@ -122,19 +127,23 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
     activity: (
       <div className="flex flex-col gap-5">
         {flow.decisionResolution === "error" && <p className="text-xs text-muted">{PLAN.lookupFailed}</p>}
-        {flow.linkableDecisions.length === 1 && (
+        {flow.linkableDecisions.length >= 1 && !flow.ambiguousDecisions && form.completion_status !== "skipped" && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-4 py-3 text-sm">
             <span className="text-ink/80">
               {form.decision_id ? (
                 <>
                   <span className="text-muted">{`${PLAN.linked} · `}</span>
-                  {formatIntervention(flow.linkableDecisions[0]!.finalSession)}
+                  {formatIntervention(flow.linkedFinalSession ?? flow.linkableDecisions[0]!.finalSession)}
                 </>
               ) : (
                 PLAN.free
               )}
             </span>
-            <button type="button" onClick={() => flow.setDecision(form.decision_id ? null : flow.linkableDecisions[0]!.decisionId)} className="ux-press min-h-11 shrink-0 text-gold underline-offset-4 hover:underline">
+            <button
+              type="button"
+              onClick={() => flow.setDecision(form.decision_id ? null : (effectiveLinkableDecision(flow.linkableDecisions).decision?.decisionId ?? null))}
+              className="ux-press min-h-11 shrink-0 text-gold underline-offset-4 hover:underline"
+            >
               {form.decision_id ? PLAN.unlink : PLAN.relink}
             </button>
           </div>
@@ -286,12 +295,54 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
     reason: (
       <div className="flex flex-col gap-4">
         <div role="group" aria-label={copy.question} className="flex flex-col gap-2">
-          {CHANGE_REASONS.filter((reason) => reason !== "coach_criterion" || form.decision_id !== null).map((reason) => (
+          {reasonsFor(form.completion_status, form.decision_id !== null).map((reason) => (
             <Choice key={reason} pressed={form.change_reason === reason} onClick={() => flow.setChangeReason(reason)}>
               {CHANGE_REASON_LABELS[reason]}
             </Choice>
           ))}
         </div>
+        {flow.showBodyInReason && (
+          // A11 — the one case M1 reads post-session fatigue (D-1 recovery continuity): asked here, optional.
+          <div className="flex flex-col gap-5 border-t border-line pt-4" data-testid="after-session-body">
+            <p className="text-sm text-ink/80">{BODY.question}</p>
+            <ScaleChoice
+              label={BODY.legs.label}
+              value={form.post_leg_fatigue}
+              anchors={[
+                { value: 0, label: BODY.legs.low },
+                { value: 10, label: BODY.legs.high },
+              ]}
+              onChange={(value) => flow.updateField("post_leg_fatigue", value)}
+            />
+            <ScaleChoice
+              label={BODY.forearms.label}
+              value={form.post_grip_fatigue}
+              anchors={[
+                { value: 0, label: BODY.forearms.low },
+                { value: 10, label: BODY.forearms.high },
+              ]}
+              onChange={(value) => flow.updateField("post_grip_fatigue", value)}
+            />
+          </div>
+        )}
+        {flow.showPainInReason && (
+          // A11 — a session skipped for pain: is it a NEW pain? The check-in then carries the safety path.
+          <div className="flex flex-col gap-3 border-t border-line pt-4" data-testid="after-session-pain">
+            <p className="text-sm text-ink/80">{REASON.newPainQuestion}</p>
+            <div role="group" aria-label={REASON.newPainQuestion} className="grid grid-cols-2 gap-2">
+              <Choice pressed={form.new_pain === false} onClick={() => flow.updateField("new_pain", false)}>
+                <span className="block text-center text-base">{SIGNAL.no}</span>
+              </Choice>
+              <Choice pressed={form.new_pain === true} onClick={() => flow.updateField("new_pain", true)}>
+                <span className="block text-center text-base">{SIGNAL.yes}</span>
+              </Choice>
+            </div>
+            {form.new_pain === true && (
+              <Note label={SIGNAL.describe} value={form.new_pain_note} onChange={(value) => flow.updateField("new_pain_note", value)} error={flow.fieldErrors.new_pain_note} />
+            )}
+            <p className="text-xs text-muted">{REASON.painReminder}</p>
+          </div>
+        )}
         {form.change_reason !== "" && (
           <Note
             label={form.change_reason === "other" ? REASON.noteRequired : REASON.noteOptional}
@@ -308,39 +359,12 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
         hideLabel
         value={form.rpe}
         anchors={EFFORT.anchors}
+        valueLabel={effortLabel}
         onChange={(value) => {
           flow.updateField("rpe", value);
           advanceSoon();
         }}
       />
-    ),
-    body: (
-      <div className="flex flex-col gap-6">
-        <ScaleChoice
-          label={BODY.legs.label}
-          value={form.post_leg_fatigue}
-          anchors={[
-            { value: 0, label: BODY.legs.low },
-            { value: 10, label: BODY.legs.high },
-          ]}
-          onChange={(value) => {
-            flow.updateField("post_leg_fatigue", value);
-            if (form.post_grip_fatigue !== "") advanceSoon();
-          }}
-        />
-        <ScaleChoice
-          label={BODY.forearms.label}
-          value={form.post_grip_fatigue}
-          anchors={[
-            { value: 0, label: BODY.forearms.low },
-            { value: 10, label: BODY.forearms.high },
-          ]}
-          onChange={(value) => {
-            flow.updateField("post_grip_fatigue", value);
-            if (form.post_leg_fatigue !== "") advanceSoon();
-          }}
-        />
-      </div>
     ),
     signal: (
       <div className="flex flex-col gap-4">
@@ -366,7 +390,13 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
           <span key={id} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${position <= index ? "bg-gold" : "bg-line"}`} />
         ))}
       </div>
-      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-muted">{`Étape ${Math.min(index, steps.length - 1) + 1} / ${steps.length}`}</p>
+      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.22em] text-gold" data-testid="after-session-title">
+        {flowTitle(flow.sessionLabel)}
+      </p>
+      {/* A11 — the total is shown once the path is known (after « Séance terminée ? »), never a total that grows. */}
+      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.22em] text-muted" data-testid="after-session-progress">
+        {statusChosen ? `Étape ${Math.min(index, steps.length - 1) + 1} / ${steps.length}` : "Étape 1"}
+      </p>
 
       <div key={step} className="ux-enter mt-2 flex flex-1 flex-col gap-6">
         <div>
@@ -378,9 +408,15 @@ export function AfterSessionFlow({ flow, isNew }: { flow: CompletedSessionFlow; 
 
       <div className="sticky bottom-0 -mx-5 mt-8 flex flex-col gap-3 border-t border-line bg-bg/95 px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 backdrop-blur-md">
         {flow.saveState === "error" && flow.saveError && (
-          <p role="alert" className="text-sm text-red-400">
-            {flow.saveError.message}
-          </p>
+          // A11 — a failed send is visible, the answers stay, and the same send can be retried.
+          <div role="alert" className="flex items-center justify-between gap-3 text-sm text-red-400">
+            <span>{flow.saveError.message}</span>
+            {flow.saveError.retryable && (
+              <button type="button" onClick={() => void flow.submit()} className="ux-press min-h-11 shrink-0 font-semibold text-gold underline-offset-4 hover:underline">
+                {BUTTONS.retry}
+              </button>
+            )}
+          </div>
         )}
         <div className="flex gap-3">
           {index > 0 && (

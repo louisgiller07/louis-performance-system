@@ -1,7 +1,7 @@
 import { formatIntervention } from "../dailyPlan/dailyPlanLabels";
 import { formatDuration } from "../dailyPlan/durationLabels";
 import type { TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
-import { SESSION_TYPE_LABELS, type CompletedSessionRecord, type CompletionStatus, type LinkableDecision } from "../completedSession/completedSessionTypes";
+import { CHANGE_REASONS, SESSION_TYPE_LABELS, type ChangeReason, type CompletedSessionRecord, type CompletionStatus, type LinkableDecision } from "../completedSession/completedSessionTypes";
 import type { AfterSessionStepId } from "./afterSessionSteps";
 
 // UX-08 — every word of the after-session moment, in one place (same
@@ -55,7 +55,26 @@ export const BUTTONS = {
   save: "Enregistrer ma séance",
   saving: "Enregistrement…",
   edit: "Modifier",
+  retry: "Réessayer",
 } as const;
+
+/** A11 — « Bilan — Renfo bas du corps »: the session the debrief is about, by name. */
+export function flowTitle(sessionLabel: string): string {
+  return `Bilan — ${sessionLabel}`;
+}
+
+/**
+ * A11 — the reasons offered. A skipped session: the coaching reasons that
+ * exist (time, fatigue, pain, weather / terrain, equipment, motivation,
+ * other) — not « coach criterion » nor « activity change » (those describe a
+ * session that took place). A partial / replaced one: every reason, the
+ * coach criterion only with a linked plan.
+ */
+const SKIPPED_REASONS: readonly ChangeReason[] = ["time_life", "fatigue_control", "pain", "weather_terrain", "mechanical", "motivation", "other"];
+export function reasonsFor(status: CompletionStatus, linked: boolean): readonly ChangeReason[] {
+  if (status === "skipped") return SKIPPED_REASONS;
+  return CHANGE_REASONS.filter((reason) => reason !== "coach_criterion" || linked);
+}
 
 export function stepCopy(step: AfterSessionStepId, status: CompletionStatus): { title: string; question: string } {
   switch (step) {
@@ -73,10 +92,6 @@ export function stepCopy(step: AfterSessionStepId, status: CompletionStatus): { 
         : { title: "Ce qui a changé", question: "Qu'est-ce qui a changé pendant ta séance ?" };
     case "effort":
       return { title: "Ton effort", question: "À quel point cette séance t'a sollicité ?" };
-    case "body":
-      return status === "skipped"
-        ? { title: "Ton corps", question: "Comment se sentent tes jambes et tes avant-bras ? (facultatif)" }
-        : { title: "Ton corps", question: "Comment se sentent tes jambes et tes avant-bras ?" };
     case "signal":
       return { title: "Ton corps", question: "Un signal physique à retenir ?" };
   }
@@ -89,6 +104,8 @@ export const PLAN = {
   free: "Séance libre, sans lien avec le plan du jour.",
   relink: "Relier au plan du jour",
   lookupFailed: "Impossible de vérifier ton plan du jour : ta séance sera enregistrée sans lien.",
+  // A11 — the only case where the rider chooses: legacy data NALYNT cannot tell apart.
+  ambiguous: "Deux décisions ont été enregistrées au même moment pour ce jour : NALYNT ne peut pas savoir laquelle tu as suivie. Choisis-la.",
 } as const;
 
 const TIME = new Intl.DateTimeFormat("fr-CH", { hour: "2-digit", minute: "2-digit" });
@@ -117,18 +134,32 @@ export const ACTIVITY = {
 export const REASON = {
   noteRequired: "Précise en quelques mots (obligatoire pour « Autre »)",
   noteOptional: "Un mot de plus ? (facultatif)",
+  newPainQuestion: "Est-ce une nouvelle douleur ?",
+  painReminder: "Signale-la aussi dans ton prochain check-in : NALYNT adaptera la suite.",
 } as const;
 
+// A11 — effort with words: the ends and the middle under the scale, the chosen value named.
 export const EFFORT = {
   anchors: [
-    { value: 0, label: "Repos" },
+    { value: 0, label: "Aucun effort" },
     { value: 5, label: "Modéré" },
     { value: 10, label: "Maximal" },
   ],
 } as const;
 
+export function effortLabel(value: number): string {
+  if (value === 0) return "Aucun effort";
+  if (value <= 2) return "Très facile";
+  if (value <= 4) return "Facile";
+  if (value <= 6) return "Modéré";
+  if (value <= 8) return "Difficile";
+  if (value === 9) return "Très difficile";
+  return "Maximal";
+}
+
 // Same anchors as the morning check-in's own scales (CheckinForm).
 export const BODY = {
+  question: "Comment se sentent tes jambes et tes avant-bras ? (facultatif)",
   legs: { label: "Jambes", low: "Fraîches", high: "Très lourdes" },
   forearms: { label: "Avant-bras", low: "Frais", high: "Très fatigués" },
 } as const;

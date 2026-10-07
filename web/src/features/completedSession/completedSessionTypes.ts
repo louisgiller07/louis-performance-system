@@ -155,8 +155,10 @@ export interface CompletedSessionInput {
  * prescription (`dailyPlan.final_session`), used both to label the option
  * ("10:05 — DH performance · charge lourde") and to prefill the performed
  * intervention for done/partial (see prefillFromPrescription below). Built
- * exclusively from `historyRepo.ts#loadValidDecisionsForDate` — never a
- * "latest decision" guess, never fabricated.
+ * exclusively from `historyRepo.ts#loadValidDecisionsForDate`, never
+ * fabricated. A11: the debrief links the day's effective decision (A07: the
+ * latest one is current, decisions being append-only) — not a guess, the
+ * canonical rule; an instant shared by two decisions is never resolved.
  */
 export interface LinkableDecision {
   decisionId: string;

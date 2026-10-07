@@ -7,6 +7,7 @@ export function ScaleChoice({
   onChange,
   anchors,
   hideLabel = false,
+  valueLabel,
 }: {
   label: string;
   /** The step title already says it (still read by screen readers). */
@@ -14,13 +15,20 @@ export function ScaleChoice({
   value: number | "";
   onChange: (value: number) => void;
   anchors: readonly { value: number; label: string }[];
+  /** A11 — what the chosen value means, in words (e.g. effort 7 → « Difficile »). */
+  valueLabel?: (value: number) => string;
 }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="flex items-baseline justify-between">
         <span className={hideLabel ? "sr-only" : "text-sm font-medium text-ink"}>{label}</span>
-        <span key={String(value)} className="ux-pop font-display text-3xl font-extrabold leading-none text-gold">
-          {value === "" ? "—" : `${value}/10`}
+        <span key={String(value)} className="ux-pop flex items-baseline gap-2">
+          {value !== "" && valueLabel && (
+            <span className="text-sm font-medium text-ink/80" data-testid="scale-value-label">
+              {valueLabel(value)}
+            </span>
+          )}
+          <span className="font-display text-3xl font-extrabold leading-none text-gold">{value === "" ? "—" : `${value}/10`}</span>
         </span>
       </p>
       <div role="group" aria-label={label} className="grid grid-cols-6 gap-2">

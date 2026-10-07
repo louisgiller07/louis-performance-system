@@ -165,10 +165,16 @@ describe("validateCompletedSessionBody — status-dependent numeric matrix", () 
         if (!result.ok) expect(result.error.code).toBe("invalid_range");
       });
 
-      it("rejects post_leg_fatigue = null", () => {
-        const result = validateCompletedSessionBody({ ...VALID_DONE, completion_status: status, post_leg_fatigue: null });
-        expect(result.ok).toBe(false);
-        if (!result.ok) expect(result.error.code).toBe("invalid_body_for_status");
+      it("A11 — accepts post-session fatigue = null (optional, asked only for a fatigue_control day)", () => {
+        const result = validateCompletedSessionBody({
+          ...VALID_DONE,
+          completion_status: status,
+          post_leg_fatigue: null,
+          post_grip_fatigue: null,
+          ...(status === "done" ? {} : { change_reason: "time_life" }),
+        });
+        expect(result.ok).toBe(true);
+        if (result.ok) expect([result.value.post_leg_fatigue, result.value.post_grip_fatigue]).toEqual([null, null]);
       });
 
       it("rejects post_grip_fatigue = -1 (out of 0..10)", () => {

@@ -103,8 +103,6 @@ function act_(fn: () => void) {
 function fillRestOfValidDone(flow: { current: () => CompletedSessionFlow }) {
   act_(() => flow.current().updateField("actual_duration_min", 42));
   act_(() => flow.current().updateField("rpe", 7));
-  act_(() => flow.current().updateField("post_leg_fatigue", 4));
-  act_(() => flow.current().updateField("post_grip_fatigue", 3));
   act_(() => flow.current().updateField("new_pain", false));
 }
 
@@ -200,18 +198,30 @@ describe("decision linkage (V0.3_007B)", () => {
     expect(lastPayload()).toMatchObject({ decision_id: null });
   });
 
-  it("B (§36): 2+ decisions → no preselection, save blocked until an explicit choice; the chosen one is sent", async () => {
+  it("A11 (replaces §36): 2+ decisions → the day's effective one (the latest, A07) is linked and prefilled automatically, no choice step", async () => {
     mockedLoadDecisions.mockResolvedValue([DH_A, AERO_B]);
     mockedPut.mockResolvedValue(SAVED);
     const flow = await setup();
     await openEdit(flow);
 
-    expect(flow.current().decisionLinkResolved).toBe(false);
+    expect([flow.current().decisionLinkResolved, flow.current().ambiguousDecisions, flow.current().form?.decision_id, flow.current().form?.performed_kind]).toEqual([true, false, "d-b", "AEROBIC_BASE"]);
+    expect(flow.current().sessionLabel).toBe("Aérobie base");
+    fillRestOfValidDone(flow);
+    expect(flow.current().canSave).toBe(true);
+    await submit(flow);
+    expect(lastPayload()).toMatchObject({ decision_id: "d-b" });
+  });
+
+  it("A11 L — a legacy ambiguity (two decisions at the same instant): no preselection, save blocked until an explicit choice", async () => {
+    mockedLoadDecisions.mockResolvedValue([DH_A, { ...AERO_B, createdAt: DH_A.createdAt }]);
+    mockedPut.mockResolvedValue(SAVED);
+    const flow = await setup();
+    await openEdit(flow);
+    expect([flow.current().decisionLinkResolved, flow.current().ambiguousDecisions, flow.current().form?.decision_id]).toEqual([false, true, null]);
     fillRestOfValidDone(flow);
     act_(() => flow.current().setPerformedKind("DH_PERFORMANCE"));
     act_(() => flow.current().updateField("performed_load", "HEAVY"));
     expect(flow.current().canSave).toBe(false);
-
     act_(() => flow.current().setDecision("d-a"));
     expect(flow.current().canSave).toBe(true);
     await submit(flow);
@@ -237,10 +247,10 @@ describe("decision linkage (V0.3_007B)", () => {
     const flow = await setup();
     await openEdit(flow);
 
+    // A11 — the effective decision (d-b) already prefilled the activity: a switch never overwrites it.
+    expect(flow.current().form?.performed_kind).toBe("AEROBIC_BASE");
     act_(() => flow.current().setDecision("d-a"));
-    expect(flow.current().form?.performed_kind).toBe("DH_PERFORMANCE");
-    act_(() => flow.current().setDecision("d-b"));
-    expect(flow.current().form?.performed_kind).toBe("DH_PERFORMANCE");
+    expect(flow.current().form?.performed_kind).toBe("AEROBIC_BASE");
   });
 
   it("hotfix §10/§12: an activity entered first is never overwritten by selecting or switching plans", async () => {
@@ -304,8 +314,8 @@ describe("decision linkage (V0.3_007B)", () => {
     expect(lastPayload(1)).toMatchObject({ completion_status: "replaced", decision_id: "d-a", intervention: { kind: "PUMPTRACK", load_profile: "MODERATE" } });
   });
 
-  describe("initial link resolution matrix (unresolved → first selection)", () => {
-    beforeEach(() => mockedLoadDecisions.mockResolvedValue([DH_A, DH_LIGHT_B]));
+  describe("initial link resolution matrix (unresolved → first selection) — A11: only for a legacy ambiguity", () => {
+    beforeEach(() => mockedLoadDecisions.mockResolvedValue([DH_A, { ...DH_LIGHT_B, createdAt: DH_A.createdAt }]));
 
     it.each([
       ["replaced", "", false, ""],

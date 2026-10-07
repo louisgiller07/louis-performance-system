@@ -96,20 +96,15 @@ export function validateCompletedSessionForm(state: CompletedSessionFormState, s
       rpe = state.rpe;
     }
 
-    if (state.post_leg_fatigue === "") {
-      errors.post_leg_fatigue = "Requis.";
-    } else if (!inRange0to10(state.post_leg_fatigue)) {
-      errors.post_leg_fatigue = "Doit être entre 0 et 10.";
-    } else {
-      legFatigue = state.post_leg_fatigue;
+    // A11 — post-session fatigue is optional (null or 0..10) for every status, as on the server:
+    // the debrief asks it only for a fatigue_control day (M1's D-1 recovery continuity).
+    if (state.post_leg_fatigue !== "") {
+      if (!inRange0to10(state.post_leg_fatigue)) errors.post_leg_fatigue = "Doit être entre 0 et 10.";
+      else legFatigue = state.post_leg_fatigue;
     }
-
-    if (state.post_grip_fatigue === "") {
-      errors.post_grip_fatigue = "Requis.";
-    } else if (!inRange0to10(state.post_grip_fatigue)) {
-      errors.post_grip_fatigue = "Doit être entre 0 et 10.";
-    } else {
-      gripFatigue = state.post_grip_fatigue;
+    if (state.post_grip_fatigue !== "") {
+      if (!inRange0to10(state.post_grip_fatigue)) errors.post_grip_fatigue = "Doit être entre 0 et 10.";
+      else gripFatigue = state.post_grip_fatigue;
     }
   }
 
