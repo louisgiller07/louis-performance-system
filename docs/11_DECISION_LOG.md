@@ -5561,6 +5561,6 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 - **A10** : il s'applique après, et ne fait que descendre.
 
 **Restes**
-- `docs/04` (§3 arbitrage T-X / planned, §5 MODIFY vers le haut) et `CLAUDE.md` (dossiers M1 gelés) : diffs proposés dans le rapport, non appliqués.
+- `docs/04` (`PLANNED_LOAD_CAP`, MODIFY vers le haut) et `CLAUDE.md` (gel M1 = pas de modification non gouvernée) : appliqués après validation HPM.
 
-**Statut** : implémenté et vert en local (branche `fix/p0-m1-upward-modify`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (M1 dans le bundle), puis web (phrase rider) ; sans migration.
+**Statut** : **PASS / CLOSED LOCAL** (HPM 2026-10-07) ; `docs/04` et `CLAUDE.md` mis à jour. Implémenté et vert en local (branche `fix/p0-m1-upward-modify`). Aucun push, aucun déploiement. Livraison : Edge `daily-run` (M1 dans le bundle), puis web (phrase rider) ; sans migration.

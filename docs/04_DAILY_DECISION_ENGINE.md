@@ -484,7 +484,35 @@ Un `MODIFY` qui demande une charge **supérieure** à la séance prévue ne prod
 - statut : `blocked` / `final_prescription_adaptation_not_defined` ;
 - raison : `upward_modify_not_supported`.
 
-Aucune augmentation automatique, et jamais la dose prévue rebaptisée « modifiée ». Ce cas est atteignable : le protocole T-X à T-6 (`DH_TECHNICAL MODERATE`) remplace une DH d'affûtage V2 `LIGHT` non engagée. Il est suivi par un ticket séparé côté logique M1.
+Aucune augmentation automatique, et jamais la dose prévue rebaptisée « modifiée ».
+
+Depuis l'ADR P0 (2026-10-07), le chemin M1 normal n'atteint plus ce cas : M1 plafonne la charge d'une séance planifiée (`PLANNED_LOAD_CAP`, ci-dessous). Par exemple, le protocole T-X à T-6 (`DH_TECHNICAL MODERATE`) sur une DH d'affûtage V2 `LIGHT` donne KEEP de la DH `LIGHT`. `upward_modify_not_supported` reste dans A04 comme **garde défensive** : il bloque toute hausse qu'une régression future réintroduirait.
+
+### Plafond de charge planifiée — `PLANNED_LOAD_CAP` (ADR P0, approuvée HPM 2026-10-07)
+
+**Règle canonique :** quand une séance planifiée réelle existe pour le jour, M1 n'augmente jamais automatiquement sa charge. Le plan multi-semaines a déjà décidé de la charge (progression, affûtage). Les signaux du jour et les protocoles peuvent conserver, réduire, remplacer pour une raison valide, ou décider REST, jamais alourdir.
+
+- **Où :** une seule étape M1 (`rules/plannedLoadCap.ts`), à la fin de l'arbitrage :
+  - après la baseline (T-X / planned / fallback), les règles de domaine, la douleur hors Safety, les soft constraints de mode et la Safety ;
+  - avant la durée DH.
+- **Condition :** toutes les conditions suivantes sont réunies :
+  - une séance planifiée existe ;
+  - la séance finale et la séance planifiée ont un `load_profile` ;
+  - elles sont de la **même famille d'activité**, selon les groupes de `committedActivityFamily` : DH (`DH_TECHNICAL`, `DH_PERFORMANCE`, `PUMPTRACK`, `DH_LIGHT`), Force (`STRENGTH_*`, `POWER`, `GRIP_WORK`) ou endurance (`AEROBIC_BASE`, `AEROBIC_INTERVALS`).
+- **Effet :**
+  - seul le `load_profile` est ramené à celui du plan (`LIGHT < MODERATE < HEAVY`) ;
+  - le kind choisi est conservé (ex. jambes RED : Force bas `LIGHT` → Force haut `LIGHT`) ;
+  - une séance égale au plan est étiquetée KEEP, jamais un faux MODIFY.
+- **Hors périmètre :**
+  - aucune comparaison entre familles (pas de score de charge DH / Force / endurance / récupération) : les changements de famille restent gouvernés par les règles existantes ;
+  - sans séance planifiée, aucun plafond.
+- **Traçabilité :**
+  - règle `PLANNED_LOAD_CAP` (couche `ARBITRATION`) : séance planifiée, proposition plus forte et sa source (`protocole T-X` / `arbitrage du jour`), séance conservée ;
+  - côté rider, une phrase simple (« La charge prévue est conservée pour respecter ton affûtage. ») ;
+  - `overrode_race_protocol` / `override_reason` restent renseignés quand la séance diffère de la recommandation T-X.
+- **Défense en profondeur :**
+  - A04 (`upward_modify_not_supported`) reste la garde défensive ;
+  - A10 (temps disponible) s'applique ensuite et ne fait que descendre.
 
 ### Priorisation des domaines
 

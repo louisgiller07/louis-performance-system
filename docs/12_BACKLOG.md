@@ -649,9 +649,9 @@ Architecture à trois packages (`planning-engine`, `prescription-engine`, `head-
   - Livraison à approuver : Edge `completed-session` (fatigue facultative), puis web ; sans migration.
 - [ ] **Future coaching — feedback subjectif après séance guidée V2** (HPM 2026-10-07) : à envisager seulement lorsqu'un consommateur moteur précis existe (F-5 conservé d'ici là).
 - [ ] **Pre-rollout gate — `test:m5:completed-session:http`** (HPM 2026-10-07) : l'exécuter dans un environnement où l'Edge locale peut être arrêtée / redémarrée sans perturber les autres suites.
-- [ ] **P0 BEFORE PAID BETA — M1 UPWARD MODIFY NORMAL PATH** (HPM 2026-10-07, bloquant avant rollout bêta) — **implémenté et vert en local** (branche `fix/p0-m1-upward-modify`, ADR P0) :
+- [x] **P0 BEFORE PAID BETA — M1 UPWARD MODIFY NORMAL PATH** (HPM 2026-10-07) — **PASS / CLOSED LOCAL** (branche `fix/p0-m1-upward-modify`, ADR P0) :
   - M1 plafonne la charge d'une séance planifiée (même famille), règle `PLANNED_LOAD_CAP` ; A04 reste la garde défensive.
-  - Livraison à approuver : Edge `daily-run`, puis web. `docs/04` et `CLAUDE.md` : diffs proposés.
+  - Livraison à approuver : Edge `daily-run`, puis web. `docs/04` et `CLAUDE.md` appliqués.
   - **Cas reproduit :** DH prévue `LIGHT` + protocole course T-X demandant `DH_TECHNICAL MODERATE` → MODIFY vers le haut côté M1 → prescription du jour bloquée (`upward_modify_not_supported`), donc aucune séance exécutable ce jour-là.
   - À fermer avant le rollout bêta ; non corrigé dans A07 ni A10.
 - [x] **A07** — séance effective, source de vérité unique : **PASS / CLOSED LOCAL** (HPM 2026-10-07), implémenté et vert en local (branche `feat/a07-effective-session`, ADR A07). La décision V2 persistée porte la durée de la prescription (`V2_EFFECTIVE_SESSION`), et un modèle de lecture web partagé alimente Today (semaine), Program, History et Après séance. Livraison à approuver (Edge `daily-run`, puis web ; sans migration).
