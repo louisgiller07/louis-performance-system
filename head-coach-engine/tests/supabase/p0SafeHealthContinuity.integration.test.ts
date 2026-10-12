@@ -17,7 +17,7 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
-import { resolveHealthFlag } from "../../../supabase/functions/health-flag-resolution/resolveHealthFlag.js";
+import { inspectHealthFlag, resolveHealthFlag } from "../../../supabase/functions/health-flag-resolution/resolveHealthFlag.js";
 
 const INTEGRATION_ENABLED = localIntegrationRequested();
 
@@ -146,25 +146,33 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0-SAFE — health continuity in the dail
     expect(later.plan.reasoning).toMatch(/suspicion de blessure du \d{2}\.\d{2}/);
   });
 
-  it("Resolution: explicit, persisted, audited; then the plan resumes (DH and Force), never before", async () => {
-    const r = await rider("resolution");
+  it("Grave signal (A2 / A4 evidence): the declared disappearance is not enough, a consultation is not a clearance; an attested clearance closes it, audited; then the plan resumes (Force, DH), never before", async () => {
+    const r = await rider("resolution grave");
     const d0 = r.dh[0]!;
     await insertCheckin(admin, r.athleteId, d0, KNEE(8, { pain_new: true, pain_traumatic: true, pain_function_loss: true }));
     await day(r.athleteId, d0);
     const [flag] = await flags(r.athleteId);
 
-    // Before closure: Force day and DH day both protected.
+    // Before closure: Force day protected.
     const force = r.force.find((d) => d > d0)!;
     await insertCheckin(admin, r.athleteId, force);
     expect((await day(r.athleteId, force)).rules[0]).toBe("A7");
 
-    const out = await resolveHealthFlag(admin, r.athleteId, flag!.id, { professionalConsulted: true, resolvedAt: force });
+    const evidence = { flagType: "injury_suspect", zones: ["knee_R"], requiresProfessionalClearance: true };
+    expect(await inspectHealthFlag(admin, r.athleteId, flag!.id)).toEqual({ status: "ok", evidence });
+    expect(await resolveHealthFlag(admin, r.athleteId, flag!.id, { resolvedAt: force })).toEqual({ status: "professional_clearance_required", evidence });
+    expect(await resolveHealthFlag(admin, r.athleteId, flag!.id, { resolvedAt: force, professionalConsulted: true })).toEqual({ status: "professional_clearance_required", evidence });
+    expect((await flags(r.athleteId))[0]!.status).toBe("active");
+
+    const out = await resolveHealthFlag(admin, r.athleteId, flag!.id, { resolvedAt: force, professionalClearance: true });
     expect(out).toEqual({ status: "resolved", flagId: flag!.id, flagType: "injury_suspect", resolvedAt: force });
     const { data: row } = await admin.from("health_flags").select("status, resolved_at, resolution_note, professional_consulted, flag_date, description").eq("id", flag!.id).single();
     expect(row).toMatchObject({ status: "resolved", resolved_at: force, professional_consulted: true, flag_date: d0 });
-    expect((row as { resolution_note: string }).resolution_note).toMatch(/Clôturé par le rider.*Aucune validation médicale par NALYNT/);
+    expect((row as { resolution_note: string }).resolution_note).toBe(
+      `Clôturé par le rider dans l'application le ${force} : douleur ou symptômes entièrement disparus (déclaration du rider) ; reprise de l'entraînement autorisée par un professionnel de santé (attestation du rider). Aucune vérification médicale par NALYNT.`
+    );
     expect((row as { description: string }).description).toMatch(/^Douleur nouvelle sévère \(8\/10\)/); // the declaration is kept (A2 precedes A4)
-    expect(await resolveHealthFlag(admin, r.athleteId, flag!.id, { professionalConsulted: false, resolvedAt: force })).toEqual({ status: "already_resolved" });
+    expect(await resolveHealthFlag(admin, r.athleteId, flag!.id, { resolvedAt: force, professionalClearance: true })).toEqual({ status: "already_resolved" });
 
     // A new decision on the same day after closure: the plan again (a new decision row, the REST one kept).
     const resumed = await day(r.athleteId, force);
@@ -177,19 +185,83 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0-SAFE — health continuity in the dail
     expect(count).toBe(2);
   });
 
+  it("Simple signals close on the rider's declaration: illness (A3) and the provisional severe-pain trigger (A6); the note says a consultation is not a clearance", async () => {
+    const r = await rider("resolution simple");
+    await insertCheckin(admin, r.athleteId, r.force[0]!, { fever_or_illness: true });
+    await day(r.athleteId, r.force[0]!);
+    await insertCheckin(admin, r.athleteId, r.dh[0]!, KNEE(8));
+    await day(r.athleteId, r.dh[0]!);
+    const [illness, injury] = await flags(r.athleteId);
+    expect([illness!.flag_type, injury!.flag_type]).toEqual(["illness", "injury_suspect"]);
+    expect(await inspectHealthFlag(admin, r.athleteId, illness!.id)).toEqual({ status: "ok", evidence: { flagType: "illness", zones: [], requiresProfessionalClearance: false } });
+    expect(await inspectHealthFlag(admin, r.athleteId, injury!.id)).toEqual({ status: "ok", evidence: { flagType: "injury_suspect", zones: ["knee_R"], requiresProfessionalClearance: false } });
+    expect((await resolveHealthFlag(admin, r.athleteId, illness!.id, { resolvedAt: r.dh[0]! })).status).toBe("resolved");
+    expect((await resolveHealthFlag(admin, r.athleteId, injury!.id, { resolvedAt: r.dh[0]!, professionalConsulted: true })).status).toBe("resolved");
+    const { data } = await admin.from("health_flags").select("resolution_note").eq("id", injury!.id).single();
+    expect((data as { resolution_note: string }).resolution_note).toMatch(/professionnel de santé consulté \(déclaré ; ce n'est pas une autorisation de reprise\)/);
+  });
+
+  it("Several injuries merged in one signal (knee then wrist): closing the knee alone is refused, the wrist stays protected; only every zone confirmed (+ clearance, the knee was grave) closes it", async () => {
+    const r = await rider("multi zones");
+    const d0 = r.force[0]!;
+    await insertCheckin(admin, r.athleteId, d0, KNEE(8, { pain_traumatic: true, pain_function_loss: true }));
+    expect((await day(r.athleteId, d0)).rules[0]).toBe("A4");
+    const d1 = nextDay(d0);
+    await insertCheckin(admin, r.athleteId, d1, { pain: true, pain_intensity: 7, pain_new: false, pain_location_code: "wrist_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
+    expect((await day(r.athleteId, d1)).rules[0]).toBe("A6");
+    const open = await flags(r.athleteId);
+    expect(open.map((f) => [f.flag_type, f.status])).toEqual([["injury_suspect", "active"]]); // one row per type (schema): the wrist is merged into it
+    const flagId = open[0]!.id;
+
+    const evidence = { flagType: "injury_suspect", zones: ["knee_R", "wrist_R"], requiresProfessionalClearance: true };
+    expect(await resolveHealthFlag(admin, r.athleteId, flagId, { resolvedAt: d1, professionalClearance: true, confirmedZones: ["knee_R"] })).toEqual({ status: "zones_confirmation_required", evidence });
+    expect(await resolveHealthFlag(admin, r.athleteId, flagId, { resolvedAt: d1, professionalClearance: true })).toEqual({ status: "zones_confirmation_required", evidence });
+    expect((await flags(r.athleteId))[0]!.status).toBe("active");
+
+    // The wrist is still protected the next day (A7 names the open injury signal).
+    const d2 = nextDay(d1);
+    await insertCheckin(admin, r.athleteId, d2);
+    expect((await day(r.athleteId, d2)).rules[0]).toBe("A7");
+
+    expect(await resolveHealthFlag(admin, r.athleteId, flagId, { resolvedAt: d2, confirmedZones: ["wrist_R", "knee_R"] })).toEqual({ status: "professional_clearance_required", evidence });
+    expect((await resolveHealthFlag(admin, r.athleteId, flagId, { resolvedAt: d2, confirmedZones: ["wrist_R", "knee_R"], professionalClearance: true })).status).toBe("resolved");
+    const { data } = await admin.from("health_flags").select("resolution_note").eq("id", flagId).single();
+    expect((data as { resolution_note: string }).resolution_note).toMatch(/zones confirmées une par une : knee_R, wrist_R/);
+  });
+
+  it("An old signal without any recorded decision (legacy / manual row): kept open and protecting; an injury needs the clearance (conservative), an illness the declaration", async () => {
+    const r = await rider("legacy signals");
+    const { data: inserted } = await admin
+      .from("health_flags")
+      .insert([
+        { athlete_id: r.athleteId, flag_date: "2026-09-01", flag_type: "injury_suspect", description: "Douleur — knee_L" },
+        { athlete_id: r.athleteId, flag_date: "2026-09-02", flag_type: "illness", description: "Fièvre" },
+      ])
+      .select("id, flag_type");
+    const byType = Object.fromEntries((inserted as { id: string; flag_type: string }[]).map((f) => [f.flag_type, f.id]));
+    const d0 = r.dh[0]!;
+    await insertCheckin(admin, r.athleteId, d0);
+    const ruled = await day(r.athleteId, d0);
+    expect(ruled.rules[0]).toBe("A7");
+    expect(ruled.plan.reasoning).toContain("suspicion de blessure du 01.09, maladie / fièvre du 02.09");
+    expect(await inspectHealthFlag(admin, r.athleteId, byType.injury_suspect!)).toEqual({ status: "ok", evidence: { flagType: "injury_suspect", zones: [], requiresProfessionalClearance: true } });
+    expect((await resolveHealthFlag(admin, r.athleteId, byType.illness!, { resolvedAt: d0 })).status).toBe("resolved");
+    expect((await resolveHealthFlag(admin, r.athleteId, byType.injury_suspect!, { resolvedAt: d0 })).status).toBe("professional_clearance_required");
+  });
+
   it("Closure is scoped and guarded: another rider's signal → not_found; a concussion signal → medical validation required (A5 unchanged)", async () => {
     const a = await rider("owner");
     const b = await rider("stranger");
     await insertCheckin(admin, a.athleteId, a.dh[0]!, { fever_or_illness: true });
     await day(a.athleteId, a.dh[0]!);
     const [illness] = await flags(a.athleteId);
-    expect(await resolveHealthFlag(admin, b.athleteId, illness!.id, { professionalConsulted: false, resolvedAt: a.dh[0]! })).toEqual({ status: "not_found" });
+    expect(await resolveHealthFlag(admin, b.athleteId, illness!.id, { resolvedAt: a.dh[0]! })).toEqual({ status: "not_found" });
     expect((await flags(a.athleteId))[0]!.status).toBe("active");
 
     await insertCheckin(admin, b.athleteId, b.dh[0]!, { suspected_concussion: true });
     await day(b.athleteId, b.dh[0]!);
     const [concussion] = await flags(b.athleteId);
-    expect(await resolveHealthFlag(admin, b.athleteId, concussion!.id, { professionalConsulted: true, resolvedAt: b.dh[0]! })).toEqual({ status: "medical_validation_required" });
+    expect(await resolveHealthFlag(admin, b.athleteId, concussion!.id, { professionalClearance: true, resolvedAt: b.dh[0]! })).toEqual({ status: "medical_validation_required" });
   });
 
   it("Manual replacement cannot bypass: with an open signal, a DH the rider adds by hand on a free day is still a REST", async () => {

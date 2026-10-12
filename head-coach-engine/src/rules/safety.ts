@@ -25,14 +25,15 @@ export interface SafetyResult {
   health_flag_to_create?: HealthFlagToCreate;
   triggered_rule: TriggeredRule;
   reasoning: string;
-  /** P0-SAFE — rule-specific copy for the REST plan; absent = the generic Safety copy (A1–A4, A6 unchanged). */
+  /** P0-SAFE — rule-specific copy for the REST plan (A6, A7: coaching suspension); absent = the generic Safety copy (A1–A4 unchanged). */
   rest_plan_copy?: { do_not_do: string[]; observe: string[]; recovery_actions: string[] };
 }
 
 /**
- * P0-SAFE (HPM 2026-10-12) — A6 reuses A2's canonical 6/10 threshold: a severe pain is protected the
- * same way whether or not the rider calls it "new" (production incident: 2/10 then 8/10, declared not new,
- * kept as a 90-min DH). Not a diagnosis: rest and a professional opinion, exactly like A2.
+ * P0-SAFE (HPM 2026-10-12) — A6 reuses A2's 6/10 threshold as a PROVISIONAL conservative trigger (not a
+ * validated clinical threshold): a severe pain suspends NALYNT's training proposals whether or not the
+ * rider calls it "new" (production incident: 2/10 then 8/10, declared not new, kept as a 90-min DH).
+ * Coaching suspension wording, never a medical statement imposing absolute rest (HPM 2026-10-12).
  */
 export const SEVERE_PAIN_MIN_INTENSITY = 6;
 
@@ -145,17 +146,25 @@ export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthF
       triggered_rule: {
         layer: "A",
         rule_id: "A6",
-        detail: `Douleur forte déclarée (${checkin.pain_intensity}/10) — repos et avis d'un professionnel de santé`,
+        detail: `Douleur forte déclarée (${checkin.pain_intensity}/10) — propositions d'entraînement suspendues, avis d'un professionnel de santé recommandé`,
         signals_used: ["pain_severe"],
       },
       reasoning:
-        "Douleur forte déclarée. Par prudence, pas d'entraînement aujourd'hui : repos, et avis d'un professionnel de santé recommandé avant de reprendre l'entraînement.",
+        "Douleur forte déclarée. Par prudence, NALYNT suspend ses propositions d'entraînement. L'avis d'un professionnel de santé est recommandé avant de reprendre l'entraînement.",
+      rest_plan_copy: {
+        do_not_do: ["Pas d'entraînement proposé par NALYNT tant que la douleur n'a pas été réévaluée"],
+        observe: ["Évolution de la douleur déclarée"],
+        recovery_actions: ["Propositions d'entraînement suspendues", "Avis d'un professionnel de santé recommandé"],
+      },
     };
   }
 
   // A7 — Signal de santé précédent non clôturé (P0-SAFE) : une réponse rassurante d'un jour
   // ne l'efface pas ; seule une clôture explicite par le rider (persistée) le lève.
-  const openFollowUps = activeHealthFlags.filter((f) => FOLLOW_UP_FLAG_TYPES.has(f.type) && f.status !== "resolved");
+  // Deterministic order (declaration date, then type): the reminder never depends on the database row order.
+  const openFollowUps = activeHealthFlags
+    .filter((f) => FOLLOW_UP_FLAG_TYPES.has(f.type) && f.status !== "resolved")
+    .sort((x, y) => (x.flag_date ?? "").localeCompare(y.flag_date ?? "") || x.type.localeCompare(y.type));
   if (openFollowUps.length > 0) {
     const described = openFollowUps.map(describeOpenFlag).join(", ");
     return {
@@ -164,14 +173,14 @@ export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthF
       triggered_rule: {
         layer: "A",
         rule_id: "A7",
-        detail: `Signal de santé non clôturé (${described}) — pas d'entraînement tant qu'il n'est pas clôturé`,
+        detail: `Signal de santé ouvert (${described}) — propositions d'entraînement suspendues jusqu'à sa clôture`,
         signals_used: ["unresolved_health_flag"],
       },
-      reasoning: `Un signal de santé déclaré précédemment (${described}) n'est pas encore clôturé. Par prudence, pas d'entraînement aujourd'hui. Si tu n'as plus de douleur ni de symptôme, clôture ce signal dans l'application ; si ça persiste ou t'inquiète, consulte un professionnel de santé.`,
+      reasoning: `Un signal de santé déclaré précédemment (${described}) est toujours ouvert. Par prudence, NALYNT suspend ses propositions d'entraînement tant qu'il n'est pas clôturé. Tu peux le clôturer dans l'application quand ses conditions de clôture sont réunies ; en cas de doute, consulte un professionnel de santé.`,
       rest_plan_copy: {
-        do_not_do: ["Aucune séance d'entraînement tant que le signal de santé n'est pas clôturé"],
+        do_not_do: ["Pas d'entraînement proposé par NALYNT tant que le signal de santé est ouvert"],
         observe: ["Évolution de la douleur ou des symptômes déclarés précédemment"],
-        recovery_actions: ["Repos", "Clôturer le signal seulement si la douleur ou les symptômes ont disparu"],
+        recovery_actions: ["Propositions d'entraînement suspendues", "Clôturer le signal dans l'application quand ses conditions sont réunies"],
       },
     };
   }

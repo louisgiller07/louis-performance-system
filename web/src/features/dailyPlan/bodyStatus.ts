@@ -33,3 +33,15 @@ export function bodyStatusOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "hea
 export function healthSignalReasonOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "health_flag_to_create">): string | undefined {
   return dailyPlan.health_flag_to_create?.reason ?? dailyPlan.triggered_rules.find((rule) => rule.layer === "A" && (rule.rule_id === "A6" || rule.rule_id === "A7"))?.detail;
 }
+
+/**
+ * P0-SAFE (HPM 2026-10-12) — a day ruled by A6 (severe pain) or A7 (open health signal) reads as a
+ * suspension of NALYNT's training proposals, never as a medical statement imposing absolute rest.
+ * A1–A5 keep their own "Repos" wording.
+ */
+export const COACHING_SUSPENDED_TITLE = "Coaching suspendu";
+export const COACHING_SUSPENDED_STATUS = "NALYNT suspend ses propositions d'entraînement";
+
+export function isCoachingSuspended(dailyPlan: Pick<DailyPlan, "decision"> & Partial<Pick<DailyPlan, "triggered_rules">>): boolean {
+  return dailyPlan.decision === "REST" && (dailyPlan.triggered_rules ?? []).some((rule) => rule.layer === "A" && (rule.rule_id === "A6" || rule.rule_id === "A7"));
+}

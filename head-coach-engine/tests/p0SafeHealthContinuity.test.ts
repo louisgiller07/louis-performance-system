@@ -26,7 +26,7 @@ describe("P0-SAFE — A6 severe pain, whatever its novelty", () => {
     expect([plan.decision, plan.final_session]).toEqual(["REST", { kind: "REST" }]);
     expect(plan.triggered_rules).toEqual([expect.objectContaining({ layer: "A", rule_id: "A6", signals_used: ["pain_severe"] })]);
     expect(plan.health_flag_to_create).toEqual({ type: "injury_suspect", reason: "Douleur sévère déclarée (8/10) — knee_R" });
-    expect(plan.reasoning).toMatch(/professionnel de santé/);
+    expect(plan.reasoning).toBe("Douleur forte déclarée. Par prudence, NALYNT suspend ses propositions d'entraînement. L'avis d'un professionnel de santé est recommandé avant de reprendre l'entraînement.");
     expect(plan.dh_or_technical.active).toBe(false);
   });
 
@@ -55,9 +55,10 @@ describe("P0-SAFE — A7 open health signal from a previous day", () => {
     expect(plan.triggered_rules).toEqual([expect.objectContaining({ layer: "A", rule_id: "A7", signals_used: ["unresolved_health_flag"] })]);
     expect(plan.health_flag_to_create).toBeUndefined();
     expect(plan.reasoning).toContain("suspicion de blessure du 22.08");
-    expect(plan.reasoning).toMatch(/clôture ce signal dans l'application/);
+    expect(plan.reasoning).toMatch(/NALYNT suspend ses propositions d'entraînement tant qu'il n'est pas clôturé/);
+    expect(plan.reasoning).toMatch(/clôturer dans l'application/);
     expect(plan.reasoning).toMatch(/professionnel de santé/);
-    expect(plan.protection.do_not_do).toEqual(["Aucune séance d'entraînement tant que le signal de santé n'est pas clôturé"]);
+    expect(plan.protection.do_not_do).toEqual(["Pas d'entraînement proposé par NALYNT tant que le signal de santé est ouvert"]);
   });
 
   it("illness and persistent pain are followed too; several open signals are all named", () => {
@@ -87,6 +88,14 @@ describe("P0-SAFE — A7 open health signal from a previous day", () => {
     expect(a3.protection.do_not_do).toEqual(["Aucune activité physique tant que non validé médicalement"]);
     expect(a3.recovery.actions).toEqual(["Repos complet", "Suivre les consignes du professionnel de santé"]);
     expect(a3.monitoring.observe).toEqual(["Évolution des symptômes déclarés"]);
+  });
+
+  it("HPM wording: A6 / A7 suspend NALYNT's proposals, never a medical order of absolute rest", () => {
+    for (const plan of [buildDailyPlan(baseRawContext({ checkin: knee(8) })), buildDailyPlan(baseRawContext({ active_health_flags: [injury] }))]) {
+      const text = riderText(plan);
+      expect(text).toMatch(/suspend/);
+      expect(text).not.toMatch(/Aucune activité physique|repos complet|Repos complet|tant que non validé médicalement/);
+    }
   });
 
   it("athlete-facing copy of A6 / A7 never exposes a slug or a raw action token", () => {

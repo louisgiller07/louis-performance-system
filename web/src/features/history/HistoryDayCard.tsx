@@ -1,4 +1,4 @@
-import { BODY_STATUS_LABELS, BODY_STATUS_TONE } from "../dailyPlan/bodyStatus";
+import { BODY_STATUS_LABELS, BODY_STATUS_TONE, COACHING_SUSPENDED_TITLE, isCoachingSuspended } from "../dailyPlan/bodyStatus";
 import { Link } from "react-router-dom";
 import { formatLocalTime } from "../../lib/date";
 import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
@@ -184,7 +184,7 @@ export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string 
         <>
           <div className="mt-5">
             <Kicker tone={health ? "red" : "gold"}>{health ? "Signal santé" : "Mission du jour"}</Kicker>
-            <p className="mt-2 font-display text-[clamp(2rem,9vw,2.5rem)] font-extrabold uppercase leading-[0.95] text-ink">{kindLabel(plan.final_session)}</p>
+            <p className="mt-2 font-display text-[clamp(2rem,9vw,2.5rem)] font-extrabold uppercase leading-[0.95] text-ink">{isCoachingSuspended(plan) ? COACHING_SUSPENDED_TITLE : kindLabel(plan.final_session)}</p>
             {interventionMeta(plan.final_session) && <p className="mt-1 text-sm text-ink/75">{interventionMeta(plan.final_session)}</p>}
           </div>
 

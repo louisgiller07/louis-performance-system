@@ -70,7 +70,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P1 — a REST day carries no goal sentenc
     // P0-SAFE — the fever opened an illness signal; SAFETY A7 now keeps the following days at REST until the
     // rider closes it. Close it the way the rider does, so the next scenarios on this rider stay independent.
     const { data: open } = await admin.from("health_flags").select("id").eq("athlete_id", athleteId).in("status", ["active", "monitoring"]);
-    for (const flag of (open ?? []) as { id: string }[]) await resolveHealthFlag(admin, athleteId, flag.id, { professionalConsulted: false, resolvedAt: day! });
+    for (const flag of (open ?? []) as { id: string }[]) await resolveHealthFlag(admin, athleteId, flag.id, { resolvedAt: day! });
   });
 
   it("a neutral day (KEEP): the goal sentence is still appended", async () => {

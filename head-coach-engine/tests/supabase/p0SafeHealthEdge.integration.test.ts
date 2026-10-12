@@ -57,10 +57,10 @@ describe.skipIf(!ENABLED)("P0-SAFE — Edge: closing a health signal, and the da
     const d1 = await invoke(rider, "daily-run", { date: "2026-11-03" });
     const plan1 = d1.body.dailyPlan as { decision: string; triggered_rules: { rule_id: string }[]; reasoning: string };
     expect([d1.status, plan1.decision, plan1.triggered_rules[0]!.rule_id]).toEqual([200, "REST", "A7"]);
-    expect(plan1.reasoning).toMatch(/maladie \/ fièvre du 02\.11/);
+    expect(plan1.reasoning).toMatch(/maladie \/ fièvre du 02\.11\) est toujours ouvert\. Par prudence, NALYNT suspend ses propositions/);
 
     const [flag] = await flagsOf(athleteId);
-    const closed = await invoke(rider, "health-flag-resolution", { flagId: flag!.id, professionalConsulted: false });
+    const closed = await invoke(rider, "health-flag-resolution", { flagId: flag!.id });
     expect([closed.status, closed.body.status]).toEqual([200, "resolved"]);
     expect((await flagsOf(athleteId))[0]).toMatchObject({ status: "resolved", resolution_note: expect.stringMatching(/Clôturé par le rider/) });
 
@@ -70,6 +70,28 @@ describe.skipIf(!ENABLED)("P0-SAFE — Edge: closing a health signal, and the da
     const d1b = await invoke(rider, "daily-run", { date: "2026-11-03" });
     const plan1b = d1b.body.dailyPlan as { triggered_rules: { layer: string }[] };
     expect(plan1b.triggered_rules.some((t) => t.layer === "A")).toBe(false);
+  });
+
+  it("grave signal over HTTP: inspect tells what is required; a declaration alone → 409 professional_clearance_required (with the requirements); an attested clearance → 200", async () => {
+    const { athleteId } = await createTestAthlete(admin, "P0-SAFE edge grave");
+    const rider = await getAthleteAuthClient(athleteId);
+    await insertCheckin(admin, athleteId, "2026-11-06", { pain: true, pain_intensity: 7, pain_new: false, pain_location_code: "knee_R", pain_traumatic: true, pain_function_loss: false, pain_getting_worse: false });
+    expect(((await invoke(rider, "daily-run", { date: "2026-11-06" })).body.dailyPlan as { triggered_rules: { rule_id: string }[] }).triggered_rules[0]!.rule_id).toBe("A4");
+    const [flag] = await flagsOf(athleteId);
+    const requirements = { zones: ["knee_R"], requiresProfessionalClearance: true };
+
+    const inspected = await invoke(rider, "health-flag-resolution", { flagId: flag!.id, inspect: true });
+    expect([inspected.status, inspected.body.requirements]).toEqual([200, requirements]);
+    expect((await flagsOf(athleteId))[0]!.status).toBe("active"); // inspect never writes
+
+    const declared = await invoke(rider, "health-flag-resolution", { flagId: flag!.id, professionalConsulted: true });
+    expect([declared.status, declared.body.error?.code, (declared.body.error as { detail?: unknown }).detail]).toEqual([409, "professional_clearance_required", requirements]);
+    expect((await invoke(rider, "health-flag-resolution", { flagId: flag!.id, confirmedZones: "knee_R" })).status).toBe(400);
+    expect((await invoke(rider, "health-flag-resolution", { flagId: flag!.id, professionalClearance: "yes" })).status).toBe(400);
+
+    const cleared = await invoke(rider, "health-flag-resolution", { flagId: flag!.id, professionalClearance: true });
+    expect([cleared.status, cleared.body.status]).toEqual([200, "resolved"]);
+    expect((await flagsOf(athleteId))[0]!.resolution_note).toMatch(/autorisée par un professionnel de santé \(attestation du rider\)\. Aucune vérification médicale par NALYNT\./);
   });
 
   it("guards: no JWT → 401; malformed or unknown keys → 400; another rider's signal → 404 (unchanged); a concussion → 409 medical_validation_required", async () => {
@@ -91,7 +113,7 @@ describe.skipIf(!ENABLED)("P0-SAFE — Edge: closing a health signal, and the da
     const foreign = await invoke(strangerClient, "health-flag-resolution", { flagId: concussion!.id });
     expect([foreign.status, foreign.body.error?.code]).toEqual([404, "health_flag_not_found"]);
 
-    const medical = await invoke(ownerClient, "health-flag-resolution", { flagId: concussion!.id, professionalConsulted: true });
+    const medical = await invoke(ownerClient, "health-flag-resolution", { flagId: concussion!.id, professionalClearance: true });
     expect([medical.status, medical.body.error?.code]).toEqual([409, "medical_validation_required"]);
     expect((await flagsOf(owner.athleteId))[0]!.status).toBe("active");
   });

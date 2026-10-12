@@ -1,17 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { HealthFlagBanner, flagLocationLabel } from "./HealthFlagBanner";
+import { HealthFlagBanner, flagLocationLabel, zoneLabel } from "./HealthFlagBanner";
 import type { OpenHealthFlag } from "./openHealthFlagsRepo";
 
 const resolveMock = vi.fn();
-vi.mock("./healthFlagResolutionClient", () => ({ resolveOpenHealthFlag: (...args: unknown[]) => resolveMock(...args) }));
+const inspectMock = vi.fn();
+vi.mock("./healthFlagResolutionClient", () => ({
+  resolveOpenHealthFlag: (...args: unknown[]) => resolveMock(...args),
+  inspectOpenHealthFlag: (...args: unknown[]) => inspectMock(...args),
+}));
 
 const ID = "0f6e3b1c-2a4d-4e5f-8a9b-0c1d2e3f4a5b";
 const concussion: OpenHealthFlag = { id: ID, type: "concussion_suspect", flagDate: "2026-09-05", description: "Suspicion de commotion déclarée au checkin" };
-const injury: OpenHealthFlag = { id: ID, type: "injury_suspect", flagDate: "2026-10-23", description: "Douleur avec critère objectif de gravité (traumatique, perte de fonction) — knee_R" };
+const injury: OpenHealthFlag = { id: ID, type: "injury_suspect", flagDate: "2026-10-23", description: "Douleur sévère déclarée (8/10) — knee_R" };
 const illness: OpenHealthFlag = { id: "1f6e3b1c-2a4d-4e5f-8a9b-0c1d2e3f4a5b", type: "illness", flagDate: "2026-10-24", description: "Fièvre ou maladie déclarée au checkin" };
+const SIMPLE = { zones: ["knee_R"], requiresProfessionalClearance: false };
+const GRAVE = { zones: ["knee_R"], requiresProfessionalClearance: true };
+const MULTI = { zones: ["knee_R", "wrist_R"], requiresProfessionalClearance: true };
 
-beforeEach(() => resolveMock.mockReset());
+beforeEach(() => {
+  resolveMock.mockReset();
+  inspectMock.mockReset();
+  inspectMock.mockResolvedValue(SIMPLE);
+});
+
+const openClosure = async () => {
+  const button = await screen.findByRole("button", { name: "Clôturer ce signal" });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+};
+const confirmButton = () => screen.getByRole("button", { name: /Confirmer : je n'ai plus de douleur ni de symptôme/ });
 
 describe("HealthFlagBanner — concussion (V0.3_006A1, unchanged)", () => {
   it("renders nothing when there are no open flags", () => {
@@ -19,80 +37,107 @@ describe("HealthFlagBanner — concussion (V0.3_006A1, unchanged)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("A/B: the friendly label and the declared date, never the raw enum slug", () => {
+  it("the friendly label and date; today's 'Non' does not clear it; never closable from the app (no button, no inspection)", () => {
     render(<HealthFlagBanner flags={[concussion]} />);
-    expect(screen.getByText("Suivi santé actif")).toBeInTheDocument();
     expect(screen.getByText(/Suspicion de commotion signalée le 5 septembre\./)).toBeInTheDocument();
-    expect(screen.queryByText(/concussion_suspect/)).not.toBeInTheDocument();
-  });
-
-  it("C/D: today's 'Non' does not clear it, and it cannot be closed from the app (no button, no medical claim)", () => {
-    render(<HealthFlagBanner flags={[concussion]} />);
     expect(screen.getByText(/Ce signal reste actif même si tu réponds « Non » aujourd'hui\./)).toBeInTheDocument();
     expect(screen.getByText(/NALYNT ne permet pas encore de clôturer ce suivi depuis l'application\./)).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.queryByText(/guéri/)).not.toBeInTheDocument();
+    expect(inspectMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/concussion_suspect/)).not.toBeInTheDocument();
   });
 });
 
 describe("HealthFlagBanner — followed signals (P0-SAFE)", () => {
-  it("an open injury signal is shown with its zone and date, its consequence, and a closure action", () => {
+  it("an open signal: zone, date and the coaching suspension (not a medical order)", async () => {
     render(<HealthFlagBanner flags={[injury]} />);
-    expect(screen.getByText(/Suspicion de blessure \(genou droit\) signalée le 23 octobre\./)).toBeInTheDocument();
-    expect(screen.getByText(/Tant qu'il est ouvert, NALYNT ne te propose pas d'entraînement\./)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clôturer ce signal" })).toBeInTheDocument();
+    expect(await screen.findByText(/Suspicion de blessure \(genou droit\) signalée le 23 octobre\./)).toBeInTheDocument();
+    expect(screen.getByText(/Tant qu'il est ouvert, NALYNT suspend ses propositions d'entraînement\./)).toBeInTheDocument();
+    expect(inspectMock).toHaveBeenCalledWith(ID);
   });
 
-  it("illness and persistent pain are shown too; several signals are each shown once", () => {
-    render(<HealthFlagBanner flags={[illness, { ...injury, type: "pain_persistent", description: "Douleur persistante" }]} />);
-    expect(screen.getByText(/Maladie \/ fièvre signalée le 24 octobre\./)).toBeInTheDocument();
-    expect(screen.getByText(/Douleur persistante signalée le 23 octobre\./)).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Clôturer ce signal" })).toHaveLength(2);
+  it("several zones grouped in one signal are ALL named in the banner (never only the first complaint)", async () => {
+    inspectMock.mockResolvedValue(MULTI);
+    render(<HealthFlagBanner flags={[injury]} />);
+    expect(await screen.findByText(/Suspicion de blessure \(genou droit, poignet droit\) signalée le 23 octobre\./)).toBeInTheDocument();
   });
 
-  it("concussion + injury: the concussion keeps its non-closable notice, the injury gets its own closure", () => {
-    render(<HealthFlagBanner flags={[concussion, { ...injury, id: "2f6e3b1c-2a4d-4e5f-8a9b-0c1d2e3f4a5b" }]} />);
-    expect(screen.getByText(/NALYNT ne permet pas encore de clôturer ce suivi/)).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Clôturer ce signal" })).toHaveLength(1);
-  });
-
-  it("closing asks for a confirmation that is a declaration, never a medical validation; the consultation is optional", async () => {
+  it("simple signal: the declaration closes it; the consultation is optional and explicitly not a clearance", async () => {
     const onResolved = vi.fn();
     resolveMock.mockResolvedValue({ ok: true });
     render(<HealthFlagBanner flags={[injury]} onResolved={onResolved} />);
-    fireEvent.click(screen.getByRole("button", { name: "Clôturer ce signal" }));
-    expect(screen.getByText(/seulement si la douleur ou les symptômes ont disparu/)).toBeInTheDocument();
-    expect(screen.getByText(/NALYNT ne valide pas médicalement ta reprise/)).toBeInTheDocument();
-    expect(resolveMock).not.toHaveBeenCalled();
+    await openClosure();
+    expect(screen.getByText(/seulement si la douleur ou les symptômes ont entièrement disparu/)).toBeInTheDocument();
+    expect(screen.getByText(/Une consultation n'est pas une autorisation de reprise\./)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/m'a autorisé à reprendre/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("J'ai consulté un professionnel de santé"));
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer : je n'ai plus de douleur ni de symptôme/ }));
+    fireEvent.click(confirmButton());
     await waitFor(() => expect(onResolved).toHaveBeenCalledTimes(1));
-    expect(resolveMock).toHaveBeenCalledWith(ID, true);
+    expect(resolveMock).toHaveBeenCalledWith(ID, { professionalConsulted: true, professionalClearance: false, confirmedZones: [] });
   });
 
-  it("cancelling sends nothing; a failure is shown and nothing is reported as closed", async () => {
+  it("grave signal: no closure without the attested clearance; the attestation is said to be unverified by NALYNT", async () => {
+    inspectMock.mockResolvedValue(GRAVE);
+    resolveMock.mockResolvedValue({ ok: true });
+    render(<HealthFlagBanner flags={[injury]} />);
+    await openClosure();
+    expect(screen.getByText(/comportait un critère de gravité/)).toBeInTheDocument();
+    expect(screen.getByText(/NALYNT ne vérifie pas cette attestation/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("J'ai consulté un professionnel de santé")).not.toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("Un professionnel de santé m'a autorisé à reprendre l'entraînement"));
+    expect(confirmButton()).toBeEnabled();
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(resolveMock).toHaveBeenCalledWith(ID, { professionalConsulted: false, professionalClearance: true, confirmedZones: [] }));
+  });
+
+  it("multi-zone signal: every zone must be confirmed before the closure is possible; all of them are sent", async () => {
+    inspectMock.mockResolvedValue(MULTI);
+    resolveMock.mockResolvedValue({ ok: true });
+    render(<HealthFlagBanner flags={[injury]} />);
+    await openClosure();
+    fireEvent.click(screen.getByLabelText("Un professionnel de santé m'a autorisé à reprendre l'entraînement"));
+    fireEvent.click(screen.getByLabelText("Genou droit : plus aucune douleur"));
+    expect(confirmButton()).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("Poignet droit : plus aucune douleur"));
+    expect(confirmButton()).toBeEnabled();
+    fireEvent.click(confirmButton());
+    await waitFor(() => expect(resolveMock).toHaveBeenCalledWith(ID, { professionalConsulted: false, professionalClearance: true, confirmedZones: ["knee_R", "wrist_R"] }));
+  });
+
+  it("cancelling sends nothing; a server refusal is shown with its updated requirements, nothing is reported as closed", async () => {
     const onResolved = vi.fn();
-    resolveMock.mockResolvedValue({ ok: false, message: "Ce signal est déjà clôturé." });
+    resolveMock.mockResolvedValue({ ok: false, message: "Ce signal ne peut être clôturé qu'avec l'autorisation de reprise d'un professionnel de santé.", requirements: GRAVE });
     render(<HealthFlagBanner flags={[injury]} onResolved={onResolved} />);
-    fireEvent.click(screen.getByRole("button", { name: "Clôturer ce signal" }));
+    await openClosure();
     fireEvent.click(screen.getByRole("button", { name: "Annuler" }));
     expect(resolveMock).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Clôturer ce signal" }));
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer/ }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Ce signal est déjà clôturé.");
-    expect(resolveMock).toHaveBeenCalledWith(ID, false);
+    await openClosure();
+    fireEvent.click(confirmButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent("autorisation de reprise");
+    expect(screen.getByLabelText("Un professionnel de santé m'a autorisé à reprendre l'entraînement")).toBeInTheDocument();
     expect(onResolved).not.toHaveBeenCalled();
   });
 
-  it("never shows a raw slug, location code, status name or id", () => {
-    render(<HealthFlagBanner flags={[injury, illness]} />);
-    const text = document.body.textContent ?? "";
-    expect(text).not.toMatch(/injury_suspect|illness\b|knee_R|\bactive\b|monitoring|[0-9a-f]{8}-[0-9a-f]{4}-/);
+  it("illness: shown and closable; requirements unavailable → no closure offered yet", async () => {
+    inspectMock.mockResolvedValue(null);
+    render(<HealthFlagBanner flags={[illness]} />);
+    expect(screen.getByText(/Maladie \/ fièvre signalée le 24 octobre\./)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clôturer ce signal" })).toBeDisabled();
   });
 
-  it("flagLocationLabel: the trailing canonical code only, never a guess", () => {
+  it("never shows a raw slug, location code, status name or id", async () => {
+    inspectMock.mockResolvedValue(MULTI);
+    render(<HealthFlagBanner flags={[injury, illness]} />);
+    await screen.findAllByText(/poignet droit/);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/injury_suspect|illness\b|knee_R|wrist_R|\bactive\b|monitoring|[0-9a-f]{8}-[0-9a-f]{4}-/);
+  });
+
+  it("labels: canonical codes only, never a guess", () => {
     expect(flagLocationLabel("Douleur sévère déclarée (8/10) — knee_R")).toBe("Genou droit");
     expect(flagLocationLabel("Fièvre ou maladie déclarée au checkin")).toBeNull();
-    expect(flagLocationLabel("Douleur — not_a_code")).toBeNull();
+    expect(zoneLabel("wrist_R")).toBe("Poignet droit");
+    expect(zoneLabel("unspecified")).toBe("Zone non précisée");
   });
 });

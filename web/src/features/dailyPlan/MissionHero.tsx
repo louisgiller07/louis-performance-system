@@ -4,6 +4,7 @@ import { coachWhy } from "./coachInsights";
 import { missionStatus } from "./missionStatus";
 import { formatDuration } from "./durationLabels";
 import type { DailyPlan, TrainingIntervention } from "./dailyPlanTypes";
+import { COACHING_SUSPENDED_TITLE, isCoachingSuspended } from "./bodyStatus";
 
 // UX-03 — "Ta mission du jour", the dominant hero of Today. It merges what
 // used to be two stacked cards (MissionCard + DecisionHero) into one, and
@@ -37,10 +38,10 @@ function describe(intervention: TrainingIntervention, showKind: boolean): { prim
   return { primary: duration ?? load ?? kindLabel(intervention), secondary: duration && load ? load : undefined };
 }
 
-function AdaptationCompare({ before, after }: { before: TrainingIntervention; after: TrainingIntervention }) {
+function AdaptationCompare({ before, after, adaptedTitle }: { before: TrainingIntervention; after: TrainingIntervention; adaptedTitle?: string }) {
   const kindChanged = before.kind !== after.kind;
   const planned = describe(before, kindChanged);
-  const adapted = describe(after, kindChanged);
+  const adapted = adaptedTitle ? { primary: adaptedTitle, secondary: undefined } : describe(after, kindChanged);
 
   return (
     <div className="mission-compare mt-6 grid grid-cols-[1fr_auto_1fr] items-stretch overflow-hidden rounded-lg border border-line bg-bg/40">
@@ -79,6 +80,8 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   const tone = DECISION_TONE[dailyPlan.decision] ?? DECISION_TONE.KEEP!;
   // UX-10A — the decision in a coach's words; the confidence level is never shown.
   const status = missionStatus(dailyPlan);
+  // P0-SAFE — A6 / A7: a suspension of the coaching, not "Repos".
+  const suspended = isCoachingSuspended(dailyPlan);
   const adapted = dailyPlan.decision !== "KEEP" && before !== null;
 
   const isDh = dailyPlan.dh_or_technical.active;
@@ -115,12 +118,12 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
         {modeLabel && <p className="shrink-0 text-right text-xs font-medium uppercase tracking-[0.16em] text-muted">{modeLabel}</p>}
       </div>
       <h2 id="mission-title" className="ux-enter mt-4 font-display text-[clamp(2.75rem,13vw,3.75rem)] font-extrabold uppercase leading-[0.9] text-ink" style={{ ["--d" as string]: "80ms" }}>
-        {kindLabel(final)}
+        {suspended ? COACHING_SUSPENDED_TITLE : kindLabel(final)}
       </h2>
 
       {adapted && before ? (
         <div className="ux-enter" style={{ ["--d" as string]: "160ms" }}>
-          <AdaptationCompare before={before} after={final} />
+          <AdaptationCompare before={before} after={final} adaptedTitle={suspended ? COACHING_SUSPENDED_TITLE : undefined} />
         </div>
       ) : (
         sessionLine && (

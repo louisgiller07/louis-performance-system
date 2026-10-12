@@ -33,3 +33,19 @@ describe("P0-SAFE — État du corps", () => {
     expect(bodyStatusOf({ triggered_rules: [] } as never, "a-flag-id")).toBe("signal");
   });
 });
+
+describe("P0-SAFE — coaching suspension wording (A6 / A7 only)", () => {
+  it("A6 / A7 REST days read as a suspension of the coaching; A1–A5 keep their own wording", async () => {
+    const { isCoachingSuspended } = await import("./bodyStatus");
+    const { missionStatus } = await import("./missionStatus");
+    const plan = (rule_id: string) => ({ decision: "REST", planned_session_before: null, triggered_rules: [rule("A", rule_id)] }) as never;
+    expect(isCoachingSuspended(plan("A6"))).toBe(true);
+    expect(isCoachingSuspended(plan("A7"))).toBe(true);
+    expect(missionStatus(plan("A7"))).toBe("NALYNT suspend ses propositions d'entraînement");
+    for (const id of ["A1", "A2", "A3", "A4"]) {
+      expect(isCoachingSuspended(plan(id))).toBe(false);
+      expect(missionStatus(plan(id))).toBe("NALYNT te propose de récupérer");
+    }
+    expect(isCoachingSuspended({ decision: "KEEP", triggered_rules: [rule("A", "A5")] } as never)).toBe(false);
+  });
+});
