@@ -53,7 +53,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 first generation — the 9 October rev
     return { athleteId: athlete.athleteId, result };
   }
 
-  it("reproduction of the four review attempts (outcome only — the content is checked by the P0 suite)", async () => {
+  it("non-regression of the review: the four attempts, first attempt included, are generated (content checked by the matrix suite)", async () => {
     const attempts: [string, string[], string[]][] = [
       ["1 — declared terrains, cornering + braking", DECLARED, ["cornering", "braking"]],
       ["2 — + bermed trail", [...DECLARED, "bermed_trail"], ["cornering", "braking"]],
@@ -66,6 +66,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 first generation — the 9 October rev
       outcomes[label] = result.status === "persisted" ? "persisted" : `blocked:${result.code}:${JSON.stringify(result.detail)}`;
     }
     console.info(JSON.stringify(outcomes, null, 2));
-    expect(outcomes["4 — every terrain"]).toBe("persisted");
+    // P0 (HPM 2026-10-12): every attempt generates — attempt 1 above all, the rider's real terrains at the first try.
+    expect(Object.values(outcomes)).toEqual(["persisted", "persisted", "persisted", "persisted"]);
   });
 });

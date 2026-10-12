@@ -183,7 +183,8 @@ export async function handleGenerateTrainingPlan(
       if (result.code === "unavailable_dh_drill_terrain") {
         const skill = typeof result.detail.skill === "string" ? result.detail.skill : null;
         const requiredTerrain = typeof result.detail.requiredTerrain === "string" ? result.detail.requiredTerrain : null;
-        return Response.json({ error: { code: result.code, message: "No DH drill of the declared level for this priority fits the declared terrains.", detail: { skill, requiredTerrain } } }, { status: 422 });
+        const compatibleTerrains = Array.isArray(result.detail.compatibleTerrains) ? result.detail.compatibleTerrains.filter((t): t is string => typeof t === "string") : [];
+        return Response.json({ error: { code: result.code, message: "No DH drill of the declared level for this priority fits the declared terrains.", detail: { skill, requiredTerrain, compatibleTerrains } } }, { status: 422 });
       }
       return errorResponse(422, result.code, "Configuration incomplete for training plan generation.");
     }

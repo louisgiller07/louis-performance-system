@@ -96,10 +96,10 @@ export function contentViolations(plan: Plan, p: MatrixProfile): string[] {
     for (const item of (s.plannedPrescription.structure.blocks ?? []).flatMap((b) => b.items ?? [])) {
       if (item.kind === "drill") {
         const d = SESSION_DRILL_CATALOG_V2[item.drillId!]!;
-        // A LIGHT regression (ADR P0 adapted session) is ridden on its own terrain or on the terrain of a drill it regresses from.
+        // Ridden on one of its compatible terrains — or, for a LIGHT regression (ADR P0 adapted session), on a terrain of a drill it regresses from.
         const chainTerrains: string[] = [];
-        for (let x: typeof d | undefined = d; x; x = x.progressesTo ? SESSION_DRILL_CATALOG_V2[x.progressesTo] : undefined) chainTerrains.push(x.requiredTerrain);
-        if (!chainTerrains.some((t) => terrains.includes(t))) out.push(`${item.drillId} needs undeclared terrain ${d.requiredTerrain}`);
+        for (let x: typeof d | undefined = d; x; x = x.progressesTo ? SESSION_DRILL_CATALOG_V2[x.progressesTo] : undefined) chainTerrains.push(...x.compatibleTerrains);
+        if (!chainTerrains.some((t) => terrains.includes(t))) out.push(`${item.drillId} has no declared compatible terrain (${d.compatibleTerrains.join(", ")})`);
         if (TIER_RANK[d.technicalTier]! > dhTier) out.push(`${item.drillId} (${d.technicalTier}) above the rider's DH level`);
       }
       if (item.kind === "exercise") {
@@ -145,9 +145,20 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 first generation — five-profile matr
         replay: replay.status === "persisted" && replay.idempotentReplay && replay.planVersionId === first.planVersionId,
         drills,
         violations,
+        firstWeek: first.plan.weeks[0]!.sessions.map((s) => `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow(s.date)]} ${s.kind} ${s.durationMin}min${(() => {
+          const d = ((s.plannedPrescription.structure as unknown as { blocks?: { items?: Item[] }[] }).blocks ?? []).flatMap((b) => b.items ?? []).find((i) => i.kind === "drill");
+          return d ? ` ${d.drillId}` : "";
+        })()}`),
       };
     }
     console.info(JSON.stringify(report, null, 2));
+    // P0 expectations (HPM 2026-10-12): A — the original incident — is generated at the FIRST attempt with its three real terrains,
+    // and its two priorities are worked on them; B stays refused (flow trail definition unchanged, beginner braking needs a groomed
+    // trail) with the precise refusal; E stays refused (jumps need a jump line): no terrain is ever invented.
+    const outcome = (name: string) => (report[MATRIX.find((m) => m.name.startsWith(name))!.name] as { outcome: string }).outcome;
+    expect([outcome("A"), outcome("B"), outcome("C"), outcome("D"), outcome("E")]).toEqual(["persisted", "blocked:unavailable_dh_drill_terrain", "persisted", "persisted", "blocked:unavailable_dh_drill_terrain"]);
+    expect((report[MATRIX[0]!.name] as { drills: string[] }).drills.sort()).toEqual(["braking_late_entry", "cornering_berm_speed"]);
+    expect((report[MATRIX[4]!.name] as { detail: Record<string, unknown> }).detail).toEqual({ skill: "jumps", dhTechnicalTier: "intermediate", drillId: "jumps_linked_tables", requiredTerrain: "bike_park_jump_line", compatibleTerrains: ["bike_park_jump_line"] });
     for (const [name, r] of Object.entries(report) as [string, { outcome: string; violations?: string[]; readBack?: boolean; replay?: boolean }][]) {
       if (r.outcome !== "persisted") continue;
       expect(r.violations, name).toEqual([]);

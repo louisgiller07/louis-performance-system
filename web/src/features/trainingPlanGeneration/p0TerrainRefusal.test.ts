@@ -23,3 +23,11 @@ describe("P0 — V2 terrain refusal message", () => {
     }
   });
 });
+
+describe("P0 — several compatible terrains (HPM 2026-10-12)", () => {
+  it("names every terrain that would allow the priority", () => {
+    expect(unavailableTerrainMessage({ skill: "cornering", requiredTerrain: "bermed_trail", compatibleTerrains: ["bermed_trail", "bike_park_jump_line", "full_dh_track"] })).toBe(
+      "Pour travailler « Virages » à ton niveau, le programme a besoin d'un de ces terrains : « Piste avec relevés », « Bike park / ligne de sauts » ou « Piste DH complète ». Aucun ne fait partie de tes terrains. Ajoute-en un seulement si tu y as réellement accès ; sinon, choisis une autre priorité pour ce plan."
+    );
+  });
+});

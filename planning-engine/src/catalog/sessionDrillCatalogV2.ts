@@ -42,7 +42,14 @@ export interface SessionDrillV2 {
   skill: DhSkillV2;
   /** The drill's own difficulty, matched later against the rider's declared dhTechnicalTier. */
   technicalTier: DhTechnicalTierV2;
+  /** The drill's reference terrain (V1 terrainRequirement; also the first compatible terrain). */
   requiredTerrain: string;
+  /**
+   * P0 first generation (HPM 2026-10-12) — every terrain on which the drill's validated texts can be
+   * ridden as written; a rider who declared ANY of them can receive the drill. Always starts with
+   * requiredTerrain. Selection data only: never shown, never changes which drill a (skill, tier) gets.
+   */
+  compatibleTerrains: readonly string[];
   // UX-11B.2.3 — single measure vocabulary with recorded sets: "pass", never "passes".
   measureType: "pass";
   passes: { min: number; max: number };
@@ -54,20 +61,29 @@ export interface SessionDrillV2 {
   validationStatus: ContentValidationStatus;
 }
 
+/**
+ * HPM 2026-10-12 (rider feedback, NALYNT V1): these terrains give the rider access to bermed turns —
+ * not every turn is bermed, but berms are available for the drills. Deliberately NOT extended to
+ * technical_trail or root_rock_trail; flow_trail keeps its existing definition until clarified.
+ */
+export const BERMED_TURN_TERRAINS_V1 = ["bermed_trail", "bike_park_jump_line", "full_dh_track"] as const;
+
 function drill(
   drillId: string,
   skill: DhSkillV2,
   technicalTier: DhTechnicalTierV2,
-  requiredTerrain: string,
+  terrains: string | readonly string[],
   links: { progressesTo?: string; regressesTo?: string },
   vigilanceIds: readonly string[] = []
 ): SessionDrillV2 {
+  const compatibleTerrains = typeof terrains === "string" ? [terrains] : [...new Set(terrains)];
   return {
     drillId,
     origin: "v1_enriched",
     skill,
     technicalTier,
-    requiredTerrain,
+    requiredTerrain: compatibleTerrains[0]!,
+    compatibleTerrains,
     measureType: "pass",
     passes: { ...DH_DRILL_PASSES_RANGE_V2 },
     cueId: `cue.${drillId}`,
@@ -84,10 +100,12 @@ const JUMPS = "vigilance.dh_jumps_known_line";
 
 const ENTRIES: SessionDrillV2[] = [
   drill("braking_progressive_control", "braking", "beginner", "any_groomed_trail", { progressesTo: "braking_late_entry" }, [SCOUT]),
-  drill("braking_late_entry", "braking", "intermediate", "flow_trail", { progressesTo: "braking_marked_zone_at_speed", regressesTo: "braking_progressive_control" }, [SCOUT]),
+  // P0 — its texts need a turn entry (« juste avant l'entrée du virage »): the bermed-turn terrains have turns.
+  drill("braking_late_entry", "braking", "intermediate", ["flow_trail", ...BERMED_TURN_TERRAINS_V1], { progressesTo: "braking_marked_zone_at_speed", regressesTo: "braking_progressive_control" }, [SCOUT]),
   drill("braking_marked_zone_at_speed", "braking", "advanced", "technical_trail", { regressesTo: "braking_late_entry" }, [PRECISION]),
   drill("cornering_flat_turn_precision", "cornering", "beginner", "flow_trail", { progressesTo: "cornering_berm_speed" }),
-  drill("cornering_berm_speed", "cornering", "intermediate", "bermed_trail", { progressesTo: "cornering_off_camber", regressesTo: "cornering_flat_turn_precision" }),
+  // P0 — its texts need a bermed turn (« virage relevé »): the bermed-turn terrains (HPM 2026-10-12).
+  drill("cornering_berm_speed", "cornering", "intermediate", BERMED_TURN_TERRAINS_V1, { progressesTo: "cornering_off_camber", regressesTo: "cornering_flat_turn_precision" }),
   drill("cornering_off_camber", "cornering", "advanced", "technical_trail", { regressesTo: "cornering_berm_speed" }, [PRECISION]),
   drill("line_choice_two_line_scan", "line_choice", "beginner", "technical_trail", { progressesTo: "line_choice_rock_garden" }, [SCOUT]),
   drill("line_choice_rock_garden", "line_choice", "intermediate", "rock_garden", { progressesTo: "line_choice_fast_line_compare", regressesTo: "line_choice_two_line_scan" }, [SCOUT]),

@@ -185,8 +185,10 @@ describe("DH builder — locked blocks, never corrected", () => {
   });
 
   it("an unavailable terrain never falls back to another priority, tier or drill", () => {
-    // cornering/intermediate needs bermed_trail; the other priorities' drills would be available.
-    expect(blockedCode(() => buildDhPrescriptionV2Content({ ...DH_INPUT, terrainAccess: ALL_TERRAIN.filter((t) => t !== "bermed_trail") }))).toBe("unavailable_dh_drill_terrain");
+    // cornering/intermediate needs a bermed turn (bermed trail, bike park or full DH track — HPM 2026-10-12);
+    // without any of them it is blocked, although the other priorities' drills would be available.
+    const withoutBerms = ALL_TERRAIN.filter((t) => !["bermed_trail", "bike_park_jump_line", "full_dh_track"].includes(t));
+    expect(blockedCode(() => buildDhPrescriptionV2Content({ ...DH_INPUT, terrainAccess: withoutBerms }))).toBe("unavailable_dh_drill_terrain");
   });
 
   it("contract errors (not sport rules): wrong session kind, invalid ordinal, unknown skill", () => {

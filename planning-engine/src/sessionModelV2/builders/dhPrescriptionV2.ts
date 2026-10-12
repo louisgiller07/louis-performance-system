@@ -11,9 +11,10 @@
  * - intent = DH_SKILL_TO_INTENT_V2[skill], or the skill's non-race intent
  *   when that intent demands race intensity and the drill carries none
  *   (dhIntentForDrillV2, P0 replace stale copy);
- * - drill = THE catalogue drill of (skill, declared dhTechnicalTier); its
- *   required terrain must be declared, otherwise the plan is blocked — no
- *   other priority, no other tier, no easier or harder drill;
+ * - drill = THE catalogue drill of (skill, declared dhTechnicalTier); one of
+ *   its compatible terrains (catalogue `compatibleTerrains`, P0 first
+ *   generation) must be declared, otherwise the plan is blocked — no other
+ *   priority, no other tier, no easier or harder drill;
  * - the frame is sessionFrameV2: only the `main` block holds the counted
  *   drill (`pass` = focusedRunsCount, 4–8); every other block carries
  *   instructions only — never a number of runs for the day.
@@ -98,7 +99,12 @@ export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefi
     current = current.regressesTo !== undefined ? SESSION_DRILL_CATALOG_V2[current.regressesTo] : undefined;
   }
   if (!current) return null;
-  return terrainAccess.includes(current.requiredTerrain) || terrainAccess.includes(drill.requiredTerrain) ? current : null;
+  return ridesOn(current, terrainAccess) || ridesOn(drill, terrainAccess) ? current : null;
+}
+
+/** P0 first generation — the rider declared at least one terrain on which the drill can be ridden as written. */
+export function ridesOn(drill: SessionDrillV2, terrainAccess: readonly string[]): boolean {
+  return drill.compatibleTerrains.some((t) => terrainAccess.includes(t));
 }
 
 /**
@@ -155,12 +161,13 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
   const skill = priorities[input.dhSessionOrdinal % priorities.length] as DhSkillV2;
 
   const canonical = canonicalDhDrill(skill, tier);
-  if (!input.terrainAccess.includes(canonical.requiredTerrain)) {
+  if (!ridesOn(canonical, input.terrainAccess)) {
     throw new SessionModelV2GenerationBlockedError("unavailable_dh_drill_terrain", {
       skill,
       dhTechnicalTier: tier,
       drillId: canonical.drillId,
       requiredTerrain: canonical.requiredTerrain,
+      compatibleTerrains: [...canonical.compatibleTerrains],
     });
   }
   // P0 — the canonical drill's terrain is declared, so its LIGHT regression always exists.
