@@ -88,7 +88,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2 read path — buildRawContext (integra
 
     const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
 
-    expect(rawContext.active_health_flags).toEqual([{ type: "concussion_suspect", status: "active" }]);
+    expect(rawContext.active_health_flags).toEqual([{ type: "concussion_suspect", status: "active", flag_date: "2026-08-16" }]); // P0-SAFE — the declaration date reaches the engine (A7 reminder)
   });
 
   it("includes a monitoring health flag in active_health_flags", async () => {
@@ -98,7 +98,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2 read path — buildRawContext (integra
 
     const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
 
-    expect(rawContext.active_health_flags).toEqual([{ type: "concussion_suspect", status: "monitoring" }]);
+    expect(rawContext.active_health_flags).toEqual([{ type: "concussion_suspect", status: "monitoring", flag_date: "2026-08-16" }]);
   });
 
   it("excludes a resolved health flag from active_health_flags", async () => {

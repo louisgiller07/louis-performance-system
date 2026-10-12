@@ -1,5 +1,6 @@
 import { athleteSafeMonitoring } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
+import { BODY_STATUS_LABELS, BODY_STATUS_TONE, type BodyStatus } from "./bodyStatus";
 
 // V0.3 UX PREMIUM REDESIGN — "État de préparation" (was "Readiness") as a pilot status readout, not a
 // dashboard. Same three signals as before (confidence, health signal,
@@ -14,8 +15,9 @@ import type { DailyPlan } from "./dailyPlanTypes";
 // surveiller" (REV-014b: PAIN_NON_SAFETY embeds the raw pain_location_code,
 // e.g. "(knee_R, intensité 4/10)", which must render as its French label).
 // UX-10A — the engine's confidence level is never shown to the rider.
-export function ReadinessCard({ dailyPlan, hasHealthSignal }: { dailyPlan: DailyPlan; hasHealthSignal: boolean }) {
+export function ReadinessCard({ dailyPlan, hasHealthSignal, bodyStatus }: { dailyPlan: DailyPlan; hasHealthSignal: boolean; bodyStatus?: BodyStatus }) {
   const attention = athleteSafeMonitoring(dailyPlan)[0];
+  const status: BodyStatus = bodyStatus ?? (hasHealthSignal ? "signal" : "ready");
 
   return (
     <div className="rounded-lg border border-line bg-card p-4">
@@ -23,9 +25,7 @@ export function ReadinessCard({ dailyPlan, hasHealthSignal }: { dailyPlan: Daily
       <div className="mt-3">
         <div>
           <p className="text-xs uppercase tracking-[0.16em] text-muted">État du corps</p>
-          <p className={`mt-1 font-display text-2xl font-extrabold uppercase leading-none ${hasHealthSignal ? "text-red-400" : "text-gold"}`}>
-            {hasHealthSignal ? "Signal actif" : "Prêt"}
-          </p>
+          <p className={`mt-1 font-display text-2xl font-extrabold uppercase leading-none ${BODY_STATUS_TONE[status]}`}>{BODY_STATUS_LABELS[status]}</p>
         </div>
       </div>
       {attention && (

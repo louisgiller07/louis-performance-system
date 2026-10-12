@@ -35,5 +35,7 @@ export function mapHealthFlagRow(row: HealthFlagRawRow): HealthFlag {
   return {
     type: row.flag_type as HealthFlagType,
     status: row.status as HealthFlagStatus,
+    // P0-SAFE — the declaration date, for the A7 reminder; absent from older selects (never invented).
+    ...(typeof row.flag_date === "string" ? { flag_date: row.flag_date } : {}),
   };
 }

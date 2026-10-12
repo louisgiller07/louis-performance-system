@@ -15,6 +15,7 @@ import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/ath
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
+import { resolveHealthFlag } from "../../src/supabase/resolveHealthFlag.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { computeDailyFor } from "../../src/supabase/computeDailyFor.js";
 import { V2_SYSTEMIC_FLOOR_RULE_ID } from "../../src/supabase/dailyV2/applyV2SystemicFloor.js";
@@ -110,6 +111,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("A04 — MODIFY / REPLACE executable presc
     const r = await runDailyFor(admin, athleteId, day);
     expect([r.dailyPlan.decision, r.finalPrescriptionStatus]).toEqual(["REST", "not_required"]);
     expect(await finalOf((await decisionOn(day)).id)).toEqual([]);
+    // P0-SAFE — the fever opened an illness signal; SAFETY A7 now keeps the following days at REST until the
+    // rider closes it. Close it the way the rider does, so the next scenarios on this rider stay independent.
+    const { data: open } = await admin.from("health_flags").select("id").eq("athlete_id", athleteId).in("status", ["active", "monitoring"]);
+    for (const flag of (open ?? []) as { id: string }[]) await resolveHealthFlag(admin, athleteId, flag.id, { professionalConsulted: false, resolvedAt: day });
   });
 
   it("C — MODIFY DH (systemic RED, MODERATE → LIGHT): same drill, 4 passages, lineage; started, a pass recorded on the adapted item, completed", async () => {

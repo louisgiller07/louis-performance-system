@@ -87,6 +87,16 @@ export function TodayPage() {
   // versa. Silently shows nothing on error (best-effort transparency, not a
   // Safety-critical read) rather than surfacing a second error banner.
   const [openHealthFlags, setOpenHealthFlags] = useState<OpenHealthFlag[]>([]);
+  // P0-SAFE — bumped after the rider closes a signal: reload the open signals and, when today's
+  // check-in exists, re-run today's decision (same path as a check-in save), so the REST that the
+  // open signal imposed (SAFETY A7) is replaced by a fresh decision without a manual refresh.
+  const [healthFlagsRevision, setHealthFlagsRevision] = useState(0);
+  const handleHealthFlagResolved = useCallback(() => {
+    setHealthFlagsRevision((revision) => revision + 1);
+    if (hasCheckin) setCheckinRevision((revision) => revision + 1);
+  }, [hasCheckin]);
+  // P0-SAFE — a fresh decision may have just opened a signal (A2/A3/A4/A6): show it right away.
+  const handleDecision = useCallback(() => setHealthFlagsRevision((revision) => revision + 1), []);
   useEffect(() => {
     if (!athleteId) return;
     let cancelled = false;
@@ -100,7 +110,7 @@ export function TodayPage() {
     return () => {
       cancelled = true;
     };
-  }, [athleteId]);
+  }, [athleteId, healthFlagsRevision]);
 
   // PILOT_012 — athletes without an accepted training plan get a clear entry to set one up.
   // Best-effort read of the existing current-plan pointer: on error nothing is shown and
@@ -178,7 +188,7 @@ export function TodayPage() {
       {todayContext && <RaceBanner horizon={horizon} objective={todayContext.objective} />}
 
       {/* Safety first: an active health follow-up always sits above the mission. */}
-      <HealthFlagBanner flags={openHealthFlags} />
+      <HealthFlagBanner flags={openHealthFlags} onResolved={handleHealthFlagResolved} />
 
       {hasActivePlan === false && (
         // UX-09 — no plan yet: the first run builds it (/start).
@@ -213,6 +223,7 @@ export function TodayPage() {
           date={canonicalDate}
           hasCheckin={hasCheckin}
           checkinRevision={checkinRevision}
+          onDecision={handleDecision}
           hideIdleWithoutCheckin
           autoGenerateOnCheckinSave
           minAnalysisMs={1800}

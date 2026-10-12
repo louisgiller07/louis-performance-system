@@ -34,7 +34,7 @@ import {
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 import { selectDecisionReasoningRules, joinDecisionReasoning } from "./reasoningBuilder.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-v0.3.014";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-p0-safe";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -75,11 +75,13 @@ function buildSafetyPlan(
     training: { active: false, session_type: restSession, objective: "Repos complet — SAFETY" },
     dh_or_technical: { active: false },
     mental: { active: false },
-    recovery: { active: true, actions: ["Repos complet", "Suivre les consignes du professionnel de santé"] },
+    // P0-SAFE — A7 (open signal reminder) carries its own copy: the rider closes the signal, NALYNT never
+    // claims a medical validation; every other Safety rule keeps the original copy byte for byte.
+    recovery: { active: true, actions: safety.rest_plan_copy?.recovery_actions ?? ["Repos complet", "Suivre les consignes du professionnel de santé"] },
     nutrition: { active: false },
     sleep: { active: true, notes: "Prioriser le sommeil pendant la période de repos" },
-    protection: { do_not_do: ["Aucune activité physique tant que non validé médicalement"] },
-    monitoring: { observe: ["Évolution des symptômes déclarés"] },
+    protection: { do_not_do: safety.rest_plan_copy?.do_not_do ?? ["Aucune activité physique tant que non validé médicalement"] },
+    monitoring: { observe: safety.rest_plan_copy?.observe ?? ["Évolution des symptômes déclarés"] },
     reasoning: safety.reasoning,
     confidence: "HIGH",
     triggered_rules: [safety.triggered_rule],

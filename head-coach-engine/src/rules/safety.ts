@@ -11,15 +11,46 @@ import type { TriggeredRule } from "../types/triggeredRule.js";
  *  - REST : arrêt complet, orientation médicale.
  *  - ZERO_DH : DH interdit tant que non validé médicalement, le reste du
  *    plan (physique hors DH, récupération) reste possible (A5 uniquement).
+ *
+ * Ordre (P0-SAFE, HPM 2026-10-12) : déclarations du jour d'abord (A1 commotion, A2 douleur nouvelle
+ * sévère, A3 fièvre, A4 critère de gravité, A6 douleur sévère non nouvelle), puis les signaux des jours
+ * précédents encore ouverts (A7 blessure / maladie / douleur persistante → REST, plus conservateur),
+ * puis A5 (commotion non résolue → ZERO_DH).
  */
 export type SafetyAction = "REST" | "ZERO_DH";
 
 export interface SafetyResult {
-  rule_id: "A1" | "A2" | "A3" | "A4" | "A5";
+  rule_id: "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7";
   action: SafetyAction;
   health_flag_to_create?: HealthFlagToCreate;
   triggered_rule: TriggeredRule;
   reasoning: string;
+  /** P0-SAFE — rule-specific copy for the REST plan; absent = the generic Safety copy (A1–A4, A6 unchanged). */
+  rest_plan_copy?: { do_not_do: string[]; observe: string[]; recovery_actions: string[] };
+}
+
+/**
+ * P0-SAFE (HPM 2026-10-12) — A6 reuses A2's canonical 6/10 threshold: a severe pain is protected the
+ * same way whether or not the rider calls it "new" (production incident: 2/10 then 8/10, declared not new,
+ * kept as a 90-min DH). Not a diagnosis: rest and a professional opinion, exactly like A2.
+ */
+export const SEVERE_PAIN_MIN_INTENSITY = 6;
+
+/** P0-SAFE — open signal types that keep protecting the following days until the rider closes them (A7). */
+const FOLLOW_UP_FLAG_TYPES: ReadonlySet<HealthFlag["type"]> = new Set(["injury_suspect", "illness", "pain_persistent"]);
+
+const FOLLOW_UP_FLAG_LABELS: Record<string, string> = {
+  injury_suspect: "suspicion de blessure",
+  illness: "maladie / fièvre",
+  pain_persistent: "douleur persistante",
+};
+
+/** "suspicion de blessure du 23.10" — never the raw type slug. */
+function describeOpenFlag(flag: HealthFlag): string {
+  const label = FOLLOW_UP_FLAG_LABELS[flag.type] ?? "signal de santé";
+  if (!flag.flag_date || !/^\d{4}-\d{2}-\d{2}$/.test(flag.flag_date)) return label;
+  const [, month, day] = flag.flag_date.split("-");
+  return `${label} du ${day}.${month}`;
 }
 
 export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthFlag[]): SafetyResult | null {
@@ -99,6 +130,49 @@ export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthF
       },
       reasoning:
         "Douleur présentant un critère objectif de gravité. Repos et consultation d'un professionnel de santé recommandée.",
+    };
+  }
+
+  // A6 — Douleur sévère (≥ 6/10) non déclarée nouvelle et sans critère de gravité (P0-SAFE).
+  if (checkin.pain && checkin.pain_intensity >= SEVERE_PAIN_MIN_INTENSITY) {
+    return {
+      rule_id: "A6",
+      action: "REST",
+      health_flag_to_create: {
+        type: "injury_suspect",
+        reason: `Douleur sévère déclarée (${checkin.pain_intensity}/10)${checkin.pain_location_code ? ` — ${checkin.pain_location_code}` : ""}`,
+      },
+      triggered_rule: {
+        layer: "A",
+        rule_id: "A6",
+        detail: `Douleur forte déclarée (${checkin.pain_intensity}/10) — repos et avis d'un professionnel de santé`,
+        signals_used: ["pain_severe"],
+      },
+      reasoning:
+        "Douleur forte déclarée. Par prudence, pas d'entraînement aujourd'hui : repos, et avis d'un professionnel de santé recommandé avant de reprendre l'entraînement.",
+    };
+  }
+
+  // A7 — Signal de santé précédent non clôturé (P0-SAFE) : une réponse rassurante d'un jour
+  // ne l'efface pas ; seule une clôture explicite par le rider (persistée) le lève.
+  const openFollowUps = activeHealthFlags.filter((f) => FOLLOW_UP_FLAG_TYPES.has(f.type) && f.status !== "resolved");
+  if (openFollowUps.length > 0) {
+    const described = openFollowUps.map(describeOpenFlag).join(", ");
+    return {
+      rule_id: "A7",
+      action: "REST",
+      triggered_rule: {
+        layer: "A",
+        rule_id: "A7",
+        detail: `Signal de santé non clôturé (${described}) — pas d'entraînement tant qu'il n'est pas clôturé`,
+        signals_used: ["unresolved_health_flag"],
+      },
+      reasoning: `Un signal de santé déclaré précédemment (${described}) n'est pas encore clôturé. Par prudence, pas d'entraînement aujourd'hui. Si tu n'as plus de douleur ni de symptôme, clôture ce signal dans l'application ; si ça persiste ou t'inquiète, consulte un professionnel de santé.`,
+      rest_plan_copy: {
+        do_not_do: ["Aucune séance d'entraînement tant que le signal de santé n'est pas clôturé"],
+        observe: ["Évolution de la douleur ou des symptômes déclarés précédemment"],
+        recovery_actions: ["Repos", "Clôturer le signal seulement si la douleur ou les symptômes ont disparu"],
+      },
     };
   }
 

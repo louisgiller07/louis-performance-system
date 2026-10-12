@@ -11,7 +11,7 @@ export type HealthFlagRawRow = Record<string, unknown>;
 
 /**
  * Fetches `health_flags` rows for `athleteId` with
- * `status IN ('active', 'monitoring')` — the flags SAFETY A5 and
+ * `status IN ('active', 'monitoring')` — the flags SAFETY A5 / A7 and
  * `active_health_flags` need to know about. Resolved flags are excluded.
  */
 export async function getOpenHealthFlags(
@@ -20,7 +20,7 @@ export async function getOpenHealthFlags(
 ): Promise<HealthFlagRawRow[]> {
   const { data, error } = await client
     .from("health_flags")
-    .select("flag_type, status")
+    .select("flag_type, status, flag_date")
     .eq("athlete_id", athleteId)
     .in("status", ["active", "monitoring"]);
 

@@ -71,6 +71,8 @@ interface DailyPlanPanelProps {
    * from the database before any start.
    */
   guidedSessionEntry?: ReactNode;
+  /** P0-SAFE — called once a fresh daily run succeeds (Today reloads the open health signals it may have created). */
+  onDecision?: (result: DailyRunResponse) => void;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -101,6 +103,7 @@ export function DailyPlanPanel({
   checkinSnapshot,
   detailsTarget,
   guidedSessionEntry,
+  onDecision,
 }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
@@ -233,6 +236,7 @@ export function DailyPlanPanel({
         setResult(outcome.data);
         setFreshRun(true);
         setState("success");
+        onDecision?.(outcome.data);
         return;
       }
 

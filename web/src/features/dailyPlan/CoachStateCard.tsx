@@ -2,6 +2,7 @@ import { athleteSafeMonitoring } from "./safetyPresentation";
 import { retainedSignals, SIGNAL_CHECKIN_FIELD } from "./coachInsights";
 import { checkinTiles } from "./checkinTiles";
 import type { DailyPlan } from "./dailyPlanTypes";
+import { BODY_STATUS_LABELS, BODY_STATUS_TONE, type BodyStatus } from "./bodyStatus";
 import type { CheckinRow } from "../checkin/checkinTypes";
 
 // UX-04 / UX-05 — Today's "Ce que ton coach a retenu" + "Ton état du jour" cards (replaces
@@ -23,15 +24,19 @@ const NO_SIGNAL_ADAPTED: Record<"MODIFY" | "REPLACE" | "REST", string> = {
 export function CoachStateCard({
   dailyPlan,
   hasHealthSignal,
+  bodyStatus,
   checkin,
   revealed = false,
 }: {
   dailyPlan: DailyPlan;
   hasHealthSignal: boolean;
+  /** P0-SAFE — the three-state reading (bodyStatus.ts); absent = the legacy boolean reading. */
+  bodyStatus?: BodyStatus;
   checkin: CheckinRow | null;
   /** True right after a fresh analysis: the retained signals arrive one by one. */
   revealed?: boolean;
 }) {
+  const status: BodyStatus = bodyStatus ?? (hasHealthSignal ? "signal" : "ready");
   const signals = retainedSignals(dailyPlan);
   const retainedFields = new Set(signals.map((entry) => SIGNAL_CHECKIN_FIELD[entry.signal]).filter(Boolean));
   const tiles = checkin ? checkinTiles(checkin) : [];
@@ -94,9 +99,7 @@ export function CoachStateCard({
 
         <div className={`flex items-center justify-between gap-3 ${tiles.length > 0 ? "mt-4 border-t border-line pt-3" : "mt-3"}`}>
           <p className="text-xs uppercase tracking-[0.16em] text-muted">État du corps</p>
-          <p className={`font-display text-lg font-extrabold uppercase leading-none ${hasHealthSignal ? "text-red-400" : "text-gold"}`}>
-            {hasHealthSignal ? "Signal actif" : "Prêt"}
-          </p>
+          <p className={`font-display text-lg font-extrabold uppercase leading-none ${BODY_STATUS_TONE[status]}`}>{BODY_STATUS_LABELS[status]}</p>
         </div>
         {attention && (
           <div className="mt-3 border-t border-line pt-3">

@@ -12,6 +12,7 @@ import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/ath
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
+import { resolveHealthFlag } from "../../src/supabase/resolveHealthFlag.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { resolveGoalRationale } from "../../src/supabase/goalReasoning.js";
 
@@ -66,6 +67,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("P1 — a REST day carries no goal sentenc
     expect(r.plan.reasoning).toBe("Fièvre ou maladie déclarée. Repos complet jusqu'à résolution des symptômes.");
     expect(r.plan.reasoning).not.toContain(resolveGoalRationale(GOAL)!);
     expect([r.fpStatus, r.fpRows]).toEqual(["not_required", 0]);
+    // P0-SAFE — the fever opened an illness signal; SAFETY A7 now keeps the following days at REST until the
+    // rider closes it. Close it the way the rider does, so the next scenarios on this rider stay independent.
+    const { data: open } = await admin.from("health_flags").select("id").eq("athlete_id", athleteId).in("status", ["active", "monitoring"]);
+    for (const flag of (open ?? []) as { id: string }[]) await resolveHealthFlag(admin, athleteId, flag.id, { professionalConsulted: false, resolvedAt: day! });
   });
 
   it("a neutral day (KEEP): the goal sentence is still appended", async () => {

@@ -1,3 +1,4 @@
+import { BODY_STATUS_LABELS, BODY_STATUS_TONE } from "../dailyPlan/bodyStatus";
 import { Link } from "react-router-dom";
 import { formatLocalTime } from "../../lib/date";
 import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
@@ -9,7 +10,7 @@ import { performedLine, plannedLine } from "../afterSession/afterSessionPresenta
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
-import { dayOutcome, hasHealthSignal, type HistoryDay } from "./historyDays";
+import { bodyStatusOfDay, dayOutcome, hasHealthSignal, type HistoryDay } from "./historyDays";
 import type { DecisionHistoryRow } from "./historyTypes";
 
 // UX-07 — one day of the journey, as a chapter:
@@ -158,6 +159,7 @@ function Reevaluations({ decisions }: { decisions: DecisionHistoryRow[] }) {
 export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string }) {
   const titleId = `day-${day.date}`;
   const health = hasHealthSignal(day);
+  const status = bodyStatusOfDay(day) ?? "ready";
   const plan = day.dailyPlan;
   const outcome = dayOutcome(day);
   const recorded = recordedLine(day, today);
@@ -171,7 +173,7 @@ export function HistoryDayCard({ day, today }: { day: HistoryDay; today: string 
           {dayTitle(day.date, today)}
         </h3>
         {plan && (
-          <p className={`shrink-0 text-xs font-semibold uppercase tracking-[0.16em] ${health ? "text-red-400" : "text-gold"}`}>{health ? "Signal actif" : "Prêt"}</p>
+          <p className={`shrink-0 text-xs font-semibold uppercase tracking-[0.16em] ${BODY_STATUS_TONE[status]}`}>{BODY_STATUS_LABELS[status]}</p>
         )}
       </header>
       {day.race && <p className="mt-1 text-sm text-gold">{`⚑ ${day.race.eventName}`}</p>}

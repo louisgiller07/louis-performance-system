@@ -1,6 +1,7 @@
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import { hasActiveSafetyRule } from "../dailyPlan/safetyPresentation";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
+import { bodyStatusOf, type BodyStatus } from "../dailyPlan/bodyStatus";
 import type { CheckinRow } from "../checkin/checkinTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import { dayCompletion, type GuidedCompletion } from "../completion/dayCompletion";
@@ -51,9 +52,14 @@ export function dayOutcome(day: Pick<HistoryDay, "dailyPlan">): DayOutcome {
   return plan.decision === "KEEP" ? { kind: "kept" } : { kind: "adapted" };
 }
 
-/** The day's health state as the engine recorded it with the decision (same semantics as HistoryDetail). */
+/** P0-SAFE — the day's body status as the engine recorded it with the decision (same reading as Today, bodyStatus.ts). */
+export function bodyStatusOfDay(day: Pick<HistoryDay, "dailyPlan">): BodyStatus | null {
+  return day.dailyPlan ? bodyStatusOf(day.dailyPlan) : null;
+}
+
+/** The day's health state as the engine recorded it with the decision: a signal created or a Safety rule (P0-SAFE). */
 export function hasHealthSignal(day: Pick<HistoryDay, "dailyPlan">): boolean {
-  return day.dailyPlan?.health_flag_to_create !== undefined;
+  return bodyStatusOfDay(day) === "signal";
 }
 
 /** A rest decided by a safety rule (layer A). */

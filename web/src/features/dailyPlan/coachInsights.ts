@@ -23,6 +23,9 @@ export const SIGNAL_LABELS: Readonly<Record<string, string>> = {
   recent_load_very_high: "Charge récente très élevée",
   pain_severity_criterion: "Douleur signalée",
   pain_new_severe: "Douleur signalée",
+  // P0-SAFE — A6 (severe pain, not new) and A7 (a health signal still open from a previous day).
+  pain_severe: "Douleur forte",
+  unresolved_health_flag: "Signal de santé non clôturé",
   suspected_concussion: "Suspicion de commotion",
   unresolved_concussion_flag: "Suspicion de commotion",
   fever_or_illness: "Fièvre ou maladie",

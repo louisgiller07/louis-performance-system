@@ -1,3 +1,4 @@
+import { bodyStatusOf, healthSignalReasonOf } from "./bodyStatus";
 import { DailyPlanView } from "./DailyPlanView";
 import { ReadinessCard } from "./ReadinessCard";
 import { MissionHero } from "./MissionHero";
@@ -33,23 +34,24 @@ export function DailyPlanResult({
 }) {
   const { dailyPlan, healthFlagId, warnings, decisionId, executablePrescription, executablePrescriptionStatus } = result;
 
-  // Explicit server signal only — never a frontend-deduced safety rule
-  // (no A1-A5 hardcoded here).
-  const hasHealthSignal = healthFlagId !== null || dailyPlan.health_flag_to_create !== undefined;
+  // Explicit server signal only — never a frontend-deduced safety rule: P0-SAFE reads the persisted
+  // decision (a signal created, a Safety-layer rule, a declared pain) through bodyStatus.ts.
+  const bodyStatus = bodyStatusOf(dailyPlan, healthFlagId);
+  const hasHealthSignal = bodyStatus === "signal";
 
   return (
     <DailyPlanView
       dailyPlan={dailyPlan}
       warnings={warnings}
       hasHealthSignal={hasHealthSignal}
-      healthSignalReason={dailyPlan.health_flag_to_create?.reason}
+      healthSignalReason={healthSignalReasonOf(dailyPlan)}
       technicalMetadata={{ decisionId, raw: result }}
       readinessSlot={
         today ? (
           // UX-04 — Today's coach reading: retained signals + the athlete's declared state.
-          <CoachStateCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} checkin={today.checkin} revealed={today.revealed} />
+          <CoachStateCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} bodyStatus={bodyStatus} checkin={today.checkin} revealed={today.revealed} />
         ) : (
-          <ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} />
+          <ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} bodyStatus={bodyStatus} />
         )
       }
       missionSlot={<MissionHero dailyPlan={dailyPlan} />}

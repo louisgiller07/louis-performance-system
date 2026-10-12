@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+import { BODY_STATUS_LABELS, bodyStatusOf, healthSignalReasonOf } from "./bodyStatus";
+
+const rule = (layer: string, rule_id: string, detail = "") => ({ layer, rule_id, detail, signals_used: [] });
+
+describe("P0-SAFE — État du corps", () => {
+  it("incident A after the fix: a Safety rule (A6) rules the day → Signal actif, with its sentence", () => {
+    const plan = { triggered_rules: [rule("A", "A6", "Douleur forte déclarée (8/10) — repos et avis d'un professionnel de santé")], health_flag_to_create: { type: "injury_suspect", reason: "Douleur sévère déclarée (8/10) — knee_R" } } as never;
+    expect(BODY_STATUS_LABELS[bodyStatusOf(plan)]).toBe("Signal actif");
+    expect(healthSignalReasonOf(plan)).toBe("Douleur sévère déclarée (8/10) — knee_R");
+  });
+
+  it("incident B after the fix: an open signal from a previous day (A7, no signal created today) → Signal actif, with the reminder", () => {
+    const plan = { triggered_rules: [rule("A", "A7", "Signal de santé non clôturé (suspicion de blessure du 23.10) — pas d'entraînement tant qu'il n'est pas clôturé")] } as never;
+    expect(bodyStatusOf(plan)).toBe("signal");
+    expect(healthSignalReasonOf(plan)).toMatch(/^Signal de santé non clôturé/);
+  });
+
+  it("A5 (concussion follow-up, DH swapped) is a signal too, not 'Prêt'", () => {
+    expect(bodyStatusOf({ triggered_rules: [rule("A", "A5")] } as never)).toBe("signal");
+  });
+
+  it("a declared non-Safety pain is never 'Prêt': Douleur signalée", () => {
+    expect(BODY_STATUS_LABELS[bodyStatusOf({ triggered_rules: [rule("C", "PAIN_NON_SAFETY")] } as never)]).toBe("Douleur signalée");
+  });
+
+  it("fatigue / sleep signals only, or nothing → Prêt (no new block, no alarm)", () => {
+    expect(bodyStatusOf({ triggered_rules: [rule("C", "LEGS_RED")] } as never)).toBe("ready");
+    expect(bodyStatusOf({ triggered_rules: [] } as never)).toBe("ready");
+  });
+
+  it("a signal id returned by the server is enough", () => {
+    expect(bodyStatusOf({ triggered_rules: [] } as never, "a-flag-id")).toBe("signal");
+  });
+});
