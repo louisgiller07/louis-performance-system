@@ -1,7 +1,7 @@
 # P0 première génération — diagnostic et options (décision HPM requise)
 
 **Pour** : HPM, décision sportive avant correction du moteur.
-**Statut** : défaut reproduit sur le HEAD local (`fix/p0-first-generation`). Le message de refus est corrigé. La correction de fond **attend ta décision**.
+**Statut** : **décidé et appliqué** (HPM 2026-10-12). Bike park et piste DH complète donnent accès aux virages relevés ; pas d'extension aux sentiers techniques ni aux racines et rochers ; flow trail inchangé. La décision est appliquée à `cornering_berm_speed` et à `braking_late_entry` (seconde cause). Voir l'ADR P0 FIRST GENERATION. Le tableau ci-dessous reste une proposition pour les autres lignes.
 
 ## Cause racine (prouvée)
 
