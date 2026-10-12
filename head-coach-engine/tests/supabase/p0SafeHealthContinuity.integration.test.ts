@@ -17,7 +17,7 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
-import { resolveHealthFlag } from "../../src/supabase/resolveHealthFlag.js";
+import { resolveHealthFlag } from "../../../supabase/functions/health-flag-resolution/resolveHealthFlag.js";
 
 const INTEGRATION_ENABLED = localIntegrationRequested();
 

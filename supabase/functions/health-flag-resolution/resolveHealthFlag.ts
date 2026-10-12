@@ -13,8 +13,23 @@
  *
  * A concussion signal is never closed here (A5: medical validation required, V0.3_006A2 still deferred).
  * Service-role client only; `athleteId` must come from the caller's RLS-scoped resolution, never from input.
+ *
+ * Self-contained on purpose (no head-coach-engine/dist import): pure TypeScript, no Deno API, so the
+ * function adds no bind mount to `functions serve` (Windows ENAMETOOLONG limit) and the module is
+ * tested under Node (vitest) by head-coach-engine/tests/supabase/p0SafeHealthContinuity.integration.test.ts.
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+
+// deno-lint-ignore no-explicit-any
+type ServiceClient = { from: (table: string) => any };
+
+/** Current calendar date (`YYYY-MM-DD`) in Europe/Zurich — same rule as head-coach-engine productToday(). */
+export function zurichToday(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Zurich", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value;
+  const [year, month, day] = [part("year"), part("month"), part("day")];
+  if (!year || !month || !day) throw new Error("zurichToday: failed to compute the current Europe/Zurich calendar date.");
+  return `${year}-${month}-${day}`;
+}
 
 export type ResolveHealthFlagOutcome =
   | { status: "resolved"; flagId: string; flagType: string; resolvedAt: string }
@@ -40,7 +55,7 @@ export function healthFlagResolutionNote(resolvedAt: string, professionalConsult
 }
 
 export async function resolveHealthFlag(
-  serviceClient: SupabaseClient,
+  serviceClient: ServiceClient,
   athleteId: string,
   flagId: string,
   input: { professionalConsulted: boolean; resolvedAt: string }

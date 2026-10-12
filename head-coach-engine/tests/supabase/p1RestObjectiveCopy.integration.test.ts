@@ -12,7 +12,7 @@ import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/ath
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { resolveHealthFlag } from "../../src/supabase/resolveHealthFlag.js";
+import { resolveHealthFlag } from "../../../supabase/functions/health-flag-resolution/resolveHealthFlag.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { resolveGoalRationale } from "../../src/supabase/goalReasoning.js";
 

@@ -1,12 +1,10 @@
 // P0-SAFE (HPM 2026-10-12) — health-flag-resolution Edge Function: the rider explicitly closes one of
 // their own open health signals (injury / illness / persistent pain) once the pain or the symptoms are
-// gone. Same architecture as abandon-training-plan: withSupabase auth boundary, athleteId resolved via
-// the RLS-scoped client only, the write made through the admin client by a head-coach-engine module.
-// Never a medical validation (see head-coach-engine/src/supabase/resolveHealthFlag.ts); a concussion
-// signal is refused (A5, medical validation required).
+// gone. Same auth boundary as abandon-training-plan: withSupabase, athleteId resolved via the RLS-scoped
+// client only, the write made through the admin client by ./resolveHealthFlag.ts (self-contained: no
+// head-coach-engine/dist import). Never a medical validation; a concussion signal is refused (A5).
 import { withSupabase } from "@supabase/server";
-import { resolveHealthFlag } from "../../../head-coach-engine/dist/supabase/resolveHealthFlag.js";
-import { productToday } from "../../../head-coach-engine/dist/supabase/productCalendar.js";
+import { resolveHealthFlag, zurichToday } from "./resolveHealthFlag.ts";
 import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
 
 const UUID_FORMAT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -67,7 +65,7 @@ export default {
     try {
       const outcome = await resolveHealthFlag(ctx.supabaseAdmin, athleteId, record.flagId, {
         professionalConsulted: record.professionalConsulted === true,
-        resolvedAt: productToday(),
+        resolvedAt: zurichToday(),
       });
       switch (outcome.status) {
         case "resolved":
