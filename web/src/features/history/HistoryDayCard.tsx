@@ -258,7 +258,7 @@ export function HistoryDayRow({ day, today }: { day: HistoryDay; today: string }
       <Link to={`/history/${day.main.id}`} className="ux-press flex min-h-14 items-center gap-4 border-b border-line py-3 last:border-b-0">
         <span className="w-14 shrink-0 text-sm text-muted">{capitalize(SHORT_FORMAT.format(localDate(day.date)))}</span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-display text-lg font-extrabold uppercase leading-tight text-ink">{plan ? kindLabel(plan.final_session) : "Journée"}</span>
+          <span className="block truncate font-display text-lg font-extrabold uppercase leading-tight text-ink">{plan ? (isCoachingSuspended(plan) ? COACHING_SUSPENDED_TITLE : kindLabel(plan.final_session)) : "Journée"}</span>
           <span className="block text-xs text-ink/70">
             {summary}
             {hasHealthSignal(day) && <span className="text-red-400"> · Signal actif</span>}
