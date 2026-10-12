@@ -5727,3 +5727,28 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Docs canoniques** : `docs/05` (lecture de l'affectation ; `race_calendar.status` désormais écrit à la création) et `docs/03` (course C) — diffs proposés, à appliquer après validation HPM.
 
 **Statut** : implémenté et vert en local (branche `feat/a09-race-management`). Livraison : web + Edge `generate-training-plan` (garde, et planificateur dans son bundle) ; `daily-run` inchangée ; aucune migration, aucun flag.
+
+
+## 2026-10-12 — ADR P0-SAFE : continuité santé dans la décision quotidienne (évolution M1 gouvernée)
+
+> **Une douleur forte n'est plus jamais traitée comme une douleur légère, et un signal de santé ouvert continue de protéger les jours suivants jusqu'à sa clôture explicite par le rider.** Mandat HPM P0-SAFE du 12.10.2026 (reviews interne `76d4615` et externe). Évolution gouvernée de la couche A de M1 (`rules/safety.ts`), tracée ici ; `docs/04` à mettre à jour après validation (diff proposé : `docs/review/P0_SAFE_PROPOSED_DIFFS.md`). Local seulement, branche `fix/p0-safe-health-continuity` créée depuis `origin/main` pour rester livrable seule.
+
+**Incidents reproduits (tests d'intégration, base locale, avant correctif)**
+- **A** : DH manuelle de 90 min, genou 2/10 puis 8/10, déclarée non nouvelle, sans traumatisme, perte de fonction ni aggravation → `MODIFY` DH légère 90 min (`PAIN_NON_SAFETY`), « État du corps : Prêt ». Cause : A2 exige `pain_new` ; une douleur ≥ 6/10 non nouvelle tombait dans la douleur non-Safety (prévue pour une douleur légère / modérée).
+- **B** : douleur traumatique avec perte de fonction (A2/A4) ou fièvre (A3) → signal `injury_suspect` / `illness` actif ; le lendemain, check-in normal → `KEEP` DH ou Force. Cause : seule A5 (commotion) lit les signaux actifs ; la lecture des signaux ne remontait que type et statut.
+- « PRÊT » : le web n'affichait « Signal actif » que si un signal était **créé** par ce run.
+
+**Décision**
+- **A6** : douleur ≥ 6/10 (le seuil canonique d'A2, aucun nouveau seuil), non nouvelle et sans critère de gravité → REST + signal `injury_suspect` + avis d'un professionnel de santé, comme A2.
+- **A7** : un signal `injury_suspect`, `illness` ou `pain_persistent` encore ouvert (actif / suivi) → REST, rappel du type et de la date, aucun nouveau signal ; texte propre (« pas d'entraînement tant que le signal n'est pas clôturé ; clôture-le si la douleur ou les symptômes ont disparu ; sinon consulte un professionnel de santé »).
+- Ordre : A1, A2, A3, A4, A6 (déclarations du jour), puis A7, puis A5. A7 (REST) l'emporte sur A5 (zéro DH) quand les deux s'appliquent.
+- **Clôture explicite** : Edge Function `health-flag-resolution` (athlète résolu par RLS, écriture service role), module `head-coach-engine/src/supabase/resolveHealthFlag.ts`. Le rider déclare que la douleur ou les symptômes ont disparu, et éventuellement une consultation. La ligne `health_flags` garde sa déclaration et reçoit `status = resolved`, `resolved_at`, `resolution_note` (« … Aucune validation médicale par NALYNT »), `professional_consulted`. Mise à jour conditionnelle (jamais deux clôtures). Commotion refusée (`medical_validation_required`, A5 et V0.3_006A2 inchangés). **Aucune migration** : colonnes existantes.
+- Aucun effacement automatique dans le temps ; aucun protocole de retour au sport : après la clôture, la décision suivante reprend le plan.
+- Web : bandeau santé pour chaque signal ouvert (commotion inchangée, non clôturable), clôture confirmée (déclaration, case « professionnel consulté », rappel « NALYNT ne valide pas médicalement ta reprise »), décision du jour relancée après clôture ; « État du corps » à trois états partagés par Aujourd'hui, la carte de préparation et l'Historique : Signal actif (signal créé ou règle Safety), Douleur signalée (`PAIN_NON_SAFETY`), Prêt.
+- `ENGINE_VERSION` → `head-coach-engine@0.2.0-m1-p0-safe`.
+
+**Ce qui ne change pas** : A1–A5 (déclencheurs et textes), douleur < 6/10 (non-Safety), fatigue / sommeil (jamais un signal, jamais un blocage), garde serveur de la prescription courante (une prescription antérieure à un REST du jour reste refusée : `final_prescription_not_current`).
+
+**Décisions HPM ouvertes** : action d'A7 (REST ou zéro DH / zone), clôture d'une blessure traumatique sans consultation, journée de reprise après clôture, signaux anciens encore ouverts en production au déploiement, textes. Voir le rapport P0-SAFE.
+
+**Statut** : implémenté et vert en local, non déployé.

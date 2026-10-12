@@ -684,6 +684,12 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T55. P0-SAFE — continuité santé dans la décision quotidienne
+- **Unitaires M1** (`head-coach-engine/tests/p0SafeHealthContinuity.test.ts`) : A6 (incident A, seuil 6 / contre-preuve 5, ordre A1-A4 inchangé) ; A7 (incident B, maladie, douleur persistante, plusieurs signaux, signal résolu ignoré, date absente jamais inventée, A7 avant A5, textes des autres règles inchangés, aucun jeton interne) ; fatigue sans signal jamais bloquée.
+- **Intégration base locale** (`p0SafeHealthContinuity.integration.test.ts`, chemin V2 réel) : incident A (DH manuelle 2/10 puis 8/10) ; incident B (J+1, J+2 ; fièvre puis J+1) ; douleur forte puis 2/10 le lendemain ; clôture explicite, persistée, auditée, puis reprise (Force et DH, nouvelle décision) ; clôture d'un signal d'autrui → introuvable ; commotion → validation médicale requise ; remplacement manuel par une DH → REST ; prescription antérieure au REST non démarrable ; douleur légère et fatigue jamais bloquantes.
+- **Edge, runtime local** (`p0SafeHealthEdge.integration.test.ts`) : `daily-run` REST A7 puis reprise après `health-flag-resolution` ; 401, 400 (clé inconnue, type), 404 signal d'autrui, 409 déjà clôturé, 409 commotion.
+- **Web** : `bodyStatus.test.ts` (trois états, raisons), `HealthFlagBanner.test.tsx` (commotion inchangée, signaux suivis clôturables, confirmation, annulation, erreur, aucun identifiant brut).
+
 ### T48. A09 — gestion minimale des courses
 - **Web** (`races/raceForm.test.ts`, `races/RacesSection.test.tsx`, `PerformanceSetup.test.tsx`) :
   - liste à venir (modifiable) et 30 derniers jours (suppression seule) ;

@@ -4,6 +4,8 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**P0-SAFE — continuité santé (2026-10-12) : implémenté et vert en local, non déployé** (branche `fix/p0-safe-health-continuity`, depuis `origin/main`, livrable seul sans migration). Douleur forte non nouvelle → repos et avis professionnel (A6) ; signal de santé ouvert → repos jusqu'à sa clôture explicite par le rider (A7, Edge `health-flag-resolution`). En attente du verdict HPM.
+
 **Approbation D2B1 — PASS (2026-10-05).**
 - Première séance guidée DH V2 en production (exécution `df8b83f2`, 6/6 passages, `completed`) ; 0 `completed_sessions` ; flag `false`.
 - **D2B2 BLOQUÉE.** Hardening UX-11R.9 **implémenté et vert en local** (branche `feat/ux11r9-hardening`, non poussée, non déployée) : invariants serveur F-6A, F-6B / F-5b, garde du débrief legacy F-5, garde d'acceptation stale F-4, lecture web commune « séance faite » (Aujourd'hui, Programme, après-séance, Historique) ; patch final : séance guidée ouverte réservée (F-5b) et priorité canonique pont M1 / web (F-5d CLOSED) ; navigateur réel 43/43. Livraison future : 3 migrations + 4 Edge (dont `daily-run`) + web. Prochaine étape : reviewer indépendant, avant toute Approval production.
