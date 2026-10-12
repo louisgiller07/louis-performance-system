@@ -42,10 +42,10 @@ describe("openHealthFlagsRepo.loadOpenHealthFlags", () => {
     expect(order).toHaveBeenCalledWith("flag_date", { ascending: true });
   });
 
-  it("maps rows to type/flagDate only — never the row id or status", async () => {
-    mockChain({ data: [{ flag_type: "concussion_suspect", flag_date: "2026-09-05" }], error: null });
+  it("maps rows to id (closure only, never displayed) / type / flagDate / description — never the status", async () => {
+    mockChain({ data: [{ id: "f-1", flag_type: "concussion_suspect", flag_date: "2026-09-05", description: "Suspicion de commotion déclarée au checkin", status: "active" }], error: null });
     const flags = await loadOpenHealthFlags("athlete-1");
-    expect(flags).toEqual([{ type: "concussion_suspect", flagDate: "2026-09-05" }]);
+    expect(flags).toStrictEqual([{ id: "f-1", type: "concussion_suspect", flagDate: "2026-09-05", description: "Suspicion de commotion déclarée au checkin" }]);
   });
 
   it("returns an empty array when nothing is open", async () => {

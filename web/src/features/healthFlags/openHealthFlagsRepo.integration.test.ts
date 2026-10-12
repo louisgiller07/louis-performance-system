@@ -118,7 +118,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("health_flags — real local Supabase RLS/
   it("B. A can SELECT their own open flag via the authenticated repo", async () => {
     await signInAs(athleteA);
     const flags = await repo.loadOpenHealthFlags(athleteA.athleteId);
-    expect(flags).toEqual([{ type: "concussion_suspect", flagDate: "2026-09-05" }]);
+    expect(flags).toEqual([{ id: expect.any(String), type: "concussion_suspect", flagDate: "2026-09-05", description: "seed" }]); // P0-SAFE — id (closure) and description (zone) are read too
   });
 
   it("C. A cannot SELECT B's health flags (RLS filters silently, empty result, no error)", async () => {
@@ -194,7 +194,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("health_flags — real local Supabase RLS/
     await signInAs(athleteB);
 
     const ownFlags = await repo.loadOpenHealthFlags(athleteB.athleteId);
-    expect(ownFlags).toEqual([{ type: "illness", flagDate: "2026-09-06" }]);
+    expect(ownFlags).toEqual([{ id: expect.any(String), type: "illness", flagDate: "2026-09-06", description: "seed" }]);
 
     const aFlags = await repo.loadOpenHealthFlags(athleteA.athleteId);
     expect(aFlags).toEqual([]);
