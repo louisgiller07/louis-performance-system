@@ -48,6 +48,17 @@ describe.skipIf(!ENABLED)("P0 first generation — generate-training-plan over H
     expect(count).toBe(1);
   });
 
+  it("profile B (beginner, flow trail only, braking first): generated at the FIRST call — a flow trail counts as a groomed trail (HPM)", async () => {
+    const r = await rider("B");
+    const generationRequestId = randomUUID();
+    const first = await generate(r.client, { generationRequestId, durationWeeks: r.weeks });
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    const again = await generate(r.client, { generationRequestId, durationWeeks: r.weeks });
+    expect([again.status, again.body.planVersionId, again.body.idempotentReplay]).toEqual([200, first.body.planVersionId, true]);
+    const { count } = await admin.from("training_plan_versions").select("id", { count: "exact", head: true }).eq("athlete_id", r.athleteId);
+    expect(count).toBe(1);
+  });
+
   it("a truly impossible priority: 422 with the priority and EVERY compatible terrain, nothing persisted", async () => {
     const r = await rider("E");
     const out = await generate(r.client, { generationRequestId: randomUUID(), durationWeeks: r.weeks });

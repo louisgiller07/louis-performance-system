@@ -64,7 +64,8 @@ export interface SessionDrillV2 {
 /**
  * HPM 2026-10-12 (rider feedback, NALYNT V1): these terrains give the rider access to bermed turns —
  * not every turn is bermed, but berms are available for the drills. Deliberately NOT extended to
- * technical_trail or root_rock_trail; flow_trail keeps its existing definition until clarified.
+ * technical_trail or root_rock_trail. A flow trail counts as a groomed trail (HPM 2026-10-12, final decision),
+ * applied only to braking_progressive_control.
  */
 export const BERMED_TURN_TERRAINS_V1 = ["bermed_trail", "bike_park_jump_line", "full_dh_track"] as const;
 
@@ -99,7 +100,8 @@ const PRECISION = "vigilance.dh_stop_on_precision_loss";
 const JUMPS = "vigilance.dh_jumps_known_line";
 
 const ENTRIES: SessionDrillV2[] = [
-  drill("braking_progressive_control", "braking", "beginner", "any_groomed_trail", { progressesTo: "braking_late_entry" }, [SCOUT]),
+  // P0 — HPM 2026-10-12: a flow trail is a groomed trail (NALYNT V1); the texts need only a rider-marked braking zone.
+  drill("braking_progressive_control", "braking", "beginner", ["any_groomed_trail", "flow_trail"], { progressesTo: "braking_late_entry" }, [SCOUT]),
   // P0 — its texts need a turn entry (« juste avant l'entrée du virage »): the bermed-turn terrains have turns.
   drill("braking_late_entry", "braking", "intermediate", ["flow_trail", ...BERMED_TURN_TERRAINS_V1], { progressesTo: "braking_marked_zone_at_speed", regressesTo: "braking_progressive_control" }, [SCOUT]),
   drill("braking_marked_zone_at_speed", "braking", "advanced", "technical_trail", { regressesTo: "braking_late_entry" }, [PRECISION]),

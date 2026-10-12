@@ -5,6 +5,8 @@
  * NOT technical trails nor root / rock trails; flow trail keeps its existing definition.
  * Applied to the two drills that blocked the 9 October review profile:
  *   cornering_berm_speed (needs a bermed turn) and braking_late_entry (needs a turn entry).
+ * Final HPM decision (2026-10-12): a flow trail counts as a groomed trail — applied to
+ *   braking_progressive_control only (its texts need a rider-marked braking zone, nothing else).
  * The (skill, tier) → drill rule is unchanged: compatibility only widens WHERE a drill can be ridden.
  */
 import { describe, expect, it } from "vitest";
@@ -17,6 +19,7 @@ import type { LoadProfile } from "../../src/types/sharedVocabulary.js";
 
 const TERRAINS = ["any_groomed_trail", "flow_trail", "bermed_trail", "technical_trail", "rock_garden", "steep_technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track"];
 const REVIEW_TERRAINS = ["technical_trail", "root_rock_trail", "full_dh_track"];
+const WIDENED = ["cornering_berm_speed", "braking_late_entry", "braking_progressive_control"];
 const MANIFEST = buildSessionModelV2CatalogManifest();
 const textOf = (id: string) => (COACHING_TEXT_CATALOG as Record<string, { text: Record<string, string> }>)[id]!.text["fr-CH"]!;
 
@@ -40,12 +43,13 @@ describe("P0 first generation — drill terrain compatibility", () => {
     expect(SESSION_DRILL_CATALOG_V2.braking_late_entry!.compatibleTerrains).toEqual(["flow_trail", "bermed_trail", "bike_park_jump_line", "full_dh_track"]);
     for (const t of ["technical_trail", "root_rock_trail", "flow_trail"]) expect(SESSION_DRILL_CATALOG_V2.cornering_berm_speed!.compatibleTerrains, t).not.toContain(t);
     for (const t of ["technical_trail", "root_rock_trail"]) expect(SESSION_DRILL_CATALOG_V2.braking_late_entry!.compatibleTerrains, t).not.toContain(t);
+    expect(SESSION_DRILL_CATALOG_V2.braking_progressive_control!.compatibleTerrains).toEqual(["any_groomed_trail", "flow_trail"]);
   });
 
   it("no other drill was widened; every drill keeps its reference terrain first (V1 terrainRequirement)", () => {
     for (const d of SESSION_DRILL_CATALOG_V2_ENTRIES) {
       expect(d.compatibleTerrains[0], d.drillId).toBe(d.requiredTerrain);
-      if (!["cornering_berm_speed", "braking_late_entry"].includes(d.drillId)) expect(d.compatibleTerrains, d.drillId).toEqual([d.requiredTerrain]);
+      if (!WIDENED.includes(d.drillId)) expect(d.compatibleTerrains, d.drillId).toEqual([d.requiredTerrain]);
     }
   });
 
@@ -59,6 +63,19 @@ describe("P0 first generation — drill terrain compatibility", () => {
       expect(RACE_SPEED_DRILL_IDS_V2.has(id)).toBe(false);
       expect(SESSION_DRILL_CATALOG_V2[id]!.technicalTier).toBe("intermediate");
     }
+  });
+
+  it("profile B (beginner, flow trail only, braking): the beginner braking drill on the flow trail — rideable as written, still beginner", () => {
+    expect(textOf("cue.braking_progressive_control")).toMatch(/zone marquée/);
+    expect(textOf("criterion.braking_progressive_control")).toMatch(/zone de freinage/);
+    expect(textOf("cue.braking_progressive_control")).not.toMatch(/virage|relevé|racine|rocher|saut/);
+    expect(SESSION_DRILL_CATALOG_V2.braking_progressive_control!.technicalTier).toBe("beginner");
+    expect(RACE_SPEED_DRILL_IDS_V2.has("braking_progressive_control")).toBe(false);
+    const beginner = input({ dhTechnicalTier: "beginner", priorityAreas: ["braking", "cornering"], terrainAccess: ["flow_trail"] });
+    expect(drillIdOf({ ...beginner, dhSessionOrdinal: 0 })).toBe("braking_progressive_control");
+    expect(drillIdOf({ ...beginner, dhSessionOrdinal: 1 })).toBe("cornering_flat_turn_precision");
+    // The other groomed-trail drill is NOT widened (not requested): race execution on a flow trail alone stays refused.
+    expect(drillIdOf({ ...beginner, priorityAreas: ["race_execution"] })).toBe("blocked:unavailable_dh_drill_terrain");
   });
 
   it("the 9 October review profile (intermediate, cornering + braking, technical / root-rock / full DH track) now gets its two priorities on the full DH track", () => {
@@ -92,8 +109,8 @@ describe("P0 first generation — drill terrain compatibility", () => {
               expect(after, `${skill}/${tier}/${load}/${terrains.join("+")}`).toBe(before);
               compared += 1;
             } else if (after !== "blocked") {
-              // Newly allowed only for the two widened drills, and only through one of their compatible terrains.
-              expect(["cornering_berm_speed", "braking_late_entry"]).toContain(canonical.drillId);
+              // Newly allowed only for the widened drills, and only through one of their compatible terrains.
+              expect(WIDENED).toContain(canonical.drillId);
               newlyAllowed += 1;
             }
           }

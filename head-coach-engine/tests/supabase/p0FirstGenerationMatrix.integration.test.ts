@@ -153,11 +153,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 first generation — five-profile matr
     }
     console.info(JSON.stringify(report, null, 2));
     // P0 expectations (HPM 2026-10-12): A — the original incident — is generated at the FIRST attempt with its three real terrains,
-    // and its two priorities are worked on them; B stays refused (flow trail definition unchanged, beginner braking needs a groomed
-    // trail) with the precise refusal; E stays refused (jumps need a jump line): no terrain is ever invented.
+    // and its two priorities are worked on them; B — a flow trail counts as a groomed trail (HPM final decision) — is generated with
+    // its two beginner drills on the flow trail; E stays refused (jumps need a jump line): no terrain is ever invented.
     const outcome = (name: string) => (report[MATRIX.find((m) => m.name.startsWith(name))!.name] as { outcome: string }).outcome;
-    expect([outcome("A"), outcome("B"), outcome("C"), outcome("D"), outcome("E")]).toEqual(["persisted", "blocked:unavailable_dh_drill_terrain", "persisted", "persisted", "blocked:unavailable_dh_drill_terrain"]);
+    expect([outcome("A"), outcome("B"), outcome("C"), outcome("D"), outcome("E")]).toEqual(["persisted", "persisted", "persisted", "persisted", "blocked:unavailable_dh_drill_terrain"]);
     expect((report[MATRIX[0]!.name] as { drills: string[] }).drills.sort()).toEqual(["braking_late_entry", "cornering_berm_speed"]);
+    expect((report[MATRIX[1]!.name] as { drills: string[] }).drills.sort()).toEqual(["braking_progressive_control", "cornering_flat_turn_precision"]);
     expect((report[MATRIX[4]!.name] as { detail: Record<string, unknown> }).detail).toEqual({ skill: "jumps", dhTechnicalTier: "intermediate", drillId: "jumps_linked_tables", requiredTerrain: "bike_park_jump_line", compatibleTerrains: ["bike_park_jump_line"] });
     for (const [name, r] of Object.entries(report) as [string, { outcome: string; violations?: string[]; readBack?: boolean; replay?: boolean }][]) {
       if (r.outcome !== "persisted") continue;
