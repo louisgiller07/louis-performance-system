@@ -1,4 +1,5 @@
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from "@supabase/supabase-js";
+import { TECHNICAL_PRIORITY_LABELS, TERRAIN_LABELS, type TechnicalPriority, type Terrain } from "../performanceSetup/performanceSetupOptions";
 
 // What the UI can actually do about an error — never a hardcoded coaching
 // or safety decision, just a UX category. Same vocabulary as
@@ -50,7 +51,20 @@ const MESSAGE_FOR_BLOCKED_REASON: Partial<Record<string, string>> = {
 // generateTrainingPlan.ts's validateInput), so it falls through to a
 // generic message rather than getting a dedicated one — same discipline as
 // acceptTrainingPlanErrors.ts's mapHttpBody.
-function mapHttpBody(status: number, code: string | undefined): GenerateTrainingPlanError {
+/**
+ * P0 first generation — the V2 terrain refusal: which priority, at the rider's level, needs which
+ * terrain. Honest by design: add a terrain ONLY if really accessible, otherwise change the priority.
+ */
+export function unavailableTerrainMessage(detail: { skill?: unknown; requiredTerrain?: unknown } | undefined): string {
+  const skill = typeof detail?.skill === "string" ? TECHNICAL_PRIORITY_LABELS[detail.skill as TechnicalPriority] : undefined;
+  const terrain = typeof detail?.requiredTerrain === "string" ? TERRAIN_LABELS[detail.requiredTerrain as Terrain] : undefined;
+  if (skill && terrain) {
+    return `Pour travailler « ${skill} » à ton niveau, le programme a besoin du terrain « ${terrain} », qui ne fait pas partie de tes terrains. Ajoute-le seulement si tu y as réellement accès ; sinon, choisis une autre priorité pour ce plan.`;
+  }
+  return "Aucun exercice technique de ton niveau ne correspond à ta priorité sur tes terrains. Ajoute un terrain seulement si tu y as réellement accès ; sinon, choisis une autre priorité pour ce plan.";
+}
+
+function mapHttpBody(status: number, code: string | undefined, detail?: { skill?: unknown; requiredTerrain?: unknown }): GenerateTrainingPlanError {
   if (status === 401) {
     return { code: code ?? "unauthenticated", message: "Ta session a expiré. Reconnecte-toi.", retryable: false, action: "session_issue" };
   }
@@ -61,6 +75,9 @@ function mapHttpBody(status: number, code: string | undefined): GenerateTraining
       retryable: false,
       action: "config_issue",
     };
+  }
+  if (status === 422 && code === "unavailable_dh_drill_terrain") {
+    return { code, message: unavailableTerrainMessage(detail), retryable: false, action: "user_fixable" };
   }
   if (status === 422) {
     // GenerationBlockedError — data validly absent, always user-fixable.
@@ -114,8 +131,11 @@ export async function mapGenerateTrainingPlanError(error: unknown): Promise<Gene
   if (error instanceof FunctionsHttpError) {
     const response = error.context as Response;
     let code: string | undefined;
+    let detail: { skill?: unknown; requiredTerrain?: unknown } | undefined;
     try {
       const body = await response.json();
+      const innerDetail = body && typeof body === "object" && "error" in body ? (body as { error?: { detail?: unknown } }).error?.detail : undefined;
+      if (innerDetail && typeof innerDetail === "object") detail = innerDetail as { skill?: unknown; requiredTerrain?: unknown };
       if (body && typeof body === "object" && "code" in body && typeof body.code === "string") {
         code = body.code;
       } else if (body && typeof body === "object" && "error" in body) {
@@ -127,7 +147,7 @@ export async function mapGenerateTrainingPlanError(error: unknown): Promise<Gene
     } catch {
       // Body wasn't JSON (or empty) — fall through to status-based mapping.
     }
-    return mapHttpBody(response.status, code);
+    return mapHttpBody(response.status, code, detail);
   }
 
   if (error instanceof FunctionsRelayError || error instanceof FunctionsFetchError) {

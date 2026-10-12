@@ -178,6 +178,13 @@ export async function handleGenerateTrainingPlan(
       // duration…): an explicit refusal, never a V1 plan in its place.
       console.warn(`generate-training-plan: V2 generation blocked -> ${result.code}`);
       await recordPilotEvent(ctx.supabaseAdmin, { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: result.code, ...modelTrace });
+      // P0 first generation — the terrain refusal says WHICH priority needs WHICH terrain (closed
+      // vocabularies, nothing personal), so the rider can act on a real constraint.
+      if (result.code === "unavailable_dh_drill_terrain") {
+        const skill = typeof result.detail.skill === "string" ? result.detail.skill : null;
+        const requiredTerrain = typeof result.detail.requiredTerrain === "string" ? result.detail.requiredTerrain : null;
+        return Response.json({ error: { code: result.code, message: "No DH drill of the declared level for this priority fits the declared terrains.", detail: { skill, requiredTerrain } } }, { status: 422 });
+      }
       return errorResponse(422, result.code, "Configuration incomplete for training plan generation.");
     }
 
