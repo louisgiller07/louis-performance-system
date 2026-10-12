@@ -986,3 +986,11 @@ Aucune migration — les deux colonnes existent déjà depuis la baseline V0.2/V
 ### Hors périmètre explicite V0.3_006C2
 
 Sémantique de durée pour les kinds non-DH (nécessiterait de concevoir une table de durée provisoire générique et une précédence équivalente à `resolveDhDuration` pour force/aérobie/récupération — non existante aujourd'hui) ; concept de disponibilité pure distinct de la durée prévue (produit différent, non créé) ; affichage de la durée prévue dans `TodayPlanningSummary.tsx` (lecture seule, non demandé) ; nombre de runs/dénivelé (toujours aucune donnée de faisabilité) ; mapping RPE numérique ; toute évolution de `planned_duration_min` (reste dormante, aucun projet de nettoyage de schéma). Aucune action de production, aucun commit — implémentation locale en attente de revue.
+
+
+## P0-SAFE — continuité santé (2026-10-12)
+
+- **Moteur M1, couche A** : A6 (douleur forte non nouvelle) et A7 (signal de santé ouvert) — évolution gouvernée, voir `04_DAILY_DECISION_ENGINE.md` §2 et l'ADR P0-SAFE.
+- **Edge Function `health-flag-resolution`** (nouvelle) : `POST { flagId, inspect?, professionalConsulted?, professionalClearance?, confirmedZones? }`. `inspect: true` renvoie les exigences (`zones`, `requiresProfessionalClearance`) sans écrire. Codes : 200 ; 400 corps invalide ; 401 sans JWT ; 404 `health_flag_not_found` (y compris le signal d'un autre athlète) ; 409 `health_flag_already_resolved`, `medical_validation_required`, `professional_clearance_required`, `zones_confirmation_required` (avec les exigences) ; 503 `writes_suspended`. Autonome : la logique (`supabase/functions/health-flag-resolution/resolveHealthFlag.ts`, TypeScript pur, testé sous Node) n'importe pas le `dist` du moteur, donc aucun montage supplémentaire pour `functions serve`.
+- **Web** : bandeau santé pour chaque signal ouvert (zones nommées, formulaire de clôture selon la politique) ; « État du corps » à trois états partagés par Aujourd'hui et l'Historique ; « Coaching suspendu » pour A6 / A7.
+- **Livraison isolée possible** sans migration : `health-flag-resolution`, puis web, puis `daily-run`.

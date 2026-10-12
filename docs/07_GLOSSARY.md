@@ -150,6 +150,12 @@ Chaîne loggée quand le Head Coach déroge à une soft constraint ou à une `re
 **HealthFlag**
 Structure représentant un état de santé actif. Contient au minimum `type` (`concussion_suspect`, `injury_suspect`, `illness`, `pain_persistent`) et `status` (`active`, `monitoring`, `resolved`). Le `active_health_flags` dans le RawContext est une liste `HealthFlag[]`, pas un simple count.
 
+**Suspension du coaching** (P0-SAFE)
+Journée décidée par A6 ou A7 : NALYNT ne propose aucune séance tant que la situation n'a pas été réévaluée (A6) ou que le signal n'est pas clôturé (A7). Ce n'est pas une prescription médicale de repos. Affichée « Coaching suspendu ».
+
+**Clôture d'un signal de santé** (P0-SAFE)
+Fin explicite d'un `HealthFlag` par le rider (déclaration ; attestation d'autorisation de reprise par un professionnel pour un signal grave ; confirmation de chaque zone d'un signal multi-zones). Jamais une validation médicale par NALYNT, jamais automatique.
+
 ## Faits / Hypothèses / Patterns
 
 **Fait**

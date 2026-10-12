@@ -5752,3 +5752,19 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Décisions HPM ouvertes** : action d'A7 (REST ou zéro DH / zone), clôture d'une blessure traumatique sans consultation, journée de reprise après clôture, signaux anciens encore ouverts en production au déploiement, textes. Voir le rapport P0-SAFE.
 
 **Statut** : implémenté et vert en local, non déployé.
+
+
+## 2026-10-12 — ADR P0-SAFE (suite) : décisions HPM, politique de clôture, blessures multiples
+
+> **HPM : correction locale approuvée, release non autorisée.** Décisions appliquées en local (branche `fix/p0-safe-health-continuity`) et intégrées aux documents canoniques (`docs/04` §2, `docs/05` `health_flags`, `docs/06`, `docs/07`).
+
+- **Formulation** : A6 / A7 suspendent les propositions d'entraînement (« Coaching suspendu », « NALYNT suspend ses propositions d'entraînement ») ; plus aucun « repos complet » ni « tant que non validé médicalement » pour ces deux règles. A1–A5 inchangées.
+- **Seuil 6/10** conservé comme déclencheur conservateur provisoire, non présenté comme clinique.
+- **Signaux anciens** conservés ouverts, jamais clôturés automatiquement ; commotion inchangée.
+- **Clôture** (Edge `health-flag-resolution`) : déclaration pour un signal simple (A3, A6) ; attestation d'autorisation de reprise par un professionnel pour un signal grave (A2, A4 ; signal ancien sans preuve : blessure / douleur persistante traitée comme grave) ; consultation ≠ autorisation (la note le dit) ; chaque zone confirmée pour un signal multi-zones. Preuves relues dans les `decisions` append-only. Requête `inspect` pour les exigences ; refus 409 `professional_clearance_required` / `zones_confirmation_required`.
+- **Blessures multiples** : reproduites (genou A4 puis poignet A6 → une seule ligne ouverte, schéma). Clôturer le genou seul est refusé ; le poignet reste protégé (A7) ; seule la confirmation des deux zones (et l'attestation, le genou étant grave) clôt. Solution sans migration ; séparer les plaintes par zone demanderait une migration (index unique par type) : ticket ultérieur si le HPM le souhaite.
+- **Rappels A7** cités dans un ordre déterministe (date, type).
+
+**Validation** : environnement isolé au schéma de production (66 migrations) : ancienne version (code en production) 6 incidents reproduits / hotfix 8/8 ; suite moteur du hotfix 1295/1295 ; parcours navigateur ; train A12 + hotfix vert. Inventaire agrégé des signaux ouverts en production lu (sans donnée personnelle). Voir le rapport « P0-SAFE — FINAL HOTFIX RELEASE GATE ».
+
+**Statut** : prêt pour la gate de release, aucun déploiement.

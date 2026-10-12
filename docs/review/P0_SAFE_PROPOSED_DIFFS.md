@@ -1,6 +1,6 @@
 # P0-SAFE — diffs proposés aux documents canoniques (non appliqués)
 
-**Pour** : HPM, validation avant application. **Statut** : proposé. Implémentation locale : ADR P0-SAFE (`docs/11_DECISION_LOG.md`), branche `fix/p0-safe-health-continuity`.
+**Pour** : HPM. **Statut** : **appliqué** (HPM 2026-10-12), dans sa version mise à jour par les décisions HPM (suspension du coaching, politique de clôture) : voir `docs/04` §2, `docs/05` `health_flags`, `docs/06`, `docs/07`. Le texte ci-dessous est la proposition initiale, conservée pour l'historique. Implémentation locale : ADR P0-SAFE (`docs/11_DECISION_LOG.md`), branche `fix/p0-safe-health-continuity`.
 
 ## `docs/04_DAILY_DECISION_ENGINE.md` — §2 Couche A
 

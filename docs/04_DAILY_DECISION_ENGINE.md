@@ -108,6 +108,20 @@ Non-contournables. Écrasent toutes les autres couches. Produisent un `DailyPlan
 | A3 | `fever_or_illness = true` | REST + health_flag | HIGH |
 | A4 | `pain = true` ET critère objectif de gravité (traumatique, perte de fonction, aggravation nette) | REST + health_flag + orientation | HIGH |
 | A5 | Retour post-commotion sans health_flag résolu | Zéro DH tant que non validé | HIGH |
+| A6 | `pain = true` ET `pain_intensity ≥ 6`, sans critère A2 / A4 (douleur forte non déclarée nouvelle) | Suspension des propositions d'entraînement + health_flag `injury_suspect` + avis d'un professionnel de santé recommandé | HIGH |
+| A7 | health_flag `injury_suspect`, `illness` ou `pain_persistent` encore ouvert (actif / suivi), déclaré un jour précédent | Suspension des propositions d'entraînement + rappel du signal, aucun nouveau signal ; levée seulement par une clôture explicite (ci-dessous) | HIGH |
+
+**P0-SAFE (HPM 2026-10-12)** :
+- **Ordre d'évaluation** : A1, A2, A3, A4, A6 (déclarations du jour), puis A7 (signaux ouverts des jours précédents), puis A5. A7 l'emporte sur A5 quand les deux s'appliquent.
+- **Seuil 6/10 d'A6** : déclencheur conservateur **provisoire** repris d'A2, **pas un seuil clinique validé**.
+- **Formulation** : A6 et A7 suspendent les propositions d'entraînement de NALYNT (« coaching suspendu ») ; ce n'est jamais une affirmation médicale imposant un repos physique absolu. Le moteur reste sur une séance finale `REST` (aucune séance prescrite).
+- **Clôture d'un signal (A7)**, uniquement explicite, par le rider, persistée sur le signal (`status = resolved`, `resolved_at`, `resolution_note`, `professional_consulted`), jamais automatique dans le temps :
+  - signal simple (maladie A3, douleur forte A6) : déclaration que la douleur ou les symptômes ont entièrement disparu ;
+  - signal portant un critère de gravité défini par les règles Safety (A2 douleur nouvelle sévère, A4 traumatisme / perte de fonction / aggravation) : la disparition déclarée ne suffit pas ; attestation du rider qu'un professionnel de santé a autorisé la reprise de l'entraînement (NALYNT ne la vérifie pas). Une consultation déclarée n'est pas une autorisation ;
+  - signal regroupant plusieurs zones (une seule ligne ouverte par type) : clôture seulement si chaque zone est confirmée ; jamais une plainte qui en clôt d'autres implicitement ;
+  - commotion : jamais clôturée par le rider (A5 inchangée) ;
+  - aucun protocole ni calendrier de reprise : la décision suivante reprend le plan.
+- Les limites de validation clinique restent ouvertes (seuil, conditions de clôture, reprise).
 
 **Ce qui n'est PAS SAFETY** (déplacé en couche C) :
 - Sommeil <4h + stress ≥8 → C4.6
@@ -125,7 +139,7 @@ Dès qu'une SAFETY se déclenche :
 
 ### Douleur non-SAFETY : comportement obligatoire
 
-Une douleur **non-SAFETY** (légère/modérée, sans critère de gravité) doit :
+Une douleur **non-SAFETY** (intensité < 6/10, sans critère de gravité ; A6 couvre une douleur ≥ 6/10) doit :
 1. **Monitoring** — observer évolution 24-48h
 2. **Protection** — ajouter `do_not_do` sur la zone concernée
 3. **Adaptation** — si la séance prévue sollicite la zone, adapter (pivot vers autre exercice, réduction d'intensité, ou substitution partielle)
