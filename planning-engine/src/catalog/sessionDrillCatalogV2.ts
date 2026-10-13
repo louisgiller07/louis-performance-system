@@ -69,6 +69,14 @@ export interface SessionDrillV2 {
  */
 export const BERMED_TURN_TERRAINS_V1 = ["bermed_trail", "bike_park_jump_line", "full_dh_track"] as const;
 
+/**
+ * P0-2 (HPM 2026-10-13) — a full DH track hosts the general trajectory, braking and control drills
+ * without artificially requiring a technical trail, plus (explicit HPM decisions) the off-camber drill and
+ * the steep-terrain drills: a full DH track has off-camber sections and steep passages. It does NOT
+ * guarantee roots, rocks, a rock garden, jumps or another specific obstacle: those drills keep their terrain.
+ */
+const FULL_DH_TRACK = "full_dh_track";
+
 function drill(
   drillId: string,
   skill: DhSkillV2,
@@ -101,28 +109,36 @@ const JUMPS = "vigilance.dh_jumps_known_line";
 
 const ENTRIES: SessionDrillV2[] = [
   // P0 — HPM 2026-10-12: a flow trail is a groomed trail (NALYNT V1); the texts need only a rider-marked braking zone.
-  drill("braking_progressive_control", "braking", "beginner", ["any_groomed_trail", "flow_trail"], { progressesTo: "braking_late_entry" }, [SCOUT]),
+  // P0-2 — a rider-marked braking zone exists on a full DH track too.
+  drill("braking_progressive_control", "braking", "beginner", ["any_groomed_trail", "flow_trail", FULL_DH_TRACK], { progressesTo: "braking_late_entry" }, [SCOUT]),
   // P0 — its texts need a turn entry (« juste avant l'entrée du virage »): the bermed-turn terrains have turns.
   drill("braking_late_entry", "braking", "intermediate", ["flow_trail", ...BERMED_TURN_TERRAINS_V1], { progressesTo: "braking_marked_zone_at_speed", regressesTo: "braking_progressive_control" }, [SCOUT]),
-  drill("braking_marked_zone_at_speed", "braking", "advanced", "technical_trail", { regressesTo: "braking_late_entry" }, [PRECISION]),
-  drill("cornering_flat_turn_precision", "cornering", "beginner", "flow_trail", { progressesTo: "cornering_berm_speed" }),
+  // P0-2 — « avant le passage technique »: any technical passage, which a full DH track has.
+  drill("braking_marked_zone_at_speed", "braking", "advanced", ["technical_trail", FULL_DH_TRACK], { regressesTo: "braking_late_entry" }, [PRECISION]),
+  // P0-2 — a marked apex on a turn: a trajectory drill, rideable on the turns of a full DH track.
+  drill("cornering_flat_turn_precision", "cornering", "beginner", ["flow_trail", FULL_DH_TRACK], { progressesTo: "cornering_berm_speed" }),
   // P0 — its texts need a bermed turn (« virage relevé »): the bermed-turn terrains (HPM 2026-10-12).
   drill("cornering_berm_speed", "cornering", "intermediate", BERMED_TURN_TERRAINS_V1, { progressesTo: "cornering_off_camber", regressesTo: "cornering_flat_turn_precision" }),
-  drill("cornering_off_camber", "cornering", "advanced", "technical_trail", { regressesTo: "cornering_berm_speed" }, [PRECISION]),
-  drill("line_choice_two_line_scan", "line_choice", "beginner", "technical_trail", { progressesTo: "line_choice_rock_garden" }, [SCOUT]),
+  // P0-2 — HPM decision: a full DH track has off-camber sections (« section en dévers »).
+  drill("cornering_off_camber", "cornering", "advanced", ["technical_trail", FULL_DH_TRACK], { regressesTo: "cornering_berm_speed" }, [PRECISION]),
+  // P0-2 — two lines through a short section: a general trajectory drill, rideable on a full DH track.
+  drill("line_choice_two_line_scan", "line_choice", "beginner", ["technical_trail", FULL_DH_TRACK], { progressesTo: "line_choice_rock_garden" }, [SCOUT]),
   drill("line_choice_rock_garden", "line_choice", "intermediate", "rock_garden", { progressesTo: "line_choice_fast_line_compare", regressesTo: "line_choice_two_line_scan" }, [SCOUT]),
   drill("line_choice_fast_line_compare", "line_choice", "advanced", "rock_garden", { regressesTo: "line_choice_rock_garden" }, [PRECISION]),
-  drill("steep_terrain_controlled_roll_in", "steep_terrain", "beginner", "steep_technical_trail", { progressesTo: "steep_terrain_body_position" }, [SCOUT]),
-  drill("steep_terrain_body_position", "steep_terrain", "intermediate", "steep_technical_trail", { progressesTo: "steep_terrain_off_brake_chute", regressesTo: "steep_terrain_controlled_roll_in" }, [SCOUT]),
-  drill("steep_terrain_off_brake_chute", "steep_terrain", "advanced", "steep_technical_trail", { regressesTo: "steep_terrain_body_position" }, [PRECISION]),
+  // P0-2 — HPM decision: a full DH track has steep passages (« pente raide », « couloir »).
+  drill("steep_terrain_controlled_roll_in", "steep_terrain", "beginner", ["steep_technical_trail", FULL_DH_TRACK], { progressesTo: "steep_terrain_body_position" }, [SCOUT]),
+  drill("steep_terrain_body_position", "steep_terrain", "intermediate", ["steep_technical_trail", FULL_DH_TRACK], { progressesTo: "steep_terrain_off_brake_chute", regressesTo: "steep_terrain_controlled_roll_in" }, [SCOUT]),
+  drill("steep_terrain_off_brake_chute", "steep_terrain", "advanced", ["steep_technical_trail", FULL_DH_TRACK], { regressesTo: "steep_terrain_body_position" }, [PRECISION]),
   drill("roots_rocks_rolling", "roots_rocks", "beginner", "root_rock_trail", { progressesTo: "roots_rocks_unweighted_line" }),
   drill("roots_rocks_unweighted_line", "roots_rocks", "intermediate", "root_rock_trail", { progressesTo: "roots_rocks_committed", regressesTo: "roots_rocks_rolling" }),
   drill("roots_rocks_committed", "roots_rocks", "advanced", "root_rock_trail", { regressesTo: "roots_rocks_unweighted_line" }, [PRECISION]),
   drill("jumps_table_top_basic", "jumps", "beginner", "bike_park_jump_line", { progressesTo: "jumps_linked_tables" }, [JUMPS]),
   drill("jumps_linked_tables", "jumps", "intermediate", "bike_park_jump_line", { progressesTo: "jumps_step_down", regressesTo: "jumps_table_top_basic" }, [JUMPS]),
   drill("jumps_step_down", "jumps", "advanced", "bike_park_jump_line", { regressesTo: "jumps_linked_tables" }, [JUMPS]),
-  drill("race_execution_section_consistency", "race_execution", "beginner", "any_groomed_trail", { progressesTo: "race_execution_split_pace" }),
-  drill("race_execution_split_pace", "race_execution", "intermediate", "technical_trail", { progressesTo: "race_execution_full_run_sim", regressesTo: "race_execution_section_consistency" }, [PRECISION]),
+  // P0-2 — HPM decision: a short, repeatable section at controlled pace — a flow trail or a full DH track has one.
+  drill("race_execution_section_consistency", "race_execution", "beginner", ["any_groomed_trail", "flow_trail", FULL_DH_TRACK], { progressesTo: "race_execution_split_pace" }),
+  // P0-2 — « une section technique avec un repère à mi-parcours »: a full DH track has technical sections.
+  drill("race_execution_split_pace", "race_execution", "intermediate", ["technical_trail", FULL_DH_TRACK], { progressesTo: "race_execution_full_run_sim", regressesTo: "race_execution_section_consistency" }, [PRECISION]),
   drill("race_execution_full_run_sim", "race_execution", "advanced", "full_dh_track", { regressesTo: "race_execution_split_pace" }, [PRECISION]),
 ];
 
