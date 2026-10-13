@@ -17,6 +17,14 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const LOCAL_URL = "http://127.0.0.1:54321";
 
+/**
+ * The local stack the integration suites target: SUPABASE_URL and LOCAL_SUPABASE_DB_CONTAINER select it
+ * explicitly when several local stacks run (same convention as head-coach-engine); the developer's own
+ * stack otherwise. Local only — the API client and the owner-level psql must hit the same database.
+ */
+export const TEST_SUPABASE_URL = process.env.SUPABASE_URL ?? LOCAL_URL;
+export const TEST_DB_CONTAINER = process.env.LOCAL_SUPABASE_DB_CONTAINER ?? "supabase_db_louis-performance-system";
+
 export class MissingTestServerKeyError extends Error {
   constructor() {
     super(
@@ -33,7 +41,7 @@ export function createTestClient(): SupabaseClient {
   const serverKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serverKey) throw new MissingTestServerKeyError();
 
-  return createClient(process.env.SUPABASE_URL ?? LOCAL_URL, serverKey, {
+  return createClient(TEST_SUPABASE_URL, serverKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

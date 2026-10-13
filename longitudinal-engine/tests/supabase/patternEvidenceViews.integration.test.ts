@@ -13,9 +13,9 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, type TestAthlete } from "./testDb.js";
+import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, TEST_SUPABASE_URL, type TestAthlete } from "./testDb.js";
 
-const LOCAL_URL = "http://127.0.0.1:54321";
+const LOCAL_URL = TEST_SUPABASE_URL;
 
 class MissingAnonKeyError extends Error {
   constructor() {

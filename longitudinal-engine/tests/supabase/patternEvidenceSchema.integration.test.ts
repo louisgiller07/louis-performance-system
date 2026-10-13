@@ -19,9 +19,9 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, type TestAthlete } from "./testDb.js";
+import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, TEST_DB_CONTAINER, type TestAthlete } from "./testDb.js";
 
-const DB_CONTAINER = "supabase_db_louis-performance-system";
+const DB_CONTAINER = TEST_DB_CONTAINER;
 
 /** Pipes `sql` into the local Supabase Postgres container via `docker exec -i ... psql` — the same pattern already established for this project's preflight scripts. Returns combined stdout+stderr (psql sends ERROR lines to stderr, not stdout). */
 function runPsql(sql: string): string {

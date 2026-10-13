@@ -19,9 +19,9 @@ import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertDecision, type TestAthlete } from "./testDb.js";
+import { createTestAthlete, createTestClient, insertDecision, TEST_DB_CONTAINER, type TestAthlete } from "./testDb.js";
 
-const DB_CONTAINER = "supabase_db_louis-performance-system";
+const DB_CONTAINER = TEST_DB_CONTAINER;
 
 function runPsqlChecked(sql: string, extraArgs: readonly string[] = []): { stdout: string; stderr: string } {
   const result = spawnSync("docker", ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", ...extraArgs], {
