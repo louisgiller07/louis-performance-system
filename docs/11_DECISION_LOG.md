@@ -5911,3 +5911,4 @@ Matrice après contrôle (avancé, piste DH seule) : 1 → 3 priorités (freinag
 - **Ancien catalogue** : note neutre et valeurs enregistrées lisibles (jamais la séance masquée).
 - **Modules en lecture seule** : plus de « À faire maintenant » ; un créneau vide se lit « Aucun résultat enregistré ».
 - **Liste et bilan** : une séance arrêtée (ou laissée ouverte un jour passé) se lit « Séance guidée arrêtée » (« en cours ») même si la décision du jour est devenue un REST (P0-3 O1) ; le bilan distingue séances enregistrées, séances arrêtées (partielles) et séances non enregistrées. `dayCompletion`, l'adhérence et la charge M1 sont inchangés : une séance arrêtée n'est jamais une séance terminée.
+- **Statut (HPM 2026-10-13) : PASS LOCAL / NOT DEPLOYED** au HEAD `da4474a` ; tests : docs/10 T58. Intégration : ticket INT-01 (candidat assemblé avec P0-2 et P0-3).
