@@ -6,8 +6,8 @@ import { CheckinSheet } from "../checkin/CheckinSheet";
 import { useCompletedSessionFlow } from "./useCompletedSessionFlow";
 import { AfterSessionFlow } from "./AfterSessionFlow";
 import { AfterSessionSummary } from "./AfterSessionSummary";
-import { BUTTONS, ENTRY, GUIDED_DONE, GUIDED_OPEN, GUIDED_SUSPENDED } from "./afterSessionPresentation";
-import { loadGuidedDayState, type GuidedDayState } from "../history/historyRepo";
+import { BUTTONS, ENTRY, GUIDED_DONE, GUIDED_OPEN, GUIDED_STOPPED, GUIDED_SUSPENDED } from "./afterSessionPresentation";
+import { loadDaySafetyRest, loadGuidedDayState, type GuidedDayState } from "../history/historyRepo";
 import { useEffectiveDays } from "../effectiveSession/effectiveSessionRepo";
 import { formatIntervention } from "../dailyPlan/dailyPlanLabels";
 import { formatDuration } from "../dailyPlan/durationLabels";
@@ -40,6 +40,30 @@ function useGuidedDayState(date: string, athleteId: string, reloadKey: number): 
       active = false;
     };
   }, [athleteId, date, reloadKey]);
+  return state;
+}
+
+/**
+ * INT-01 (HPM 2026-10-13) — whether the day had a Safety REST decision; read only when it decides what the debrief
+ * offers (a stopped guided attempt, no suspension now). `null` when not needed.
+ */
+function useDaySafetyRest(date: string, athleteId: string, reloadKey: number, needed: boolean): boolean | null | "unknown" | "error" {
+  const [state, setState] = useState<boolean | null | "unknown" | "error">(null);
+  useEffect(() => {
+    if (!needed) {
+      setState(null);
+      return;
+    }
+    let active = true;
+    setState("unknown");
+    loadDaySafetyRest(athleteId, date).then(
+      (loaded) => active && setState(loaded),
+      () => active && setState("error")
+    );
+    return () => {
+      active = false;
+    };
+  }, [athleteId, date, reloadKey, needed]);
   return state;
 }
 
@@ -76,6 +100,8 @@ export function AfterSessionEntry({ date, athleteId, healthSuspended = false }: 
   const flow = useCompletedSessionFlow(date, athleteId);
   const [reloadKey, setReloadKey] = useState(0);
   const guided = useGuidedDayState(date, athleteId, reloadKey);
+  // INT-01 — a stopped attempt without result: the debrief stays open, « Non réalisée » only after a Safety REST.
+  const safetyRest = useDaySafetyRest(date, athleteId, reloadKey, guided === "stopped" && !healthSuspended);
   const dates = useMemo(() => [date], [date]);
   const executed = executedSessionLabel(useEffectiveDays(athleteId, dates, [])?.[0]);
   const [fresh, setFresh] = useState(false);
@@ -92,19 +118,19 @@ export function AfterSessionEntry({ date, athleteId, healthSuspended = false }: 
     setReloadKey((key) => key + 1);
   }
 
-  if (flow.loadState === "error" || guided === "error") {
+  if (flow.loadState === "error" || guided === "error" || safetyRest === "error") {
     return (
       <StateCard tone="error" title={ENTRY.kicker} action={{ label: BUTTONS.retry, onClick: retryLoad }}>
         {flow.loadError?.message ?? ENTRY.loadError}
       </StateCard>
     );
   }
-  if (flow.loadState === "loading" || guided === "unknown") return <div className="ux-skeleton h-28 rounded-2xl" aria-hidden="true" />;
+  if (flow.loadState === "loading" || guided === "unknown" || safetyRest === "unknown") return <div className="ux-skeleton h-28 rounded-2xl" aria-hidden="true" />;
 
   // INT-01 R1 — under a health suspension: the day's guided session (open or stopped) reads « Séance suspendue »,
   // consultable only (the server refuses resume, results and completion); a record already saved stays readable
   // without « Modifier »; nothing invites to record an effort. A guided session completed earlier keeps its card below.
-  if (healthSuspended && (guided === "open" || guided === "stopped")) {
+  if (healthSuspended && (guided === "open" || guided === "stopped" || guided === "stopped_with_results")) {
     return <GuidedDayCard copy={GUIDED_SUSPENDED} executed={executed} testId="after-session-guided-suspended" />;
   }
   if (healthSuspended && guided !== "completed") {
@@ -125,6 +151,18 @@ export function AfterSessionEntry({ date, athleteId, healthSuspended = false }: 
     );
   }
 
+  // INT-01 (HPM 2026-10-13) — a guided attempt stopped after recording results is the day's record: no separate
+  // debrief (the server refuses it, guided_results_exist), the attempt stays consultable. A legacy record already
+  // saved stays readable, without « Modifier ».
+  if (guided === "stopped_with_results") {
+    return flow.record && flow.record.completion_status !== "skipped" ? (
+      <AfterSessionSummary record={flow.record} planned={flow.recordPlanned} fresh={false} />
+    ) : (
+      <GuidedDayCard copy={GUIDED_STOPPED} executed={executed} testId="after-session-guided-stopped" />
+    );
+  }
+
+  const onlySkipped = safetyRest === true;
   const editing = flow.mode === "editing";
   return (
     <>
@@ -158,6 +196,7 @@ export function AfterSessionEntry({ date, athleteId, healthSuspended = false }: 
                 },
               }}
               isNew={isNew}
+              onlySkipped={onlySkipped}
             />
           ) : (
             <div className="ux-skeleton h-64 rounded-2xl" aria-hidden="true" />

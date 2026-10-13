@@ -12,15 +12,16 @@ import { AfterSessionEntry } from "./AfterSessionEntry";
 const signOut = vi.fn();
 vi.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ signOut }) }));
 vi.mock("../completedSession/completedSessionRepo", () => ({ getCompletedSession: vi.fn(), putCompletedSession: vi.fn() }));
-vi.mock("../history/historyRepo", () => ({ loadValidDecisionsForDate: vi.fn(), loadGuidedDayState: vi.fn(async () => "none") }));
+vi.mock("../history/historyRepo", () => ({ loadValidDecisionsForDate: vi.fn(), loadGuidedDayState: vi.fn(async () => "none"), loadDaySafetyRest: vi.fn(async () => false) }));
 
 import { getCompletedSession, putCompletedSession } from "../completedSession/completedSessionRepo";
-import { loadGuidedDayState, loadValidDecisionsForDate } from "../history/historyRepo";
+import { loadDaySafetyRest, loadGuidedDayState, loadValidDecisionsForDate } from "../history/historyRepo";
 
 const mockedGet = getCompletedSession as unknown as ReturnType<typeof vi.fn>;
 const mockedPut = putCompletedSession as unknown as ReturnType<typeof vi.fn>;
 const mockedLoadDecisions = loadValidDecisionsForDate as unknown as ReturnType<typeof vi.fn>;
 const mockedLoadGuided = loadGuidedDayState as unknown as ReturnType<typeof vi.fn>;
+const mockedSafetyRest = loadDaySafetyRest as unknown as ReturnType<typeof vi.fn>;
 
 const DATE = "2026-09-29";
 
@@ -100,6 +101,7 @@ beforeEach(() => {
   mockedGet.mockResolvedValue({ ok: true, data: null });
   mockedLoadDecisions.mockResolvedValue([DH]);
   mockedLoadGuided.mockResolvedValue("none");
+  mockedSafetyRest.mockResolvedValue(false);
 });
 
 describe("AfterSessionEntry — the invitation", () => {
@@ -368,7 +370,7 @@ describe("AfterSessionEntry — INT-01 R1 under a health suspension", () => {
     expect(screen.queryByRole("button", { name: "Modifier" })).not.toBeInTheDocument();
   };
 
-  it.each(["open", "stopped"])("a %s guided session: « Séance suspendue » + « Consulter la séance », never a resume", async (state) => {
+  it.each(["open", "stopped", "stopped_with_results"])("a %s guided session: « Séance suspendue » + « Consulter la séance », never a resume", async (state) => {
     mockedLoadGuided.mockResolvedValue(state);
     renderSuspended();
     expect(await screen.findByRole("heading", { name: "Séance suspendue" })).toBeInTheDocument();
@@ -408,3 +410,62 @@ describe("AfterSessionEntry — INT-01 R1 under a health suspension", () => {
     expect(screen.queryByRole("heading", { name: "Séance suspendue" })).not.toBeInTheDocument();
   });
 });
+
+// INT-01 (HPM 2026-10-13, dernier contrôle) — the invitation follows what the server really accepts: a guided attempt
+// stopped after recording results closes the V1 debrief (guided_results_exist); after a Safety REST that day, a
+// stopped attempt leaves « Non réalisée » only; every other day keeps the four choices.
+describe("AfterSessionEntry — INT-01 the debrief invitation matches the server rules", () => {
+  const renderEntry = () =>
+    render(
+      <MemoryRouter>
+        <AfterSessionEntry date={DATE} athleteId="athlete-1" />
+      </MemoryRouter>
+    );
+
+  it("an attempt stopped after recording results: « Séance guidée arrêtée » + consult, no invitation", async () => {
+    mockedLoadGuided.mockResolvedValue("stopped_with_results");
+    renderEntry();
+    expect(await screen.findByRole("heading", { name: "Séance guidée arrêtée" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voir la séance guidée" })).toHaveAttribute("href", "/today/session");
+    expect(screen.queryByRole("button", { name: "Raconter ma séance →" })).not.toBeInTheDocument();
+    expect(mockedSafetyRest).not.toHaveBeenCalled();
+  });
+
+  it("an attempt stopped after recording results and a legacy record saved earlier: readable, without « Modifier »", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record() });
+    mockedLoadGuided.mockResolvedValue("stopped_with_results");
+    renderEntry();
+    expect(await screen.findByText(/Séance enregistrée/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Modifier" })).not.toBeInTheDocument();
+  });
+
+  it("a Safety REST that day after an attempt stopped before any result: the invitation stays, « Non réalisée » only", async () => {
+    mockedLoadGuided.mockResolvedValue("stopped");
+    mockedSafetyRest.mockResolvedValue(true);
+    const user = userEvent.setup();
+    renderEntry();
+    const dialog = await open(user);
+    expect(within(dialog).getByTestId("after-session-only-skipped")).toHaveTextContent("tu peux seulement indiquer « Non réalisée »");
+    expect(within(dialog).getByRole("button", { name: /Non réalisée/ })).toBeInTheDocument();
+    for (const name of [/Terminée/, /Partiellement/, /J'ai fait autre chose/]) expect(within(dialog).queryByRole("button", { name })).toBeNull();
+    expect(mockedSafetyRest).toHaveBeenCalledWith("athlete-1", DATE);
+  });
+
+  it("an ordinary day with an attempt stopped before any result: the four choices, as before", async () => {
+    mockedLoadGuided.mockResolvedValue("stopped");
+    const user = userEvent.setup();
+    renderEntry();
+    const dialog = await open(user);
+    for (const name of [/Terminée/, /Partiellement/, /J'ai fait autre chose/, /Non réalisée/]) expect(within(dialog).getByRole("button", { name })).toBeInTheDocument();
+    expect(within(dialog).queryByTestId("after-session-only-skipped")).toBeNull();
+  });
+
+  it("no guided session: the four choices, and the Safety REST history is never read", async () => {
+    const user = userEvent.setup();
+    renderEntry();
+    const dialog = await open(user);
+    expect(within(dialog).getByRole("button", { name: /Terminée/ })).toBeInTheDocument();
+    expect(mockedSafetyRest).not.toHaveBeenCalled();
+  });
+});
+

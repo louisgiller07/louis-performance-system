@@ -9,6 +9,7 @@ import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
 import type { GuidedCompletion } from "../completion/dayCompletion";
 import type { DecisionHistoryRow } from "./historyTypes";
+import { isHealthSuspension } from "../dailyPlan/bodyStatus";
 
 // Single string literal — see checkinRepo.ts's CHECKIN_COLUMNS for why a
 // runtime-concatenated string breaks supabase-js's typed .select().
@@ -288,27 +289,56 @@ export async function loadExecutionsForDates(athleteId: string, dates: readonly 
 }
 
 /** UX-11R.9 (F-5b) — the day's guided session as the legacy debrief must see it. */
-export type GuidedDayState = "completed" | "open" | "stopped" | "none";
+export type GuidedDayState = "completed" | "open" | "stopped_with_results" | "stopped" | "none";
 
 /**
  * UX-11R.9 (F-5b) — one RLS read of the day's guided executions with their
  * lifecycle events: "completed" if one reached `completed`, else "open" if
- * one is started / paused / resumed (not abandoned), else "stopped" when every
- * attempt was abandoned (INT-01 R1: still consultable under a health
- * suspension; otherwise read like "none"), else "none". "completed" and "open"
- * are the server guard of persist_completed_session (completed_session_v2_exists).
+ * one is started / paused / resumed (not abandoned), else, every attempt
+ * abandoned: "stopped_with_results" when one recorded a set or an activity
+ * result (INT-01: the day's record, no V1 debrief — guided_results_exist),
+ * "stopped" otherwise (INT-01 R1: consultable under a health suspension,
+ * otherwise read like "none"), else "none". "completed" and "open" are the
+ * server guard of persist_completed_session (completed_session_v2_exists).
  */
 export async function loadGuidedDayState(athleteId: string, date: string): Promise<GuidedDayState> {
-  const { data, error } = await supabase.from("session_executions").select("id, execution_events(event_type)").eq("athlete_id", athleteId).eq("session_date", date);
+  const { data, error } = await supabase
+    .from("session_executions")
+    .select("id, execution_events(event_type), exercise_set_results(id), session_activity_results(id)")
+    .eq("athlete_id", athleteId)
+    .eq("session_date", date);
 
   if (error) {
     console.error("historyRepo.loadGuidedDayState failed", error.code);
     throw new HistoryLoadError();
   }
 
-  const executions = (data ?? []) as Array<{ execution_events: Array<{ event_type: string }> | null }>;
+  const executions = (data ?? []) as Array<{
+    execution_events: Array<{ event_type: string }> | null;
+    exercise_set_results?: Array<unknown> | null;
+    session_activity_results?: Array<unknown> | null;
+  }>;
   const types = executions.map((execution) => (execution.execution_events ?? []).map((event) => event.event_type));
   if (types.some((events) => events.includes("completed"))) return "completed";
   if (types.some((events) => !events.includes("abandoned"))) return "open";
-  return types.length > 0 ? "stopped" : "none";
+  if (types.length === 0) return "none";
+  const recorded = executions.some((execution) => (execution.exercise_set_results ?? []).length > 0 || (execution.session_activity_results ?? []).length > 0);
+  return recorded ? "stopped_with_results" : "stopped";
 }
+
+/**
+ * INT-01 (HPM 2026-10-13) — whether a decision of this date is a Safety REST (isHealthSuspension: REST ruled by
+ * the Safety layer). With a stopped guided attempt, the server then refuses every V1 debrief but « Non réalisée »
+ * (persist_completed_session health guard), even after the signal was closed.
+ */
+export async function loadDaySafetyRest(athleteId: string, date: string): Promise<boolean> {
+  const { data, error } = await supabase.from("decisions").select("daily_plan").eq("athlete_id", athleteId).eq("decision_date", date);
+  if (error) {
+    console.error("historyRepo.loadDaySafetyRest failed", error.code);
+    throw new HistoryLoadError();
+  }
+  return ((data ?? []) as Array<{ daily_plan: unknown }>).some(
+    (row) => row.daily_plan !== null && typeof row.daily_plan === "object" && isHealthSuspension(row.daily_plan as Parameters<typeof isHealthSuspension>[0])
+  );
+}
+

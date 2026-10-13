@@ -6,6 +6,7 @@ import {
   loadValidDecisionsForDate,
   loadCompletedSessionsForDates,
   loadGuidedDayState,
+  loadDaySafetyRest,
   HistoryLoadError,
   TodayDecisionLoadError,
 } from "./historyRepo";
@@ -531,15 +532,47 @@ describe("historyRepo.loadGuidedDayState", () => {
     const select = vi.fn(() => ({ eq: eq1 }));
     mockedFrom.mockReturnValue({ select });
   }
-  const exec = (...events: string[]) => ({ id: "e", execution_events: events.map((event_type) => ({ event_type })) });
+  const exec = (...events: string[]) => ({ id: "e", execution_events: events.map((event_type) => ({ event_type })), exercise_set_results: [] as { id: string }[], session_activity_results: [] as { id: string }[] });
+  const withSet = (e: ReturnType<typeof exec>) => ({ ...e, exercise_set_results: [{ id: "r" }] });
+  const withActivity = (e: ReturnType<typeof exec>) => ({ ...e, session_activity_results: [{ id: "a" }] });
 
   it.each([
     ["no execution", [], "none"],
     ["a completed one", [exec("started", "abandoned"), exec("started", "completed")], "completed"],
     ["an open one", [exec("started", "abandoned"), exec("started", "paused")], "open"],
     ["only stopped ones", [exec("started", "abandoned"), exec("started", "paused", "abandoned")], "stopped"],
+    ["only stopped ones, one with a set result", [exec("started", "abandoned"), withSet(exec("started", "abandoned"))], "stopped_with_results"],
+    ["only stopped ones, one with an activity result", [withActivity(exec("started", "abandoned"))], "stopped_with_results"],
+    ["an open one with results", [withSet(exec("started"))], "open"],
   ])("%s → %s", async (_label, data, expected) => {
     mockGuidedChain(data);
     await expect(loadGuidedDayState("athlete-1", "2026-10-13")).resolves.toBe(expected);
   });
 });
+
+// INT-01 — the day's Safety REST history (a REST ruled by the Safety layer), the rule isHealthSuspension.
+describe("historyRepo.loadDaySafetyRest", () => {
+  function mockDecisions(data: unknown) {
+    const eq2 = vi.fn().mockResolvedValue({ data, error: null });
+    const eq1 = vi.fn(() => ({ eq: eq2 }));
+    const select = vi.fn(() => ({ eq: eq1 }));
+    mockedFrom.mockReturnValue({ select });
+    return { select, eq1, eq2 };
+  }
+  const rule = (layer: string) => ({ layer, rule_id: "X", detail: "", signals_used: [] });
+
+  it.each([
+    ["no decision", [], false],
+    ["an ordinary day", [{ daily_plan: { decision: "KEEP", triggered_rules: [] } }], false],
+    ["an ordinary rest (layer B)", [{ daily_plan: { decision: "REPLACE", triggered_rules: [rule("B")] } }], false],
+    ["a Safety REST earlier in the day", [{ daily_plan: { decision: "REST", triggered_rules: [rule("A")] } }, { daily_plan: { decision: "KEEP", triggered_rules: [] } }], true],
+  ])("%s -> %s", async (_label, data, expected) => {
+    const { select, eq1, eq2 } = mockDecisions(data);
+    await expect(loadDaySafetyRest("athlete-1", "2026-10-13")).resolves.toBe(expected);
+    expect(mockedFrom).toHaveBeenCalledWith("decisions");
+    expect(select).toHaveBeenCalledWith("daily_plan");
+    expect(eq1).toHaveBeenCalledWith("athlete_id", "athlete-1");
+    expect(eq2).toHaveBeenCalledWith("decision_date", "2026-10-13");
+  });
+});
+

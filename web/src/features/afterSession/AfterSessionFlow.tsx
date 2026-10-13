@@ -16,7 +16,7 @@ import { isUpliftServedDhDurationKind } from "../completedSession/dhFamilyKind";
 import { effectiveLinkableDecision, type CompletedSessionFlow } from "./useCompletedSessionFlow";
 import { afterSessionSteps, isStepAnswered, type AfterSessionStepId } from "./afterSessionSteps";
 import { ScaleChoice } from "./ScaleChoice";
-import { ACTIVITY, BODY, BUTTONS, EFFORT, PLAN, REASON, SIGNAL, STATUS_CHOICES, effortLabel, flowTitle, planOptionLabel, reasonsFor, stepCopy } from "./afterSessionPresentation";
+import { ACTIVITY, BODY, BUTTONS, EFFORT, ONLY_SKIPPED_NOTE, PLAN, REASON, SIGNAL, STATUS_CHOICES, effortLabel, flowTitle, planOptionLabel, reasonsFor, stepCopy } from "./afterSessionPresentation";
 
 // UX-08 — "Comment s'est passée ta séance ?" in short steps, one question at
 // a time (same rhythm as the guided check-in). Single-answer steps move on by
@@ -54,7 +54,11 @@ function Note({ label, value, onChange, error }: { label: string; value: string;
   );
 }
 
-export function AfterSessionFlow({ flow }: { flow: CompletedSessionFlow; isNew?: boolean }) {
+/**
+ * `onlySkipped` — INT-01: the day had a Safety REST after a stopped guided attempt, so « Non réalisée » is the
+ * only debrief the server accepts (persist_completed_session health guard): the other statuses are not offered.
+ */
+export function AfterSessionFlow({ flow, onlySkipped = false }: { flow: CompletedSessionFlow; isNew?: boolean; onlySkipped?: boolean }) {
   // A11 — the position lives with the draft (closing the sheet or a failed send never loses it).
   const { index, statusChosen } = flow.progress;
   const setIndex = (next: number | ((current: number) => number)) =>
@@ -97,7 +101,12 @@ export function AfterSessionFlow({ flow }: { flow: CompletedSessionFlow; isNew?:
   const sections: Record<AfterSessionStepId, ReactNode> = {
     status: (
       <div role="group" aria-label={copy.question} className="flex flex-col gap-2">
-        {STATUS_CHOICES.map((choice) => (
+        {onlySkipped && (
+          <p className="text-sm text-muted" data-testid="after-session-only-skipped">
+            {ONLY_SKIPPED_NOTE}
+          </p>
+        )}
+        {(onlySkipped ? STATUS_CHOICES.filter((choice) => choice.status === "skipped") : STATUS_CHOICES).map((choice) => (
           <Choice key={choice.status} pressed={statusChosen && form.completion_status === choice.status} onClick={() => chooseStatus(choice.status)}>
             <span className="flex items-center gap-3 text-base">
               <span className="w-5 text-center text-gold" aria-hidden="true">

@@ -59,6 +59,19 @@ export const GUIDED_SUSPENDED = {
   link: "Consulter la séance",
 } as const;
 
+/**
+ * INT-01 (HPM 2026-10-13) — a guided attempt stopped after recording results is the day's record: no separate
+ * debrief (the server refuses it, guided_results_exist); the attempt stays consultable.
+ */
+export const GUIDED_STOPPED = {
+  title: "Séance guidée arrêtée",
+  body: "Ta séance du jour est enregistrée dans la séance guidée arrêtée : pas de récit séparé pour ce jour.",
+  link: "Voir la séance guidée",
+} as const;
+
+/** INT-01 — a Safety REST that day after a stopped attempt: « Non réalisée » is the only debrief the server accepts. */
+export const ONLY_SKIPPED_NOTE = "Un repos santé a été décidé ce jour-là après l'arrêt de ta séance guidée : tu peux seulement indiquer « Non réalisée ».";
+
 export const BUTTONS = {
   next: "Continuer",
   back: "Retour",
