@@ -5,6 +5,7 @@ import {
   loadLatestDecisionForDate,
   loadValidDecisionsForDate,
   loadCompletedSessionsForDates,
+  loadGuidedDayState,
   HistoryLoadError,
   TodayDecisionLoadError,
 } from "./historyRepo";
@@ -518,5 +519,27 @@ describe("historyRepo.loadCompletedSessionsForDates (V0.3_007D)", () => {
     mockCompletedChain({ data: null, error: { code: "42501", message: "permission denied for table completed_sessions" } });
     await expect(loadCompletedSessionsForDates("athlete-1", ["2026-08-19"])).rejects.toThrow(HistoryLoadError);
     await expect(loadCompletedSessionsForDates("athlete-1", ["2026-08-19"])).rejects.not.toThrow(/permission denied/);
+  });
+});
+
+// UX-11R.9 / INT-01 R1 — the day's guided session for Today's after-session block: completed wins, then an open
+// attempt, then attempts that were all stopped (needed to show « Séance suspendue » under a health suspension).
+describe("historyRepo.loadGuidedDayState", () => {
+  function mockGuidedChain(data: unknown) {
+    const eq2 = vi.fn().mockResolvedValue({ data, error: null });
+    const eq1 = vi.fn(() => ({ eq: eq2 }));
+    const select = vi.fn(() => ({ eq: eq1 }));
+    mockedFrom.mockReturnValue({ select });
+  }
+  const exec = (...events: string[]) => ({ id: "e", execution_events: events.map((event_type) => ({ event_type })) });
+
+  it.each([
+    ["no execution", [], "none"],
+    ["a completed one", [exec("started", "abandoned"), exec("started", "completed")], "completed"],
+    ["an open one", [exec("started", "abandoned"), exec("started", "paused")], "open"],
+    ["only stopped ones", [exec("started", "abandoned"), exec("started", "paused", "abandoned")], "stopped"],
+  ])("%s → %s", async (_label, data, expected) => {
+    mockGuidedChain(data);
+    await expect(loadGuidedDayState("athlete-1", "2026-10-13")).resolves.toBe(expected);
   });
 });

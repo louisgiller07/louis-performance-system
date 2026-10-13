@@ -225,7 +225,8 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             id="stop-title"
             message="Arrêter la séance ? Elle sera enregistrée comme arrêtée et ne pourra plus être reprise. Les résultats déjà enregistrés restent dans l'historique."
             confirmLabel="Confirmer l'arrêt"
-            cancelLabel="Continuer la séance"
+            // INT-01 R1 — under a health suspension the stop is the only action: never an invitation to carry on.
+            cancelLabel={healthBlock ? "Retour" : "Continuer la séance"}
             disabled={busy}
             onCancel={() => setConfirming(null)}
             onConfirm={() => {

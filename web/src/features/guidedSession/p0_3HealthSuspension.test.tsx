@@ -51,11 +51,26 @@ describe("Guided session — P0-3 health suspension", () => {
     expect(screen.getByRole("link", { name: "Retour à Aujourd'hui" })).toHaveAttribute("href", "/today");
 
     await userEvent.click(screen.getByRole("button", { name: "Arrêter la séance" }));
+    // INT-01 R1 — the stop confirmation never offers to carry on training under a suspension.
+    expect(screen.queryByRole("button", { name: "Continuer la séance" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Retour" }));
+    expect(b.executions[0]!.execution_events.map((e) => e.event_type)).toEqual(["started"]);
+    expectNoTrainingAction();
+    await userEvent.click(screen.getByRole("button", { name: "Arrêter la séance" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirmer l'arrêt" }));
     await waitFor(() => expect(phase()).toBe("abandoned"));
     expect(b.executions[0]!.execution_events.map((e) => e.event_type)).toEqual(["started", "abandoned"]);
     expect(b.executions[0]!.exercise_set_results).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Recommencer la séance" })).toBeNull(); // no restart while suspended
+  });
+
+  it("without a suspension the stop confirmation still offers « Continuer la séance »", async () => {
+    const b = fakeBackend({ prescription: LOWER });
+    render(<Harness deps={b.deps} />);
+    await startAndRecordOneSet();
+    await userEvent.click(screen.getByRole("button", { name: "Arrêter la séance" }));
+    await userEvent.click(screen.getByRole("button", { name: "Continuer la séance" }));
+    expect(phase()).toBe("active");
   });
 
   it("the suspension arrives while the screen is open: 'Reprendre' is refused (health_suspended), nothing is written, the screen turns suspended", async () => {

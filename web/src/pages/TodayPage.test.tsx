@@ -100,7 +100,9 @@ vi.mock("../features/planning/TodayPlanningSummary", () => ({
 
 // DailyPlanPanel's own behavior (restore, generation, guards, and the UX-03
 // opt-in props) is covered by DailyPlanPanel*.test.tsx.
-vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
+vi.mock("../features/dailyPlan/DailyPlanPanel", async () => {
+  const { useEffect } = await import("react");
+  return {
   DailyPlanPanel: ({
     date,
     hasCheckin,
@@ -111,6 +113,7 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     checkinSnapshot,
     detailsTarget,
     guidedSessionEntry,
+    onDisplayedDecision,
   }: {
     date: string;
     hasCheckin: boolean;
@@ -121,7 +124,11 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     checkinSnapshot?: { sleep_hours: number } | null;
     detailsTarget?: HTMLElement | null;
     guidedSessionEntry?: import("react").ReactNode | ((context: typeof entryContext.current) => import("react").ReactNode);
-  }) => (
+    onDisplayedDecision?: (dailyPlan: unknown) => void;
+  }) => {
+    // INT-01 R1 — the decision on screen, as the real panel reports it (restored or just run).
+    useEffect(() => onDisplayedDecision?.(entryContext.current.dailyPlan), [onDisplayedDecision]);
+    return (
     <div data-testid="daily-plan-panel-stub">
       <div data-testid="guided-entry-slot">{typeof guidedSessionEntry === "function" ? guidedSessionEntry(entryContext.current) : guidedSessionEntry}</div>
       daily-plan-panel date={date} hasCheckin={String(hasCheckin)} checkinRevision={checkinRevision} hideIdle={String(hideIdleWithoutCheckin)} autoGenerate=
@@ -129,12 +136,14 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
       {checkinSnapshot === undefined ? "undefined" : checkinSnapshot === null ? "null" : `sleep:${checkinSnapshot.sleep_hours}`} details=
       {detailsTarget ? "mounted" : String(detailsTarget)}
     </div>
-  ),
-}));
+    );
+  },
+  };
+});
 
 vi.mock("../features/afterSession/AfterSessionEntry", () => ({
-  AfterSessionEntry: ({ date, athleteId }: { date: string; athleteId: string }) => (
-    <div data-testid="completed-session-card-stub">
+  AfterSessionEntry: ({ date, athleteId, healthSuspended }: { date: string; athleteId: string; healthSuspended?: boolean }) => (
+    <div data-testid="completed-session-card-stub" data-health-suspended={String(healthSuspended ?? false)}>
       Après ta séance · completed-session-card date={date} athleteId={athleteId}
     </div>
   ),
@@ -564,5 +573,34 @@ describe("TodayPage — P0-3 guided session entry from the day's executions", ()
     renderTodayPage();
     await waitFor(() => expect(loadDayExecutions).toHaveBeenCalledTimes(2));
     expect(slot()).toBeEmptyDOMElement();
+  });
+});
+
+// INT-01 R1 (HPM 2026-10-13) — the after-session block reads the SAME suspension as the guided entry: open
+// follow-up signals and the decision on screen (restored or just run), never a separate rule.
+describe("TodayPage — INT-01 R1 the after-session block knows the health suspension", () => {
+  const rule = (layer: string, rule_id: string) => ({ layer, rule_id, detail: "", signals_used: [] });
+  const afterSession = () => screen.getByTestId("completed-session-card-stub");
+
+  it.each([
+    ["the decision on screen is a Safety REST (A6)", { decision: "REST", triggered_rules: [rule("A", "A6")] }, []],
+    ["an open follow-up signal, before any new daily run", { decision: "KEEP", triggered_rules: [] }, [{ id: "f", type: "injury_suspect", flagDate: todayLocal(), description: "x" }]],
+    ["an open illness signal and no decision on screen", null, [{ id: "f", type: "illness", flagDate: todayLocal(), description: "x" }]],
+  ])("%s → suspended", async (_label, dailyPlan, flags) => {
+    loadOpenHealthFlags.mockResolvedValue(flags);
+    entryContext.current = { dailyPlan, finalPrescriptionCreated: false };
+    renderTodayPage();
+    await waitFor(() => expect(afterSession()).toHaveAttribute("data-health-suspended", "true"));
+  });
+
+  it.each([
+    ["an ordinary decision", { decision: "KEEP", triggered_rules: [] }],
+    ["an ordinary REST (race protocol, layer B)", { decision: "REST", triggered_rules: [rule("B", "RACE_PROTOCOL_TX")] }],
+    ["no decision yet", null],
+  ])("%s, no open signal → not suspended", async (_label, dailyPlan) => {
+    entryContext.current = { dailyPlan, finalPrescriptionCreated: true };
+    renderTodayPage();
+    await waitFor(() => expect(loadOpenHealthFlags).toHaveBeenCalled());
+    expect(afterSession()).toHaveAttribute("data-health-suspended", "false");
   });
 });

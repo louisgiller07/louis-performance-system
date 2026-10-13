@@ -49,6 +49,16 @@ export const GUIDED_OPEN = {
   link: "Reprendre la séance guidée",
 } as const;
 
+/**
+ * INT-01 R1 (HPM 2026-10-13) — the day's guided session (open or stopped) under a health suspension: never an
+ * invitation to resume nor an effort form; the session stays consultable. Same words as Today's P0-3 entry card.
+ */
+export const GUIDED_SUSPENDED = {
+  title: "Séance suspendue",
+  body: "Un signal de santé suspend l'entraînement : la séance ne reprend pas. Tes résultats déjà enregistrés sont conservés.",
+  link: "Consulter la séance",
+} as const;
+
 export const BUTTONS = {
   next: "Continuer",
   back: "Retour",

@@ -82,6 +82,11 @@ interface DailyPlanPanelProps {
   guidedSessionEntry?: ReactNode | ((context: GuidedSessionEntryContext) => ReactNode);
   /** P0-SAFE — called once a fresh daily run succeeds (Today reloads the open health signals it may have created). */
   onDecision?: (result: DailyRunResponse) => void;
+  /**
+   * INT-01 R1 — the decision on screen (restored or just run, null when none or stale): the same one
+   * guidedSessionEntry receives, so Today's other blocks read the same health suspension.
+   */
+  onDisplayedDecision?: (dailyPlan: DailyPlan | null) => void;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -113,6 +118,7 @@ export function DailyPlanPanel({
   detailsTarget,
   guidedSessionEntry,
   onDecision,
+  onDisplayedDecision,
 }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
@@ -123,6 +129,10 @@ export function DailyPlanPanel({
   const [invalidatedNotice, setInvalidatedNotice] = useState<string | null>(null);
   // UX-04 — whether the result on screen comes from a run in this session (vs. a restore).
   const [freshRun, setFreshRun] = useState(false);
+  const displayedPlan = result?.dailyPlan ?? null;
+  useEffect(() => {
+    onDisplayedDecision?.(displayedPlan);
+  }, [displayedPlan, onDisplayedDecision]);
 
   // NAL-003 — persisted-decision restore, entirely separate from the
   // generation RequestState above: reading what already happened today is

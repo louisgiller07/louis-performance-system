@@ -288,13 +288,15 @@ export async function loadExecutionsForDates(athleteId: string, dates: readonly 
 }
 
 /** UX-11R.9 (F-5b) — the day's guided session as the legacy debrief must see it. */
-export type GuidedDayState = "completed" | "open" | "none";
+export type GuidedDayState = "completed" | "open" | "stopped" | "none";
 
 /**
  * UX-11R.9 (F-5b) — one RLS read of the day's guided executions with their
  * lifecycle events: "completed" if one reached `completed`, else "open" if
- * one is started / paused / resumed (not abandoned), else "none". Same rule
- * as the server guard of persist_completed_session (completed_session_v2_exists).
+ * one is started / paused / resumed (not abandoned), else "stopped" when every
+ * attempt was abandoned (INT-01 R1: still consultable under a health
+ * suspension; otherwise read like "none"), else "none". "completed" and "open"
+ * are the server guard of persist_completed_session (completed_session_v2_exists).
  */
 export async function loadGuidedDayState(athleteId: string, date: string): Promise<GuidedDayState> {
   const { data, error } = await supabase.from("session_executions").select("id, execution_events(event_type)").eq("athlete_id", athleteId).eq("session_date", date);
@@ -308,5 +310,5 @@ export async function loadGuidedDayState(athleteId: string, date: string): Promi
   const types = executions.map((execution) => (execution.execution_events ?? []).map((event) => event.event_type));
   if (types.some((events) => events.includes("completed"))) return "completed";
   if (types.some((events) => !events.includes("abandoned"))) return "open";
-  return "none";
+  return types.length > 0 ? "stopped" : "none";
 }

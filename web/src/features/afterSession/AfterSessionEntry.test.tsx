@@ -345,4 +345,66 @@ describe("AfterSessionEntry — UX-11R.9 a day completed as a guided session", (
     renderEntry();
     expect(await screen.findByRole("button", { name: "Raconter ma séance →" })).toBeInTheDocument();
   });
+
+  it("a STOPPED guided attempt without suspension: the legacy invitation is unchanged", async () => {
+    mockedLoadGuided.mockResolvedValue("stopped");
+    renderEntry();
+    expect(await screen.findByRole("button", { name: "Raconter ma séance →" })).toBeInTheDocument();
+  });
+});
+
+// INT-01 R1 (HPM 2026-10-13) — under a health suspension the block never invites to resume nor opens an effort form:
+// « Séance suspendue » + « Consulter la séance » for the day's guided session; what was recorded stays readable.
+describe("AfterSessionEntry — INT-01 R1 under a health suspension", () => {
+  const renderSuspended = () =>
+    render(
+      <MemoryRouter>
+        <AfterSessionEntry date={DATE} athleteId="athlete-1" healthSuspended />
+      </MemoryRouter>
+    );
+  const noEffortForm = () => {
+    expect(screen.queryByRole("link", { name: "Reprendre la séance guidée" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Raconter ma séance →" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Modifier" })).not.toBeInTheDocument();
+  };
+
+  it.each(["open", "stopped"])("a %s guided session: « Séance suspendue » + « Consulter la séance », never a resume", async (state) => {
+    mockedLoadGuided.mockResolvedValue(state);
+    renderSuspended();
+    expect(await screen.findByRole("heading", { name: "Séance suspendue" })).toBeInTheDocument();
+    expect(screen.getByTestId("after-session-guided-suspended")).toHaveTextContent("Un signal de santé suspend l'entraînement");
+    expect(screen.getByRole("link", { name: "Consulter la séance" })).toHaveAttribute("href", "/today/session");
+    noEffortForm();
+  });
+
+  it("a guided session open AND a legacy record: the suspension wins, the record is not editable", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record() });
+    mockedLoadGuided.mockResolvedValue("open");
+    renderSuspended();
+    expect(await screen.findByRole("heading", { name: "Séance suspendue" })).toBeInTheDocument();
+    noEffortForm();
+  });
+
+  it("a guided session completed before the signal stays consultable", async () => {
+    mockedLoadGuided.mockResolvedValue("completed");
+    renderSuspended();
+    expect(await screen.findByRole("heading", { name: "Séance guidée terminée" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voir la séance guidée" })).toHaveAttribute("href", "/today/session");
+    noEffortForm();
+  });
+
+  it("a legacy record already saved stays readable, without « Modifier »", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record() });
+    renderSuspended();
+    expect(await screen.findByText(/Séance enregistrée/)).toBeInTheDocument();
+    noEffortForm();
+  });
+
+  it("nothing recorded: no invitation at all (no effort form under a suspension)", async () => {
+    const { container } = renderSuspended();
+    await waitFor(() => expect(mockedLoadGuided).toHaveBeenCalled());
+    await waitFor(() => expect(container.querySelector(".ux-skeleton")).toBeNull());
+    noEffortForm();
+    expect(screen.queryByRole("heading", { name: "Séance suspendue" })).not.toBeInTheDocument();
+  });
 });

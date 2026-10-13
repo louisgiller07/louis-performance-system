@@ -26,6 +26,7 @@ import type { ExecutionRow } from "../features/guidedSession/executionState";
 import { daySessionEntryKind } from "../features/guidedSession/daySessionEntry";
 import { DaySessionEntryCard } from "../features/guidedSession/DaySessionEntryCard";
 import { healthBlockOf } from "../features/guidedSession/healthBlock";
+import type { DailyPlan } from "../features/dailyPlan/dailyPlanTypes";
 import { nextPlannedSession, raceHorizon, weekCheckinCount, weekSummary } from "../features/today/todayContext";
 import { RaceBanner } from "../features/today/RaceBanner";
 import { RegularityCard } from "../features/today/RegularityCard";
@@ -188,6 +189,16 @@ export function TodayPage() {
       cancelled = true;
     };
   }, [athleteId, canonicalDate, healthFlagsRevision]);
+
+  // INT-01 R1 (HPM 2026-10-13) — ONE health suspension for every block of Today (guided entry, after-session):
+  // an open follow-up signal, or the decision on screen (restored or just run) a Safety REST — healthBlockOf,
+  // mirror of the server's execution_health_block, which stays the authority.
+  const [displayedPlan, setDisplayedPlan] = useState<DailyPlan | null>(null);
+  const healthSuspendedBy = useCallback(
+    (dailyPlan: DailyPlan | null) =>
+      healthBlockOf({ openFlagTypes: openHealthFlags.map((flag) => flag.type), family: null, latestDecision: dailyPlan ? { dailyPlan, isCurrent: true } : null }) === "health_suspended",
+    [openHealthFlags]
+  );
   const horizon = useMemo(() => (todayContext ? raceHorizon(todayContext.races, canonicalDate) : null), [todayContext, canonicalDate]);
 
   const heroSkeleton = (
@@ -256,10 +267,9 @@ export function TodayPage() {
           loadingSlot={checkinKnown ? heroSkeleton : null}
           checkinSnapshot={checkinValues}
           detailsTarget={detailsTarget}
+          onDisplayedDecision={setDisplayedPlan}
           guidedSessionEntry={({ dailyPlan, finalPrescriptionCreated }) => {
-            const healthSuspended =
-              healthBlockOf({ openFlagTypes: openHealthFlags.map((flag) => flag.type), family: null, latestDecision: dailyPlan ? { dailyPlan, isCurrent: true } : null }) === "health_suspended";
-            const kind = daySessionEntryKind({ executions: dayExecutions, finalPrescriptionCreated, healthSuspended });
+            const kind = daySessionEntryKind({ executions: dayExecutions, finalPrescriptionCreated, healthSuspended: healthSuspendedBy(dailyPlan) });
             // UX-11R.9 (F-5) — a completion read by the week context alone still reads as done.
             return <DaySessionEntryCard kind={kind === "start" && todayContext && hasGuidedCompletion(canonicalDate, todayContext.guided) ? "completed" : kind} />;
           }}
@@ -267,7 +277,7 @@ export function TodayPage() {
       )}
 
       {/* UX-08 — closing the loop: what was really done, right after the mission. */}
-      {athleteId && <AfterSessionEntry date={canonicalDate} athleteId={athleteId} />}
+      {athleteId && <AfterSessionEntry date={canonicalDate} athleteId={athleteId} healthSuspended={healthSuspendedBy(displayedPlan)} />}
 
       {/* UX-04/05 — where today leads: next step, the week, and plain regularity. */}
       {todayContext && (
