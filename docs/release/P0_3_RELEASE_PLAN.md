@@ -1,5 +1,7 @@
 # P0-3 — plan de livraison et de retour arrière (préparé, NON exécuté)
 
+**Statut : PASS LOCAL / NOT DEPLOYED** (HPM 2026-10-13).
+
 **Pour** : opérateur (Louis), après **GO HPM explicite**. Rien n'est déployé.
 **Contenu** : branche `fix/p0-3-manual-sessions` (depuis la production P0-SAFE `92937a9`), migrations `20261013120000_p0_3_manual_keep_persist_daily_run_v2` (fonction), `20261013140000_p0_3_planned_session_day_lock` (triggers `planned_sessions`, fonction d'aide, `project_training_plan`) et `20261013160000_p0_3_health_suspension_execution_guard` (`record_session_execution`, fonction d'aide), Edge `session-execution` et `daily-run` (planning-engine embarqué), web.
 **Hors périmètre** : P0-2, P1-TXT-01, A12. Aucune colonne ni donnée modifiée.
@@ -49,3 +51,13 @@ Fenêtre 3.2 → 3.3 : l'ancien web affiche une prescription manuelle créée co
 
 ## 6. Verrou serveur (GO L1)
 Livré par `20261013140000` (voir ADR P0-3). Smoke ajouté au §4 : sur le compte jetable, une séance commencée → la modification et la suppression du jour dans `/plan` sont refusées (« jour verrouillé ») ; acceptation d'un nouveau programme le même jour → le jour garde sa séance.
+
+## 7. Conditions de la future release (HPM 2026-10-13)
+1. Tests de bout en bout sur le **candidat assemblé avec P0-SAFE** (P0-3 seul n'est pas un candidat de release).
+2. Vérification des **trois migrations P0-3 dans l'ordre** `20261013120000` → `20261013140000` → `20261013160000`, corps et droits contrôlés après chacune.
+3. **Compatibilité Edge / SQL à chaque étape** : `session-execution` avant la migration santé, `daily-run` jamais avant `20261013120000` ; contrôler chaque combinaison intermédiaire (ancienne / nouvelle Edge × ancienne / nouvelle fonction).
+4. **Rollback complet validé** (ordre du §5) sur le candidat assemblé.
+5. **Revue ciblée du scénario concurrent** : nouveau signal de santé, daily-run et enregistrement d'un résultat au même moment. Limite actuelle : la suspension prend effet au commit de la décision ou du signal de santé. `persist_daily_run_v2` ne prend pas le verrou consultatif de `record_session_execution` : un résultat validé par la RPC d'exécution avant ce commit (même quasi simultanément) est enregistré comme antérieur à la suspension. Les tests prouvent le refus de toute action vérifiée après le commit, pas une atomicité absolue entre la persistance santé et l'enregistrement d'un résultat ; la fermer imposerait de modifier une autre fonction critique (non fait).
+6. **Aucun changement de production sans GO HPM explicite.**
+
+Hors périmètre de la release : les règles de charge M1 (ticket produit distinct, docs/12).
