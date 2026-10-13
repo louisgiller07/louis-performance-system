@@ -728,6 +728,21 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
   - Contre-épreuve : avec le `session-execution` de production, les refus santé remontent en 500 (« connexion » à l'écran).
 - **Non-régression obligatoire** : suites de C (planning, prescription, head-coach DB et Edge, web avec intégrations, longitudinal), `build:release:all`. Inventaire Edge attendu : seuls `daily-run` et `generate-training-plan` diffèrent de la production.
 
+### T61. INT-01 — débrief legacy après une tentative guidée arrêtée hors santé (HPM 2026-10-13, migration `20261013190000`)
+- **Reproduction avant correctif** (pile locale, rider de simulation) : tentative V2 arrêtée avec résultats, jour ordinaire. « Terminée », « Partielle » et « Remplacée » acceptées (200). Effets : `completed_sessions` avec charge, charge récente M1 AMBER incluant ces séances, Historique « ✓ Séance réalisée » au lieu de la séance arrêtée, compteur de séances du parcours augmenté. Séance guidée terminée : déjà refusée (`completed_session_v2_exists`).
+- **Intégration** (`int01DebriefHealthGuard.integration.test.ts`, scénario 7, Edge locale, JWT du rider), jours DH et Force :
+  - tentative arrêtée avec 2 résultats : « Terminée », « Partielle », « Remplacée », « Non réalisée » → 409 `guided_results_exist` ; aucune ligne `completed_sessions` ; exécution et résultats intacts ; `buildRawContext` : aucune entrée `recent_sessions` pour ce jour (charge M1) ;
+  - tentative arrêtée sans résultat : « Terminée » acceptée (UX-11R.9) ;
+  - séance guidée terminée, ou ouverte : 409 `completed_session_v2_exists` ;
+  - débrief normal sans séance guidée : accepté.
+- **Contre-preuve** : avec le script de rollback `20261013190000`, le contournement revient (200) ; ré-application identique (empreinte de `persist_completed_session` stable).
+- **Rollback hybride vers C** (SQL conservé, `completed-session` et `session-execution` du candidat, autres Edge C) : T60 7/7, 0 erreur Edge.
+- **Web** :
+  - `AfterSessionEntry.test.tsx` : tentative arrêtée avec résultats → « Séance guidée arrêtée » et lien, sans invitation ; débrief legacy antérieur lisible, sans « Modifier » ; REST Safety du jour et tentative arrêtée sans résultat → « Non réalisée » seule, avec la note ; jour ordinaire → quatre choix ; sous suspension → « Séance suspendue » ;
+  - `historyRepo.test.ts` : état `stopped_with_results` (série ou activité), `loadDaySafetyRest` (REST Safety du jour seulement, repos ordinaire exclu) ;
+  - `completedSessionErrors.test.ts` : message `guided_results_exist`.
+- **Navigateur** (pile locale, web candidat, 390 px) : jour ordinaire arrêté avec 3 résultats et jour REST Safety clôturé avec 2 résultats → carte « Séance guidée arrêtée », pas d'invitation ; REST Safety, tentative sans résultat, signal clôturé → « Non réalisée » seule, enregistrée (200 `skipped`) ; Historique inchangé.
+
 ### T60. INT-01 — garde santé du débrief legacy (HPM 2026-10-13, migration `20261013180000`)
 - **Intégration, Edge locale, JWT du rider** (`head-coach-engine/tests/supabase/int01DebriefHealthGuard.integration.test.ts`) :
   1. séance guidée commencée, douleur 8/10 (A6), arrêt : « Terminée » refusée (`health_suspended`), aussi liée à la décision KEEP du matin ;

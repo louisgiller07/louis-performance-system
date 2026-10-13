@@ -6065,3 +6065,32 @@ Le problème était préexistant en production.
 
 **Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
 
+## 2026-10-13 — ADR INT-01 B (suite) : une tentative guidée enregistrée n'est jamais une réalisation V1 (HPM, dernier contrôle)
+
+**Constat.** Hors santé, après l'arrêt d'une séance guidée V2 ayant enregistré des résultats, le débrief V1 acceptait « Terminée », « Partielle » et « Remplacée » (200), puisque UX-11R.9 laisse le débrief ouvert après une exécution `abandoned`. Effets mesurés en local :
+- ligne `completed_sessions` avec charge ;
+- charge récente M1 augmentée (AMBER) ;
+- Historique « Séance réalisée » à la place de la séance arrêtée ;
+- adhérence et parcours augmentés.
+
+Une séance guidée terminée était déjà protégée (NX101).
+
+**Contrat HPM.** Une exécution guidée existante ne doit pas pouvoir devenir une réalisation V1 fictive ou une seconde séance principale du même jour.
+
+**Décision (correction minimale approuvée).** Migration `20261013190000`, `persist_completed_session` seule. Un jour avec une exécution `abandoned` ayant au moins un résultat (série ou activité) refuse tout débrief V1 → NX104 `guided_results_exist`, code existant.
+- Inchangés : signature, droits, verrou et upsert ; la garde santé `20261013180000` est évaluée d'abord.
+- Une tentative arrêtée sans résultat garde le débrief ordinaire (UX-11R.9). Aucune nouvelle structure SQL.
+- Le rollback restaure le corps de `20261013180000` et ne fait jamais partie d'un rollback vers C.
+
+**Décisions produit HPM (2026-10-13).**
+1. **Signal ouvert, refus conservateur.** Le refus des débriefs positifs tant qu'un signal est ouvert est conservé, même pour un jour antérieur au signal. La limite est documentée (`docs/05`) ; une évolution temporelle plus fine sera traitée séparément.
+2. **Date du débrief : ticket `P1-DATE-01`.** Borner côté serveur la date d'un débrief, regroupé avec le risque de date future du daily-run. Les contrats ne sont pas modifiés dans INT-01.
+3. **Invitation web.** L'invitation « Raconter ma séance » suit ce que le serveur accepte réellement :
+   - tentative arrêtée avec résultats → « Séance guidée arrêtée » et lien vers la séance ;
+   - REST Safety du jour et tentative sans résultat → « Non réalisée » seule ;
+   - consultations d'historique et déclarations V1 légitimes inchangées.
+
+**Données existantes.** Les débriefs enregistrés avant la migration ne sont pas modifiés.
+
+**Statut** : READY INTEGRATION / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
+
