@@ -96,7 +96,13 @@ export function assertValidStrengthExperienceTier(value: string): asserts value 
  * never imports either.
  */
 const VALID_EQUIPMENT: ReadonlySet<string> = new Set(EXERCISE_CATALOG_ENTRIES.flatMap((entry) => entry.equipmentRequirements));
-const VALID_TERRAIN: ReadonlySet<string> = new Set(DRILL_CATALOG_ENTRIES.map((entry) => entry.terrainRequirement));
+/**
+ * INT-01 compatibility — a terrain feature the later release (P0-2, HPM 2026-10-13) lets riders declare
+ * (« Virages en dévers »): accepted, so a profile holding it still generates here; no drill of this
+ * runtime requires it, so it changes no selection.
+ */
+export const DECLARABLE_TERRAIN_FEATURES = ["off_camber_section"] as const;
+const VALID_TERRAIN: ReadonlySet<string> = new Set([...DRILL_CATALOG_ENTRIES.map((entry) => entry.terrainRequirement), ...DECLARABLE_TERRAIN_FEATURES]);
 const VALID_SKILL_TARGETS: ReadonlySet<string> = new Set(DRILL_CATALOG_ENTRIES.map((entry) => entry.skillTarget));
 
 function assertEachKnown(context: string, values: readonly string[], known: ReadonlySet<string>): void {
