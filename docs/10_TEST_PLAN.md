@@ -692,6 +692,36 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Politique de clôture (HPM)** : signal grave (A2 / A4) refusé sans attestation, consultation ≠ autorisation ; signal simple (A3, A6) sur déclaration ; blessures multiples (genou puis poignet) : clôture partielle refusée, poignet protégé, clôture complète avec toutes les zones ; signal ancien sans preuve ; `inspect` ; HTTP 409 avec exigences.
 - **Gate de release** : environnement isolé au schéma de production (66 migrations) : reproduction sur l'ancienne version (échecs attendus), hotfix vert, suite complète du hotfix, parcours navigateur ; train A12 + hotfix.
 
+### T54. P0 première génération — compatibilité terrain des drills DH V2
+- **Unitaires** (`planning-engine/tests/unit/p0FirstGeneration.test.ts`) :
+  - règle HPM exacte (virages relevés : relevés, bike park, piste DH ; jamais technique, racines et rochers ni flow trail) ;
+  - aucun autre drill élargi que ceux de P0 et de P0-2 (T56) ;
+  - compatibilité sportive liée aux textes validés ;
+  - profil débutant flow trail seul (freinage débutant sur flow trail ; `race_execution_section_consistency` élargi au flow trail par P0-2, T56) ;
+  - profil de la review ;
+  - **non-régression exhaustive** (7 compétences × 3 niveaux × 4 charges × 512 ensembles de terrains : même drill partout où l'ancienne règle en donnait un).
+- **Intégration base locale** :
+  - `p0FirstGeneration.integration.test.ts` : les 4 tentatives de la review générées ;
+  - `p0FirstGenerationMatrix.integration.test.ts` : profils A–E sur le vrai chemin, avec contrôle du contenu (terrain et niveau des drills, matériel et niveau de la force, créneaux par activité et par durée, doublons, première semaine, relecture, rejeu idempotent) et attentes par profil.
+- **Edge, runtime local** (`p0FirstGenerationEdge.integration.test.ts`, V2 activé) : A et B générés au premier appel, rejeu idempotent ; E en 422 avec les terrains compatibles, rien de persisté.
+- **Web** (`p0TerrainRefusal.test.ts`) : message précis et honnête (un ou plusieurs terrains).
+
+### T56. P0-2 — compatibilité des terrains DH et alternative explicite (HPM 2026-10-13, option E)
+- **Unitaires, catalogue et sélection** (`planning-engine/tests/unit/p0_2DhTerrainCompatibility.test.ts`) :
+  - catalogue exact = base `7fb2da1` + changements P0-2 ; terrain de référence en premier ; tous les terrains déclarables (validation partagée) ;
+  - option E : une seule alternative (`cornering_advanced_line_exit` pour `cornering_off_camber`), même compétence et niveau, sans intensité course ; textes sans dévers, relevé, pédalage, point de corde tardif, relâchement ni accélération imposés ; intention propre ;
+  - le dévers seulement avec « Virages en dévers » déclaré ; ni le sentier technique ni la piste DH ne le confirment ; sans virage disponible (pierrier seul) : refus listant les terrains du drill de référence et de l'alternative ;
+  - incompatibilités conservées : dévers, pente raide (3 drills, pente technique raide seule), racines et rochers, pierrier, sauts, virage relevé ;
+  - **non-régression exhaustive** contre `7fb2da1` (1024 ensembles de terrains × 7 compétences × 3 niveaux × 4 charges) : même drill partout, sauf **une** différence documentée (virages avancés sans dévers déclaré → alternative) ; tout cas nouvellement accepté passe par un terrain ajouté ;
+  - matrice terrains × niveaux avant → après ; profils A–E et E avec dévers déclaré au constructeur DH (toutes séances d'un cycle, toutes charges).
+- **Unitaires, invariants mis à jour** : `sessionDrillCatalogV2.test.ts` (21 drills V1 + 1 V2, une référence par couple, au plus une alternative, exception de parité du dévers), `sessionModelV2Builders.test.ts`, `intentCatalogV2.test.ts` (intention propre au drill), `p0FirstGeneration.test.ts`.
+- **Unitaires, anciens plans** (`p0_2OldPlanCompatibility.test.ts`) : plan au contenu de la base (dévers), adapté pour un rider sans dévers déclaré : versions inchangées, KEEP à l'identique, MODIFY LIGHT et A10 autorisés avec le même drill, REPLACE DH → DH léger dérivé du stocké, REPLACE Force → DH reconstruit (alternative), prescription planifiée jamais réécrite ; nouveau plan → alternative et son intention.
+- **Intégration base locale** :
+  - `p0_2DhTerrainMatrix.integration.test.ts` : profils A–E et E' (dévers déclaré) sur le vrai chemin de génération : premier essai, contenu conforme (règles de T54), drills attendus, relecture, rejeu idempotent ;
+  - `p0_2OldPlanDaily.integration.test.ts` : plan dévers stocké puis profil sans dévers, daily-run réel : KEEP à l'identique, MODIFY créé (jamais `final_prescription_catalog_mismatch`), même drill, 4 passages, lignage, prescription planifiée intacte.
+- **Edge, runtime local** (opt-in `RUN_LOCAL_P0_EDGE=1`) : A–E et E' en 200 au premier appel, rejeu idempotent ; racines et rochers sur piste DH seule en 422.
+- **Web** : `p0_2DhTerrain.test.ts` (prescription v2.6 stockée toujours décodée ; dévers affiché à l'identique ; nouveau drill avec son nom, ses textes et son intention), `performanceSetupOptions.test.ts` (terrain « Virages en dévers »), miroir des textes régénéré.
+
 ### T48. A09 — gestion minimale des courses
 - **Web** (`races/raceForm.test.ts`, `races/RacesSection.test.tsx`, `PerformanceSetup.test.tsx`) :
   - liste à venir (modifiable) et 30 derniers jours (suppression seule) ;

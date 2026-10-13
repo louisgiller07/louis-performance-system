@@ -5729,6 +5729,105 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Statut** : implémenté et vert en local (branche `feat/a09-race-management`). Livraison : web + Edge `generate-training-plan` (garde, et planificateur dans son bundle) ; `daily-run` inchangée ; aucune migration, aucun flag.
 
 
+## 2026-10-12 — ADR P0 FIRST GENERATION : compatibilité terrain des drills DH V2
+
+> **Un rider DH réaliste génère son programme dès la première tentative, avec ses vrais terrains.** Correction minimale dans les données du catalogue (`compatibleTerrains`). La règle « un drill par (compétence, niveau déclaré) » de docs/03 est inchangée. Local seulement ; aucun merge, aucun déploiement.
+
+**Incident (review du 09.10.2026), reproduit sur le HEAD local** : rider DH intermédiaire, priorités virages puis freinage, terrains sentier technique, racines et rochers, piste DH complète.
+- Tentatives 1 à 3 refusées (`unavailable_dh_drill_terrain`) ; seule la tentative 4, avec tous les terrains, réussissait.
+- **Deux causes**, chacune bloquante :
+  - `cornering_berm_speed` (virages, intermédiaire) n'acceptait que la piste avec relevés ;
+  - `braking_late_entry` (freinage, intermédiaire) n'acceptait que le flow trail. C'est pourquoi l'ajout d'une piste avec relevés (tentative 2) ne suffisait pas.
+
+**Décision HPM (2026-10-12, retour rider)** : pour NALYNT V1, le bike park et la piste DH complète donnent accès à des virages relevés (pas chaque virage, mais la caractéristique est disponible), comme une piste avec relevés. Non étendu aux sentiers techniques ni aux sentiers racines et rochers ; le flow trail garde sa définition actuelle.
+
+**Correction**
+- `SessionDrillV2.compatibleTerrains` liste les terrains sur lesquels les consignes validées d'un drill sont réalisables telles qu'écrites ; `requiredTerrain` reste le terrain de référence (premier élément).
+- `BERMED_TURN_TERRAINS_V1` = piste avec relevés, bike park, piste DH complète.
+- `cornering_berm_speed` (consignes : « virage relevé ») : ces trois terrains.
+- `braking_late_entry` (consignes : « juste avant l'entrée du virage ») : flow trail et ces trois terrains, qui comportent des virages.
+- Aucun autre drill n'est modifié.
+- Le constructeur DH et la régression « charge légère » acceptent un drill si l'un de ses terrains compatibles est déclaré. Jamais un autre drill, un autre niveau ou une autre priorité.
+- **Versions de catalogue inchangées**, volontairement : les identifiants et les textes ne changent pas, le drill d'un couple (compétence, niveau) non plus. Tout profil qui générait déjà produit le même plan (non-régression exhaustive : toutes les compétences, tous les niveaux, toutes les charges, les 512 ensembles de terrains). Monter la version agrégée bloquerait les adaptations des plans existants (`final_prescription_catalog_mismatch`) ; monter la version des drills rendrait les nouveaux plans non affichables par le web actuel.
+
+**Refus précis** (cas réellement impossible) :
+- `generate-training-plan` renvoie la priorité, le terrain de référence et tous les terrains compatibles ;
+- le web nomme la priorité et ces terrains, et ne propose d'en ajouter un que si le rider y a réellement accès (sinon, changer de priorité) ;
+- fini « Ta configuration athlète est incomplète », qui était faux.
+
+**Validation** : reproduction (4 tentatives générées) ; matrice A–E avec contrôle du contenu ; non-régression exhaustive ; Edge local (A généré au premier appel, rejeu idempotent ; E refusé avec les terrains compatibles) ; suites complètes engine et web.
+
+**Décision HPM finale (2026-10-12) — flow trail** : pour NALYNT V1, un flow trail est un sentier aménagé. Appliqué au seul drill concerné par le profil débutant freinage :
+- `braking_progressive_control` (freinage, débutant) : sentier aménagé et flow trail. Ses consignes (« serre les deux freins progressivement avant la zone marquée » ; « vitesse contrôlée en douceur dans la zone de freinage, sans déraper ») ne demandent qu'une zone de freinage balisée par le rider sur un sentier roulant : rien d'absent d'un flow trail.
+- Non étendu aux autres drills du sentier aménagé (`race_execution_section_consistency` reste sur le sentier aménagé seul : non demandé).
+- Profil B (débutant, flow trail seul, freinage puis virages) généré au premier appel : freinage débutant et virages débutant sur le flow trail ; A, C, D, E inchangés. Versions de catalogue toujours inchangées.
+
+**Restes, hors périmètre ou à décider** :
+- la Force prescrit des exercices de gainage plus faciles que le niveau déclaré (observation qualité pour la review complète).
+
+
+## 2026-10-13 — ADR P0-2 DH TERRAIN COMPATIBILITY : drills DH V2 réalisables sur les terrains réellement déclarés
+
+> **Un compétiteur DH obtient son programme dès le premier essai lorsqu'il possède des terrains adaptés aux exercices réellement prescrits.** Suite de l'ADR P0 FIRST GENERATION (même mécanisme : `compatibleTerrains`, données de sélection seulement). Local seulement ; aucun merge, aucun déploiement.
+
+**Constat (review complète d'octobre, P0-2 ; review externe « Astra » du 12.10)** : sur le HEAD approuvé `7fb2da1`, trois des cinq profils du mandat étaient refusés à la première génération (`unavailable_dh_drill_terrain`) :
+- A (national avancé, bike park + piste DH complète, virages / freinage / course) : `cornering_off_camber` n'acceptait que le sentier technique ;
+- B (débutant, piste DH complète seule) : `braking_progressive_control` n'acceptait pas la piste DH complète ;
+- C (débutant, flow trail seul, avec « exécution en course ») : `race_execution_section_consistency` n'acceptait que le sentier aménagé.
+
+D (profil du 9 octobre) et E (profil national de la review Astra, 5 terrains) généraient déjà.
+
+**Décisions HPM (2026-10-13)**
+- Une piste DH complète permet les exercices généraux de trajectoire, de freinage et de contrôle, sans imposer artificiellement « sentier technique ».
+- Le bike park garde les conventions des virages relevés déjà approuvées (P0).
+- Une piste DH complète ne garantit pas une section de racines, de rochers, de sauts ou un obstacle spécifique : ces drills gardent leur exigence.
+- `race_execution_section_consistency` est compatible avec un flow trail (section courte et répétable, vitesse maîtrisée).
+- Décisions explicites demandées pendant l'implémentation : la piste DH complète comporte des sections en dévers (`cornering_off_camber`) et des passages raides (les trois drills `steep_terrain_*`).
+- La règle « un drill par (compétence, niveau) » est inchangée.
+
+**Correction (catalogue `sessionDrillCatalogV2.ts`, ajouts seulement)**
+- `full_dh_track` ajouté à : `braking_progressive_control`, `braking_marked_zone_at_speed`, `cornering_flat_turn_precision`, `cornering_off_camber`, `line_choice_two_line_scan`, `steep_terrain_controlled_roll_in`, `steep_terrain_body_position`, `steep_terrain_off_brake_chute` (retiré au contrôle final ci-dessous), `race_execution_section_consistency`, `race_execution_split_pace`.
+- `flow_trail` ajouté à `race_execution_section_consistency`.
+- Inchangés volontairement : `line_choice_rock_garden`, `line_choice_fast_line_compare` (pierrier), les trois `roots_rocks_*`, les trois `jumps_*`, `cornering_berm_speed` (virage relevé), `race_execution_full_run_sim`.
+- Terrain de référence (`requiredTerrain`, premier élément), identifiants, textes, versions de catalogue : inchangés, pour les mêmes raisons que l'ADR P0 (aucun plan existant modifié ; `final_prescription_catalog_mismatch` évité ; le web affiche les mêmes drills).
+
+**Validation**
+- Non-régression exhaustive contre le catalogue de `7fb2da1` (512 ensembles de terrains × 7 compétences × 3 niveaux × 4 charges) : tout profil qui générait garde le même drill ; un cas nouvellement accepté passe toujours par un terrain ajouté.
+- Contre-preuve : ajouter la piste DH aux racines fait échouer 4 tests.
+- Génération réelle (base locale, `generateAndPersistTrainingPlanV2`) et Edge `generate-training-plan` (HTTP, JWT du rider) : A–E générés au premier appel, contenu conforme (terrain déclaré, niveau, matériel, créneaux), relecture et rejeu idempotent. Avant correctif, sur la même base : A, B, C refusés ; D, E identiques.
+- Refus conservé : racines / rochers sur une piste DH seule → 422 avec la priorité et son terrain compatible.
+
+**Restes, hors périmètre** : un rider avancé avec un flow trail seul n'a aucune priorité possible (aucun drill avancé n'est réalisable sur un flow trail) ; le flow trail ne donne toujours pas accès au virage relevé (définition P0 inchangée) ; la production génère encore en V1 pour les nouveaux comptes (le correctif ne vaut que pour la génération V2).
+
+### Contrôle final 2026-10-13 — dévers et pente raide sur piste DH complète (réserve sportive HPM)
+
+Relecture des textes complets (consigne, critère, libellés web, vigilances) :
+- `steep_terrain_body_position` (intermédiaire) : « baisse les talons et recule ton poids à mesure que la pente se raidit » — demande seulement des changements de pente, présents sur toute piste DH. **Compatible.**
+- `steep_terrain_controlled_roll_in` (débutant) : « choisis une courte pente raide », vitesse lente, deux freins en douceur — le passage le plus raide d'une piste DH, roulé lentement, suffit. **Compatible.**
+- `steep_terrain_off_brake_chute` (avancé) : « couloir », « partie la plus raide sans freiner » — demande un couloir connu avec une sortie dégagée, qu'une piste DH ne garantit pas, et lâcher les freins sur un passage inconnu n'est pas défendable. **Piste DH retirée** (retour au seul terrain « pente technique raide »). Aucun profil A–E concerné.
+- `cornering_off_camber` (avancé) : « section en dévers » — une piste DH n'en garantit pas, pas plus que le terrain de référence (sentier technique). **Compatibilité maintenue sous la décision HPM**, seule voie de garder la règle « un drill par (compétence, niveau) » et la première génération du profil A ; réserve explicite : si la piste du rider n'a pas de dévers, le drill n'est pas réalisable tel qu'écrit.
+- Consigne « engage ton poids côté aval du vélo » : sa sécurité technique **n'est pas établie** (« côté aval du vélo » ambigu entre la pédale extérieure chargée et le corps penché vers l'aval ; le libellé web V1 ajoute « continue de pédaler », avec un risque de pédale accrochée en dévers ; déjà signalé TODO REV-015.4a). **Classée : validation par un entraîneur DH qualifié requise ; contenu non approuvé sportivement.** Idem pour le couloir sans frein et le recul du poids (TODO REV-015.4a existants). Tous ces textes restent `PROVISIONAL`.
+
+Matrice après contrôle (avancé, piste DH seule) : 1 → 3 priorités (freinage, virages, course). Tests : planning 851/851 ; intégration base locale et Edge P0 / P0-2 13/13.
+
+### Décision finale 2026-10-13 — option E : drill de référence, alternative explicite, dévers confirmé
+
+**Décisions HPM** : retrait de `steep_terrain_off_brake_chute` validé ; refus de maintenir `cornering_off_camber` sur toute piste DH (le dévers n'est pas garanti) ; option E approuvée avec conditions ; les trois drills de pente raide quittent la piste DH ; consignes provisoires non promues.
+
+**Implémentation (local)**
+- **Alternative explicite** : au plus une par drill de référence (`alternativeFor`), même compétence, même niveau, jamais un drill d'intensité course. Sélection déterministe `selectDhDrill` : le drill de référence si un de ses terrains est déclaré, sinon l'alternative si un des siens l'est, sinon refus (le 422 liste les terrains des deux). Jamais un autre niveau ni une autre compétence. Utilisée par le constructeur DH, donc par la génération et les REPLACE qui construisent une séance.
+- **Nouveau drill `cornering_advanced_line_exit`** (`origin: v2_only`), alternative de `cornering_off_camber` : tout terrain où un virage est disponible (piste DH, sentier aménagé, flow trail, relevés, sentier technique, pente raide, racines et rochers, bike park ; pas le pierrier). Textes = brouillon HPM, `PROVISIONAL`, non approuvés sportivement ; aucun point de corde tardif, relâchement total des freins ni augmentation de vitesse imposés. Intention propre `dh_corner_line_control` (« Choisir et répéter une trajectoire propre, avec une sortie stable. », brouillon), sélection `declared_priority_drill`.
+- **Confirmation du dévers** : terrain optionnel `off_camber_section` (« Virages en dévers ») dans la liste des terrains de l'onboarding et d'« Affiner ton profil » — un choix de plus, coché seulement par qui en a ; aucune question supplémentaire. `cornering_off_camber` n'est compatible qu'avec lui (terrain de référence V2 = `off_camber_section`, seule exception à la parité V1 ; catalogue V1 inchangé). Validation partagée : `DECLARABLE_TERRAIN_FEATURES` (aucun drill V1 ne l'exige). Base : `terrain_access` reste un tableau JSON, aucune migration.
+- **Pente raide** : les trois drills reviennent au seul terrain « pente technique raide ».
+- **Versions** : aucune ne change (`session-model-v2.6`, `session-drills-v2.0`, `coaching-text-v1.0`, `session-intents-v2.0`). Ajout strictement additif pour tout id et texte stockés (précédent ADR P0 REPLACE STALE COPY) : un passage v2.7 bloquerait MODIFY (§9) sur tous les plans v2.6 existants. Les anciens manifestes restent rendus par le web. Conséquence de livraison : web d'abord (nom et textes du nouveau drill, terrain optionnel), puis Edge ; la validation des terrains doit être déployée avant que le web propose « Virages en dévers ».
+
+**Différences légitimes de sélection (ancien → nouveau catalogue)**
+- Rider avancé, priorité virages, sentier technique **sans** dévers déclaré : `cornering_off_camber` → `cornering_advanced_line_exit` (nouveaux plans et séances reconstruites seulement). Les plans déjà stockés gardent leur drill : KEEP le sert à l'identique, MODIFY et REPLACE DH → DH léger en dérivent ; seule une séance reconstruite (REPLACE depuis une autre famille) suit la nouvelle règle.
+- Rider avancé sans sentier technique (piste DH, bike park, flow trail…) : refus → alternative.
+- Pente raide sur piste DH seule : redevient refusée (par rapport à `54802c7`, pas à la base).
+
+**Sécurité des textes (inchangés, toujours `PROVISIONAL`, revue technique à préparer)** : « poids côté aval » (dévers), « continue de pédaler » (libellé web V1 du dévers, visible en production — ticket distinct au backlog), « recule ton poids » / « poids en arrière » (pente raide), « sans freiner » (couloir), brouillons du nouveau drill et de son intention.
+
 ## 2026-10-12 — ADR P0-SAFE : continuité santé dans la décision quotidienne (évolution M1 gouvernée)
 
 > **Une douleur forte n'est plus jamais traitée comme une douleur légère, et un signal de santé ouvert continue de protéger les jours suivants jusqu'à sa clôture explicite par le rider.** Mandat HPM P0-SAFE du 12.10.2026 (reviews interne `76d4615` et externe). Évolution gouvernée de la couche A de M1 (`rules/safety.ts`), tracée ici ; `docs/04` à mettre à jour après validation (diff proposé : `docs/review/P0_SAFE_PROPOSED_DIFFS.md`). Local seulement, branche `fix/p0-safe-health-continuity` créée depuis `origin/main` pour rester livrable seule.

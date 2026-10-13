@@ -6,6 +6,10 @@
 
 **P0-SAFE — continuité santé (2026-10-12) : correction locale approuvée HPM, release non autorisée (gate prête)** (branche `fix/p0-safe-health-continuity`, depuis `origin/main`, livrable seul sans migration). Douleur forte non nouvelle → repos et avis professionnel (A6) ; signal de santé ouvert → repos jusqu'à sa clôture explicite par le rider (A7, Edge `health-flag-resolution`). En attente du verdict HPM.
 
+**P0 première génération — corrigé localement, en attente du verdict HPM (2026-10-12)** : branche `fix/p0-first-generation` ; le profil de la review du 09.10 et le débutant flow trail seul génèrent dès la première tentative avec leurs vrais terrains (décisions HPM : virages relevés, flow trail = sentier aménagé).
+
+**P0-2 — compatibilité des terrains DH : implémentation finale locale (option E), en attente du verdict HPM (2026-10-13)** : branche `fix/p0-2-dh-terrain-compat` depuis `7fb2da1`. Piste DH complète pour les drills généraux ; alternative explicite pour les virages avancés ; dévers seulement si « Virages en dévers » est déclaré ; pente raide, racines, pierrier et sauts gardent leur terrain ; versions de catalogue inchangées (anciens plans lisibles et adaptables). Consignes provisoires non promues. Aucun merge, push ou déploiement.
+
 **Approbation D2B1 — PASS (2026-10-05).**
 - Première séance guidée DH V2 en production (exécution `df8b83f2`, 6/6 passages, `completed`) ; 0 `completed_sessions` ; flag `false`.
 - **D2B2 BLOQUÉE.** Hardening UX-11R.9 **implémenté et vert en local** (branche `feat/ux11r9-hardening`, non poussée, non déployée) : invariants serveur F-6A, F-6B / F-5b, garde du débrief legacy F-5, garde d'acceptation stale F-4, lecture web commune « séance faite » (Aujourd'hui, Programme, après-séance, Historique) ; patch final : séance guidée ouverte réservée (F-5b) et priorité canonique pont M1 / web (F-5d CLOSED) ; navigateur réel 43/43. Livraison future : 3 migrations + 4 Edge (dont `daily-run`) + web. Prochaine étape : reviewer indépendant, avant toute Approval production.
