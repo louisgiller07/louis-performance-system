@@ -56,12 +56,13 @@ export function hasNonAbandonedExecution(executions: ReadonlyArray<{ execution_e
  *   NX102 health_suspended            — « Terminée », « Partielle » or « Remplacée » under a health suspension, or
  *                                        for a guided attempt stopped on a day with a Safety REST.
  *   NX103 daily_decision_not_current  — the day's analysis must run again (check-in changed) before the debrief.
- *   NX104 guided_results_exist        — « Non réalisée » would contradict guided results already recorded that day.
+ *   NX104 guided_results_exist        — guided results were recorded that day: the guided attempt is the day's record,
+ *                                       no V1 debrief may replace, duplicate or contradict it.
  */
 export const HEALTH_GUARD_REFUSALS: Readonly<Record<string, ApiError>> = {
   NX102: { status: 409, code: "health_suspended", message: "Training is suspended for health reasons on this day: the session cannot be recorded as performed." },
   NX103: { status: 409, code: "daily_decision_not_current", message: "Today's check-in changed: today's analysis must run again before the debrief." },
-  NX104: { status: 409, code: "guided_results_exist", message: "Guided session results were recorded on this day: it cannot be recorded as not performed." },
+  NX104: { status: 409, code: "guided_results_exist", message: "Guided session results were recorded on this day: the session is recorded in the guided session, no separate debrief." },
 };
 
 /** The business refusal for a persist_completed_session SQLSTATE, or null (an unexpected failure stays a 500). */

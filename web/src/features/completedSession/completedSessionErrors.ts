@@ -57,7 +57,7 @@ function mapHttpBody(status: number, code: string | undefined): CompletedSession
     case "guided_results_exist":
       return {
         code,
-        message: "Des résultats de ta séance guidée sont déjà enregistrés ce jour-là : elle ne peut pas être indiquée « Non réalisée ». Retrouve-les dans ton historique.",
+        message: "Des résultats de ta séance guidée sont déjà enregistrés ce jour-là : ta séance est enregistrée dans la séance guidée, pas de récit séparé. Retrouve-la dans ton historique.",
         retryable: false,
         action: "user_fixable",
       };
