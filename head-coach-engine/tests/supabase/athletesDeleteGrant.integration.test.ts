@@ -58,8 +58,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.3.1 — direct DELETE on athletes 
   });
 
   it("catalog: anon / authenticated lose DELETE only; service_role keeps it; the RLS policy and the purge EXECUTE grant are unchanged", () => {
-    expect(privileges("anon")).toBe("INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE");
-    expect(privileges("authenticated")).toBe("INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE");
+    // P0-SEC-TRUNCATE (migration 20261014090000): TRUNCATE revoked from the API browser roles as well.
+    expect(privileges("anon")).toBe("INSERT,REFERENCES,SELECT,TRIGGER,UPDATE");
+    expect(privileges("authenticated")).toBe("INSERT,REFERENCES,SELECT,TRIGGER,UPDATE");
     expect(privileges("service_role")).toBe("DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE");
     // No privilege granted to PUBLIC (grantee oid 0).
     expect(execLocalSql("select count(*) from aclexplode((select relacl from pg_class where oid = 'public.athletes'::regclass)) where grantee = 0;").trim()).toBe("0");
