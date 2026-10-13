@@ -40,7 +40,7 @@ Fenêtre 3.2 → 3.3 : l'ancien web affiche une prescription manuelle créée co
 
 ## 5. Retour arrière (ordre inverse)
 
-**INT-01 (HPM 2026-10-13, gate final de rollback).** Dans le candidat V2 intégré, la release précédente est la version de compatibilité C, jamais `92937a9` une fois le nouveau contenu du catalogue généré. La configuration retenue pour un rollback vers C : SQL P0-3 **conservé**, `session-execution` du candidat **conservé**, `daily-run` et `generate-training-plan` → C, web candidat conservé de préférence (`docs/release/INT_01_COMPAT_RELEASE_PLAN.md` §4.2, T59). Le tableau ci-dessous ne s'applique que si le SQL P0-3 lui-même doit être retiré : on renonce alors à la garde santé et au verrou serveur.
+**INT-01 (HPM 2026-10-13, gate final de rollback).** Dans le candidat V2 intégré, la release précédente est la version de compatibilité C, jamais `92937a9` une fois le nouveau contenu du catalogue généré. La configuration retenue pour un rollback vers C : SQL P0-3 et garde du débrief (`20261013180000`, ADR INT-01 B) **conservés**, `session-execution` et `completed-session` du candidat **conservés**, `daily-run` et `generate-training-plan` → C, web candidat conservé de préférence (`docs/release/INT_01_COMPAT_RELEASE_PLAN.md` §4.2, T59). Le tableau ci-dessous ne s'applique que si le SQL P0-3 lui-même doit être retiré : on renonce alors à la garde santé et au verrou serveur.
 
 | # | Action | Effet |
 |---|---|---|
