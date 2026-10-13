@@ -49,3 +49,23 @@ export const COMPLETED_SESSION_V2_EXISTS_MESSAGE = "This day's session was alrea
 export function hasNonAbandonedExecution(executions: ReadonlyArray<{ execution_events?: ReadonlyArray<{ event_type?: unknown }> | null }>): boolean {
   return executions.some((execution) => !(execution.execution_events ?? []).some((event) => event.event_type === "abandoned"));
 }
+
+/**
+ * INT-01 (HPM 2026-10-13) — the RPC's health guard (migration 20261013180000): a debrief the day's health state
+ * forbids is a business refusal, HTTP 409 with its own code (never a 500, never the message text).
+ *   NX102 health_suspended            — « Terminée », « Partielle » or « Remplacée » under a health suspension, or
+ *                                        for a guided attempt stopped on a day with a Safety REST.
+ *   NX103 daily_decision_not_current  — the day's analysis must run again (check-in changed) before the debrief.
+ *   NX104 guided_results_exist        — « Non réalisée » would contradict guided results already recorded that day.
+ */
+export const HEALTH_GUARD_REFUSALS: Readonly<Record<string, ApiError>> = {
+  NX102: { status: 409, code: "health_suspended", message: "Training is suspended for health reasons on this day: the session cannot be recorded as performed." },
+  NX103: { status: 409, code: "daily_decision_not_current", message: "Today's check-in changed: today's analysis must run again before the debrief." },
+  NX104: { status: 409, code: "guided_results_exist", message: "Guided session results were recorded on this day: it cannot be recorded as not performed." },
+};
+
+/** The business refusal for a persist_completed_session SQLSTATE, or null (an unexpected failure stays a 500). */
+export function classifyHealthGuardRefusal(sqlstate: string | undefined): ApiError | null {
+  return sqlstate !== undefined && Object.prototype.hasOwnProperty.call(HEALTH_GUARD_REFUSALS, sqlstate) ? HEALTH_GUARD_REFUSALS[sqlstate]! : null;
+}
+
