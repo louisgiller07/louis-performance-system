@@ -257,7 +257,8 @@ describe("Guided DH session — completion", () => {
     await userEvent.click(completeButton());
     await userEvent.click(screen.getByRole("button", { name: "Terminer quand même" }));
     await waitFor(() => expect(phase()).toBe("completed"));
-    expect(passText(2)).toBe(DH_COPY.noResult);
+    // P0-4 — a completed session takes no more results: an empty pass reads "Aucun résultat enregistré".
+    expect(passText(2)).toBe(DH_COPY.noResultRecorded);
     expect(b.executions[0]!.exercise_set_results).toHaveLength(1);
   });
 

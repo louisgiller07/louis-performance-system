@@ -9,6 +9,7 @@ import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import { weekDates } from "../today/todayContext";
 import type { DecisionHistoryRow } from "./historyTypes";
 import { effectiveDay, type EffectiveDay, type EffectiveExecution } from "../effectiveSession/effectiveDay";
+import { guidedPartialOf } from "./guidedHistory";
 
 // UX-07 — History as the rider's journey. Pure presentation of rows that
 // already exist: decisions grouped into days, the day's check-in, recorded
@@ -37,6 +38,11 @@ export interface HistoryDay {
   race: RaceOverlayEvent | null;
   /** A07 — the day's effective session (shared read model): what the day really was. */
   effective: EffectiveDay;
+  /**
+   * P0-4 — a guided session recorded only partially (every attempt stopped, results kept — a stop for health
+   * included, P0-3 O1 — or one left open). Never a completion; null when a guided session was completed or none exists.
+   */
+  guidedPartial: "stopped" | "open" | null;
 }
 
 export type DayOutcome =
@@ -98,6 +104,7 @@ export function buildHistoryDays(
         guided: done?.source === "guided" ? done.guided : null,
         race: races.find((race) => race.startDate <= date && date <= race.endDate) ?? null,
         effective,
+        guidedPartial: guidedPartialOf(date, executions),
       };
     });
 }
@@ -138,7 +145,15 @@ export interface JourneyFacts {
   adaptations: number;
   safetyRests: number;
   recordedSessions: number;
+  /** P0-4 — a guided session stopped (results kept) or left unfinished on a past day: partially recorded, never "done". */
+  stoppedSessions: number;
   unrecordedSessions: number;
+}
+
+/** P0-4 — a stopped guided session (any day), or one left open on a past day, with no completion recorded. */
+function isPartiallyRecorded(day: HistoryDay, today: string): boolean {
+  if (day.completed !== null || day.guided !== null) return false;
+  return day.guidedPartial === "stopped" || (day.guidedPartial === "open" && day.date < today);
 }
 
 /** Plain counts over the loaded days — no score, no percentage, no trend. Null when there is nothing yet. */
@@ -150,6 +165,7 @@ export function journeyFacts(days: HistoryDay[], today: string): JourneyFacts | 
     adaptations: days.filter((day) => dayOutcome(day).kind === "adapted" && !isSafetyRest(day)).length,
     safetyRests: days.filter(isSafetyRest).length,
     recordedSessions: days.filter((day) => day.completed !== null || day.guided !== null).length,
-    unrecordedSessions: days.filter((day) => day.date < today && day.completed === null && day.guided === null && day.dailyPlan?.planned_session_before != null).length,
+    stoppedSessions: days.filter((day) => isPartiallyRecorded(day, today)).length,
+    unrecordedSessions: days.filter((day) => day.date < today && day.completed === null && day.guided === null && !isPartiallyRecorded(day, today) && day.dailyPlan?.planned_session_before != null).length,
   };
 }

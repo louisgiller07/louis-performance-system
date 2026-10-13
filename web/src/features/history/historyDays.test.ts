@@ -92,6 +92,7 @@ describe("journeyFacts — plain counts only", () => {
       adaptations: 1,
       safetyRests: 1,
       recordedSessions: 1,
+      stoppedSessions: 0,
       unrecordedSessions: 2,
     });
   });
@@ -128,3 +129,32 @@ describe("UX-11R.9 — guided completions in History", () => {
     expect(journeyFacts(days, TODAY)?.unrecordedSessions).toBe(1);
   });
 });
+
+// P0-4 (HPM 2026-10-13) — a guided session recorded only in part: stopped (results kept) or left open.
+describe("P0-4 — stopped / partially recorded guided sessions", () => {
+  const exec = (date: string, events: string[], decisionId = "d-24") => ({ executionId: `e-${date}-${events.join("-")}`, sessionDate: date, decisionId, finalPrescriptionId: "fp", startedAt: `${date}T07:00:00Z`, events });
+
+  it("abandoned only: 'stopped', counted as a stopped (partial) session, never recorded nor unrecorded", () => {
+    const days = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN)], [], [], [], [], [exec("2026-09-24", ["started", "abandoned"])]);
+    expect(days[0]!.guidedPartial).toBe("stopped");
+    expect(days[0]!.guided).toBeNull();
+    expect(journeyFacts(days, TODAY)).toMatchObject({ recordedSessions: 0, stoppedSessions: 1, unrecordedSessions: 0 });
+  });
+
+  it("a stop under a health REST (P0-3 O1) stays a stopped session, not a rest day", () => {
+    const rest = decision("d-24b", "2026-09-24", "09:00", SAFETY_REST_PLAN);
+    const days = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN), rest], [], [], [], [], [exec("2026-09-24", ["started", "abandoned"])]);
+    expect(days[0]!.effective.status).toBe("rest"); // the shared read model is unchanged
+    expect(days[0]!.guidedPartial).toBe("stopped");
+    expect(journeyFacts(days, TODAY)).toMatchObject({ stoppedSessions: 1, unrecordedSessions: 0 });
+  });
+
+  it("a completed attempt wins over a stopped one; an open attempt on a past day is partial, today's is not counted", () => {
+    const completed = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN)], [], [], [], [], [exec("2026-09-24", ["started", "abandoned"]), exec("2026-09-24", ["started", "completed"])]);
+    expect(completed[0]!.guidedPartial).toBeNull();
+    const open = buildHistoryDays([decision("d-24", "2026-09-24", "08:00", KEEP_PLAN), decision("t", TODAY, "08:00", KEEP_PLAN)], [], [], [], [], [exec("2026-09-24", ["started"]), exec(TODAY, ["started"], "t")]);
+    expect(open.map((d) => d.guidedPartial)).toEqual(["open", "open"]);
+    expect(journeyFacts(open, TODAY)).toMatchObject({ stoppedSessions: 1, unrecordedSessions: 0 });
+  });
+});
+

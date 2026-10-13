@@ -4,6 +4,8 @@ import type { SetResultRow } from "../executionState";
 export const STRENGTH_COPY = {
   current: "À faire maintenant",
   noResult: "Pas encore de résultat",
+  /** P0-4 — an empty slot of a session that can no longer take results (completed, stopped, consulted in History). */
+  noResultRecorded: "Aucun résultat enregistré",
   corrected: "corrigée",
   correctedOnce: "Série déjà corrigée : une série ne se corrige qu'une fois.",
   perSide: "(par côté)",

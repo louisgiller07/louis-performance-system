@@ -137,7 +137,7 @@ function SlotRow({ slot, isCurrent, canEdit, busy, form, onOpen, children }: { s
         {isCurrent && <p className="text-xs font-semibold uppercase tracking-wide text-gold">{STRENGTH_COPY.current}</p>}
       </div>
       <p className="text-sm text-ink/80" data-testid="slot-result">
-        {r ? `Réalisé : ${formatResult(r, perSide)}${r.supersedes_id ? ` · ${STRENGTH_COPY.corrected}` : ""}` : STRENGTH_COPY.noResult}
+        {r ? `Réalisé : ${formatResult(r, perSide)}${r.supersedes_id ? ` · ${STRENGTH_COPY.corrected}` : ""}` : canEdit ? STRENGTH_COPY.noResult : STRENGTH_COPY.noResultRecorded}
       </p>
       {canEdit && !form && (!r || isCorrectable(r)) && (
         <SecondaryButton onClick={onOpen} disabled={busy} className="min-h-12 w-full" aria-label={`${r ? "Modifier" : "Saisir"} la ${label}`}>
@@ -268,7 +268,8 @@ export function StrengthSessionModule({ prescription, executionId, setResults, e
                   item={item}
                   measureType={progress.slots.find((s) => s.item === item)?.measureType ?? null}
                   slots={progress.slots.filter((s) => s.item === item)}
-                  current={progress.current}
+                  // P0-4 — "À faire maintenant" only while results can be entered (never on a session consulted read only).
+                  current={canEdit ? progress.current : null}
                   canEdit={canEdit}
                   showSlots={showSlots}
                   busy={busy}

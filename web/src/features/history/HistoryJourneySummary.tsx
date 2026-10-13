@@ -17,6 +17,8 @@ export function HistoryJourneySummary({ facts }: { facts: JourneyFacts }) {
   ];
   if (facts.safetyRests > 0) lines.push([facts.safetyRests, plural(facts.safetyRests, "repos sécurité", "repos sécurité")]);
   lines.push([facts.recordedSessions, plural(facts.recordedSessions, "séance enregistrée", "séances enregistrées")]);
+  // P0-4 — partially recorded (stopped, results kept): never counted as done, never as "non enregistrée".
+  if (facts.stoppedSessions > 0) lines.push([facts.stoppedSessions, plural(facts.stoppedSessions, "séance arrêtée (partielle)", "séances arrêtées (partielles)")]);
   if (facts.unrecordedSessions > 0) lines.push([facts.unrecordedSessions, plural(facts.unrecordedSessions, "séance non enregistrée", "séances non enregistrées")]);
 
   return (

@@ -6,6 +6,8 @@ import type { SuccessChoice } from "./dhPasses";
 export const DH_COPY = {
   current: "À faire maintenant",
   noResult: "Pas encore de résultat",
+  /** P0-4 — an empty pass of a session that can no longer take results (completed, stopped, consulted in History). */
+  noResultRecorded: "Aucun résultat enregistré",
   recorded: "Enregistré",
   corrected: "corrigé",
   correctedOnce: "Passage déjà corrigé : un passage ne se corrige qu'une fois.",
