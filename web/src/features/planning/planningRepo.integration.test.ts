@@ -139,7 +139,9 @@ describe("planningRepo integration — local-target safety gate (always-on, no n
   });
 });
 
-const LOCAL_URL = "http://127.0.0.1:54321";
+// The rider's client targets the same local stack as the admin client (RESOLVED_ADMIN_URL, already gated as
+// loopback above): users are created there, so they must sign in there too.
+const LOCAL_URL = RESOLVED_ADMIN_URL;
 // LOCAL DEV / PUBLIC — never a secret. The Supabase CLI's well-known
 // default local anon key: identical for every local `supabase init`
 // install, published by `supabase status`, and compiled into the OSS CLI

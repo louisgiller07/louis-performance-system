@@ -6,10 +6,10 @@
  *  A  manual Force haut du corps: complete prescription persisted under the manual contract; the guided session
  *     starts, a work set is recorded, it completes.
  *  B  health first: a manual DH on an A6 day (strong pain) → REST, no final prescription, nothing to start.
- *  C  locks: a started session is never replaced — the new manual session cannot start (active_execution_exists),
- *     the running one still completes; a completed day takes no new session (session_already_completed);
- *     a superseded decision's prescription cannot start (final_prescription_not_current); a double start of the
- *     same execution is idempotent.
+ *  C  locks: the planned session of a started or completed day cannot be replaced (server lock, rider JWT); a new
+ *     decision of a started day cannot start a second session (active_execution_exists), the running one still
+ *     completes; a completed day takes no new session (session_already_completed); a superseded decision's
+ *     prescription cannot start (final_prescription_not_current); a double start of the same execution is idempotent.
  *  D  replay: two daily-runs on the same inputs → the same sport content; earlier prescriptions are never rewritten.
  */
 import { randomUUID } from "node:crypto";
@@ -127,7 +127,7 @@ describe.skipIf(!ENABLED)("P0-3 — manual sessions on a V2 plan (local, product
     await admin.from("health_flags").update({ status: "resolved", resolved_at: day }).eq("athlete_id", athleteId).in("status", ["active", "monitoring"]);
   });
 
-  it("C — locks: a started day is never replaced by a concurrent session; completed days take none; stale decisions cannot start", async () => {
+  it("C — locks: a started or completed day is never replaced (server lock); no second session starts; stale decisions cannot start", async () => {
     const day = dhDays[2]!;
     await insertCheckin(admin, athleteId, day);
     const generated = await runDailyFor(admin, athleteId, day);
@@ -136,21 +136,21 @@ describe.skipIf(!ENABLED)("P0-3 — manual sessions on a V2 plan (local, product
     expect(await record(running.start)).toMatchObject({ status: "ok" });
     expect(await record(running.start)).toMatchObject({ status: "ok" }); // double launch of the same execution: idempotent
 
-    // The rider replaces the day by hand anyway (DB write; the web refuses it, planningRepo day lock): new decision, new Force.
-    await manual(day, { kind: "STRENGTH_UPPER", load_profile: "MODERATE" }, "STRENGTH_B");
-    const replaced = await runDailyFor(admin, athleteId, day);
-    const [m] = await finalOf(replaced.persistence.decision_id);
-    expect(m!.active_session_origin).toBe("manual_override_new_kind");
-    expect(await record(execution(m!.id, day).start)).toMatchObject({ code: "active_execution_exists" });
-    // The superseded generated prescription cannot start a NEW execution either.
-    expect(await record(execution(g!.id, day).start)).toMatchObject({ code: expect.stringMatching(/final_prescription_not_current|active_execution_exists/) });
+    // The rider replaces the day by hand anyway (direct write under their JWT; the web refuses it first): the server
+    // refuses it too (P0-3 lock, migration 20261013140000).
+    await expect(manual(day, { kind: "STRENGTH_UPPER", load_profile: "MODERATE" }, "STRENGTH_B")).rejects.toThrow("planned_session_day_locked");
+    // A new daily-run on the same inputs: its prescription cannot start a second session; the earlier one is no longer the day's.
+    const rerun = await runDailyFor(admin, athleteId, day);
+    const [r] = await finalOf(rerun.persistence.decision_id);
+    expect(await record(execution(r!.id, day).start)).toMatchObject({ code: "active_execution_exists" });
+    expect(await record(execution(g!.id, day).start)).toMatchObject({ code: "final_prescription_not_current" });
     // The running session still completes (passes are its own prescription's items).
     const pass = (g!.structure.blocks.find((b) => b.role === "main")!.items[0]!) as Item;
     expect(await record(running.complete([running.set(pass)]))).toMatchObject({ status: "ok" });
 
-    // Completed day (A): a new manual decision is possible, but no second session starts.
+    // Completed day (A): its planned session cannot be replaced, and no second session starts.
     const doneDay = dhDays[0]!;
-    await manual(doneDay, { kind: "STRENGTH_LOWER", load_profile: "LIGHT" }, "STRENGTH_B");
+    await expect(manual(doneDay, { kind: "STRENGTH_LOWER", load_profile: "LIGHT" }, "STRENGTH_B")).rejects.toThrow("planned_session_day_locked");
     const again = await runDailyFor(admin, athleteId, doneDay);
     const [n] = await finalOf(again.persistence.decision_id);
     expect(await record(execution(n!.id, doneDay).start)).toMatchObject({ code: "session_already_completed" });

@@ -289,4 +289,12 @@ describe("planningRepo — P0-3 day lock and lineage", () => {
     const payload = (table.upsert.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect([payload.source, payload.source_plan_version_id, payload.source_generated_session_id]).toEqual(["manual", null, null]);
   });
+
+  it("a write that loses a race (session started meanwhile) is refused by the server lock (NX201): same PlanningDayLockedError, save and delete", async () => {
+    const locked = { code: "NX201", message: "planned_session_day_locked", details: "2026-10-13" };
+    routePlanned({ upsert: () => ({ select: () => ({ single: vi.fn().mockResolvedValue({ data: null, error: locked }) }) }) });
+    await expect(savePlannedSession("athlete-1", "2026-10-13", "STRENGTH_UPPER", "MODERATE")).rejects.toThrow(PlanningDayLockedError);
+    routePlanned({ delete: () => ({ eq: () => ({ eq: vi.fn().mockResolvedValue({ error: locked }) }) }) });
+    await expect(deletePlannedSession("athlete-1", "2026-10-13")).rejects.toThrow(PlanningDayLockedError);
+  });
 });

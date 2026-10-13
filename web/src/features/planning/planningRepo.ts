@@ -41,6 +41,9 @@ export class PlanningDeleteError extends Error {
  * session is never replaced or removed silently. Same rules as record_session_execution (UX-11R.9): a V2
  * execution started and neither completed nor abandoned, a completed V2 execution, or a legacy completed
  * session that is not `skipped`. An abandoned execution (restart allowed) does not lock the day.
+ * The server enforces the same rules atomically (planned_sessions trigger, migration 20261013140000: SQLSTATE
+ * NX201): the read below only spares a doomed request; a write that loses a race is refused by the server and
+ * surfaces as the same error.
  */
 export class PlanningDayLockedError extends Error {
   constructor() {
@@ -65,6 +68,9 @@ async function assertDayNotLocked(athleteId: string, date: string): Promise<void
   });
   if (lockedByExecution || (completed.data ?? []).length > 0) throw new PlanningDayLockedError();
 }
+
+/** P0-3 — the server's refusal of a write on a started or completed day (planned_sessions trigger). */
+const PLANNED_SESSION_DAY_LOCKED = "NX201";
 
 /** Thrown when the (kind, load_profile) pair fails validatePlannedIntervention — a code-level guard, not a form display path. Never reaches the network. */
 export class InvalidPlannedInterventionError extends Error {
@@ -162,6 +168,7 @@ export async function savePlannedSession(
     .single();
 
   if (error) {
+    if (error.code === PLANNED_SESSION_DAY_LOCKED) throw new PlanningDayLockedError();
     console.error("planningRepo.savePlannedSession failed", error.code);
     throw new PlanningSaveError();
   }
@@ -179,6 +186,7 @@ export async function deletePlannedSession(athleteId: string, date: string): Pro
     .eq("planned_date", date);
 
   if (error) {
+    if (error.code === PLANNED_SESSION_DAY_LOCKED) throw new PlanningDayLockedError();
     console.error("planningRepo.deletePlannedSession failed", error.code);
     throw new PlanningDeleteError();
   }
