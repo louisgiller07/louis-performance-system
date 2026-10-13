@@ -34,7 +34,9 @@ const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVI
 const RESOLVED_ADMIN_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const INTEGRATION_ENABLED = computeIntegrationEnabled(process.env.RUN_LOCAL_SUPABASE_INTEGRATION, SERVER_KEY, RESOLVED_ADMIN_URL);
 
-const LOCAL_URL = "http://127.0.0.1:54321";
+// INT-01 — the rider's client targets the same local stack as the admin client (RESOLVED_ADMIN_URL, already
+// gated as loopback above): users are created there, so they must sign in there too.
+const LOCAL_URL = RESOLVED_ADMIN_URL;
 const LOCAL_ANON_KEY =
   process.env.SUPABASE_PUBLISHABLE_KEY ??
   process.env.SUPABASE_ANON_KEY ??
