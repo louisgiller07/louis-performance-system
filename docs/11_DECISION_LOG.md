@@ -5867,3 +5867,21 @@ Matrice après contrôle (avancé, piste DH seule) : 1 → 3 priorités (freinag
 **Validation** : environnement isolé au schéma de production (66 migrations) : ancienne version (code en production) 6 incidents reproduits / hotfix 8/8 ; suite moteur du hotfix 1295/1295 ; parcours navigateur ; train A12 + hotfix vert. Inventaire agrégé des signaux ouverts en production lu (sans donnée personnelle). Voir le rapport « P0-SAFE — FINAL HOTFIX RELEASE GATE ».
 
 **Statut** : prêt pour la gate de release, aucun déploiement.
+
+
+## 2026-10-13 — ADR P0-3 : séances manuelles et contraintes de durée (option P1)
+
+> **Une séance ajoutée ou modifiée à la main reçoit, sur un plan V2, une prescription exécutable construite depuis le profil V2 du rider, avec A10 ; sur un plan V1, NALYNT dit honnêtement qu'il n'en connaît que le type et la charge.** Local seulement.
+
+**Constat (review Astra, diagnostic `cf099f3`, R1–R5)** : une séance manuelle n'avait aucun contenu (V1 : `none` ; V2 : `final_prescription_no_lineage`), et la contrainte de temps n'était pas évaluée pour elle (R4 : `not_evaluated`, DH 90 gardée). En V1, la question du temps n'existe pas (non posée par le web, non lue par le moteur).
+
+**Décisions HPM** : F1 GO (builders existants) ; F2 option A pour la stratégie (pas de second moteur V1, pas de bascule V2 maintenant) avec UX V1 honnête ; F3 GO conditionnel ; F4 reporté ; option P1 (migration de fonction) après le constat de contrat ; P2 (réécrire KEEP en REPLACE) et P3 (partiel) refusées.
+
+**Implémentation**
+- `buildFinalPrescriptionV2` : branche manuelle (toute décision non REST) ; type et charge finaux de M1 ; builders REPLACE (Force haut / bas, DH, endurance, récupération) depuis le snapshot V2 courant ; refus explicites (type sans builder, Force HEAVY, DH sans créneau vélo, date hors version, sans contexte) ; origine `manual_override_new_kind`, action = décision M1, aucune règle pour `keep` ; A10 inchangé (il reconstruit chaque candidat par la même branche).
+- `reconcileFinalPrescriptionV2` : lit le snapshot et l'horizon de la version courante aussi pour une séance manuelle.
+- Migration `20261013120000_p0_3_manual_keep_persist_daily_run_v2` (fonction seule, `create or replace`) : `keep` sans prescription prévue accepté pour la seule origine manuelle, vérifiée côté serveur (séance `manual` de l'athlète à la date et à la version de la décision ; version courante v2 couvrant la date ; aucune prescription prévue ; aucune règle pour `keep`). Signature, retour, `SECURITY DEFINER`, `search_path`, droits : inchangés. Rollback exact : `supabase/rollbacks/p0_3/`.
+- Web : F3 (lignée vidée à l'écriture manuelle) ; verrou de jour dans `/plan` (mêmes règles que `record_session_execution`) ; V1 honnête (Aujourd'hui, `/plan`, check-in) ; refus V2 précis.
+- M1, catalogue DH et règles P0-2 : inchangés.
+
+**Risque ouvert, non traité (nouveau GO requis)** : le verrou de `/plan` est côté client. En base, une écriture directe ou concurrente (deux onglets, écriture tardive) peut encore modifier `planned_sessions` d'un jour commencé ou terminé. L'intégrité des exécutions reste garantie par `record_session_execution` (aucune seconde exécution, la séance en cours garde sa prescription), mais le « prévu » peut contredire l'exécution figée. Correctif atomique proposé : trigger `before insert/update/delete` sur `planned_sessions` refusant l'écriture d'un rider sur une date dont l'exécution est active ou terminée — migration de table, à décider.

@@ -4,6 +4,8 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
+**P0-3 — séances manuelles et contraintes de durée : implémenté localement (option P1), en attente du verdict HPM (2026-10-13)** : branche `fix/p0-3-manual-sessions` depuis la production P0-SAFE ; migration de fonction `persist_daily_run_v2` (`20261013120000`) ; aucun push, merge ou déploiement.
+
 **P0-SAFE — continuité santé (2026-10-12) : correction locale approuvée HPM, release non autorisée (gate prête)** (branche `fix/p0-safe-health-continuity`, depuis `origin/main`, livrable seul sans migration). Douleur forte non nouvelle → repos et avis professionnel (A6) ; signal de santé ouvert → repos jusqu'à sa clôture explicite par le rider (A7, Edge `health-flag-resolution`). En attente du verdict HPM.
 
 **P0 première génération — corrigé localement, en attente du verdict HPM (2026-10-12)** : branche `fix/p0-first-generation` ; le profil de la review du 09.10 et le débutant flow trail seul génèrent dès la première tentative avec leurs vrais terrains (décisions HPM : virages relevés, flow trail = sentier aménagé).
