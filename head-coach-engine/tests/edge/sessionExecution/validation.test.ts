@@ -144,6 +144,8 @@ describe("REJECTION_STATUS — stable codes", () => {
         "dh_pass_required",
         "session_already_completed",
         "strength_set_required",
+        "health_suspended",
+        "daily_decision_not_current",
       ].sort()
     );
     // UX-11R.9 — a DH completion without a pass is unprocessable; a day already completed is a conflict.
@@ -157,6 +159,9 @@ describe("REJECTION_STATUS — stable codes", () => {
     expect(REJECTION_STATUS.result_slot_out_of_range).toBe(422);
     // UX-11A.5c.2 — a superseded final prescription is a conflict with the current state.
     expect(REJECTION_STATUS.final_prescription_not_current).toBe(409);
+    // P0-3 — an active health suspension, or a daily decision not yet recomputed after a critical signal, is a conflict.
+    expect(REJECTION_STATUS.health_suspended).toBe(409);
+    expect(REJECTION_STATUS.daily_decision_not_current).toBe(409);
     for (const status of Object.values(REJECTION_STATUS)) {
       expect(status).toBeGreaterThanOrEqual(400);
       expect(status).toBeLessThan(500);
