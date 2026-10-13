@@ -684,6 +684,31 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T59. INT-01 R2 — compatibilité de rollback du catalogue V2 (version C, HPM 2026-10-13)
+- **Unitaires planning-engine (C)** (`int01CompatLaterPlans.test.ts` ; invariants `sessionDrillCatalogV2`, `intentCatalogV2`, `sessionModelV2Builders`) :
+  - la génération ne sélectionne jamais le drill v2_only `cornering_advanced_line_exit` : toutes compétences × niveaux × 1 024 ensembles de terrains déclarables, `off_camber_section` compris ; drill de référence si son `requiredTerrain` est déclaré, sinon blocage ;
+  - le snapshot accepte `off_camber_section`, sans changer aucune sélection ;
+  - un plan stocké contenant le drill v2_only et son intent donne KEEP verbatim, MODIFY LIGHT et A10 `created` ;
+  - la régression LIGHT d'un drill « allure de course » accordé sur terrain compatible est `created` ;
+  - 22 drills, une seule alternative, intent connu mais non sélectionnable.
+- **Web (C)** :
+  - `int01CompatDhReading.test.ts` : prescription stockée avec le drill v2_only décodée avec ses textes ; prescriptions existantes inchangées ;
+  - `performanceSetupRepo.test.ts` : un terrain enregistré non proposé par l'UI est conservé.
+- **Différentiel C / production** (builds, script local) : 32 256 constructions DH, 588 plans complets, 264 000 adaptations quotidiennes (KEEP / MODIFY / REPLACE / REST / A10) ; attendu **0 écart**.
+- **Simulation réelle** (pile locale, Edge et web servis, JWT des riders) : production → C → candidat (le drill généré pour de vrai) → rollback vers C.
+  - Attendus sous C : aucun 500 ; exécutions et résultats intacts ; relance, KEEP, MODIFY, REPLACE et A10 `created` ; séance ouverte avant rollback terminable ; régénération d'un profil avec dévers 200, terrain conservé.
+  - Contre-épreuve production : `daily-run` 500, `generate-training-plan` 500, séance « non prise en charge ».
+- **Gate final : rollback vers C avec le SQL P0-3 conservé.**
+  - Séquence : C avant le candidat ; 3 migrations P0-3 et candidat ; séance V2 manuelle commencée ; séance DH avec résultats ; suspension A6 pendant une séance commencée ; rollback des Edge et du web vers C, SQL conservé, `session-execution` du candidat conservé.
+  - Attendus :
+    - série, reprise et terminaison refusées en 409 `health_suspended` ; pause et arrêt 200 ;
+    - aucune exécution ni prescription dupliquée (`final_prescription_not_current`, `active_execution_exists`, `session_already_completed`) ;
+    - séance V2 manuelle existante sans 500 : `daily-run` C la bloque (`planned_session_not_generated`), la séance ouverte se poursuit puis s'arrête ;
+    - verrou du jour (NX201) et acceptation d'un nouveau plan qui garde le jour exécuté ;
+    - données inchangées hors actions autorisées.
+  - Contre-épreuve : avec le `session-execution` de production, les refus santé remontent en 500 (« connexion » à l'écran).
+- **Non-régression obligatoire** : suites de C (planning, prescription, head-coach DB et Edge, web avec intégrations, longitudinal), `build:release:all`. Inventaire Edge attendu : seuls `daily-run` et `generate-training-plan` diffèrent de la production.
+
 ### T55. P0-SAFE — continuité santé dans la décision quotidienne
 - **Unitaires M1** (`head-coach-engine/tests/p0SafeHealthContinuity.test.ts`) : A6 (incident A, seuil 6 / contre-preuve 5, ordre A1-A4 inchangé) ; A7 (incident B, maladie, douleur persistante, plusieurs signaux, signal résolu ignoré, date absente jamais inventée, A7 avant A5, textes des autres règles inchangés, aucun jeton interne) ; fatigue sans signal jamais bloquée.
 - **Intégration base locale** (`p0SafeHealthContinuity.integration.test.ts`, chemin V2 réel) : incident A (DH manuelle 2/10 puis 8/10) ; incident B (J+1, J+2 ; fièvre puis J+1) ; douleur forte puis 2/10 le lendemain ; clôture explicite, persistée, auditée, puis reprise (Force et DH, nouvelle décision) ; clôture d'un signal d'autrui → introuvable ; commotion → validation médicale requise ; remplacement manuel par une DH → REST ; prescription antérieure au REST non démarrable ; douleur légère et fatigue jamais bloquantes.
