@@ -14,6 +14,12 @@ import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/ath
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { MATRIX } from "./p0FirstGenerationMatrix.integration.test.js";
 
+/** The fix is for V2 generation: without the A12 default, a new account generates in V1 unless assigned (as a V2 rider in production). */
+export async function assignV2(admin: SupabaseClient, athleteId: string): Promise<void> {
+  const { error } = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v2", note: "P0 edge test" });
+  if (error) throw new Error(`assignV2: ${error.message}`);
+}
+
 const ENABLED = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
 
 describe.skipIf(!ENABLED)("P0 first generation — generate-training-plan over HTTP (local runtime)", { timeout: 120_000 }, () => {
@@ -25,6 +31,7 @@ describe.skipIf(!ENABLED)("P0 first generation — generate-training-plan over H
   async function rider(name: string) {
     const p = MATRIX.find((m) => m.name.startsWith(name))!;
     const a = await createTestAthlete(admin, `P0 edge ${randomUUID().slice(0, 6)}`);
+    await assignV2(admin, a.athleteId);
     await setAthleteDiscipline(admin, a.athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, a.athleteId, p.profile);
     for (const w of p.windows) await insertAvailabilityWindow(admin, a.athleteId, w);

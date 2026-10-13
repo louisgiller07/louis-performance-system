@@ -17,6 +17,7 @@ import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/genera
 import { SESSION_DRILL_CATALOG_V2 } from "planning-engine";
 import { REVIEW_PROFILE, REVIEW_WINDOWS } from "./p0FirstGeneration.integration.test.js";
 import { contentViolations, type MatrixProfile } from "./p0FirstGenerationMatrix.integration.test.js";
+import { assignV2 } from "./p0FirstGenerationEdge.integration.test.js";
 
 const INTEGRATION_ENABLED = localIntegrationRequested();
 /** Opt-in, like the P0 Edge suite: RUN_LOCAL_P0_EDGE=1 with the runtime served (NALYNT_V2_PLAN_GENERATION_ENABLED=true). */
@@ -133,6 +134,7 @@ describe.skipIf(!EDGE_ENABLED)("P0-2 — generate-training-plan over HTTP (local
 
   async function rider(p: MatrixProfile) {
     const a = await createTestAthlete(admin, `P0-2 edge ${randomUUID().slice(0, 6)}`);
+    await assignV2(admin, a.athleteId);
     await setAthleteDiscipline(admin, a.athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, a.athleteId, p.profile);
     for (const win of p.windows) await insertAvailabilityWindow(admin, a.athleteId, win);
