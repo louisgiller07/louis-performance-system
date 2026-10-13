@@ -5768,3 +5768,54 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Validation** : environnement isolé au schéma de production (66 migrations) : ancienne version (code en production) 6 incidents reproduits / hotfix 8/8 ; suite moteur du hotfix 1295/1295 ; parcours navigateur ; train A12 + hotfix vert. Inventaire agrégé des signaux ouverts en production lu (sans donnée personnelle). Voir le rapport « P0-SAFE — FINAL HOTFIX RELEASE GATE ».
 
 **Statut** : prêt pour la gate de release, aucun déploiement.
+
+## 2026-10-13 — ADR INT-01 R2 : version de compatibilité du catalogue V2 (option d HPM)
+
+**Contexte.** La release suivante (P0 première génération, P0-2) ajoute du contenu au catalogue V2 sans changer l'étiquette agrégée `session-model-v2.6`. Elle ajoute :
+- le drill `cornering_advanced_line_exit` (`origin: v2_only`, alternative de `cornering_off_camber`), avec son cue, son critère et son intent `dh_corner_line_control` (textes brouillons PROVISIONAL) ;
+- des terrains compatibles par drill ;
+- le terrain déclarable `off_camber_section`.
+
+Le code de production ne connaît pas ce contenu, ce qui crée deux dangers de rollback, reproduits sur la stack locale.
+
+**Cause exacte du 500 (`daily-run`).**
+- `buildKeepFinalPrescriptionV2` → `trustedPlannedStructure` valide la prescription prévue avec `validatePrescriptionV2`, qui refuse `unknown_drill`, `unknown_text` (cue, critère) et `unknown_intent`.
+- Le comportement dépend de l'agrégat déclaré :
+  - un agrégat **différent** du runtime est un `final_prescription_catalog_mismatch` attendu (statut bloqué) ;
+  - un agrégat **égal** (v2.6 = v2.6) est traité comme une corruption : `SessionModelV2ContractError` levée, que `daily-run` traduit en 500 `internal_error`.
+- Cela touche tout jour DH portant ce drill, quelle que soit la décision (KEEP, MODIFY, A10). Le web de production n'affiche pas la séance (« n'est pas prise en charge par cette version »).
+
+**Second danger (`generate-training-plan`).** `assertValidTerrainAccess` (snapshot) refuse `off_camber_section`. Un rider qui a déclaré « Virages en dévers » obtient un 500 à toute régénération. Le web de production retire en plus ce terrain du profil au premier enregistrement (`filterKnown`).
+
+**Décision HPM (2026-10-13, option d).** Une version intermédiaire, livrable seule, construite sur la production : elle sait traiter le contenu de la release suivante et ne le génère jamais. Options refusées par l'HPM :
+- a : rollback irréversible ;
+- monter seulement la version (v2.7) : l'ancien Edge ne lirait toujours pas le drill.
+
+**Ce que fait la version de compatibilité (C).**
+- **Catalogue.**
+  - Le drill v2_only, ses textes et son intent sont connus.
+  - `canonicalDhDrill` exclut les alternatives, et l'intent n'est pas sélectionnable : aucune génération ne les produit.
+  - `compatibleTerrains` (décisions HPM P0 et P0-2, toujours avec `requiredTerrain` en tête) ne sert qu'à la régression LIGHT d'un plan stocké (`dhDrillForLoad`).
+  - La génération exige toujours `requiredTerrain`. Le terrain de référence de `cornering_off_camber` reste `technical_trail`.
+- **Snapshot.** `off_camber_section` est accepté et ne requiert aucun drill de C.
+- **Web.**
+  - Libellé (brouillon) et textes du drill dans le miroir.
+  - Un terrain enregistré mais non proposé par l'UI est conservé à l'enregistrement du profil (même règle que les priorités, UX-11A.5a.2b). L'option « Virages en dévers » n'est pas proposée.
+- **Périmètre.** Ni SQL, ni flag, ni changement sportif. Edge changées : `daily-run` et `generate-training-plan` (planning-engine embarqué). Les 8 autres fonctions sont identiques à la production.
+
+**Preuves.**
+- **Différentiel C / production (`92937a9`)** : 32 256 constructions DH, 588 plans complets et 264 000 adaptations quotidiennes (KEEP / MODIFY / REPLACE / REST / A10 ; 156 960 créées, 83 040 bloquées, 24 000 sans prescription), 0 différence.
+- **Tests** : tests unitaires des plans stockés de la release suivante.
+- **Simulation réelle** (stack locale, Edge et web servis, JWT des riders) : production → C → candidat (génération effective du drill) → rollback vers C, sans aucun 500 ni résultat perdu. Voir `docs/release/INT_01_COMPAT_RELEASE_PLAN.md`.
+
+**Conséquences du maintien de l'étiquette `session-model-v2.6`.**
+1. L'étiquette ne décrit plus un contenu unique. Trois runtimes portent la même étiquette avec des contenus lisibles croissants : production ⊂ C ⊆ candidat. « Même agrégat » ne garantit plus « lisible ».
+2. La production `92937a9` cesse d'être une cible de rollback sûre dès que le candidat a généré un plan contenant le nouveau contenu.
+   - La cible de rollback de `daily-run`, `generate-training-plan` et du web devient C.
+   - Le nombre de plans concernés se mesure par requête avant toute décision (drill `cornering_advanced_line_exit` dans `training_plan_planned_prescriptions` ou `decision_final_prescriptions`, `off_camber_section` dans les profils et les snapshots).
+3. Ordre imposé : C en production **avant** toute génération par le candidat (Edge `daily-run`, `generate-training-plan`, web).
+4. Un plan stocké généré par la production reste lu à l'identique par C et par le candidat. Le candidat lit les anciens plans de dévers (P0-2, `p0_2OldPlanCompatibility`).
+5. Les textes du nouveau drill restent PROVISIONAL : être lisibles ne les approuve pas.
+6. Tout futur ajout de contenu sous une étiquette existante devra passer par une version de compatibilité déployée d'abord. Règle à valider par l'HPM ; à défaut, monter l'agrégat avec un lecteur multi-version.
+
+**Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-compat`).
