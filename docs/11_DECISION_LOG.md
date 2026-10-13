@@ -5768,3 +5768,21 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Validation** : environnement isolé au schéma de production (66 migrations) : ancienne version (code en production) 6 incidents reproduits / hotfix 8/8 ; suite moteur du hotfix 1295/1295 ; parcours navigateur ; train A12 + hotfix vert. Inventaire agrégé des signaux ouverts en production lu (sans donnée personnelle). Voir le rapport « P0-SAFE — FINAL HOTFIX RELEASE GATE ».
 
 **Statut** : prêt pour la gate de release, aucun déploiement.
+
+
+## 2026-10-13 — P1-TXT-01 : la consigne V1 du dévers ne demande plus de pédaler
+
+> **Le libellé français affiché pour la consigne V1 de `cornering_off_camber` ne contient plus « continue de pédaler ».** Affichage seulement : les prescriptions V1 stockées et le catalogue V1 (figé) sont inchangés. Local, non déployé.
+
+**Chemin exact**
+- Génération V1 : `prescription-engine/src/dh/dhResolver.ts` copie `executionCue` du catalogue V1 (`planning-engine/src/catalog/drillCatalog.ts`, `cornering_off_camber` : « …keep pedaling through the off-camber section… », texte inchangé depuis son introduction `42763e1`) dans la prescription V1 stockée.
+- Affichage : `web/src/features/trainingLabels/drillInstructionLabels.ts` remplace ce texte anglais exact par son libellé français (`translateDrillExecutionCue`). Surfaces :
+  - **Aujourd'hui** : `dailyPlan/ExecutablePrescriptionCard.tsx` (prescription exécutable V1 du jour, via `DailyPlanView`) ;
+  - **Programme et aperçu du plan** : `trainingPlanReview/components/TrainingPlanSessionCard.tsx` (via `ProgramSessionCard` et `TrainingPlanWeekCard`).
+- Non concernés : **Historique** (`HistoryDetail` rend `DailyPlanView` sans prescription exécutable) ; **séance guidée** (V2 uniquement, textes `coachingTextCatalog` : « …continue dans la section en dévers… », sans pédalage).
+
+**Correction minimale** : « …et continue de pédaler dans la section en dévers… » → « …et continue dans la section en dévers… ». Aucun mot ajouté, aucune nouvelle instruction technique, aucune interdiction de freiner. « Poids côté aval » reste à valider par un entraîneur DH (revue sportive, `PROVISIONAL`).
+
+**Autres traductions vérifiées** : aucune ne demande de pédaler ; les autres mentions sont des positions de pédales (relevé, racines, table-top) ou « sans pédaler » entre deux table-tops.
+
+**Tests** : `p1Txt01OffCamberCopy.test.tsx` (source V1 intacte et toujours reconnue, libellé corrigé, inventaire des traductions, Aujourd'hui, Programme, texte V2 de la séance guidée), snapshot V1 des libellés mis à jour (une ligne). Web complet vert, build OK.
