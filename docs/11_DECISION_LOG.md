@@ -6021,3 +6021,47 @@ Une fois le contenu de la release suivante généré, la production `92937a9` n'
 7. **Proposé, non mis en œuvre.** Qu'un runtime traite un contenu inconnu sous sa propre étiquette comme un `final_prescription_catalog_mismatch` (séance bloquée) plutôt que comme une corruption (500). Cela demande une décision HPM et un contrat de statut explicite.
 
 **Statut** : PASS LOCAL / NOT DEPLOYED.
+
+## 2026-10-13 — ADR INT-01 B : garde santé du débrief legacy (HPM, option 1)
+
+**Constat (gate final INT-01).** Le débrief V1 « Raconter ma séance » (Edge `completed-session` → `persist_completed_session`) n'avait pas de garde santé. Après l'arrêt d'une séance guidée sous suspension, il acceptait « Terminée » (200), aussi après la clôture du signal et pour un jour futur. Effets :
+- contournement de la règle O1 ;
+- historique « Séance réalisée » à la place de la séance arrêtée ;
+- charge M1 déclarée ;
+- verrou P0-3 du jour activé.
+
+Le problème était préexistant en production.
+
+**Décision HPM (2026-10-13).** Garde dans `persist_completed_session`, avec la suspension déterminée par les données serveur selon les règles santé de P0-3.
+- Sous suspension : « Terminée », « Partielle » et « Remplacée » sont refusées.
+- « Non réalisée » n'est permise que si elle ne contredit pas une exécution guidée enregistrée.
+- Une tentative guidée ne devient jamais une réalisation V1, même après la clôture du signal.
+- Les débriefs légitimes gardent leurs règles.
+
+**Règle retenue.** Voir `docs/05` : garde santé du débrief legacy.
+- **Suspension.** C'est `execution_health_block`, la règle P0-3, réutilisée telle quelle :
+  - signal de suivi ouvert (même avant le daily-run du jour) ;
+  - commotion pour une séance DH ;
+  - dernière décision du jour en REST Safety ;
+  - décision plus à jour → `daily_decision_not_current`.
+- **Historique.** Une décision du jour en REST Safety, suivie de l'arrêt d'une tentative guidée, interdit pour toujours toute réalisation V1 de ce jour.
+- **Non réalisée.** Refusée si des résultats guidés existent un jour suspendu ou ayant eu un REST Safety.
+- **Repos ordinaire.** Un KEEP de repos, ou un REPLACE vers repos hors Safety, ne bloque jamais : dans M1, la décision « REST » n'existe que dans la couche Safety.
+
+**Choix d'implémentation.**
+- **Fonction d'aide `completed_session_health_block`.** SECURITY DEFINER, exécutable par `service_role` seulement. `persist_completed_session` reste SECURITY INVOKER, appelée par `service_role`, et `execution_health_block` n'est exécutable par aucun rôle d'API ; le corps et les droits de `execution_health_block` sont inchangés.
+- **Codes.** SQLSTATE NX102, NX103 et NX104, traduits en 409 par l'Edge ; messages web dédiés.
+- **Second contrat critique.** Aucun n'a été modifié : `record_session_execution` est inchangée, et la règle F-6B garde la même sémantique.
+
+**Choix produit à confirmer.**
+- La règle P0-3 ne tient pas compte de la date pour les signaux ouverts. Un débrief « Terminée » d'un jour **antérieur** au signal est donc refusé tant que le signal reste ouvert ; il redevient possible après la clôture. « Non réalisée » reste possible.
+- Variante possible : ne considérer que les signaux datés au plus tard du jour débriefé. Cela impose une règle propre au débrief.
+
+**Rollback.**
+- La migration et le `completed-session` du candidat sont **conservés** dans un rollback vers C, comme le SQL P0-3 et `session-execution`. Le rollback ne doit jamais réactiver le contournement.
+- Avec le `completed-session` de C, les refus tiennent mais remontent en 500 (prouvé).
+
+**Hors périmètre (ticket proposé).** Le contrat de date du débrief (format seulement, jours futurs acceptés hors suspension).
+
+**Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
+

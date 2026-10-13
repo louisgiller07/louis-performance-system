@@ -385,6 +385,20 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
   - Autres dates, parcours V1 : inchangés. Les lignes existantes ne sont jamais modifiées.
   - La RPC prend le même verrou consultatif par athlète que `record_session_execution` (`'record_session_execution:' || athlete_id`). Un Start V2, une fin V2 et un débrief legacy du même athlète sont donc sérialisés : une seule opération gagne, jamais deux états terminaux pour une même date.
   - L'Edge fait aussi une vérification avant la RPC, par une lecture RLS. Elle est seulement *best effort* : la garantie transactionnelle est celle de la RPC.
+- **Garde santé du débrief legacy (INT-01, HPM 2026-10-13, migration `20261013180000`)** : `persist_completed_session` refuse un débrief que l'état de santé du jour interdit. La décision vient des données serveur, jamais d'un indicateur client.
+  - **Fonction d'aide `completed_session_health_block(athlete, date, completion_status, family)`.** SECURITY DEFINER, exécutable par `service_role` seulement. Elle applique la règle P0-3 `execution_health_block`, inchangée : signal de suivi ouvert, signal de commotion ouvert pour une séance DH, ou dernière décision du jour en REST de la couche Safety. Elle ajoute l'historique santé du jour : une décision de cette date en REST de la couche Safety, en append-only, donc encore visible après la clôture du signal.
+  - **Famille DH.** Activité réalisée DH (`DH_TECHNICAL`, `DH_PERFORMANCE`, `DH_LIGHT`, `PUMPTRACK`, `RACE_ACTIVITY`) ou type de séance DH.
+  - **« Terminée », « Partielle », « Remplacée » refusées :**
+    - jour suspendu → `health_suspended` (SQLSTATE NX102) ;
+    - décision du jour plus à jour (check-in modifié, analyse à relancer) → `daily_decision_not_current` (NX103) ;
+    - tentative guidée **arrêtée** un jour ayant eu un REST Safety, signal clôturé ou non → `health_suspended` (NX102).
+  - **« Non réalisée »** est refusée seulement si elle contredit des résultats guidés déjà enregistrés ce jour-là (série ou activité) un jour suspendu ou ayant eu un REST Safety → `guided_results_exist` (NX104). Sinon elle reste permise.
+  - **Inchangé :** jours ordinaires (débrief après une tentative arrêtée hors santé compris, F-5), repos ordinaire, refus NX101, autres validations.
+  - **Contrat inchangé :** signature, SECURITY INVOKER, `search_path`, droits, verrou consultatif commun avec `record_session_execution` (sous lequel la garde s'exécute), upsert, contrôles d'athlète et de décision.
+  - **Edge `completed-session` :** NX102 / NX103 / NX104 → HTTP 409 avec ces codes ; tout autre échec reste un 500.
+  - **Ordre :** l'Edge est déployée avant la migration, sinon les refus remontent en 500 `persistence_failed`. Rollback : script `supabase/rollbacks/int01/`, jamais en rollback vers la version de compatibilité C, qui conserve la garde.
+  - **Limite connue** (comme P0-3) : `persist_daily_run_v2` ne prend pas le verrou consultatif. Un débrief validé juste avant le commit d'une décision santé est enregistré comme antérieur à la suspension.
+  - **Contrat de date (inchangé, ticket séparé proposé).** `session_date` n'est contrôlée que sur son format. Un débrief pour un jour futur est accepté hors suspension ; sous un signal ouvert, la garde le refuse (règle P0-3 indépendante de la date).
 - **F-4 — acceptation d'une version périmée** (`accept_training_plan_version`) : si l'athlète a une version courante acceptée, une version `draft` n'est acceptée que si `candidate.generated_at > current.generated_at` : **égal ou antérieur = périmé**. Le contrôle se fait sous le verrou d'acceptation existant : deux acceptations concurrentes sont sérialisées, et un candidat devenu périmé entre-temps est refusé.
   - Refus : `stale_plan_version` (HTTP 409), SQLSTATE dédié.
   - L'ordre canonique est `training_plan_versions.generated_at` (index `(athlete_id, generated_at desc)`, ordre de la liste des brouillons) : pas de second système d'ordre.

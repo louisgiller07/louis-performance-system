@@ -728,6 +728,25 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
   - Contre-épreuve : avec le `session-execution` de production, les refus santé remontent en 500 (« connexion » à l'écran).
 - **Non-régression obligatoire** : suites de C (planning, prescription, head-coach DB et Edge, web avec intégrations, longitudinal), `build:release:all`. Inventaire Edge attendu : seuls `daily-run` et `generate-training-plan` diffèrent de la production.
 
+### T60. INT-01 — garde santé du débrief legacy (HPM 2026-10-13, migration `20261013180000`)
+- **Intégration, Edge locale, JWT du rider** (`head-coach-engine/tests/supabase/int01DebriefHealthGuard.integration.test.ts`) :
+  1. séance guidée commencée, douleur 8/10 (A6), arrêt : « Terminée » refusée (`health_suspended`), aussi liée à la décision KEEP du matin ;
+  2. « Partielle » et « Remplacée » refusées ; rejeu refusé à l'identique ;
+  3. exécution intacte (`started > abandoned`, 2 résultats) ;
+  4. aucune ligne `completed_sessions`, donc aucune charge M1 ;
+  5. signal ouvert un jour précédent, avant le daily-run du jour : « Terminée » refusée, « Non réalisée » sans résultat guidé acceptée ;
+  6. signal clôturé après l'arrêt (et nouvelle décision ordinaire) : « Terminée », « Partielle » et « Remplacée » toujours refusées, « Non réalisée » refusée (`guided_results_exist`) ;
+  7. jours ordinaires inchangés : « Terminée » sans séance guidée ; « Terminée » ou « Non réalisée » après un arrêt hors santé ; séance ouverte toujours `completed_session_v2_exists` ;
+  8. jour de repos ordinaire (KEEP d'un REST planifié, sans règle Safety) : débrief accepté ;
+  9. couvert par les cas ci-dessus ;
+  10. isolation (décision d'un autre rider 422), aucun appel direct possible (RPC, fonction d'aide, insertion, anonyme) ; concurrence débrief « Terminée » / démarrage guidé : un seul gagnant, sous le verrou commun.
+- **Contre-preuve** : avec la fonction restaurée par le script de rollback, les scénarios 1, 5 et 6 échouent (« Terminée » acceptée, 200) ; avec la migration, 7/7.
+- **Edge** (`tests/edge/completedSession/apiErrors.test.ts`) : NX102 / NX103 / NX104 → 409 avec leur code ; tout autre SQLSTATE reste un 500.
+- **Web** (`completedSessionErrors.test.ts`) : un message clair et non relançable par code.
+- **Navigateur** (pile locale, web candidat) : séance arrêtée sous A6, puis signal clôturé et relance KEEP. « Raconter ma séance » → « Terminée » refusée avec message, « Non réalisée » refusée avec message ; historique « Séance guidée arrêtée », 2/6 passages avec résultats.
+- **Rollback C** (SQL de sécurité conservé, `session-execution` et `completed-session` du candidat conservés, autres Edge C) : 7/7. Contre-épreuve : avec le `completed-session` de C, les refus tiennent mais remontent en 500 `persistence_failed`.
+- **SQL** : empreintes avant / après (`persist_completed_session` : même signature, INVOKER, `search_path`, droits) ; script de rollback (corps identique à `20261005120500`, fonction d'aide supprimée) ; ré-application identique.
+
 ### T55. P0-SAFE — continuité santé dans la décision quotidienne
 - **Unitaires M1** (`head-coach-engine/tests/p0SafeHealthContinuity.test.ts`) : A6 (incident A, seuil 6 / contre-preuve 5, ordre A1-A4 inchangé) ; A7 (incident B, maladie, douleur persistante, plusieurs signaux, signal résolu ignoré, date absente jamais inventée, A7 avant A5, textes des autres règles inchangés, aucun jeton interne) ; fatigue sans signal jamais bloquée.
 - **Intégration base locale** (`p0SafeHealthContinuity.integration.test.ts`, chemin V2 réel) : incident A (DH manuelle 2/10 puis 8/10) ; incident B (J+1, J+2 ; fièvre puis J+1) ; douleur forte puis 2/10 le lendemain ; clôture explicite, persistée, auditée, puis reprise (Force et DH, nouvelle décision) ; clôture d'un signal d'autrui → introuvable ; commotion → validation médicale requise ; remplacement manuel par une DH → REST ; prescription antérieure au REST non démarrable ; douleur légère et fatigue jamais bloquantes.
