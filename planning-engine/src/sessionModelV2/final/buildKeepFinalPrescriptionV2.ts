@@ -55,6 +55,11 @@ export interface PlannedSessionLineageV2 {
   currentPlanVersionId: string | null;
   /** The generated session the lineage points to (training_plan_generated_sessions). */
   generatedSession: { id: string; kind: string; loadProfile: LoadProfile | null; durationMin: number | null } | null;
+  /**
+   * P0-3 — for a manual session only: the decision date lies inside the current plan version's horizon
+   * (a canonical plan covers it — the precondition of `manual_override_new_kind`). Absent = unknown = not covered.
+   */
+  currentPlanCoversDate?: boolean;
 }
 
 /** A training_plan_planned_prescriptions row as read (structure not yet trusted). */

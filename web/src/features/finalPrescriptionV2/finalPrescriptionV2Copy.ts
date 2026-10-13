@@ -11,6 +11,17 @@ export const BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   final_prescription_catalog_mismatch: PRESCRIPTION_UNAVAILABLE_MESSAGE,
 };
 export const BLOCKED_FALLBACK_MESSAGE = BLOCKED_MESSAGES.final_prescription_no_lineage!;
+
+/**
+ * P0-3 — a precise, honest refusal for the rider's MANUAL session (detail.reason of the blocked decision):
+ * never an empty session, never the raw reason.
+ */
+export const MANUAL_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
+  manual_kind_not_supported: "NALYNT ne construit pas encore le contenu de ce type de séance ajoutée à la main. Choisis un autre type dans ton programme, ou réalise-la selon ton expérience.",
+  manual_load_not_supported: "NALYNT ne propose pas encore de renfo en charge lourde. Choisis une charge modérée ou légère dans ton programme pour obtenir le détail de la séance.",
+  manual_session_outside_current_plan: "Cette séance ajoutée à la main est en dehors de ton programme actuel : NALYNT n'en construit pas le contenu.",
+  riding_not_available: "Ton profil n'a pas de créneau vélo ce jour-là : NALYNT ne construit pas de séance de vélo pour ce jour.",
+};
 export const REST_MESSAGE = "Repos aujourd'hui : aucune séance à réaliser.";
 export const MISSING_MESSAGE = "Le détail de ta séance est momentanément indisponible.";
 export const INVALID_MESSAGE = "Le détail de cette séance n'est pas disponible.";

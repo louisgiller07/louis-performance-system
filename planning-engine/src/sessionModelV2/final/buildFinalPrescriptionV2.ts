@@ -34,6 +34,16 @@
  * MOBILITY — never produced by M1 against a V2 planned session) keeps
  * `final_prescription_adaptation_not_defined`.
  *
+ * P0-3 (HPM 2026-10-13) — a MANUAL session (planned_sessions.source = 'manual', the rider's own choice in
+ * /plan) has no planned prescription. For any non-REST decision it gets a session of M1's final kind built by
+ * the same V2 builders as REPLACE, from the current plan version's snapshot (tier, equipment, DH tier,
+ * priorities, terrain, riding availability): never another kind, never an invented dose. Contract (HPM P1,
+ * persist_daily_run_v2 20261013120000): origin `manual_override_new_kind`, action = M1's decision (keep with no
+ * adaptation rule / modify / replace), no planned prescription, the current plan version — only when that
+ * version covers the date. A kind or load the builders cannot honour (POWER, GRIP_WORK,
+ * PUMPTRACK, STRENGTH_FULL_LIGHT, AEROBIC_INTERVALS, MOBILITY, DH_PERFORMANCE…, a HEAVY Force) is an
+ * explicit refusal, never an empty session. A10 applies as for any REPLACE.
+ *
  * A10 — `timeLimitMin` (the rider's time today, chosen by
  * buildFinalPrescriptionWithinTodayTimeV2) allows the validated time
  * adaptations only, never an invented dose:
@@ -105,6 +115,8 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   replaceRecovery: "v2.replace.recovery_active",
   /** A10 — the content was adapted to the rider's time today. */
   todayTimeLimit: "v2.time.today_limit",
+  /** P0-3 — the content was built for the rider's manual session (no planned prescription). */
+  manualSession: "v2.manual.session",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
@@ -294,9 +306,9 @@ function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downw
   }
 }
 
-/** REPLACE content: a session of the target kind, really prescribed. */
+/** REPLACE content: a session of the target kind, really prescribed (planned: null for a P0-3 manual session). */
 function replacementContent(
-  planned: PrescriptionV2,
+  planned: PrescriptionV2 | null,
   final: { kind: string; loadProfile?: LoadProfile; durationMin?: number },
   context: DailyAdaptationContextV2,
   timeLimitMin: number | undefined
@@ -317,7 +329,7 @@ function replacementContent(
     const passes = load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses : PLAN_ROLE_DOSES_V2.build.dhFocusedPasses;
     // The planned drill keeps the session's technical skill; otherwise the first declared priority.
     const source =
-      planned.family === "dh_technical"
+      planned !== null && planned.family === "dh_technical"
         ? { ...contentOf(planned), catalog }
         : context.ridingAvailable
           ? buildDhPrescriptionV2Content({
@@ -372,8 +384,57 @@ function identified(content: PrescriptionV2Content, mintId: () => string, derive
   return { ...structure, blocks };
 }
 
+/** P0-3 — the final prescription of a manual session (see the header). */
+function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  const { decision, lineage, adaptation } = input;
+  const final = decision.finalSession;
+  if (lineage!.currentPlanVersionId === null || lineage!.currentPlanCoversDate !== true) {
+    return blocked("final_prescription_no_lineage", { reason: "manual_session_outside_current_plan" });
+  }
+  if (adaptation === null) return blocked("final_prescription_adaptation_not_defined", { reason: "no_adaptation_context" });
+  // The validated V2 Force doses are LIGHT and MODERATE only: a HEAVY manual Force is refused, never silently lightened.
+  if ((STRENGTH_KINDS as readonly string[]).includes(final.kind) && final.loadProfile === "HEAVY") {
+    return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: "HEAVY" });
+  }
+
+  let built: Built;
+  try {
+    built = replacementContent(null, final, adaptation, input.timeLimitMin);
+  } catch (error) {
+    if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
+    throw error;
+  }
+  if ("blocked" in built) {
+    const reason = built.blocked.reason === "replace_target_not_supported" ? "manual_kind_not_supported" : built.blocked.reason;
+    return blocked("final_prescription_adaptation_not_defined", { ...built.blocked, reason, target: final.kind });
+  }
+
+  const action = decision.decision === "KEEP" ? "keep" : decision.decision === "MODIFY" ? "modify" : "replace";
+  const structure = identified(built.content, adaptation.mintId, null);
+  const validation = validatePrescriptionV2(structure, { stage: "final" });
+  if (!validation.ok) {
+    throw new SessionModelV2ContractError(`manual final prescription is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
+  }
+  const finalPrescription: FinalPrescriptionV2 = {
+    id: input.finalPrescriptionId,
+    decisionId: decision.decisionId,
+    planVersionId: lineage!.currentPlanVersionId,
+    activeSessionOrigin: "manual_override_new_kind",
+    // P0-3 (HPM option P1) — the action mirrors M1's decision (persist_daily_run_v2); a KEEP carries no adaptation rule.
+    reconciliationAction: action,
+    adaptationRuleIds: action === "keep" ? [] : [DAILY_ADAPTATION_RULES_V2.manualSession, built.rule, ...(input.timeLimitMin !== undefined ? [DAILY_ADAPTATION_RULES_V2.todayTimeLimit] : [])],
+    schemaVersion: "v2",
+    catalogVersion: structure.catalog.aggregate,
+    structure,
+  };
+  const effectiveDurationMin = built.durationMin ?? final.durationMin;
+  return { status: "created", finalPrescription, ...(effectiveDurationMin !== undefined ? { effectiveDurationMin } : {}) };
+}
+
 export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
   const { decision, lineage, plannedPrescription, adaptation } = input;
+  // P0-3 — a manual session: built from the rider's V2 context for M1's final kind (REST stays REST below).
+  if (decision.decision !== "REST" && lineage !== null && lineage.plannedSessionSource === "manual") return buildManualFinalPrescriptionV2(input);
   if (decision.decision === "REST" || decision.decision === "KEEP") return buildKeepFinalPrescriptionV2(input);
 
   const failure = lineageFailure(lineage, plannedPrescription);

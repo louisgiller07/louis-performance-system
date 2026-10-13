@@ -9,13 +9,13 @@ import { SecondaryButton } from "../../components/SecondaryButton";
 // duplicated, for the one legacy case a Planning row can be in: a pre-M2_003
 // row with intervention=NULL, where only the coarse session_type is known.
 import { SESSION_TYPE_LABELS } from "../completedSession/completedSessionTypes";
-import { deletePlannedSession, InvalidPlannedInterventionError, PlanningDeleteError, PlanningSaveError, savePlannedSession } from "./planningRepo";
+import { deletePlannedSession, InvalidPlannedInterventionError, PlanningDayLockedError, PlanningDeleteError, PlanningSaveError, savePlannedSession } from "./planningRepo";
 import { PLANNING_KIND_GROUPS } from "./planningKindGroups";
 import { isPlannableFixedLoadKind, isPlannableLoadVariableKind, PLANNABLE_KINDS } from "./planningTypes";
 import type { LoadProfile, PlannedSessionRow, TrainingInterventionKind } from "./planningTypes";
 import type { RaceOverlayEvent, RacePriority } from "./raceOverlayRepo";
 import { getPlannedDurationHelper, isDhFamilyPlannableKind, PLANNED_DURATION_PRESETS_MIN } from "./plannedDurationPolicy";
-import { DAY, dayBadge, dayState, EDITOR, formatDuration, kindLabel, loadLabel } from "./weekPresentation";
+import { DAY, dayBadge, dayState, EDITOR, formatDuration, kindLabel, loadLabel, manualSessionHint } from "./weekPresentation";
 import type { PlanDaySession } from "./weekPresentation";
 
 // NAL-007 — compact, only for the two priorities worth flagging at a glance
@@ -30,7 +30,7 @@ const RACE_PRIORITY_BADGE: Partial<Record<RacePriority, string>> = {
 // a genuine network failure, which planningRepo.ts does not itself catch)
 // falls back to a generic message instead of showing error.message verbatim.
 function safeErrorMessage(error: unknown): string {
-  if (error instanceof PlanningSaveError || error instanceof PlanningDeleteError || error instanceof InvalidPlannedInterventionError) {
+  if (error instanceof PlanningSaveError || error instanceof PlanningDeleteError || error instanceof InvalidPlannedInterventionError || error instanceof PlanningDayLockedError) {
     return error.message;
   }
   return EDITOR.genericError;
@@ -71,6 +71,8 @@ interface PlanningDayCardProps {
    * the two differently, and never writes anything derived from this prop.
    */
   races: RaceOverlayEvent[];
+  /** P0-3 — the active plan's prescription model (v1 / v2), null when unknown: decides the honest manual-session note. */
+  planModel?: "v1" | "v2" | null;
   isToday: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -95,6 +97,7 @@ export function PlanningDayCard({
   planKnown = true,
   notice = null,
   races,
+  planModel = null,
   isToday,
   isExpanded,
   onToggleExpand,
@@ -380,6 +383,11 @@ export function PlanningDayCard({
             </p>
           )}
 
+          {manualSessionHint(planModel, draftKind, isVariableKind ? draftLoad : null) && (
+            <p className="text-xs text-muted" data-testid="manual-session-hint">
+              {manualSessionHint(planModel, draftKind, isVariableKind ? draftLoad : null)}
+            </p>
+          )}
           <PrimaryButton onClick={handleSave} disabled={!canSave || saveState === "saving"} className="w-full">
             {saveState === "saving" ? EDITOR.saving : EDITOR.save}
           </PrimaryButton>

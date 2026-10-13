@@ -425,6 +425,8 @@ export function CheckinForm({ athleteId, date, onCheckinAvailabilityChange, onSa
             placeholder="Optionnel"
             className="rounded border border-white/10 bg-transparent px-3 py-3 text-base text-ink placeholder:text-muted"
           />
+          {/* P0-3 — never let a free comment pass for a constraint the day's decision takes into account. */}
+          <p className="text-xs text-muted">Ton commentaire est enregistré pour ton suivi ; il ne modifie pas la séance du jour.</p>
         </fieldset>
       </>
     ),

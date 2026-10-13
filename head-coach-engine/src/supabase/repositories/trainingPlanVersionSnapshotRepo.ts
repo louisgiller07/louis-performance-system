@@ -10,13 +10,16 @@ import { assertNoSupabaseError } from "./supabaseError.js";
 export interface PlanVersionSnapshotRow {
   input_snapshot: unknown;
   input_snapshot_schema_version: string;
+  /** P0-3 — the version's horizon (dates it covers), to tell whether a canonical plan covers a manual session's date. */
+  horizon_start_date?: string | null;
+  horizon_end_date?: string | null;
 }
 
 /** The snapshot of exactly `planVersionId`, or null when no such version exists. */
 export async function getPlanInputSnapshotOfVersion(client: SupabaseClient, planVersionId: string): Promise<PlanVersionSnapshotRow | null> {
   const { data, error } = await client
     .from("training_plan_versions")
-    .select("input_snapshot, input_snapshot_schema_version")
+    .select("input_snapshot, input_snapshot_schema_version, horizon_start_date, horizon_end_date")
     .eq("id", planVersionId)
     .maybeSingle();
   assertNoSupabaseError(error, "training_plan_versions");

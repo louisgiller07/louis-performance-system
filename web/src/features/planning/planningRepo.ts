@@ -36,6 +36,36 @@ export class PlanningDeleteError extends Error {
   }
 }
 
+/**
+ * P0-3 (HPM 2026-10-13) — the day already has a started (not ended) or a completed session: its planned
+ * session is never replaced or removed silently. Same rules as record_session_execution (UX-11R.9): a V2
+ * execution started and neither completed nor abandoned, a completed V2 execution, or a legacy completed
+ * session that is not `skipped`. An abandoned execution (restart allowed) does not lock the day.
+ */
+export class PlanningDayLockedError extends Error {
+  constructor() {
+    super("Une séance a déjà été commencée ou terminée ce jour-là : elle ne peut plus être remplacée.");
+    this.name = "PlanningDayLockedError";
+  }
+}
+
+async function assertDayNotLocked(athleteId: string, date: string): Promise<void> {
+  const [executions, completed] = await Promise.all([
+    supabase.from("session_executions").select("id, execution_events(event_type)").eq("athlete_id", athleteId).eq("session_date", date),
+    supabase.from("completed_sessions").select("id").eq("athlete_id", athleteId).eq("session_date", date).neq("completion_status", "skipped").limit(1),
+  ]);
+  if (executions.error || completed.error) {
+    console.error("planningRepo.assertDayNotLocked failed", executions.error?.code ?? completed.error?.code);
+    throw new PlanningSaveError();
+  }
+  const rows = (executions.data ?? []) as { execution_events: { event_type: string }[] | null }[];
+  const lockedByExecution = rows.some((e) => {
+    const events = (e.execution_events ?? []).map((ev) => ev.event_type);
+    return events.includes("completed") || !events.includes("abandoned");
+  });
+  if (lockedByExecution || (completed.data ?? []).length > 0) throw new PlanningDayLockedError();
+}
+
 /** Thrown when the (kind, load_profile) pair fails validatePlannedIntervention — a code-level guard, not a form display path. Never reaches the network. */
 export class InvalidPlannedInterventionError extends Error {
   constructor(reason: string) {
@@ -108,6 +138,7 @@ export async function savePlannedSession(
   }
   const intervention: TrainingIntervention = validated.intervention;
   const session_type = mapTrainingInterventionToSessionType(intervention);
+  await assertDayNotLocked(athleteId, date);
 
   const { data, error } = await supabase
     .from("planned_sessions")
@@ -120,6 +151,10 @@ export async function savePlannedSession(
         planned_intent: null,
         source: "manual",
         is_committed: isCommitted,
+        // P0-3 (F3) — a manual session no longer derives from a generated one: the projection lineage it may have
+        // replaced is cleared (PILOT_022 already ignored it). Decisions, prescriptions and executions keep their own ids.
+        source_plan_version_id: null,
+        source_generated_session_id: null,
       },
       { onConflict: "athlete_id,planned_date" }
     )
@@ -136,6 +171,7 @@ export async function savePlannedSession(
 
 /** Deletes the planned session for the caller's own athlete on the given date, if any. */
 export async function deletePlannedSession(athleteId: string, date: string): Promise<void> {
+  await assertDayNotLocked(athleteId, date);
   const { error } = await supabase
     .from("planned_sessions")
     .delete()

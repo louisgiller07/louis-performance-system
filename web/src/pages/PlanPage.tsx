@@ -11,7 +11,7 @@ import { loadPlannedSessions } from "../features/planning/planningRepo";
 import { loadRacesInRange, groupRacesByDate } from "../features/planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../features/planning/planningTypes";
 import type { RaceOverlayEvent } from "../features/planning/raceOverlayRepo";
-import { getActivePlanVersionId, getTrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewRepo";
+import { getActivePlanVersionId, getPlanPrescriptionSchemaVersion, getTrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import { PAGE, planSessionsByDate } from "../features/planning/weekPresentation";
 import type { PlanDaySession } from "../features/planning/weekPresentation";
 
@@ -63,6 +63,8 @@ export function PlanPage() {
 
   const [planLoadState, setPlanLoadState] = useState<PlanLoadState>("loading");
   const [planByDate, setPlanByDate] = useState<Record<string, PlanDaySession>>({});
+  // P0-3 — the active plan's prescription model: what a manual session will really get (null = unknown, no claim).
+  const [planModel, setPlanModel] = useState<"v1" | "v2" | null>(null);
   const [notices, setNotices] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -116,6 +118,11 @@ export function PlanPage() {
         const review = await getTrainingPlanReview(planVersionId);
         const sessions = review.blocks.flatMap((block) => block.weeks.flatMap((week) => week.sessions));
         setPlanByDate(planSessionsByDate(sessions, dates));
+        // Best-effort and asynchronous: never able to break the plan display above.
+        Promise.resolve()
+          .then(() => getPlanPrescriptionSchemaVersion(planVersionId))
+          .then((schema) => setPlanModel(schema === "v2" ? "v2" : schema === "v1" ? "v1" : null))
+          .catch(() => setPlanModel(null));
       }
       setPlanLoadState("loaded");
     } catch {
@@ -195,6 +202,7 @@ export function PlanPage() {
               planKnown={planLoadState === "loaded"}
               notice={notices[date] ?? null}
               races={racesByDate[date] ?? []}
+              planModel={planModel}
               isToday={index === 0}
               isExpanded={expandedDate === date}
               onToggleExpand={() => handleToggleExpand(date)}
