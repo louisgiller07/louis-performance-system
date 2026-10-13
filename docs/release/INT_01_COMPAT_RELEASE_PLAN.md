@@ -45,9 +45,11 @@ Avant toute décision, mesurer les données concernées par requête :
 | Composant | Version pendant un rollback vers C | Raison |
 |---|---|---|
 | SQL P0-3 (`20261013120000`, `20261013140000`, `20261013160000`) | **conservé** | La garde santé (160000) empêche toute reprise, série, activité ou terminaison sous suspension ; le verrou du jour (140000) protège les séances exécutées. Les deux sont compatibles avec les Edge C (prouvé). 120000 n'est jamais appelé par C, il reste sans effet. |
+| SQL garde du débrief legacy (`20261013180000`, candidat, ADR INT-01 B) | **conservé** | Sous suspension, et après l'arrêt d'une tentative un jour de REST Safety, le débrief V1 ne peut pas enregistrer « Terminée », « Partielle » ou « Remplacée ». Le retirer réactiverait le contournement. Compatible avec les Edge C (T60, 7/7). |
 | Edge `daily-run`, `generate-training-plan` | C | ne génèrent plus le nouveau contenu, lisent l'existant |
 | Edge `session-execution` | **candidat, conservé** (graphe P0-3) | traduit `health_suspended` et `daily_decision_not_current` en 409. La version de production les remonte en 500 (« Ton action n'a pas été confirmée (connexion) »). Ne la remettre qu'après un rollback de 160000. |
-| Web | **candidat conservé de préférence**, sinon C | Avec les Edge C et le SQL conservé, le web candidat garde l'UX santé P0-3 / R1 (prouvé). Le web C est sûr côté serveur mais dégradé (§6). |
+| Edge `completed-session` | **candidat, conservé** | traduit NX102, NX103 et NX104 en 409 (`health_suspended`, `daily_decision_not_current`, `guided_results_exist`). La version de production les remonte en 500 `persistence_failed`, ce qui est prouvé. Ne la remettre qu'après un rollback de `20261013180000`. |
+| Web | **candidat conservé de préférence**, sinon C | Avec les Edge C et le SQL conservé, le web candidat garde l'UX santé P0-3 / R1 et des messages clairs pour les refus du débrief (prouvé). Le web C est sûr côté serveur mais dégradé (§6). |
 
 Rejouer les rollbacks SQL P0-3 (en ordre inverse, comme nouvelles migrations) n'est à envisager que si le SQL lui-même est la cause. Dans ce cas, on renonce à la garde santé et au verrou serveur, et on remet `session-execution` après 160000.
 
@@ -83,7 +85,7 @@ Elles sont sûres côté serveur tant que le SQL P0-3 est conservé.
   - une tentative arrêtée n'est plus visible sur l'écran guidé quand la décision courante n'a pas de prescription ;
   - historique : le détail des séances guidées (P0-4) disparaît de l'affichage ; les données restent.
 - **Génération** : P0 première génération et P0-2 ne s'appliquent plus aux nouvelles générations (règles de la production) ; les plans déjà générés sont lus et adaptés.
-- **Débrief V1** : le chemin serveur n'a pas de garde santé (constat INT-01 B, préexistant, identique dans toutes les versions).
+- **Débrief V1** : la garde serveur reste active, car le SQL est conservé. Avec le web C, ses refus s'affichent par le message générique « Une erreur inattendue s'est produite. Réessaie. ». Le web candidat affiche un message dédié.
 
 ## 7. Intégration depuis la production en service (ne pas écraser P1-TXT-01)
 C est une suite de commits sur `92937a9`, pas un état figé. Au moment du déploiement :
