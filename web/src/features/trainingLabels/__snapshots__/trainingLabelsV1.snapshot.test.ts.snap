@@ -33,7 +33,7 @@ exports[`V1 training label translations — frozen > keeps the V1 DH instruction
     "successCriterion": "Tu passes à moins d'une longueur de vélo du point de corde marqué, sur 4 runs sur 5.",
   },
   "cornering_off_camber": {
-    "executionCue": "Engage ton poids côté aval du vélo et continue de pédaler dans la section en dévers — ne lâche rien en plein virage.",
+    "executionCue": "Engage ton poids côté aval du vélo et continue dans la section en dévers — ne lâche rien en plein virage.",
     "sourceExecutionCue": "Commit your weight into the low side of the bike and keep pedaling through the off-camber section — don't back off mid-turn.",
     "sourceSuccessCriterion": "Completes the off-camber section on line, without a foot-down, on 3/5 runs.",
     "successCriterion": "Tu passes la section en dévers sur ta ligne, sans pied posé, sur 3 runs sur 5.",

@@ -57,11 +57,14 @@ export const DRILL_INSTRUCTION_LABELS: Readonly<Record<string, DrillInstructionT
     sourceSuccessCriterion: "Exits the berm faster than entry speed on 3/5 runs, no drift correction.",
     successCriterion: "Tu sors du virage relevé plus vite que tu n'y es entré, sans devoir rattraper une glisse, sur 3 runs sur 5.",
   },
-  // TODO(REV-015.4a): coach DH validation recommended — "low side of the bike" is ambiguous, and pedaling through an off-camber risks a pedal strike.
+  // P1-TXT-01 (HPM 2026-10-13): the French label no longer tells the rider to pedal through the off-camber
+  // (pedal-strike risk); "de pédaler" removed, nothing added. The stored English source (V1 catalogue, frozen)
+  // is unchanged, so every stored V1 prescription still matches and gets this label.
+  // TODO(REV-015.4a): coach DH validation recommended — "low side of the bike" (« côté aval ») stays ambiguous; PROVISIONAL.
   cornering_off_camber: {
     sourceExecutionCue:
       "Commit your weight into the low side of the bike and keep pedaling through the off-camber section — don't back off mid-turn.",
-    executionCue: "Engage ton poids côté aval du vélo et continue de pédaler dans la section en dévers — ne lâche rien en plein virage.",
+    executionCue: "Engage ton poids côté aval du vélo et continue dans la section en dévers — ne lâche rien en plein virage.",
     sourceSuccessCriterion: "Completes the off-camber section on line, without a foot-down, on 3/5 runs.",
     successCriterion: "Tu passes la section en dévers sur ta ligne, sans pied posé, sur 3 runs sur 5.",
   },
