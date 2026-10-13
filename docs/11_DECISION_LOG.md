@@ -5963,3 +5963,32 @@ Le code de production ne connaît pas ce contenu, ce qui crée deux dangers de r
 6. Tout futur ajout de contenu sous une étiquette existante devra passer par une version de compatibilité déployée d'abord. Règle à valider par l'HPM ; à défaut, monter l'agrégat avec un lecteur multi-version.
 
 **Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-compat`).
+
+## 2026-10-13 — ADR INT-01 R1 : ni reprise ni saisie d'effort depuis Aujourd'hui sous suspension santé (complément P0-3)
+
+**Constat (INT-01).** Sous une suspension santé, Aujourd'hui affichait la carte P0-3 « Séance suspendue ». Juste en dessous, le bloc « Après ta séance » (UX-11R.9 F-5b, que P0-3 n'avait pas adapté) invitait à « Reprendre la séance guidée ». Le serveur et l'écran guidé bloquaient bien, mais l'écran contredisait la règle HPM P0-3.
+
+**Décision HPM (2026-10-13, GO R1).** Sous suspension :
+- aucune invitation à reprendre ;
+- « Séance suspendue » et « Consulter la séance » ;
+- aucun accès indirect à un formulaire de saisie d'effort ;
+- la consultation des résultats et l'arrêt sécurisé restent possibles.
+
+**Règle (web seulement).**
+- **Une seule suspension pour tout Aujourd'hui.** C'est la règle de la carte P0-3 (`healthBlockOf`, miroir d'`execution_health_block`) : signal de suivi ouvert, ou décision affichée en REST de la couche Safety. `DailyPlanPanel` transmet la décision affichée, qu'elle soit restaurée ou calculée.
+- **Bloc « Après ta séance » sous suspension.**
+  - Séance guidée du jour ouverte ou arrêtée : « Séance suspendue » et « Consulter la séance ».
+  - Séance guidée terminée avant le signal : carte en lecture.
+  - Débrief déjà enregistré : lisible, sans « Modifier ».
+  - Rien d'enregistré : aucune invitation, donc plus de « Raconter ma séance ».
+  - `loadGuidedDayState` distingue le jour dont toutes les tentatives sont arrêtées (`stopped`). Hors suspension, ce jour se lit comme « aucune séance », comme avant.
+- **Écran guidé.** Sous suspension, la confirmation d'arrêt se referme par « Retour », jamais par « Continuer la séance ».
+
+**Conséquence produit.** Sous suspension, Aujourd'hui ne propose plus le débrief historique (`completed-session`). Ce point d'API n'a pas de garde serveur santé (inchangé, hors périmètre). Le serveur reste l'autorité pour la séance guidée (`record_session_execution`).
+
+**Tests.** `AfterSessionEntry`, `TodayPage`, `DailyPlanPanel`, `historyRepo`, P0-3 guided suspension (UI), plus le navigateur sur la stack locale :
+- transition dans la page, rechargement, navigation directe ;
+- pause puis arrêt ;
+- refus 409 côté serveur pour une série, la reprise et la terminaison.
+
+**Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
