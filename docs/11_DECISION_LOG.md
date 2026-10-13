@@ -6118,3 +6118,26 @@ Une séance guidée terminée était déjà protégée (NX101).
 
 **Statut** : PASS LOCAL. Intégration du correctif dans REL-01, C et la production sur décision HPM.
 
+## 2026-10-13 — ADR P0-SEC-TRUNCATE : les rôles d'API du navigateur ne détiennent jamais TRUNCATE
+
+**Constat (audit REL-01, confirmé sur une stack au schéma de production).**
+- `anon` et `authenticated` détiennent TRUNCATE sur les 9 tables de la baseline V0.2 : `athlete_baselines`, `athlete_state`, `athletes`, `daily_checkins`, `goals`, `planned_sessions`, `race_calendar`, `training_blocks`, `weekly_availability`. Ce sont des entrées d'ACL directes, accordées par `postgres`.
+- Les privilèges par défaut de `postgres` dans `public` donnent ALL, TRUNCATE compris, à ces rôles sur toute nouvelle table. Les migrations récentes révoquent table par table.
+- TRUNCATE contourne RLS et les triggers de ligne. Au niveau de la base, quatre tables étaient réellement vidables par ces rôles ; les cinq autres n'étaient protégées que par les clés étrangères qui les référencent.
+- Aucun chemin d'exploitation démontré : PostgREST et GraphQL n'exposent pas TRUNCATE, les rôles sont `NOLOGIN`, et aucune fonction `public` n'exécute TRUNCATE.
+
+**Décision (HPM GO local).** Migration `20261014090000_p0_sec_truncate_api_roles` :
+- `revoke truncate` sur les 9 tables pour `anon` et `authenticated` ;
+- `alter default privileges for role postgres in schema public revoke truncate on tables from anon, authenticated` ;
+- vérification finale *fail closed* : la migration échoue si une table `public` accorde encore TRUNCATE à ces rôles, ou si les privilèges par défaut le font encore.
+
+**Hors périmètre, volontairement.**
+- `service_role` garde TRUNCATE : il détient déjà DELETE et UPDATE sur ces tables, contourne RLS, et aucune n'a de trigger DELETE ou TRUNCATE.
+- TRIGGER et REFERENCES sont signalés, pas modifiés.
+- Les privilèges par défaut de `supabase_admin` ne sont pas modifiables par `postgres` ; aucune table `public` ne lui appartient.
+- Aucune table, ligne, fonction, politique ni trigger modifié.
+
+**Rollback.** `supabase/rollbacks/p0_sec/20261014090000_rollback_p0_sec_truncate_api_roles.sql`, rejoué comme nouvelle migration : il restaure exactement l'ACL précédente (empreinte identique).
+
+**Statut** : READY LOCAL / NOT DEPLOYED. Intégration à REL-01 sur décision HPM.
+
