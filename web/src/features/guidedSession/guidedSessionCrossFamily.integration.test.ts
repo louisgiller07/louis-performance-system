@@ -145,7 +145,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11C.5 — guided sessions cross-family
     let snapshot = await loader.loadGuidedSession(athleteId, day);
     expect(snapshot).toMatchObject({ kind: "execution", phase: "active", execution: { id: executionId } });
 
-    // Loader cost for an open execution: 2 REST requests, whatever the number of results.
+    // Loader cost for an open execution: a constant number of REST requests, whatever the number of results —
+    // the execution with its results, its own prescription, and (P0-3) the health block reads: open signals, the
+    // day's latest decision and its currency.
     const realFetch = globalThis.fetch;
     const restCalls: string[] = [];
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
@@ -158,7 +160,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11C.5 — guided sessions cross-family
     } finally {
       globalThis.fetch = realFetch;
     }
-    expect(restCalls).toEqual(["/rest/v1/session_executions", "/rest/v1/decision_final_prescriptions"]);
+    expect(restCalls.slice(0, 2)).toEqual(["/rest/v1/session_executions", "/rest/v1/decision_final_prescriptions"]);
+    expect([...restCalls.slice(2)].sort()).toEqual(["/rest/v1/daily_decision_currency", "/rest/v1/decisions", "/rest/v1/health_flags"]);
 
     // Valid last result + completed → both committed in one batch.
     const last = family === "endurance" ? r.valid(0) : r.valid(Math.min(r.count, 3));

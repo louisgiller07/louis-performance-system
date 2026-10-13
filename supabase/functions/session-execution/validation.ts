@@ -354,6 +354,9 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   session_already_completed: 409,
   // F-6C — a Force session is completed only with an active performed work set (migration 20261006120000).
   strength_set_required: 422,
+  // P0-3 — no training action under a health suspension, nor on a day whose decision is stale (migration 20261013160000).
+  health_suspended: 409,
+  daily_decision_not_current: 409,
 };
 
 /**

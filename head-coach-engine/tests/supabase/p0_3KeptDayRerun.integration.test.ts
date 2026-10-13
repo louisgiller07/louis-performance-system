@@ -168,9 +168,9 @@ describe.skipIf(!EDGE)("P0-3 — kept day re-run through the local Edge runtime 
     const states = [out.afterRerun, out.afterSecondRerun].filter(Boolean) as ReturnType<typeof dayState>[];
     for (const st of states) expect(st.executions).toBe(1);
     if (!completeBeforeAcceptance) expect([out.completeAfterRerun, (out.afterSecondRerun as ReturnType<typeof dayState>).lastEvent]).toEqual([200, "completed"]);
-    // OBSERVED (reported to the HPM, not fixed here): the re-run's decision becomes the day's current one, KEEP blocked
-    // final_prescription_no_lineage (the kept row's lineage points to the superseded plan) — Today then shows the
-    // blocked copy and no guided-session entry (DailyPlanPanel renders it only for a `created` prescription).
+    // The re-run's decision becomes the day's current one, KEEP blocked final_prescription_no_lineage (the kept row's
+    // lineage points to the superseded plan). It is not a health rule: the session goes on (execution_health_block),
+    // and Today keeps it reachable from the recorded execution (web daySessionEntry, P0-3 visibility fix).
     for (const st of states) expect([st.latestDecision.decision, st.latestDecision.status, st.latestDecision.current, st.latestDecision.hasFinalPrescription]).toEqual(["KEEP", "blocked", true, false]);
     return out;
   }

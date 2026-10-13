@@ -45,3 +45,12 @@ export const COACHING_SUSPENDED_STATUS = "NALYNT suspend ses propositions d'entr
 export function isCoachingSuspended(dailyPlan: Pick<DailyPlan, "decision"> & Partial<Pick<DailyPlan, "triggered_rules">>): boolean {
   return dailyPlan.decision === "REST" && (dailyPlan.triggered_rules ?? []).some((rule) => rule.layer === "A" && (rule.rule_id === "A6" || rule.rule_id === "A7"));
 }
+
+/**
+ * P0-3 (HPM 2026-10-13) — a REST ruled by ANY Safety-layer rule (A1–A4, A6, A7): no training action may go on in
+ * a guided session (same rule as the server's execution_health_block). Wider than isCoachingSuspended, which
+ * only chooses the "Coaching suspendu" wording; an ordinary REST (race protocol, planned rest day) is not one.
+ */
+export function isHealthSuspension(dailyPlan: Pick<DailyPlan, "decision"> & Partial<Pick<DailyPlan, "triggered_rules">>): boolean {
+  return dailyPlan.decision === "REST" && (dailyPlan.triggered_rules ?? []).some((rule) => rule.layer === "A");
+}

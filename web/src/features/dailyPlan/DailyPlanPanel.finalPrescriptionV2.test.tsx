@@ -198,3 +198,33 @@ describe("Today — guided session entry", () => {
     expect(entry()).toBeNull();
   });
 });
+
+// P0-3 (HPM 2026-10-13) — an entry FUNCTION is always called with the decision on screen (also blocked, REST or
+// stale), so Today can keep an open or completed session reachable whatever the current decision became.
+describe("Today — P0-3 guided session entry as a function of the decision", () => {
+  const seen: unknown[] = [];
+  const entryFn = (ctx: { dailyPlan: { decision: string } | null; finalPrescriptionCreated: boolean }) => {
+    seen.push(ctx);
+    return <span data-testid="entry-fn">{`${ctx.dailyPlan?.decision ?? "none"}:${String(ctx.finalPrescriptionCreated)}`}</span>;
+  };
+  const renderWithFn = () => render(<DailyPlanPanel athleteId="a" date="2026-10-07" hasCheckin checkinRevision={0} guidedSessionEntry={entryFn} />);
+
+  it.each([
+    ["created", restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }), [force.row], "KEEP:true"],
+    ["blocked (kept day re-run)", restoredRow("d2", "KEEP", { finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_no_lineage", finalPrescriptionStatusDetail: { reason: "not_current_plan_version" }, isLatestOfDay: true }), [], "KEEP:false"],
+    ["REST", restoredRow("d-rest", "REST", { finalPrescriptionStatus: "not_required", isLatestOfDay: true }), [], "REST:false"],
+  ])("%s → called with the decision and whether its prescription is created", async (_label, row, rows, text) => {
+    loadLatestDecisionForDate.mockResolvedValue(row);
+    eq.mockResolvedValue({ data: rows, error: null });
+    renderWithFn();
+    expect(await screen.findByTestId("entry-fn")).toHaveTextContent(text);
+  });
+
+  it("stale decision (not restored) → still called, with no decision", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(restoredRow(D1, "KEEP", { finalPrescriptionStatus: "created", isLatestOfDay: true }));
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "checkin_changed" });
+    renderWithFn();
+    expect(await screen.findByTestId("entry-fn")).toHaveTextContent("none:false");
+  });
+});
+

@@ -3,17 +3,19 @@ import { phaseOf, selectDayExecution, type ExecutionRow } from "./executionState
 import { keepFinalPrescription } from "../../test/fixtures/finalPrescriptionV2Fixtures";
 import { decodeFinalPrescriptionV2 } from "../finalPrescriptionV2/decodeFinalPrescriptionV2";
 
-const { loadLatestDecisionForDate, loadDecisionCurrency, loadFinalPrescriptionV2State, loadDayExecutions, loadExecutionPrescription } = vi.hoisted(() => ({
+const { loadLatestDecisionForDate, loadDecisionCurrency, loadFinalPrescriptionV2State, loadDayExecutions, loadExecutionPrescription, loadOpenHealthFlags } = vi.hoisted(() => ({
   loadLatestDecisionForDate: vi.fn(),
   loadDecisionCurrency: vi.fn(),
   loadFinalPrescriptionV2State: vi.fn(),
   loadDayExecutions: vi.fn(),
   loadExecutionPrescription: vi.fn(),
+  loadOpenHealthFlags: vi.fn(),
 }));
 vi.mock("../history/historyRepo", () => ({ loadLatestDecisionForDate }));
 vi.mock("../dailyPlan/decisionCurrencyRepo", () => ({ loadDecisionCurrency }));
 vi.mock("../finalPrescriptionV2/finalPrescriptionV2State", () => ({ loadFinalPrescriptionV2State }));
 vi.mock("./executionRepo", () => ({ loadDayExecutions, loadExecutionPrescription }));
+vi.mock("../healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFlags }));
 
 import { loadGuidedSession } from "./guidedSessionLoader";
 
@@ -36,8 +38,9 @@ const execution = (id: string, fp: string | null, events: string[], recorded = "
 beforeEach(() => {
   vi.resetAllMocks();
   loadDayExecutions.mockResolvedValue([]);
-  loadLatestDecisionForDate.mockResolvedValue({ id: "d1", finalPrescriptionStatus: "created", isLatestOfDay: true });
+  loadLatestDecisionForDate.mockResolvedValue({ id: "d1", finalPrescriptionStatus: "created", isLatestOfDay: true, dailyPlan: { decision: "KEEP", triggered_rules: [] } });
   loadDecisionCurrency.mockResolvedValue({ isCurrent: true, staleReason: null });
+  loadOpenHealthFlags.mockResolvedValue([]);
 });
 
 describe("executionState — a projection of the ledger", () => {
@@ -93,7 +96,9 @@ describe("loadGuidedSession", () => {
     const snapshot = await loadGuidedSession("a", "2026-10-09");
     expect(snapshot).toMatchObject({ kind: "execution", phase: "paused", execution: { id: "e1" }, prescription: force });
     expect(loadExecutionPrescription).toHaveBeenCalledWith(force.prescription.id);
-    expect(loadLatestDecisionForDate).not.toHaveBeenCalled();
+    // P0-3 — the day's decision is read only for the health block, never to replace the execution's own prescription.
+    expect(loadFinalPrescriptionV2State).not.toHaveBeenCalled();
+    expect(snapshot).not.toHaveProperty("healthBlock");
   });
 
   it("an open execution on an unsupported catalogue stays resumable (never destroyed), rendered as unsupported", async () => {
@@ -208,6 +213,76 @@ describe("loadGuidedSession — UX-11R.9 a completed execution of the day wins",
     loadFinalPrescriptionV2State.mockResolvedValue(created("STRENGTH_LOWER"));
     expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "active", execution: { id: "e1" }, prescription: dh });
     expect(loadExecutionPrescription).toHaveBeenCalledWith(dh.prescription.id);
-    expect(loadLatestDecisionForDate).not.toHaveBeenCalled();
+    // P0-3 — the day's decision is read only for the health block, never to replace the frozen prescription.
+    expect(loadFinalPrescriptionV2State).not.toHaveBeenCalled();
+  });
+});
+
+// P0-3 (HPM 2026-10-13) — an OPEN execution carries why it cannot go on (server rule execution_health_block).
+describe("loadGuidedSession — P0-3 health block of an open execution", () => {
+  const force = created("STRENGTH_LOWER");
+  const dh = created("DH_TECHNICAL");
+  const rule = (layer: string, rule_id: string) => ({ layer, rule_id, detail: "", signals_used: [] });
+  const decision = (decisionKind: string, rules: unknown[]) => ({ id: "d2", finalPrescriptionStatus: "not_required", isLatestOfDay: true, dailyPlan: { decision: decisionKind, triggered_rules: rules } });
+  const open = (p = force) => {
+    loadDayExecutions.mockResolvedValue([execution("e1", p.prescription.id, ["started"])]);
+    loadExecutionPrescription.mockResolvedValue(p);
+  };
+
+  it.each([
+    ["REST A6 (severe pain)", decision("REST", [rule("A", "A6")])],
+    ["REST A3 (illness)", decision("REST", [rule("A", "A3")])],
+    ["REST A1 (concussion)", decision("REST", [rule("A", "A1")])],
+  ])("%s → health_suspended, the execution keeps its own prescription", async (_label, d) => {
+    open();
+    loadLatestDecisionForDate.mockResolvedValue(d);
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ kind: "execution", phase: "active", prescription: force, healthBlock: "health_suspended" });
+  });
+
+  it("an open follow-up signal (A7 types), even before any new daily run → health_suspended", async () => {
+    open();
+    loadOpenHealthFlags.mockResolvedValue([{ id: "f", type: "pain_persistent", flagDate: "2026-10-08", description: "x" }]);
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ healthBlock: "health_suspended" });
+  });
+
+  it("an open concussion signal blocks a DH session (A5), not a Force session", async () => {
+    loadOpenHealthFlags.mockResolvedValue([{ id: "f", type: "concussion_suspect", flagDate: "2026-10-08", description: "x" }]);
+    open(dh);
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ healthBlock: "health_suspended" });
+    open(force);
+    expect(await loadGuidedSession("a", "2026-10-09")).not.toHaveProperty("healthBlock");
+  });
+
+  it("the day's decision no longer matches the check-in → daily_decision_not_current", async () => {
+    open();
+    loadDecisionCurrency.mockResolvedValue({ isCurrent: false, staleReason: "checkin_changed" });
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ healthBlock: "daily_decision_not_current" });
+  });
+
+  it("an ordinary REST (race protocol, layer B) and a blocked decision of a kept day are no suspension", async () => {
+    open();
+    loadLatestDecisionForDate.mockResolvedValue(decision("REPLACE", [rule("B", "RACE_PROTOCOL_TX")]));
+    expect(await loadGuidedSession("a", "2026-10-09")).not.toHaveProperty("healthBlock");
+    loadLatestDecisionForDate.mockResolvedValue({ ...decision("KEEP", []), finalPrescriptionStatus: "blocked" });
+    expect(await loadGuidedSession("a", "2026-10-09")).not.toHaveProperty("healthBlock");
+  });
+
+  it("an attempt stopped under the suspension (abandoned; the day's decision is a REST) stays readable with its own prescription and results, never restartable", async () => {
+    loadDayExecutions.mockResolvedValue([execution("e1", force.prescription.id, ["started", "abandoned"])]);
+    loadExecutionPrescription.mockResolvedValue(force);
+    loadLatestDecisionForDate.mockResolvedValue(decision("REST", [rule("A", "A6")]));
+    loadFinalPrescriptionV2State.mockResolvedValue({ kind: "not_required" });
+    const snapshot = await loadGuidedSession("a", "2026-10-09");
+    expect(snapshot).toMatchObject({ kind: "execution", phase: "abandoned", execution: { id: "e1" }, prescription: force });
+    expect(snapshot).not.toHaveProperty("restartFinalPrescriptionId");
+  });
+
+  it("a COMPLETED execution stays read only with its own prescription, without a health block", async () => {
+    loadDayExecutions.mockResolvedValue([execution("e1", force.prescription.id, ["started", "completed"])]);
+    loadExecutionPrescription.mockResolvedValue(force);
+    loadLatestDecisionForDate.mockResolvedValue(decision("REST", [rule("A", "A6")]));
+    const snapshot = await loadGuidedSession("a", "2026-10-09");
+    expect(snapshot).toMatchObject({ kind: "execution", phase: "completed", prescription: force });
+    expect(snapshot).not.toHaveProperty("healthBlock");
   });
 });

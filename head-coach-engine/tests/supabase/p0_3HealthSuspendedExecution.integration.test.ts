@@ -1,26 +1,33 @@
 /**
- * P0-3 (HPM 2026-10-13) — server audit: a guided session started, then a health signal suspends the coaching
- * (check-in edited with a severe pain → daily-run → REST, A6). Through the local Edge runtime with the rider's JWT:
- * what session-execution still accepts on the OPEN execution. Measured, nothing changed (diagnostic).
+ * P0-3 (HPM 2026-10-13, GO correction serveur sécurité santé) — no training action under a health suspension
+ * (migration 20261013160000). Everything through the local Edge runtime with the rider's JWT (daily-run,
+ * session-execution), check-ins edited by the rider (RLS), and every outcome checked on the PERSISTED rows.
+ *
+ * Suspension = an open follow-up health signal (A7 types), an open concussion signal for a DH session (A5), or the
+ * day's latest decision a REST ruled by the Safety layer (A1–A4, A6, A7). A stale day decision (check-in changed,
+ * daily-run not re-run) is refused too (daily_decision_not_current). An ordinary REST is not a suspension.
  */
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline } from "./testDb.js";
-import { assertLocalDbReady, localIntegrationRequested } from "./localDb.js";
+import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, insertRace, setAthleteDiscipline } from "./testDb.js";
+import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral as lit } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
+import { addCalendarDays } from "../../src/supabase/productCalendar.js";
 
 const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
 
-type Item = { kind: string; prescriptionItemId: string; measure: { type: string } };
-type Structure = { blocks: { role: string; items: Item[] }[] };
+type Item = { kind: string; prescriptionItemId: string; measure: { type: string; count?: number } };
+type Structure = { family: string; blocks: { role: string; items: Item[] }[] };
 type Body = Record<string, unknown>;
+const NO_PAIN = { pain: false, pain_intensity: null, pain_new: false, pain_location_code: null, pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false };
+const SEVERE_PAIN = { pain: true, pain_intensity: 8, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false };
 
-describe.skipIf(!EDGE)("P0-3 audit — open execution after a health suspension (local Edge, rider JWT)", { timeout: 240_000 }, () => {
+describe.skipIf(!EDGE)("P0-3 — health suspension enforcement on guided sessions (local Edge, rider JWT, persisted rows)", { timeout: 300_000 }, () => {
   let admin: SupabaseClient;
   const report: Record<string, unknown> = {};
 
@@ -41,9 +48,11 @@ describe.skipIf(!EDGE)("P0-3 audit — open execution after a health suspension 
     }
     throw error;
   }
+  const code = (r: { status: number; body: Body }) => (r.status === 200 ? "ok" : `${r.status} ${(r.body.error as { code?: string } | undefined)?.code ?? "?"}`);
 
-  it("started session, then REST A6 (coaching suspended): what the server still accepts on the open execution", async () => {
-    const { athleteId } = await createTestAthlete(admin, `P0-3 health audit ${randomUUID().slice(0, 6)}`);
+  /** A V2 rider with an accepted plan; returns its DH days. */
+  async function rider(label: string) {
+    const { athleteId } = await createTestAthlete(admin, `P0-3 health ${label} ${randomUUID().slice(0, 6)}`);
     await setAthleteDiscipline(admin, athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, athleteId, {
       strength_experience_tier: "intermediate",
@@ -57,49 +66,179 @@ describe.skipIf(!EDGE)("P0-3 audit — open execution after a health suspension 
     const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: "2026-10-04" });
     if (p.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, p.planVersionId, "2026-10-05", "2026-10-18");
-    const { data: rows } = await admin.from("planned_sessions").select("planned_date, intervention").eq("athlete_id", athleteId).order("planned_date");
-    const day = (rows as { planned_date: string; intervention: { kind: string } | null }[]).find((r) => r.intervention?.kind === "DH_TECHNICAL")!.planned_date;
-    const rider = await getAthleteAuthClient(athleteId);
+    const { data } = await admin.from("planned_sessions").select("planned_date, intervention").eq("athlete_id", athleteId).order("planned_date");
+    const dhDays = (data as { planned_date: string; intervention: { kind: string } | null }[]).filter((r) => r.intervention?.kind === "DH_TECHNICAL").map((r) => r.planned_date);
+    return { athleteId, planVersionId: p.planVersionId, client: await getAthleteAuthClient(athleteId), dhDays };
+  }
+  type Rider = Awaited<ReturnType<typeof rider>>;
 
-    await insertCheckin(admin, athleteId, day);
-    const first = await invoke(rider, "daily-run", { date: day });
-    expect([first.status, first.body.finalPrescriptionStatus]).toEqual([200, "created"]);
-    const fp = first.body.finalPrescription as { id: string; structure: Structure };
-    const items = fp.structure.blocks.find((b) => b.role === "main")!.items;
+  /** Check-in, daily-run (Edge), start (Edge) and one recorded pass: a guided DH session running on `day`. */
+  async function running(r: Rider, day: string) {
+    await insertCheckin(admin, r.athleteId, day);
+    const run = await invoke(r.client, "daily-run", { date: day });
+    expect([run.status, run.body.finalPrescriptionStatus]).toEqual([200, "created"]);
+    const fp = run.body.finalPrescription as { id: string; structure: Structure };
+    const pass = fp.structure.blocks.find((b) => b.role === "main")!.items[0]!;
     const id = randomUUID();
-    const ev = (event_type: string, at: string) => ({ events: [{ id: randomUUID(), execution_id: id, event_type, occurred_at: `${day}T${at}:00Z` }] });
-    const set = (item: Item, n: number, at: string) => ({ id: randomUUID(), execution_id: id, prescription_item_id: item.prescriptionItemId, set_number: n, done: true, measure_type: item.measure.type, measure_value: item.measure.type === "pass" ? null : 8, occurred_at: `${day}T${at}:00Z` });
-    expect((await invoke(rider, "session-execution", { execution: { id, session_date: day, started_at: `${day}T17:00:00Z`, final_prescription_id: fp.id }, ...ev("started", "17:00") })).status).toBe(200);
-    expect((await invoke(rider, "session-execution", { sets: [set(items[0]!, 1, "17:10")] })).status).toBe(200);
-
-    // The rider edits the check-in: severe pain (A6) → the day's decision becomes REST, coaching suspended.
-    const { error } = await admin
-      .from("daily_checkins")
-      .update({ pain: true, pain_intensity: 8, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false })
-      .eq("athlete_id", athleteId)
-      .eq("checkin_date", day);
-    if (error) throw new Error(error.message);
-    const suspended = await invoke(rider, "daily-run", { date: day });
-    const plan = suspended.body.dailyPlan as { decision: string; triggered_rules: { rule_id: string; layer: string }[] };
-    report.suspension = { status: suspended.status, decision: plan.decision, rules: plan.triggered_rules.filter((r) => r.layer === "A").map((r) => r.rule_id), finalPrescriptionStatus: suspended.body.finalPrescriptionStatus };
-    expect([plan.decision, plan.triggered_rules.some((r) => r.rule_id === "A6")]).toEqual(["REST", true]);
-
-    // What the server accepts now on the open execution (each attempt independent, in lifecycle order).
-    const attempts: Record<string, unknown> = {};
-    const tryIt = async (label: string, payload: unknown) => {
-      const r = await invoke(rider, "session-execution", payload);
-      attempts[label] = `${r.status} ${r.body.status ?? ""}${r.body.code ? ` ${r.body.code}` : ""}${r.body.error ? ` ${JSON.stringify(r.body.error)}` : ""}`.trim();
+    let n = 0;
+    const s = {
+      id,
+      fp,
+      start: { execution: { id, session_date: day, started_at: `${day}T17:00:00Z`, final_prescription_id: fp.id }, events: [{ id: randomUUID(), execution_id: id, event_type: "started", occurred_at: `${day}T17:00:00Z` }] },
+      ev: (event_type: string) => ({ events: [{ id: randomUUID(), execution_id: id, event_type, occurred_at: `${day}T17:${String(20 + (n += 1)).padStart(2, "0")}:00Z` }] }),
+      pass: (setNumber: number) => ({ id: randomUUID(), execution_id: id, prescription_item_id: pass.prescriptionItemId, set_number: setNumber, done: true, measure_type: pass.measure.type, measure_value: pass.measure.type === "pass" ? null : 8, occurred_at: `${day}T17:${String(10 + setNumber).padStart(2, "0")}:00Z` }),
     };
-    await tryIt("new set (effort)", { sets: [set(items[0]!, 2, "18:10")] });
-    await tryIt("pause", ev("paused", "18:11"));
-    await tryIt("resume", ev("resumed", "18:12"));
-    await tryIt("another set after resume", { sets: [set(items[1] ?? items[0]!, items[1] ? 1 : 3, "18:13")] });
-    await tryIt("complete", ev("completed", "18:20"));
-    report.attemptsAfterSuspension = attempts;
-    const { data: results } = await admin.from("exercise_set_results").select("id").eq("execution_id", id);
-    report.setResultsKept = (results ?? []).length;
-    // OBSERVED (reported to the HPM, not fixed here): nothing on the open execution consults the suspension.
-    expect(attempts).toEqual({ "new set (effort)": "200", pause: "200", resume: "200", "another set after resume": "200", complete: "200" });
-    expect(report.setResultsKept).toBe(3);
+    expect(code(await invoke(r.client, "session-execution", s.start))).toBe("ok");
+    const first = s.pass(1);
+    expect(code(await invoke(r.client, "session-execution", { sets: [first] }))).toBe("ok");
+    return { ...s, first };
+  }
+  type Running = Awaited<ReturnType<typeof running>>;
+
+  async function editCheckin(r: Rider, day: string, values: Record<string, unknown>) {
+    const { error } = await r.client.from("daily_checkins").update(values).eq("athlete_id", r.athleteId).eq("checkin_date", day);
+    if (error) throw new Error(error.message);
+  }
+  async function rerun(r: Rider, day: string) {
+    const run = await invoke(r.client, "daily-run", { date: day });
+    const plan = run.body.dailyPlan as { decision: string; final_session: { kind: string }; triggered_rules: { rule_id: string; layer: string }[] };
+    return { status: run.status, decision: plan?.decision, finalKind: plan?.final_session.kind, rules: (plan?.triggered_rules ?? []).map((x) => `${x.layer}:${x.rule_id}`) };
+  }
+  /** What is persisted for the execution: event types in server order and the result rows. */
+  function persisted(s: Running) {
+    return JSON.parse(
+      execLocalSql(`select json_build_object(
+        'events', (select coalesce(json_agg(event_type order by event_seq), '[]') from public.execution_events where execution_id = ${lit(s.id)}),
+        'results', (select count(*) from public.exercise_set_results where execution_id = ${lit(s.id)}),
+        'resultsFingerprint', (select md5(coalesce(string_agg(id::text || done::text || coalesce(supersedes_id::text, '-'), ',' order by id), '')) from public.exercise_set_results where execution_id = ${lit(s.id)}));`).trim()
+    ) as { events: string[]; results: number; resultsFingerprint: string };
+  }
+  const attempt = async (r: Rider, payload: unknown) => code(await invoke(r.client, "session-execution", payload));
+
+  it("1–2, 6–8 — DH started, a pass recorded, severe pain 8/10 → REST A6: new pass, correction, resume, closure with results and completion refused; pause, replay and abandon accepted; results kept", async () => {
+    const r = await rider("a6");
+    const day = r.dhDays[0]!;
+    const s = await running(r, day);
+    await editCheckin(r, day, SEVERE_PAIN);
+    const suspension = await rerun(r, day);
+    expect([suspension.decision, suspension.rules.includes("A:A6")]).toEqual(["REST", true]);
+    const before = persisted(s);
+
+    const out = {
+      newPass: await attempt(r, { sets: [s.pass(2)] }),
+      correction: await attempt(r, { sets: [{ ...s.pass(1), supersedes_id: s.first.id, done: false }] }),
+      pause: await attempt(r, s.ev("paused")),
+      resume: await attempt(r, s.ev("resumed")),
+      closureWithNewResult: await attempt(r, { sets: [s.pass(2)], ...s.ev("completed") }),
+      closureWithoutNewResult: await attempt(r, s.ev("completed")),
+      replayOfRecordedPass: await attempt(r, { sets: [s.first] }),
+      replayOfStart: await attempt(r, s.start),
+      abandon: await attempt(r, s.ev("abandoned")),
+    };
+    const after = persisted(s);
+    report.a6 = { suspension, attempts: out, before, after };
+    expect(out).toEqual({
+      newPass: "409 health_suspended",
+      correction: "409 health_suspended",
+      pause: "ok",
+      resume: "409 health_suspended",
+      closureWithNewResult: "409 health_suspended",
+      closureWithoutNewResult: "409 health_suspended",
+      replayOfRecordedPass: "ok",
+      replayOfStart: "ok",
+      abandon: "ok",
+    });
+    expect(after.events).toEqual(["started", "paused", "abandoned"]);
+    expect([after.results, after.resultsFingerprint]).toEqual([before.results, before.resultsFingerprint]); // results before the suspension kept, nothing added
+    // The abandoned session is not a completion: M1's recent-load bridge and the web never count it as done.
+    const counted = Number(execLocalSql(`select count(*) from public.execution_events where execution_id = ${lit(s.id)} and event_type = 'completed';`).trim());
+    expect(counted).toBe(0);
+  });
+
+  it("3 — a signal persisted before any new daily-run: a check-in edited (stale decision) and an open follow-up signal from another day both stop the running session", async () => {
+    const r = await rider("before-rerun");
+    const [x, y] = r.dhDays;
+    const sx = await running(r, x!);
+    await editCheckin(r, x!, SEVERE_PAIN); // no daily-run yet: the day's decision is stale
+    const stale = { newPass: await attempt(r, { sets: [sx.pass(2)] }), completion: await attempt(r, sx.ev("completed")) };
+
+    // An open follow-up signal created by a daily-run of ANOTHER date (A6 on y): x's decision is untouched.
+    const r2 = await rider("open-flag");
+    const [a, b] = r2.dhDays;
+    const sa = await running(r2, a!);
+    await insertCheckin(admin, r2.athleteId, b!, SEVERE_PAIN);
+    const other = await rerun(r2, b!);
+    const flag = execLocalSql(`select string_agg(flag_type::text || ':' || status::text, ',') from public.health_flags where athlete_id = ${lit(r2.athleteId)};`).trim();
+    const openFlag = { otherDay: other.rules, flag, newPass: await attempt(r2, { sets: [sa.pass(2)] }), resume: await attempt(r2, sa.ev("paused")) === "ok" ? await attempt(r2, sa.ev("resumed")) : "pause refused" };
+    report.beforeRerun = { stale, openFlag };
+    expect(stale).toEqual({ newPass: "409 daily_decision_not_current", completion: "409 daily_decision_not_current" });
+    expect([openFlag.flag, openFlag.newPass, openFlag.resume]).toEqual(["injury_suspect:active", "409 health_suspended", "409 health_suspended"]);
+    expect([persisted(sx).results, persisted(sa).results]).toEqual([1, 1]);
+  });
+
+  it("4 — other REST ruled by the Safety layer (A2 new severe pain, A3 illness, A4 objective criterion, A1 concussion) refuse the training actions", async () => {
+    const cases: [string, Record<string, unknown>, string][] = [
+      ["A2", { ...SEVERE_PAIN, pain_new: true }, "A:A2"],
+      ["A3", { fever_or_illness: true }, "A:A3"],
+      ["A4", { pain: true, pain_intensity: 3, pain_new: false, pain_location_code: "knee_R", pain_traumatic: true, pain_function_loss: false, pain_getting_worse: false }, "A:A4"],
+      ["A1", { suspected_concussion: true }, "A:A1"],
+    ];
+    const out: Record<string, unknown> = {};
+    for (const [rule, values, expected] of cases) {
+      const r = await rider(rule);
+      const day = r.dhDays[0]!;
+      const s = await running(r, day);
+      await editCheckin(r, day, values);
+      const d = await rerun(r, day);
+      const res = { decision: d.decision, ruled: d.rules.includes(expected), newPass: await attempt(r, { sets: [s.pass(2)] }), completion: await attempt(r, s.ev("completed")), abandon: await attempt(r, s.ev("abandoned")), results: persisted(s).results };
+      out[rule] = res;
+      expect(res).toEqual({ decision: "REST", ruled: true, newPass: "409 health_suspended", completion: "409 health_suspended", abandon: "ok", results: 1 });
+    }
+    report.safetyRest = out;
+  });
+
+  it("5 — no false block: an ordinary REST (race protocol T-2, layer B) and a non-health check-in change keep the session going to completion", async () => {
+    const r = await rider("ordinary-rest");
+    const day = r.dhDays[0]!;
+    const s = await running(r, day);
+    await insertRace(admin, r.athleteId, { event_name: "P0-3 race", start_date: addCalendarDays(day, 2), end_date: addCalendarDays(day, 3), priority: "A", race_format: "HOT_TRAIL_2DAY" });
+    await editCheckin(r, day, { ...NO_PAIN, sleep_quality: 2 });
+    const d = await rerun(r, day);
+    const out = { decision: d.decision, finalKind: d.finalKind, rules: d.rules, newPass: await attempt(r, { sets: [s.pass(2)] }), pause: await attempt(r, s.ev("paused")), resume: await attempt(r, s.ev("resumed")), completion: await attempt(r, s.ev("completed")) };
+    report.ordinaryRest = out;
+    expect(out.finalKind).toBe("REST");
+    expect(out.decision).not.toBe("REST");
+    expect(out.rules.some((x) => x.startsWith("A:"))).toBe(false);
+    expect([out.newPass, out.pause, out.resume, out.completion]).toEqual(["ok", "ok", "ok", "ok"]);
+    expect(persisted(s).events).toEqual(["started", "paused", "resumed", "completed"]);
+  });
+
+  it("9 / 10 — a session completed before the suspension stays completed and frozen; the kept day of a new plan (blocked decision, no health rule) is not a suspension", async () => {
+    const r = await rider("completed-then-a6");
+    const day = r.dhDays[0]!;
+    const s = await running(r, day);
+    expect(await attempt(r, s.ev("completed"))).toBe("ok");
+    await editCheckin(r, day, SEVERE_PAIN);
+    const d = await rerun(r, day);
+    const frozen = { decision: d.decision, newPass: await attempt(r, { sets: [s.pass(2)] }), newStart: await (async () => {
+      const id = randomUUID();
+      return attempt(r, { execution: { ...s.start.execution, id }, events: [{ id: randomUUID(), execution_id: id, event_type: "started", occurred_at: `${day}T19:00:00Z` }] });
+    })() };
+    expect(persisted(s).events).toEqual(["started", "completed"]);
+    expect(persisted(s).results).toBe(1);
+
+    // Kept day: running session, new plan accepted on the day (skipped_completed), daily-run again → KEEP blocked
+    // (no lineage in the new version) — not a health rule: the session goes on and completes.
+    const k = await rider("kept-day");
+    const kd = k.dhDays[0]!;
+    const ks = await running(k, kd);
+    const p2 = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: k.athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: kd });
+    if (p2.status !== "persisted") throw new Error("plan 2");
+    const accepted = await acceptTrainingPlanVersion(admin, k.athleteId, p2.planVersionId, kd, addCalendarDays(kd, 13));
+    const kr = await invoke(k.client, "daily-run", { date: kd });
+    const kept = { acceptanceOutcome: accepted.projection!.plannedSessions.filter((x) => x.date === kd).map((x) => x.outcome), rerun: kr.body.finalPrescriptionStatus, newPass: await attempt(k, { sets: [ks.pass(2)] }), completion: await attempt(k, ks.ev("completed")) };
+    report.completedAndKept = { frozen, kept };
+    expect(frozen).toEqual({ decision: "REST", newPass: "409 execution_terminal", newStart: expect.stringMatching(/^4\d\d /) });
+    expect(kept).toEqual({ acceptanceOutcome: ["skipped_completed"], rerun: "blocked", newPass: "ok", completion: "ok" });
   });
 });
