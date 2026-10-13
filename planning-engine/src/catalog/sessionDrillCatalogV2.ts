@@ -72,7 +72,7 @@ export const BERMED_TURN_TERRAINS_V1 = ["bermed_trail", "bike_park_jump_line", "
 /**
  * P0-2 (HPM 2026-10-13) — a full DH track hosts the general trajectory, braking and control drills
  * without artificially requiring a technical trail, plus (explicit HPM decisions) the off-camber drill and
- * the steep-terrain drills: a full DH track has off-camber sections and steep passages. It does NOT
+ * the beginner / intermediate steep-terrain drills; not the advanced off-brake chute (final check). It does NOT
  * guarantee roots, rocks, a rock garden, jumps or another specific obstacle: those drills keep their terrain.
  */
 const FULL_DH_TRACK = "full_dh_track";
@@ -125,10 +125,13 @@ const ENTRIES: SessionDrillV2[] = [
   drill("line_choice_two_line_scan", "line_choice", "beginner", ["technical_trail", FULL_DH_TRACK], { progressesTo: "line_choice_rock_garden" }, [SCOUT]),
   drill("line_choice_rock_garden", "line_choice", "intermediate", "rock_garden", { progressesTo: "line_choice_fast_line_compare", regressesTo: "line_choice_two_line_scan" }, [SCOUT]),
   drill("line_choice_fast_line_compare", "line_choice", "advanced", "rock_garden", { regressesTo: "line_choice_rock_garden" }, [PRECISION]),
-  // P0-2 — HPM decision: a full DH track has steep passages (« pente raide », « couloir »).
+  // P0-2 — HPM decision: a full DH track has steeper pitches and gradient changes (« courte pente raide »,
+  // « à mesure que la pente se raidit »), ridden slowly / progressively.
   drill("steep_terrain_controlled_roll_in", "steep_terrain", "beginner", ["steep_technical_trail", FULL_DH_TRACK], { progressesTo: "steep_terrain_body_position" }, [SCOUT]),
   drill("steep_terrain_body_position", "steep_terrain", "intermediate", ["steep_technical_trail", FULL_DH_TRACK], { progressesTo: "steep_terrain_off_brake_chute", regressesTo: "steep_terrain_controlled_roll_in" }, [SCOUT]),
-  drill("steep_terrain_off_brake_chute", "steep_terrain", "advanced", ["steep_technical_trail", FULL_DH_TRACK], { regressesTo: "steep_terrain_body_position" }, [PRECISION]),
+  // P0-2 final check (HPM 2026-10-13): NOT on a full DH track — a « couloir » whose steepest part is ridden off the
+  // brakes needs a known chute with a clean run-out, which a full DH track does not guarantee.
+  drill("steep_terrain_off_brake_chute", "steep_terrain", "advanced", "steep_technical_trail", { regressesTo: "steep_terrain_body_position" }, [PRECISION]),
   drill("roots_rocks_rolling", "roots_rocks", "beginner", "root_rock_trail", { progressesTo: "roots_rocks_unweighted_line" }),
   drill("roots_rocks_unweighted_line", "roots_rocks", "intermediate", "root_rock_trail", { progressesTo: "roots_rocks_committed", regressesTo: "roots_rocks_rolling" }),
   drill("roots_rocks_committed", "roots_rocks", "advanced", "root_rock_trail", { regressesTo: "roots_rocks_unweighted_line" }, [PRECISION]),

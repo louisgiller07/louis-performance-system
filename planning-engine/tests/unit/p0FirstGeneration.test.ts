@@ -23,7 +23,7 @@ const REVIEW_TERRAINS = ["technical_trail", "root_rock_trail", "full_dh_track"];
 const WIDENED_P0 = ["cornering_berm_speed", "braking_late_entry", "braking_progressive_control"];
 const WIDENED_P0_2 = [
   "braking_progressive_control", "braking_marked_zone_at_speed", "cornering_flat_turn_precision", "cornering_off_camber", "line_choice_two_line_scan",
-  "steep_terrain_controlled_roll_in", "steep_terrain_body_position", "steep_terrain_off_brake_chute", "race_execution_section_consistency", "race_execution_split_pace",
+  "steep_terrain_controlled_roll_in", "steep_terrain_body_position", "race_execution_section_consistency", "race_execution_split_pace",
 ];
 const WIDENED = [...new Set([...WIDENED_P0, ...WIDENED_P0_2])];
 const MANIFEST = buildSessionModelV2CatalogManifest();

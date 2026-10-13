@@ -59,13 +59,12 @@ const ADDED: Record<string, string[]> = {
   line_choice_two_line_scan: ["full_dh_track"],
   steep_terrain_controlled_roll_in: ["full_dh_track"],
   steep_terrain_body_position: ["full_dh_track"],
-  steep_terrain_off_brake_chute: ["full_dh_track"],
   race_execution_section_consistency: ["flow_trail", "full_dh_track"],
   race_execution_split_pace: ["full_dh_track"],
 };
 
-/** Drills that need a feature a full DH track does not guarantee (roots, rocks, rock garden, jumps) or an explicit berm. */
-const KEPT = ["line_choice_rock_garden", "line_choice_fast_line_compare", "roots_rocks_rolling", "roots_rocks_unweighted_line", "roots_rocks_committed", "jumps_table_top_basic", "jumps_linked_tables", "jumps_step_down", "cornering_berm_speed"];
+/** Drills that need a feature a full DH track does not guarantee (roots, rocks, rock garden, jumps, a chute ridden off the brakes) or an explicit berm. */
+const KEPT = ["steep_terrain_off_brake_chute", "line_choice_rock_garden", "line_choice_fast_line_compare", "roots_rocks_rolling", "roots_rocks_unweighted_line", "roots_rocks_committed", "jumps_table_top_basic", "jumps_linked_tables", "jumps_step_down", "cornering_berm_speed"];
 
 /** The previous selection rule, with the BEFORE table (dhDrillForLoad of 7fb2da1). */
 function previous(skill: DhSkillV2, tier: DhTechnicalTierV2, load: LoadProfile | undefined, terrains: string[]): string {
@@ -115,7 +114,13 @@ describe("P0-2 — DH terrain compatibility (HPM 2026-10-13)", () => {
     for (const id of Object.keys(ADDED)) expect(drillTexts(id), id).not.toMatch(/racine|rocher|pierrier|saut|table|kick|relevé/i);
     // Specific features accepted on a full DH track by explicit HPM decision (2026-10-13):
     expect(drillTexts("cornering_off_camber")).toMatch(/dévers/);
-    for (const id of ["steep_terrain_controlled_roll_in", "steep_terrain_off_brake_chute"]) expect(drillTexts(id), id).toMatch(/raide/);
+    expect(drillTexts("steep_terrain_controlled_roll_in")).toMatch(/courte pente raide/);
+    expect(drillTexts("steep_terrain_controlled_roll_in")).toMatch(/vitesse lente/);
+    expect(drillTexts("steep_terrain_body_position")).toMatch(/à mesure que la pente se raidit/);
+    // Final check: the chute ridden off the brakes needs a known chute — kept on the steep technical trail.
+    expect(drillTexts("steep_terrain_off_brake_chute")).toMatch(/couloir/);
+    expect(drillTexts("steep_terrain_off_brake_chute")).toMatch(/sans freiner/);
+    expect(SESSION_DRILL_CATALOG_V2.steep_terrain_off_brake_chute!.compatibleTerrains).toEqual(["steep_technical_trail"]);
     // The flow-trail race drill: a short repeatable section at a pace the rider can repeat — no race intensity.
     expect(textOf("cue.race_execution_section_consistency")).toMatch(/courte section/);
     expect(textOf("cue.race_execution_section_consistency")).not.toMatch(/mode course|vitesse course/);
@@ -155,14 +160,14 @@ describe("P0-2 — DH terrain compatibility (HPM 2026-10-13)", () => {
 
   it("matrix terrains × levels: priorities available before → after (the review matrix, plus the Astra profile)", () => {
     const row = (terrains: string[]) => DH_TECHNICAL_TIERS_V2.map((tier) => `${available(terrains, tier, previous).length}->${available(terrains, tier, current).length}`).join(" ");
-    expect(row(["full_dh_track"])).toBe("0->5 2->4 1->4");
-    expect(row(["bike_park_jump_line", "full_dh_track"])).toBe("1->6 3->5 2->5");
-    expect(row(["technical_trail", "root_rock_trail", "full_dh_track"])).toBe("2->6 4->5 4->5");
+    expect(row(["full_dh_track"])).toBe("0->5 2->4 1->3");
+    expect(row(["bike_park_jump_line", "full_dh_track"])).toBe("1->6 3->5 2->4");
+    expect(row(["technical_trail", "root_rock_trail", "full_dh_track"])).toBe("2->6 4->5 4->4");
     expect(row(["flow_trail"])).toBe("2->3 1->1 0->0");
-    expect(row(["bermed_trail", "technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track"])).toBe("3->7 5->6 5->6");
+    expect(row(["bermed_trail", "technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track"])).toBe("3->7 5->6 5->5");
     // What stays unavailable on a full DH track alone is exactly what needs a feature it does not guarantee.
     expect(DH_SKILLS_V2.filter((s) => !available(["full_dh_track"], "intermediate", current).includes(s))).toEqual(["line_choice", "roots_rocks", "jumps"]);
-    expect(DH_SKILLS_V2.filter((s) => !available(["full_dh_track"], "advanced", current).includes(s))).toEqual(["line_choice", "roots_rocks", "jumps"]);
+    expect(DH_SKILLS_V2.filter((s) => !available(["full_dh_track"], "advanced", current).includes(s))).toEqual(["line_choice", "steep_terrain", "roots_rocks", "jumps"]);
     expect(DH_SKILLS_V2.filter((s) => !available(["full_dh_track"], "beginner", current).includes(s))).toEqual(["roots_rocks", "jumps"]);
   });
 });
