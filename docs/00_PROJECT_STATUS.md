@@ -6,6 +6,8 @@
 
 **P0-3 — séances manuelles et contraintes de durée : PASS LOCAL / NOT DEPLOYED (HPM 2026-10-13 ; option P1, verrou L1, suspension santé, arrêt O1)** : branche `fix/p0-3-manual-sessions` depuis la production P0-SAFE ; migrations `20261013120000` (`persist_daily_run_v2`), `20261013140000` (verrou `planned_sessions`, `project_training_plan`) et `20261013160000` (suspension santé dans `record_session_execution`) ; aucun push, merge ou déploiement.
 
+**P0-4 — historique et résultats des séances guidées : implémenté localement, en attente du verdict HPM (2026-10-13)** : branche `fix/p0-4-guided-history` depuis la production P0-SAFE ; web seulement (aucune migration, aucune Edge) ; aucun push, merge ou déploiement.
+
 **P0-SAFE — continuité santé (2026-10-12) : correction locale approuvée HPM, release non autorisée (gate prête)** (branche `fix/p0-safe-health-continuity`, depuis `origin/main`, livrable seul sans migration). Douleur forte non nouvelle → repos et avis professionnel (A6) ; signal de santé ouvert → repos jusqu'à sa clôture explicite par le rider (A7, Edge `health-flag-resolution`). En attente du verdict HPM.
 
 **P0 première génération — corrigé localement, en attente du verdict HPM (2026-10-12)** : branche `fix/p0-first-generation` ; le profil de la review du 09.10 et le débutant flow trail seul génèrent dès la première tentative avec leurs vrais terrains (décisions HPM : virages relevés, flow trail = sentier aménagé).
