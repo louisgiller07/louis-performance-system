@@ -16,6 +16,7 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { addCalendarDays, productToday } from "../../src/supabase/productCalendar.js";
+import { buildRawContext } from "../../src/supabase/buildRawContext.js";
 
 const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
 
@@ -208,26 +209,49 @@ describe.skipIf(!EDGE)("INT-01 — V1 debrief under a health suspension (local E
     expect(await completedRows(r, later!)).toEqual(["skipped"]);
   });
 
-  it("7, 9 — ordinary days keep their rules: debrief « Terminée » with no guided session; « Terminée » and « Non réalisée » after an ordinary stop; open session still 409 completed_session_v2_exists", async () => {
+  it("7, 9 — ordinary days (no health signal): no V1 debrief over a guided attempt with results, nor over a completed one; normal debriefs and an attempt stopped before any result keep their rules", async () => {
     const r = await rider();
-    const [plain, stopped, stoppedSkipped, open] = r.days.map((d) => d.date);
+    // Sets / passes are recordable (and a completion accepted) on DH and Force days; endurance needs an activity.
+    const recordable = r.days.filter((d) => d.kind.startsWith("DH_") || d.kind.startsWith("STRENGTH_")).map((d) => d.date);
+    const [stopped, completedDay, open] = recordable;
+    const [plain, stoppedEmpty] = r.days.map((d) => d.date).filter((d) => ![stopped, completedDay, open].includes(d));
     await insertCheckin(admin, r.athleteId, plain!);
     await dailyRun(r, plain!);
     const ok = await put(r, debrief(plain!, "done"));
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
     expect(await completedRows(r, plain!)).toEqual(["done"]);
 
-    const e1 = await startGuided(r, stopped!, 1);
+    // A guided attempt with results, abandoned for an ordinary reason: it is the day's record (HPM contract).
+    const e1 = await startGuided(r, stopped!, 2);
     expect((await event(r, e1, "abandoned", stopped!)).status).toBe(200);
-    expect((await put(r, debrief(stopped!, "done"))).status).toBe(200);
+    for (const status of ["done", "partial", "replaced", "skipped"] as const) {
+      const refused = await put(r, debrief(stopped!, status));
+      expect([refused.status, code(refused)], status).toEqual([409, "guided_results_exist"]);
+    }
+    expect(await completedRows(r, stopped!)).toEqual([]);
+    expect(await executionState(e1)).toEqual({ events: ["started", "abandoned"], results: 2 });
 
-    const e2 = await startGuided(r, stoppedSkipped!, 1);
-    expect((await event(r, e2, "abandoned", stoppedSkipped!)).status).toBe(200);
-    expect((await put(r, debrief(stoppedSkipped!, "skipped"))).status).toBe(200);
+    // An attempt stopped before any result: the ordinary debrief stays open (UX-11R.9).
+    const e2 = await startGuided(r, stoppedEmpty!, 0);
+    expect((await event(r, e2, "abandoned", stoppedEmpty!)).status).toBe(200);
+    expect((await put(r, debrief(stoppedEmpty!, "done"))).status).toBe(200);
+
+    // A completed guided session: still NX101 (never a second main session).
+    const e3 = await startGuided(r, completedDay!, 1);
+    expect((await event(r, e3, "completed", completedDay!)).status).toBe(200);
+    const afterCompletion = await put(r, debrief(completedDay!, "done"));
+    expect([afterCompletion.status, code(afterCompletion)]).toEqual([409, "completed_session_v2_exists"]);
 
     await startGuided(r, open!, 1);
     const refused = await put(r, debrief(open!, "done"));
     expect([refused.status, code(refused)]).toEqual([409, "completed_session_v2_exists"]);
+
+    // Nothing reaches M1's recent load for that day (the abandoned attempt itself never counts).
+    const nextDay = addCalendarDays(stopped!, 1);
+    const { count: nextCheckins } = await admin.from("daily_checkins").select("id", { count: "exact", head: true }).eq("athlete_id", r.athleteId).eq("checkin_date", nextDay);
+    if (!nextCheckins) await insertCheckin(admin, r.athleteId, nextDay);
+    const raw = await buildRawContext(admin, r.athleteId, nextDay);
+    expect(raw.rawContext.recent_sessions.filter((x) => x.date === stopped)).toEqual([]);
   });
 
   it("8 — an ordinary rest day (no Safety rule) never blocks a debrief", async () => {
