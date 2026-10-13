@@ -5992,3 +5992,32 @@ Le code de production ne connaît pas ce contenu, ce qui crée deux dangers de r
 - refus 409 côté serveur pour une série, la reprise et la terminaison.
 
 **Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
+
+## 2026-10-13 — ADR INT-01 R2 (suite) : rollback vers C avec le SQL de sécurité conservé, règle de compatibilité des catalogues V2
+
+**Gate final (HPM 2026-10-13).** Rollback du candidat vers C, simulé localement (T59). Le SQL P0-3 reste en place ; les Edge `daily-run` et `generate-training-plan` reviennent à C.
+- La sécurité santé ne régresse pas : `record_session_execution` (160000) refuse reprise, séries et terminaison sous suspension, et laisse passer pause et arrêt.
+- Aucun doublon ; aucun 500 sur une séance V2 manuelle existante ; verrou du jour actif ; données conservées.
+
+Une incompatibilité est constatée et levée sans code. Le `session-execution` de production ne connaît pas `health_suspended` ni `daily_decision_not_current` : il renvoie 500, et le web affiche « Ton action n'a pas été confirmée (connexion) ».
+
+**Décision.** Pendant un rollback vers C :
+- le SQL P0-3 est **conservé** ;
+- le `session-execution` du candidat est **conservé** (il ne revient à la production qu'après un rollback de 160000) ;
+- le web candidat est conservé de préférence (il garde l'UX P0-3 et R1 avec les Edge C). Un web C reste sûr côté serveur mais dégradé (`docs/release/INT_01_COMPAT_RELEASE_PLAN.md` §6).
+
+Une fois le contenu de la release suivante généré, la production `92937a9` n'est plus une cible de rollback valide.
+
+**Règle de compatibilité et de versionnement des catalogues V2** (s'applique à toute release future) :
+1. **Lire avant de générer.** Tout contenu ajouté sous une étiquette agrégée existante doit d'abord être lisible par la version en production, puis seulement généré. Cela concerne les ids de drill, d'exercice, de texte, d'intent ou de protocole, et les valeurs déclarables comme les terrains ou l'équipement. On livre d'abord une version de compatibilité, déployée seule, qui le valide, l'adapte et l'affiche sans le générer ; ensuite la version qui le génère.
+2. **Sens stable.** Un id ou un texte stocké ne change jamais de sens. Un changement de sens exige un nouvel id.
+3. **Changer l'étiquette exige de lire l'ancienne.** On ne monte l'agrégat qu'avec un runtime qui sait lire la version précédente (N-1). Monter seulement l'étiquette ne rend pas un ancien runtime capable de lire.
+4. **Cible de rollback.** C'est la dernière version capable de lire tout le contenu déjà généré. On mesure ce contenu par requête avant de décider.
+5. **Données déclarées.** Une interface n'efface jamais une valeur enregistrée qu'elle ne connaît pas (profil : priorités, terrains).
+6. **Preuves exigées** (modèle T59) :
+   - différentiel génération et adaptations contre la production ;
+   - lecture et adaptation de contenus stockés de la version suivante ;
+   - simulation réelle d'un rollback après génération.
+7. **Proposé, non mis en œuvre.** Qu'un runtime traite un contenu inconnu sous sa propre étiquette comme un `final_prescription_catalog_mismatch` (séance bloquée) plutôt que comme une corruption (500). Cela demande une décision HPM et un contrat de statut explicite.
+
+**Statut** : PASS LOCAL / NOT DEPLOYED.
