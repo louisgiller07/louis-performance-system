@@ -93,10 +93,10 @@ describe("performanceSetupRepo — loadPerformanceSetupAnswers", () => {
   });
 });
 
-/** A from() mock that serves the raw technical_priorities read, then records the upsert. */
-function mockRawThenUpsert(rawPriorities: unknown, upsertError: unknown = null) {
+/** A from() mock that serves the raw technical_priorities / terrain_access read, then records the upsert. */
+function mockRawThenUpsert(rawPriorities: unknown, upsertError: unknown = null, rawTerrains: unknown = undefined) {
   const upsert = vi.fn().mockResolvedValue({ error: upsertError });
-  const select = vi.fn().mockResolvedValue({ data: rawPriorities === undefined ? [] : [{ technical_priorities: rawPriorities }], error: null });
+  const select = vi.fn().mockResolvedValue({ data: rawPriorities === undefined && rawTerrains === undefined ? [] : [{ technical_priorities: rawPriorities, terrain_access: rawTerrains }], error: null });
   mockedFrom.mockReturnValue({ select, upsert });
   return { upsert, select };
 }
@@ -140,6 +140,16 @@ describe("performanceSetupRepo — savePerformanceSetup", () => {
       },
       { onConflict: "athlete_id" }
     );
+  });
+
+  it("INT-01 compatibility — a saved terrain this UI does not offer is kept, never silently dropped; an offered one follows the rider's choice", async () => {
+    // off_camber_section is offered here (P0-2): unticking it removes it. A value no option offers is kept.
+    const { upsert, select } = mockRawThenUpsert({}, null, ["technical_trail", "off_camber_section", "a_terrain_not_offered"]);
+
+    await savePerformanceSetup(ATHLETE_ID, { ...EMPTY_ANSWERS, terrainAccess: ["full_dh_track"] });
+
+    expect(select).toHaveBeenCalledWith("technical_priorities, terrain_access");
+    expect(upsert.mock.calls[0]![0].terrain_access).toEqual(["full_dh_track", "a_terrain_not_offered"]);
   });
 
   it("merges into the saved technical_priorities object: keys unknown to this UI are kept", async () => {
