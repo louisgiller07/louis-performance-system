@@ -7,6 +7,7 @@ import {
   toggleOrderedPriority,
   EQUIPMENT_OPTIONS,
   TERRAIN_OPTIONS,
+  TERRAIN_LABELS,
   TECHNICAL_PRIORITY_OPTIONS,
   STRENGTH_EXPERIENCE_TIER_OPTIONS,
 } from "./performanceSetupOptions";
@@ -33,7 +34,10 @@ describe("performanceSetupOptions", () => {
       "root_rock_trail",
       "bike_park_jump_line",
       "full_dh_track",
+      // P0-2 (HPM 2026-10-13) — optional off-camber confirmation (planning-engine DECLARABLE_TERRAIN_FEATURES).
+      "off_camber_section",
     ]);
+    expect(TERRAIN_LABELS.off_camber_section).toBe("Virages en dévers");
   });
 
   it("TECHNICAL_PRIORITY_OPTIONS matches the exact known catalogue vocabulary", () => {

@@ -35,8 +35,9 @@ export type Equipment = (typeof EQUIPMENT_OPTIONS)[number];
 /**
  * Kept in sync by hand with planning-engine/src/catalog/drillCatalog.ts's
  * `terrainRequirement` values (distinct values across all 12 entries,
- * V0.5_017/018 audit). Backend-enforced identically by
- * `assertValidTerrainAccess()`, same reasoning as EQUIPMENT_OPTIONS above.
+ * V0.5_017/018 audit), plus planning-engine's DECLARABLE_TERRAIN_FEATURES
+ * (P0-2). Backend-enforced identically by `assertValidTerrainAccess()`, same
+ * reasoning as EQUIPMENT_OPTIONS above.
  */
 export const TERRAIN_OPTIONS = [
   "any_groomed_trail",
@@ -48,6 +49,9 @@ export const TERRAIN_OPTIONS = [
   "root_rock_trail",
   "bike_park_jump_line",
   "full_dh_track",
+  // P0-2 (HPM 2026-10-13) — optional terrain feature, the only confirmation of an off-camber section for the
+  // V2 off-camber drill (planning-engine DECLARABLE_TERRAIN_FEATURES; no V1 drill requires it).
+  "off_camber_section",
 ] as const;
 export type Terrain = (typeof TERRAIN_OPTIONS)[number];
 
@@ -107,6 +111,7 @@ export const TERRAIN_LABELS: Record<Terrain, string> = {
   root_rock_trail: "Sentier avec racines et rochers",
   bike_park_jump_line: "Bike park / ligne de sauts",
   full_dh_track: "Piste DH complète",
+  off_camber_section: "Virages en dévers",
 };
 
 export const TECHNICAL_PRIORITY_LABELS: Record<TechnicalPriority, string> = {

@@ -32,7 +32,8 @@ export const P0_2_PROFILES: (MatrixProfile & { expectedDrills: string[] })[] = [
     // Review A: physical Mon 90 / Wed 90 / Thu 75; riding Sat + Sun half-day.
     windows: [w(1, "17:00", "18:30", "physical"), w(3, "17:00", "18:30", "physical"), w(4, "17:00", "18:15", "physical"), w(6, "08:00", "12:00", "riding"), w(0, "08:00", "12:00", "riding")],
     weeks: 6,
-    expectedDrills: ["braking_marked_zone_at_speed", "cornering_off_camber", "race_execution_full_run_sim"],
+    // HPM option E: no off-camber section declared → the general advanced cornering alternative.
+    expectedDrills: ["braking_marked_zone_at_speed", "cornering_advanced_line_exit", "race_execution_full_run_sim"],
   },
   {
     name: "B — beginner, full DH track only (braking, cornering, line choice)",
@@ -59,6 +60,14 @@ export const P0_2_PROFILES: (MatrixProfile & { expectedDrills: string[] })[] = [
     name: "E — national, the Astra review profile (5 terrains)",
     // Astra review §7: national, advanced DH, intermediate strength; priorities cornering, braking, roots/rocks; Mon 75 / Tue 90 / Thu 75 physical, Sat 240 / Sun 180 riding.
     profile: { strength_experience_tier: "intermediate", equipment: ["barbell", "squat_rack", "dumbbells", "bench", "cable_machine", "resistance_bands"], terrain_access: ["bermed_trail", "technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track"], declared_limitations: [], technical_priorities: { strengths: [], weaknesses: [], priorityAreas: ["cornering", "braking", "roots_rocks"] }, dh_technical_tier: "advanced" },
+    windows: [w(1, "18:00", "19:15", "physical"), w(2, "18:00", "19:30", "physical"), w(4, "18:00", "19:15", "physical"), w(6, "08:00", "12:00", "riding"), w(0, "09:00", "12:00", "riding")],
+    weeks: 6,
+    // Documented difference (P0-2): a technical trail alone no longer confirms an off-camber section.
+    expectedDrills: ["braking_marked_zone_at_speed", "cornering_advanced_line_exit", "roots_rocks_committed"],
+  },
+  {
+    name: "E' — the Astra profile with the off-camber section declared",
+    profile: { strength_experience_tier: "intermediate", equipment: ["barbell", "squat_rack", "dumbbells", "bench", "cable_machine", "resistance_bands"], terrain_access: ["bermed_trail", "technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track", "off_camber_section"], declared_limitations: [], technical_priorities: { strengths: [], weaknesses: [], priorityAreas: ["cornering", "braking", "roots_rocks"] }, dh_technical_tier: "advanced" },
     windows: [w(1, "18:00", "19:15", "physical"), w(2, "18:00", "19:30", "physical"), w(4, "18:00", "19:15", "physical"), w(6, "08:00", "12:00", "riding"), w(0, "09:00", "12:00", "riding")],
     weeks: 6,
     expectedDrills: ["braking_marked_zone_at_speed", "cornering_off_camber", "roots_rocks_committed"],
@@ -146,7 +155,7 @@ describe.skipIf(!EDGE_ENABLED)("P0-2 — generate-training-plan over HTTP (local
       const { count } = await admin.from("training_plan_versions").select("id", { count: "exact", head: true }).eq("athlete_id", r.athleteId);
       outcomes.push(`${p.name.slice(0, 1)} ${first.status} replay=${again.status === 200 && again.body.planVersionId === first.body.planVersionId && again.body.idempotentReplay === true} versions=${count}`);
     }
-    expect(outcomes).toEqual(["A 200 replay=true versions=1", "B 200 replay=true versions=1", "C 200 replay=true versions=1", "D 200 replay=true versions=1", "E 200 replay=true versions=1"]);
+    expect(outcomes).toEqual(["A 200 replay=true versions=1", "B 200 replay=true versions=1", "C 200 replay=true versions=1", "D 200 replay=true versions=1", "E 200 replay=true versions=1", "E 200 replay=true versions=1"]);
   });
 
   it("intentionally kept: roots / rocks on a full DH track alone stays refused (422, the priority and its compatible terrain), nothing persisted", async () => {

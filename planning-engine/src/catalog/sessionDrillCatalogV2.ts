@@ -9,6 +9,11 @@
  * - This catalogue has its own version and is not read by any engine yet.
  * - The 21 V1 drillIds are kept ("v1_enriched"); skill, tier and required
  *   terrain are identical to V1 (checked by tests); only V2 metadata is added.
+ *   P0-2 (HPM 2026-10-13): one exception, cornering_off_camber (reference terrain =
+ *   the declared off-camber section), and one V2-only drill, cornering_advanced_line_exit
+ *   (the explicit alternative of cornering_off_camber). Content added without a version
+ *   change (strictly additive, ADR P0 REPLACE STALE COPY precedent): every stored id and
+ *   text keeps its meaning.
  *
  * Future V2 selection (not implemented here, ADR UX-11A.5a.2a):
  *   declared priority → skill ; declared dhTechnicalTier + compatible terrain → drill.
@@ -38,11 +43,15 @@ export const DH_DRILL_PASSES_RANGE_V2 = { min: 4, max: 8 } as const;
 
 export interface SessionDrillV2 {
   drillId: string;
-  origin: "v1_enriched";
+  /** "v1_enriched": one of the 21 V1 drills; "v2_only": added by V2 (P0-2), no V1 counterpart. */
+  origin: "v1_enriched" | "v2_only";
   skill: DhSkillV2;
   /** The drill's own difficulty, matched later against the rider's declared dhTechnicalTier. */
   technicalTier: DhTechnicalTierV2;
-  /** The drill's reference terrain (V1 terrainRequirement; also the first compatible terrain). */
+  /**
+   * The drill's reference terrain, also the first compatible terrain: the V1 terrainRequirement, except
+   * cornering_off_camber (P0-2, HPM 2026-10-13: the off-camber section declared by the rider).
+   */
   requiredTerrain: string;
   /**
    * P0 first generation (HPM 2026-10-12) — every terrain on which the drill's validated texts can be
@@ -58,6 +67,12 @@ export interface SessionDrillV2 {
   vigilanceIds: readonly string[];
   progressesTo?: string;
   regressesTo?: string;
+  /**
+   * P0-2 (HPM 2026-10-13, option E) — set on the ONE explicit alternative of a (skill, tier) reference drill:
+   * the drill id it stands in for. Selected only when the rider declared no terrain of the reference drill
+   * and at least one of its own (selectDhDrill); same skill, same tier, never a race-intensity drill.
+   */
+  alternativeFor?: string;
   validationStatus: ContentValidationStatus;
 }
 
@@ -71,24 +86,37 @@ export const BERMED_TURN_TERRAINS_V1 = ["bermed_trail", "bike_park_jump_line", "
 
 /**
  * P0-2 (HPM 2026-10-13) — a full DH track hosts the general trajectory, braking and control drills
- * without artificially requiring a technical trail, plus (explicit HPM decisions) the off-camber drill and
- * the beginner / intermediate steep-terrain drills; not the advanced off-brake chute (final check). It does NOT
- * guarantee roots, rocks, a rock garden, jumps or another specific obstacle: those drills keep their terrain.
+ * without artificially requiring a technical trail. It does NOT guarantee an off-camber section, a
+ * particularly steep section, roots, rocks, a rock garden, jumps or another specific obstacle: those
+ * drills keep their specific terrain (HPM final decision: off-camber and steep drills included).
  */
 const FULL_DH_TRACK = "full_dh_track";
+
+/**
+ * P0-2 (HPM 2026-10-13) — an off-camber section is a feature, confirmed only by the rider declaring it
+ * (optional terrain choice « Virages en dévers »). A technical trail alone does not confirm one.
+ */
+export const OFF_CAMBER_SECTION = "off_camber_section";
+
+/**
+ * P0-2 — terrains on which a turn is available to the general advanced cornering drill: every trail or
+ * track the rider can declare. Not a rock garden (a section) nor the off-camber feature itself.
+ */
+const TURN_TERRAINS_V2 = [FULL_DH_TRACK, "any_groomed_trail", "flow_trail", "bermed_trail", "technical_trail", "steep_technical_trail", "root_rock_trail", "bike_park_jump_line"] as const;
 
 function drill(
   drillId: string,
   skill: DhSkillV2,
   technicalTier: DhTechnicalTierV2,
   terrains: string | readonly string[],
-  links: { progressesTo?: string; regressesTo?: string },
-  vigilanceIds: readonly string[] = []
+  links: { progressesTo?: string; regressesTo?: string; alternativeFor?: string },
+  vigilanceIds: readonly string[] = [],
+  origin: SessionDrillV2["origin"] = "v1_enriched"
 ): SessionDrillV2 {
   const compatibleTerrains = typeof terrains === "string" ? [terrains] : [...new Set(terrains)];
   return {
     drillId,
-    origin: "v1_enriched",
+    origin,
     skill,
     technicalTier,
     requiredTerrain: compatibleTerrains[0]!,
@@ -119,18 +147,19 @@ const ENTRIES: SessionDrillV2[] = [
   drill("cornering_flat_turn_precision", "cornering", "beginner", ["flow_trail", FULL_DH_TRACK], { progressesTo: "cornering_berm_speed" }),
   // P0 — its texts need a bermed turn (« virage relevé »): the bermed-turn terrains (HPM 2026-10-12).
   drill("cornering_berm_speed", "cornering", "intermediate", BERMED_TURN_TERRAINS_V1, { progressesTo: "cornering_off_camber", regressesTo: "cornering_flat_turn_precision" }),
-  // P0-2 — HPM decision: a full DH track has off-camber sections (« section en dévers »).
-  drill("cornering_off_camber", "cornering", "advanced", ["technical_trail", FULL_DH_TRACK], { regressesTo: "cornering_berm_speed" }, [PRECISION]),
+  // P0-2 (HPM 2026-10-13) — only where an off-camber section is confirmed by the rider: neither a technical trail
+  // (V1 reference terrain) nor a full DH track guarantees one. Its texts stay PROVISIONAL (coach review).
+  drill("cornering_off_camber", "cornering", "advanced", OFF_CAMBER_SECTION, { regressesTo: "cornering_berm_speed" }, [PRECISION]),
+  // P0-2 (HPM option E) — the explicit alternative of cornering_off_camber: line, braking marks and exit quality on
+  // any available turn, without an off-camber section or a berm. Draft texts, PROVISIONAL.
+  drill("cornering_advanced_line_exit", "cornering", "advanced", TURN_TERRAINS_V2, { regressesTo: "cornering_berm_speed", alternativeFor: "cornering_off_camber" }, [SCOUT, PRECISION], "v2_only"),
   // P0-2 — two lines through a short section: a general trajectory drill, rideable on a full DH track.
   drill("line_choice_two_line_scan", "line_choice", "beginner", ["technical_trail", FULL_DH_TRACK], { progressesTo: "line_choice_rock_garden" }, [SCOUT]),
   drill("line_choice_rock_garden", "line_choice", "intermediate", "rock_garden", { progressesTo: "line_choice_fast_line_compare", regressesTo: "line_choice_two_line_scan" }, [SCOUT]),
   drill("line_choice_fast_line_compare", "line_choice", "advanced", "rock_garden", { regressesTo: "line_choice_rock_garden" }, [PRECISION]),
-  // P0-2 — HPM decision: a full DH track has steeper pitches and gradient changes (« courte pente raide »,
-  // « à mesure que la pente se raidit »), ridden slowly / progressively.
-  drill("steep_terrain_controlled_roll_in", "steep_terrain", "beginner", ["steep_technical_trail", FULL_DH_TRACK], { progressesTo: "steep_terrain_body_position" }, [SCOUT]),
-  drill("steep_terrain_body_position", "steep_terrain", "intermediate", ["steep_technical_trail", FULL_DH_TRACK], { progressesTo: "steep_terrain_off_brake_chute", regressesTo: "steep_terrain_controlled_roll_in" }, [SCOUT]),
-  // P0-2 final check (HPM 2026-10-13): NOT on a full DH track — a « couloir » whose steepest part is ridden off the
-  // brakes needs a known chute with a clean run-out, which a full DH track does not guarantee.
+  // P0-2 (HPM final decision) — the steep drills need a particularly steep section: steep technical trail only.
+  drill("steep_terrain_controlled_roll_in", "steep_terrain", "beginner", "steep_technical_trail", { progressesTo: "steep_terrain_body_position" }, [SCOUT]),
+  drill("steep_terrain_body_position", "steep_terrain", "intermediate", "steep_technical_trail", { progressesTo: "steep_terrain_off_brake_chute", regressesTo: "steep_terrain_controlled_roll_in" }, [SCOUT]),
   drill("steep_terrain_off_brake_chute", "steep_terrain", "advanced", "steep_technical_trail", { regressesTo: "steep_terrain_body_position" }, [PRECISION]),
   drill("roots_rocks_rolling", "roots_rocks", "beginner", "root_rock_trail", { progressesTo: "roots_rocks_unweighted_line" }),
   drill("roots_rocks_unweighted_line", "roots_rocks", "intermediate", "root_rock_trail", { progressesTo: "roots_rocks_committed", regressesTo: "roots_rocks_rolling" }),

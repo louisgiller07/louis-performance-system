@@ -51,6 +51,8 @@ export type IntentSelectionV2 =
   | { type: "declared_priority"; skill: DhSkillV2 }
   /** P0 — the declared priority's intent when its drill carries no race intensity (the skill intent would ask for it). */
   | { type: "declared_priority_non_race_drill"; skill: DhSkillV2 }
+  /** P0-2 — the intent of one specific drill of a declared priority (cornering_advanced_line_exit). */
+  | { type: "declared_priority_drill"; skill: DhSkillV2; drillId: string }
   | { type: "candidate" }
   | { type: "inactive_until_validated_rule" };
 
@@ -73,7 +75,7 @@ function intent(intentId: string, family: SessionFamilyV2, sessionKinds: readonl
     family,
     sessionKinds,
     selection,
-    selectable: selection.type === "session_kind" || selection.type === "declared_priority" || selection.type === "declared_priority_non_race_drill",
+    selectable: selection.type === "session_kind" || selection.type === "declared_priority" || selection.type === "declared_priority_non_race_drill" || selection.type === "declared_priority_drill",
     textId: `intent.${intentId}`,
     validationStatus: "PROVISIONAL",
   };
@@ -98,6 +100,8 @@ const ENTRIES: SessionIntentV2[] = [
   intent("dh_jump_control", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "jumps" }),
   intent("dh_race_pace", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "race_execution" }),
   intent("dh_race_consistency", "dh_technical", DH_KINDS, { type: "declared_priority_non_race_drill", skill: "race_execution" }),
+  // P0-2 — the general advanced cornering alternative imposes no speed increase (HPM 2026-10-13).
+  intent("dh_corner_line_control", "dh_technical", DH_KINDS, { type: "declared_priority_drill", skill: "cornering", drillId: "cornering_advanced_line_exit" }),
   // Endurance, mobility, recovery
   intent("aerobic_base_lucidity", "endurance", ["AEROBIC_BASE"], { type: "session_kind" }),
   intent("aerobic_repeat_efforts", "endurance", ["AEROBIC_INTERVALS"], { type: "session_kind" }),
@@ -121,4 +125,9 @@ export const DH_SKILL_TO_INTENT_V2: Readonly<Record<DhSkillV2, string>> = Object
  */
 export const DH_SKILL_NON_RACE_INTENT_V2: Readonly<Partial<Record<DhSkillV2, string>>> = Object.fromEntries(
   ENTRIES.flatMap((i) => (i.selection.type === "declared_priority_non_race_drill" ? [[i.selection.skill, i.intentId]] : []))
+);
+
+/** P0-2 — drill → its own intent, for the few drills whose texts differ from their skill's intent. */
+export const DH_DRILL_INTENT_V2: Readonly<Record<string, string>> = Object.fromEntries(
+  ENTRIES.flatMap((i) => (i.selection.type === "declared_priority_drill" ? [[i.selection.drillId, i.intentId]] : []))
 );

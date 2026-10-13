@@ -104,9 +104,16 @@ export function exerciseNameV2(exerciseId: unknown): string | null {
   return EXERCISE_LABELS_V2_ONLY[exerciseId] ?? EXERCISE_LABELS[exerciseId] ?? null;
 }
 
-/** session-drills-v2.0 uses the V1 drill ids, already labelled (REV-015.3). */
+/** P0-2 (HPM 2026-10-13) — the one V2-only drill (no V1 counterpart), added to session-drills-v2.0. Draft name. */
+const DRILL_LABELS_V2_ONLY: Readonly<Record<string, string>> = {
+  cornering_advanced_line_exit: "Trajectoire et sortie de virage",
+};
+
+/** session-drills-v2.0 uses the V1 drill ids, already labelled (REV-015.3), plus the V2-only ones above. */
 export function drillNameV2(drillId: unknown): string | null {
-  return typeof drillId === "string" && Object.prototype.hasOwnProperty.call(DRILL_LABELS, drillId) ? DRILL_LABELS[drillId]! : null;
+  if (typeof drillId !== "string") return null;
+  if (Object.prototype.hasOwnProperty.call(DRILL_LABELS_V2_ONLY, drillId)) return DRILL_LABELS_V2_ONLY[drillId]!;
+  return Object.prototype.hasOwnProperty.call(DRILL_LABELS, drillId) ? DRILL_LABELS[drillId]! : null;
 }
 
 export const ENDURANCE_ACTIVITY_LABELS_V2: Readonly<Record<string, string>> = {

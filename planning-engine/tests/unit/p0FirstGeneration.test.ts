@@ -19,12 +19,11 @@ import type { LoadProfile } from "../../src/types/sharedVocabulary.js";
 
 const TERRAINS = ["any_groomed_trail", "flow_trail", "bermed_trail", "technical_trail", "rock_garden", "steep_technical_trail", "root_rock_trail", "bike_park_jump_line", "full_dh_track"];
 const REVIEW_TERRAINS = ["technical_trail", "root_rock_trail", "full_dh_track"];
-// P0 (2026-10-12) — then widened further by P0-2 (HPM 2026-10-13, tests/unit/p0_2DhTerrainCompatibility.test.ts).
+// P0 (2026-10-12) — then changed by P0-2 (HPM 2026-10-13, tests/unit/p0_2DhTerrainCompatibility.test.ts):
+// widened drills, the off-camber drill moved to the declared off-camber section, one V2-only alternative.
 const WIDENED_P0 = ["cornering_berm_speed", "braking_late_entry", "braking_progressive_control"];
-const WIDENED_P0_2 = [
-  "braking_progressive_control", "braking_marked_zone_at_speed", "cornering_flat_turn_precision", "cornering_off_camber", "line_choice_two_line_scan",
-  "steep_terrain_controlled_roll_in", "steep_terrain_body_position", "race_execution_section_consistency", "race_execution_split_pace",
-];
+const WIDENED_P0_2 = ["braking_progressive_control", "braking_marked_zone_at_speed", "cornering_flat_turn_precision", "line_choice_two_line_scan", "race_execution_section_consistency", "race_execution_split_pace"];
+const CHANGED_P0_2 = ["cornering_off_camber", "cornering_advanced_line_exit"];
 const WIDENED = [...new Set([...WIDENED_P0, ...WIDENED_P0_2])];
 const MANIFEST = buildSessionModelV2CatalogManifest();
 const textOf = (id: string) => (COACHING_TEXT_CATALOG as Record<string, { text: Record<string, string> }>)[id]!.text["fr-CH"]!;
@@ -56,7 +55,7 @@ describe("P0 first generation — drill terrain compatibility", () => {
   it("no other drill was widened (P0 then P0-2); every drill keeps its reference terrain first (V1 terrainRequirement)", () => {
     for (const d of SESSION_DRILL_CATALOG_V2_ENTRIES) {
       expect(d.compatibleTerrains[0], d.drillId).toBe(d.requiredTerrain);
-      if (!WIDENED.includes(d.drillId)) expect(d.compatibleTerrains, d.drillId).toEqual([d.requiredTerrain]);
+      if (!WIDENED.includes(d.drillId) && !CHANGED_P0_2.includes(d.drillId)) expect(d.compatibleTerrains, d.drillId).toEqual([d.requiredTerrain]);
     }
   });
 

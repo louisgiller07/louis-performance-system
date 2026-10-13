@@ -11,10 +11,12 @@
  * - intent = DH_SKILL_TO_INTENT_V2[skill], or the skill's non-race intent
  *   when that intent demands race intensity and the drill carries none
  *   (dhIntentForDrillV2, P0 replace stale copy);
- * - drill = THE catalogue drill of (skill, declared dhTechnicalTier); one of
+ * - drill = THE reference drill of (skill, declared dhTechnicalTier) when one of
  *   its compatible terrains (catalogue `compatibleTerrains`, P0 first
- *   generation) must be declared, otherwise the plan is blocked — no other
- *   priority, no other tier, no easier or harder drill;
+ *   generation) is declared; otherwise its ONE explicit alternative (P0-2,
+ *   HPM option E: `alternativeFor`, same skill and tier) when one of the
+ *   alternative's terrains is declared (selectDhDrill); otherwise the plan is
+ *   blocked — no other priority, no other tier, no easier or harder drill;
  * - the frame is sessionFrameV2: only the `main` block holds the counted
  *   drill (`pass` = focusedRunsCount, 4–8); every other block carries
  *   instructions only — never a number of runs for the day.
@@ -34,7 +36,7 @@
  */
 import { DH_SKILLS_V2, DH_DRILL_PASSES_RANGE_V2, SESSION_DRILL_CATALOG_V2, SESSION_DRILL_CATALOG_V2_ENTRIES, type DhSkillV2, type DhTechnicalTierV2, type SessionDrillV2 } from "../../catalog/sessionDrillCatalogV2.js";
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
-import { DH_SKILL_NON_RACE_INTENT_V2, DH_SKILL_TO_INTENT_V2, INTENT_CATALOG_V2 } from "../../catalog/intentCatalogV2.js";
+import { DH_DRILL_INTENT_V2, DH_SKILL_NON_RACE_INTENT_V2, DH_SKILL_TO_INTENT_V2, INTENT_CATALOG_V2 } from "../../catalog/intentCatalogV2.js";
 import { DH_SESSION_FRAME_V2 } from "../../catalog/sessionFrameV2.js";
 import type { SessionKind } from "../../types/sharedVocabulary.js";
 import type { SessionModelV2CatalogManifest } from "../catalogManifest.js";
@@ -114,6 +116,9 @@ export function ridesOn(drill: SessionDrillV2, terrainAccess: readonly string[])
  * the skill's non-race intent (DH_SKILL_NON_RACE_INTENT_V2).
  */
 export function dhIntentForDrillV2(drill: SessionDrillV2): string {
+  // P0-2 — a drill with its own intent (cornering_advanced_line_exit: no imposed speed increase).
+  const own = DH_DRILL_INTENT_V2[drill.drillId];
+  if (own !== undefined) return own;
   const nonRace = DH_SKILL_NON_RACE_INTENT_V2[drill.skill];
   return nonRace !== undefined && !RACE_SPEED_DRILL_IDS_V2.has(drill.drillId) ? nonRace : DH_SKILL_TO_INTENT_V2[drill.skill];
 }
@@ -121,15 +126,41 @@ export function dhIntentForDrillV2(drill: SessionDrillV2): string {
 const isDhSkill = (value: string): value is DhSkillV2 => (DH_SKILLS_V2 as readonly string[]).includes(value);
 
 /**
- * THE drill of (skill, tier). The catalogue holds exactly one per pair; any
+ * THE reference drill of (skill, tier). The catalogue holds exactly one per pair (alternatives excluded); any
  * other count is a catalogue / development error — never "take the first".
  */
 export function canonicalDhDrill(skill: DhSkillV2, tier: DhTechnicalTierV2): SessionDrillV2 {
-  const matches = SESSION_DRILL_CATALOG_V2_ENTRIES.filter((drill) => drill.skill === skill && drill.technicalTier === tier);
+  const matches = SESSION_DRILL_CATALOG_V2_ENTRIES.filter((drill) => drill.skill === skill && drill.technicalTier === tier && drill.alternativeFor === undefined);
   if (matches.length !== 1) {
     throw new SessionModelV2ContractError(`expected exactly one DH drill for (${skill}, ${tier}), found ${matches.length}`);
   }
   return matches[0]!;
+}
+
+/**
+ * P0-2 (HPM option E) — the explicit alternative of a reference drill, or null. At most one, of the same skill
+ * and tier, never a race-intensity drill: anything else is a catalogue / development error.
+ */
+export function alternativeDhDrill(reference: SessionDrillV2): SessionDrillV2 | null {
+  const matches = SESSION_DRILL_CATALOG_V2_ENTRIES.filter((drill) => drill.alternativeFor === reference.drillId);
+  if (matches.length === 0) return null;
+  const alt = matches[0]!;
+  if (matches.length > 1 || alt.skill !== reference.skill || alt.technicalTier !== reference.technicalTier || RACE_SPEED_DRILL_IDS_V2.has(alt.drillId)) {
+    throw new SessionModelV2ContractError(`invalid alternative(s) for ${reference.drillId}: ${matches.map((d) => d.drillId).join(", ")}`);
+  }
+  return alt;
+}
+
+/**
+ * P0-2 — the drill of (skill, tier) for the declared terrains: the reference drill when it can be ridden there,
+ * otherwise its explicit alternative when that one can; null when neither (the caller blocks). Deterministic;
+ * the specific drill always wins.
+ */
+export function selectDhDrill(skill: DhSkillV2, tier: DhTechnicalTierV2, terrainAccess: readonly string[]): SessionDrillV2 | null {
+  const reference = canonicalDhDrill(skill, tier);
+  if (ridesOn(reference, terrainAccess)) return reference;
+  const alt = alternativeDhDrill(reference);
+  return alt !== null && ridesOn(alt, terrainAccess) ? alt : null;
 }
 
 export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): PrescriptionV2Content {
@@ -160,17 +191,20 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
 
   const skill = priorities[input.dhSessionOrdinal % priorities.length] as DhSkillV2;
 
-  const canonical = canonicalDhDrill(skill, tier);
-  if (!ridesOn(canonical, input.terrainAccess)) {
+  const canonical = selectDhDrill(skill, tier, input.terrainAccess);
+  if (canonical === null) {
+    const reference = canonicalDhDrill(skill, tier);
+    const alt = alternativeDhDrill(reference);
     throw new SessionModelV2GenerationBlockedError("unavailable_dh_drill_terrain", {
       skill,
       dhTechnicalTier: tier,
-      drillId: canonical.drillId,
-      requiredTerrain: canonical.requiredTerrain,
-      compatibleTerrains: [...canonical.compatibleTerrains],
+      drillId: reference.drillId,
+      requiredTerrain: reference.requiredTerrain,
+      // Every terrain that would make this priority possible (the reference drill's, then its alternative's).
+      compatibleTerrains: [...new Set([...reference.compatibleTerrains, ...(alt?.compatibleTerrains ?? [])])],
     });
   }
-  // P0 — the canonical drill's terrain is declared, so its LIGHT regression always exists.
+  // P0 — the selected drill's terrain is declared, so its LIGHT regression always exists.
   const drill = dhDrillForLoad(canonical, input.loadProfile, input.terrainAccess);
   if (drill === null) throw new SessionModelV2ContractError(`no LIGHT regression for ${canonical.drillId}`);
   const intentId = dhIntentForDrillV2(drill);

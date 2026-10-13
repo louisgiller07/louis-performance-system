@@ -60,12 +60,13 @@ const DH_INPUT: DhPrescriptionV2Input = {
 const drillOf = (content: PrescriptionV2Content) => content.blocks.flatMap((b) => b.items).find((i) => i.kind === "drill");
 
 describe("DH catalogue invariant — exactly one drill per (skill, tier)", () => {
-  it("covers the 7 skills × 3 tiers with exactly one drill each (21 drills); the selection is never 'the first compatible'", () => {
-    expect(SESSION_DRILL_CATALOG_V2_ENTRIES).toHaveLength(21);
+  it("covers the 7 skills × 3 tiers with exactly one reference drill each (21) + the one P0-2 alternative; the selection is never 'the first compatible'", () => {
+    expect(SESSION_DRILL_CATALOG_V2_ENTRIES).toHaveLength(22);
     for (const skill of DH_SKILLS_V2) {
       for (const tier of DH_TECHNICAL_TIERS_V2) {
-        expect(SESSION_DRILL_CATALOG_V2_ENTRIES.filter((d) => d.skill === skill && d.technicalTier === tier), `${skill}/${tier}`).toHaveLength(1);
+        expect(SESSION_DRILL_CATALOG_V2_ENTRIES.filter((d) => d.skill === skill && d.technicalTier === tier && d.alternativeFor === undefined), `${skill}/${tier}`).toHaveLength(1);
         expect(canonicalDhDrill(skill, tier).skill).toBe(skill);
+        expect(canonicalDhDrill(skill, tier).alternativeFor).toBeUndefined();
       }
     }
   });
@@ -131,7 +132,11 @@ describe("DH builder — rotation and selection", () => {
 
   it("the drill follows the declared tier", () => {
     const drills = DH_TECHNICAL_TIERS_V2.map((tier) => drillOf(buildDhPrescriptionV2Content({ ...DH_INPUT, dhTechnicalTier: tier })));
-    expect(drills.map((d) => d?.kind === "drill" && d.drillId)).toEqual(["cornering_flat_turn_precision", "cornering_berm_speed", "cornering_off_camber"]);
+    // P0-2 (HPM 2026-10-13): every terrain but no declared off-camber section → the general advanced alternative.
+    expect(drills.map((d) => d?.kind === "drill" && d.drillId)).toEqual(["cornering_flat_turn_precision", "cornering_berm_speed", "cornering_advanced_line_exit"]);
+    // With the off-camber section declared, the specific reference drill.
+    const confirmed = drillOf(buildDhPrescriptionV2Content({ ...DH_INPUT, dhTechnicalTier: "advanced", terrainAccess: [...DH_INPUT.terrainAccess, "off_camber_section"] }));
+    expect(confirmed?.kind === "drill" && confirmed.drillId).toBe("cornering_off_camber");
   });
 
   it("strengths and weaknesses never reach the builder: changing them changes nothing", () => {
