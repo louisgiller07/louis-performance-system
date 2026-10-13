@@ -8,6 +8,8 @@
 
 **P0-4 — historique et résultats des séances guidées : PASS LOCAL / NOT DEPLOYED (HPM 2026-10-13)** : branche `fix/p0-4-guided-history` depuis la production P0-SAFE ; web seulement (aucune migration, aucune Edge) ; aucun push, merge ou déploiement.
 
+**INT-01 — candidat V2 intégré (P0 première génération + P0-2 sans A12, P0-3, P0-4) : BLOCKED en local (2026-10-13), en attente de décision HPM** : branche `int/int-01-v2-candidate` depuis la production P0-SAFE `92937a9` ; suites, parcours réels, migrations et rollback SQL verts ; deux points bloquants (reprise affichée sous suspension santé, rollback de `daily-run` après le drill v2_only) — voir `docs/release/INT_01_V2_RC_REPORT.md`. Aucun push, merge, déploiement ni activation V2.
+
 **P0-SAFE — continuité santé (2026-10-12) : correction locale approuvée HPM, release non autorisée (gate prête)** (branche `fix/p0-safe-health-continuity`, depuis `origin/main`, livrable seul sans migration). Douleur forte non nouvelle → repos et avis professionnel (A6) ; signal de santé ouvert → repos jusqu'à sa clôture explicite par le rider (A7, Edge `health-flag-resolution`). En attente du verdict HPM.
 
 **P0 première génération — corrigé localement, en attente du verdict HPM (2026-10-12)** : branche `fix/p0-first-generation` ; le profil de la review du 09.10 et le débutant flow trail seul génèrent dès la première tentative avec leurs vrais terrains (décisions HPM : virages relevés, flow trail = sentier aménagé).
