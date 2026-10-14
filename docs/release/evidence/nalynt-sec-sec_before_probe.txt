@@ -1,0 +1,23 @@
+-- probe 1: anon TRUNCATE on weekly_availability (inside a transaction, rolled back)
+BEGIN
+psql:<stdin>:3: ERROR:  null value in column "user_id" of relation "athletes" violates not-null constraint
+DETAIL:  Failing row contains (b2c92ec7-3163-4689-8197-4e01b086c28e, null, null, null, null, CH, Elite, DH_MTB, null, 2026-10-13 20:50:09.128436+00, 2026-10-13 20:50:09.128436+00).
+ROLLBACK
+BEGIN
+SET
+TRUNCATE TABLE
+ROLLBACK
+-- probe 2: authenticated TRUNCATE on goals
+BEGIN
+SET
+TRUNCATE TABLE
+ROLLBACK
+-- probe 3: new table created by postgres: privileges of anon / authenticated / service_role
+BEGIN
+CREATE TABLE
+               new_table_truncate               
+------------------------------------------------
+ anon:true authenticated:true service_role:true
+(1 row)
+
+ROLLBACK

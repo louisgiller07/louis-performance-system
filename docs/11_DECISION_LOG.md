@@ -6141,3 +6141,25 @@ Une séance guidée terminée était déjà protégée (NX101).
 
 **Statut** : READY LOCAL / NOT DEPLOYED. Intégration à REL-01 sur décision HPM.
 
+## 2026-10-14 — ADR P0-SEC-TRIGGER : les rôles d'API du navigateur ne détiennent jamais TRIGGER sur les tables publiques
+
+**Constat (QA-ISOLATION-01, prouvé).**
+- `anon` et `authenticated` détiennent TRIGGER sur les 9 tables de la baseline, et les privilèges par défaut de `postgres` le leur accordent sur toute nouvelle table.
+- `CREATE TRIGGER` n'exige que TRIGGER sur la table et EXECUTE sur une fonction. Ces rôles exécutent les fonctions déclencheuses publiques (`reject_append_only_mutation`, etc.). Une session agissant sous l'un d'eux peut donc greffer un trigger persistant qui bloque ou altère toutes les écritures d'une table.
+- `NOLOGIN` et l'absence de chemin API connu ne sont pas retenus comme preuve d'innocuité.
+
+**Décision (HPM GO local).** Migration `20261014120000_p0_sec_trigger_api_roles` :
+- `revoke trigger` sur les 9 tables pour `anon` et `authenticated` ;
+- retrait de TRIGGER des privilèges par défaut de `postgres` ;
+- vérification *fail closed*.
+
+Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, triggers existants (TRIGGER n'est vérifié qu'à la création). Les privilèges par défaut de `supabase_admin` ne sont pas modifiables par `postgres` : blocage documenté, sans contournement.
+
+**Preuves** (harnais QA-ISOLATION-01, stack `nalynt-qa01`, 73 migrations dans l'ordre REL-01 proposé) :
+- 24/24, avec contre-preuve ;
+- 62 triggers identiques ;
+- configurations candidat et rollback vers C vertes ;
+- rollback exact, qui ré-ouvre la création de trigger (dangereux).
+
+**Statut** : READY LOCAL / NOT DEPLOYED. Proposée comme 7e migration de REL-01 sur décision HPM.
+
