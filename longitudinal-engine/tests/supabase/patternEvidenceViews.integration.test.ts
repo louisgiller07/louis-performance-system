@@ -13,9 +13,8 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, TEST_SUPABASE_URL, type TestAthlete } from "./testDb.js";
+import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, testSupabaseUrl, type TestAthlete } from "./testDb.js";
 
-const LOCAL_URL = TEST_SUPABASE_URL;
 
 class MissingAnonKeyError extends Error {
   constructor() {
@@ -37,7 +36,7 @@ async function createAuthenticatedTestAthlete(adminClient: SupabaseClient, name:
   const { error: athleteError } = await adminClient.from("athletes").insert({ id: athleteId, user_id: userData.user.id, name });
   if (athleteError) throw new Error(`createAuthenticatedTestAthlete: athlete insert failed: ${athleteError.message}`);
 
-  const authClient = createClient(LOCAL_URL, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const authClient = createClient(testSupabaseUrl(), anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { error: signInError } = await authClient.auth.signInWithPassword({ email, password });
   if (signInError) throw new Error(`createAuthenticatedTestAthlete: sign-in failed: ${signInError.message}`);
 
@@ -144,7 +143,7 @@ describe("pattern_evidence views — integration", () => {
   describe("anon has no access", () => {
     it("anon key cannot select from pattern_evidence_current", async () => {
       const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
-      const anonClient = createClient(LOCAL_URL, anonKey!, { auth: { persistSession: false, autoRefreshToken: false } });
+      const anonClient = createClient(testSupabaseUrl(), anonKey!, { auth: { persistSession: false, autoRefreshToken: false } });
       const { data, error } = await anonClient.from("pattern_evidence_current").select("*");
       expect(data === null || (Array.isArray(data) && data.length === 0)).toBe(true);
       void error; // PostgREST may report this as an empty result (RLS with no policy for anon) rather than an explicit error, depending on grant vs RLS interaction — either way, zero rows are ever visible.

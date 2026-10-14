@@ -27,12 +27,11 @@
  * the exact same key, and resolves only after this helper's `release()`.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { TEST_DB_CONTAINER } from "./testDb.js";
+import { testDbContainer } from "./testDb.js";
 
-const DB_CONTAINER = TEST_DB_CONTAINER;
 
 function spawnPsql(): ChildProcessWithoutNullStreams {
-  return spawn("docker", ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-A", "-t"], {
+  return spawn("docker", ["exec", "-i", testDbContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-A", "-t"], {
     stdio: ["pipe", "pipe", "pipe"],
   });
 }

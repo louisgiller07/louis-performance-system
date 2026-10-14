@@ -22,9 +22,11 @@ import { insertAvailabilityWindow } from "../../../src/supabase/repositories/ath
 import { computeDailyFor } from "../../../src/supabase/computeDailyFor.js";
 import { execLocalSql, sqlLiteral } from "../../supabase/localDb.js";
 import { serveLogTail, startOwnedFunctionsRuntime } from "./functionsRuntime.js";
+import { verifyLocalTestTarget } from "../../supabase/testTarget.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+// QA-ISOLATION-01 — explicit, verified local stack (no default): the gateway publishing SUPABASE_URL's port names it.
+const SUPABASE_URL = verifyLocalTestTarget().apiUrl;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
 if (!ANON_KEY) throw new Error("Set SUPABASE_PUBLISHABLE_KEY (npx supabase status -o env). No key is hardcoded here.");
 const TODAY_FOR_DAILY = ["2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11"];

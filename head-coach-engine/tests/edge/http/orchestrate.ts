@@ -27,10 +27,11 @@ import {
   insertTrainingBlock,
   type TestAthlete,
 } from "../../supabase/testDb.js";
+import { verifyLocalTestTarget } from "../../supabase/testTarget.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
-const LOCAL_URL = "http://127.0.0.1:54321";
-const SUPABASE_URL = process.env.SUPABASE_URL ?? LOCAL_URL;
+// QA-ISOLATION-01 — explicit, verified local stack (no default): the gateway publishing SUPABASE_URL's port names it.
+const SUPABASE_URL = verifyLocalTestTarget().apiUrl;
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1/daily-run`;
 
 class MissingAnonKeyError extends Error {

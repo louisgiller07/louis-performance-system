@@ -12,6 +12,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestClient, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, UnsafeTestTargetError } from "./testDb.js";
+import { TestTargetError } from "./testTarget.js";
 
 const ENV_KEYS = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"] as const;
 let saved: Record<string, string | undefined>;
@@ -75,10 +76,11 @@ describe("createTestClient — refuses an unsafe target before any network use",
     expect(() => createTestClient()).toThrow(UnsafeTestTargetError);
   });
 
-  it("does not throw UnsafeTestTargetError for the local default (only a client construction, no network call)", () => {
+  it("QA-ISOLATION-01: without SUPABASE_URL there is no default stack — TestTargetError (not UnsafeTestTargetError), before any network use", () => {
     process.env.SUPABASE_SECRET_KEY = "not-a-real-key-never-used";
     delete process.env.SUPABASE_URL;
     expect(() => createTestClient()).not.toThrow(UnsafeTestTargetError);
+    expect(() => createTestClient()).toThrow(TestTargetError);
   });
 
   it("still throws MissingTestServerKeyError when no key is present, regardless of URL", () => {

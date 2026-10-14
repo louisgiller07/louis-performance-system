@@ -17,10 +17,11 @@ import { generateAndPersistTrainingPlanV2 } from "../../../../head-coach-engine/
 import { acceptTrainingPlanVersion } from "../../../../head-coach-engine/src/supabase/acceptTrainingPlanVersion.js";
 import type { SessionExecutionBatch } from "./sessionExecutionClient";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
+import { integrationApiUrl } from "../../test/testTarget";
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const LOCAL_ANON_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-const LOCAL_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const LOCAL_URL = integrationApiUrl();
 const INTEGRATION_ENABLED =
   process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && !!LOCAL_ANON_KEY && /^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(LOCAL_URL);
 

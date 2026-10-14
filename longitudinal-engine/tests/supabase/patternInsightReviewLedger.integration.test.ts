@@ -20,13 +20,11 @@ import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, TEST_DB_CONTAINER, TEST_SUPABASE_URL, type TestAthlete } from "./testDb.js";
+import { createTestAthlete, createTestClient, testDbContainer, testSupabaseUrl, type TestAthlete } from "./testDb.js";
 
-const DB_CONTAINER = TEST_DB_CONTAINER;
-const LOCAL_URL = TEST_SUPABASE_URL;
 
 function runPsqlChecked(sql: string, extraArgs: readonly string[] = []): { stdout: string; stderr: string } {
-  const result = spawnSync("docker", ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", ...extraArgs], {
+  const result = spawnSync("docker", ["exec", "-i", testDbContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", ...extraArgs], {
     input: sql,
     encoding: "utf8",
   });
@@ -68,7 +66,7 @@ async function createAuthenticatedTestAthlete(adminClient: SupabaseClient, name:
   const { error: athleteError } = await adminClient.from("athletes").insert({ id: athleteId, user_id: userData.user.id, name });
   if (athleteError) throw new Error(`createAuthenticatedTestAthlete: athlete insert failed: ${athleteError.message}`);
 
-  const authClient = createClient(LOCAL_URL, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const authClient = createClient(testSupabaseUrl(), anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { error: signInError } = await authClient.auth.signInWithPassword({ email, password });
   if (signInError) throw new Error(`createAuthenticatedTestAthlete: sign-in failed: ${signInError.message}`);
 
@@ -754,7 +752,7 @@ describe("pattern_insight review ledger — integration", () => {
 
     it("anon has no access to the current view", async () => {
       const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
-      const anonClient = createClient(LOCAL_URL, anonKey!, { auth: { persistSession: false, autoRefreshToken: false } });
+      const anonClient = createClient(testSupabaseUrl(), anonKey!, { auth: { persistSession: false, autoRefreshToken: false } });
       const { data } = await anonClient.from("pattern_insight_review_current").select("*");
       expect(data === null || (Array.isArray(data) && data.length === 0)).toBe(true);
     });
