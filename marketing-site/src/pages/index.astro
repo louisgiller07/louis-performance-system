@@ -1,28 +1,34 @@
 ---
-// V3 — Premium homepage: a seven-chapter brand experience (hero → problem →
-// a day with NALYNT → how it works → the product → why NALYNT → final CTA).
-// All copy lives in content/home.ts; all motion in scripts/motion.ts.
+// ART-02 — NALYNT race control homepage (local preview, not published).
+// Opening (hero) → three acts held by one gold race line (Story): le point de
+// départ (ActStart), le coaching quotidien (CoachingDemo + CoachingDomains),
+// le jour de course (ActRace) → project, FAQ, closing line.
+// Copy: content/home.ts and content/domains.ts. Behaviour: each component's
+// own script, coordinated by scripts/core.ts.
 import BaseLayout from "../layouts/BaseLayout.astro";
-import HomeHero from "../components/home/HomeHero.astro";
-import ProblemSection from "../components/home/ProblemSection.astro";
-import DayStory from "../components/home/DayStory.astro";
-import HowItWorks from "../components/home/HowItWorks.astro";
-import ProductShowcase from "../components/home/ProductShowcase.astro";
-import WhyNalynt from "../components/home/WhyNalynt.astro";
-import FinalCta from "../components/sections/FinalCta.astro";
+import Hero from "../components/art/Hero.astro";
+import RealityBand from "../components/art/RealityBand.astro";
+import Story from "../components/art/Story.astro";
+import ActStart from "../components/art/ActStart.astro";
+import CoachingDemo from "../components/art/CoachingDemo.astro";
+import CoachingDomains from "../components/art/CoachingDomains.astro";
+import ActRace from "../components/art/ActRace.astro";
+import Project from "../components/art/Project.astro";
+import Faq from "../components/art/Faq.astro";
+import FinishLine from "../components/art/FinishLine.astro";
 import { home } from "../content/home.ts";
 ---
 
-<BaseLayout title={home.meta.title} description={home.meta.description} preloadDisplayFont>
-  <HomeHero />
-  <ProblemSection />
-  <DayStory />
-  <HowItWorks />
-  <ProductShowcase />
-  <WhyNalynt />
-  <FinalCta />
+<BaseLayout title={home.meta.title} description={home.meta.description} overlayHeader>
+  <Hero />
+  <RealityBand />
+  <Story>
+    <ActStart />
+    <CoachingDemo />
+    <CoachingDomains />
+    <ActRace />
+  </Story>
+  <Project />
+  <Faq />
+  <FinishLine />
 </BaseLayout>
-
-<script>
-  import "../scripts/motion.ts";
-</script>

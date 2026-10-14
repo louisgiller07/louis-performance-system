@@ -1,0 +1,75 @@
+---
+// ART-02 — closing invitation of every page. Bookend of the hero: a faint gold
+// race line draws itself across the band once it enters the screen.
+import { home, signupHref } from "../../content/home.ts";
+
+interface Props {
+  title?: string;
+  lead?: string;
+}
+
+const { title = home.finish.title, lead = home.finish.lead } = Astro.props;
+---
+
+<section class="finish" aria-labelledby="finish-title" data-reveal>
+  <svg class="finish-line" viewBox="0 0 1200 120" preserveAspectRatio="none" fill="none" aria-hidden="true" focusable="false">
+    <path pathLength="1" d="M0 92 C 220 92, 300 34, 520 40 S 860 104, 1060 70 S 1160 60, 1200 60" />
+  </svg>
+  <div class="art-wrap finish-inner">
+    <div>
+      <h2 id="finish-title" class="art-h2" data-rise><span class="mask-line"><span>{title}</span></span></h2>
+      <p class="finish-lead" data-fade>{lead}</p>
+    </div>
+    <a href={signupHref} class="btn-gold" data-fade style="--fade-delay: 240ms">{home.finish.primary}<span class="race-mark" aria-hidden="true"></span></a>
+  </div>
+</section>
+
+<style>
+  .finish {
+    position: relative;
+    overflow: hidden;
+    padding-block: clamp(4rem, 3rem + 4vw, 6.5rem);
+    background:
+      radial-gradient(50rem 20rem at 15% 100%, rgb(213 189 134 / 0.1), transparent 70%),
+      #1d1b15;
+    border-block: 1px solid #453a28;
+  }
+  .finish-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 7.5rem;
+    pointer-events: none;
+  }
+  .finish-line path {
+    stroke: rgb(213 189 134 / 0.35);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  .finish-inner {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+  .finish-lead {
+    margin-top: 0.75rem;
+    font-size: 1rem;
+    color: #bfb094;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .finish-line path {
+      stroke-dashoffset: 1;
+      transition: stroke-dashoffset 2.2s cubic-bezier(0.55, 0, 0.25, 1) 0.2s;
+    }
+    :global(.js [data-reveal].is-in) .finish-line path {
+      stroke-dashoffset: 0;
+    }
+  }
+</style>

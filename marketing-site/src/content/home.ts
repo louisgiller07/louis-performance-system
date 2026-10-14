@@ -1,231 +1,248 @@
-// V3 — Premium homepage (brand experience). Content source only for the seven
-// homepage sections in src/components/home/ — no component adds copy of its
-// own. Same honesty rules as content/copy.ts: every product statement below
-// matches what the app actually does today (daily check-in, Today / Programme
-// / History screens, explained adaptations, free beta without payment).
+// ART-02 — NALYNT homepage copy (single source for src/components/art/).
+// Base: the validated designer reference (NALYNT-design-valide-transmission)
+// and ART-01. Honesty rules of content/copy.ts apply: every product statement
+// matches shipped behavior.
 //
-// Deliberately NOT claimed: a 7-day trial (no trial exists — the beta is free),
-// "NALYNT apprend tout seul" (banned framing — the system keeps a factual
-// memory, it does not self-improve), weather as an input (weather appears
-// only as an example of the athlete's changing reality in "Le problème").
-//
-// The day-story and app-screen values are one fictional-but-representative DH
-// technical day, using the app's real labels (Mission du jour, Plan de
-// séance, Intensité, Pourquoi cette décision ?, Programme, Historique).
-
-export interface HomeLink {
-  label: string;
-  href: string;
-}
-
-export interface Reality {
-  word: string;
-  note: string;
-}
-
-export interface Metric {
-  label: string;
-  value: string;
-  /** Bar fill, 0–100. */
-  level: number;
-  /** The one signal the day's decision is built on — highlighted in gold. */
-  retained?: boolean;
-}
-
-export interface DayStep {
-  label: string;
-  title: string;
-  body: string;
-}
-
-export interface Pillar {
-  word: string;
-  line: string;
-  detail: string;
-}
-
-export interface ProductFeature {
-  id: "today" | "programme" | "history" | "adaptation";
-  label: string;
-  line: string;
-}
+// Scope (HPM, ART-02): downhill (DH) only — enduro is not presented as a
+// supported product until validated.
+// Deliberately NOT published, pending HPM / owner validation:
+// - any free / beta / price wording: no pricing decision is validated;
+// - any first-person founder quote: factual project text instead;
+// - any statistic or sporting result.
+// All demo / week / telemetry values are a fictional example, labelled as such.
+// Copy and the use of both photos validated before publication (2026-10).
+// V1 accounts (production): the app shows a session's duration window,
+// technical objective and reason, not a minute-by-minute breakdown — the demo
+// note says the breakdown is indicative; no claim that NALYNT knows track
+// sectors.
 
 export const signupHref = "https://app.nalynt.ch/signup";
 export const loginHref = "https://app.nalynt.ch/login";
 
+export interface Scenario {
+  id: "fresh" | "tired" | "busy";
+  label: string;
+  hint: string;
+  checkin: string;
+  /** Short state of the day's decision. */
+  status: string;
+  summary: string;
+  /** The reason, with its decisive factor highlighted: before + key + after. */
+  reason: [string, string, string];
+  /** The 3 blocks of the session (same roles in every scenario), in minutes. */
+  steps: { label: string; minutes: number }[];
+  /** Adapted route of the console race line (same command structure in every scenario). */
+  route: string;
+}
+
+/** The session planned in the programme before the check-in. */
+export const PLANNED_MINUTES = 240;
+
+export const formatMinutes = (minutes: number): string => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h} h` : `${h} h ${String(m).padStart(2, "0")}`;
+};
+
 export const home = {
   meta: {
-    title: "NALYNT — Coach IA de performance pour le VTT Downhill, l'Enduro et le Gravity",
+    title: "NALYNT — Le coach d'entraînement des pilotes de descente",
     description:
-      "NALYNT adapte chaque jour ton entraînement DH et enduro à ton état réel, à tes disponibilités et à tes courses. Ton objectif reste. Le plan s'adapte.",
+      "NALYNT adapte chaque jour ton entraînement de VTT de descente (DH) à ton état, à ton temps disponible et à tes courses. Ton objectif reste. Le plan s'adapte.",
   },
 
   hero: {
-    eyebrow: "DH · Enduro · Gravity",
-    titleLines: ["Ton objectif reste.", "Le plan"],
-    titleAccent: "s'adapte.",
-    /** Positioning first: this is for riders, not a generic adaptive-fitness app. ("Le premier …" dropped — unverifiable superlative.) */
-    subtitle: "Le coach IA conçu pour les pilotes DH et Enduro.",
-    support: "Il analyse ton état, adapte ton entraînement et t'aide à arriver plus fort le jour de course.",
-    primary: { label: "Commencer gratuitement", href: signupHref } satisfies HomeLink,
-    secondary: { label: "Découvrir comment ça marche", href: "#journee" } satisfies HomeLink,
-    caption: "Louis Giller — pilote Elite DH, Suisse",
-    image: {
-      alt: "Un pilote de VTT descente, dossard 86, fonce vers l'objectif dans un nuage de poussière sur une piste rocailleuse.",
-    },
-  },
-
-  problem: {
-    index: "02",
-    kicker: "Le problème",
-    titleLines: ["Le problème n'est pas ton ambition.", "C'est que ta réalité change constamment."],
-    realities: [
-      { word: "Fatigue", note: "Des jambes lourdes après trois jours de piste." },
-      { word: "Météo", note: "Une piste détrempée, une séance à repenser." },
-      { word: "Blessures", note: "Un poignet qui tire depuis mardi." },
-      { word: "Travail", note: "Une semaine à rallonge au bureau." },
-      { word: "Courses", note: "Une manche iXS dans douze jours." },
-      { word: "Contraintes", note: "Une heure devant toi au lieu de trois." },
-    ] satisfies Reality[],
-    closing: "Un plan figé ignore tout ça. NALYNT part de là.",
-  },
-
-  day: {
-    index: "03",
-    kicker: "Une journée avec NALYNT",
-    title: "Mardi, 7 h 12.",
-    intro: "Tu connais cette journée. Voici ce qui change avec NALYNT.",
-    stamp: "Mar 12 · 07:12",
-    steps: [
-      {
-        label: "Avant NALYNT",
-        title: "« Mon programme disait 4 h. »",
-        body: "DH technique, quatre heures, écrit il y a trois semaines. Ton programme ne sait pas quelle nuit tu viens de passer.",
-      },
-      {
-        label: "La réalité",
-        title: "« Jambes lourdes. Genou qui tire. Boulot jusqu'à 16 h. »",
-        body: "Tu le dis au check-in, comme tu le dirais à ton coach. NALYNT en tient compte avant de proposer quoi que ce soit.",
-      },
-      {
-        label: "Avec NALYNT",
-        title: "Le coach ajuste.",
-        body: "L'objectif reste : précision et lignes. La séance passe à 2 h 30, pour des runs propres sans forcer sur un genou sensible.",
-      },
-      {
-        label: "La suite",
-        title: "NALYNT garde la mémoire. Le plan évolue.",
-        body: "Prévu, réalisé, ressenti : tout reste dans ton historique. Les séances suivantes partent de ce qui s'est vraiment passé.",
-      },
-    ] satisfies DayStep[],
-    /** "Avant NALYNT" — the fixed plan, as written weeks ago. */
-    plan: {
-      heading: "Programme · Mardi",
-      kind: "DH technique",
+    titleLines: ["Ton objectif reste.", "Le plan s'adapte."],
+    lead: "Le coach d'entraînement des pilotes de descente. Ta séance suit ton état, ton temps disponible et tes courses, avec la raison de chaque ajustement.",
+    primary: "Découvrir mon plan",
+    secondary: "Essayer l'exemple",
+    credit: "Louis Giller, pilote Elite DH",
+    imageAlt: "Un pilote de VTT descente, dossard 86, lancé sur une piste rocailleuse dans la poussière.",
+    lineLabels: { change: "état du jour", goal: "objectif" },
+    telemetry: {
+      head: "Mardi, exemple",
       rows: [
-        { label: "Durée", value: "4 h" },
-        { label: "Intensité", value: "Élevée" },
-        { label: "Objectif", value: "Précision des lignes" },
-      ],
-      footnote: "Écrit il y a 3 semaines · jamais mis à jour",
+        ["Check-in", "Jambes lourdes"],
+        ["Séance", "DH technique"],
+      ] as [string, string][],
+      from: "4 h",
+      to: "2 h 30",
+      status: "Volume ajusté",
     },
-    metrics: [
-      { label: "Sommeil", value: "6 h 20", level: 55 },
-      { label: "Fatigue jambes", value: "Élevée", level: 84, retained: true },
-      { label: "Genou", value: "Douleur légère", level: 28, retained: true },
-      { label: "Énergie", value: "Moyenne", level: 50 },
-      { label: "Disponible", value: "2 h 30 · après 16 h", level: 45 },
-    ] satisfies Metric[],
-    signal: "Signaux retenus : fatigue jambes · genou sensible",
-    session: {
-      heading: "Mission du jour",
-      kind: "DH technique",
-      plannedDuration: "4 h",
-      plannedLabel: "prévues",
-      duration: "2 h 30",
-      adaptedLabel: "adaptées",
-      objective: "Précision des lignes",
-      intensity: "Modérée",
-      focus: "Qualité des répétitions",
-      badge: "Séance adaptée",
-      reason: "Fatigue jambes élevée et genou sensible : volume réduit, objectif technique conservé.",
-    },
+  },
+
+  reality: {
+    line: "Ta semaine change. Ton programme aussi.",
+    factors: ["Fatigue", "Disponibilités", "Courses"],
+  },
+
+  acts: {
+    start: "Le point de départ",
+    daily: "Le coaching quotidien",
+    race: "Le jour de course",
+  },
+
+  /** Act I — a week built from the rider's inputs (fictional example). */
+  start: {
+    title: ["Tout part", "de ta saison."],
+    lead: "Tes créneaux d'entraînement, tes courses et ton objectif posent le cadre. Ta semaine se construit autour.",
+    inputs: [
+      { key: "creneaux", label: "Tes créneaux", value: "5 jours sur 7" },
+      { key: "course", label: "Tes courses", value: "Course dimanche" },
+      { key: "objectif", label: "Ton objectif", value: "Précision en DH" },
+    ],
+    boardTitle: "Ta semaine",
+    exampleTag: "Exemple fictif",
+    replay: "Rejouer",
+    days: [
+      { day: "Lun", slot: true, session: "Renfo bas du corps" },
+      { day: "Mar", slot: true, session: "DH technique", today: true },
+      { day: "Mer", slot: false, session: "Repos" },
+      { day: "Jeu", slot: true, session: "Aérobie" },
+      { day: "Ven", slot: false, session: "Entretien vélo" },
+      { day: "Sam", slot: true, session: "DH performance" },
+      { day: "Dim", slot: true, session: "Course", race: true },
+    ],
+    note: "Exemple fictif. Ta semaine réelle dépend de ton profil, de tes courses et de tes disponibilités.",
+    todayLabel: "aujourd'hui",
+    /** Bridge to Act II: the demo is this week's Tuesday. */
+    bridge: { text: "Mardi matin, ton check-in recompose la séance du jour.", link: "Voir la séance de mardi" },
+  },
+
+  demo: {
+    title: ["Un check-in.", "Une séance adaptée."],
+    lead: "Choisis un état du jour. La séance se recompose, l'objectif technique reste.",
+    pickLabel: "Ton état ce matin",
+    day: "Mardi",
+    exampleTag: "Exemple fictif",
+    mission: "Mission du jour",
+    session: "DH technique",
+    objective: "Objectif : précision des lignes",
+    routeLegend: { planned: "Plan prévu", goal: "Objectif" },
+    plannedLabel: "Prévu",
+    adaptedLabel: "Proposé",
+    removedLabel: "retiré",
+    whyLabel: "Pourquoi cette décision ?",
+    note: "Exemple fictif, calculé dans ton navigateur. Le découpage est indicatif : dans l'application, ta séance indique sa durée, son objectif et la raison du choix.",
+    defaultScenario: "tired" as Scenario["id"],
+    plannedRoute: "M 8 40 C 120 40, 220 40, 330 40 S 500 40, 612 40",
+    scenarios: [
+      {
+        id: "fresh",
+        label: "En forme",
+        hint: "Bonne nuit, journée libre",
+        checkin: "Check-in · Bonne forme",
+        status: "Séance conservée",
+        summary: "Tu es en forme et disponible : la séance prévue est conservée.",
+        reason: ["", "État du jour favorable", " et temps disponible : la séance prévue est conservée."],
+        steps: [
+          { label: "Échauffement et reconnaissance", minutes: 30 },
+          { label: "Travail des lignes sur une section", minutes: 170 },
+          { label: "Runs complets et retour au calme", minutes: 40 },
+        ],
+        route: "M 8 40 C 120 40, 220 40, 330 40 S 500 40, 612 40",
+      },
+      {
+        id: "tired",
+        label: "Jambes lourdes",
+        hint: "Fatigue des jambes élevée",
+        checkin: "Check-in · Fatigue jambes élevée",
+        status: "Volume réduit",
+        summary: "La séance raccourcit. Le travail des lignes reste au programme.",
+        reason: ["Volume réduit pour tenir compte de ", "ta fatigue", ". L'objectif technique est conservé."],
+        steps: [
+          { label: "Échauffement et lignes lentes", minutes: 20 },
+          { label: "Runs techniques, même section", minutes: 110 },
+          { label: "Retour au calme", minutes: 20 },
+        ],
+        route: "M 8 40 C 110 40, 170 70, 300 70 S 500 44, 612 40",
+      },
+      {
+        id: "busy",
+        label: "Moins de temps",
+        hint: "1 h 30 devant toi",
+        checkin: "Check-in · 1 h 30 disponible",
+        status: "Séance ciblée",
+        summary: "Moins de temps : la séance tient dans ton créneau, centrée sur une section.",
+        reason: ["", "Temps disponible réduit", " : travail ciblé sur les lignes, avec échauffement et retour au calme."],
+        steps: [
+          { label: "Échauffement et reconnaissance", minutes: 15 },
+          { label: "Travail ciblé sur une section", minutes: 60 },
+          { label: "Retour au calme", minutes: 15 },
+        ],
+        route: "M 8 40 C 90 40, 120 12, 230 12 S 470 30, 612 40",
+      },
+    ] satisfies Scenario[],
+    week: [
+      { day: "Lun", session: "Renfo bas du corps", duration: "45 min" },
+      { day: "Mar", session: "DH technique", duration: null, current: true },
+      { day: "Mer", session: "Récupération active", duration: "40 min" },
+      { day: "Jeu", session: "Aérobie", duration: "1 h" },
+      { day: "Ven", session: "Entretien vélo", duration: "—" },
+      { day: "Sam", session: "DH performance", duration: "3 h" },
+      { day: "Dim", session: "Repos", duration: "—" },
+    ],
     history: [
-      { day: "Mar 12", kind: "DH technique", detail: "Prévu 4 h · Réalisé 2 h 30", tag: "Adaptée" },
-      { day: "Lun 11", kind: "Renfo bas du corps", detail: "Prévu 45 min · Réalisé 45 min", tag: "Conforme" },
-      { day: "Dim 10", kind: "Repos", detail: "Journée de récupération", tag: "Conforme" },
+      { session: "Renfo bas du corps", day: "Lundi", detail: "45 min prévues · 45 min réalisées" },
+      { session: "Repos", day: "Dimanche", detail: "Journée de récupération" },
+      { session: "DH performance", day: "Samedi", detail: "3 h prévues · 2 h 40 réalisées · séance adaptée" },
     ],
-    /** Week strip — planned volume per day before / after today's adaptation (0–100). */
-    week: {
-      label: "Programme · Semaine 3",
-      days: ["L", "M", "M", "J", "V", "S", "D"],
-      before: [30, 80, 25, 45, 15, 70, 0],
-      after: [30, 50, 30, 45, 15, 70, 0],
-      today: 1,
-    },
+    historyNote: "La suite du plan part de ce que tu as vraiment fait.",
   },
 
-  how: {
-    index: "04",
-    kicker: "Comment ça fonctionne",
-    pillars: [
-      { word: "Observer", line: "Comprendre ton contexte.", detail: "Check-in du jour, disponibilités, courses à venir, historique." },
-      { word: "Adapter", line: "Modifier ton plan.", detail: "Garder, ajuster ou remplacer la séance, toujours avec une raison claire." },
-      { word: "Progresser", line: "Améliorer tes performances.", detail: "Des séances de qualité, jour après jour, jusqu'au jour de course." },
-    ] satisfies Pillar[],
+  race: {
+    title: ["Ta saison donne", "la direction."],
+    lead: "Tes courses font partie du plan. La technique et le physique s'organisent autour de tes échéances, et ton état mental est suivi chaque jour.",
+    inputs: ["Technique", "Physique", "Mental"],
+    outcome: "Jour de course",
+    link: "Préparer ma saison",
+    imageAlt: "Un pilote de VTT descente en plein saut au-dessus d'une bosse de terre, sous un ciel gris.",
   },
 
-  product: {
-    index: "05",
-    kicker: "Le produit",
-    titleLines: ["Une seule question.", "Que faire aujourd'hui ?"],
-    features: [
-      { id: "today", label: "Aujourd'hui", line: "Ta mission du jour, lisible entre deux runs." },
-      { id: "programme", label: "Programme", line: "Ta semaine, construite autour de tes courses." },
-      { id: "history", label: "Historique", line: "Prévu et réalisé, côte à côte." },
-      { id: "adaptation", label: "Adaptation IA", line: "Chaque ajustement, expliqué en une phrase." },
-    ] satisfies ProductFeature[],
+  project: {
+    title: ["Créé pour les pilotes,", "par un pilote."],
+    body: "NALYNT est né sur les pistes de DH, un sport où une trajectoire imprécise ou une décision prise trop tard se paie tout de suite.",
+    name: "Louis Giller",
+    role: "Pilote Elite DH, Suisse. Fondateur de NALYNT.",
+    link: "L'histoire du projet",
   },
 
-  why: {
-    index: "06",
-    kicker: "Pourquoi NALYNT",
-    titleLines: ["Créé pour les pilotes", "qui veulent progresser", "intelligemment."],
-    /**
-     * Human proof — "créé pour les pilotes, par un pilote". NEEDS VALIDATION:
-     * `quote` is a first-person draft in Louis's name, built only from the
-     * project's documented origin (content/copy.ts `about.origin`).
-     */
-    founder: {
-      kicker: "Créé pour les pilotes, par un pilote",
-      quote:
-        "Je roule en Elite DH. Mon programme ne savait jamais dans quel état j'arrivais le matin d'une séance. J'ai construit NALYNT pour ça.",
-      name: "Louis Giller",
-      role: "Pilote Elite DH, Suisse · Fondateur de NALYNT",
-    },
-    body: [
-      "NALYNT est né sur les pistes de DH, un sport où une trajectoire imprécise ou une décision prise trop tard se paie tout de suite. Il est testé chaque jour sur de vraies séances avant d'accompagner d'autres pilotes.",
+  faq: {
+    title: "Avant de commencer.",
+    lead: "Quelques repères pour savoir si NALYNT correspond à ta pratique.",
+    contact: "Une autre question ?",
+    items: [
+      {
+        q: "Pour quels pilotes ?",
+        a: "Pour les pilotes de VTT de descente (DH) qui veulent structurer leur préparation autour de leurs objectifs et de leurs courses.",
+      },
+      {
+        q: "Comment mon plan s'adapte-t-il ?",
+        a: "Ton check-in, tes disponibilités, tes courses et ton historique servent de contexte. La séance du jour est conservée, ajustée ou remplacée, avec une raison claire.",
+      },
+      {
+        q: "Et si j'ai moins de temps aujourd'hui ?",
+        a: "Indique ton temps disponible au check-in. La séance est ajustée pour tenir dans ce créneau.",
+      },
+      {
+        q: "Il y a aussi de la préparation physique ?",
+        a: "Oui. Le physique complète le riding, avec des séances structurées et adaptées à ton état du jour.",
+      },
+      {
+        q: "NALYNT remplace-t-il un médecin ?",
+        a: "Non. NALYNT ne remplace pas un médecin, un physiothérapeute, un ostéopathe ou tout autre professionnel de santé. Il oriente vers eux quand c'est nécessaire.",
+      },
+      {
+        q: "Comment commencer ?",
+        a: "Crée ton compte, renseigne ton profil et tes disponibilités, puis découvre ton plan dans l'application. Tes courses s'ajoutent ensuite dans ton profil.",
+      },
     ],
-    facts: [
-      { value: "Elite DH", label: "Né en compétition" },
-      { value: "Chaque jour", label: "Testé sur de vraies séances" },
-      { value: "Jour J", label: "Tout converge vers la course" },
-    ],
-    links: [
-      { label: "L'histoire du projet", href: "/a-propos" },
-      { label: "Les 7 domaines de coaching", href: "/coaching" },
-    ] satisfies HomeLink[],
-    image: {
-      alt: "Louis Giller en plein saut sur une piste de VTT descente, dossard 86, au-dessus d'une bosse de terre.",
-    },
   },
 
-  cta: {
-    index: "07",
-    titleLines: ["Prêt à passer", "au niveau supérieur ?"],
-    /** Community framing at the end of the page (hero keeps "Commencer gratuitement"). */
-    primary: { label: "Rejoindre les premiers pilotes", href: signupHref } satisfies HomeLink,
-    note: "Accès bêta gratuit. Aucun paiement demandé.",
-    secondary: { label: "Une question ? Nous contacter", href: "/contact" } satisfies HomeLink,
+  finish: {
+    title: "Découvre ton prochain entraînement.",
+    lead: "Un plan construit autour de tes courses.",
+    primary: "Découvrir mon plan",
   },
 };

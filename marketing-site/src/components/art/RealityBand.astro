@@ -1,0 +1,97 @@
+---
+// ART-01 — the three inputs the plan listens to. When the band enters, each
+// factor's signal mark settles in turn (once), then stays still.
+import { home } from "../../content/home.ts";
+
+const { reality } = home;
+---
+
+<div class="band" data-reveal>
+  <div class="art-wrap band-inner">
+    <p class="band-line">{reality.line}</p>
+    <ul class="band-factors" aria-label="Ce que le plan prend en compte">
+      {
+        reality.factors.map((factor, index) => (
+          <li style={`--k: ${index}`}>
+            <span class="signal" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            {factor}
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</div>
+
+<style>
+  .band {
+    border-block: 1px solid var(--color-border);
+    background: #141412;
+  }
+  .band-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem 2rem;
+    padding-block: 1.6rem;
+  }
+  .band-line {
+    font-size: 1rem;
+    color: #d3cec2;
+  }
+  .band-factors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 2rem;
+    list-style: none;
+    padding: 0;
+  }
+  .band-factors li {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+  }
+  .signal {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 0.8rem;
+  }
+  .signal span {
+    width: 2px;
+    background: var(--color-accent);
+    transform-origin: bottom;
+  }
+  .signal span:nth-child(1) {
+    height: 40%;
+  }
+  .signal span:nth-child(2) {
+    height: 70%;
+  }
+  .signal span:nth-child(3) {
+    height: 100%;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.js) .signal span {
+      transform: scaleY(0.15);
+      transition: transform 0.6s var(--ease-premium);
+      transition-delay: calc(var(--k) * 160ms + var(--j, 0ms));
+    }
+    :global(.js) .signal span:nth-child(2) {
+      --j: 70ms;
+    }
+    :global(.js) .signal span:nth-child(3) {
+      --j: 140ms;
+    }
+    :global(.js [data-reveal].is-in) .signal span {
+      transform: none;
+    }
+  }
+</style>

@@ -1,0 +1,85 @@
+---
+// ART-RELEASE-01 — /confidentialite: the privacy notice of the contact form
+// (linked from the form and the footer). Plain reading page: the inner-page
+// intro, then short sections. Copy and sourced facts: content/pages.ts
+// (privacyPage). The app keeps its own notice (app.nalynt.ch/privacy).
+import BaseLayout from "../layouts/BaseLayout.astro";
+import PageIntro from "../components/art/PageIntro.astro";
+import { privacyPage } from "../content/pages.ts";
+---
+
+<BaseLayout title={privacyPage.meta.title} description={privacyPage.meta.description}>
+  <PageIntro copy={privacyPage.intro} cta={false} />
+
+  <section class="notice" aria-label="Notice de confidentialité du formulaire de contact">
+    <div class="art-wrap notice-body">
+      {
+        privacyPage.sections.map((section) => (
+          <div class="notice-part">
+            <h2 class="notice-title">{section.title}</h2>
+            {section.body.map((paragraph) => (
+              <p class="notice-text">{paragraph}</p>
+            ))}
+            {section.link && (
+              <p class="notice-text">
+                {section.link.text} <a href={section.link.href} class="notice-link">{section.link.label}</a>.
+              </p>
+            )}
+          </div>
+        ))
+      }
+
+      <p class="notice-text notice-app">
+        {privacyPage.app.text} <a href={privacyPage.app.href} class="notice-link">{privacyPage.app.link}</a>.
+      </p>
+      <p class="notice-updated">{privacyPage.updated}</p>
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .notice {
+    padding-block: clamp(3.5rem, 2.5rem + 4vw, 6rem);
+  }
+  .notice-body {
+    max-width: 46rem;
+  }
+  .notice-part {
+    padding-block: 1.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .notice-part:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .notice-title {
+    font-size: 1.25rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--color-text);
+  }
+  .notice-text {
+    margin-top: 0.75rem;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-text-muted);
+  }
+  .notice-app {
+    margin-top: 2.5rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .notice-link {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .notice-link:hover {
+    color: var(--color-text);
+  }
+  .notice-updated {
+    margin-top: 2rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-faint);
+  }
+</style>

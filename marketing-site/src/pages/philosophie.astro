@@ -1,22 +1,17 @@
 ---
-// V3 — same brand language as the homepage: hero, five convictions that
-// light up as you read, what NALYNT forbids itself, closing CTA. Copy lives
-// in content/pages.ts (philosophyPage); motion in scripts/motion.ts.
+// ART-02 — /philosophie: intro, the convictions read one after the other
+// (they light as they cross the reading line), what NALYNT forbids itself,
+// closing line. Copy: content/pages.ts (philosophyPage).
 import BaseLayout from "../layouts/BaseLayout.astro";
-import PageHero from "../components/sections/PageHero.astro";
-import Convictions from "../components/philosophy/Convictions.astro";
-import StruckList from "../components/sections/StruckList.astro";
-import FinalCta from "../components/sections/FinalCta.astro";
+import PageIntro from "../components/art/PageIntro.astro";
+import Statements from "../components/art/Statements.astro";
+import FinishLine from "../components/art/FinishLine.astro";
 import { philosophyPage } from "../content/pages.ts";
 ---
 
-<BaseLayout title={philosophyPage.meta.title} description={philosophyPage.meta.description} preloadDisplayFont>
-  <PageHero hero={philosophyPage.hero} next="#convictions" />
-  <Convictions />
-  <StruckList index={philosophyPage.limits.index} kicker={philosophyPage.limits.kicker} items={philosophyPage.limits.items} />
-  <FinalCta index={philosophyPage.cta.index} titleLines={philosophyPage.cta.titleLines} />
+<BaseLayout title={philosophyPage.meta.title} description={philosophyPage.meta.description}>
+  <PageIntro copy={philosophyPage.intro} />
+  <Statements id="convictions" title={philosophyPage.convictions.title} items={philosophyPage.convictions.items} variant="reading" />
+  <Statements id="interdits" title={philosophyPage.limits.title} items={philosophyPage.limits.items} />
+  <FinishLine title={philosophyPage.finish.title} lead={philosophyPage.finish.lead} />
 </BaseLayout>
-
-<script>
-  import "../scripts/motion.ts";
-</script>

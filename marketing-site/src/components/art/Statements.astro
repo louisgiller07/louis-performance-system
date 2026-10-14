@@ -1,0 +1,148 @@
+---
+// ART-02 — editorial statements (convictions, limits, what NALYNT does not do).
+// "reading" variant: large sentences that light up one after the other as
+// they cross the reading line (ring filled, title from stone to bone; text
+// always at full contrast; scroll-linked, never jacked); "list" variant:
+// a compact two-column list. No JS / reduced motion: everything lit.
+interface Props {
+  id: string;
+  title: string;
+  items: { title: string; body: string }[];
+  variant?: "reading" | "list";
+}
+
+const { id, title, items, variant = "list" } = Astro.props;
+---
+
+<section id={id} class:list={["statements", `is-${variant}`]} aria-labelledby={`${id}-title`}>
+  <div class="art-wrap st-grid">
+    <h2 id={`${id}-title`} class="art-h2 st-title" data-rise><span class="mask-line"><span>{title}</span></span></h2>
+    <ul class="st-items" data-reading={variant === "reading" ? "" : undefined}>
+      {
+        items.map((item) => (
+          <li class="st-item">
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<script>
+  import { onScrollFrame } from "../../scripts/core.ts";
+
+  document.querySelectorAll<HTMLElement>("[data-reading]").forEach((list) => {
+    const items = [...list.querySelectorAll<HTMLElement>(".st-item")];
+    list.classList.add("is-tracking");
+    onScrollFrame(list, () => {
+      const line = window.innerHeight * 0.62;
+      for (const item of items) item.classList.toggle("is-lit", item.getBoundingClientRect().top < line);
+    });
+  });
+</script>
+
+<style>
+  .statements {
+    padding-block: clamp(4.5rem, 3rem + 5vw, 7.5rem);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .st-grid {
+    display: grid;
+    gap: 2.5rem;
+  }
+  @media (min-width: 960px) {
+    .st-grid {
+      grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+      gap: clamp(3rem, 6vw, 6rem);
+      align-items: start;
+    }
+    .st-title {
+      position: sticky;
+      top: 7rem;
+    }
+  }
+  .st-items {
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Reading: large sentences on one gold rule. */
+  .is-reading .st-item {
+    position: relative;
+    padding: 0 0 2.4rem 1.6rem;
+    border-left: 1px solid var(--color-border-strong);
+  }
+  .is-reading .st-item:last-child {
+    padding-bottom: 0.5rem;
+  }
+  .is-reading .st-item::before {
+    content: "";
+    position: absolute;
+    left: -0.4rem;
+    top: 0.55rem;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-accent);
+    background: var(--color-bg);
+    transition: background-color 0.4s ease;
+  }
+  .is-reading .st-item h3 {
+    font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.4rem);
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    color: var(--color-text);
+    transition:
+      color 0.5s ease,
+      opacity 0.5s ease;
+  }
+  .is-reading .st-item p {
+    margin-top: 0.75rem;
+    max-width: 36rem;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: var(--color-text-muted);
+    transition: opacity 0.5s ease;
+  }
+  .is-reading .st-item.is-lit::before,
+  :global(html:not(.js)) .is-reading .st-item::before {
+    background: var(--color-accent);
+  }
+  /* Not yet read: the title waits in stone (7.8:1 on ink), the text stays fully readable;
+     reading lights the ring and brings the title to bone. Contrast holds at every step. */
+  @media (prefers-reduced-motion: no-preference) {
+    .is-reading .is-tracking .st-item:not(.is-lit) h3 {
+      color: var(--color-text-muted);
+    }
+  }
+
+  /* List: compact, each title marked by a short gold rule. */
+  .is-list .st-items {
+    display: grid;
+    gap: 2rem;
+  }
+  @media (min-width: 640px) {
+    .is-list .st-items {
+      grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    }
+  }
+  .is-list .st-item {
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--color-border-strong);
+  }
+  .is-list .st-item h3 {
+    font-size: 1.1875rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--color-text);
+  }
+  .is-list .st-item p {
+    margin-top: 0.5rem;
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: var(--color-text-muted);
+  }
+</style>

@@ -1,51 +1,100 @@
 ---
-// V3 — same brand language as the homepage: compact typographic hero, then
-// the real contact form (ContactForm → /api/contact, unchanged behaviour)
-// next to a short aside — direct e-mail, or try the app straight away.
+// ART-02 — /contact: compact intro, then the real contact form (ContactForm →
+// /api/contact, behaviour unchanged) next to a short aside — direct e-mail, or
+// create an account. Health disclaimer kept.
 import BaseLayout from "../layouts/BaseLayout.astro";
-import PageHero from "../components/sections/PageHero.astro";
+import PageIntro from "../components/art/PageIntro.astro";
 import ContactForm from "../components/ContactForm.astro";
-import Button from "../components/ui/Button.astro";
 import { contactPage } from "../content/pages.ts";
-import { home } from "../content/home.ts";
+import { home, signupHref } from "../content/home.ts";
 import { siteCopy } from "../content/copy.ts";
 ---
 
-<BaseLayout title={contactPage.meta.title} description={contactPage.meta.description} preloadDisplayFont>
-  <PageHero hero={contactPage.hero} cta={false} compact />
+<BaseLayout title={contactPage.meta.title} description={contactPage.meta.description}>
+  <PageIntro copy={contactPage.intro} cta={false} />
 
-  <section class="border-t border-border bg-bg py-20 sm:py-28">
-    <div class="mx-auto grid w-full max-w-7xl gap-16 px-6 sm:px-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:gap-24">
-      <div data-reveal>
+  <section class="contact" aria-label="Formulaire de contact">
+    <div class="art-wrap contact-grid">
+      <div data-fade>
         <ContactForm />
       </div>
 
-      <aside class="flex flex-col gap-12 lg:border-l lg:border-border lg:pl-12" data-reveal style="--reveal-delay: 120ms">
+      <aside class="contact-aside" data-fade style="--fade-delay: 200ms">
         <div>
-          <p class="flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-[0.24em] text-accent">
-            <span class="h-px w-8 bg-accent" aria-hidden="true"></span>{contactPage.aside.emailLabel}
-          </p>
-          <a
-            href={`mailto:${contactPage.email}`}
-            class="mt-5 inline-flex min-h-11 items-center break-all font-display text-3xl font-extrabold leading-none text-text transition-colors hover:text-accent sm:text-4xl"
-          >
-            {contactPage.email}
-          </a>
+          <p class="act-label">{contactPage.aside.emailLabel}</p>
+          <a href={`mailto:${contactPage.email}`} class="contact-mail">{contactPage.email}</a>
         </div>
-        <div class="border-t border-border pt-10">
-          <p class="font-display text-3xl font-extrabold uppercase leading-none text-text">{contactPage.aside.tryLabel}</p>
-          <p class="mt-4 max-w-sm text-base leading-relaxed text-text-muted">{contactPage.aside.tryText}</p>
-          <Button href={home.hero.primary.href} size="lg" arrow class="mt-8">{home.hero.primary.label}</Button>
+        <div class="contact-try">
+          <h2 class="contact-try-title">{contactPage.aside.tryLabel}</h2>
+          <p class="contact-try-text">{contactPage.aside.tryText}</p>
+          <a href={signupHref} class="btn-gold">{home.hero.primary}<span class="race-mark" aria-hidden="true"></span></a>
         </div>
       </aside>
     </div>
 
-    <p class="mx-auto mt-24 max-w-2xl px-6 text-center text-xs leading-relaxed text-text-muted">
-      {siteCopy.disclaimer.text}
-    </p>
+    <p class="art-wrap contact-disclaimer">{siteCopy.disclaimer.text}</p>
   </section>
 </BaseLayout>
 
-<script>
-  import "../scripts/motion.ts";
-</script>
+<style>
+  .contact {
+    padding-block: clamp(4rem, 3rem + 4vw, 6.5rem);
+  }
+  .contact-grid {
+    display: grid;
+    gap: 3.5rem;
+  }
+  @media (min-width: 960px) {
+    .contact-grid {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+      gap: clamp(3rem, 6vw, 6rem);
+    }
+    .contact-aside {
+      padding-left: 3rem;
+      border-left: 1px solid var(--color-border);
+    }
+  }
+  .contact-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+  .contact-mail {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    font-size: clamp(1.4rem, 1.1rem + 1vw, 1.9rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+    word-break: break-all;
+    transition: color 0.2s ease;
+  }
+  .contact-mail:hover {
+    color: var(--color-accent);
+  }
+  .contact-try {
+    padding-top: 2.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .contact-try-title {
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+  }
+  .contact-try-text {
+    margin: 0.75rem 0 1.75rem;
+    max-width: 22rem;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--color-text-muted);
+  }
+  .contact-disclaimer {
+    margin-top: 4.5rem;
+    max-width: 48rem;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--color-text-faint);
+  }
+</style>

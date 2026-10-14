@@ -1,0 +1,132 @@
+---
+// ART-01 — FAQ. Native <details> grouped by `name` (one answer open at a time,
+// enforced again by the script below for older browsers). The answer
+// fades in, the mark turns: transform and opacity only.
+import { home } from "../../content/home.ts";
+
+const { faq } = home;
+---
+
+<section id="faq" class="faq" aria-labelledby="faq-title">
+  <div class="art-wrap faq-grid">
+    <div>
+      <h2 id="faq-title" class="art-h2" data-rise><span class="mask-line"><span>{faq.title}</span></span></h2>
+      <p class="art-lead mt-4" data-fade>{faq.lead}</p>
+      <a href="/contact" class="text-link mt-5">{faq.contact}<span class="race-mark" aria-hidden="true"></span></a>
+    </div>
+
+    <div class="faq-items" data-faq>
+      {
+        faq.items.map((item, index) => (
+          <details name="faq" open={index === 0}>
+            <summary>
+              <span>{item.q}</span>
+              <span class="faq-mark" aria-hidden="true" />
+            </summary>
+            <p>{item.a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-faq]").forEach((group) => {
+    const items = [...group.querySelectorAll<HTMLDetailsElement>("details")];
+    items.forEach((item) =>
+      item.addEventListener("toggle", () => {
+        if (item.open) items.forEach((other) => other !== item && (other.open = false));
+      }),
+    );
+  });
+</script>
+
+<style>
+  .faq {
+    padding-block: clamp(4.5rem, 3rem + 5vw, 7.5rem);
+  }
+  .faq-grid {
+    display: grid;
+    gap: 2.5rem;
+  }
+  @media (min-width: 900px) {
+    .faq-grid {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: clamp(3rem, 6vw, 6rem);
+      align-items: start;
+    }
+  }
+  .faq-items {
+    border-top: 1px solid var(--color-border-strong);
+  }
+  details {
+    border-bottom: 1px solid var(--color-border-strong);
+  }
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    min-height: 3.75rem;
+    padding: 1rem 0;
+    font-size: 1.0625rem;
+    line-height: 1.45;
+    color: #d8cfbd;
+    cursor: pointer;
+    list-style: none;
+    transition: color 0.2s ease;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary:hover,
+  details[open] summary {
+    color: var(--color-text);
+  }
+  summary:focus-visible {
+    outline-offset: 2px;
+  }
+  .faq-mark {
+    position: relative;
+    width: 0.9rem;
+    height: 0.9rem;
+    flex-shrink: 0;
+  }
+  .faq-mark::before,
+  .faq-mark::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1.5px;
+    margin-top: -0.75px;
+    background: var(--color-accent);
+    transition: transform 0.35s var(--ease-premium);
+  }
+  .faq-mark::after {
+    transform: rotate(90deg);
+  }
+  details[open] .faq-mark::after {
+    transform: rotate(0deg);
+  }
+  details > p {
+    max-width: 36rem;
+    padding: 0 2.5rem 1.4rem 0;
+    font-size: 1rem;
+    line-height: 1.75;
+    color: var(--color-text-muted);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    details[open] > p {
+      animation: answer-in 0.45s var(--ease-premium) both;
+    }
+  }
+  @keyframes answer-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -0.4rem, 0);
+    }
+  }
+</style>

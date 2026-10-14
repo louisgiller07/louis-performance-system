@@ -1,0 +1,711 @@
+---
+// ART-02 — the seven coaching domains as one editorial stage (homepage, Act II,
+// and /coaching). Each domain has its own gold line signature, drawn with its
+// own character when selected:
+//   technique — a racing line through three corners, apexes marked (fast, precise);
+//   mental — focus rings closing on a point, one slow breath;
+//   physique — sets rising as load bars, the adapted one in gold (snappy);
+//   sommeil et récupération — sleep cycles drawn as one long slow wave;
+//   nutrition et hydratation — a level rising in a vessel (fluid);
+//   vie hors vélo — the day: work takes its share, the session fits the free gap;
+//   progression — a season climbing step by step to the objective ring.
+// Selector: a track of seven stations (desktop) / wrapped chips (mobile),
+// WAI-ARIA tabs (roving tabindex, arrows, Home, End). Text re-sets in place.
+// Claims: content/domains.ts documents the shipped behavior behind each one.
+import { domains } from "../../content/domains.ts";
+
+interface Props {
+  id?: string;
+  title?: [string, string];
+  aside?: string;
+  actMarker?: boolean;
+  headingLevel?: "h2" | "h1";
+}
+
+const {
+  id = "coaching",
+  title = ["Tout ce qui compte sur le vélo.", "Et autour."],
+  aside = "Sept domaines, arbitrés pour te donner une seule séance claire.",
+  actMarker = false,
+} = Astro.props;
+const first = domains[0]!;
+const fieldLabel = "Sur le terrain";
+---
+
+<section id={id} class="domains" aria-labelledby={`${id}-title`} data-domains data-domain-list={JSON.stringify(domains)}>
+  <div class="art-wrap">
+    <div class="domains-head">
+      <div>
+        {actMarker && <p class="act-label" data-act-marker>Sept domaines</p>}
+        <h2 id={`${id}-title`} class="art-h2" data-rise>
+          <span class="mask-line"><span>{title[0]}</span></span>
+          <span class="mask-line"><span>{title[1]}</span></span>
+        </h2>
+      </div>
+      <p class="domains-aside" data-fade>{aside}</p>
+    </div>
+
+    <div class="domains-body">
+    <div class="stage" data-fade style="--fade-delay: 160ms">
+      <div class="stage-text" id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${first.id}`} tabindex="0" data-domain-panel>
+        <p class="stage-name" data-domain-field="name">{first.name}</p>
+        <h3 class="stage-title" data-domain-field="title">{first.title}</h3>
+        <p class="stage-intro" data-domain-field="intro">{first.intro}</p>
+        <div class="stage-field">
+          <p class="stage-field-label">{fieldLabel}</p>
+          <p class="stage-field-text" data-domain-field="field">{first.field}</p>
+        </div>
+      </div>
+
+      <div class="stage-art" aria-hidden="true">
+        <svg class="motifs" viewBox="0 0 520 360" fill="none" focusable="false">
+          <g class="motif is-active" data-motif="technique">
+            <path class="m-ghost" d="M 30 300 C 140 300, 120 190, 230 190 C 330 190, 320 112, 420 112 C 462 112, 490 92, 505 64"></path>
+            <path class="m-draw m-fast" pathLength="1" d="M 30 300 C 120 300, 150 210, 240 205 C 330 200, 330 105, 430 100 C 470 98, 492 84, 505 64"></path>
+            <circle class="m-pop" style="--k: 0" cx="135" cy="254" r="6"></circle>
+            <circle class="m-pop" style="--k: 1" cx="331" cy="152" r="6"></circle>
+            <circle class="m-pop" style="--k: 2" cx="484" cy="85" r="6"></circle>
+          </g>
+          <g class="motif" data-motif="mental">
+            <circle class="m-ring" style="--k: 0" cx="260" cy="180" r="140" pathLength="1"></circle>
+            <circle class="m-ring" style="--k: 1" cx="260" cy="180" r="94" pathLength="1"></circle>
+            <circle class="m-ring" style="--k: 2" cx="260" cy="180" r="52" pathLength="1"></circle>
+            <circle class="m-core" cx="260" cy="180" r="9"></circle>
+          </g>
+          <g class="motif" data-motif="physique">
+            <line class="m-base" x1="50" y1="300" x2="470" y2="300"></line>
+            {
+              [120, 165, 205, 150, 190, 105, 80].map((h, k) => (
+                <rect class:list={["m-bar", { "is-gold": k === 3 }]} style={`--k: ${k}`} x={72 + k * 56} y={300 - h} width="30" height={h} rx="3" />
+              ))
+            }
+          </g>
+          <g class="motif" data-motif="recuperation">
+            <line class="m-base" x1="20" y1="250" x2="500" y2="250"></line>
+            <path class="m-draw m-slow" pathLength="1" d="M 20 180 C 60 90, 110 90, 150 180 S 230 250, 270 190 S 340 120, 380 185 S 450 225, 500 200"></path>
+            {[150, 270, 380].map((x, k) => <circle class="m-pop" style={`--k: ${k + 2}`} cx={x} cy="250" r="5" />)}
+          </g>
+          <g class="motif" data-motif="nutrition">
+            <rect class="m-vessel" x="190" y="50" width="140" height="260" rx="20"></rect>
+            <clipPath id={`${id}-vessel-clip`}><rect x="191" y="51" width="138" height="258" rx="19"></rect></clipPath>
+            <g clip-path={`url(#${id}-vessel-clip)`}>
+              <rect class="m-level" x="180" y="120" width="160" height="200"></rect>
+              <line class="m-level-line" x1="180" y1="120" x2="340" y2="120"></line>
+            </g>
+            <line class="m-tick" x1="340" y1="120" x2="372" y2="120"></line>
+            <circle class="m-pop" style="--k: 2" cx="384" cy="120" r="5"></circle>
+          </g>
+          <g class="motif" data-motif="vie">
+            <line class="m-base" x1="40" y1="250" x2="480" y2="250"></line>
+            <rect class="m-day" x="40" y="150" width="440" height="64" rx="8"></rect>
+            <rect class="m-busy" style="--k: 0" x="40" y="150" width="96" height="64" rx="8"></rect>
+            <rect class="m-busy" style="--k: 1" x="146" y="150" width="190" height="64" rx="8"></rect>
+            <rect class="m-free" x="346" y="150" width="88" height="64" rx="8"></rect>
+            <rect class="m-fit" x="350" y="154" width="80" height="56" rx="6"></rect>
+            {[40, 150, 260, 370, 480].map((x) => <line class="m-hour" x1={x} y1="244" x2={x} y2="256" />)}
+          </g>
+          <g class="motif" data-motif="progression">
+            <path class="m-draw m-steady" pathLength="1" d="M 40 300 H 115 V 262 H 190 V 230 H 265 V 186 H 340 V 150 H 415 V 104 H 460"></path>
+            {[[115, 262], [190, 230], [265, 186], [340, 150], [415, 104]].map(([x, y], k) => <circle class="m-pop" style={`--k: ${k}`} cx={x} cy={y} r="4.5" />)}
+            <circle class="m-goal" cx="474" cy="104" r="12"></circle>
+            <circle class="m-goal-core" cx="474" cy="104" r="4.5"></circle>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <div class="track" role="tablist" aria-label="Les sept domaines du coaching" style="--i: 0" data-domain-tabs>
+      <span class="track-line" aria-hidden="true"></span>
+      <span class="track-marker" aria-hidden="true"></span>
+      {
+        domains.map((domain, index) => (
+          <button
+            type="button"
+            role="tab"
+            id={`${id}-tab-${domain.id}`}
+            class="station"
+            aria-selected={index === 0 ? "true" : "false"}
+            aria-controls={`${id}-panel`}
+            tabindex={index === 0 ? "0" : "-1"}
+            data-domain={domain.id}
+          >
+            <span class="station-dot" aria-hidden="true" />
+            <span class="station-name">{domain.name}</span>
+          </button>
+        ))
+      }
+    </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import type { CoachingDomain } from "../../content/domains.ts";
+  import { reduced } from "../../scripts/core.ts";
+
+  document.querySelectorAll<HTMLElement>("[data-domains]").forEach((root) => {
+    const domains = JSON.parse(root.dataset.domainList ?? "[]") as CoachingDomain[];
+    const tablist = root.querySelector<HTMLElement>("[data-domain-tabs]");
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-domain]")];
+    const panel = root.querySelector<HTMLElement>("[data-domain-panel]");
+    const motifs = [...root.querySelectorAll<SVGGElement>("[data-motif]")];
+    const fields = (["name", "title", "intro", "field"] as const).map((key) => ({
+      key,
+      el: root.querySelector<HTMLElement>(`[data-domain-field="${key}"]`),
+    }));
+
+    const select = (tab: HTMLButtonElement, focus = false) => {
+      const index = tabs.indexOf(tab);
+      const domain = domains.find((d) => d.id === tab.dataset.domain);
+      if (!domain) return;
+      tabs.forEach((t, i) => {
+        t.setAttribute("aria-selected", String(i === index));
+        t.tabIndex = i === index ? 0 : -1;
+      });
+      if (focus) tab.focus();
+      tablist?.style.setProperty("--i", String(index));
+      if (tablist && tablist.scrollWidth > tablist.clientWidth) {
+        const left = tab.offsetLeft - (tablist.clientWidth - tab.offsetWidth) / 2;
+        tablist.scrollTo({ left, behavior: reduced.matches ? "auto" : "smooth" });
+      }
+      panel?.setAttribute("aria-labelledby", tab.id);
+      if (fields[0]?.el?.textContent === domain.name) return;
+      fields.forEach(({ key, el }, k) => {
+        if (!el) return;
+        el.textContent = domain[key];
+        if (!reduced.matches)
+          el.animate(
+            [
+              { opacity: 0, transform: "translate3d(0, 0.7rem, 0)" },
+              { opacity: 1, transform: "none" },
+            ],
+            { duration: 520, delay: k * 60, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" },
+          );
+      });
+      motifs.forEach((m) => m.classList.toggle("is-active", m.dataset.motif === domain.id));
+    };
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => select(tab));
+      tab.addEventListener("keydown", (event) => {
+        const keys: Record<string, number> = {
+          ArrowRight: (index + 1) % tabs.length,
+          ArrowDown: (index + 1) % tabs.length,
+          ArrowLeft: (index + tabs.length - 1) % tabs.length,
+          ArrowUp: (index + tabs.length - 1) % tabs.length,
+          Home: 0,
+          End: tabs.length - 1,
+        };
+        if (!(event.key in keys)) return;
+        event.preventDefault();
+        select(tabs[keys[event.key]!]!, true);
+      });
+    });
+
+    // The first motif draws when the stage first comes on screen.
+    const stage = root.querySelector(".stage");
+    if (stage && "IntersectionObserver" in window) {
+      const first = motifs.find((m) => m.classList.contains("is-active"));
+      first?.classList.remove("is-active");
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          io.disconnect();
+          const active = tabs.find((t) => t.getAttribute("aria-selected") === "true")?.dataset.domain;
+          motifs.forEach((m) => m.classList.toggle("is-active", m.dataset.motif === active));
+        },
+        { threshold: 0.4 },
+      );
+      io.observe(stage);
+    }
+  });
+</script>
+
+<style>
+  .domains {
+    position: relative;
+    padding-block: clamp(3.5rem, 2.5rem + 3.5vw, 6rem);
+  }
+  .domains-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem 3rem;
+  }
+  .domains-aside {
+    max-width: 21rem;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+  }
+
+  /* --- Stage --- */
+  .stage {
+    position: relative;
+    display: grid;
+    margin-top: 3rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 16px;
+    background:
+      radial-gradient(36rem 24rem at 78% 50%, rgb(213 189 134 / 0.07), transparent 70%),
+      linear-gradient(160deg, #1d1c17, var(--color-surface) 55%);
+    overflow: hidden;
+  }
+  .stage-text {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1.75rem 1.5rem 1.6rem;
+  }
+  .stage-text:focus-visible {
+    outline-offset: -6px;
+  }
+  .stage-name {
+    font-size: 0.875rem;
+    color: var(--color-accent);
+  }
+  .stage-title {
+    margin-top: 0.7rem;
+    font-size: clamp(1.7rem, 1.2rem + 2vw, 3rem);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    color: var(--color-text);
+    text-wrap: balance;
+  }
+  .stage-intro {
+    margin-top: 1rem;
+    max-width: 30rem;
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    color: #c4baa6;
+  }
+  .stage-field {
+    margin-top: auto;
+    padding-top: 1.75rem;
+  }
+  .stage-field-label {
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--color-border-strong);
+    font-size: 0.8125rem;
+    color: #c4ab75;
+  }
+  .stage-field-text {
+    margin-top: 0.45rem;
+    max-width: 32rem;
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #dccfb6;
+  }
+  .stage-art {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1.5rem 1.5rem;
+  }
+  .motifs {
+    width: 100%;
+    max-width: 30rem;
+    height: auto;
+    overflow: visible;
+  }
+  @media (min-width: 960px) {
+    .stage {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      min-height: 27rem;
+    }
+    .stage-text {
+      padding: 2.75rem 2.5rem 2.5rem;
+    }
+    .stage-art {
+      padding: 2.5rem;
+    }
+  }
+
+  /* --- Motifs: gold line art, one visible at a time --- */
+  .motif {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.3s ease,
+      visibility 0s 0.3s;
+  }
+  .motif.is-active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease;
+  }
+  :global(html:not(.js)) .motif[data-motif="technique"] {
+    opacity: 1;
+    visibility: visible;
+  }
+  .m-ghost {
+    stroke: #5f584a;
+    stroke-width: 1.5;
+    stroke-dasharray: 3 7;
+  }
+  .m-draw {
+    stroke: var(--color-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+  .m-pop {
+    fill: var(--color-accent);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .m-ring {
+    stroke: var(--color-accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 1;
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: calc(0.45 + var(--k) * 0.25);
+  }
+  .m-core {
+    fill: var(--color-accent);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .m-base {
+    stroke: #4a4436;
+    stroke-width: 1.5;
+    stroke-dasharray: 3 6;
+  }
+  .m-bar {
+    fill: rgb(213 189 134 / 0.28);
+    transform-box: fill-box;
+    transform-origin: bottom;
+  }
+  .m-bar.is-gold {
+    fill: var(--color-accent);
+  }
+  .m-vessel {
+    stroke: var(--color-accent);
+    stroke-width: 2;
+  }
+  .m-level {
+    fill: rgb(213 189 134 / 0.2);
+  }
+  .m-level-line {
+    stroke: var(--color-accent);
+    stroke-width: 2.5;
+  }
+  .m-level,
+  .m-level-line {
+    transform-box: view-box;
+  }
+  .m-tick {
+    stroke: var(--color-accent);
+    stroke-width: 1.5;
+    stroke-dasharray: 2 4;
+  }
+  .m-day {
+    fill: rgb(240 238 231 / 0.03);
+    stroke: rgb(240 238 231 / 0.08);
+  }
+  .m-busy {
+    fill: rgb(240 238 231 / 0.11);
+    transform-box: fill-box;
+    transform-origin: left;
+  }
+  .m-free {
+    stroke: rgb(213 189 134 / 0.6);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 5;
+  }
+  .m-fit {
+    fill: var(--color-accent);
+    transform-box: fill-box;
+    transform-origin: left;
+  }
+  .m-hour {
+    stroke: #4a4436;
+    stroke-width: 1.5;
+  }
+  .m-goal {
+    stroke: var(--color-accent);
+    stroke-width: 1.75;
+    fill: var(--color-surface);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .m-goal-core {
+    fill: var(--color-accent);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .motif.is-active .m-draw {
+      animation: dom-draw 0.85s cubic-bezier(0.65, 0, 0.35, 1) both;
+    }
+    .motif.is-active .m-draw.m-slow {
+      animation-duration: 1.8s;
+      animation-timing-function: cubic-bezier(0.45, 0, 0.3, 1);
+    }
+    .motif.is-active .m-draw.m-steady {
+      animation-duration: 1.3s;
+      animation-timing-function: linear;
+    }
+    .motif.is-active .m-pop {
+      animation: dom-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) calc(0.45s + var(--k) * 0.18s) both;
+    }
+    .motif.is-active .m-ring {
+      animation: dom-ring 1.4s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--k) * 0.14s) both;
+    }
+    .motif.is-active .m-core {
+      animation: dom-breath 1.6s ease-in-out 0.55s both;
+    }
+    .motif.is-active .m-bar {
+      animation: dom-bar 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) calc(var(--k) * 0.07s) both;
+    }
+    .motif.is-active .m-level,
+    .motif.is-active .m-level-line {
+      animation: dom-level 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    }
+    .motif.is-active .m-busy {
+      animation: dom-grow 0.6s var(--ease-premium) calc(var(--k) * 0.15s) both;
+    }
+    .motif.is-active .m-fit {
+      animation: dom-fit 1s cubic-bezier(0.22, 1, 0.36, 1) 0.55s both;
+    }
+    .motif.is-active .m-goal {
+      animation: dom-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1.25s both;
+    }
+  }
+  @keyframes dom-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes dom-pop {
+    from {
+      transform: scale(0);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+  @keyframes dom-ring {
+    from {
+      transform: scale(1.45);
+      opacity: 0;
+      stroke-dashoffset: 1;
+    }
+    to {
+      transform: scale(1);
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes dom-breath {
+    0% {
+      transform: scale(0);
+    }
+    35% {
+      transform: scale(1.6);
+    }
+    70% {
+      transform: scale(0.85);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes dom-bar {
+    from {
+      transform: scaleY(0);
+    }
+    to {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes dom-level {
+    from {
+      transform: translate3d(0, 190px, 0);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @keyframes dom-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  /* The planned session is too long for the gap: it slides in and shortens to fit. */
+  @keyframes dom-fit {
+    0% {
+      opacity: 0;
+      transform: translate3d(-140px, -70px, 0) scaleX(2.2);
+    }
+    55% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scaleX(2.2);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* --- Track selector --- */
+  .domains-body {
+    display: flex;
+    flex-direction: column;
+    margin-top: 3rem;
+  }
+  .domains-body .stage {
+    margin-top: 0;
+  }
+  /* Mobile: one scrollable strip of chips above the stage, so the change is always in view. */
+  .track {
+    position: relative;
+    order: -1;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin: 0 -1.25rem 1rem;
+    padding: 0.25rem 1.25rem 0.5rem;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 1.25rem, #000 calc(100% - 2.5rem), transparent);
+  }
+  .track::-webkit-scrollbar {
+    display: none;
+  }
+  .station {
+    flex-shrink: 0;
+    white-space: nowrap;
+    scroll-snap-align: center;
+  }
+  @media (min-width: 640px) {
+    .track {
+      margin-inline: -2rem;
+      padding-inline: 2rem;
+    }
+  }
+  .track-line,
+  .track-marker {
+    display: none;
+  }
+  .station {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .station:hover {
+    color: var(--color-text);
+    border-color: var(--color-accent-deep);
+  }
+  .station[aria-selected="true"] {
+    color: #1f1c14;
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+  .station-dot {
+    display: none;
+  }
+  @media (min-width: 960px) {
+    .track {
+      order: 0;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0;
+      margin: 2rem 0 0;
+      padding: 0.5rem 0 0;
+      overflow: visible;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+    .station {
+      white-space: normal;
+    }
+    .track-line {
+      display: block;
+      position: absolute;
+      left: calc(100% / 14);
+      right: calc(100% / 14);
+      top: 1.5rem;
+      border-top: 1px dashed #5b5547;
+    }
+    .track-marker {
+      display: block;
+      position: absolute;
+      left: 0;
+      top: 1.5rem;
+      width: calc(100% / 7);
+      height: 0;
+      transform: translate3d(calc(var(--i) * 100%), 0, 0);
+      transition: transform 0.6s var(--ease-premium);
+    }
+    .track-marker::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0;
+      width: 1.6rem;
+      height: 1.6rem;
+      margin: -0.8rem 0 0 -0.8rem;
+      border-radius: 50%;
+      border: 1.5px solid var(--color-accent);
+    }
+    .station {
+      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+      min-height: 5.5rem;
+      padding: 0.6rem 0.5rem;
+      border: 0;
+      border-radius: 10px;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .station[aria-selected="true"] {
+      color: var(--color-accent);
+      background: transparent;
+    }
+    .station:hover {
+      background: rgb(240 238 231 / 0.03);
+    }
+    .station-dot {
+      display: block;
+      position: relative;
+      width: 0.6rem;
+      height: 0.6rem;
+      border-radius: 50%;
+      background: #5b5547;
+      transition:
+        background-color 0.3s ease,
+        transform 0.3s var(--ease-premium);
+    }
+    .station[aria-selected="true"] .station-dot {
+      background: var(--color-accent);
+      transform: scale(1.2);
+    }
+  }
+</style>

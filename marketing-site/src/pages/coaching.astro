@@ -1,23 +1,50 @@
 ---
-// V3 — same brand language as the homepage: hero, the seven coaching domains
-// (docs/03_COACHING_MODEL.md) as chapters, the daily arbitration between
-// them, closing CTA. Copy lives in content/pages.ts (coachingPage) and
-// content/domains.ts; motion in scripts/motion.ts.
+// ART-02 — /coaching: intro, the seven domains stage (same component as the
+// homepage), the daily arbitration as converging lines, closing line.
+// Copy: content/pages.ts (coachingPage) and content/domains.ts.
 import BaseLayout from "../layouts/BaseLayout.astro";
-import PageHero from "../components/sections/PageHero.astro";
-import DomainChapters from "../components/coaching/DomainChapters.astro";
-import Arbitration from "../components/coaching/Arbitration.astro";
-import FinalCta from "../components/sections/FinalCta.astro";
+import PageIntro from "../components/art/PageIntro.astro";
+import CoachingDomains from "../components/art/CoachingDomains.astro";
+import Convergence from "../components/art/Convergence.astro";
+import FinishLine from "../components/art/FinishLine.astro";
 import { coachingPage } from "../content/pages.ts";
+
+const { arbitration } = coachingPage;
 ---
 
-<BaseLayout title={coachingPage.meta.title} description={coachingPage.meta.description} preloadDisplayFont>
-  <PageHero hero={coachingPage.hero} next="#domaines" />
-  <DomainChapters />
-  <Arbitration />
-  <FinalCta index={coachingPage.cta.index} titleLines={coachingPage.cta.titleLines} />
+<BaseLayout title={coachingPage.meta.title} description={coachingPage.meta.description}>
+  <PageIntro copy={coachingPage.intro} />
+  <CoachingDomains id="domaines" />
+  <section class="arbitration" aria-labelledby="arbitration-title" data-progress-host data-progress-start="0.9" data-progress-span="0.6">
+    <div class="art-wrap arb-grid">
+      <div>
+        <h2 id="arbitration-title" class="art-h2" data-rise>
+          <span class="mask-line"><span>{arbitration.title[0]}</span></span>
+          <span class="mask-line"><span>{arbitration.title[1]}</span></span>
+        </h2>
+        <p class="art-lead mt-6" data-fade>{arbitration.body}</p>
+      </div>
+      <Convergence inputs={arbitration.inputs} outcome={arbitration.outcome} />
+    </div>
+  </section>
+  <FinishLine title={coachingPage.finish.title} lead={coachingPage.finish.lead} />
 </BaseLayout>
 
-<script>
-  import "../scripts/motion.ts";
-</script>
+<style>
+  .arbitration {
+    padding-block: clamp(4.5rem, 3rem + 5vw, 7.5rem);
+    border-top: 1px solid var(--color-border);
+    background: #151512;
+  }
+  .arb-grid {
+    display: grid;
+    gap: 3rem;
+    align-items: center;
+  }
+  @media (min-width: 960px) {
+    .arb-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: clamp(3rem, 6vw, 6rem);
+    }
+  }
+</style>

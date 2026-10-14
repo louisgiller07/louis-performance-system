@@ -1,0 +1,63 @@
+---
+// ART-01 — why NALYNT. Factual project text already on the live site; the
+// reference's first-person quote is NOT used until the owner validates it.
+import { home } from "../../content/home.ts";
+
+const { project } = home;
+---
+
+<section id="projet" class="project" aria-labelledby="project-title">
+  <div class="art-wrap project-grid">
+    <h2 id="project-title" class="art-h2" data-rise>
+      <span class="mask-line"><span>{project.title[0]}</span></span>
+      <span class="mask-line"><span>{project.title[1]}</span></span>
+    </h2>
+    <div class="project-text" data-fade>
+      <p class="project-body">{project.body}</p>
+      <p class="project-name">{project.name}</p>
+      <p class="project-role">{project.role}</p>
+      <a href="/a-propos" class="text-link mt-6">{project.link}<span class="race-mark" aria-hidden="true"></span></a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .project {
+    padding-block: clamp(4.5rem, 3rem + 5vw, 7.5rem);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .project-grid {
+    display: grid;
+    gap: 2rem;
+  }
+  @media (min-width: 900px) {
+    .project-grid {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: clamp(3rem, 6vw, 6rem);
+      align-items: start;
+    }
+  }
+  .project-text {
+    padding-left: 1.4rem;
+    border-left: 2px solid var(--color-accent-deep);
+  }
+  .project-body {
+    max-width: 34rem;
+    font-size: clamp(1.15rem, 1rem + 0.6vw, 1.45rem);
+    line-height: 1.6;
+    letter-spacing: -0.015em;
+    color: #e2d9c6;
+    text-wrap: pretty;
+  }
+  .project-name {
+    margin-top: 1.6rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--color-text);
+  }
+  .project-role {
+    margin-top: 0.2rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+</style>

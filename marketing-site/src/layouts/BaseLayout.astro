@@ -1,41 +1,49 @@
 ---
 import "../styles/global.css";
-import "@fontsource/barlow-condensed/latin-600.css";
-import "@fontsource/barlow-condensed/latin-800.css";
-import displayFont800 from "@fontsource/barlow-condensed/files/barlow-condensed-latin-800-normal.woff2?url";
+import "@fontsource-variable/dm-sans/wght.css";
+import bodyFont from "@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2?url";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 
 interface Props {
   title: string;
   description?: string;
-  /** Preload the 800 display weight — only for pages whose first screen uses it (homepage hero). */
-  preloadDisplayFont?: boolean;
+  /** The header starts transparent over a full-bleed hero. */
+  overlayHeader?: boolean;
 }
 
-const { title, description, preloadDisplayFont = false } = Astro.props;
+const { title, description, overlayHeader = false } = Astro.props;
 ---
 
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#080909" />
+    <meta name="theme-color" content="#11110f" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     {description && <meta property="og:description" content={description} />}
-    {preloadDisplayFont && <link rel="preload" href={displayFont800} as="font" type="font/woff2" crossorigin />}
-    <!-- Scroll-reveal content is only hidden when JS runs (see global.css). -->
+    <link rel="preload" href={bodyFont} as="font" type="font/woff2" crossorigin />
+    <!-- Reveal states only apply once JS has flagged the page (global.css): without JS, everything is visible. -->
     <script is:inline>document.documentElement.classList.add("js");</script>
   </head>
   <body class="bg-bg text-text">
-    <Header />
-    <main>
+    <a
+      href="#contenu"
+      class="sr-only z-50 rounded bg-accent px-4 py-3 text-sm font-medium text-bg focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >Aller au contenu</a
+    >
+    <Header overlay={overlayHeader} />
+    <main id="contenu">
       <slot />
     </main>
     <Footer />
   </body>
 </html>
+
+<script>
+  import "../scripts/core.ts";
+</script>

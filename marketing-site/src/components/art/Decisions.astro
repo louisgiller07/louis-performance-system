@@ -1,0 +1,222 @@
+---
+// ART-02.1 — /comment-ca-marche: the three possible decisions around one
+// large race line. Hovering, focusing or tapping a decision morphs the gold
+// route to it (keep = on the planned line, adjust = a gentle detour, replace =
+// another route), always to the same objective. The three texts stay visible:
+// nothing is hidden behind the interaction. "Ajuster" is shown first (the most
+// common case). Static without JS / reduced motion (route set instantly).
+import { howPage } from "../../content/pages.ts";
+
+const { decisions } = howPage;
+const planned = "M 20 80 C 200 80, 400 80, 600 80 S 820 80, 880 80";
+const routes: Record<string, string> = {
+  keep: planned,
+  adjust: "M 20 80 C 200 80, 300 132, 480 132 S 760 84, 880 80",
+  replace: "M 20 80 C 160 80, 220 22, 400 22 S 740 62, 880 80",
+};
+const initial = "adjust";
+---
+
+<section id="decisions" class="decisions" aria-labelledby="decisions-title" data-decisions data-routes={JSON.stringify(routes)}>
+  <div class="art-wrap">
+    <h2 id="decisions-title" class="art-h2" data-rise>
+      <span class="mask-line"><span>{decisions.title[0]}</span></span>
+      <span class="mask-line"><span>{decisions.title[1]}</span></span>
+    </h2>
+
+    <div class="dc-stage" aria-hidden="true">
+      <svg class="dc-svg" viewBox="0 0 900 160" fill="none" focusable="false">
+        <path class="dc-plan" d={planned} />
+        <path class="dc-route" d={routes[initial]} data-dc-route />
+        <circle class="dc-start" cx="20" cy="80" r="5" />
+        <circle class="dc-goal" cx="880" cy="80" r="11" />
+        <circle class="dc-goal-core" cx="880" cy="80" r="4" />
+      </svg>
+      <p class="dc-legend"><span>Plan prévu</span><span>Même objectif</span></p>
+    </div>
+
+    <ul class="dc-list" aria-label="Les trois décisions possibles">
+      {
+        decisions.items.map((item) => (
+          <li>
+            <button type="button" class="dc-item" data-decision={item.id} aria-pressed={item.id === initial ? "true" : "false"}>
+              <span class="dc-word">{item.word}</span>
+              <span class="dc-when">{item.when}</span>
+              <span class="dc-result">{item.result}</span>
+            </button>
+          </li>
+        ))
+      }
+    </ul>
+
+    <p class="dc-rest"><strong>{decisions.rest.word}.</strong> {decisions.rest.body}</p>
+  </div>
+</section>
+
+<script>
+  import { easeInOut, pathFrom, pathNumbers, reduced } from "../../scripts/core.ts";
+
+  document.querySelectorAll<HTMLElement>("[data-decisions]").forEach((root) => {
+    const routes = JSON.parse(root.dataset.routes ?? "{}") as Record<string, string>;
+    const path = root.querySelector<SVGPathElement>("[data-dc-route]");
+    const items = [...root.querySelectorAll<HTMLButtonElement>("[data-decision]")];
+    let now = pathNumbers(path?.getAttribute("d") ?? "");
+    let raf = 0;
+    const morph = (target: string) => {
+      if (!path) return;
+      cancelAnimationFrame(raf);
+      const to = pathNumbers(target);
+      const from = now.slice();
+      if (reduced.matches) {
+        now = to;
+        path.setAttribute("d", target);
+        return;
+      }
+      const t0 = performance.now();
+      const step = (time: number) => {
+        const t = Math.min(1, (time - t0) / 650);
+        const e = easeInOut(t);
+        now = from.map((v, i) => v + (to[i]! - v) * e);
+        path.setAttribute("d", pathFrom(target, now));
+        if (t < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    };
+    const select = (item: HTMLButtonElement) => {
+      items.forEach((other) => other.setAttribute("aria-pressed", String(other === item)));
+      const route = routes[item.dataset.decision ?? ""];
+      if (route) morph(route);
+    };
+    items.forEach((item) => {
+      item.addEventListener("click", () => select(item));
+      item.addEventListener("focus", () => select(item));
+      item.addEventListener("pointerenter", (event) => {
+        if (event.pointerType === "mouse") select(item);
+      });
+    });
+  });
+</script>
+
+<style>
+  .decisions {
+    padding-block: clamp(4rem, 3rem + 4vw, 7rem);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .dc-stage {
+    margin-top: 2.5rem;
+  }
+  .dc-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .dc-plan {
+    stroke: #5f584a;
+    stroke-width: 1.5;
+    stroke-dasharray: 4 9;
+  }
+  .dc-route {
+    stroke: var(--color-accent);
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+  .dc-start {
+    fill: #8f7a51;
+  }
+  .dc-goal {
+    stroke: var(--color-accent);
+    stroke-width: 1.75;
+    fill: var(--color-bg);
+  }
+  .dc-goal-core {
+    fill: var(--color-accent);
+  }
+  .dc-legend {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.4rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-faint);
+  }
+  .dc-legend span:last-child {
+    color: var(--color-accent);
+  }
+
+  .dc-list {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding: 0;
+    list-style: none;
+  }
+  @media (min-width: 900px) {
+    .dc-list {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+  }
+  .dc-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    width: 100%;
+    height: 100%;
+    padding: 1.4rem 1.4rem 1.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 0.3s ease,
+      background-color 0.3s ease,
+      transform 0.3s var(--ease-premium);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dc-item:hover {
+    border-color: var(--color-accent-deep);
+  }
+  .dc-item:active {
+    transform: scale(0.985);
+  }
+  .dc-item[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    background: rgb(213 189 134 / 0.07);
+  }
+  .dc-word {
+    font-size: 1.5rem;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+  }
+  .dc-item[aria-pressed="true"] .dc-word {
+    color: var(--color-accent);
+  }
+  .dc-when {
+    font-size: 0.9375rem;
+    color: #c9b78e;
+  }
+  .dc-result {
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+  }
+
+  /* REST is outside the three route choices: a plain line, no route, no motion. */
+  .dc-rest {
+    max-width: 44rem;
+    margin-top: 1.75rem;
+    padding-left: 1rem;
+    border-left: 2px solid #5f584a;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+  }
+  .dc-rest strong {
+    font-weight: 500;
+    color: var(--color-text);
+  }
+</style>

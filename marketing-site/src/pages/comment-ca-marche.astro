@@ -1,24 +1,21 @@
 ---
-// V3 — same brand language as the homepage: hero, the daily loop, the three
-// possible decisions, what NALYNT does not do, closing CTA. Copy lives in
-// content/pages.ts (howPage); motion in scripts/motion.ts.
+// ART-02.1 — /comment-ca-marche: intro, the daily loop as a zigzag story with
+// one small example screen per step, the three decisions around one race line
+// that morphs to the decision you point at, what NALYNT does not do, closing
+// line. Copy: content/pages.ts (howPage).
 import BaseLayout from "../layouts/BaseLayout.astro";
-import PageHero from "../components/sections/PageHero.astro";
-import HowLoop from "../components/how/HowLoop.astro";
-import DecisionTrio from "../components/how/DecisionTrio.astro";
-import StruckList from "../components/sections/StruckList.astro";
-import FinalCta from "../components/sections/FinalCta.astro";
+import PageIntro from "../components/art/PageIntro.astro";
+import LoopStory from "../components/art/LoopStory.astro";
+import Decisions from "../components/art/Decisions.astro";
+import Statements from "../components/art/Statements.astro";
+import FinishLine from "../components/art/FinishLine.astro";
 import { howPage } from "../content/pages.ts";
 ---
 
-<BaseLayout title={howPage.meta.title} description={howPage.meta.description} preloadDisplayFont>
-  <PageHero hero={howPage.hero} next="#boucle" />
-  <HowLoop />
-  <DecisionTrio />
-  <StruckList index={howPage.promises.index} kicker={howPage.promises.kicker} items={howPage.promises.items} />
-  <FinalCta index={howPage.cta.index} titleLines={howPage.cta.titleLines} />
+<BaseLayout title={howPage.meta.title} description={howPage.meta.description}>
+  <PageIntro copy={howPage.intro} />
+  <LoopStory />
+  <Decisions />
+  <Statements id="limites" title={howPage.promises.title} items={howPage.promises.items} />
+  <FinishLine title={howPage.finish.title} lead={howPage.finish.lead} />
 </BaseLayout>
-
-<script>
-  import "../scripts/motion.ts";
-</script>

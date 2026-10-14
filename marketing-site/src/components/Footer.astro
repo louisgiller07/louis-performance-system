@@ -1,21 +1,59 @@
 ---
+// ART-02 — site footer: the promise, the full site map (every real route),
+// the health disclaimer, back to top.
 import { siteCopy } from "../content/copy.ts";
-import Container from "./ui/Container.astro";
 
 const year = new Date().getFullYear();
+
+const groups = siteCopy.footerGroups;
 ---
 
-<footer class="border-t border-border py-12">
-  <Container class="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-    <span class="font-mono text-xs tracking-[0.2em] text-text-muted">NALYNT © {year}</span>
-    <nav class="flex flex-wrap gap-x-6 gap-y-2">
-      {
-        siteCopy.nav.map((link) => (
-          <a href={link.href} class="text-sm text-text-muted transition-colors hover:text-text">
-            {link.label}
-          </a>
-        ))
-      }
-    </nav>
-  </Container>
+<footer class="border-t border-border">
+  <div class="mx-auto w-full max-w-[90rem] px-5 pb-8 pt-14 sm:px-8 lg:px-12">
+    <div class="flex flex-col gap-12 md:flex-row md:justify-between">
+      <div>
+        <a href="/" class="text-[1.375rem] font-bold tracking-[-0.055em] text-text">NALYNT</a>
+        <p class="mt-3 text-[0.9375rem] leading-relaxed text-text-muted">Ton objectif reste.<br />Le plan s'adapte.</p>
+      </div>
+      <div class="grid grid-cols-2 gap-x-14 gap-y-8">
+        {
+          groups.map((group) => (
+            <nav aria-label={group.title}>
+              <p class="mb-3 text-[0.8125rem] font-medium text-accent">{group.title}</p>
+              <ul class="flex flex-col">
+                {group.links.map((link) => (
+                  <li>
+                    <a href={link.href} class="footer-link">
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))
+        }
+      </div>
+    </div>
+
+    <p class="mt-12 max-w-2xl text-[0.8125rem] leading-relaxed text-text-faint">{siteCopy.disclaimer.text}</p>
+
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6 text-[0.8125rem] text-text-faint">
+      <span>© {year} NALYNT. VTT de descente.</span>
+      <a href="#" class="footer-link">Retour en haut</a>
+    </div>
+  </div>
 </footer>
+
+<style>
+  .footer-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+    transition: color 0.2s ease;
+  }
+  .footer-link:hover {
+    color: var(--color-accent);
+  }
+</style>

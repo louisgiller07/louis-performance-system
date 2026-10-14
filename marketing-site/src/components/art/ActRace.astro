@@ -1,0 +1,117 @@
+---
+// ART-02 — Act III, "Le jour de course": the jump photo drifts with the scroll
+// while technique, physique and mental converge into the race (Convergence,
+// scroll-linked through --progress on this section). Same objective ring as
+// the hero: the objective stays.
+import { Picture } from "astro:assets";
+import raceImage from "../../assets/home/louis-dh-jump.webp";
+import Convergence from "./Convergence.astro";
+import { home, signupHref } from "../../content/home.ts";
+
+const { race, acts } = home;
+---
+
+<section id="courses" class="race" aria-labelledby="race-title" data-progress-host data-progress-start="0.95" data-progress-span="0.75">
+  <div class="race-media" data-parallax="0.1">
+    <Picture
+      src={raceImage}
+      formats={["avif", "webp"]}
+      widths={[640, 960, 1280, 1600, 2000]}
+      width={2000}
+      sizes="100vw"
+      alt={race.imageAlt}
+      loading="lazy"
+      class="race-img"
+    />
+  </div>
+  <div class="race-shade" aria-hidden="true"></div>
+
+  <div class="art-wrap race-inner">
+    <div class="race-copy">
+      <p class="act-label" data-act-marker>{acts.race}</p>
+      <h2 id="race-title" class="art-h2" data-rise>
+        <span class="mask-line"><span>{race.title[0]}</span></span>
+        <span class="mask-line"><span>{race.title[1]}</span></span>
+      </h2>
+      <p class="race-lead" data-fade>{race.lead}</p>
+      <div class="race-diagram">
+        <Convergence inputs={race.inputs} outcome={race.outcome} />
+      </div>
+      <a href={signupHref} class="text-link race-link">{race.link}<span class="race-mark" aria-hidden="true"></span></a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .race {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    min-height: clamp(40rem, 100svh, 56rem);
+    overflow: hidden;
+    border-block: 1px solid var(--color-border);
+  }
+  .race-media {
+    position: absolute;
+    inset: -12% 0;
+    z-index: -2;
+    transform: translate3d(0, var(--py, 0px), 0);
+  }
+  .race-media :global(picture),
+  .race-media :global(img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .race-media :global(img) {
+    object-fit: cover;
+    object-position: 62% 45%;
+    filter: saturate(0.62) contrast(1.05);
+  }
+  .race-shade {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      linear-gradient(90deg, #11110f 0%, rgb(17 17 15 / 0.86) 32%, rgb(17 17 15 / 0.25) 75%),
+      linear-gradient(0deg, rgb(17 17 15 / 0.65), transparent 40%),
+      linear-gradient(180deg, rgb(17 17 15 / 0.5), transparent 25%);
+  }
+  .race-inner {
+    padding-block: 5rem;
+  }
+  .race-copy {
+    max-width: 34rem;
+  }
+  .race-lead {
+    margin-top: 1.25rem;
+    max-width: 30rem;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    color: #d3cbba;
+  }
+  .race-diagram {
+    margin-top: 2.5rem;
+  }
+  .race-link {
+    margin-top: 2.25rem;
+  }
+
+  @media (max-width: 767px) {
+    .race {
+      align-items: flex-end;
+    }
+    .race-media :global(img) {
+      object-position: 70% 40%;
+    }
+    .race-shade {
+      background:
+        linear-gradient(0deg, #11110f 20%, rgb(17 17 15 / 0.82) 55%, rgb(17 17 15 / 0.2)),
+        linear-gradient(90deg, rgb(17 17 15 / 0.55), transparent);
+    }
+    .race-inner {
+      padding-block: 12rem 3.5rem;
+    }
+  }
+</style>

@@ -1,0 +1,1011 @@
+---
+// ART-02 — Act II centrepiece: a fictional, fully local coaching day that
+// visibly re-plans the session when the rider picks a morning state.
+// On each choice (all interruptible and reversible, nothing re-created):
+//   a recomposition sweep crosses the console (the "Exemple fictif" tag stays:
+//   nothing suggests a call to the real coaching engine);
+//   the gold route morphs away from / back to the planned line, then a rider
+//   dot rides it to the objective; the duration is counted in a fixed-width
+//   box; the session bar re-cuts against the planned 4 h, the removed volume
+//   hatched; each block's time is counted and its bar resized; the reason is
+//   revealed by a gold wipe and its decisive factor underlined.
+// Every element is server-rendered (default scenario) and only its text and
+// CSS variables change: scoped styles always apply (ART-01 bug: rows re-created
+// by script lost their styles, durations stuck to the labels). No athlete
+// data, no call to the coaching engine. Complete without JS.
+import { home, formatMinutes, PLANNED_MINUTES, type Scenario } from "../../content/home.ts";
+
+const { demo, acts } = home;
+const current = demo.scenarios.find((s) => s.id === demo.defaultScenario) as Scenario;
+const currentIndex = demo.scenarios.findIndex((s) => s.id === demo.defaultScenario);
+const total = current.steps.reduce((sum, step) => sum + step.minutes, 0);
+const removed = PLANNED_MINUTES - total;
+
+let start = 0;
+const geometry = current.steps.map((step) => {
+  const size = step.minutes / PLANNED_MINUTES;
+  const segment = { start, size };
+  start += size;
+  return segment;
+});
+---
+
+<section id="demo" class="demo" aria-labelledby="demo-title" data-demo data-scenarios={JSON.stringify(demo.scenarios)} data-removed-label={demo.removedLabel}>
+  <div class="art-wrap demo-grid">
+    <div class="demo-intro">
+      <p class="act-label" data-act-marker>{acts.daily}</p>
+      <h2 id="demo-title" class="art-h2" data-rise>
+        <span class="mask-line"><span>{demo.title[0]}</span></span>
+        <span class="mask-line"><span>{demo.title[1]}</span></span>
+      </h2>
+      <p class="art-lead mt-5" data-fade>{demo.lead}</p>
+
+      <div class="picker" data-fade style="--fade-delay: 220ms">
+        <p id="picker-label" class="picker-label">{demo.pickLabel}</p>
+        <div class="picker-options" role="group" aria-labelledby="picker-label" style={`--i: ${currentIndex}`} data-picker>
+          <span class="picker-indicator" aria-hidden="true"></span>
+          {
+            demo.scenarios.map((scenario) => (
+              <button type="button" class="picker-option" data-scenario={scenario.id} aria-pressed={scenario.id === current.id ? "true" : "false"}>
+                <span class="picker-name">{scenario.label}</span>
+                <span class="picker-hint">{scenario.hint}</span>
+              </button>
+            ))
+          }
+        </div>
+        <p class="demo-summary" aria-live="polite" data-summary>{current.summary}</p>
+      </div>
+    </div>
+
+    <div class="demo-stage" data-fade style="--fade-delay: 160ms">
+      <div class="console" data-console>
+        <span class="scan" aria-hidden="true"></span>
+        <div class="console-top">
+          <span class="console-brand">NALYNT</span>
+          <span class="console-day">{demo.day}</span>
+          <span class="console-tag">{demo.exampleTag}</span>
+        </div>
+
+        <div class="console-tabs" role="tablist" aria-label="Aperçu de l'application" data-tablist>
+          <button type="button" role="tab" id="tab-today" aria-controls="panel-today" aria-selected="true" tabindex="0">Aujourd'hui</button>
+          <button type="button" role="tab" id="tab-week" aria-controls="panel-week" aria-selected="false" tabindex="-1">Programme</button>
+          <button type="button" role="tab" id="tab-history" aria-controls="panel-history" aria-selected="false" tabindex="-1">Historique</button>
+          <span class="tab-indicator" aria-hidden="true" data-tab-indicator></span>
+        </div>
+
+        <div class="console-panel" id="panel-today" role="tabpanel" aria-labelledby="tab-today" tabindex="0">
+          <p class="checkin"><span class="checkin-dot" aria-hidden="true"></span><span data-field="checkin">{current.checkin}</span></p>
+
+          <div class="session-head">
+            <div>
+              <p class="mission">{demo.mission}</p>
+              <h3>{demo.session}</h3>
+            </div>
+            <div class="session-figures">
+              <span class="duration" data-duration data-minutes={total}>{formatMinutes(total)}</span>
+              <span class="status" data-field="status">{current.status}</span>
+            </div>
+          </div>
+
+          <div class="route" aria-hidden="true">
+            <svg class="route-svg" viewBox="0 0 620 80" fill="none" focusable="false">
+              <path class="route-planned" d={demo.plannedRoute}></path>
+              <path id="demo-route" class="route-adapted" d={current.route} data-route></path>
+              <circle class="route-start" cx="8" cy="40" r="3"></circle>
+              <circle class="route-goal" cx="612" cy="40" r="6.5"></circle>
+              <circle class="route-goal-core" cx="612" cy="40" r="2.4"></circle>
+              <circle class="route-rider" r="4" cx="8" cy="40" data-route-rider></circle>
+            </svg>
+            <p class="route-legend"><span>{demo.routeLegend.planned}</span><span>{demo.objective}</span></p>
+          </div>
+
+          <div class="bar" aria-hidden="true">
+            <span class="bar-track"></span>
+            <span class="bar-removed" style={`--start: ${total / PLANNED_MINUTES}`} data-removed></span>
+            {
+              geometry.map((segment, index) => (
+                <span
+                  class:list={["bar-segment", { "is-main": index === 1 }]}
+                  data-segment={index}
+                  style={`--start: ${segment.start}; --size: ${segment.size}; --k: ${index}`}
+                />
+              ))
+            }
+          </div>
+          <p class="bar-legend">
+            <span>{demo.plannedLabel} {formatMinutes(PLANNED_MINUTES)}</span>
+            <span>
+              {demo.adaptedLabel} <b data-field="proposed">{formatMinutes(total)}</b><span class="bar-removed-label" data-field="removed">{removed > 0 ? ` · ${formatMinutes(removed)} ${demo.removedLabel}` : ""}</span>
+            </span>
+          </p>
+
+          <ol class="blocks">
+            {
+              current.steps.map((step, index) => (
+                <li class:list={["block", { "is-main": index === 1 }]} data-block={index}>
+                  <span class="block-label" data-block-label>
+                    {step.label}
+                  </span>
+                  <span class="block-time" data-block-time data-minutes={step.minutes}>
+                    {formatMinutes(step.minutes)}
+                  </span>
+                  <span class="block-bar" aria-hidden="true">
+                    <span class="block-fill" style={`--size: ${step.minutes / PLANNED_MINUTES}`} data-block-fill />
+                  </span>
+                </li>
+              ))
+            }
+          </ol>
+
+          <div class="reason" data-reason-box>
+            <span class="reason-rule" aria-hidden="true"></span>
+            <p class="reason-label">{demo.whyLabel}</p>
+            <p class="reason-text" data-reason>
+              {current.reason[0]}<mark>{current.reason[1]}</mark>{current.reason[2]}
+            </p>
+            <span class="reason-wipe" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <div class="console-panel" id="panel-week" role="tabpanel" aria-labelledby="tab-week" tabindex="0" hidden>
+          <ul class="week">
+            {
+              demo.week.map((row) => (
+                <li class:list={{ "is-current": row.current }}>
+                  <span>{row.day}</span>
+                  <span>{row.session}</span>
+                  <span data-week-duration={row.current ? "" : undefined}>{row.duration ?? formatMinutes(total)}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+
+        <div class="console-panel" id="panel-history" role="tabpanel" aria-labelledby="tab-history" tabindex="0" hidden>
+          <ul class="history">
+            {
+              demo.history.map((row) => (
+                <li>
+                  <p><span>{row.session}</span><span>{row.day}</span></p>
+                  <small>{row.detail}</small>
+                </li>
+              ))
+            }
+          </ul>
+          <p class="history-note">{demo.historyNote}</p>
+        </div>
+      </div>
+      <p class="demo-note">{demo.note}</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { formatMinutes, PLANNED_MINUTES, type Scenario } from "../../content/home.ts";
+  import { numberTween, pathFrom, pathNumbers, reduced, easeInOut, rideAlong } from "../../scripts/core.ts";
+
+  const demo = document.querySelector<HTMLElement>("[data-demo]");
+  if (demo) {
+    const scenarios = JSON.parse(demo.dataset.scenarios ?? "[]") as Scenario[];
+    const q = <T extends Element = HTMLElement>(sel: string) => demo.querySelector<T>(sel);
+    const qa = <T extends Element = HTMLElement>(sel: string) => [...demo.querySelectorAll<T>(sel)];
+    const field = (name: string) => q(`[data-field="${name}"]`);
+    const consoleEl = q("[data-console]")!;
+    const picker = q("[data-picker]");
+    const buttons = qa<HTMLButtonElement>("[data-scenario]");
+    const summary = q("[data-summary]");
+    const weekDuration = q("[data-week-duration]");
+    const segments = qa("[data-segment]");
+    const removedBar = q("[data-removed]");
+    const blocks = qa("[data-block]");
+    const reasonBox = q("[data-reason-box]");
+    const reason = q("[data-reason]");
+    const routePath = q<SVGPathElement>("[data-route]");
+    const rider = q<SVGCircleElement>("[data-route-rider]");
+    let stopRide = () => {};
+    const motionOK = () => !reduced.matches;
+    const swapIn = (el: Element | null, delay = 0) =>
+      motionOK() &&
+      el?.animate(
+        [
+          { opacity: 0, transform: "translate3d(0, 0.45em, 0)" },
+          { opacity: 1, transform: "none" },
+        ],
+        { duration: 420, delay, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards" },
+      );
+
+    // --- Tabs (WAI-ARIA tabs: roving tabindex, arrows / Home / End) ---
+    const tabs = qa<HTMLButtonElement>('[role="tab"]');
+    const indicator = q("[data-tab-indicator]");
+    const placeIndicator = () => {
+      const active = tabs.find((tab) => tab.getAttribute("aria-selected") === "true");
+      if (!active || !indicator) return;
+      indicator.style.setProperty("--tab-x", `${active.offsetLeft}px`);
+      indicator.style.setProperty("--tab-w", `${active.offsetWidth / 100}`);
+    };
+    const selectTab = (tab: HTMLButtonElement, focus = false) => {
+      for (const other of tabs) {
+        const selected = other === tab;
+        other.setAttribute("aria-selected", String(selected));
+        other.tabIndex = selected ? 0 : -1;
+        const panel = document.getElementById(other.getAttribute("aria-controls") ?? "");
+        if (panel) panel.hidden = !selected;
+      }
+      if (focus) tab.focus();
+      placeIndicator();
+    };
+    tabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => selectTab(tab));
+      tab.addEventListener("keydown", (event) => {
+        const keys: Record<string, number> = {
+          ArrowRight: (index + 1) % tabs.length,
+          ArrowLeft: (index + tabs.length - 1) % tabs.length,
+          Home: 0,
+          End: tabs.length - 1,
+        };
+        if (!(event.key in keys)) return;
+        event.preventDefault();
+        selectTab(tabs[keys[event.key]!]!, true);
+      });
+    });
+    placeIndicator();
+    document.fonts?.ready.then(placeIndicator);
+    window.addEventListener("resize", placeIndicator, { passive: true });
+
+    // --- Counted values (interruptible, rounded to 5 min) ---
+    const show5 = (el: HTMLElement | null) => (v: number) => {
+      if (el) el.textContent = formatMinutes(Math.round(v / 5) * 5);
+    };
+    const durationEl = q("[data-duration]");
+    const duration = numberTween(Number(durationEl?.dataset.minutes) || 0, show5(durationEl), 700);
+    const blockTimes = blocks.map((b) => {
+      const el = b.querySelector<HTMLElement>("[data-block-time]");
+      return numberTween(Number(el?.dataset.minutes) || 0, show5(el), 650);
+    });
+
+    // --- Route morph (same command structure in every scenario) ---
+    let routeNow = pathNumbers(routePath?.getAttribute("d") ?? "");
+    let routeRaf = 0;
+    const morphRoute = (target: string, onDone: () => void) => {
+      if (!routePath) return;
+      cancelAnimationFrame(routeRaf);
+      const to = pathNumbers(target);
+      const from = routeNow.slice();
+      if (!motionOK()) {
+        routeNow = to;
+        routePath.setAttribute("d", target);
+        return;
+      }
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - t0) / 720);
+        const e = easeInOut(t);
+        routeNow = from.map((v, i) => v + (to[i]! - v) * e);
+        routePath.setAttribute("d", pathFrom(target, routeNow));
+        if (t < 1) routeRaf = requestAnimationFrame(step);
+        else onDone();
+      };
+      routeRaf = requestAnimationFrame(step);
+    };
+
+    // --- Reason: gold wipe, text swapped under it, decisive factor underlined ---
+    let reasonTimer = 0;
+    const setReason = (parts: [string, string, string]) => {
+      if (!reason) return;
+      const write = () => {
+        const mark = document.createElement("mark");
+        mark.textContent = parts[1];
+        reason.replaceChildren(parts[0], mark, parts[2]);
+      };
+      window.clearTimeout(reasonTimer);
+      if (!motionOK() || !reasonBox) {
+        write();
+        return;
+      }
+      reasonBox.classList.remove("is-wiping");
+      void reasonBox.offsetWidth;
+      reasonBox.classList.add("is-wiping");
+      reasonTimer = window.setTimeout(write, 260);
+    };
+
+    let computing = 0;
+    let riding = 0;
+    const apply = (scenario: Scenario) => {
+      const index = scenarios.indexOf(scenario);
+      buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scenario === scenario.id)));
+      picker?.style.setProperty("--i", String(index));
+      if (tabs[0]) selectTab(tabs[0]);
+
+      // Recalculation sweep
+      if (motionOK()) {
+        consoleEl.classList.remove("is-computing");
+        void consoleEl.offsetWidth;
+        consoleEl.classList.add("is-computing");
+        window.clearTimeout(computing);
+        computing = window.setTimeout(() => consoleEl.classList.remove("is-computing"), 700);
+      }
+
+      const total = scenario.steps.reduce((sum, s) => sum + s.minutes, 0);
+      const removed = PLANNED_MINUTES - total;
+      const checkin = field("checkin");
+      if (checkin) checkin.textContent = scenario.checkin;
+      swapIn(checkin);
+      const status = field("status");
+      if (status) status.textContent = scenario.status;
+      swapIn(status, 120);
+      const proposed = field("proposed");
+      if (proposed) proposed.textContent = formatMinutes(total);
+      const removedLabel = field("removed");
+      if (removedLabel) removedLabel.textContent = removed > 0 ? ` · ${formatMinutes(removed)} ${demo.dataset.removedLabel ?? ""}` : "";
+      if (summary) summary.textContent = scenario.summary;
+      if (weekDuration) weekDuration.textContent = formatMinutes(total);
+      duration.to(total);
+
+      let start = 0;
+      scenario.steps.forEach((s, i) => {
+        const size = s.minutes / PLANNED_MINUTES;
+        segments[i]?.style.setProperty("--start", String(start));
+        segments[i]?.style.setProperty("--size", String(size));
+        start += size;
+        const block = blocks[i];
+        if (!block) return;
+        block.querySelector<HTMLElement>("[data-block-fill]")?.style.setProperty("--size", String(size));
+        blockTimes[i]?.to(s.minutes);
+        const label = block.querySelector<HTMLElement>("[data-block-label]");
+        if (label && label.textContent?.trim() !== s.label) {
+          label.textContent = s.label;
+          swapIn(label, 90 + i * 70);
+        }
+      });
+      removedBar?.style.setProperty("--start", String(total / PLANNED_MINUTES));
+
+      stopRide();
+      consoleEl.classList.remove("is-riding");
+      morphRoute(scenario.route, () => {
+        if (!rider || !routePath) return;
+        stopRide = rideAlong(rider, routePath, 950);
+        consoleEl.classList.add("is-riding");
+        window.clearTimeout(riding);
+        riding = window.setTimeout(() => consoleEl.classList.remove("is-riding"), 1150);
+      });
+      setReason(scenario.reason);
+    };
+
+    buttons.forEach((button) =>
+      button.addEventListener("click", () => {
+        const scenario = scenarios.find((s) => s.id === button.dataset.scenario);
+        if (!scenario) return;
+        if (button.getAttribute("aria-pressed") === "true") {
+          if (tabs[0]) selectTab(tabs[0]);
+          return;
+        }
+        apply(scenario);
+      }),
+    );
+  }
+</script>
+
+<style>
+  .demo {
+    position: relative;
+    padding-block: clamp(3.75rem, 2.75rem + 4vw, 6.5rem);
+    background:
+      radial-gradient(60rem 30rem at 85% 30%, rgb(213 189 134 / 0.06), transparent 70%),
+      var(--color-bg);
+  }
+  .demo-grid {
+    display: grid;
+    gap: 3rem;
+  }
+  /* Desktop: the intro and the picker stay in view beside the tall console (sticky, no jacking). */
+  @media (min-width: 1024px) {
+    .demo-grid {
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: clamp(3rem, 6vw, 6.5rem);
+      align-items: start;
+    }
+    .demo-intro {
+      position: sticky;
+      top: 6.5rem;
+      padding-top: 1rem;
+    }
+  }
+
+  /* --- Morning state picker --- */
+  .picker {
+    margin-top: 2.25rem;
+    max-width: 26rem;
+  }
+  .picker-label {
+    font-size: 0.875rem;
+    color: var(--color-accent);
+    margin-bottom: 0.85rem;
+  }
+  .picker-options {
+    --gap: 0.5rem;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--gap);
+  }
+  .picker-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc((100% - 2 * var(--gap)) / 3);
+    height: 100%;
+    border: 1px solid var(--color-accent);
+    border-radius: 8px;
+    background: rgb(213 189 134 / 0.08);
+    transform: translate3d(calc(var(--i, 0) * (100% + var(--gap))), 0, 0);
+    transition: transform 0.5s var(--ease-premium);
+    pointer-events: none;
+  }
+  .picker-option {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 3.25rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      color 0.25s ease,
+      border-color 0.25s ease,
+      transform 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .picker-option:hover {
+    color: var(--color-text);
+    border-color: var(--color-accent-deep);
+  }
+  .picker-option:active {
+    transform: scale(0.97);
+  }
+  .picker-option[aria-pressed="true"] {
+    color: var(--color-text);
+    border-color: transparent;
+  }
+  .picker-name {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  .picker-hint {
+    display: none;
+    font-size: 0.8125rem;
+    color: var(--color-text-faint);
+    line-height: 1.35;
+  }
+  .picker-option[aria-pressed="true"] .picker-hint {
+    color: #b9b09a;
+  }
+  @media (min-width: 1024px) {
+    .picker-options {
+      grid-template-columns: 1fr;
+      grid-auto-rows: 1fr;
+    }
+    .picker-indicator {
+      width: 100%;
+      height: calc((100% - 2 * var(--gap)) / 3);
+      transform: translate3d(0, calc(var(--i, 0) * (100% + var(--gap))), 0);
+    }
+    .picker-option {
+      min-height: 4rem;
+      padding: 0.75rem 1.1rem;
+    }
+    .picker-hint {
+      display: block;
+    }
+  }
+  .demo-summary {
+    margin-top: 1.1rem;
+    min-height: 3.2rem;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: #c7c0b0;
+  }
+
+  /* --- Console (illustrative app screen) --- */
+  .console {
+    position: relative;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #1e1d19, var(--color-surface) 40%);
+    box-shadow:
+      0 40px 80px -40px rgb(0 0 0 / 0.75),
+      inset 0 1px 0 rgb(240 238 231 / 0.05);
+    overflow: hidden;
+  }
+  /* Recalculation sweep: a gold light crossing the console once per change. */
+  .scan {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 22%;
+    z-index: 2;
+    background: linear-gradient(90deg, transparent, rgb(213 189 134 / 0.13) 70%, rgb(213 189 134 / 0.5) 99%, transparent);
+    transform: translate3d(-110%, 0, 0);
+    pointer-events: none;
+  }
+  .console-top {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.1rem 1.4rem 0.9rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+  }
+  .console-brand {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    color: var(--color-text);
+  }
+  /* Always visible: the demo never presents itself as a live call to the coaching engine. */
+  .console-tag {
+    margin-left: auto;
+    padding: 0.2rem 0.65rem;
+    border: 1px solid var(--color-accent-deep);
+    border-radius: 999px;
+    color: var(--color-accent);
+    font-size: 0.75rem;
+  }
+
+  .console-tabs {
+    position: relative;
+    display: flex;
+    gap: 1.6rem;
+    padding: 0 1.4rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .console-tabs [role="tab"] {
+    min-height: 2.9rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+  }
+  .console-tabs [role="tab"]:hover {
+    color: var(--color-text);
+  }
+  .console-tabs [role="tab"][aria-selected="true"] {
+    color: var(--color-accent);
+  }
+  .console-tabs [role="tab"]:focus-visible {
+    outline-offset: -2px;
+  }
+  .tab-indicator {
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    width: 100px;
+    height: 2px;
+    background: var(--color-accent);
+    transform-origin: left;
+    transform: translate3d(var(--tab-x, 1.4rem), 0, 0) scaleX(var(--tab-w, 0.82));
+    transition: transform 0.45s var(--ease-premium);
+  }
+
+  .console-panel {
+    padding: 1.4rem 1.4rem 1.5rem;
+    min-height: 33rem;
+  }
+  .console-panel:focus-visible {
+    outline-offset: -4px;
+  }
+
+  .checkin {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.875rem;
+    color: #bdb7a8;
+    white-space: nowrap;
+  }
+  .checkin-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--color-accent);
+    flex-shrink: 0;
+  }
+  .session-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.2rem;
+  }
+  .mission {
+    font-size: 0.8125rem;
+    color: var(--color-text-faint);
+  }
+  .session-head h3 {
+    margin-top: 0.2rem;
+    font-size: clamp(1.45rem, 1.2rem + 0.9vw, 1.85rem);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    color: var(--color-text);
+  }
+  .session-figures {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+  }
+  /* Fixed width + tabular figures: counting never moves the layout. */
+  .duration {
+    display: inline-block;
+    min-width: 5.4ch;
+    text-align: right;
+    font-size: clamp(1.45rem, 1.2rem + 0.9vw, 1.85rem);
+    font-weight: 500;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--color-accent);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .status {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    background: rgb(213 189 134 / 0.12);
+    color: var(--color-accent);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  /* Mini race line: planned (dashed) vs adapted (gold), same objective. */
+  .route {
+    margin-top: 1.1rem;
+  }
+  .route-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .route-planned {
+    stroke: #5f584a;
+    stroke-width: 1.5;
+    stroke-dasharray: 3 7;
+  }
+  .route-adapted {
+    stroke: var(--color-accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+  }
+  .route-start {
+    fill: #8f7a51;
+  }
+  .route-goal {
+    fill: var(--color-surface);
+    stroke: var(--color-accent);
+    stroke-width: 1.5;
+  }
+  .route-goal-core {
+    fill: var(--color-accent);
+  }
+  .route-rider {
+    fill: var(--color-text);
+    stroke: var(--color-surface);
+    stroke-width: 2;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  .console.is-riding .route-rider {
+    opacity: 1;
+  }
+  .route-legend {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    color: var(--color-text-faint);
+  }
+  .route-legend span:last-child {
+    color: #c9b78e;
+    text-align: right;
+  }
+
+  /* Session bar against the planned 4 h; the removed volume is hatched. */
+  .bar {
+    position: relative;
+    height: 0.7rem;
+    margin-top: 1.2rem;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .bar-track {
+    position: absolute;
+    inset: 0;
+    border: 1px dashed #5b5547;
+    border-radius: 3px;
+  }
+  .bar-removed {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(-45deg, rgb(213 189 134 / 0.22) 0 2px, transparent 2px 6px);
+    transform: translate3d(calc(var(--start) * 100%), 0, 0);
+    transition: transform 0.75s var(--ease-premium);
+  }
+  .bar-segment {
+    position: absolute;
+    inset: 0;
+    background: #8f7a51;
+    border-right: 2px solid var(--color-surface);
+    transform-origin: left;
+    transform: translate3d(calc(var(--start) * 100%), 0, 0) scaleX(var(--size));
+    transition: transform 0.75s var(--ease-premium);
+    transition-delay: calc(var(--k) * 60ms);
+  }
+  .bar-segment.is-main {
+    background: var(--color-accent);
+  }
+  .bar-legend {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.55rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-faint);
+  }
+  .bar-legend b {
+    font-weight: 500;
+    color: var(--color-accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Blocks: label and time on one grid, the time never touches the label. */
+  .blocks {
+    margin-top: 1rem;
+    padding: 0;
+    list-style: none;
+  }
+  .block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 1.25rem;
+    row-gap: 0.45rem;
+    align-items: baseline;
+    padding: 0.75rem 0 0.8rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .block-label {
+    font-size: 0.9375rem;
+    line-height: 1.35;
+    color: #d6d1c5;
+  }
+  .block-time {
+    min-width: 4.8ch;
+    text-align: right;
+    font-size: 0.9375rem;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .block-bar {
+    grid-column: 1 / -1;
+    position: relative;
+    height: 3px;
+    border-radius: 2px;
+    background: rgb(240 238 231 / 0.06);
+    overflow: hidden;
+  }
+  .block-fill {
+    position: absolute;
+    inset: 0;
+    background: #8f7a51;
+    transform-origin: left;
+    transform: scaleX(var(--size));
+    transition: transform 0.7s var(--ease-premium);
+  }
+  .block.is-main .block-fill {
+    background: var(--color-accent);
+  }
+
+  .reason {
+    position: relative;
+    margin-top: 0.9rem;
+    padding: 0.9rem 1rem 1rem 1.15rem;
+    border-radius: 0 8px 8px 0;
+    background: rgb(213 189 134 / 0.07);
+    overflow: hidden;
+  }
+  .reason-rule {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--color-accent);
+  }
+  .reason-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-accent);
+  }
+  .reason-text {
+    margin-top: 0.3rem;
+    min-height: 3.2em;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: #ddd5c3;
+  }
+  .reason-text :global(mark) {
+    background: linear-gradient(var(--color-accent), var(--color-accent)) no-repeat 0 100% / 100% 1px;
+    color: var(--color-text);
+  }
+  .reason-wipe {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgb(213 189 134 / 0.28), rgb(213 189 134 / 0.16));
+    transform: scaleX(0);
+    transform-origin: left;
+    pointer-events: none;
+  }
+
+  .week {
+    list-style: none;
+    padding: 0;
+  }
+  .week li {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr auto;
+    gap: 0.75rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9375rem;
+    color: #d0cbbf;
+  }
+  .week li span:first-child,
+  .week li span:last-child {
+    color: var(--color-text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .week li.is-current,
+  .week li.is-current span {
+    color: var(--color-accent);
+  }
+  .history {
+    list-style: none;
+    padding: 0;
+  }
+  .history li {
+    padding: 0.9rem 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .history p {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.9375rem;
+    color: #d6d1c5;
+  }
+  .history p span:last-child {
+    color: var(--color-text-faint);
+  }
+  .history small {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+  }
+  .history-note {
+    margin-top: 1.1rem;
+    padding-left: 0.9rem;
+    border-left: 2px solid var(--color-accent-deep);
+    font-size: 0.875rem;
+    color: #c5bca9;
+  }
+  .demo-note {
+    margin-top: 0.9rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-faint);
+  }
+
+  @media (max-width: 479px) {
+    .console-top,
+    .console-tabs,
+    .console-panel {
+      padding-inline: 1.05rem;
+    }
+    .console-tabs {
+      gap: 1.15rem;
+    }
+    .console-panel {
+      min-height: 36rem;
+    }
+    /* Labels may wrap on narrow screens: reserve two lines so a scenario change never shifts the rows. */
+    .block-label {
+      min-height: 2.7em;
+    }
+    .reason-text {
+      min-height: 4.8em;
+    }
+  }
+
+  /* --- Motion that answers the rider's choice --- */
+  @media (prefers-reduced-motion: no-preference) {
+    .console.is-computing .scan {
+      animation: demo-scan 0.7s cubic-bezier(0.45, 0, 0.25, 1) both;
+    }
+    .console.is-computing .checkin-dot {
+      animation: demo-ping 0.7s ease-out both;
+    }
+    .reason.is-wiping .reason-wipe {
+      animation: demo-wipe 0.62s cubic-bezier(0.65, 0, 0.35, 1) both;
+    }
+    .reason.is-wiping .reason-text :global(mark) {
+      animation: demo-underline 0.6s var(--ease-premium) 0.42s both;
+    }
+    .console-panel:not([hidden]) {
+      animation: demo-panel 0.4s var(--ease-premium) both;
+    }
+  }
+  @keyframes demo-scan {
+    from {
+      transform: translate3d(-110%, 0, 0);
+    }
+    to {
+      transform: translate3d(560%, 0, 0);
+    }
+  }
+  @keyframes demo-ping {
+    0% {
+      transform: scale(1);
+    }
+    40% {
+      transform: scale(1.9);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes demo-wipe {
+    0% {
+      transform: scaleX(0);
+      transform-origin: left;
+    }
+    45% {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+    46% {
+      transform: scaleX(1);
+      transform-origin: right;
+    }
+    100% {
+      transform: scaleX(0);
+      transform-origin: right;
+    }
+  }
+  @keyframes demo-underline {
+    from {
+      background-size: 0% 1px;
+    }
+    to {
+      background-size: 100% 1px;
+    }
+  }
+  @keyframes demo-panel {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0.4rem, 0);
+    }
+  }
+</style>

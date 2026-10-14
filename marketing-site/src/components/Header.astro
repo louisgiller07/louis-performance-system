@@ -1,72 +1,298 @@
 ---
-import { siteCopy } from "../content/copy.ts";
-import Container from "./ui/Container.astro";
-import Button from "./ui/Button.astro";
+// ART-02 — site header. Transparent over a full-bleed hero (`overlay`), solid
+// with a hairline once the page scrolls. Desktop (>= 960px): centred links to
+// the inner pages, current page marked; below: a disclosure menu
+// (aria-expanded, Escape closes and returns focus).
 import { loginHref, signupHref } from "../content/home.ts";
+import { siteCopy } from "../content/copy.ts";
 
+interface Props {
+  overlay?: boolean;
+}
+
+const { overlay = false } = Astro.props;
+
+const links = siteCopy.headerNav;
 const currentPath = Astro.url.pathname.replace(/\/$/, "") || "/";
-const isActivePath = (href: string) => href.replace(/\/$/, "") === currentPath;
+const current = (href: string) => (href === currentPath ? "page" : undefined);
 ---
 
-<header class="sticky top-0 z-40 border-b border-border bg-bg/90 backdrop-blur">
-  <Container class="flex h-16 items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr]">
-    <a href="/" class="font-mono text-sm font-semibold tracking-[0.3em] text-text">
-      NALYNT
-    </a>
+<header class:list={["site-header", { "is-overlay": overlay }]} data-header>
+  <div class="mx-auto flex h-[4.5rem] w-full max-w-[90rem] items-center gap-6 px-5 sm:px-8 lg:px-12">
+    <a href="/" class="wordmark" aria-label="NALYNT, accueil">NALYNT</a>
 
-    <nav class="hidden gap-10 lg:flex" aria-label="Navigation principale">
-      {
-        siteCopy.headerNav.map((link) => (
-          <a
-            href={link.href}
-            class:list={[
-              "text-sm transition-colors",
-              isActivePath(link.href) ? "text-accent" : "text-text-muted hover:text-text",
-            ]}
-            aria-current={isActivePath(link.href) ? "page" : undefined}
-          >
-            {link.label}
-          </a>
-        ))
-      }
+    <nav class="primary-nav" aria-label="Navigation principale">
+      {links.map((link) => <a href={link.href} class="nav-link" aria-current={current(link.href)}>{link.label}</a>)}
     </nav>
 
-    <div class="flex items-center justify-end gap-3 lg:gap-6">
-      <a href={loginHref} class="hidden text-sm text-text-muted transition-colors hover:text-text lg:inline">Connexion</a>
-      <Button href={signupHref} class="min-h-11 px-4 lg:px-6">Commencer</Button>
-
-      <details class="relative lg:hidden">
-        <summary
-          class="flex h-11 w-11 cursor-pointer list-none items-center justify-center border border-border [&::-webkit-details-marker]:hidden [&::marker]:hidden"
-          aria-label="Ouvrir la navigation"
-        >
-          <span class="flex flex-col items-center gap-[5px]" aria-hidden="true">
-            <span class="h-px w-5 bg-text"></span>
-            <span class="h-px w-5 bg-text"></span>
-            <span class="h-px w-5 bg-text"></span>
-          </span>
-        </summary>
-        <nav class="absolute right-0 top-[calc(100%+0.75rem)] flex w-56 flex-col border border-border bg-surface">
-          {
-            siteCopy.nav.map((link) => (
-              <a
-                href={link.href}
-                class:list={[
-                  "border-b border-border px-4 py-3 text-sm last:border-b-0",
-                  isActivePath(link.href) ? "text-accent" : "text-text-muted",
-                ]}
-                aria-current={isActivePath(link.href) ? "page" : undefined}
-              >
-                {link.label}
-              </a>
-            ))
-          }
-          <a href={loginHref} class="border-b border-border px-4 py-3 text-sm text-text-muted">Connexion</a>
-          <a href={signupHref} class="bg-accent px-4 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-bg">
-            Commencer gratuitement
-          </a>
-        </nav>
-      </details>
+    <div class="header-actions">
+      <a href={loginHref} class="nav-link login-link">Se connecter</a>
+      <a href={signupHref} class="start-link">Commencer</a>
+      <button
+        type="button"
+        class="menu-button"
+        aria-expanded="false"
+        aria-controls="menu-mobile"
+        data-menu-button
+      >
+        <span>Menu</span>
+        <span class="menu-icon" aria-hidden="true"><span></span><span></span></span>
+      </button>
     </div>
-  </Container>
+  </div>
+
+  <nav id="menu-mobile" class="mobile-menu" aria-label="Navigation mobile" data-menu hidden>
+    {links.map((link) => <a href={link.href} aria-current={current(link.href)}>{link.label}</a>)}
+    <a href={loginHref}>Se connecter</a>
+  </nav>
 </header>
+
+<script>
+  const header = document.querySelector<HTMLElement>("[data-header]");
+  const button = document.querySelector<HTMLButtonElement>("[data-menu-button]");
+  const menu = document.querySelector<HTMLElement>("[data-menu]");
+
+  if (header) {
+    let queued = false;
+    const update = () => {
+      queued = false;
+      header.classList.toggle("is-scrolled", window.scrollY > 24);
+    };
+    update();
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (!queued) {
+          queued = true;
+          requestAnimationFrame(update);
+        }
+      },
+      { passive: true },
+    );
+  }
+
+  if (button && menu && header) {
+    const setOpen = (open: boolean) => {
+      button.setAttribute("aria-expanded", String(open));
+      menu.hidden = !open;
+      header.classList.toggle("menu-open", open);
+    };
+    button.addEventListener("click", () => setOpen(button.getAttribute("aria-expanded") !== "true"));
+    menu.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement).closest("a")) setOpen(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && button.getAttribute("aria-expanded") === "true") {
+        setOpen(false);
+        button.focus();
+      }
+    });
+    window.matchMedia("(min-width: 960px)").addEventListener("change", (event) => {
+      if (event.matches) setOpen(false);
+    });
+  }
+</script>
+
+<style>
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: rgb(17 17 15 / 0.92);
+    box-shadow: inset 0 -1px 0 var(--color-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition:
+      background-color 0.35s ease,
+      box-shadow 0.35s ease;
+  }
+  .site-header.is-overlay:not(.is-scrolled):not(.menu-open) {
+    background: transparent;
+    box-shadow: inset 0 -1px 0 transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .wordmark {
+    font-size: 1.375rem;
+    font-weight: 700;
+    letter-spacing: -0.055em;
+    color: var(--color-text);
+    padding: 0.5rem 0;
+  }
+
+  .nav-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    font-size: 0.875rem;
+    color: #c9c4b8;
+    transition: color 0.2s ease;
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.55rem;
+    height: 1px;
+    background: var(--color-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s var(--ease-premium);
+  }
+  .nav-link:hover {
+    color: var(--color-text);
+  }
+  .nav-link:hover::after,
+  .nav-link:focus-visible::after,
+  .nav-link[aria-current="page"]::after {
+    transform: scaleX(1);
+  }
+  .nav-link[aria-current="page"],
+  .mobile-menu a[aria-current="page"] {
+    color: var(--color-accent);
+  }
+
+  .start-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border: 1px solid var(--color-accent-deep);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-accent);
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .start-link:hover {
+    background: #2d281c;
+    border-color: var(--color-accent);
+  }
+  .start-link:active {
+    background: #3a3222;
+  }
+
+  .menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 2.75rem;
+    padding: 0 0.25rem 0 0.75rem;
+    font-size: 0.875rem;
+    color: #d6d0c3;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+  .menu-icon {
+    position: relative;
+    display: inline-block;
+    width: 1.1rem;
+    height: 0.6rem;
+  }
+  .menu-icon span {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1.5px;
+    background: currentColor;
+    transition: transform 0.3s var(--ease-premium);
+  }
+  .menu-icon span:first-child {
+    top: 0;
+  }
+  .menu-icon span:last-child {
+    bottom: 0;
+  }
+  [aria-expanded="true"] .menu-icon span:first-child {
+    transform: translateY(0.25rem) rotate(45deg);
+  }
+  [aria-expanded="true"] .menu-icon span:last-child {
+    transform: translateY(-0.25rem) rotate(-45deg);
+  }
+
+  .mobile-menu {
+    display: flex;
+    flex-direction: column;
+    padding: 0.25rem 1.25rem 1.25rem;
+    border-top: 1px solid var(--color-border);
+  }
+  .mobile-menu[hidden] {
+    display: none;
+  }
+  .mobile-menu a {
+    display: flex;
+    align-items: center;
+    min-height: 3.25rem;
+    font-size: 1.0625rem;
+    color: var(--color-text);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .mobile-menu a:last-child {
+    border-bottom: 0;
+    color: var(--color-text-muted);
+  }
+
+  .primary-nav {
+    display: none;
+    flex: 1;
+    justify-content: center;
+    gap: 2.25rem;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+  .login-link {
+    display: none;
+  }
+  @media (min-width: 640px) {
+    .header-actions {
+      gap: 1.25rem;
+    }
+  }
+  @media (min-width: 960px) {
+    .primary-nav {
+      display: flex;
+    }
+    .header-actions {
+      margin-left: 0;
+    }
+    .login-link {
+      display: inline-flex;
+    }
+    .menu-button,
+    .mobile-menu {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .mobile-menu:not([hidden]) a {
+      animation: menu-in 0.45s var(--ease-premium) both;
+    }
+    .mobile-menu a:nth-child(2) {
+      animation-delay: 40ms;
+    }
+    .mobile-menu a:nth-child(3) {
+      animation-delay: 80ms;
+    }
+    .mobile-menu a:nth-child(4) {
+      animation-delay: 120ms;
+    }
+  }
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -0.5rem, 0);
+    }
+  }
+</style>

@@ -1,28 +1,17 @@
 ---
-// V3 — same brand language as the homepage: photo hero, the origin and the
-// founding question, the founder, why Downhill, where NALYNT stands today
-// and its vision, closing CTA. Copy lives in content/pages.ts (aboutPage);
-// motion in scripts/motion.ts.
+// ART-02 — /a-propos: photo intro, origin and the founding question, the
+// founder (no quote), why downhill, today, closing line.
+// Copy: content/pages.ts (aboutPage).
 import BaseLayout from "../layouts/BaseLayout.astro";
-import PageHero from "../components/sections/PageHero.astro";
-import Origin from "../components/about/Origin.astro";
-import Founder from "../components/about/Founder.astro";
-import Downhill from "../components/about/Downhill.astro";
-import Timeline from "../components/about/Timeline.astro";
-import FinalCta from "../components/sections/FinalCta.astro";
+import PageIntro from "../components/art/PageIntro.astro";
+import AboutChapters from "../components/art/AboutChapters.astro";
+import FinishLine from "../components/art/FinishLine.astro";
 import jumpImage from "../assets/home/louis-dh-jump.webp";
 import { aboutPage } from "../content/pages.ts";
 ---
 
-<BaseLayout title={aboutPage.meta.title} description={aboutPage.meta.description} preloadDisplayFont>
-  <PageHero hero={aboutPage.hero} next="#origine" image={{ src: jumpImage, alt: aboutPage.hero.imageAlt }} />
-  <Origin />
-  <Founder />
-  <Downhill />
-  <Timeline />
-  <FinalCta index={aboutPage.cta.index} titleLines={aboutPage.cta.titleLines} />
+<BaseLayout title={aboutPage.meta.title} description={aboutPage.meta.description} overlayHeader>
+  <PageIntro copy={aboutPage.intro} image={{ src: jumpImage, alt: aboutPage.imageAlt, position: "64% 42%" }} />
+  <AboutChapters />
+  <FinishLine title={aboutPage.finish.title} lead={aboutPage.finish.lead} />
 </BaseLayout>
-
-<script>
-  import "../scripts/motion.ts";
-</script>
