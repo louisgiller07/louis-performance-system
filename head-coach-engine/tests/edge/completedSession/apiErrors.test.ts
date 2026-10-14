@@ -6,7 +6,7 @@
  * docs/11_DECISION_LOG.md, M5_003 final review).
  */
 import { describe, expect, it } from "vitest";
-import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE, hasNonAbandonedExecution } from "../../../../supabase/functions/completed-session/apiErrors.js";
+import { classifyHealthGuardRefusal, classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE, hasNonAbandonedExecution } from "../../../../supabase/functions/completed-session/apiErrors.js";
 
 describe("classifyMissingReadback", () => {
   it("returns exactly 500 persistence_readback_missing", () => {
@@ -54,3 +54,21 @@ describe("hasNonAbandonedExecution (UX-11R.9 F-5b precheck rule)", () => {
     expect(hasNonAbandonedExecution([ex("started", "paused", "abandoned"), ex("started", "abandoned")])).toBe(false);
   });
 });
+
+// INT-01 (HPM 2026-10-13) — the RPC health guard's SQLSTATEs are business refusals (409, stable code), never a 500.
+describe("classifyHealthGuardRefusal", () => {
+  it.each([
+    ["NX102", "health_suspended"],
+    ["NX103", "daily_decision_not_current"],
+    ["NX104", "guided_results_exist"],
+  ])("%s → 409 %s", (sqlstate, code) => {
+    expect(classifyHealthGuardRefusal(sqlstate)).toMatchObject({ status: 409, code });
+  });
+  it("any other SQLSTATE (or none) stays an unexpected failure: null", () => {
+    for (const sqlstate of [undefined, "NX101", "NX201", "23505", "P0001", "nx102"]) expect(classifyHealthGuardRefusal(sqlstate)).toBeNull();
+  });
+  it("messages carry no dynamic detail", () => {
+    for (const sqlstate of ["NX102", "NX103", "NX104"]) expect(classifyHealthGuardRefusal(sqlstate)!.message).not.toMatch(/[0-9a-f]{8}-|select|athlete/i);
+  });
+});
+

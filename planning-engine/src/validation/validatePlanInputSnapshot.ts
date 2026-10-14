@@ -97,9 +97,9 @@ export function assertValidStrengthExperienceTier(value: string): asserts value 
  */
 const VALID_EQUIPMENT: ReadonlySet<string> = new Set(EXERCISE_CATALOG_ENTRIES.flatMap((entry) => entry.equipmentRequirements));
 /**
- * INT-01 compatibility — a terrain feature the later release (P0-2, HPM 2026-10-13) lets riders declare
- * (« Virages en dévers »): accepted, so a profile holding it still generates here; no drill of this
- * runtime requires it, so it changes no selection.
+ * P0-2 (HPM 2026-10-13) — declarable terrain features no V1 drill requires: the optional off-camber
+ * section (« Virages en dévers »), the only confirmation of one for the V2 off-camber drill. The V1
+ * catalogue is unchanged (frozen); V1 generation simply never asks for it.
  */
 export const DECLARABLE_TERRAIN_FEATURES = ["off_camber_section"] as const;
 const VALID_TERRAIN: ReadonlySet<string> = new Set([...DRILL_CATALOG_ENTRIES.map((entry) => entry.terrainRequirement), ...DECLARABLE_TERRAIN_FEATURES]);

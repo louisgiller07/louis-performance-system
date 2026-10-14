@@ -6,6 +6,8 @@ import type { DecisionHistoryRow } from "./historyTypes";
 import { NO_COMPLETED_SESSION_COPY, SAME_DAY_UNASSOCIATED_COPY, type PerformedMatch } from "./historyPerformedMatch";
 import { HistoryPerformedSummary } from "./HistoryPerformedSummary";
 import { SESSION_TYPE_LABELS, type SessionType } from "../completedSession/completedSessionTypes";
+import type { GuidedRealisation } from "./guidedHistory";
+import { HistoryGuidedRealisation, HistoryOtherDecisionRealisation } from "./HistoryGuidedRealisation";
 
 // A stored decision is never recomputed — this renders exactly what
 // persist_daily_run wrote to decisions.daily_plan at the time, via the
@@ -25,7 +27,15 @@ import { SESSION_TYPE_LABELS, type SessionType } from "../completedSession/compl
 // own decision_id — never a same-day guess. Shown regardless of whether the
 // prescription itself rendered fully or degraded (a legacy decision can
 // still have a real linked completed session).
-export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow; performedMatch: PerformedMatch }) {
+//
+// P0-4 (HPM 2026-10-13) — "Réalisé" also reads the guided V2 sessions really
+// recorded (`guided`, loaded by HistoryDetailPage), in this order: 1. the V1
+// session linked to this decision (unchanged); 2. the guided attempts started
+// from THIS decision (real status, frozen prescription, active results);
+// 3. a guided session of the same day started from another decision (said and
+// linked); 4. otherwise the existing same-day / nothing wording. "Ta mission"
+// keeps M1's decision as persisted.
+export function HistoryDetail({ row, performedMatch, guided }: { row: DecisionHistoryRow; performedMatch: PerformedMatch; guided?: GuidedRealisation }) {
   const summary = summarizeDecision(row);
 
   return (
@@ -67,9 +77,17 @@ export function HistoryDetail({ row, performedMatch }: { row: DecisionHistoryRow
       <h2 className="mt-2 text-xs font-semibold uppercase tracking-widest text-muted">Réalisé</h2>
 
       <div className="rounded-xl border border-white/5 bg-card p-3 text-sm text-ink/80">
-        {performedMatch.kind === "linked" && <HistoryPerformedSummary session={performedMatch.session} />}
-        {performedMatch.kind === "same_day_unassociated" && <p>{SAME_DAY_UNASSOCIATED_COPY}</p>}
-        {performedMatch.kind === "none" && <p>{NO_COMPLETED_SESSION_COPY}</p>}
+        {performedMatch.kind === "linked" ? (
+          <HistoryPerformedSummary session={performedMatch.session} />
+        ) : guided && guided.attempts.length > 0 ? (
+          <HistoryGuidedRealisation attempts={guided.attempts} />
+        ) : guided && guided.otherDecisionIds.length > 0 ? (
+          <HistoryOtherDecisionRealisation decisionIds={guided.otherDecisionIds} />
+        ) : performedMatch.kind === "same_day_unassociated" ? (
+          <p>{SAME_DAY_UNASSOCIATED_COPY}</p>
+        ) : (
+          <p>{NO_COMPLETED_SESSION_COPY}</p>
+        )}
       </div>
     </div>
   );

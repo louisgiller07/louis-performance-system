@@ -6,12 +6,16 @@
 // for Force; partial results need a confirmation) and carries the module's
 // not-yet-sent results in the same batch; an abandoned attempt whose
 // prescription is still current can be restarted (new execution).
+// P0-3 (HPM 2026-10-13) — an open session under a health suspension (or a stale
+// day decision) is shown with its recorded results, read only: no pause, no
+// resume, no new result, no completion; only a safe stop (abandon). The server
+// refuses those actions anyway.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
-import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, PHASE_LABELS } from "./guidedSessionCopy";
+import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, HEALTH_BLOCK_COPY, PHASE_LABELS } from "./guidedSessionCopy";
 import { resolveSessionModule, type ModulePending, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
 import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -34,7 +38,7 @@ export interface GuidedSessionViewProps {
   now: () => string;
 }
 
-function Header({ prescription, phase }: { prescription: FinalPrescriptionV2View | null; phase: ExecutionPhase }) {
+function Header({ prescription, phase, stateLabel }: { prescription: FinalPrescriptionV2View | null; phase: ExecutionPhase; stateLabel?: string }) {
   return (
     <header className="flex flex-col gap-1">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Séance guidée</p>
@@ -47,7 +51,7 @@ function Header({ prescription, phase }: { prescription: FinalPrescriptionV2View
         </>
       )}
       <p className="text-sm font-semibold text-ink" role="status" data-phase={phase}>
-        État : {PHASE_LABELS[phase]}
+        État : {stateLabel ?? PHASE_LABELS[phase]}
       </p>
     </header>
   );
@@ -117,10 +121,13 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
   const activityResults = snapshot.kind === "execution" ? snapshot.execution.session_activity_results : [];
   const restartId = snapshot.kind === "execution" ? snapshot.restartFinalPrescriptionId : undefined;
   const open = phase === "active" || phase === "paused";
+  const healthBlock = open && snapshot.kind === "execution" ? snapshot.healthBlock : undefined;
+  // P0-3 — training actions (results, pause / resume, completion) only when nothing blocks them.
+  const trainable = open && !healthBlock;
   const module = prescription ? resolveSessionModule(prescription) : null;
   const context = prescription ? { prescription, executionId, phase, setResults, activityResults, uiState: moduleState } : null;
   const completion = module && context ? module.completion(context, now) : null;
-  const canComplete = open && executionId !== null && completion?.canComplete === true;
+  const canComplete = trainable && executionId !== null && completion?.canComplete === true;
 
   const completeNow = () => {
     if (!executionId || !module || !context) return;
@@ -131,7 +138,14 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
 
   return (
     <div className="flex flex-col gap-4">
-      <Header prescription={prescription} phase={phase} />
+      <Header prescription={prescription} phase={phase} stateLabel={healthBlock ? HEALTH_BLOCK_COPY[healthBlock].state : undefined} />
+
+      {healthBlock && (
+        <div role="status" className="flex flex-col gap-1 rounded-lg border border-red-400/60 bg-card p-4" data-testid="guided-session-health-block" data-block={healthBlock}>
+          <p className="text-sm font-semibold uppercase tracking-[0.12em] text-red-400">{HEALTH_BLOCK_COPY[healthBlock].title}</p>
+          <p className="text-sm text-ink/80">{HEALTH_BLOCK_COPY[healthBlock].text}</p>
+        </div>
+      )}
 
       {actionError && (
         <div role="alert" className="flex flex-col gap-2 rounded-lg border border-line bg-card p-3" data-code={actionError.code}>
@@ -145,7 +159,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
       )}
 
       {module && context ? (
-        <module.Content {...context} editable={open} busy={busy} setUiState={setModuleState} submit={onSubmit} newId={newId} now={now} />
+        <module.Content {...context} editable={trainable} busy={busy} setUiState={setModuleState} submit={onSubmit} newId={newId} now={now} />
       ) : (
         <p className="text-ink/80" data-reason="unsupported">
           {UNSUPPORTED_SESSION_MESSAGE}
@@ -163,17 +177,17 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             Recommencer la séance
           </PrimaryButton>
         )}
-        {phase === "active" && executionId && (
+        {phase === "active" && trainable && executionId && (
           <PrimaryButton onClick={() => onPause(executionId)} disabled={busy} className="w-full">
             Mettre en pause
           </PrimaryButton>
         )}
-        {phase === "paused" && executionId && (
+        {phase === "paused" && trainable && executionId && (
           <PrimaryButton onClick={() => onResume(executionId)} disabled={busy} className="w-full">
             Reprendre
           </PrimaryButton>
         )}
-        {open && confirming !== "complete" && (
+        {trainable && confirming !== "complete" && (
           <>
             <SecondaryButton
               disabled={!canComplete || busy}
@@ -190,7 +204,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             )}
           </>
         )}
-        {open && confirming === "complete" && (
+        {trainable && confirming === "complete" && (
           <Confirmation
             id="complete-title"
             message={completion?.confirmationMessage ?? ""}
@@ -211,7 +225,8 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             id="stop-title"
             message="Arrêter la séance ? Elle sera enregistrée comme arrêtée et ne pourra plus être reprise. Les résultats déjà enregistrés restent dans l'historique."
             confirmLabel="Confirmer l'arrêt"
-            cancelLabel="Continuer la séance"
+            // INT-01 R1 — under a health suspension the stop is the only action: never an invitation to carry on.
+            cancelLabel={healthBlock ? "Retour" : "Continuer la séance"}
             disabled={busy}
             onCancel={() => setConfirming(null)}
             onConfirm={() => {
@@ -222,7 +237,7 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
         )}
       </div>
 
-      {!open && backToToday}
+      {(!open || healthBlock) && backToToday}
     </div>
   );
 }

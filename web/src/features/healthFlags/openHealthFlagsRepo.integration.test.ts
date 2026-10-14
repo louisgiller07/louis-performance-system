@@ -16,6 +16,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createTestClient, deleteTestAthlete, type TestAthlete } from "../../../../head-coach-engine/tests/supabase/testDb.js";
+import { integrationApiUrl } from "../../test/testTarget";
 
 export function isLoopbackSupabaseUrl(url: string): boolean {
   try {
@@ -31,7 +32,7 @@ export function computeIntegrationEnabled(optInFlag: string | undefined, serverK
 }
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESOLVED_ADMIN_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const RESOLVED_ADMIN_URL = integrationApiUrl();
 const INTEGRATION_ENABLED = computeIntegrationEnabled(process.env.RUN_LOCAL_SUPABASE_INTEGRATION, SERVER_KEY, RESOLVED_ADMIN_URL);
 
 // INT-01 — the rider's client targets the same local stack as the admin client (RESOLVED_ADMIN_URL, already

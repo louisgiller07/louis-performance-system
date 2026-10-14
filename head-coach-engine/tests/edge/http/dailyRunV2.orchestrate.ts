@@ -26,9 +26,11 @@ import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } fr
 import type { GenerateTrainingPlanVersionPayloadV2 } from "../../../src/generation/v2/planV2PersistencePayload.js";
 import { acceptTrainingPlanVersion } from "../../../src/supabase/acceptTrainingPlanVersion.js";
 import { acquireFunctionsRuntime, EDGE_CONTAINER, localFunctionsRuntimeDeps, serveLogTail } from "./functionsRuntime.js";
+import { verifyLocalTestTarget } from "../../supabase/testTarget.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+// QA-ISOLATION-01 — explicit, verified local stack (no default): the gateway publishing SUPABASE_URL's port names it.
+const SUPABASE_URL = verifyLocalTestTarget().apiUrl;
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1/daily-run`;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
 if (!ANON_KEY) throw new Error("Set SUPABASE_PUBLISHABLE_KEY (npx supabase status -o env). No key is hardcoded here.");

@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../../src/supabase/client.js";
 import { projectTrainingPlan } from "../../src/supabase/projectTrainingPlan.js";
+import { verifyLocalTestTarget } from "./testTarget.js";
 
 const LOCAL_URL = "http://127.0.0.1:54321";
 /** The local Supabase CLI's default REST API port. */
@@ -84,6 +85,8 @@ export function createTestClient(): SupabaseClient {
 
   const url = resolveTestSupabaseUrl();
   if (!isLoopbackSupabaseUrl(url)) throw new UnsafeTestTargetError(url);
+  // QA-ISOLATION-01 — SUPABASE_URL explicit, its stack identified and answering, before any write.
+  verifyLocalTestTarget();
 
   return createSupabaseServerClient({
     url,
@@ -120,6 +123,7 @@ export async function getAthleteAuthClient(athleteId: string): Promise<SupabaseC
   if (!publishableKey) throw new MissingTestPublishableKeyError();
   const url = resolveTestSupabaseUrl();
   if (!isLoopbackSupabaseUrl(url)) throw new UnsafeTestTargetError(url);
+  verifyLocalTestTarget();
   const credentials = credentialsByAthleteId.get(athleteId);
   if (!credentials) throw new Error(`getAthleteAuthClient: ${athleteId} was not created by createTestAthlete in this run`);
 

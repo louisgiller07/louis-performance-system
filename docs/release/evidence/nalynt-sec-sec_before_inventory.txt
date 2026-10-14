@@ -1,0 +1,22 @@
+BEGIN
+                 part                 |     role      |              privilege               | tables |                                                                    table_names                                                                     
+--------------------------------------+---------------+--------------------------------------+--------+----------------------------------------------------------------------------------------------------------------------------------------------------
+ A table privilege                    | anon          | REFERENCES                           |      9 | athlete_baselines, athlete_state, athletes, daily_checkins, goals, planned_sessions, race_calendar, training_blocks, weekly_availability
+ A table privilege                    | anon          | TRIGGER                              |      9 | athlete_baselines, athlete_state, athletes, daily_checkins, goals, planned_sessions, race_calendar, training_blocks, weekly_availability
+ A table privilege                    | anon          | TRUNCATE                             |      9 | athlete_baselines, athlete_state, athletes, daily_checkins, goals, planned_sessions, race_calendar, training_blocks, weekly_availability
+ A table privilege                    | authenticated | REFERENCES                           |      9 | athlete_baselines, athlete_state, athletes, daily_checkins, goals, planned_sessions, race_calendar, training_blocks, weekly_availability
+ A table privilege                    | authenticated | TRIGGER                              |      9 | athlete_baselines, athlete_state, athletes, daily_checkins, goals, planned_sessions, race_calendar, training_blocks, weekly_availability
+ A table privilege                    | authenticated | TRUNCATE                             |      9 | athlete_baselines, athlete_state, athletes, daily_checkins, goals, planned_sessions, race_calendar, training_blocks, weekly_availability
+ A table privilege                    | service_role  | REFERENCES                           |     10 | athlete_baselines, athlete_state, athletes, completed_sessions, daily_checkins, decisions, goals, health_flags, race_calendar, weekly_availability
+ A table privilege                    | service_role  | TRIGGER                              |     10 | athlete_baselines, athlete_state, athletes, completed_sessions, daily_checkins, decisions, goals, health_flags, race_calendar, weekly_availability
+ A table privilege                    | service_role  | TRUNCATE                             |     10 | athlete_baselines, athlete_state, athletes, completed_sessions, daily_checkins, decisions, goals, health_flags, race_calendar, weekly_availability
+ B default privileges (schema public) | anon          | new tables created by postgres       |      1 | DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+ B default privileges (schema public) | anon          | new tables created by supabase_admin |      1 | DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+ B default privileges (schema public) | authenticated | new tables created by postgres       |      1 | DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+ B default privileges (schema public) | authenticated | new tables created by supabase_admin |      1 | DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+ B default privileges (schema public) | service_role  | new tables created by postgres       |      1 | DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+ B default privileges (schema public) | service_role  | new tables created by supabase_admin |      1 | DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+ C functions mentioning TRUNCATE      |               |                                      |      0 | 
+(16 rows)
+
+ROLLBACK

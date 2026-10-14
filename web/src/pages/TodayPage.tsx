@@ -21,6 +21,12 @@ import { AnalysisSequence } from "../features/dailyPlan/AnalysisSequence";
 import type { CheckinRow } from "../features/checkin/checkinTypes";
 import { useTodayContext } from "../features/today/todayContextRepo";
 import { hasGuidedCompletion } from "../features/completion/dayCompletion";
+import { loadDayExecutions } from "../features/guidedSession/executionRepo";
+import type { ExecutionRow } from "../features/guidedSession/executionState";
+import { daySessionEntryKind } from "../features/guidedSession/daySessionEntry";
+import { DaySessionEntryCard } from "../features/guidedSession/DaySessionEntryCard";
+import { healthBlockOf } from "../features/guidedSession/healthBlock";
+import type { DailyPlan } from "../features/dailyPlan/dailyPlanTypes";
 import { nextPlannedSession, raceHorizon, weekCheckinCount, weekSummary } from "../features/today/todayContext";
 import { RaceBanner } from "../features/today/RaceBanner";
 import { RegularityCard } from "../features/today/RegularityCard";
@@ -163,6 +169,36 @@ export function TodayPage() {
 
   // UX-04 — read-only coach context (first name, race / objective, week, next session). Best-effort.
   const todayContext = useTodayContext(athleteId, canonicalDate);
+
+  // P0-3 (HPM 2026-10-13) — the day's recorded guided executions decide the guided-session entry (an open or
+  // completed session stays reachable whatever the current decision became: new plan, re-run, blocked, REST).
+  // Re-read after every fresh decision and closed signal (healthFlagsRevision). Best-effort: on error the entry
+  // falls back to the decision alone, as before.
+  const [dayExecutions, setDayExecutions] = useState<ExecutionRow[]>([]);
+  useEffect(() => {
+    if (!athleteId) return;
+    let cancelled = false;
+    loadDayExecutions(athleteId, canonicalDate)
+      .then((rows) => {
+        if (!cancelled) setDayExecutions(rows);
+      })
+      .catch(() => {
+        // Best-effort — see comment above.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [athleteId, canonicalDate, healthFlagsRevision]);
+
+  // INT-01 R1 (HPM 2026-10-13) — ONE health suspension for every block of Today (guided entry, after-session):
+  // an open follow-up signal, or the decision on screen (restored or just run) a Safety REST — healthBlockOf,
+  // mirror of the server's execution_health_block, which stays the authority.
+  const [displayedPlan, setDisplayedPlan] = useState<DailyPlan | null>(null);
+  const healthSuspendedBy = useCallback(
+    (dailyPlan: DailyPlan | null) =>
+      healthBlockOf({ openFlagTypes: openHealthFlags.map((flag) => flag.type), family: null, latestDecision: dailyPlan ? { dailyPlan, isCurrent: true } : null }) === "health_suspended",
+    [openHealthFlags]
+  );
   const horizon = useMemo(() => (todayContext ? raceHorizon(todayContext.races, canonicalDate) : null), [todayContext, canonicalDate]);
 
   const heroSkeleton = (
@@ -231,29 +267,17 @@ export function TodayPage() {
           loadingSlot={checkinKnown ? heroSkeleton : null}
           checkinSnapshot={checkinValues}
           detailsTarget={detailsTarget}
-          guidedSessionEntry={
-            // UX-11R.9 (F-5) — a guided session completed today reads as done; the guided page stays reachable read-only.
-            todayContext && hasGuidedCompletion(canonicalDate, todayContext.guided) ? (
-              <div className="flex flex-col gap-2 rounded-lg border border-gold/50 bg-card p-4" data-testid="guided-session-done">
-                <p className="text-sm font-semibold uppercase tracking-[0.12em] text-gold">Séance terminée</p>
-                <Link to="/today/session" className="ux-press inline-flex min-h-12 items-center text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
-                  Voir la séance guidée
-                </Link>
-              </div>
-            ) : (
-              <Link
-                to="/today/session"
-                className="ux-press flex min-h-12 items-center justify-center rounded bg-gold px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-bg hover:bg-gold-light focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-light"
-              >
-                Ouvrir la séance guidée
-              </Link>
-            )
-          }
+          onDisplayedDecision={setDisplayedPlan}
+          guidedSessionEntry={({ dailyPlan, finalPrescriptionCreated }) => {
+            const kind = daySessionEntryKind({ executions: dayExecutions, finalPrescriptionCreated, healthSuspended: healthSuspendedBy(dailyPlan) });
+            // UX-11R.9 (F-5) — a completion read by the week context alone still reads as done.
+            return <DaySessionEntryCard kind={kind === "start" && todayContext && hasGuidedCompletion(canonicalDate, todayContext.guided) ? "completed" : kind} />;
+          }}
         />
       )}
 
       {/* UX-08 — closing the loop: what was really done, right after the mission. */}
-      {athleteId && <AfterSessionEntry date={canonicalDate} athleteId={athleteId} />}
+      {athleteId && <AfterSessionEntry date={canonicalDate} athleteId={athleteId} healthSuspended={healthSuspendedBy(displayedPlan)} />}
 
       {/* UX-04/05 — where today leads: next step, the week, and plain regularity. */}
       {todayContext && (

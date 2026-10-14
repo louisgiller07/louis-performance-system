@@ -44,6 +44,8 @@ export interface ActivityResultRow {
 export interface ExecutionRow {
   id: string;
   session_date: string;
+  /** P0-4 — the decision the execution was started from (server-derived); read by History's detail. */
+  decision_id?: string | null;
   final_prescription_id: string | null;
   started_at: string;
   recorded_at: string;

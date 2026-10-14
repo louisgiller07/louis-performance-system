@@ -323,8 +323,10 @@ describe("Guided Force session — completion", () => {
     await userEvent.click(screen.getByRole("button", { name: "Terminer quand même" }));
     await waitFor(() => expect(phase()).toBe("completed"));
     expect(b.executions[0]!.exercise_set_results).toHaveLength(1);
-    // Prescribed sets without a result stay without a result (never 0 / skipped / done).
-    expect(slotText(SQUAT, 2)).toBe(STRENGTH_COPY.noResult);
+    // Prescribed sets without a result stay without a result (never 0 / skipped / done); P0-4: a completed session
+    // takes no more results, so the slot reads "Aucun résultat enregistré" and no set is marked "À faire maintenant".
+    expect(slotText(SQUAT, 2)).toBe(STRENGTH_COPY.noResultRecorded);
+    expect(screen.queryByText(STRENGTH_COPY.current)).toBeNull();
   });
 
   it("the last set typed but not saved travels with `completed` in ONE batch; a lost batch leaves the session active and unrecorded", async () => {

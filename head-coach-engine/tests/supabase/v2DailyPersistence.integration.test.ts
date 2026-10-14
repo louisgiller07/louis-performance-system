@@ -301,6 +301,11 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
     let f: Fixture;
     beforeAll(async () => {
       f = await fixture();
+      // P0-3 (migration 20261013160000) — an open follow-up health signal suspends every training action, as M1's A7
+      // does: the REST scenario above left an `illness` signal open on the shared athlete. These currency scenarios
+      // persist synthetic KEEP decisions, so the signal is closed first, as the rider would.
+      const { error } = await admin.from("health_flags").update({ status: "resolved", resolved_at: "2026-10-10" }).eq("athlete_id", f.athleteId).in("status", ["active", "monitoring"]);
+      if (error) throw new Error(error.message);
     });
 
     const record = async (athleteId: string, payload: unknown) => {

@@ -45,6 +45,8 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   dh_pass_required: "Record at least one pass before completing this session.",
   strength_set_required: "Record at least one performed work set before completing this session.",
   session_already_completed: "A session was already completed for this day: a new session cannot be started.",
+  health_suspended: "Training is suspended for health reasons: the session can only be paused or abandoned; its recorded results are kept.",
+  daily_decision_not_current: "Today's check-in changed: today's analysis must run again before the session continues.",
 };
 
 export default {

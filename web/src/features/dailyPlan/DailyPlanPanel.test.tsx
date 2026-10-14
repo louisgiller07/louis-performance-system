@@ -570,6 +570,27 @@ describe("DailyPlanPanel — NAL-003 persisted decision restore", () => {
 
 // PILOT_022 (REV-01) — a decision computed from an older check-in or planned
 // session must never become executable again after navigation or reload.
+// INT-01 R1 — Today reads the health suspension of its other blocks from the decision on screen: the panel reports
+// it (null before any decision), the restored one as well as a fresh run's.
+describe("DailyPlanPanel — INT-01 R1 the decision on screen is reported", () => {
+  it("restored: null first, then the persisted decision", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);
+    const onDisplayedDecision = vi.fn();
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} onDisplayedDecision={onDisplayedDecision} />);
+    await waitFor(() => expect(onDisplayedDecision).toHaveBeenLastCalledWith(RESTORED_ROW.dailyPlan));
+    expect(onDisplayedDecision.mock.calls[0]![0]).toBeNull();
+  });
+
+  it("fresh run: the new decision", async () => {
+    mockedRun.mockResolvedValue({ ok: true, data: SUCCESS_RESPONSE });
+    const onDisplayedDecision = vi.fn();
+    const user = userEvent.setup();
+    render(<DailyPlanPanel athleteId="athlete-1" date="2026-08-19" hasCheckin={true} checkinRevision={0} onDisplayedDecision={onDisplayedDecision} />);
+    await user.click(await screen.findByRole("button", { name: /Préparer ma séance du jour/ }));
+    await waitFor(() => expect(onDisplayedDecision).toHaveBeenLastCalledWith(SUCCESS_RESPONSE.dailyPlan));
+  });
+});
+
 describe("DailyPlanPanel — restored decision freshness (PILOT_022)", () => {
   it("A: decision generated -> check-in edited -> remount/reload: the old decision is NOT shown as current", async () => {
     loadLatestDecisionForDate.mockResolvedValue(RESTORED_ROW);

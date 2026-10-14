@@ -91,9 +91,17 @@ export async function reconcileFinalPrescriptionV2(
 
   // A04 — MODIFY / REPLACE build from the current version's snapshot (read only when they can use it);
   // A10 — so does a time adaptation, whatever M1 decided.
+  // P0-3 — and so does a manual session (no planned prescription): its content is built from the snapshot too.
   const availableMinutes = input.availableMinutes ?? null;
-  const adaptable = (decision === "MODIFY" || decision === "REPLACE" || availableMinutes !== null) && planned !== null;
+  const manual = observation !== null && observation.source === "manual" && needsPlanRows;
+  const adaptable = manual || ((decision === "MODIFY" || decision === "REPLACE" || availableMinutes !== null) && planned !== null);
   const snapshotRow = adaptable ? await deps.getPlanInputSnapshotOfVersion(client, currentPlanVersionId) : null;
+  const coversDate =
+    snapshotRow !== null &&
+    typeof snapshotRow.horizon_start_date === "string" &&
+    typeof snapshotRow.horizon_end_date === "string" &&
+    snapshotRow.horizon_start_date <= dailyPlan.date &&
+    dailyPlan.date <= snapshotRow.horizon_end_date;
   const adaptation =
     snapshotRow !== null && snapshotRow.input_snapshot_schema_version === "v2"
       ? dailyAdaptationContextV2(snapshotRow.input_snapshot as PlanInputSnapshotV2, dailyPlan.date, input.mintId)
@@ -121,6 +129,7 @@ export async function reconcileFinalPrescriptionV2(
             sourcePlanVersionId: observation.sourcePlanVersionId,
             sourceGeneratedSessionId: observation.sourceGeneratedSessionId,
             currentPlanVersionId,
+            ...(manual ? { currentPlanCoversDate: coversDate } : {}),
             generatedSession:
               generated === null
                 ? null

@@ -24,6 +24,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createTestClient, insertCheckin } from "../../../../head-coach-engine/tests/supabase/testDb.js";
 import { runDailyFor } from "../../../../head-coach-engine/src/supabase/runDailyFor.js";
+import { integrationApiUrl } from "../../test/testTarget";
 
 export function isLoopbackSupabaseUrl(url: string): boolean {
   try {
@@ -44,7 +45,7 @@ export function computeIntegrationEnabled(
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const LOCAL_ANON_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY;
-const RESOLVED_ADMIN_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const RESOLVED_ADMIN_URL = integrationApiUrl();
 // computeIntegrationEnabled's tested contract (below) covers opt-in/server-
 // key/loopback only, matching every other integration suite in this repo —
 // the publishable-key requirement is ANDed in separately here rather than

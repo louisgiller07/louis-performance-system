@@ -142,13 +142,14 @@ describe("performanceSetupRepo — savePerformanceSetup", () => {
     );
   });
 
-  it("INT-01 compatibility — a saved terrain this UI does not offer (off_camber_section) is kept, never silently dropped", async () => {
-    const { upsert, select } = mockRawThenUpsert({}, null, ["technical_trail", "off_camber_section"]);
+  it("INT-01 compatibility — a saved terrain this UI does not offer is kept, never silently dropped; an offered one follows the rider's choice", async () => {
+    // off_camber_section is offered here (P0-2): unticking it removes it. A value no option offers is kept.
+    const { upsert, select } = mockRawThenUpsert({}, null, ["technical_trail", "off_camber_section", "a_terrain_not_offered"]);
 
     await savePerformanceSetup(ATHLETE_ID, { ...EMPTY_ANSWERS, terrainAccess: ["full_dh_track"] });
 
     expect(select).toHaveBeenCalledWith("technical_priorities, terrain_access");
-    expect(upsert.mock.calls[0]![0].terrain_access).toEqual(["full_dh_track", "off_camber_section"]);
+    expect(upsert.mock.calls[0]![0].terrain_access).toEqual(["full_dh_track", "a_terrain_not_offered"]);
   });
 
   it("merges into the saved technical_priorities object: keys unknown to this UI are kept", async () => {

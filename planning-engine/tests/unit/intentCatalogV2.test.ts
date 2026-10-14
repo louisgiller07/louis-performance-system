@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DH_SKILL_NON_RACE_INTENT_V2,
+  DH_DRILL_INTENT_V2,
   DH_SKILL_TO_INTENT_V2,
   INTENT_CATALOG_V2,
   INTENT_CATALOG_V2_ENTRIES,
@@ -28,7 +29,7 @@ describe("Session Model V2 intent catalogue", () => {
       expect(i.textId, i.intentId).toBe(`intent.${i.intentId}`);
       expect(COACHING_TEXT_CATALOG[i.textId]?.kind, i.intentId).toBe("intent");
       expect(i.validationStatus, i.intentId).toBe("PROVISIONAL");
-      expect(i.selectable, i.intentId).toBe(i.selection.type === "session_kind" || i.selection.type === "declared_priority" || i.selection.type === "declared_priority_non_race_drill");
+      expect(i.selectable, i.intentId).toBe(i.selection.type === "session_kind" || i.selection.type === "declared_priority" || i.selection.type === "declared_priority_non_race_drill" || i.selection.type === "declared_priority_drill");
     }
   });
 
@@ -44,13 +45,12 @@ describe("Session Model V2 intent catalogue", () => {
     }
   });
 
-  it("INT-01 compatibility — the later release's drill intent is known (a stored plan validates) but never selectable here", () => {
+  it("P0-2 — only the general advanced cornering alternative has its own intent, of its declared skill, without an imposed speed increase", () => {
+    expect(DH_DRILL_INTENT_V2).toEqual({ cornering_advanced_line_exit: "dh_corner_line_control" });
     const own = INTENT_CATALOG_V2["dh_corner_line_control"]!;
-    expect(own.family).toBe("dh_technical");
     expect(own.selection).toEqual({ type: "declared_priority_drill", skill: "cornering", drillId: "cornering_advanced_line_exit" });
-    expect(own.selectable).toBe(false);
-    expect(Object.values(DH_SKILL_TO_INTENT_V2)).not.toContain("dh_corner_line_control");
-    expect(Object.values(DH_SKILL_NON_RACE_INTENT_V2)).not.toContain("dh_corner_line_control");
+    expect(own.selectable).toBe(true);
+    expect(COACHING_TEXT_CATALOG["intent.dh_corner_line_control"]!.text["fr-CH"]).not.toMatch(/vitesse|course|allure|rapide/i);
   });
 
   it("P0 — only race_execution has a non-race intent (its own intent demands race pace); it is reached only through the declared priority", () => {

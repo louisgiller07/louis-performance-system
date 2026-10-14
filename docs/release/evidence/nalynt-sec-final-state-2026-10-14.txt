@@ -1,0 +1,8 @@
+# nalynt-sec (throwaway P0-SEC-TRUNCATE stack, production schema + 20261014090000) — final state before deletion, 2026-10-14T06:03Z
+containers: 12  volumes: 3  network: supabase_network_nalynt-sec
+migrations: 67 / last 20261014090000
+acl fingerprint md5 (public tables + default ACLs): a20eb9bbdd8c45e666d2b59f062cf577
+anon TRUNCATE tables: 0
+residue (split-brain runs 2026-10-13 21:05:43 / 21:13:37 UTC): identities=2 revisions=2 source_refs=2
+test athletes: 334 (fictive only)
+evidence already reported: P0-SEC-TRUNCATE report §3 and §8, QA-ISOLATION-01 report §3 and §6.

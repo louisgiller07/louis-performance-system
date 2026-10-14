@@ -1,4 +1,5 @@
 import { BODY_STATUS_LABELS, BODY_STATUS_TONE, COACHING_SUSPENDED_TITLE, isCoachingSuspended } from "../dailyPlan/bodyStatus";
+import { guidedStatusLabel } from "./guidedHistory";
 import { Link } from "react-router-dom";
 import { formatLocalTime } from "../../lib/date";
 import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
@@ -59,8 +60,8 @@ const RECORDED: Record<CompletedSessionRecord["completion_status"], string> = {
   skipped: "Séance non réalisée",
 };
 
-/** UX-11R.9 — a day done through a completed guided session. */
-const GUIDED_RECORDED = "✓ Séance guidée terminée";
+/** UX-11R.9 — a day done through a completed guided session (P0-4: the shared guided status wording). */
+const GUIDED_RECORDED = `✓ ${guidedStatusLabel("completed")}`;
 
 /** A07 — "Renfo bas du corps · 45 min": the session the day was really about (the effective one). */
 function effectiveLabel(day: HistoryDay): string | null {
@@ -69,8 +70,8 @@ function effectiveLabel(day: HistoryDay): string | null {
   return interventionMeta(session) ? `${kindLabel(session)} · ${interventionMeta(session)}` : kindLabel(session);
 }
 
-/** What was recorded for the day; null when there is nothing to say. */
-function recordedLine(day: HistoryDay, today: string): { text: string; recorded: boolean } | null {
+/** What was recorded for the day; null when there is nothing to say. `partial`: a guided session recorded only in part. */
+function recordedLine(day: HistoryDay, today: string): { text: string; recorded: boolean; partial?: boolean } | null {
   // UX-11R.9 — a guided session completed that day (and no legacy record saying more); A07: it names the session executed.
   if (day.guided) {
     const label = effectiveLabel(day);
@@ -80,11 +81,16 @@ function recordedLine(day: HistoryDay, today: string): { text: string; recorded:
     const duration = day.completed.completion_status !== "skipped" && day.completed.actual_duration_min !== null ? ` · ${formatDuration(day.completed.actual_duration_min)}` : "";
     return { text: `${RECORDED[day.completed.completion_status]}${duration}`, recorded: day.completed.completion_status !== "skipped" };
   }
+  // P0-4 — a guided session stopped (results kept) or left open says so, before any rest wording: a session stopped
+  // under a health REST stays a stopped session (P0-3 O1). Restart wording only while the day's decision allows one.
+  if (day.guidedPartial === "stopped") {
+    const restartable = day.date === today && day.effective.status === "abandoned";
+    return { text: restartable ? `${guidedStatusLabel("abandoned")} — tu peux la reprendre` : guidedStatusLabel("abandoned"), recorded: false, partial: true };
+  }
+  if (day.guidedPartial === "open") return { text: guidedStatusLabel("active"), recorded: false, partial: true };
   if (!day.dailyPlan || day.dailyPlan.planned_session_before === null) return null;
-  // A07 — a REST decided by NALYNT is a rest day, never a missed session; an open / stopped guided session says so.
+  // A07 — a REST decided by NALYNT is a rest day, never a missed session.
   if (day.effective.status === "rest") return { text: "Repos décidé par NALYNT", recorded: false };
-  if (day.effective.status === "in_progress") return { text: "Séance guidée en cours", recorded: false };
-  if (day.effective.status === "abandoned") return { text: day.date < today ? "Séance guidée arrêtée" : "Séance guidée arrêtée — tu peux la reprendre", recorded: false };
   // Validated wording: a day not yet passed is "à venir", never "non enregistrée".
   return { text: day.date < today ? "Séance non enregistrée" : "Séance à venir", recorded: false };
 }
@@ -263,6 +269,7 @@ export function HistoryDayRow({ day, today }: { day: HistoryDay; today: string }
             {summary}
             {hasHealthSignal(day) && <span className="text-red-400"> · Signal actif</span>}
             {recorded?.recorded && <span className="text-gold"> · {recorded.text}</span>}
+            {recorded?.partial && <span className="text-ink/85"> · {recorded.text}</span>}
           </span>
         </span>
         <span className="text-gold" aria-hidden="true">

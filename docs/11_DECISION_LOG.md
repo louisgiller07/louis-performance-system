@@ -5729,6 +5729,105 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Statut** : implémenté et vert en local (branche `feat/a09-race-management`). Livraison : web + Edge `generate-training-plan` (garde, et planificateur dans son bundle) ; `daily-run` inchangée ; aucune migration, aucun flag.
 
 
+## 2026-10-12 — ADR P0 FIRST GENERATION : compatibilité terrain des drills DH V2
+
+> **Un rider DH réaliste génère son programme dès la première tentative, avec ses vrais terrains.** Correction minimale dans les données du catalogue (`compatibleTerrains`). La règle « un drill par (compétence, niveau déclaré) » de docs/03 est inchangée. Local seulement ; aucun merge, aucun déploiement.
+
+**Incident (review du 09.10.2026), reproduit sur le HEAD local** : rider DH intermédiaire, priorités virages puis freinage, terrains sentier technique, racines et rochers, piste DH complète.
+- Tentatives 1 à 3 refusées (`unavailable_dh_drill_terrain`) ; seule la tentative 4, avec tous les terrains, réussissait.
+- **Deux causes**, chacune bloquante :
+  - `cornering_berm_speed` (virages, intermédiaire) n'acceptait que la piste avec relevés ;
+  - `braking_late_entry` (freinage, intermédiaire) n'acceptait que le flow trail. C'est pourquoi l'ajout d'une piste avec relevés (tentative 2) ne suffisait pas.
+
+**Décision HPM (2026-10-12, retour rider)** : pour NALYNT V1, le bike park et la piste DH complète donnent accès à des virages relevés (pas chaque virage, mais la caractéristique est disponible), comme une piste avec relevés. Non étendu aux sentiers techniques ni aux sentiers racines et rochers ; le flow trail garde sa définition actuelle.
+
+**Correction**
+- `SessionDrillV2.compatibleTerrains` liste les terrains sur lesquels les consignes validées d'un drill sont réalisables telles qu'écrites ; `requiredTerrain` reste le terrain de référence (premier élément).
+- `BERMED_TURN_TERRAINS_V1` = piste avec relevés, bike park, piste DH complète.
+- `cornering_berm_speed` (consignes : « virage relevé ») : ces trois terrains.
+- `braking_late_entry` (consignes : « juste avant l'entrée du virage ») : flow trail et ces trois terrains, qui comportent des virages.
+- Aucun autre drill n'est modifié.
+- Le constructeur DH et la régression « charge légère » acceptent un drill si l'un de ses terrains compatibles est déclaré. Jamais un autre drill, un autre niveau ou une autre priorité.
+- **Versions de catalogue inchangées**, volontairement : les identifiants et les textes ne changent pas, le drill d'un couple (compétence, niveau) non plus. Tout profil qui générait déjà produit le même plan (non-régression exhaustive : toutes les compétences, tous les niveaux, toutes les charges, les 512 ensembles de terrains). Monter la version agrégée bloquerait les adaptations des plans existants (`final_prescription_catalog_mismatch`) ; monter la version des drills rendrait les nouveaux plans non affichables par le web actuel.
+
+**Refus précis** (cas réellement impossible) :
+- `generate-training-plan` renvoie la priorité, le terrain de référence et tous les terrains compatibles ;
+- le web nomme la priorité et ces terrains, et ne propose d'en ajouter un que si le rider y a réellement accès (sinon, changer de priorité) ;
+- fini « Ta configuration athlète est incomplète », qui était faux.
+
+**Validation** : reproduction (4 tentatives générées) ; matrice A–E avec contrôle du contenu ; non-régression exhaustive ; Edge local (A généré au premier appel, rejeu idempotent ; E refusé avec les terrains compatibles) ; suites complètes engine et web.
+
+**Décision HPM finale (2026-10-12) — flow trail** : pour NALYNT V1, un flow trail est un sentier aménagé. Appliqué au seul drill concerné par le profil débutant freinage :
+- `braking_progressive_control` (freinage, débutant) : sentier aménagé et flow trail. Ses consignes (« serre les deux freins progressivement avant la zone marquée » ; « vitesse contrôlée en douceur dans la zone de freinage, sans déraper ») ne demandent qu'une zone de freinage balisée par le rider sur un sentier roulant : rien d'absent d'un flow trail.
+- Non étendu aux autres drills du sentier aménagé (`race_execution_section_consistency` reste sur le sentier aménagé seul : non demandé).
+- Profil B (débutant, flow trail seul, freinage puis virages) généré au premier appel : freinage débutant et virages débutant sur le flow trail ; A, C, D, E inchangés. Versions de catalogue toujours inchangées.
+
+**Restes, hors périmètre ou à décider** :
+- la Force prescrit des exercices de gainage plus faciles que le niveau déclaré (observation qualité pour la review complète).
+
+
+## 2026-10-13 — ADR P0-2 DH TERRAIN COMPATIBILITY : drills DH V2 réalisables sur les terrains réellement déclarés
+
+> **Un compétiteur DH obtient son programme dès le premier essai lorsqu'il possède des terrains adaptés aux exercices réellement prescrits.** Suite de l'ADR P0 FIRST GENERATION (même mécanisme : `compatibleTerrains`, données de sélection seulement). Local seulement ; aucun merge, aucun déploiement.
+
+**Constat (review complète d'octobre, P0-2 ; review externe « Astra » du 12.10)** : sur le HEAD approuvé `7fb2da1`, trois des cinq profils du mandat étaient refusés à la première génération (`unavailable_dh_drill_terrain`) :
+- A (national avancé, bike park + piste DH complète, virages / freinage / course) : `cornering_off_camber` n'acceptait que le sentier technique ;
+- B (débutant, piste DH complète seule) : `braking_progressive_control` n'acceptait pas la piste DH complète ;
+- C (débutant, flow trail seul, avec « exécution en course ») : `race_execution_section_consistency` n'acceptait que le sentier aménagé.
+
+D (profil du 9 octobre) et E (profil national de la review Astra, 5 terrains) généraient déjà.
+
+**Décisions HPM (2026-10-13)**
+- Une piste DH complète permet les exercices généraux de trajectoire, de freinage et de contrôle, sans imposer artificiellement « sentier technique ».
+- Le bike park garde les conventions des virages relevés déjà approuvées (P0).
+- Une piste DH complète ne garantit pas une section de racines, de rochers, de sauts ou un obstacle spécifique : ces drills gardent leur exigence.
+- `race_execution_section_consistency` est compatible avec un flow trail (section courte et répétable, vitesse maîtrisée).
+- Décisions explicites demandées pendant l'implémentation : la piste DH complète comporte des sections en dévers (`cornering_off_camber`) et des passages raides (les trois drills `steep_terrain_*`).
+- La règle « un drill par (compétence, niveau) » est inchangée.
+
+**Correction (catalogue `sessionDrillCatalogV2.ts`, ajouts seulement)**
+- `full_dh_track` ajouté à : `braking_progressive_control`, `braking_marked_zone_at_speed`, `cornering_flat_turn_precision`, `cornering_off_camber`, `line_choice_two_line_scan`, `steep_terrain_controlled_roll_in`, `steep_terrain_body_position`, `steep_terrain_off_brake_chute` (retiré au contrôle final ci-dessous), `race_execution_section_consistency`, `race_execution_split_pace`.
+- `flow_trail` ajouté à `race_execution_section_consistency`.
+- Inchangés volontairement : `line_choice_rock_garden`, `line_choice_fast_line_compare` (pierrier), les trois `roots_rocks_*`, les trois `jumps_*`, `cornering_berm_speed` (virage relevé), `race_execution_full_run_sim`.
+- Terrain de référence (`requiredTerrain`, premier élément), identifiants, textes, versions de catalogue : inchangés, pour les mêmes raisons que l'ADR P0 (aucun plan existant modifié ; `final_prescription_catalog_mismatch` évité ; le web affiche les mêmes drills).
+
+**Validation**
+- Non-régression exhaustive contre le catalogue de `7fb2da1` (512 ensembles de terrains × 7 compétences × 3 niveaux × 4 charges) : tout profil qui générait garde le même drill ; un cas nouvellement accepté passe toujours par un terrain ajouté.
+- Contre-preuve : ajouter la piste DH aux racines fait échouer 4 tests.
+- Génération réelle (base locale, `generateAndPersistTrainingPlanV2`) et Edge `generate-training-plan` (HTTP, JWT du rider) : A–E générés au premier appel, contenu conforme (terrain déclaré, niveau, matériel, créneaux), relecture et rejeu idempotent. Avant correctif, sur la même base : A, B, C refusés ; D, E identiques.
+- Refus conservé : racines / rochers sur une piste DH seule → 422 avec la priorité et son terrain compatible.
+
+**Restes, hors périmètre** : un rider avancé avec un flow trail seul n'a aucune priorité possible (aucun drill avancé n'est réalisable sur un flow trail) ; le flow trail ne donne toujours pas accès au virage relevé (définition P0 inchangée) ; la production génère encore en V1 pour les nouveaux comptes (le correctif ne vaut que pour la génération V2).
+
+### Contrôle final 2026-10-13 — dévers et pente raide sur piste DH complète (réserve sportive HPM)
+
+Relecture des textes complets (consigne, critère, libellés web, vigilances) :
+- `steep_terrain_body_position` (intermédiaire) : « baisse les talons et recule ton poids à mesure que la pente se raidit » — demande seulement des changements de pente, présents sur toute piste DH. **Compatible.**
+- `steep_terrain_controlled_roll_in` (débutant) : « choisis une courte pente raide », vitesse lente, deux freins en douceur — le passage le plus raide d'une piste DH, roulé lentement, suffit. **Compatible.**
+- `steep_terrain_off_brake_chute` (avancé) : « couloir », « partie la plus raide sans freiner » — demande un couloir connu avec une sortie dégagée, qu'une piste DH ne garantit pas, et lâcher les freins sur un passage inconnu n'est pas défendable. **Piste DH retirée** (retour au seul terrain « pente technique raide »). Aucun profil A–E concerné.
+- `cornering_off_camber` (avancé) : « section en dévers » — une piste DH n'en garantit pas, pas plus que le terrain de référence (sentier technique). **Compatibilité maintenue sous la décision HPM**, seule voie de garder la règle « un drill par (compétence, niveau) » et la première génération du profil A ; réserve explicite : si la piste du rider n'a pas de dévers, le drill n'est pas réalisable tel qu'écrit.
+- Consigne « engage ton poids côté aval du vélo » : sa sécurité technique **n'est pas établie** (« côté aval du vélo » ambigu entre la pédale extérieure chargée et le corps penché vers l'aval ; le libellé web V1 ajoute « continue de pédaler », avec un risque de pédale accrochée en dévers ; déjà signalé TODO REV-015.4a). **Classée : validation par un entraîneur DH qualifié requise ; contenu non approuvé sportivement.** Idem pour le couloir sans frein et le recul du poids (TODO REV-015.4a existants). Tous ces textes restent `PROVISIONAL`.
+
+Matrice après contrôle (avancé, piste DH seule) : 1 → 3 priorités (freinage, virages, course). Tests : planning 851/851 ; intégration base locale et Edge P0 / P0-2 13/13.
+
+### Décision finale 2026-10-13 — option E : drill de référence, alternative explicite, dévers confirmé
+
+**Décisions HPM** : retrait de `steep_terrain_off_brake_chute` validé ; refus de maintenir `cornering_off_camber` sur toute piste DH (le dévers n'est pas garanti) ; option E approuvée avec conditions ; les trois drills de pente raide quittent la piste DH ; consignes provisoires non promues.
+
+**Implémentation (local)**
+- **Alternative explicite** : au plus une par drill de référence (`alternativeFor`), même compétence, même niveau, jamais un drill d'intensité course. Sélection déterministe `selectDhDrill` : le drill de référence si un de ses terrains est déclaré, sinon l'alternative si un des siens l'est, sinon refus (le 422 liste les terrains des deux). Jamais un autre niveau ni une autre compétence. Utilisée par le constructeur DH, donc par la génération et les REPLACE qui construisent une séance.
+- **Nouveau drill `cornering_advanced_line_exit`** (`origin: v2_only`), alternative de `cornering_off_camber` : tout terrain où un virage est disponible (piste DH, sentier aménagé, flow trail, relevés, sentier technique, pente raide, racines et rochers, bike park ; pas le pierrier). Textes = brouillon HPM, `PROVISIONAL`, non approuvés sportivement ; aucun point de corde tardif, relâchement total des freins ni augmentation de vitesse imposés. Intention propre `dh_corner_line_control` (« Choisir et répéter une trajectoire propre, avec une sortie stable. », brouillon), sélection `declared_priority_drill`.
+- **Confirmation du dévers** : terrain optionnel `off_camber_section` (« Virages en dévers ») dans la liste des terrains de l'onboarding et d'« Affiner ton profil » — un choix de plus, coché seulement par qui en a ; aucune question supplémentaire. `cornering_off_camber` n'est compatible qu'avec lui (terrain de référence V2 = `off_camber_section`, seule exception à la parité V1 ; catalogue V1 inchangé). Validation partagée : `DECLARABLE_TERRAIN_FEATURES` (aucun drill V1 ne l'exige). Base : `terrain_access` reste un tableau JSON, aucune migration.
+- **Pente raide** : les trois drills reviennent au seul terrain « pente technique raide ».
+- **Versions** : aucune ne change (`session-model-v2.6`, `session-drills-v2.0`, `coaching-text-v1.0`, `session-intents-v2.0`). Ajout strictement additif pour tout id et texte stockés (précédent ADR P0 REPLACE STALE COPY) : un passage v2.7 bloquerait MODIFY (§9) sur tous les plans v2.6 existants. Les anciens manifestes restent rendus par le web. Conséquence de livraison : web d'abord (nom et textes du nouveau drill, terrain optionnel), puis Edge ; la validation des terrains doit être déployée avant que le web propose « Virages en dévers ».
+
+**Différences légitimes de sélection (ancien → nouveau catalogue)**
+- Rider avancé, priorité virages, sentier technique **sans** dévers déclaré : `cornering_off_camber` → `cornering_advanced_line_exit` (nouveaux plans et séances reconstruites seulement). Les plans déjà stockés gardent leur drill : KEEP le sert à l'identique, MODIFY et REPLACE DH → DH léger en dérivent ; seule une séance reconstruite (REPLACE depuis une autre famille) suit la nouvelle règle.
+- Rider avancé sans sentier technique (piste DH, bike park, flow trail…) : refus → alternative.
+- Pente raide sur piste DH seule : redevient refusée (par rapport à `54802c7`, pas à la base).
+
+**Sécurité des textes (inchangés, toujours `PROVISIONAL`, revue technique à préparer)** : « poids côté aval » (dévers), « continue de pédaler » (libellé web V1 du dévers, visible en production — ticket distinct au backlog), « recule ton poids » / « poids en arrière » (pente raide), « sans freiner » (couloir), brouillons du nouveau drill et de son intention.
+
 ## 2026-10-12 — ADR P0-SAFE : continuité santé dans la décision quotidienne (évolution M1 gouvernée)
 
 > **Une douleur forte n'est plus jamais traitée comme une douleur légère, et un signal de santé ouvert continue de protéger les jours suivants jusqu'à sa clôture explicite par le rider.** Mandat HPM P0-SAFE du 12.10.2026 (reviews interne `76d4615` et externe). Évolution gouvernée de la couche A de M1 (`rules/safety.ts`), tracée ici ; `docs/04` à mettre à jour après validation (diff proposé : `docs/review/P0_SAFE_PROPOSED_DIFFS.md`). Local seulement, branche `fix/p0-safe-health-continuity` créée depuis `origin/main` pour rester livrable seule.
@@ -5786,6 +5885,50 @@ Les durées des tables T-X (endurance 30, récupération 20) sont toujours infé
 **Autres traductions vérifiées** : aucune ne demande de pédaler ; les autres mentions sont des positions de pédales (relevé, racines, table-top) ou « sans pédaler » entre deux table-tops.
 
 **Tests** : `p1Txt01OffCamberCopy.test.tsx` (source V1 intacte et toujours reconnue, libellé corrigé, inventaire des traductions, Aujourd'hui, Programme, texte V2 de la séance guidée), snapshot V1 des libellés mis à jour (une ligne). Web complet vert, build OK.
+## 2026-10-13 — ADR P0-3 : séances manuelles et contraintes de durée (option P1)
+
+> **Une séance ajoutée ou modifiée à la main reçoit, sur un plan V2, une prescription exécutable construite depuis le profil V2 du rider, avec A10 ; sur un plan V1, NALYNT dit honnêtement qu'il n'en connaît que le type et la charge.** Local seulement.
+
+**Constat (review Astra, diagnostic `cf099f3`, R1–R5)** : une séance manuelle n'avait aucun contenu (V1 : `none` ; V2 : `final_prescription_no_lineage`), et la contrainte de temps n'était pas évaluée pour elle (R4 : `not_evaluated`, DH 90 gardée). En V1, la question du temps n'existe pas (non posée par le web, non lue par le moteur).
+
+**Décisions HPM** : F1 GO (builders existants) ; F2 option A pour la stratégie (pas de second moteur V1, pas de bascule V2 maintenant) avec UX V1 honnête ; F3 GO conditionnel ; F4 reporté ; option P1 (migration de fonction) après le constat de contrat ; P2 (réécrire KEEP en REPLACE) et P3 (partiel) refusées.
+
+**Implémentation**
+- `buildFinalPrescriptionV2` : branche manuelle (toute décision non REST) ; type et charge finaux de M1 ; builders REPLACE (Force haut / bas, DH, endurance, récupération) depuis le snapshot V2 courant ; refus explicites (type sans builder, Force HEAVY, DH sans créneau vélo, date hors version, sans contexte) ; origine `manual_override_new_kind`, action = décision M1, aucune règle pour `keep` ; A10 inchangé (il reconstruit chaque candidat par la même branche).
+- `reconcileFinalPrescriptionV2` : lit le snapshot et l'horizon de la version courante aussi pour une séance manuelle.
+- Migration `20261013120000_p0_3_manual_keep_persist_daily_run_v2` (fonction seule, `create or replace`) : `keep` sans prescription prévue accepté pour la seule origine manuelle, vérifiée côté serveur (séance `manual` de l'athlète à la date et à la version de la décision ; version courante v2 couvrant la date ; aucune prescription prévue ; aucune règle pour `keep`). Signature, retour, `SECURITY DEFINER`, `search_path`, droits : inchangés. Rollback exact : `supabase/rollbacks/p0_3/`.
+- Web : F3 (lignée vidée à l'écriture manuelle) ; verrou de jour dans `/plan` (mêmes règles que `record_session_execution`) ; V1 honnête (Aujourd'hui, `/plan`, check-in) ; refus V2 précis.
+- M1, catalogue DH et règles P0-2 : inchangés.
+
+**Verrou serveur (HPM GO L1, 2026-10-13, migration `20261013140000`)** : le risque ouvert (verrou de `/plan` côté client seulement) est fermé en base.
+- Triggers `BEFORE INSERT/UPDATE/DELETE` sur `planned_sessions` (niveau instruction et ligne) : la séance prévue d'un jour dont la séance est en cours ou terminée (V2 ou V1 hors `skipped`) n'est jamais insérée, remplacée, déplacée ni supprimée ; OLD et NEW contrôlés ; jour seulement abandonné modifiable. Erreur `NX201`, traduite par le web.
+- Frontière de sérialisation : le verrou consultatif par athlète de `record_session_execution`, pris avant tout verrou de ligne partout (écriture du rider au niveau instruction via `auth.uid()`, `project_training_plan` au début de ses écritures, purge et RPC d'exécution inchangées) ; contrôles en READ COMMITTED après le verrou ; autre isolation refusée. Soit le démarrage gagne et l'écriture est refusée, soit l'écriture gagne et le démarrage est refusé (`final_prescription_not_current`).
+- `project_training_plan` (diff minimal approuvé) : un jour utilisé garde sa ligne (`skipped_completed`, vocabulaire et TS inchangés). Constat préalable (`53fd456`) : accepter un programme le jour d'une séance V2 commencée ou terminée supprimait la séance prévue du jour.
+- Purge : reconnue par son marqueur existant (UX-11R.1), limitée à ses suppressions et aux mises à NULL de lignée. Aucun contournement par l'API (vérifié).
+- Inchangés : `record_session_execution`, `persist_daily_run_v2`, `purge_athlete_account`, moteurs M1 / V1 / V2. Rollback : `supabase/rollbacks/p0_3/20261013140000_rollback_planned_session_day_lock.sql` (corps exact de `project_training_plan`, triggers et fonctions retirés).
+
+**Suspension santé des séances guidées et visibilité (HPM 2026-10-13, migration `20261013160000`)**
+- **Constat** (`7bfcb14`) : après une douleur 8/10 déclarée en cours de séance (REST A6), le serveur acceptait encore séries, reprise et fin de séance (UX-11A.5c.2 : une exécution démarrée n'était jamais revérifiée). Aujourd'hui masquait aussi la séance ouverte ou terminée dès que la décision courante n'avait plus de prescription `created` (jour gardé puis daily-run relancé : KEEP bloqué).
+- **Serveur** : `record_session_execution` refuse toute action d'entraînement sous `health_suspended` (signal de suivi ouvert, commotion ouverte pour une séance DH, REST de la couche Safety A1–A4 / A6 / A7) ou `daily_decision_not_current` (check-in modifié sans nouveau daily-run) ; pause, abandon, rejeux et lecture restent possibles. Fonction d'aide `execution_health_block` (lecture seule). Diff de la RPC : ajouts seulement. L'Edge `session-execution` relaie les deux codes.
+- **Web** : Aujourd'hui part des exécutions réellement enregistrées (même priorité que `guidedSessionLoader`) : « Reprendre la séance guidée », « Séance suspendue » (sans reprise), « Séance terminée · Consulter », jamais de second démarrage ; `/today/session` affiche la séance suspendue en lecture seule avec ses résultats et le seul arrêt sûr ; une tentative arrêtée reste consultable.
+- **Décision HPM (O1, 2026-10-13)** : sous suspension de santé, l'arrêt sûr est `abandoned` ; `completed` reste refusé. O2 (`completed` distingué à la lecture) et O3 (nouveau type d'événement terminal) ne sont pas retenus. La distinction avec une séance terminée normalement est préservée par construction : historique, progression, adhérence et charge récente de M1 ne lisent que `completed`.
+- **Charge des séances interrompues** : une séance interrompue conserve tous ses résultats enregistrés, mais ne contribue **actuellement pas** à la charge récente calculée par M1 (le pont `completedSessionExecutionsRepo` ne lit que les exécutions terminées). Les règles de charge M1 ne sont pas modifiées par P0-3 ; l'intégration prudente de la charge réellement effectuée est un ticket produit distinct (docs/12), à traiter avant commercialisation.
+- **Risque résiduel de concurrence (documenté, non fermé)** : la suspension prend effet au commit de la décision ou du signal de santé. `persist_daily_run_v2` ne prend pas le verrou consultatif de `record_session_execution` : un résultat validé par la RPC d'exécution avant ce commit (même quasi simultanément) est enregistré comme antérieur à la suspension. Les tests prouvent le refus de toute action vérifiée après le commit, pas une atomicité absolue entre la persistance santé et l'enregistrement d'un résultat ; la fermer imposerait de modifier une autre fonction critique (non fait).
+- **Statut P0-3 : PASS LOCAL / NOT DEPLOYED** (branche `fix/p0-3-manual-sessions`). Conditions de release : docs/release/P0_3_RELEASE_PLAN.md §7 ; rapport final : docs/release/P0_3_FINAL_REPORT.md.
+
+## 2026-10-13 — ADR P0-4 : historique et résultats des séances guidées
+
+> **Le détail d'une journée de l'historique montre la séance guidée réellement enregistrée — statut, prescription figée, résultats actifs — au lieu de « Pas de séance enregistrée ».** Web seulement ; local.
+
+**Constat (audit externe, reproduction `e4aae19`)** : une séance guidée V2 terminée (DH 5 passages, Force 7 séries) apparaissait « ✓ Séance guidée terminée » dans la liste mais « Pas de séance enregistrée. » dans le détail. Cause : `HistoryDetailPage` ne lisait que `completed_sessions` (débrief V1, V0.3_007D) ; une séance guidée n'y écrit jamais (garde `completed_session_v2_exists`). La liste, elle, lit les exécutions (UX-11R.9, A07).
+
+**Décision HPM (GO implémentation web)** : aucune modification SQL, Edge ou moteur.
+- **Détail, bloc « Réalisé »**, dans cet ordre : 1. réalisation V1 liée à la décision (inchangé) ; 2. exécution(s) V2 démarrées depuis cette décision : statut réel, prescription figée de l'exécution (`loadExecutionPrescription`), résultats actifs (corrections appliquées), rendus en lecture seule par les modules de séance guidée existants ; 3. exécution du même jour liée à une autre décision : explication et lien vers ce détail ; 4. sinon « Pas de séance enregistrée ». Lecture `loadDayExecutions` (RLS), qui ramène désormais aussi `decision_id`. Tout-ou-rien : une lecture échouée est l'état d'erreur, jamais une absence. Jamais reconstruit depuis le programme courant.
+- **Ancien catalogue** : note neutre et valeurs enregistrées lisibles (jamais la séance masquée).
+- **Modules en lecture seule** : plus de « À faire maintenant » ; un créneau vide se lit « Aucun résultat enregistré ».
+- **Liste et bilan** : une séance arrêtée (ou laissée ouverte un jour passé) se lit « Séance guidée arrêtée » (« en cours ») même si la décision du jour est devenue un REST (P0-3 O1) ; le bilan distingue séances enregistrées, séances arrêtées (partielles) et séances non enregistrées. `dayCompletion`, l'adhérence et la charge M1 sont inchangés : une séance arrêtée n'est jamais une séance terminée.
+- **Statut (HPM 2026-10-13) : PASS LOCAL / NOT DEPLOYED** au HEAD `da4474a` ; tests : docs/10 T58. Intégration : ticket INT-01 (candidat assemblé avec P0-2 et P0-3).
+
 ## 2026-10-13 — ADR INT-01 R2 : version de compatibilité du catalogue V2 (option d HPM)
 
 **Contexte.** La release suivante (P0 première génération, P0-2) ajoute du contenu au catalogue V2 sans changer l'étiquette agrégée `session-model-v2.6`. Elle ajoute :
@@ -5837,6 +5980,35 @@ Le code de production ne connaît pas ce contenu, ce qui crée deux dangers de r
 
 **Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-compat`).
 
+## 2026-10-13 — ADR INT-01 R1 : ni reprise ni saisie d'effort depuis Aujourd'hui sous suspension santé (complément P0-3)
+
+**Constat (INT-01).** Sous une suspension santé, Aujourd'hui affichait la carte P0-3 « Séance suspendue ». Juste en dessous, le bloc « Après ta séance » (UX-11R.9 F-5b, que P0-3 n'avait pas adapté) invitait à « Reprendre la séance guidée ». Le serveur et l'écran guidé bloquaient bien, mais l'écran contredisait la règle HPM P0-3.
+
+**Décision HPM (2026-10-13, GO R1).** Sous suspension :
+- aucune invitation à reprendre ;
+- « Séance suspendue » et « Consulter la séance » ;
+- aucun accès indirect à un formulaire de saisie d'effort ;
+- la consultation des résultats et l'arrêt sécurisé restent possibles.
+
+**Règle (web seulement).**
+- **Une seule suspension pour tout Aujourd'hui.** C'est la règle de la carte P0-3 (`healthBlockOf`, miroir d'`execution_health_block`) : signal de suivi ouvert, ou décision affichée en REST de la couche Safety. `DailyPlanPanel` transmet la décision affichée, qu'elle soit restaurée ou calculée.
+- **Bloc « Après ta séance » sous suspension.**
+  - Séance guidée du jour ouverte ou arrêtée : « Séance suspendue » et « Consulter la séance ».
+  - Séance guidée terminée avant le signal : carte en lecture.
+  - Débrief déjà enregistré : lisible, sans « Modifier ».
+  - Rien d'enregistré : aucune invitation, donc plus de « Raconter ma séance ».
+  - `loadGuidedDayState` distingue le jour dont toutes les tentatives sont arrêtées (`stopped`). Hors suspension, ce jour se lit comme « aucune séance », comme avant.
+- **Écran guidé.** Sous suspension, la confirmation d'arrêt se referme par « Retour », jamais par « Continuer la séance ».
+
+**Conséquence produit.** Sous suspension, Aujourd'hui ne propose plus le débrief historique (`completed-session`). Ce point d'API n'a pas de garde serveur santé (inchangé, hors périmètre). Le serveur reste l'autorité pour la séance guidée (`record_session_execution`).
+
+**Tests.** `AfterSessionEntry`, `TodayPage`, `DailyPlanPanel`, `historyRepo`, P0-3 guided suspension (UI), plus le navigateur sur la stack locale :
+- transition dans la page, rechargement, navigation directe ;
+- pause puis arrêt ;
+- refus 409 côté serveur pour une série, la reprise et la terminaison.
+
+**Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
+
 ## 2026-10-13 — ADR INT-01 R2 (suite) : rollback vers C avec le SQL de sécurité conservé, règle de compatibilité des catalogues V2
 
 **Gate final (HPM 2026-10-13).** Rollback du candidat vers C, simulé localement (T59). Le SQL P0-3 reste en place ; les Edge `daily-run` et `generate-training-plan` reviennent à C.
@@ -5865,3 +6037,145 @@ Une fois le contenu de la release suivante généré, la production `92937a9` n'
 7. **Proposé, non mis en œuvre.** Qu'un runtime traite un contenu inconnu sous sa propre étiquette comme un `final_prescription_catalog_mismatch` (séance bloquée) plutôt que comme une corruption (500). Cela demande une décision HPM et un contrat de statut explicite.
 
 **Statut** : PASS LOCAL / NOT DEPLOYED.
+
+## 2026-10-13 — ADR INT-01 B : garde santé du débrief legacy (HPM, option 1)
+
+**Constat (gate final INT-01).** Le débrief V1 « Raconter ma séance » (Edge `completed-session` → `persist_completed_session`) n'avait pas de garde santé. Après l'arrêt d'une séance guidée sous suspension, il acceptait « Terminée » (200), aussi après la clôture du signal et pour un jour futur. Effets :
+- contournement de la règle O1 ;
+- historique « Séance réalisée » à la place de la séance arrêtée ;
+- charge M1 déclarée ;
+- verrou P0-3 du jour activé.
+
+Le problème était préexistant en production.
+
+**Décision HPM (2026-10-13).** Garde dans `persist_completed_session`, avec la suspension déterminée par les données serveur selon les règles santé de P0-3.
+- Sous suspension : « Terminée », « Partielle » et « Remplacée » sont refusées.
+- « Non réalisée » n'est permise que si elle ne contredit pas une exécution guidée enregistrée.
+- Une tentative guidée ne devient jamais une réalisation V1, même après la clôture du signal.
+- Les débriefs légitimes gardent leurs règles.
+
+**Règle retenue.** Voir `docs/05` : garde santé du débrief legacy.
+- **Suspension.** C'est `execution_health_block`, la règle P0-3, réutilisée telle quelle :
+  - signal de suivi ouvert (même avant le daily-run du jour) ;
+  - commotion pour une séance DH ;
+  - dernière décision du jour en REST Safety ;
+  - décision plus à jour → `daily_decision_not_current`.
+- **Historique.** Une décision du jour en REST Safety, suivie de l'arrêt d'une tentative guidée, interdit pour toujours toute réalisation V1 de ce jour.
+- **Non réalisée.** Refusée si des résultats guidés existent un jour suspendu ou ayant eu un REST Safety.
+- **Repos ordinaire.** Un KEEP de repos, ou un REPLACE vers repos hors Safety, ne bloque jamais : dans M1, la décision « REST » n'existe que dans la couche Safety.
+
+**Choix d'implémentation.**
+- **Fonction d'aide `completed_session_health_block`.** SECURITY DEFINER, exécutable par `service_role` seulement. `persist_completed_session` reste SECURITY INVOKER, appelée par `service_role`, et `execution_health_block` n'est exécutable par aucun rôle d'API ; le corps et les droits de `execution_health_block` sont inchangés.
+- **Codes.** SQLSTATE NX102, NX103 et NX104, traduits en 409 par l'Edge ; messages web dédiés.
+- **Second contrat critique.** Aucun n'a été modifié : `record_session_execution` est inchangée, et la règle F-6B garde la même sémantique.
+
+**Choix produit à confirmer.**
+- La règle P0-3 ne tient pas compte de la date pour les signaux ouverts. Un débrief « Terminée » d'un jour **antérieur** au signal est donc refusé tant que le signal reste ouvert ; il redevient possible après la clôture. « Non réalisée » reste possible.
+- Variante possible : ne considérer que les signaux datés au plus tard du jour débriefé. Cela impose une règle propre au débrief.
+
+**Rollback.**
+- La migration et le `completed-session` du candidat sont **conservés** dans un rollback vers C, comme le SQL P0-3 et `session-execution`. Le rollback ne doit jamais réactiver le contournement.
+- Avec le `completed-session` de C, les refus tiennent mais remontent en 500 (prouvé).
+
+**Hors périmètre (ticket proposé).** Le contrat de date du débrief (format seulement, jours futurs acceptés hors suspension).
+
+**Statut** : PASS LOCAL / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
+
+## 2026-10-13 — ADR INT-01 B (suite) : une tentative guidée enregistrée n'est jamais une réalisation V1 (HPM, dernier contrôle)
+
+**Constat.** Hors santé, après l'arrêt d'une séance guidée V2 ayant enregistré des résultats, le débrief V1 acceptait « Terminée », « Partielle » et « Remplacée » (200), puisque UX-11R.9 laisse le débrief ouvert après une exécution `abandoned`. Effets mesurés en local :
+- ligne `completed_sessions` avec charge ;
+- charge récente M1 augmentée (AMBER) ;
+- Historique « Séance réalisée » à la place de la séance arrêtée ;
+- adhérence et parcours augmentés.
+
+Une séance guidée terminée était déjà protégée (NX101).
+
+**Contrat HPM.** Une exécution guidée existante ne doit pas pouvoir devenir une réalisation V1 fictive ou une seconde séance principale du même jour.
+
+**Décision (correction minimale approuvée).** Migration `20261013190000`, `persist_completed_session` seule. Un jour avec une exécution `abandoned` ayant au moins un résultat (série ou activité) refuse tout débrief V1 → NX104 `guided_results_exist`, code existant.
+- Inchangés : signature, droits, verrou et upsert ; la garde santé `20261013180000` est évaluée d'abord.
+- Une tentative arrêtée sans résultat garde le débrief ordinaire (UX-11R.9). Aucune nouvelle structure SQL.
+- Le rollback restaure le corps de `20261013180000` et ne fait jamais partie d'un rollback vers C.
+
+**Décisions produit HPM (2026-10-13).**
+1. **Signal ouvert, refus conservateur.** Le refus des débriefs positifs tant qu'un signal est ouvert est conservé, même pour un jour antérieur au signal. La limite est documentée (`docs/05`) ; une évolution temporelle plus fine sera traitée séparément.
+2. **Date du débrief : ticket `P1-DATE-01`.** Borner côté serveur la date d'un débrief, regroupé avec le risque de date future du daily-run. Les contrats ne sont pas modifiés dans INT-01.
+3. **Invitation web.** L'invitation « Raconter ma séance » suit ce que le serveur accepte réellement :
+   - tentative arrêtée avec résultats → « Séance guidée arrêtée » et lien vers la séance ;
+   - REST Safety du jour et tentative sans résultat → « Non réalisée » seule ;
+   - consultations d'historique et déclarations V1 légitimes inchangées.
+
+**Données existantes.** Les débriefs enregistrés avant la migration ne sont pas modifiés.
+
+**Statut** : READY INTEGRATION / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
+
+## 2026-10-14 — ADR QA-ISOLATION-01 : une exécution d'intégration prouve sa stack locale avant toute écriture
+
+**Constat.**
+- Plusieurs suites ignoraient la stack demandée :
+  - conteneur psql ou URL du rider codés en dur sur la stack de développement, dans le code de production ;
+  - repli silencieux sur `127.0.0.1:54321` et le conteneur de développement dans toutes les branches ;
+  - suites `pattern*` lancées sans demande d'intégration.
+- Conséquence prouvée : un décalage API / psql sur `sec` (trigger de panne posé sur la stack de développement, RPC exécuté sur `sec`), qui a laissé 6 lignes en ajout seul et rendu `patternEvidenceSchema` durablement rouge sur `sec`.
+
+**Décision (HPM, QA-ISOLATION-01).** Garde `verifyLocalTestTarget`, même règle dans head-coach-engine, longitudinal-engine et web :
+- `SUPABASE_URL` est obligatoire ;
+- un seul gateway local doit publier son port, et il nomme le projet ;
+- le projet et le conteneur demandés doivent correspondre ;
+- le SQL direct passe toujours par la base de ce projet ;
+- la base et l'API doivent répondre avant toute écriture ;
+- la cible effective est imprimée ;
+- toute cible inconnue, distante, ambiguë ou différente provoque `TestTargetError`, sans repli.
+
+**Preuves.**
+- Refus sur les vraies stacks sans aucune écriture.
+- Rejeu sur la stack neuve `nalynt-qa01`, avec 72 migrations dans l'ordre réel (P0-SEC en 6e) : P0-SAFE, P0-3, INT-01 (T60, T61), P0-SEC, RPC, Edge, purge et rollback, aussi dans la configuration de rollback vers C. Voir `docs/release/QA_ISOLATION_01_TEST_TARGET_INTEGRITY_REPORT.md`.
+
+**Statut** : PASS LOCAL. Intégration du correctif dans REL-01, C et la production sur décision HPM.
+
+## 2026-10-13 — ADR P0-SEC-TRUNCATE : les rôles d'API du navigateur ne détiennent jamais TRUNCATE
+
+**Constat (audit REL-01, confirmé sur une stack au schéma de production).**
+- `anon` et `authenticated` détiennent TRUNCATE sur les 9 tables de la baseline V0.2 : `athlete_baselines`, `athlete_state`, `athletes`, `daily_checkins`, `goals`, `planned_sessions`, `race_calendar`, `training_blocks`, `weekly_availability`. Ce sont des entrées d'ACL directes, accordées par `postgres`.
+- Les privilèges par défaut de `postgres` dans `public` donnent ALL, TRUNCATE compris, à ces rôles sur toute nouvelle table. Les migrations récentes révoquent table par table.
+- TRUNCATE contourne RLS et les triggers de ligne. Au niveau de la base, quatre tables étaient réellement vidables par ces rôles ; les cinq autres n'étaient protégées que par les clés étrangères qui les référencent.
+- Aucun chemin d'exploitation démontré : PostgREST et GraphQL n'exposent pas TRUNCATE, les rôles sont `NOLOGIN`, et aucune fonction `public` n'exécute TRUNCATE.
+
+**Décision (HPM GO local).** Migration `20261014090000_p0_sec_truncate_api_roles` :
+- `revoke truncate` sur les 9 tables pour `anon` et `authenticated` ;
+- `alter default privileges for role postgres in schema public revoke truncate on tables from anon, authenticated` ;
+- vérification finale *fail closed* : la migration échoue si une table `public` accorde encore TRUNCATE à ces rôles, ou si les privilèges par défaut le font encore.
+
+**Hors périmètre, volontairement.**
+- `service_role` garde TRUNCATE : il détient déjà DELETE et UPDATE sur ces tables, contourne RLS, et aucune n'a de trigger DELETE ou TRUNCATE.
+- TRIGGER et REFERENCES sont signalés, pas modifiés.
+- Les privilèges par défaut de `supabase_admin` ne sont pas modifiables par `postgres` ; aucune table `public` ne lui appartient.
+- Aucune table, ligne, fonction, politique ni trigger modifié.
+
+**Rollback.** `supabase/rollbacks/p0_sec/20261014090000_rollback_p0_sec_truncate_api_roles.sql`, rejoué comme nouvelle migration : il restaure exactement l'ACL précédente (empreinte identique).
+
+**Statut** : READY LOCAL / NOT DEPLOYED. Intégration à REL-01 sur décision HPM.
+
+## 2026-10-14 — ADR P0-SEC-TRIGGER : les rôles d'API du navigateur ne détiennent jamais TRIGGER sur les tables publiques
+
+**Constat (QA-ISOLATION-01, prouvé).**
+- `anon` et `authenticated` détiennent TRIGGER sur les 9 tables de la baseline, et les privilèges par défaut de `postgres` le leur accordent sur toute nouvelle table.
+- `CREATE TRIGGER` n'exige que TRIGGER sur la table et EXECUTE sur une fonction. Ces rôles exécutent les fonctions déclencheuses publiques (`reject_append_only_mutation`, etc.). Une session agissant sous l'un d'eux peut donc greffer un trigger persistant qui bloque ou altère toutes les écritures d'une table.
+- `NOLOGIN` et l'absence de chemin API connu ne sont pas retenus comme preuve d'innocuité.
+
+**Décision (HPM GO local).** Migration `20261014120000_p0_sec_trigger_api_roles` :
+- `revoke trigger` sur les 9 tables pour `anon` et `authenticated` ;
+- retrait de TRIGGER des privilèges par défaut de `postgres` ;
+- vérification *fail closed*.
+
+Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, triggers existants (TRIGGER n'est vérifié qu'à la création). Les privilèges par défaut de `supabase_admin` ne sont pas modifiables par `postgres` : blocage documenté, sans contournement.
+
+**Preuves** (harnais QA-ISOLATION-01, stack `nalynt-qa01`, 73 migrations dans l'ordre REL-01 proposé) :
+- 24/24, avec contre-preuve ;
+- 62 triggers identiques ;
+- configurations candidat et rollback vers C vertes ;
+- rollback exact, qui ré-ouvre la création de trigger (dangereux).
+
+**Statut** : READY LOCAL / NOT DEPLOYED. Proposée comme 7e migration de REL-01 sur décision HPM.
+

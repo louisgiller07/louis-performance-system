@@ -24,7 +24,7 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 export async function loadDayExecutions(athleteId: string, date: string): Promise<ExecutionRow[]> {
   const { data, error } = await supabase
     .from("session_executions")
-    .select(`id, session_date, final_prescription_id, started_at, recorded_at, execution_events(event_type, event_seq), exercise_set_results(${SET_RESULT_COLUMNS}), session_activity_results(${ACTIVITY_RESULT_COLUMNS})`)
+    .select(`id, session_date, decision_id, final_prescription_id, started_at, recorded_at, execution_events(event_type, event_seq), exercise_set_results(${SET_RESULT_COLUMNS}), session_activity_results(${ACTIVITY_RESULT_COLUMNS})`)
     .eq("athlete_id", athleteId)
     .eq("session_date", date)
     .order("recorded_at", { ascending: true })

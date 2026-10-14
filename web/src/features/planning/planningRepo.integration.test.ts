@@ -60,6 +60,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // planningMappingParity.test.ts / DailyPlanView.enriched.test.tsx).
 import { createTestClient, deleteTestAthlete, type TestAthlete } from "../../../../head-coach-engine/tests/supabase/testDb.js";
 import { assertLocalDbReady, execLocalSql, sqlLiteral } from "../../../../head-coach-engine/tests/supabase/localDb.js";
+import { integrationApiUrl } from "../../test/testTarget";
 
 /** True only for an explicit loopback-local Supabase URL (http://127.0.0.1 or http://localhost, any port). Never true for a production/hosted project URL, however it was supplied. */
 export function isLoopbackSupabaseUrl(url: string): boolean {
@@ -84,7 +85,7 @@ const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVI
 // Mirrors testDb.ts's createTestClient() URL precedence EXACTLY
 // (process.env.SUPABASE_URL ?? its own local default) so this gate can
 // never diverge from what the admin client actually resolves to.
-const RESOLVED_ADMIN_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const RESOLVED_ADMIN_URL = integrationApiUrl();
 // Explicit three-part opt-in: an environment can carry a server key for
 // unrelated reasons (e.g. a shell left over from another task) without that
 // alone activating a suite that creates/deletes real auth users — and a
@@ -139,6 +140,8 @@ describe("planningRepo integration — local-target safety gate (always-on, no n
   });
 });
 
+// The rider's client targets the same local stack as the admin client (RESOLVED_ADMIN_URL, already gated as
+// loopback above): users are created there, so they must sign in there too.
 const LOCAL_URL = RESOLVED_ADMIN_URL;
 // LOCAL DEV / PUBLIC — never a secret. The Supabase CLI's well-known
 // default local anon key: identical for every local `supabase init`

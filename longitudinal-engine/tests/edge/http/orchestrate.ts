@@ -35,10 +35,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, insertCheckin, insertCompletedSession, insertDecision, type TestAthlete } from "../../supabase/testDb.js";
 import { acquireReviewAdvisoryLockForTest } from "../../supabase/reviewAdvisoryLock.js";
 import { PAIN_PERSISTENCE_RULE_ID, RECOMMENDATION_VS_ACTUAL_EXECUTION_RULE_ID, SLEEP_ENERGY_RULE_ID } from "../../../src/detectors/index.js";
+import { verifyLocalTestTarget } from "../../supabase/testTarget.js";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url).pathname.replace(/^\/([a-zA-Z]:)/, "$1");
-const LOCAL_URL = "http://127.0.0.1:54321";
-const SUPABASE_URL = process.env.SUPABASE_URL ?? LOCAL_URL;
+// QA-ISOLATION-01 — explicit, verified local stack (no default): the gateway publishing SUPABASE_URL's port names it.
+const SUPABASE_URL = verifyLocalTestTarget().apiUrl;
 const REFRESH_URL = `${SUPABASE_URL}/functions/v1/refresh-longitudinal`;
 const INSIGHTS_URL = `${SUPABASE_URL}/functions/v1/get-insights`;
 const SUBMIT_REVIEW_URL = `${SUPABASE_URL}/functions/v1/submit-review`;

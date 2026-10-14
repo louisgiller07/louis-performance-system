@@ -39,7 +39,24 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   // F-6C — server invariant (migration 20261006120000), same wording as the Force screen's own rule.
   strength_set_required: "Enregistre au moins une série de travail pour pouvoir terminer la séance.",
   session_already_completed: "Une séance est déjà terminée aujourd'hui : une nouvelle séance ne peut pas être commencée.",
+  // P0-3 — server refusals under a health suspension / a stale day decision (migration 20261013160000).
+  health_suspended: "Un signal de santé suspend l'entraînement : cette action n'a pas été enregistrée. Tes résultats déjà enregistrés sont conservés.",
+  daily_decision_not_current: "Ton check-in a changé : relance l'analyse du jour sur Aujourd'hui avant de continuer la séance.",
 };
+
+/** P0-3 — an open session that cannot go on: state label and explanation (no resume, no new result, a safe stop). */
+export const HEALTH_BLOCK_COPY = {
+  health_suspended: {
+    state: "suspendue",
+    title: "Séance suspendue",
+    text: "Un signal de santé suspend l'entraînement : la séance ne peut pas reprendre et aucun nouveau résultat n'est enregistré. Tes résultats déjà enregistrés sont conservés. Tu peux arrêter la séance.",
+  },
+  daily_decision_not_current: {
+    state: "en attente",
+    title: "Analyse du jour à relancer",
+    text: "Ton check-in a changé : relance l'analyse du jour sur Aujourd'hui avant de continuer la séance. Tes résultats déjà enregistrés sont conservés.",
+  },
+} as const;
 
 export const PARTIAL_COMPLETION_MESSAGE =
   "Certaines séries prévues n'ont pas de résultat enregistré. Terminer quand même la séance avec les résultats actuellement enregistrés ?";

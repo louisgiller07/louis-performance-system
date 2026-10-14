@@ -20,10 +20,20 @@ const signOut = vi.fn();
 // Defaults to an active plan so every test keeps the normal Today flow.
 const { getActivePlanVersionId } = vi.hoisted(() => ({ getActivePlanVersionId: vi.fn() }));
 vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", () => ({ getActivePlanVersionId, getPlanPrescriptionSchemaVersion: vi.fn(async () => "v1") }));
-vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFlags: vi.fn().mockResolvedValue([]) }));
+const { loadOpenHealthFlags, loadDayExecutions, entryContext } = vi.hoisted(() => ({
+  loadOpenHealthFlags: vi.fn(),
+  loadDayExecutions: vi.fn(),
+  // P0-3 — what the stubbed DailyPlanPanel passes to a guided-session entry FUNCTION (the decision on screen).
+  entryContext: { current: { dailyPlan: null as null | Record<string, unknown>, finalPrescriptionCreated: true } },
+}));
+vi.mock("../features/healthFlags/openHealthFlagsRepo", () => ({ loadOpenHealthFlags }));
+vi.mock("../features/guidedSession/executionRepo", () => ({ loadDayExecutions }));
 
 beforeEach(() => {
   getActivePlanVersionId.mockResolvedValue("plan-1");
+  loadOpenHealthFlags.mockResolvedValue([]);
+  loadDayExecutions.mockResolvedValue([]);
+  entryContext.current = { dailyPlan: null, finalPrescriptionCreated: true };
   todayContextValue.current = { firstName: "Louis", races: [], objective: "Performance en course", planned: [], completed: [], guided: [], checkinDates: [] };
 });
 
@@ -90,7 +100,9 @@ vi.mock("../features/planning/TodayPlanningSummary", () => ({
 
 // DailyPlanPanel's own behavior (restore, generation, guards, and the UX-03
 // opt-in props) is covered by DailyPlanPanel*.test.tsx.
-vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
+vi.mock("../features/dailyPlan/DailyPlanPanel", async () => {
+  const { useEffect } = await import("react");
+  return {
   DailyPlanPanel: ({
     date,
     hasCheckin,
@@ -101,6 +113,7 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     checkinSnapshot,
     detailsTarget,
     guidedSessionEntry,
+    onDisplayedDecision,
   }: {
     date: string;
     hasCheckin: boolean;
@@ -110,21 +123,27 @@ vi.mock("../features/dailyPlan/DailyPlanPanel", () => ({
     minAnalysisMs?: number;
     checkinSnapshot?: { sleep_hours: number } | null;
     detailsTarget?: HTMLElement | null;
-    guidedSessionEntry?: import("react").ReactNode;
-  }) => (
+    guidedSessionEntry?: import("react").ReactNode | ((context: typeof entryContext.current) => import("react").ReactNode);
+    onDisplayedDecision?: (dailyPlan: unknown) => void;
+  }) => {
+    // INT-01 R1 — the decision on screen, as the real panel reports it (restored or just run).
+    useEffect(() => onDisplayedDecision?.(entryContext.current.dailyPlan), [onDisplayedDecision]);
+    return (
     <div data-testid="daily-plan-panel-stub">
-      <div data-testid="guided-entry-slot">{guidedSessionEntry}</div>
+      <div data-testid="guided-entry-slot">{typeof guidedSessionEntry === "function" ? guidedSessionEntry(entryContext.current) : guidedSessionEntry}</div>
       daily-plan-panel date={date} hasCheckin={String(hasCheckin)} checkinRevision={checkinRevision} hideIdle={String(hideIdleWithoutCheckin)} autoGenerate=
       {String(autoGenerateOnCheckinSave)} minAnalysisMs={minAnalysisMs} checkinSnapshot=
       {checkinSnapshot === undefined ? "undefined" : checkinSnapshot === null ? "null" : `sleep:${checkinSnapshot.sleep_hours}`} details=
       {detailsTarget ? "mounted" : String(detailsTarget)}
     </div>
-  ),
-}));
+    );
+  },
+  };
+});
 
 vi.mock("../features/afterSession/AfterSessionEntry", () => ({
-  AfterSessionEntry: ({ date, athleteId }: { date: string; athleteId: string }) => (
-    <div data-testid="completed-session-card-stub">
+  AfterSessionEntry: ({ date, athleteId, healthSuspended }: { date: string; athleteId: string; healthSuspended?: boolean }) => (
+    <div data-testid="completed-session-card-stub" data-health-suspended={String(healthSuspended ?? false)}>
       Après ta séance · completed-session-card date={date} athleteId={athleteId}
     </div>
   ),
@@ -462,7 +481,7 @@ describe("TodayPage — UX-11R.9 a completed guided session", () => {
     renderTodayPage();
     const slot = screen.getByTestId("guided-entry-slot");
     expect(within(slot).getByText("Séance terminée")).toBeInTheDocument();
-    expect(within(slot).getByRole("link", { name: "Voir la séance guidée" })).toHaveAttribute("href", "/today/session");
+    expect(within(slot).getByRole("link", { name: "Consulter" })).toHaveAttribute("href", "/today/session");
     expect(within(slot).queryByText("Ouvrir la séance guidée")).not.toBeInTheDocument();
     expect(screen.getByText("1 réalisée")).toBeInTheDocument();
   });
@@ -471,5 +490,117 @@ describe("TodayPage — UX-11R.9 a completed guided session", () => {
     todayContextValue.current = { firstName: "Louis", races: [], objective: null, planned: [], completed: [], guided: [guided(addDays(todayLocal(), -1))], checkinDates: [] };
     renderTodayPage();
     expect(within(screen.getByTestId("guided-entry-slot")).getByRole("link", { name: "Ouvrir la séance guidée" })).toBeInTheDocument();
+  });
+});
+
+// P0-3 (HPM 2026-10-13) — the entry follows the day's RECORDED executions (same priority as the guided page), not
+// only the current decision: an open or completed session stays reachable after a new plan / a re-run / a blocked
+// decision; never a resume under a health suspension; never a second start after a completion.
+describe("TodayPage — P0-3 guided session entry from the day's executions", () => {
+  const exec = (events: string[]) => ({
+    id: "e1",
+    session_date: todayLocal(),
+    final_prescription_id: "fp-1",
+    started_at: `${todayLocal()}T07:00:00Z`,
+    recorded_at: `${todayLocal()}T07:00:00Z`,
+    execution_events: events.map((event_type, i) => ({ event_type, event_seq: i + 1 })),
+    exercise_set_results: [],
+    session_activity_results: [],
+  });
+  const rule = (layer: string, rule_id: string) => ({ layer, rule_id, detail: "", signals_used: [] });
+  const slot = () => screen.getByTestId("guided-entry-slot");
+
+  it("open session + a newer BLOCKED decision (kept day re-run) → 'Reprendre la séance guidée'", async () => {
+    loadDayExecutions.mockResolvedValue([exec(["started"])]);
+    entryContext.current = { dailyPlan: { decision: "KEEP", triggered_rules: [] }, finalPrescriptionCreated: false };
+    renderTodayPage();
+    expect(await within(slot()).findByRole("link", { name: "Reprendre la séance guidée" })).toHaveAttribute("href", "/today/session");
+    expect(within(slot()).queryByText("Ouvrir la séance guidée")).toBeNull();
+  });
+
+  it("open session + a stale decision (none on screen) → still reachable", async () => {
+    loadDayExecutions.mockResolvedValue([exec(["started", "paused"])]);
+    entryContext.current = { dailyPlan: null, finalPrescriptionCreated: false };
+    renderTodayPage();
+    expect(await within(slot()).findByRole("link", { name: "Reprendre la séance guidée" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["REST A6", { decision: "REST", triggered_rules: [rule("A", "A6")] }],
+    ["REST A2", { decision: "REST", triggered_rules: [rule("A", "A2")] }],
+  ])("open session + %s → 'Séance suspendue', no resume", async (_label, dailyPlan) => {
+    loadDayExecutions.mockResolvedValue([exec(["started"])]);
+    entryContext.current = { dailyPlan, finalPrescriptionCreated: false };
+    renderTodayPage();
+    expect(await within(slot()).findByTestId("guided-session-suspended")).toHaveTextContent("Séance suspendue");
+    expect(within(slot()).getByRole("link", { name: "Consulter la séance" })).toHaveAttribute("href", "/today/session");
+    expect(within(slot()).queryByText("Reprendre la séance guidée")).toBeNull();
+  });
+
+  it("open session + an open follow-up signal (before any new daily run) → 'Séance suspendue'", async () => {
+    loadDayExecutions.mockResolvedValue([exec(["started"])]);
+    loadOpenHealthFlags.mockResolvedValue([{ id: "f", type: "injury_suspect", flagDate: todayLocal(), description: "x" }]);
+    entryContext.current = { dailyPlan: { decision: "KEEP", triggered_rules: [] }, finalPrescriptionCreated: true };
+    renderTodayPage();
+    expect(await within(slot()).findByTestId("guided-session-suspended")).toBeInTheDocument();
+  });
+
+  it("open session + an ordinary REST (race protocol, layer B) → no false block", async () => {
+    loadDayExecutions.mockResolvedValue([exec(["started"])]);
+    entryContext.current = { dailyPlan: { decision: "REPLACE", triggered_rules: [rule("B", "RACE_PROTOCOL_TX")] }, finalPrescriptionCreated: false };
+    renderTodayPage();
+    expect(await within(slot()).findByRole("link", { name: "Reprendre la séance guidée" })).toBeInTheDocument();
+  });
+
+  it("completed session + a REST A6 or blocked decision → 'Séance terminée · Consulter', never a start", async () => {
+    loadDayExecutions.mockResolvedValue([exec(["started", "completed"])]);
+    entryContext.current = { dailyPlan: { decision: "REST", triggered_rules: [rule("A", "A6")] }, finalPrescriptionCreated: false };
+    renderTodayPage();
+    expect(await within(slot()).findByTestId("guided-session-done")).toHaveTextContent("Séance terminée");
+    expect(within(slot()).getByRole("link", { name: "Consulter" })).toBeInTheDocument();
+    expect(within(slot()).queryByText("Ouvrir la séance guidée")).toBeNull();
+  });
+
+  it("abandoned attempt: never 'Reprendre'; the normal entry only while the current prescription is created", async () => {
+    loadDayExecutions.mockResolvedValue([exec(["started", "abandoned"])]);
+    entryContext.current = { dailyPlan: { decision: "KEEP", triggered_rules: [] }, finalPrescriptionCreated: true };
+    const { unmount } = renderTodayPage();
+    await waitFor(() => expect(loadDayExecutions).toHaveBeenCalled());
+    expect(await within(slot()).findByRole("link", { name: "Ouvrir la séance guidée" })).toBeInTheDocument();
+    expect(within(slot()).queryByText("Reprendre la séance guidée")).toBeNull();
+    unmount();
+    entryContext.current = { dailyPlan: { decision: "REST", triggered_rules: [rule("A", "A6")] }, finalPrescriptionCreated: false };
+    renderTodayPage();
+    await waitFor(() => expect(loadDayExecutions).toHaveBeenCalledTimes(2));
+    expect(slot()).toBeEmptyDOMElement();
+  });
+});
+
+// INT-01 R1 (HPM 2026-10-13) — the after-session block reads the SAME suspension as the guided entry: open
+// follow-up signals and the decision on screen (restored or just run), never a separate rule.
+describe("TodayPage — INT-01 R1 the after-session block knows the health suspension", () => {
+  const rule = (layer: string, rule_id: string) => ({ layer, rule_id, detail: "", signals_used: [] });
+  const afterSession = () => screen.getByTestId("completed-session-card-stub");
+
+  it.each([
+    ["the decision on screen is a Safety REST (A6)", { decision: "REST", triggered_rules: [rule("A", "A6")] }, []],
+    ["an open follow-up signal, before any new daily run", { decision: "KEEP", triggered_rules: [] }, [{ id: "f", type: "injury_suspect", flagDate: todayLocal(), description: "x" }]],
+    ["an open illness signal and no decision on screen", null, [{ id: "f", type: "illness", flagDate: todayLocal(), description: "x" }]],
+  ])("%s → suspended", async (_label, dailyPlan, flags) => {
+    loadOpenHealthFlags.mockResolvedValue(flags);
+    entryContext.current = { dailyPlan, finalPrescriptionCreated: false };
+    renderTodayPage();
+    await waitFor(() => expect(afterSession()).toHaveAttribute("data-health-suspended", "true"));
+  });
+
+  it.each([
+    ["an ordinary decision", { decision: "KEEP", triggered_rules: [] }],
+    ["an ordinary REST (race protocol, layer B)", { decision: "REST", triggered_rules: [rule("B", "RACE_PROTOCOL_TX")] }],
+    ["no decision yet", null],
+  ])("%s, no open signal → not suspended", async (_label, dailyPlan) => {
+    entryContext.current = { dailyPlan, finalPrescriptionCreated: true };
+    renderTodayPage();
+    await waitFor(() => expect(loadOpenHealthFlags).toHaveBeenCalled());
+    expect(afterSession()).toHaveAttribute("data-health-suspended", "false");
   });
 });

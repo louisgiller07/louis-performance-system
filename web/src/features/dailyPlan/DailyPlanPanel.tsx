@@ -8,7 +8,7 @@ import { isValidDailyPlan } from "./dailyPlanValidation";
 import { loadLatestDecisionForDate } from "../history/historyRepo";
 import { loadDecisionCurrency, type DecisionStaleReason } from "./decisionCurrencyRepo";
 import type { DailyRunError } from "./dailyRunErrors";
-import type { DailyRunResponse } from "./dailyPlanTypes";
+import type { DailyPlan, DailyRunResponse } from "./dailyPlanTypes";
 import type { CheckinRow } from "../checkin/checkinTypes";
 import { finalPrescriptionV2StateFromResponse, loadFinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2State";
 import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -22,6 +22,12 @@ const STALE_NOTICE: Record<DecisionStaleReason, string> = {
   checkin_changed: CHECKIN_CHANGED_NOTICE,
   planned_session_changed: "Ta séance prévue a changé. Génère un nouveau plan.",
 };
+
+/** P0-3 — what Today's guided-session entry needs from the decision on screen (null: none, e.g. stale or not run yet). */
+export interface GuidedSessionEntryContext {
+  dailyPlan: DailyPlan | null;
+  finalPrescriptionCreated: boolean;
+}
 
 interface DailyPlanPanelProps {
   /** NAL-003 — the caller's own resolved athleteId, used only to restore today's already-persisted decision (RLS-scoped, same read path as /history). */
@@ -69,10 +75,18 @@ interface DailyPlanPanelProps {
    * final prescription state is `created` (never for REST, blocked, V1,
    * missing or unsupported). The guided-session page re-checks everything
    * from the database before any start.
+   * P0-3 — or a function of the decision on screen, ALWAYS called (also for a
+   * blocked, stale or REST decision): the caller decides from the day's
+   * recorded executions (an open or completed session stays reachable).
    */
-  guidedSessionEntry?: ReactNode;
+  guidedSessionEntry?: ReactNode | ((context: GuidedSessionEntryContext) => ReactNode);
   /** P0-SAFE — called once a fresh daily run succeeds (Today reloads the open health signals it may have created). */
   onDecision?: (result: DailyRunResponse) => void;
+  /**
+   * INT-01 R1 — the decision on screen (restored or just run, null when none or stale): the same one
+   * guidedSessionEntry receives, so Today's other blocks read the same health suspension.
+   */
+  onDisplayedDecision?: (dailyPlan: DailyPlan | null) => void;
 }
 
 // M4_004 request/state orchestration (invocation, concurrency guard,
@@ -104,6 +118,7 @@ export function DailyPlanPanel({
   detailsTarget,
   guidedSessionEntry,
   onDecision,
+  onDisplayedDecision,
 }: DailyPlanPanelProps) {
   const { signOut } = useAuth();
   const [state, setState] = useState<RequestState>("idle");
@@ -114,6 +129,10 @@ export function DailyPlanPanel({
   const [invalidatedNotice, setInvalidatedNotice] = useState<string | null>(null);
   // UX-04 — whether the result on screen comes from a run in this session (vs. a restore).
   const [freshRun, setFreshRun] = useState(false);
+  const displayedPlan = result?.dailyPlan ?? null;
+  useEffect(() => {
+    onDisplayedDecision?.(displayedPlan);
+  }, [displayedPlan, onDisplayedDecision]);
 
   // NAL-003 — persisted-decision restore, entirely separate from the
   // generation RequestState above: reading what already happened today is
@@ -307,7 +326,9 @@ export function DailyPlanPanel({
         />
       )}
 
-      {result && finalPrescriptionV2?.kind === "created" && guidedSessionEntry}
+      {typeof guidedSessionEntry === "function"
+        ? guidedSessionEntry({ dailyPlan: result?.dailyPlan ?? null, finalPrescriptionCreated: result !== null && finalPrescriptionV2?.kind === "created" })
+        : result && finalPrescriptionV2?.kind === "created" && guidedSessionEntry}
     </div>
   );
 }

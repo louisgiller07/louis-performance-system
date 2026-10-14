@@ -14,16 +14,20 @@
  */
 import { randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-
-const LOCAL_URL = "http://127.0.0.1:54321";
+import { verifyLocalTestTarget } from "./testTarget.js";
 
 /**
- * The local stack the integration suites target: SUPABASE_URL and LOCAL_SUPABASE_DB_CONTAINER select it
- * explicitly when several local stacks run (same convention as head-coach-engine); the developer's own
- * stack otherwise. Local only — the API client and the owner-level psql must hit the same database.
+ * The local stack the integration suites target (QA-ISOLATION-01): SUPABASE_URL is required (no default stack) and
+ * proven by `verifyLocalTestTarget` before the first write — the gateway that publishes its port names the project,
+ * and the owner-level psql always uses that project's database, so the API client and psql can never hit two stacks.
+ * LOCAL_SUPABASE_PROJECT_ID / LOCAL_SUPABASE_DB_CONTAINER, when given, must match it. Local only.
  */
-export const TEST_SUPABASE_URL = process.env.SUPABASE_URL ?? LOCAL_URL;
-export const TEST_DB_CONTAINER = process.env.LOCAL_SUPABASE_DB_CONTAINER ?? "supabase_db_louis-performance-system";
+export function testSupabaseUrl(): string {
+  return verifyLocalTestTarget().apiUrl;
+}
+export function testDbContainer(): string {
+  return verifyLocalTestTarget().dbContainer;
+}
 
 export class MissingTestServerKeyError extends Error {
   constructor() {
@@ -41,7 +45,7 @@ export function createTestClient(): SupabaseClient {
   const serverKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serverKey) throw new MissingTestServerKeyError();
 
-  return createClient(TEST_SUPABASE_URL, serverKey, {
+  return createClient(testSupabaseUrl(), serverKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

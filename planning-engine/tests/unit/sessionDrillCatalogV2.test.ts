@@ -22,7 +22,7 @@ describe("Session Model V2 DH drill catalogue — identity and isolation from V1
     expect(SESSION_DRILL_CATALOG_V2_VERSION).not.toBe(DRILL_CATALOG_VERSION);
   });
 
-  it("holds exactly the 21 V1 drillIds (v1_enriched) plus the later release's one V2-only drill (INT-01 compatibility), unique", () => {
+  it("holds exactly the 21 V1 drillIds (v1_enriched) plus the one V2-only alternative of P0-2, unique", () => {
     expect(V2).toHaveLength(22);
     const ids = V2.map((d) => d.drillId);
     expect(new Set(ids).size).toBe(22);
@@ -31,25 +31,24 @@ describe("Session Model V2 DH drill catalogue — identity and isolation from V1
     expect(Object.keys(SESSION_DRILL_CATALOG_V2)).toHaveLength(22);
   });
 
-  it("keeps the V1 skill, difficulty (as explicit technicalTier) and required terrain of each V1 drill (no exception here)", () => {
+  it("keeps the V1 skill, difficulty (as explicit technicalTier) and required terrain of each V1 drill — one HPM exception", () => {
     for (const d of V2.filter((x) => x.origin === "v1_enriched")) {
       const v1 = DRILL_CATALOG[d.drillId]!;
       expect(d.skill, d.drillId).toBe(v1.skillTarget);
       expect(d.technicalTier, d.drillId).toBe(v1.difficulty);
-      expect(d.requiredTerrain, d.drillId).toBe(v1.terrainRequirement);
+      // P0-2 (HPM 2026-10-13): a technical trail does not confirm an off-camber section; the rider declares one.
+      expect(d.requiredTerrain, d.drillId).toBe(d.drillId === "cornering_off_camber" ? "off_camber_section" : v1.terrainRequirement);
     }
   });
 });
 
 describe("Session Model V2 DH drill catalogue — metadata validity", () => {
-  it("uses the closed skill / tier / terrain vocabularies, with one reference drill per skill × tier (+ the one known alternative)", () => {
+  it("uses the closed skill / tier / terrain vocabularies, with one reference drill per skill × tier (+ at most one explicit alternative)", () => {
     for (const d of V2) {
       expect(DH_SKILLS_V2, d.drillId).toContain(d.skill);
       expect(DH_TECHNICAL_TIERS_V2, d.drillId).toContain(d.technicalTier);
-      expect(() => assertValidTerrainAccess([d.requiredTerrain]), d.drillId).not.toThrow();
-      // INT-01 compatibility — read-side terrains: declarable, always starting with the drill's own required terrain.
+      // Every terrain a drill can be ridden on is a declarable terrain (the validation's closed vocabulary).
       expect(() => assertValidTerrainAccess([...d.compatibleTerrains]), d.drillId).not.toThrow();
-      expect(d.compatibleTerrains[0], d.drillId).toBe(d.requiredTerrain);
     }
     for (const skill of DH_SKILLS_V2) {
       for (const tier of DH_TECHNICAL_TIERS_V2) {
@@ -58,6 +57,7 @@ describe("Session Model V2 DH drill catalogue — metadata validity", () => {
         expect(pair.filter((d) => d.alternativeFor !== undefined).length, `${skill}/${tier}`).toBeLessThanOrEqual(1);
       }
     }
+    // The only alternative (P0-2, HPM option E) stands in for the off-camber drill.
     expect(V2.filter((d) => d.alternativeFor !== undefined).map((d) => [d.drillId, d.alternativeFor])).toEqual([["cornering_advanced_line_exit", "cornering_off_camber"]]);
   });
 

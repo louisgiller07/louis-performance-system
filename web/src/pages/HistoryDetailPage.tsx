@@ -8,6 +8,9 @@ import { HistoryDetail } from "../features/history/HistoryDetail";
 import { loadDecisionById, loadCompletedSessionsForDates } from "../features/history/historyRepo";
 import type { DecisionHistoryRow } from "../features/history/historyTypes";
 import { matchPerformedSession, type PerformedMatch } from "../features/history/historyPerformedMatch";
+import { loadDayExecutions, loadExecutionPrescription } from "../features/guidedSession/executionRepo";
+import { phaseOf } from "../features/guidedSession/executionState";
+import { splitDayExecutions, type GuidedRealisation } from "../features/history/guidedHistory";
 
 type LoadState = "loading" | "success" | "not_found" | "error";
 
@@ -25,6 +28,7 @@ export function HistoryDetailPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [row, setRow] = useState<DecisionHistoryRow | null>(null);
   const [performedMatch, setPerformedMatch] = useState<PerformedMatch>({ kind: "none" });
+  const [guided, setGuided] = useState<GuidedRealisation>({ attempts: [], otherDecisionIds: [] });
 
   useEffect(() => {
     if (!athleteId || !decisionId) return;
@@ -43,9 +47,21 @@ export function HistoryDetailPage() {
         // meant for a batched/historical read). Failure here is treated the
         // same as a decisions-load failure — no partial/degraded success
         // state, matching the page's existing all-or-nothing convention.
-        const sessions = await loadCompletedSessionsForDates(athleteId, [result.decisionDate]);
+        // P0-4 — the day's guided V2 executions (RLS, with events and results) and, for the ones started from
+        // THIS decision, their own frozen final prescription. Same all-or-nothing convention: a failed read is
+        // the error state, never "nothing recorded".
+        const [sessions, executions] = await Promise.all([loadCompletedSessionsForDates(athleteId, [result.decisionDate]), loadDayExecutions(athleteId, result.decisionDate)]);
+        const { mine, otherDecisionIds } = splitDayExecutions(result.id, executions);
+        const attempts = await Promise.all(
+          mine.map(async (execution) => ({
+            execution,
+            phase: phaseOf(execution),
+            prescription: execution.final_prescription_id ? await loadExecutionPrescription(execution.final_prescription_id) : null,
+          }))
+        );
         if (!active) return;
         setPerformedMatch(matchPerformedSession(result.id, result.decisionDate, sessions));
+        setGuided({ attempts, otherDecisionIds });
         setRow(result);
         setState("success");
       })
@@ -100,7 +116,7 @@ export function HistoryDetailPage() {
             <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-ink">{formatCalendarDate(row.decisionDate)}</h1>
             <p className="mt-1 text-sm text-muted">{`Décision de ${formatLocalTime(row.createdAt)}`}</p>
           </div>
-          <HistoryDetail row={row} performedMatch={performedMatch} />
+          <HistoryDetail row={row} performedMatch={performedMatch} guided={guided} />
         </>
       )}
     </PageShell>

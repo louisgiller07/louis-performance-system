@@ -75,7 +75,7 @@ function PassRow({ slot, isCurrent, canEdit, busy, entryOpen, onOpen, children }
         {isCurrent && <p className="text-xs font-semibold uppercase tracking-wide text-gold">{DH_COPY.current}</p>}
       </div>
       <p className="text-sm text-ink/80" data-testid="pass-result">
-        {r ? `${DH_COPY.recorded} · Critère atteint : ${SUCCESS_LABELS[choiceOf(r.success)]}${r.supersedes_id ? ` · ${DH_COPY.corrected}` : ""}` : DH_COPY.noResult}
+        {r ? `${DH_COPY.recorded} · Critère atteint : ${SUCCESS_LABELS[choiceOf(r.success)]}${r.supersedes_id ? ` · ${DH_COPY.corrected}` : ""}` : canEdit ? DH_COPY.noResult : DH_COPY.noResultRecorded}
       </p>
       {canEdit && !entryOpen && (!r || isCorrectable(r)) && (
         <SecondaryButton onClick={onOpen} disabled={busy} className="min-h-12 w-full" aria-label={`${r ? "Modifier" : "Enregistrer"} le passage ${slot.ordinal}`}>
@@ -173,7 +173,7 @@ export function DhSessionModule({ prescription, executionId, setResults, editabl
               {showPasses && (
                 <ol className="flex flex-col gap-2" aria-label={`Passages — ${drill.name}`}>
                   {progress.slots.map((slot) => (
-                    <PassRow key={slot.ordinal} slot={slot} isCurrent={progress.current === slot} canEdit={canEdit} busy={busy} entryOpen={form !== null} onOpen={() => open(slot)}>
+                    <PassRow key={slot.ordinal} slot={slot} isCurrent={canEdit && progress.current === slot} canEdit={canEdit} busy={busy} entryOpen={form !== null} onOpen={() => open(slot)}>
                       {form && form.ordinal === slot.ordinal && (
                         <PassForm
                           form={form}

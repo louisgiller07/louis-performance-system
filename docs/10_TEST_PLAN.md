@@ -684,6 +684,25 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - Exécution sans prescription du jour : non concernée.
 - Endurance : `activity_result_required` inchangé. Force : voir T38 (F-6C).
 
+### T57. P0-3 — séances manuelles V2 et contrat `persist_daily_run_v2` (HPM 2026-10-13)
+- **Unitaires** (`planning-engine/tests/unit/p0_3ManualFinalPrescription.test.ts`) : Force haut du corps / jambes (type, matériel, dose LIGHT 45 / MODERATE 60), HEAVY refusée, types sans builder refusés, REST, date hors version, sans contexte V2, DH sans créneau vélo, lignée obsolète ignorée, action = décision (keep sans règle / modify / replace), A10 (30 → récupération active, 60 → DH 60, Force 45 → LIGHT, 90 → tient), déterminisme.
+- **Intégration base locale, schéma de production + migration candidate** :
+  - `p0_3Repro.integration.test.ts` : référence R1–R5 (V1 inchangé, R2 Force persistée, R4 adaptée, R5 inchangé, F3 lignée vidée sous RLS) ;
+  - `p0_3ManualSessions.integration.test.ts` : Force manuelle persistée (`keep`, origine manuelle) et séance guidée démarrée puis terminée ; A6 → REST sans prescription ; verrous (séance commencée : nouvelle séance refusée `active_execution_exists`, la séance en cours se termine ; jour terminé : `session_already_completed` ; démarrage double idempotent ; décision dépassée : `final_prescription_not_current`) ; rejeu (même contenu, aucune prescription réécrite) ;
+  - `p0_3PersistContract.integration.test.ts` : charge utile réelle acceptée ; refusés sans aucune écriture : origine déclarée `generated` / `manual_override_same_kind`, `keep` avec règle, action ≠ décision, sans séance source, séance d'un autre athlète, version obsolète de la séance, version de plan d'un autre athlète ou absente, envoi pour un autre athlète, origine manuelle sur une séance générée ; `keep` généré inchangé.
+- **Edge, runtime local** (même fichier, `RUN_LOCAL_P0_EDGE=1`) : `daily-run` avec le JWT du rider (Force manuelle `created`, DH 90 + 30 min adaptée et tracée) et `session-execution` (démarrage).
+- **Web** : `p0_3ManualSessions.test.tsx` (V1 : « seuls son type et sa charge sont connus » ; refus manuels V2 précis ; mentions de `/plan`), `planningRepo.test.ts` (verrou de jour, F3, refus serveur `NX201` → même erreur), check-in (le commentaire ne modifie pas la séance).
+- **Verrou serveur (GO L1, `p0_3PlannedSessionLock.integration.test.ts`)** : écritures réelles du rider (PostgREST, JWT) sur un jour commencé : modification, upsert du web, suppression, déplacement hors du jour et vers le jour → `NX201`, rien ne change ; jour V2 terminé et jour V1 terminé refusés, jour V1 `skipped` et jour seulement abandonné modifiables, redémarrage après abandon. **Concurrence sur deux connexions PostgreSQL indépendantes** (la seconde observée en attente sur le verrou consultatif) : démarrage d'abord → UPDATE / DELETE du rider refusés ; écriture d'abord → démarrage refusé `final_prescription_not_current` ; deux onglets (suppression / upsert, upsert / suppression, upsert / upsert) → les deux validées, dernière écriture gagnante ; 20 tours de deux écritures simultanées → 0 échec, 0 interblocage ; acceptation d'un programme pendant une séance en cours, après une séance terminée et pendant un démarrage → jours gardés (`skipped_completed`), le reste projeté, aucun avertissement, décisions et prescriptions intactes, décisions du jour toujours courantes ; purge concurrente dans les deux ordres → sans interblocage ; purge d'un compte avec séances V1 / V2 terminées, une en cours et lignée générée → complète ; aucun contournement par l'API (`set_config`, fonction d'aide, fonction de trigger, purge), isolation REPEATABLE READ refusée (`NX202`). Après chaque scénario : aucune exécution en cours ou terminée dont la séance prévue diffère de celle de sa décision.
+- **Suspension santé (`p0_3HealthSuspendedExecution.integration.test.ts`, Edge local, JWT du rider, lignes persistées)** : séance DH commencée, un passage, douleur 8/10 → REST A6 → nouveau passage, correction, reprise, clôture avec ou sans résultat refusés `health_suspended` ; pause, rejeux et abandon acceptés ; résultats antérieurs intacts. Avant tout nouveau daily-run : check-in modifié → `daily_decision_not_current` ; signal ouvert d'un autre jour → `health_suspended`. A1, A2, A3, A4 → refus. REST ordinaire (protocole de course, couche B) → la séance continue jusqu'à la fin. Séance terminée avant la suspension → figée. Jour gardé par un nouveau programme puis daily-run relancé (KEEP bloqué) → pas de suspension.
+- **Contre-preuve jour gardé (`p0_3KeptDayRerun.integration.test.ts`, Edge, date du jour)** : séance en cours / terminée, nouveau programme accepté, daily-run relancé → une seule exécution, rien de réécrit, aucune nouvelle prescription.
+- **Web** : `daySessionEntry` / `DaySessionEntryCard` (Aujourd'hui : reprendre, suspendue, terminée · consulter, ouvrir, rien — depuis les exécutions du jour), `healthBlock` (miroir de la règle serveur), `/today/session` sous suspension ou décision périmée (rechargement, navigation directe, refus serveur pendant l'écran ouvert, arrêt sûr, tentative arrêtée consultable), `p0_3HealthSuspension.integration.test.ts` (chargeur et client web réels, Edge réelle).
+
+### T58. P0-4 — historique et résultats des séances guidées (HPM 2026-10-13)
+- **Reproduction** (`head-coach-engine/tests/supabase/p0_4HistoryRepro.integration.test.ts`, schéma de production, Edge locale, JWT du rider) : DH terminée (5 passages), Force terminée (7 séries), DH arrêtée (2 passages), séance V1 historique ; séance laissée ouverte, arrêt suivi d'un REST A6, jour REST sans séance, second rider. Conservée comme preuve de non-régression.
+- **Web unitaires** : détail de l'historique (`HistoryDetailPage.test.tsx`) — Force terminée (statut, prescription figée, correction appliquée, créneau vide « Aucun résultat enregistré », aucune saisie), DH arrêtée (passages et critère), séance en cours, séance d'une autre décision du jour (explication et lien), priorité V1, ancien catalogue (valeurs lisibles, note neutre), lecture échouée → erreur de page (jamais « Pas de séance enregistrée ») ; liste et bilan (`historyDays.test.ts`, `HistoryPage.test.tsx`) — séance arrêtée (y compris sous un REST santé, P0-3 O1), séance ouverte un jour passé, distinction enregistrées / arrêtées (partielles) / non enregistrées ; modules guidés en lecture seule (Force, DH).
+- **Intégration web, base locale** (`p0_4GuidedHistory.integration.test.tsx`) : vraie page de détail sous RLS avec une séance Force réellement enregistrée ; autre rider : décision introuvable, exécutions et prescription illisibles.
+- **Navigateur réel** (Chromium mobile, pile locale) : DH 5/5, Force 7/7 après changement de programme, DH arrêtée 2/2, V1 inchangée, séance en cours, décision plus récente du même jour (lien), arrêt puis REST A6, jour REST, rechargement et accès direct identiques, autre rider « Journée introuvable » sans fuite.
+
 ### T59. INT-01 R2 — compatibilité de rollback du catalogue V2 (version C, HPM 2026-10-13)
 - **Unitaires planning-engine (C)** (`int01CompatLaterPlans.test.ts` ; invariants `sessionDrillCatalogV2`, `intentCatalogV2`, `sessionModelV2Builders`) :
   - la génération ne sélectionne jamais le drill v2_only `cornering_advanced_line_exit` : toutes compétences × niveaux × 1 024 ensembles de terrains déclarables, `off_camber_section` compris ; drill de référence si son `requiredTerrain` est déclaré, sinon blocage ;
@@ -709,6 +728,69 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
   - Contre-épreuve : avec le `session-execution` de production, les refus santé remontent en 500 (« connexion » à l'écran).
 - **Non-régression obligatoire** : suites de C (planning, prescription, head-coach DB et Edge, web avec intégrations, longitudinal), `build:release:all`. Inventaire Edge attendu : seuls `daily-run` et `generate-training-plan` diffèrent de la production.
 
+### T61. INT-01 — débrief legacy après une tentative guidée arrêtée hors santé (HPM 2026-10-13, migration `20261013190000`)
+- **Reproduction avant correctif** (pile locale, rider de simulation) : tentative V2 arrêtée avec résultats, jour ordinaire. « Terminée », « Partielle » et « Remplacée » acceptées (200). Effets : `completed_sessions` avec charge, charge récente M1 AMBER incluant ces séances, Historique « ✓ Séance réalisée » au lieu de la séance arrêtée, compteur de séances du parcours augmenté. Séance guidée terminée : déjà refusée (`completed_session_v2_exists`).
+- **Intégration** (`int01DebriefHealthGuard.integration.test.ts`, scénario 7, Edge locale, JWT du rider), jours DH et Force :
+  - tentative arrêtée avec 2 résultats : « Terminée », « Partielle », « Remplacée », « Non réalisée » → 409 `guided_results_exist` ; aucune ligne `completed_sessions` ; exécution et résultats intacts ; `buildRawContext` : aucune entrée `recent_sessions` pour ce jour (charge M1) ;
+  - tentative arrêtée sans résultat : « Terminée » acceptée (UX-11R.9) ;
+  - séance guidée terminée, ou ouverte : 409 `completed_session_v2_exists` ;
+  - débrief normal sans séance guidée : accepté.
+- **Contre-preuve** : avec le script de rollback `20261013190000`, le contournement revient (200) ; ré-application identique (empreinte de `persist_completed_session` stable).
+- **Rollback hybride vers C** (SQL conservé, `completed-session` et `session-execution` du candidat, autres Edge C) : T60 7/7, 0 erreur Edge.
+- **Web** :
+  - `AfterSessionEntry.test.tsx` : tentative arrêtée avec résultats → « Séance guidée arrêtée » et lien, sans invitation ; débrief legacy antérieur lisible, sans « Modifier » ; REST Safety du jour et tentative arrêtée sans résultat → « Non réalisée » seule, avec la note ; jour ordinaire → quatre choix ; sous suspension → « Séance suspendue » ;
+  - `historyRepo.test.ts` : état `stopped_with_results` (série ou activité), `loadDaySafetyRest` (REST Safety du jour seulement, repos ordinaire exclu) ;
+  - `completedSessionErrors.test.ts` : message `guided_results_exist`.
+- **Navigateur** (pile locale, web candidat, 390 px) : jour ordinaire arrêté avec 3 résultats et jour REST Safety clôturé avec 2 résultats → carte « Séance guidée arrêtée », pas d'invitation ; REST Safety, tentative sans résultat, signal clôturé → « Non réalisée » seule, enregistrée (200 `skipped`) ; Historique inchangé.
+
+### T60. INT-01 — garde santé du débrief legacy (HPM 2026-10-13, migration `20261013180000`)
+- **Intégration, Edge locale, JWT du rider** (`head-coach-engine/tests/supabase/int01DebriefHealthGuard.integration.test.ts`) :
+  1. séance guidée commencée, douleur 8/10 (A6), arrêt : « Terminée » refusée (`health_suspended`), aussi liée à la décision KEEP du matin ;
+  2. « Partielle » et « Remplacée » refusées ; rejeu refusé à l'identique ;
+  3. exécution intacte (`started > abandoned`, 2 résultats) ;
+  4. aucune ligne `completed_sessions`, donc aucune charge M1 ;
+  5. signal ouvert un jour précédent, avant le daily-run du jour : « Terminée » refusée, « Non réalisée » sans résultat guidé acceptée ;
+  6. signal clôturé après l'arrêt (et nouvelle décision ordinaire) : « Terminée », « Partielle » et « Remplacée » toujours refusées, « Non réalisée » refusée (`guided_results_exist`) ;
+  7. jours ordinaires inchangés : « Terminée » sans séance guidée ; « Terminée » ou « Non réalisée » après un arrêt hors santé ; séance ouverte toujours `completed_session_v2_exists` ;
+  8. jour de repos ordinaire (KEEP d'un REST planifié, sans règle Safety) : débrief accepté ;
+  9. couvert par les cas ci-dessus ;
+  10. isolation (décision d'un autre rider 422), aucun appel direct possible (RPC, fonction d'aide, insertion, anonyme) ; concurrence débrief « Terminée » / démarrage guidé : un seul gagnant, sous le verrou commun.
+- **Contre-preuve** : avec la fonction restaurée par le script de rollback, les scénarios 1, 5 et 6 échouent (« Terminée » acceptée, 200) ; avec la migration, 7/7.
+- **Edge** (`tests/edge/completedSession/apiErrors.test.ts`) : NX102 / NX103 / NX104 → 409 avec leur code ; tout autre SQLSTATE reste un 500.
+- **Web** (`completedSessionErrors.test.ts`) : un message clair et non relançable par code.
+- **Navigateur** (pile locale, web candidat) : séance arrêtée sous A6, puis signal clôturé et relance KEEP. « Raconter ma séance » → « Terminée » refusée avec message, « Non réalisée » refusée avec message ; historique « Séance guidée arrêtée », 2/6 passages avec résultats.
+- **Rollback C** (SQL de sécurité conservé, `session-execution` et `completed-session` du candidat conservés, autres Edge C) : 7/7. Contre-épreuve : avec le `completed-session` de C, les refus tiennent mais remontent en 500 `persistence_failed`.
+- **SQL** : empreintes avant / après (`persist_completed_session` : même signature, INVOKER, `search_path`, droits) ; script de rollback (corps identique à `20261005120500`, fonction d'aide supprimée) ; ré-application identique.
+
+### T63. P0-SEC-TRIGGER — aucun TRIGGER pour les rôles d'API du navigateur (migration `20261014120000`)
+- **Intégration** (`head-coach-engine/tests/supabase/p0SecTrigger.integration.test.ts`, 24 cas, cible vérifiée par le harnais QA-ISOLATION-01) :
+  - catalogue : aucune table `public` n'accorde TRIGGER à `anon`, `authenticated` ni `PUBLIC` ; `service_role` (10 tables) et REFERENCES inchangés ;
+  - 18 `CREATE TRIGGER` refusés (2 rôles × 9 tables), chaque essai dans une transaction annulée, sans trigger résiduel ; `service_role` peut toujours créer ;
+  - une nouvelle table créée par `postgres` n'accorde pas TRIGGER à `anon` ni à `authenticated`, mais leur accorde SELECT ;
+  - les triggers existants fonctionnent : `updated_at` sur les écritures RLS du rider, protection en ajout seul sur une version de plan ;
+  - la purge serveur reste intacte.
+- **Empreintes** : les 62 triggers applicatifs sont identiques avant et après ; seules 20 lignes d'ACL changent (droit `t`).
+- **Contre-preuve** : sans la migration, 20 cas sur 24 échouent.
+- **Rollback** : droits d'avant restaurés, et création de trigger de nouveau possible pour `anon` (dangereux, prouvé). La ré-application est identique.
+- **Fail closed** : une table hors inventaire, ou des privilèges par défaut qui accordent encore TRIGGER, font échouer la migration.
+- **Indépendance** : la migration s'applique sans P0-SEC-TRUNCATE.
+- **Rollback vers C** : vert, avec le SQL conservé.
+
+### T62. P0-SEC-TRUNCATE — aucun TRUNCATE pour les rôles d'API du navigateur (migration `20261014090000`)
+- **Intégration** (`head-coach-engine/tests/supabase/p0SecTruncate.integration.test.ts`, 24 cas, sur une cible vérifiée) :
+  - catalogue : aucune table `public` n'accorde TRUNCATE à `anon` ni à `authenticated` ; `service_role` inchangé (10 tables) ; aucun droit `PUBLIC` ;
+  - seul TRUNCATE change : les droits de `anon` et `authenticated` sur `athletes` sont ceux de UX-11R.3.1 ; TRIGGER et REFERENCES restent sur les 9 tables de la baseline ;
+  - 18 refus `permission denied` (2 rôles × 9 tables), chaque essai dans une transaction annulée ;
+  - `service_role` garde TRUNCATE (essai annulé), et DELETE couvre les mêmes tables ;
+  - une nouvelle table créée par `postgres` n'accorde pas TRUNCATE à `anon` ni à `authenticated`, mais leur accorde SELECT ;
+  - les écritures RLS du rider (insertion, mise à jour, lecture, suppression) fonctionnent ; `anon` ne lit rien ;
+  - la purge serveur supprime les données du rider, et le témoin reste intact.
+- **Non-régression** : `athletesDeleteGrant` (TRUNCATE retiré pour `anon` et `authenticated`), P0-SAFE, P0-3, INT-01 (T60, T61), Edge, purge, sur une stack contenant les 72 migrations dans l'ordre réel, et dans la configuration de rollback vers C.
+- **Contre-preuve** : sans la migration, 21 cas sur 24 échouent.
+- **Rollback** : empreinte complète des droits identique à l'état d'origine (TRUNCATE de nouveau possible pour `anon`, prouvé) ; ré-application identique à l'état après migration.
+- **Fail closed** : une table hors inventaire, ou des privilèges par défaut qui accordent encore TRUNCATE, font échouer la migration (prouvé dans des transactions annulées).
+- **Privilèges par défaut** : `postgres` ne peut pas modifier ceux de `supabase_admin` (prouvé) ; une table créée par `supabase_admin` garde TRUNCATE (limite documentée).
+
 ### T55. P0-SAFE — continuité santé dans la décision quotidienne
 - **Unitaires M1** (`head-coach-engine/tests/p0SafeHealthContinuity.test.ts`) : A6 (incident A, seuil 6 / contre-preuve 5, ordre A1-A4 inchangé) ; A7 (incident B, maladie, douleur persistante, plusieurs signaux, signal résolu ignoré, date absente jamais inventée, A7 avant A5, textes des autres règles inchangés, aucun jeton interne) ; fatigue sans signal jamais bloquée.
 - **Intégration base locale** (`p0SafeHealthContinuity.integration.test.ts`, chemin V2 réel) : incident A (DH manuelle 2/10 puis 8/10) ; incident B (J+1, J+2 ; fièvre puis J+1) ; douleur forte puis 2/10 le lendemain ; clôture explicite, persistée, auditée, puis reprise (Force et DH, nouvelle décision) ; clôture d'un signal d'autrui → introuvable ; commotion → validation médicale requise ; remplacement manuel par une DH → REST ; prescription antérieure au REST non démarrable ; douleur légère et fatigue jamais bloquantes.
@@ -716,6 +798,36 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Web** : `bodyStatus.test.ts` (trois états, raisons, « Coaching suspendu » pour A6 / A7 seulement), `HealthFlagBanner.test.tsx` (commotion inchangée, zones toutes nommées, déclaration simple, attestation obligatoire pour un signal grave, confirmation de chaque zone, annulation, refus serveur, aucun identifiant brut).
 - **Politique de clôture (HPM)** : signal grave (A2 / A4) refusé sans attestation, consultation ≠ autorisation ; signal simple (A3, A6) sur déclaration ; blessures multiples (genou puis poignet) : clôture partielle refusée, poignet protégé, clôture complète avec toutes les zones ; signal ancien sans preuve ; `inspect` ; HTTP 409 avec exigences.
 - **Gate de release** : environnement isolé au schéma de production (66 migrations) : reproduction sur l'ancienne version (échecs attendus), hotfix vert, suite complète du hotfix, parcours navigateur ; train A12 + hotfix.
+
+### T54. P0 première génération — compatibilité terrain des drills DH V2
+- **Unitaires** (`planning-engine/tests/unit/p0FirstGeneration.test.ts`) :
+  - règle HPM exacte (virages relevés : relevés, bike park, piste DH ; jamais technique, racines et rochers ni flow trail) ;
+  - aucun autre drill élargi que ceux de P0 et de P0-2 (T56) ;
+  - compatibilité sportive liée aux textes validés ;
+  - profil débutant flow trail seul (freinage débutant sur flow trail ; `race_execution_section_consistency` élargi au flow trail par P0-2, T56) ;
+  - profil de la review ;
+  - **non-régression exhaustive** (7 compétences × 3 niveaux × 4 charges × 512 ensembles de terrains : même drill partout où l'ancienne règle en donnait un).
+- **Intégration base locale** :
+  - `p0FirstGeneration.integration.test.ts` : les 4 tentatives de la review générées ;
+  - `p0FirstGenerationMatrix.integration.test.ts` : profils A–E sur le vrai chemin, avec contrôle du contenu (terrain et niveau des drills, matériel et niveau de la force, créneaux par activité et par durée, doublons, première semaine, relecture, rejeu idempotent) et attentes par profil.
+- **Edge, runtime local** (`p0FirstGenerationEdge.integration.test.ts`, V2 activé) : A et B générés au premier appel, rejeu idempotent ; E en 422 avec les terrains compatibles, rien de persisté.
+- **Web** (`p0TerrainRefusal.test.ts`) : message précis et honnête (un ou plusieurs terrains).
+
+### T56. P0-2 — compatibilité des terrains DH et alternative explicite (HPM 2026-10-13, option E)
+- **Unitaires, catalogue et sélection** (`planning-engine/tests/unit/p0_2DhTerrainCompatibility.test.ts`) :
+  - catalogue exact = base `7fb2da1` + changements P0-2 ; terrain de référence en premier ; tous les terrains déclarables (validation partagée) ;
+  - option E : une seule alternative (`cornering_advanced_line_exit` pour `cornering_off_camber`), même compétence et niveau, sans intensité course ; textes sans dévers, relevé, pédalage, point de corde tardif, relâchement ni accélération imposés ; intention propre ;
+  - le dévers seulement avec « Virages en dévers » déclaré ; ni le sentier technique ni la piste DH ne le confirment ; sans virage disponible (pierrier seul) : refus listant les terrains du drill de référence et de l'alternative ;
+  - incompatibilités conservées : dévers, pente raide (3 drills, pente technique raide seule), racines et rochers, pierrier, sauts, virage relevé ;
+  - **non-régression exhaustive** contre `7fb2da1` (1024 ensembles de terrains × 7 compétences × 3 niveaux × 4 charges) : même drill partout, sauf **une** différence documentée (virages avancés sans dévers déclaré → alternative) ; tout cas nouvellement accepté passe par un terrain ajouté ;
+  - matrice terrains × niveaux avant → après ; profils A–E et E avec dévers déclaré au constructeur DH (toutes séances d'un cycle, toutes charges).
+- **Unitaires, invariants mis à jour** : `sessionDrillCatalogV2.test.ts` (21 drills V1 + 1 V2, une référence par couple, au plus une alternative, exception de parité du dévers), `sessionModelV2Builders.test.ts`, `intentCatalogV2.test.ts` (intention propre au drill), `p0FirstGeneration.test.ts`.
+- **Unitaires, anciens plans** (`p0_2OldPlanCompatibility.test.ts`) : plan au contenu de la base (dévers), adapté pour un rider sans dévers déclaré : versions inchangées, KEEP à l'identique, MODIFY LIGHT et A10 autorisés avec le même drill, REPLACE DH → DH léger dérivé du stocké, REPLACE Force → DH reconstruit (alternative), prescription planifiée jamais réécrite ; nouveau plan → alternative et son intention.
+- **Intégration base locale** :
+  - `p0_2DhTerrainMatrix.integration.test.ts` : profils A–E et E' (dévers déclaré) sur le vrai chemin de génération : premier essai, contenu conforme (règles de T54), drills attendus, relecture, rejeu idempotent ;
+  - `p0_2OldPlanDaily.integration.test.ts` : plan dévers stocké puis profil sans dévers, daily-run réel : KEEP à l'identique, MODIFY créé (jamais `final_prescription_catalog_mismatch`), même drill, 4 passages, lignage, prescription planifiée intacte.
+- **Edge, runtime local** (opt-in `RUN_LOCAL_P0_EDGE=1`) : A–E et E' en 200 au premier appel, rejeu idempotent ; racines et rochers sur piste DH seule en 422.
+- **Web** : `p0_2DhTerrain.test.ts` (prescription v2.6 stockée toujours décodée ; dévers affiché à l'identique ; nouveau drill avec son nom, ses textes et son intention), `performanceSetupOptions.test.ts` (terrain « Virages en dévers »), miroir des textes régénéré.
 
 ### T48. A09 — gestion minimale des courses
 - **Web** (`races/raceForm.test.ts`, `races/RacesSection.test.tsx`, `PerformanceSetup.test.tsx`) :

@@ -23,7 +23,7 @@
 // semantics would otherwise silently null it out on every edit.
 import { withSupabase } from "@supabase/server";
 import { validateCompletedSessionBody, validateDateParam } from "./validation.ts";
-import { classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE, hasNonAbandonedExecution } from "./apiErrors.ts";
+import { classifyHealthGuardRefusal, classifyMissingReadback, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE, COMPLETED_SESSION_V2_EXISTS_SQLSTATE, hasNonAbandonedExecution } from "./apiErrors.ts";
 import { recordPilotEvent } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
 
@@ -293,6 +293,11 @@ export default {
       // precheck above). Mapped by code, never by message text.
       if (rpcError.code === COMPLETED_SESSION_V2_EXISTS_SQLSTATE) {
         return fail(409, COMPLETED_SESSION_V2_EXISTS, COMPLETED_SESSION_V2_EXISTS_MESSAGE);
+      }
+      // INT-01 — the RPC's health guard: an expected business refusal, mapped by SQLSTATE.
+      const healthRefusal = classifyHealthGuardRefusal(rpcError.code);
+      if (healthRefusal !== null) {
+        return fail(healthRefusal.status, healthRefusal.code, healthRefusal.message);
       }
       // Never parsed or classified beyond this generic code — see
       // docs/11_DECISION_LOG.md (M5_003) for why: our own preflight above

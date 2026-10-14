@@ -19,13 +19,12 @@ import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, TEST_DB_CONTAINER, type TestAthlete } from "./testDb.js";
+import { createTestAthlete, createTestClient, insertCompletedSession, insertDecision, testDbContainer, type TestAthlete } from "./testDb.js";
 
-const DB_CONTAINER = TEST_DB_CONTAINER;
 
 /** Pipes `sql` into the local Supabase Postgres container via `docker exec -i ... psql` — the same pattern already established for this project's preflight scripts. Returns combined stdout+stderr (psql sends ERROR lines to stderr, not stdout). */
 function runPsql(sql: string): string {
-  const result = spawnSync("docker", ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=0"], {
+  const result = spawnSync("docker", ["exec", "-i", testDbContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=0"], {
     input: sql,
     encoding: "utf8",
   });
@@ -47,7 +46,7 @@ function runPsql(sql: string): string {
  * unrelated downstream assertion.
  */
 function runPsqlChecked(sql: string, extraArgs: readonly string[] = []): { stdout: string; stderr: string } {
-  const result = spawnSync("docker", ["exec", "-i", DB_CONTAINER, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", ...extraArgs], {
+  const result = spawnSync("docker", ["exec", "-i", testDbContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", ...extraArgs], {
     input: sql,
     encoding: "utf8",
   });

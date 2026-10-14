@@ -59,7 +59,23 @@ export const EDITOR = {
   remove: "Retirer cette séance",
   removeHint: "Le jour redevient libre.",
   genericError: "Une erreur est survenue. Réessaie dans un instant.",
+  // P0-3 — what NALYNT will really do with a session added or changed by hand (never a false promise).
+  manualV1Hint: "Sur ton programme actuel, une séance ajoutée à la main n'a pas de contenu détaillé : NALYNT n'en connaît que le type et la charge.",
+  manualV2UnsupportedHint: "NALYNT ne construit pas encore le contenu de ce type de séance : seuls son type et sa charge seront connus.",
+  manualV2HeavyHint: "NALYNT ne construit pas encore le contenu d'un renfo en charge lourde : choisis une charge modérée ou légère pour obtenir le détail de la séance.",
 } as const;
+
+/** P0-3 — the kinds (and loads) for which the V2 daily engine builds a manual session's content (mirror of planning-engine's REPLACE builders). */
+export const MANUAL_V2_BUILT_KINDS: readonly string[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "DH_LIGHT", "AEROBIC_BASE", "RECOVERY_ACTIVE", "REST"];
+
+/** P0-3 — the honest note shown before saving a manual session; null when NALYNT will build its content (or the model is unknown). */
+export function manualSessionHint(planModel: "v1" | "v2" | null, kind: string, load: string | null): string | null {
+  if (kind === "" || kind === "REST" || planModel === null) return null;
+  if (planModel === "v1") return EDITOR.manualV1Hint;
+  if (!MANUAL_V2_BUILT_KINDS.includes(kind)) return EDITOR.manualV2UnsupportedHint;
+  if ((kind === "STRENGTH_LOWER" || kind === "STRENGTH_UPPER") && load === "HEAVY") return EDITOR.manualV2HeavyHint;
+  return null;
+}
 
 /** The plan's own session for one date, as the athlete sees it (kind/load/duration from the active plan read — never computed). */
 export interface PlanDaySession {

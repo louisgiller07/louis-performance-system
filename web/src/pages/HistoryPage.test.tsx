@@ -293,3 +293,21 @@ describe("HistoryPage — UX-11R.9 a day completed as a guided session", () => {
     expect(screen.queryByText("Séance non enregistrée")).not.toBeInTheDocument();
   });
 });
+
+// P0-4 (HPM 2026-10-13) — a guided session stopped (results kept) reads as such, in the list and in the summary.
+describe("HistoryPage — P0-4 a stopped guided session", () => {
+  it("older day: the compact line says 'Séance guidée arrêtée'; the summary counts it apart (never recorded, never 'non enregistrée')", async () => {
+    mockedLoad.mockResolvedValue([historyDecision("d-old", "2026-09-10", "07:10", HISTORY_KEEP_PLAN)]);
+    mockedLoadGuided.mockResolvedValue([{ executionId: "exec-1", sessionDate: "2026-09-10", decisionId: "d-old", finalPrescriptionId: "fp-1", startedAt: "2026-09-10T17:00:00Z", events: ["started", "abandoned"] }]);
+    renderHistoryPage();
+    await screen.findByText(/Séance guidée arrêtée/);
+    const row = screen.getAllByRole("link").find((a) => a.getAttribute("href") === "/history/d-old")!;
+    expect(row).toHaveTextContent("Séance guidée arrêtée");
+    expect(row).not.toHaveTextContent("Séance guidée terminée");
+    const summary = screen.getByRole("region", { name: "Ton parcours" });
+    expect(summary).toHaveTextContent("1séance arrêtée (partielle)");
+    expect(summary).toHaveTextContent("0séances enregistrées");
+    expect(summary).not.toHaveTextContent("non enregistrée");
+  });
+});
+

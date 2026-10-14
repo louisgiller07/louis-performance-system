@@ -154,7 +154,7 @@ const ENTRIES: CoachingTextEntry[] = [
   criterion("criterion.cornering_berm_speed", "Sortie du virage relevé plus rapide que l'entrée, sans rattraper une glisse."),
   cue("cue.cornering_off_camber", "Engage ton poids côté aval du vélo et continue dans la section en dévers, sans lâcher en plein virage."),
   criterion("criterion.cornering_off_camber", "Section en dévers passée sur ta ligne, sans pied posé."),
-  // INT-01 compatibility — draft texts of the later release's V2-only drill (P0-2, not sport-approved): known, never generated here.
+  // P0-2 (HPM 2026-10-13) — draft texts of the general advanced cornering alternative, not yet sport-approved.
   cue("cue.cornering_advanced_line_exit", "Reconnais un virage à vitesse maîtrisée. Identifie tes repères d'entrée, de freinage, de trajectoire et de sortie. Choisis une ligne adaptée à la forme du virage et à l'adhérence, puis répète-la en recherchant davantage de fluidité et de précision, sans perdre le contrôle de la vitesse."),
   criterion("criterion.cornering_advanced_line_exit", "Trajectoire reproduite d'un passage à l'autre, freinage maîtrisé, sortie stable, sans correction d'urgence."),
   cue("cue.line_choice_two_line_scan", "Arrête-toi au-dessus d'une courte section, choisis une des deux lignes et roule exactement celle-là à vitesse contrôlée ; prends l'autre au passage suivant."),
@@ -223,7 +223,7 @@ const ENTRIES: CoachingTextEntry[] = [
   intent("intent.corner_exit_power", "Développer la capacité à accélérer après les sorties de virage."),
   intent("intent.dh_braking_control", "Freiner au bon endroit pour garder ta vitesse."),
   intent("intent.dh_corner_exit_speed", "Sortir des virages avec plus de vitesse."),
-  // INT-01 compatibility — the intent of that drill (draft, not sport-approved): known, never selected here.
+  // P0-2 — the intent of cornering_advanced_line_exit: no imposed speed increase (draft, not yet sport-approved).
   intent("intent.dh_corner_line_control", "Choisir et répéter une trajectoire propre, avec une sortie stable."),
   intent("intent.dh_line_reading", "Lire le terrain plus tôt et choisir ta ligne."),
   intent("intent.dh_steep_confidence", "Rester maître du vélo dans les pentes raides."),

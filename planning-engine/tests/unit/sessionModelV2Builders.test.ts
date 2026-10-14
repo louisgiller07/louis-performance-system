@@ -60,7 +60,7 @@ const DH_INPUT: DhPrescriptionV2Input = {
 const drillOf = (content: PrescriptionV2Content) => content.blocks.flatMap((b) => b.items).find((i) => i.kind === "drill");
 
 describe("DH catalogue invariant — exactly one drill per (skill, tier)", () => {
-  it("covers the 7 skills × 3 tiers with exactly one reference drill each (21) + the one known alternative, never selected; the selection is never 'the first compatible'", () => {
+  it("covers the 7 skills × 3 tiers with exactly one reference drill each (21) + the one P0-2 alternative; the selection is never 'the first compatible'", () => {
     expect(SESSION_DRILL_CATALOG_V2_ENTRIES).toHaveLength(22);
     for (const skill of DH_SKILLS_V2) {
       for (const tier of DH_TECHNICAL_TIERS_V2) {
@@ -132,7 +132,11 @@ describe("DH builder — rotation and selection", () => {
 
   it("the drill follows the declared tier", () => {
     const drills = DH_TECHNICAL_TIERS_V2.map((tier) => drillOf(buildDhPrescriptionV2Content({ ...DH_INPUT, dhTechnicalTier: tier })));
-    expect(drills.map((d) => d?.kind === "drill" && d.drillId)).toEqual(["cornering_flat_turn_precision", "cornering_berm_speed", "cornering_off_camber"]);
+    // P0-2 (HPM 2026-10-13): every terrain but no declared off-camber section → the general advanced alternative.
+    expect(drills.map((d) => d?.kind === "drill" && d.drillId)).toEqual(["cornering_flat_turn_precision", "cornering_berm_speed", "cornering_advanced_line_exit"]);
+    // With the off-camber section declared, the specific reference drill.
+    const confirmed = drillOf(buildDhPrescriptionV2Content({ ...DH_INPUT, dhTechnicalTier: "advanced", terrainAccess: [...DH_INPUT.terrainAccess, "off_camber_section"] }));
+    expect(confirmed?.kind === "drill" && confirmed.drillId).toBe("cornering_off_camber");
   });
 
   it("strengths and weaknesses never reach the builder: changing them changes nothing", () => {
@@ -186,8 +190,10 @@ describe("DH builder — locked blocks, never corrected", () => {
   });
 
   it("an unavailable terrain never falls back to another priority, tier or drill", () => {
-    // cornering/intermediate needs bermed_trail; the other priorities' drills would be available.
-    expect(blockedCode(() => buildDhPrescriptionV2Content({ ...DH_INPUT, terrainAccess: ALL_TERRAIN.filter((t) => t !== "bermed_trail") }))).toBe("unavailable_dh_drill_terrain");
+    // cornering/intermediate needs a bermed turn (bermed trail, bike park or full DH track — HPM 2026-10-12);
+    // without any of them it is blocked, although the other priorities' drills would be available.
+    const withoutBerms = ALL_TERRAIN.filter((t) => !["bermed_trail", "bike_park_jump_line", "full_dh_track"].includes(t));
+    expect(blockedCode(() => buildDhPrescriptionV2Content({ ...DH_INPUT, terrainAccess: withoutBerms }))).toBe("unavailable_dh_drill_terrain");
   });
 
   it("contract errors (not sport rules): wrong session kind, invalid ordinal, unknown skill", () => {

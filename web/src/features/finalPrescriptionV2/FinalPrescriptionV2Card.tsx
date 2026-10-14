@@ -5,7 +5,7 @@
 import { PlanSection } from "../../components/PlanSection";
 import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionRead";
 import type { BlockView, DrillItemView, ExerciseItemView, FinalPrescriptionV2State, FinalPrescriptionV2View } from "./finalPrescriptionV2Types";
-import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
+import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
 import { strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
 
 function Vigilances({ items }: { items: string[] }) {
@@ -112,6 +112,12 @@ export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { 
   );
 }
 
+/** P0-3 — the precise refusal of a manual session, from the blocked decision's detail.reason; null otherwise. */
+function manualBlockedMessage(detail: Record<string, unknown> | null): string | null {
+  const reason = detail?.reason;
+  return typeof reason === "string" && Object.prototype.hasOwnProperty.call(MANUAL_BLOCKED_MESSAGES, reason) ? MANUAL_BLOCKED_MESSAGES[reason]! : null;
+}
+
 /** Read-only view of today's V2 final prescription state (created, REST, blocked, or a fail-closed state). */
 export function FinalPrescriptionV2Card({ state }: { state: FinalPrescriptionV2State }) {
   switch (state.kind) {
@@ -127,7 +133,7 @@ export function FinalPrescriptionV2Card({ state }: { state: FinalPrescriptionV2S
       return (
         <PlanSection title="Ta séance">
           <p className="text-ink/80" data-code={state.code}>
-            {BLOCKED_MESSAGES[state.code] ?? BLOCKED_FALLBACK_MESSAGE}
+            {manualBlockedMessage(state.detail) ?? BLOCKED_MESSAGES[state.code] ?? BLOCKED_FALLBACK_MESSAGE}
           </p>
         </PlanSection>
       );

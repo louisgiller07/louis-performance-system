@@ -8,12 +8,16 @@
 // prescription, one original per slot) and the
 // loader's reading of the day (open execution with its frozen prescription,
 // else the current decision; abandoned attempt restartable while current).
+// P0-3: under `state.healthBlock` (health suspension / stale day decision) a new
+// execution, `resumed`, `completed` and new results are refused with that code;
+// pause, abandon and identical replays pass; the open execution carries it.
 // The real rules are covered against the real database by the integration
 // tests; this double only keeps the UI tests fast and deterministic.
 import { vi } from "vitest";
 import type { GuidedSessionDeps } from "../features/guidedSession/useGuidedSession";
 import { isTerminal, phaseOf, selectDayExecution, type ActivityResultRow, type ExecutionRow, type SetResultRow } from "../features/guidedSession/executionState";
 import type { GuidedSessionSnapshot } from "../features/guidedSession/guidedSessionLoader";
+import type { HealthBlock } from "../features/guidedSession/healthBlock";
 import type { SessionExecutionBatch, SessionExecutionResult } from "../features/guidedSession/sessionExecutionClient";
 import type { DrillItemView, ExerciseItemView, FinalPrescriptionV2View } from "../features/finalPrescriptionV2/finalPrescriptionV2Types";
 import { decodeFinalPrescriptionV2 } from "../features/finalPrescriptionV2/decodeFinalPrescriptionV2";
@@ -54,6 +58,8 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
     /** Next posts fail with a network error; "landed" = the server committed before the reply was lost. */
     networkFailures: [] as Array<"landed" | "lost">,
     posts: [] as SessionExecutionBatch[],
+    /** P0-3 — the server's execution_health_block for the day (null: nothing blocks). */
+    healthBlock: null as HealthBlock | null,
   };
   const prescriptions = new Map<string, FinalPrescriptionV2View>();
   for (const p of [initial.prescription, ...extra]) if (p) prescriptions.set(p.id, p);
@@ -79,6 +85,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       } else {
         if (x.final_prescription_id !== state.current.prescription?.id) throw new Rejected(refuse("final_prescription_not_current"));
         if (executions.some((e) => !isTerminal(phaseOf(e)))) throw new Rejected(refuse("active_execution_exists"));
+        if (state.healthBlock) throw new Rejected(refuse(state.healthBlock));
         executions.push({ id: x.id, session_date: DAY, final_prescription_id: x.final_prescription_id, started_at: x.started_at, recorded_at: `2026-10-09T17:${String(++clock).padStart(2, "0")}:00Z`, execution_events: [], exercise_set_results: [], session_activity_results: [] });
         inserted.executions!.push(x.id);
       }
@@ -96,6 +103,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
         (last === "active" && ["paused", "completed", "abandoned"].includes(ev.event_type)) ||
         (last === "paused" && ["resumed", "completed", "abandoned"].includes(ev.event_type));
       if (!allowed) throw new Rejected(refuse("invalid_transition"));
+      if (state.healthBlock && (ev.event_type === "resumed" || ev.event_type === "completed")) throw new Rejected(refuse(state.healthBlock));
       eventIds.set(ev.id, ev.event_type);
       exec.execution_events.push({ event_type: ev.event_type, event_seq: ++seq });
       inserted.events!.push(ev.id);
@@ -122,6 +130,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       const exec = executions.find((e) => e.id === set.execution_id);
       if (!exec) throw new Rejected(refuse("execution_not_found", 404));
       if (terminalBefore.has(exec.id)) throw new Rejected(refuse("execution_terminal"));
+      if (state.healthBlock) throw new Rejected(refuse(state.healthBlock));
       const item = itemOf(exec.final_prescription_id, set.prescription_item_id);
       if (!item) throw new Rejected(refuse("invalid_item", 422));
       if (measureOf(item) !== set.measure_type) throw new Rejected(refuse("measure_mismatch", 422));
@@ -158,6 +167,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
       const exec = executions.find((e) => e.id === act.execution_id);
       if (!exec) throw new Rejected(refuse("execution_not_found", 404));
       if (terminalBefore.has(exec.id)) throw new Rejected(refuse("execution_terminal"));
+      if (state.healthBlock) throw new Rejected(refuse(state.healthBlock));
       const allowed = prescriptions.get(exec.final_prescription_id ?? "")?.activityOptions?.map((o) => o.id) ?? [];
       if (!allowed.includes(act.activity_id)) throw new Rejected(refuse("activity_not_allowed_by_prescription", 422));
       if (act.supersedes_id) {
@@ -220,13 +230,19 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
     const day = selectDayExecution(snapshotOf);
     if (day && !isTerminal(day.phase)) {
       const p = prescriptions.get(day.execution.final_prescription_id!);
-      return { kind: "execution", ...day, prescription: p ? { kind: "created", prescription: p } : { kind: "unsupported_schema_or_catalog", reason: "old catalogue" } };
+      return {
+        kind: "execution",
+        ...day,
+        prescription: p ? { kind: "created", prescription: p } : { kind: "unsupported_schema_or_catalog", reason: "old catalogue" },
+        ...(state.healthBlock ? { healthBlock: state.healthBlock } : {}),
+      };
     }
     if (state.current.unavailable) return state.current.unavailable;
     const cur = state.current.prescription!;
     if (day && day.execution.final_prescription_id === cur.id) {
       const completedOnce = snapshotOf.some((e) => e.final_prescription_id === cur.id && phaseOf(e) === "completed");
-      return day.phase === "abandoned" && !completedOnce
+      // P0-3 — never a restart under a health block (the real day decision is then a REST or stale).
+      return day.phase === "abandoned" && !completedOnce && !state.healthBlock
         ? { kind: "execution", ...day, prescription: { kind: "created", prescription: cur }, restartFinalPrescriptionId: cur.id }
         : { kind: "execution", ...day, prescription: { kind: "created", prescription: cur } };
     }

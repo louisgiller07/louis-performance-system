@@ -9,6 +9,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { isLoopbackSupabaseUrl, resolveTestSupabaseUrl } from "./testDb.js";
+import { verifyLocalTestTarget } from "./testTarget.js";
 
 const DOCKER_TIMEOUT_MS = 30_000;
 let cachedContainer: string | null = null;
@@ -32,28 +33,14 @@ export function localIntegrationRequested(options: { requirePublishableKey?: boo
 }
 
 /**
- * The local Postgres container, resolved once per test file (one `docker ps`, not one per statement).
- * UX-11R.1 — LOCAL_SUPABASE_DB_CONTAINER selects one explicitly when several local stacks run (e.g. a
- * throwaway migration-rehearsal stack next to the developer's own): still only a running local
- * `supabase_db_*` container, never a remote target.
+ * The local Postgres container: always the database of the project behind SUPABASE_URL (QA-ISOLATION-01,
+ * `verifyLocalTestTarget`), so owner-level SQL and the API can never target two different stacks. An explicit
+ * LOCAL_SUPABASE_DB_CONTAINER (UX-11R.1) is still accepted, but only when it IS that container; there is no
+ * auto-detection and no default stack any more. Never a remote target.
  */
 export function localDbContainer(): string {
   if (cachedContainer !== null) return cachedContainer;
-  const explicit = process.env.LOCAL_SUPABASE_DB_CONTAINER;
-  if (explicit) {
-    const running = execFileSync("docker", ["ps", "--filter", `name=^${explicit}$`, "--format", "{{.Names}}"], { encoding: "utf8", timeout: DOCKER_TIMEOUT_MS }).trim();
-    if (!explicit.startsWith("supabase_db_") || running !== explicit) throw new Error(`LOCAL_SUPABASE_DB_CONTAINER=${explicit} is not a running local supabase_db_* container`);
-    cachedContainer = explicit;
-    return cachedContainer;
-  }
-  const names = execFileSync("docker", ["ps", "--filter", "name=supabase_db_", "--format", "{{.Names}}"], { encoding: "utf8", timeout: DOCKER_TIMEOUT_MS })
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-  if (names.length !== 1 || !names[0]!.startsWith("supabase_db_")) {
-    throw new Error(`expected exactly one running local supabase_db_* container, found ${names.length === 0 ? "none" : names.join(", ")}`);
-  }
-  cachedContainer = names[0]!;
+  cachedContainer = verifyLocalTestTarget().dbContainer;
   return cachedContainer;
 }
 

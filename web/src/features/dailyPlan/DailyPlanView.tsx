@@ -408,6 +408,15 @@ export function DailyPlanView({
           {dailyPlan.decision === "KEEP" && executablePrescription == null && executablePrescriptionStatus === "unsupported_schema_version" && (
             <UnavailablePrescriptionCard />
           )}
+          {/* P0-3 — V1: a kept session without any canonical prescription (added or changed by hand, or outside the
+              programme) is never presented as executable: say plainly that NALYNT only knows its type and load. */}
+          {dailyPlan.decision === "KEEP" && executablePrescription == null && executablePrescriptionStatus === "none" && dailyPlan.final_session.kind !== "REST" && (
+            <PlanSection title="Ta séance">
+              <p className="text-ink/80" data-testid="no-detailed-content">
+                NALYNT n'a pas de contenu détaillé pour cette séance : elle a été ajoutée ou modifiée à la main, ou elle ne vient pas de ton programme. Seuls son type et sa charge sont connus.
+              </p>
+            </PlanSection>
+          )}
         </>
       )}
     </>

@@ -38,6 +38,29 @@ function mapHttpBody(status: number, code: string | undefined): CompletedSession
         retryable: false,
         action: "user_fixable",
       };
+    // INT-01 (HPM 2026-10-13) — the server's health guard of the debrief (migration 20261013180000): business
+    // refusals, never a retry invitation.
+    case "health_suspended":
+      return {
+        code,
+        message: "Un signal de santé suspend l'entraînement ce jour-là : la séance ne peut pas être enregistrée comme réalisée.",
+        retryable: false,
+        action: "user_fixable",
+      };
+    case "daily_decision_not_current":
+      return {
+        code,
+        message: "Ton check-in a changé : relance l'analyse du jour sur Aujourd'hui avant de raconter ta séance.",
+        retryable: false,
+        action: "user_fixable",
+      };
+    case "guided_results_exist":
+      return {
+        code,
+        message: "Des résultats de ta séance guidée sont déjà enregistrés ce jour-là : ta séance est enregistrée dans la séance guidée, pas de récit séparé. Retrouve-la dans ton historique.",
+        retryable: false,
+        action: "user_fixable",
+      };
     case "decision_link_invalid":
       return {
         code,
