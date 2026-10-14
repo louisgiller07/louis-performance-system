@@ -762,6 +762,21 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Rollback C** (SQL de sécurité conservé, `session-execution` et `completed-session` du candidat conservés, autres Edge C) : 7/7. Contre-épreuve : avec le `completed-session` de C, les refus tiennent mais remontent en 500 `persistence_failed`.
 - **SQL** : empreintes avant / après (`persist_completed_session` : même signature, INVOKER, `search_path`, droits) ; script de rollback (corps identique à `20261005120500`, fonction d'aide supprimée) ; ré-application identique.
 
+### T62. P0-SEC-TRUNCATE — aucun TRUNCATE pour les rôles d'API du navigateur (migration `20261014090000`)
+- **Intégration** (`head-coach-engine/tests/supabase/p0SecTruncate.integration.test.ts`, 24 cas, sur une cible vérifiée) :
+  - catalogue : aucune table `public` n'accorde TRUNCATE à `anon` ni à `authenticated` ; `service_role` inchangé (10 tables) ; aucun droit `PUBLIC` ;
+  - seul TRUNCATE change : les droits de `anon` et `authenticated` sur `athletes` sont ceux de UX-11R.3.1 ; TRIGGER et REFERENCES restent sur les 9 tables de la baseline ;
+  - 18 refus `permission denied` (2 rôles × 9 tables), chaque essai dans une transaction annulée ;
+  - `service_role` garde TRUNCATE (essai annulé), et DELETE couvre les mêmes tables ;
+  - une nouvelle table créée par `postgres` n'accorde pas TRUNCATE à `anon` ni à `authenticated`, mais leur accorde SELECT ;
+  - les écritures RLS du rider (insertion, mise à jour, lecture, suppression) fonctionnent ; `anon` ne lit rien ;
+  - la purge serveur supprime les données du rider, et le témoin reste intact.
+- **Non-régression** : `athletesDeleteGrant` (TRUNCATE retiré pour `anon` et `authenticated`), P0-SAFE, P0-3, INT-01 (T60, T61), Edge, purge, sur une stack contenant les 72 migrations dans l'ordre réel, et dans la configuration de rollback vers C.
+- **Contre-preuve** : sans la migration, 21 cas sur 24 échouent.
+- **Rollback** : empreinte complète des droits identique à l'état d'origine (TRUNCATE de nouveau possible pour `anon`, prouvé) ; ré-application identique à l'état après migration.
+- **Fail closed** : une table hors inventaire, ou des privilèges par défaut qui accordent encore TRUNCATE, font échouer la migration (prouvé dans des transactions annulées).
+- **Privilèges par défaut** : `postgres` ne peut pas modifier ceux de `supabase_admin` (prouvé) ; une table créée par `supabase_admin` garde TRUNCATE (limite documentée).
+
 ### T55. P0-SAFE — continuité santé dans la décision quotidienne
 - **Unitaires M1** (`head-coach-engine/tests/p0SafeHealthContinuity.test.ts`) : A6 (incident A, seuil 6 / contre-preuve 5, ordre A1-A4 inchangé) ; A7 (incident B, maladie, douleur persistante, plusieurs signaux, signal résolu ignoré, date absente jamais inventée, A7 avant A5, textes des autres règles inchangés, aucun jeton interne) ; fatigue sans signal jamais bloquée.
 - **Intégration base locale** (`p0SafeHealthContinuity.integration.test.ts`, chemin V2 réel) : incident A (DH manuelle 2/10 puis 8/10) ; incident B (J+1, J+2 ; fièvre puis J+1) ; douleur forte puis 2/10 le lendemain ; clôture explicite, persistée, auditée, puis reprise (Force et DH, nouvelle décision) ; clôture d'un signal d'autrui → introuvable ; commotion → validation médicale requise ; remplacement manuel par une DH → REST ; prescription antérieure au REST non démarrable ; douleur légère et fatigue jamais bloquantes.
