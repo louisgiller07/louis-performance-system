@@ -112,8 +112,8 @@ Décisions HPM attendues :
 | Droit | Risque | Dépendance connue |
 |---|---|---|
 | TRUNCATE de `service_role` (10 tables) | Vide une table en contournant les triggers de ligne. Sur ces 10 tables, `service_role` détient déjà DELETE, et aucune n'a de trigger DELETE ni TRUNCATE : pas de capacité nouvelle. La clé serveur reste la frontière. | aucune (purge et Edge par DELETE et RPC) |
-| TRIGGER de `anon` / `authenticated` (9 tables) | Créer un trigger exige aussi la propriété de la table ou un droit DDL, et PostgREST n'exécute pas de DDL. Risque théorique seulement si un rôle d'API obtenait un accès SQL direct. | aucune |
-| REFERENCES de `anon` / `authenticated` (9 tables) | Créer une clé étrangère vers ces tables depuis une table dont le rôle serait propriétaire. Impossible via PostgREST. | aucune |
+| TRIGGER de `anon` / `authenticated` (9 tables) | **Réel au niveau de la base, même classe que TRUNCATE.** `CREATE TRIGGER` n'exige que TRIGGER sur la table et EXECUTE sur une fonction. Sur `qa01`, dans une transaction annulée, `set role anon; create trigger … on public.goals … execute function public.set_updated_at()` réussit. `anon` peut exécuter `reject_append_only_mutation`, ce qui permettrait de bloquer toutes les écritures d'une table (déni de service persistant). Inaccessible par l'API : PostgREST et GraphQL n'exécutent pas de DDL, les rôles sont `NOLOGIN`. | aucune |
+| REFERENCES de `anon` / `authenticated` (9 tables) | Créer une clé étrangère vers ces tables exige de posséder la table référençante. `anon` et `authenticated` n'ont pas CREATE sur `public` (vérifié sur `qa01`) : négligeable. Impossible via PostgREST. | aucune |
 
-  Recommandation : un ticket de suivi, après P0-SEC, si l'HPM veut la cohérence stricte du moindre privilège ; non bloquant.
+  Recommandation : traiter **TRIGGER** comme TRUNCATE, avec la même migration minimale, une vérification *fail closed*, la correction des privilèges par défaut et le même rollback. C'est la même classe de risque (SQL direct d'un rôle d'API), avec un effet persistant. REFERENCES et `service_role` relèvent du moindre privilège, non bloquant. **Décision HPM requise**, aucune modification faite.
 
