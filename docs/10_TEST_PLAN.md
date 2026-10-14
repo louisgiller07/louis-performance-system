@@ -762,6 +762,20 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Rollback C** (SQL de sécurité conservé, `session-execution` et `completed-session` du candidat conservés, autres Edge C) : 7/7. Contre-épreuve : avec le `completed-session` de C, les refus tiennent mais remontent en 500 `persistence_failed`.
 - **SQL** : empreintes avant / après (`persist_completed_session` : même signature, INVOKER, `search_path`, droits) ; script de rollback (corps identique à `20261005120500`, fonction d'aide supprimée) ; ré-application identique.
 
+### T63. P0-SEC-TRIGGER — aucun TRIGGER pour les rôles d'API du navigateur (migration `20261014120000`)
+- **Intégration** (`head-coach-engine/tests/supabase/p0SecTrigger.integration.test.ts`, 24 cas, cible vérifiée par le harnais QA-ISOLATION-01) :
+  - catalogue : aucune table `public` n'accorde TRIGGER à `anon`, `authenticated` ni `PUBLIC` ; `service_role` (10 tables) et REFERENCES inchangés ;
+  - 18 `CREATE TRIGGER` refusés (2 rôles × 9 tables), chaque essai dans une transaction annulée, sans trigger résiduel ; `service_role` peut toujours créer ;
+  - une nouvelle table créée par `postgres` n'accorde pas TRIGGER à `anon` ni à `authenticated`, mais leur accorde SELECT ;
+  - les triggers existants fonctionnent : `updated_at` sur les écritures RLS du rider, protection en ajout seul sur une version de plan ;
+  - la purge serveur reste intacte.
+- **Empreintes** : les 62 triggers applicatifs sont identiques avant et après ; seules 20 lignes d'ACL changent (droit `t`).
+- **Contre-preuve** : sans la migration, 20 cas sur 24 échouent.
+- **Rollback** : droits d'avant restaurés, et création de trigger de nouveau possible pour `anon` (dangereux, prouvé). La ré-application est identique.
+- **Fail closed** : une table hors inventaire, ou des privilèges par défaut qui accordent encore TRIGGER, font échouer la migration.
+- **Indépendance** : la migration s'applique sans P0-SEC-TRUNCATE.
+- **Rollback vers C** : vert, avec le SQL conservé.
+
 ### T62. P0-SEC-TRUNCATE — aucun TRUNCATE pour les rôles d'API du navigateur (migration `20261014090000`)
 - **Intégration** (`head-coach-engine/tests/supabase/p0SecTruncate.integration.test.ts`, 24 cas, sur une cible vérifiée) :
   - catalogue : aucune table `public` n'accorde TRUNCATE à `anon` ni à `authenticated` ; `service_role` inchangé (10 tables) ; aucun droit `PUBLIC` ;
