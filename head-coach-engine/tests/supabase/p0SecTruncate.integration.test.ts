@@ -72,12 +72,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0-SEC-TRUNCATE — anon and authenticate
   });
 
   it("catalog: only TRUNCATE changed — the other privileges of the API roles on athletes are those of UX-11R.3.1", () => {
-    expect(athletesPrivileges("anon")).toBe("INSERT,REFERENCES,SELECT,TRIGGER,UPDATE");
-    expect(athletesPrivileges("authenticated")).toBe("INSERT,REFERENCES,SELECT,TRIGGER,UPDATE");
+    expect(athletesPrivileges("anon")).toBe("INSERT,REFERENCES,SELECT,UPDATE");
+    expect(athletesPrivileges("authenticated")).toBe("INSERT,REFERENCES,SELECT,UPDATE");
     expect(athletesPrivileges("service_role")).toBe("DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE");
-    // TRIGGER and REFERENCES were reported to the HPM, not changed: same 9 baseline tables.
+    // REFERENCES unchanged: same 9 baseline tables. TRIGGER is revoked by P0-SEC-TRIGGER (20261014120000), the next migration.
     for (const role of ["anon", "authenticated"]) {
-      expect(tablesWithPrivilege(role, "TRIGGER")).toBe(BASELINE_TABLES.join(","));
+      expect(tablesWithPrivilege(role, "TRIGGER")).toBe("");
       expect(tablesWithPrivilege(role, "REFERENCES")).toBe(BASELINE_TABLES.join(","));
     }
   });
