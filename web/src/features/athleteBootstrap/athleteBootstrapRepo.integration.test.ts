@@ -63,7 +63,9 @@ describe("athleteBootstrapRepo integration — local-target safety gate (always-
   });
 });
 
-const LOCAL_URL = "http://127.0.0.1:54321";
+// INT-01 — the rider's client targets the same local stack as the admin client (RESOLVED_ADMIN_URL, already
+// gated as loopback above): users are created there, so they must sign in there too.
+const LOCAL_URL = RESOLVED_ADMIN_URL;
 
 interface ScratchAuthUser {
   userId: string;

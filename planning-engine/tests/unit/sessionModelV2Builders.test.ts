@@ -60,12 +60,13 @@ const DH_INPUT: DhPrescriptionV2Input = {
 const drillOf = (content: PrescriptionV2Content) => content.blocks.flatMap((b) => b.items).find((i) => i.kind === "drill");
 
 describe("DH catalogue invariant — exactly one drill per (skill, tier)", () => {
-  it("covers the 7 skills × 3 tiers with exactly one drill each (21 drills); the selection is never 'the first compatible'", () => {
-    expect(SESSION_DRILL_CATALOG_V2_ENTRIES).toHaveLength(21);
+  it("covers the 7 skills × 3 tiers with exactly one reference drill each (21) + the one known alternative, never selected; the selection is never 'the first compatible'", () => {
+    expect(SESSION_DRILL_CATALOG_V2_ENTRIES).toHaveLength(22);
     for (const skill of DH_SKILLS_V2) {
       for (const tier of DH_TECHNICAL_TIERS_V2) {
-        expect(SESSION_DRILL_CATALOG_V2_ENTRIES.filter((d) => d.skill === skill && d.technicalTier === tier), `${skill}/${tier}`).toHaveLength(1);
+        expect(SESSION_DRILL_CATALOG_V2_ENTRIES.filter((d) => d.skill === skill && d.technicalTier === tier && d.alternativeFor === undefined), `${skill}/${tier}`).toHaveLength(1);
         expect(canonicalDhDrill(skill, tier).skill).toBe(skill);
+        expect(canonicalDhDrill(skill, tier).alternativeFor).toBeUndefined();
       }
     }
   });

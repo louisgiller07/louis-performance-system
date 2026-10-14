@@ -51,6 +51,8 @@ export type IntentSelectionV2 =
   | { type: "declared_priority"; skill: DhSkillV2 }
   /** P0 — the declared priority's intent when its drill carries no race intensity (the skill intent would ask for it). */
   | { type: "declared_priority_non_race_drill"; skill: DhSkillV2 }
+  /** INT-01 compatibility — the intent of one specific drill of a later release (P0-2): known for validation, never selectable here. */
+  | { type: "declared_priority_drill"; skill: DhSkillV2; drillId: string }
   | { type: "candidate" }
   | { type: "inactive_until_validated_rule" };
 
@@ -98,6 +100,8 @@ const ENTRIES: SessionIntentV2[] = [
   intent("dh_jump_control", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "jumps" }),
   intent("dh_race_pace", "dh_technical", DH_KINDS, { type: "declared_priority", skill: "race_execution" }),
   intent("dh_race_consistency", "dh_technical", DH_KINDS, { type: "declared_priority_non_race_drill", skill: "race_execution" }),
+  // INT-01 compatibility — the intent of cornering_advanced_line_exit (P0-2 draft): a stored plan holding it validates.
+  intent("dh_corner_line_control", "dh_technical", DH_KINDS, { type: "declared_priority_drill", skill: "cornering", drillId: "cornering_advanced_line_exit" }),
   // Endurance, mobility, recovery
   intent("aerobic_base_lucidity", "endurance", ["AEROBIC_BASE"], { type: "session_kind" }),
   intent("aerobic_repeat_efforts", "endurance", ["AEROBIC_INTERVALS"], { type: "session_kind" }),

@@ -90,6 +90,10 @@ export const RACE_SPEED_DRILL_IDS_V2: ReadonlySet<string> = new Set([
  * full_dh_track without any_groomed_trail). The regression texts are
  * terrain-agnostic (« choisis une courte section », « juste avant l'entrée
  * du virage »). null only when neither terrain is declared (the caller blocks).
+ *
+ * INT-01 compatibility — "declared" reads each drill's `compatibleTerrains` (always holding requiredTerrain):
+ * identical for every plan this runtime generates (its drill's requiredTerrain is declared), and a stored plan
+ * of the later release (drill granted on a compatible terrain) keeps its validated LIGHT regression.
  */
 export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefined, terrainAccess: readonly string[]): SessionDrillV2 | null {
   if (load !== "LIGHT" || !RACE_SPEED_DRILL_IDS_V2.has(drill.drillId)) return drill;
@@ -98,7 +102,12 @@ export function dhDrillForLoad(drill: SessionDrillV2, load: LoadProfile | undefi
     current = current.regressesTo !== undefined ? SESSION_DRILL_CATALOG_V2[current.regressesTo] : undefined;
   }
   if (!current) return null;
-  return terrainAccess.includes(current.requiredTerrain) || terrainAccess.includes(drill.requiredTerrain) ? current : null;
+  return ridesOn(current, terrainAccess) || ridesOn(drill, terrainAccess) ? current : null;
+}
+
+/** INT-01 compatibility — the rider declared at least one terrain on which the drill can be ridden as written. */
+export function ridesOn(drill: SessionDrillV2, terrainAccess: readonly string[]): boolean {
+  return drill.compatibleTerrains.some((t) => terrainAccess.includes(t));
 }
 
 /**
@@ -115,11 +124,12 @@ export function dhIntentForDrillV2(drill: SessionDrillV2): string {
 const isDhSkill = (value: string): value is DhSkillV2 => (DH_SKILLS_V2 as readonly string[]).includes(value);
 
 /**
- * THE drill of (skill, tier). The catalogue holds exactly one per pair; any
- * other count is a catalogue / development error — never "take the first".
+ * THE drill of (skill, tier). The catalogue holds exactly one per pair (INT-01 compatibility: a later
+ * release's alternative, known for reading, is never a candidate); any other count is a catalogue /
+ * development error — never "take the first".
  */
 export function canonicalDhDrill(skill: DhSkillV2, tier: DhTechnicalTierV2): SessionDrillV2 {
-  const matches = SESSION_DRILL_CATALOG_V2_ENTRIES.filter((drill) => drill.skill === skill && drill.technicalTier === tier);
+  const matches = SESSION_DRILL_CATALOG_V2_ENTRIES.filter((drill) => drill.skill === skill && drill.technicalTier === tier && drill.alternativeFor === undefined);
   if (matches.length !== 1) {
     throw new SessionModelV2ContractError(`expected exactly one DH drill for (${skill}, ${tier}), found ${matches.length}`);
   }

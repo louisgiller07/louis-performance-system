@@ -118,15 +118,23 @@ export interface SavePerformanceSetupInput {
  * caller's own row through RLS), so a write can update some of its keys and
  * keep everything else exactly as it is: keys unknown to this UI, and values
  * the load filtered out as no longer known, are never silently dropped.
+ * INT-01 compatibility — same rule for terrain_access: a terrain this UI does
+ * not offer (the later release's « Virages en dévers », off_camber_section)
+ * is kept on every save, never silently dropped.
  */
-async function loadRawTechnicalPriorities(): Promise<Record<string, unknown>> {
-  const { data, error } = await supabase.from("athlete_performance_profiles").select("technical_priorities");
+async function loadRawProfileFields(): Promise<{ priorities: Record<string, unknown>; unknownTerrains: string[] }> {
+  const { data, error } = await supabase.from("athlete_performance_profiles").select("technical_priorities, terrain_access");
   if (error) {
-    console.error("performanceSetupRepo.loadRawTechnicalPriorities failed", error.code);
+    console.error("performanceSetupRepo.loadRawProfileFields failed", error.code);
     throw new PerformanceSetupError();
   }
-  const raw = (data?.[0] as { technical_priorities?: unknown } | undefined)?.technical_priorities;
-  return raw !== null && typeof raw === "object" && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
+  const row = data?.[0] as { technical_priorities?: unknown; terrain_access?: unknown } | undefined;
+  const raw = row?.technical_priorities;
+  const terrains: unknown[] = Array.isArray(row?.terrain_access) ? row.terrain_access : [];
+  return {
+    priorities: raw !== null && typeof raw === "object" && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {},
+    unknownTerrains: terrains.filter((t): t is string => typeof t === "string" && !(TERRAIN_OPTIONS as readonly string[]).includes(t)),
+  };
 }
 
 /**
@@ -146,13 +154,13 @@ async function loadRawTechnicalPriorities(): Promise<Record<string, unknown>> {
  */
 export async function savePerformanceSetup(athleteId: string, answers: SavePerformanceSetupInput): Promise<void> {
   const trimmedObjective = answers.seasonObjective?.trim() ?? "";
-  const rawPriorities = await loadRawTechnicalPriorities();
+  const { priorities: rawPriorities, unknownTerrains } = await loadRawProfileFields();
 
   const { error } = await supabase.from("athlete_performance_profiles").upsert(
     {
       athlete_id: athleteId,
       equipment: answers.equipment,
-      terrain_access: answers.terrainAccess,
+      terrain_access: [...answers.terrainAccess, ...unknownTerrains],
       strength_experience_tier: answers.strengthExperienceTier,
       dh_technical_tier: answers.dhTechnicalTier,
       season_objective: trimmedObjective.length > 0 ? trimmedObjective : null,
@@ -200,7 +208,7 @@ export async function saveDhTechnicalProfile(athleteId: string, input: SaveDhTec
     throw new PerformanceSetupError();
   }
 
-  const rawPriorities = await loadRawTechnicalPriorities();
+  const { priorities: rawPriorities } = await loadRawProfileFields();
   const { error } = await supabase.from("athlete_performance_profiles").upsert(
     {
       athlete_id: athleteId,

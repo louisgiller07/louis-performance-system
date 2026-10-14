@@ -139,7 +139,7 @@ describe("planningRepo integration — local-target safety gate (always-on, no n
   });
 });
 
-const LOCAL_URL = "http://127.0.0.1:54321";
+const LOCAL_URL = RESOLVED_ADMIN_URL;
 // LOCAL DEV / PUBLIC — never a secret. The Supabase CLI's well-known
 // default local anon key: identical for every local `supabase init`
 // install, published by `supabase status`, and compiled into the OSS CLI

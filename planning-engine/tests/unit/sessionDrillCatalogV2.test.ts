@@ -22,17 +22,17 @@ describe("Session Model V2 DH drill catalogue — identity and isolation from V1
     expect(SESSION_DRILL_CATALOG_V2_VERSION).not.toBe(DRILL_CATALOG_VERSION);
   });
 
-  it("holds exactly the 21 V1 drillIds, unique, all v1_enriched", () => {
-    expect(V2).toHaveLength(21);
+  it("holds exactly the 21 V1 drillIds (v1_enriched) plus the later release's one V2-only drill (INT-01 compatibility), unique", () => {
+    expect(V2).toHaveLength(22);
     const ids = V2.map((d) => d.drillId);
-    expect(new Set(ids).size).toBe(21);
-    expect([...ids].sort()).toEqual(DRILL_CATALOG_ENTRIES.map((d) => d.id).sort());
-    expect(Object.keys(SESSION_DRILL_CATALOG_V2)).toHaveLength(21);
-    for (const d of V2) expect(d.origin, d.drillId).toBe("v1_enriched");
+    expect(new Set(ids).size).toBe(22);
+    expect(V2.filter((d) => d.origin === "v1_enriched").map((d) => d.drillId).sort()).toEqual(DRILL_CATALOG_ENTRIES.map((d) => d.id).sort());
+    expect(V2.filter((d) => d.origin === "v2_only").map((d) => d.drillId)).toEqual(["cornering_advanced_line_exit"]);
+    expect(Object.keys(SESSION_DRILL_CATALOG_V2)).toHaveLength(22);
   });
 
-  it("keeps the V1 skill, difficulty (as explicit technicalTier) and required terrain of each drill", () => {
-    for (const d of V2) {
+  it("keeps the V1 skill, difficulty (as explicit technicalTier) and required terrain of each V1 drill (no exception here)", () => {
+    for (const d of V2.filter((x) => x.origin === "v1_enriched")) {
       const v1 = DRILL_CATALOG[d.drillId]!;
       expect(d.skill, d.drillId).toBe(v1.skillTarget);
       expect(d.technicalTier, d.drillId).toBe(v1.difficulty);
@@ -42,17 +42,23 @@ describe("Session Model V2 DH drill catalogue — identity and isolation from V1
 });
 
 describe("Session Model V2 DH drill catalogue — metadata validity", () => {
-  it("uses the closed skill / tier / terrain vocabularies, with one drill per skill × tier", () => {
+  it("uses the closed skill / tier / terrain vocabularies, with one reference drill per skill × tier (+ the one known alternative)", () => {
     for (const d of V2) {
       expect(DH_SKILLS_V2, d.drillId).toContain(d.skill);
       expect(DH_TECHNICAL_TIERS_V2, d.drillId).toContain(d.technicalTier);
       expect(() => assertValidTerrainAccess([d.requiredTerrain]), d.drillId).not.toThrow();
+      // INT-01 compatibility — read-side terrains: declarable, always starting with the drill's own required terrain.
+      expect(() => assertValidTerrainAccess([...d.compatibleTerrains]), d.drillId).not.toThrow();
+      expect(d.compatibleTerrains[0], d.drillId).toBe(d.requiredTerrain);
     }
     for (const skill of DH_SKILLS_V2) {
       for (const tier of DH_TECHNICAL_TIERS_V2) {
-        expect(V2.filter((d) => d.skill === skill && d.technicalTier === tier), `${skill}/${tier}`).toHaveLength(1);
+        const pair = V2.filter((d) => d.skill === skill && d.technicalTier === tier);
+        expect(pair.filter((d) => d.alternativeFor === undefined), `${skill}/${tier}`).toHaveLength(1);
+        expect(pair.filter((d) => d.alternativeFor !== undefined).length, `${skill}/${tier}`).toBeLessThanOrEqual(1);
       }
     }
+    expect(V2.filter((d) => d.alternativeFor !== undefined).map((d) => [d.drillId, d.alternativeFor])).toEqual([["cornering_advanced_line_exit", "cornering_off_camber"]]);
   });
 
   it("measures passes within the Session Model 4–8 rule", () => {
