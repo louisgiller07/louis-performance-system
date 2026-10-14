@@ -6094,3 +6094,27 @@ Une séance guidée terminée était déjà protégée (NX101).
 
 **Statut** : READY INTEGRATION / NOT DEPLOYED (branche `int/int-01-v2-candidate-r1`).
 
+## 2026-10-14 — ADR QA-ISOLATION-01 : une exécution d'intégration prouve sa stack locale avant toute écriture
+
+**Constat.**
+- Plusieurs suites ignoraient la stack demandée :
+  - conteneur psql ou URL du rider codés en dur sur la stack de développement, dans le code de production ;
+  - repli silencieux sur `127.0.0.1:54321` et le conteneur de développement dans toutes les branches ;
+  - suites `pattern*` lancées sans demande d'intégration.
+- Conséquence prouvée : un décalage API / psql sur `sec` (trigger de panne posé sur la stack de développement, RPC exécuté sur `sec`), qui a laissé 6 lignes en ajout seul et rendu `patternEvidenceSchema` durablement rouge sur `sec`.
+
+**Décision (HPM, QA-ISOLATION-01).** Garde `verifyLocalTestTarget`, même règle dans head-coach-engine, longitudinal-engine et web :
+- `SUPABASE_URL` est obligatoire ;
+- un seul gateway local doit publier son port, et il nomme le projet ;
+- le projet et le conteneur demandés doivent correspondre ;
+- le SQL direct passe toujours par la base de ce projet ;
+- la base et l'API doivent répondre avant toute écriture ;
+- la cible effective est imprimée ;
+- toute cible inconnue, distante, ambiguë ou différente provoque `TestTargetError`, sans repli.
+
+**Preuves.**
+- Refus sur les vraies stacks sans aucune écriture.
+- Rejeu sur la stack neuve `nalynt-qa01`, avec 72 migrations dans l'ordre réel (P0-SEC en 6e) : P0-SAFE, P0-3, INT-01 (T60, T61), P0-SEC, RPC, Edge, purge et rollback, aussi dans la configuration de rollback vers C. Voir `docs/release/QA_ISOLATION_01_TEST_TARGET_INTEGRITY_REPORT.md`.
+
+**Statut** : PASS LOCAL. Intégration du correctif dans REL-01, C et la production sur décision HPM.
+
