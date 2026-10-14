@@ -88,3 +88,32 @@ Décisions HPM attendues :
 - l'option d'intégration à REL-01 (§4.1) ;
 - la suite TRIGGER / REFERENCES et `service_role` ;
 - l'application des propositions pour `docs/05` et `docs/10`.
+
+## 8. Addendum QA-ISOLATION-01 (2026-10-14)
+- **Correction du §5.** L'affirmation « leurs passages antérieurs sur `int01` portaient sur la stack de développement » est **fausse** et retirée.
+  - Le candidat (`3dbceb5`) et C (`11067a3`, `b2f7dfd`) contiennent déjà le correctif du harnais longitudinal-engine et web, et leurs passages avec `int_env.ps1` ciblaient bien `int01`. Preuve par les données : athlètes créés sur `int01` aux heures exactes de ces passages, aucun sur la stack de développement après 09:00 UTC le 13.10.
+  - Seules les branches issues directement de la production `92937a9` (dont `fix/p0-sec-truncate`) gardent le harnais codé en dur.
+- **Cause de l'échec `patternEvidenceSchema` (§5).** Ce n'est pas un défaut de schéma.
+  - Mes deux premiers passages sur `sec` (13.10, 21:05:43 et 21:13:37 UTC) ont posé le trigger d'injection de panne par psql sur la **stack de développement** (conteneur codé en dur), alors que le RPC partait vers `sec` par l'API.
+  - Sans panne, le RPC a réussi et a laissé 2 identités, 2 révisions et 2 références de provenance au rôle marqueur, en ajout seul. Le test les compte : il échouera toujours sur `sec`.
+  - Sur une stack propre et bien ciblée (`nalynt-qa01`), il passe (rapport QA-ISOLATION-01). Données conservées, non nettoyées.
+- **Intégration comme 6e migration.** Vérifiée sur la stack neuve `nalynt-qa01`, avec les 72 migrations dans l'ordre réel (66 de production, 5 d'INT-01, puis `20261014090000`) :
+  - aucune collision de nom ni d'ordre ;
+  - empreinte des droits identique à celle de `sec` après migration ;
+  - P0-SEC 24/24, ainsi que P0-SAFE, P0-3, INT-01 (T60, T61), purge et Edge, sur la cible vérifiée.
+- **Privilèges par défaut, comportement prouvé sur `qa01`.**
+  - Une table créée par `postgres` n'accorde plus TRUNCATE à `anon` ni à `authenticated`.
+  - Une table créée par `supabase_admin` l'accorde encore : résidu, car `alter default privileges for role supabase_admin` exécuté par `postgres` donne « permission denied to change default privileges ».
+  - Les 39 tables `public` appartiennent à `postgres`, qui exécute aussi les migrations.
+  - Le contrôle *fail closed* de la migration couvre toutes les tables existantes, quel que soit leur propriétaire. Le test catalogue (`p0SecTruncate`) détecte toute réapparition.
+- **Le rollback n'est pas banal.** Il ré-accorde une permission dangereuse : après le script, `set role anon; truncate public.weekly_availability` réussit, prouvé sur `qa01`. Avertissement ajouté en tête du script. En cas de dépendance inconnue, accorder le seul droit manquant plutôt que tout rejouer.
+- **Risques et dépendances non modifiés** (documentés, aucune modification) :
+
+| Droit | Risque | Dépendance connue |
+|---|---|---|
+| TRUNCATE de `service_role` (10 tables) | Vide une table en contournant les triggers de ligne. Sur ces 10 tables, `service_role` détient déjà DELETE, et aucune n'a de trigger DELETE ni TRUNCATE : pas de capacité nouvelle. La clé serveur reste la frontière. | aucune (purge et Edge par DELETE et RPC) |
+| TRIGGER de `anon` / `authenticated` (9 tables) | Créer un trigger exige aussi la propriété de la table ou un droit DDL, et PostgREST n'exécute pas de DDL. Risque théorique seulement si un rôle d'API obtenait un accès SQL direct. | aucune |
+| REFERENCES de `anon` / `authenticated` (9 tables) | Créer une clé étrangère vers ces tables depuis une table dont le rôle serait propriétaire. Impossible via PostgREST. | aucune |
+
+  Recommandation : un ticket de suivi, après P0-SEC, si l'HPM veut la cohérence stricte du moindre privilège ; non bloquant.
+
