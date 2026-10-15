@@ -8,6 +8,10 @@
  * roles, exercises / drills / activities, sets, measures, rests, RPE, text
  * ids, rampUp, durations, passages.
  *
+ * PHYS-01: `loadGuidance` (a final Force item's load advice, read from the
+ * rider's own history) is not session content and is excluded too — a KEEP
+ * keeps the planned sport content whatever the rider's history says.
+ *
  * Canonical form: object keys sorted, array order kept (block and item
  * order is content), `undefined` dropped. Same snapshot + horizon + planner
  * version + manifest → same fingerprint, whatever the UUIDs.
@@ -34,6 +38,8 @@ export const SPORT_FINGERPRINT_EXCLUDED_KEYS: readonly string[] = [
   "updatedAt",
   "recordedAt",
   "occurredAt",
+  // PHYS-01 — derived daily from the rider's recorded sets, never session content.
+  "loadGuidance",
 ];
 
 const EXCLUDED = new Set(SPORT_FINGERPRINT_EXCLUDED_KEYS);

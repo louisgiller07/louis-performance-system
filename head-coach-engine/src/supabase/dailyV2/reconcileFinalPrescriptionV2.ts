@@ -20,6 +20,10 @@
  * prescription fits in it (buildFinalPrescriptionWithinTodayTimeV2) and the
  * result says how (`timeConstraint`).
  *
+ * PHYS-01: a Force final prescription then gets its load guidance from the
+ * rider's own completed sets (strengthLoadGuidance.ts, best-effort, advisory:
+ * never blocks the decision; a failure is a `loadGuidanceWarning`).
+ *
  * Loaded lazily by runDailyFor (V2 path only): this is the only daily module
  * with a runtime import of the Session Model V2 daily entry
  * (`planning-engine/session-model-v2/daily`), so the V1 daily path's static
@@ -31,7 +35,6 @@ import {
   buildFinalPrescriptionWithinTodayTimeV2,
   dailyAdaptationContextV2,
   type FinalPrescriptionV2,
-  type FinalPrescriptionWithinTodayTimeV2Result,
   type PlanInputSnapshotV2,
   type TodayTimeConstraintV2,
 } from "planning-engine/session-model-v2/daily";
@@ -40,9 +43,10 @@ import type { PlannedSessionObservation } from "../buildRawContext.js";
 import { getGeneratedSessionOfVersion } from "../repositories/trainingPlanGeneratedSessionsRepo.js";
 import { getPlannedPrescriptionRowOfVersion } from "../repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import { getPlanInputSnapshotOfVersion } from "../repositories/trainingPlanVersionSnapshotRepo.js";
+import { withStrengthLoadGuidance, type StrengthLoadGuidanceDeps, type WithLoadGuidanceResult } from "./strengthLoadGuidance.js";
 
-/** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today. */
-export type FinalPrescriptionV2Result = FinalPrescriptionWithinTodayTimeV2Result;
+/** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today; PHYS-01 — and why no load guidance could be attached. */
+export type FinalPrescriptionV2Result = WithLoadGuidanceResult;
 export type { FinalPrescriptionV2, TodayTimeConstraintV2 };
 
 export interface ReconcileFinalPrescriptionV2Input {
@@ -60,12 +64,16 @@ export interface ReconcileFinalPrescriptionV2Input {
   mintId: () => string;
   /** A10 — the rider's time today (daily_checkins.available_minutes_today); null / absent = no constraint. */
   availableMinutes?: number | null;
+  /** PHYS-01 — the rider whose recorded sets give the load guidance; absent = no guidance read. */
+  athleteId?: string;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
   getGeneratedSessionOfVersion: typeof getGeneratedSessionOfVersion;
   getPlannedPrescriptionRowOfVersion: typeof getPlannedPrescriptionRowOfVersion;
   getPlanInputSnapshotOfVersion: typeof getPlanInputSnapshotOfVersion;
+  /** PHYS-01 — injectable history read of the load guidance (absent: the real repository). */
+  strengthLoadGuidance?: StrengthLoadGuidanceDeps;
 }
 
 const DEFAULT_DEPS: ReconcileFinalPrescriptionV2Deps = { getGeneratedSessionOfVersion, getPlannedPrescriptionRowOfVersion, getPlanInputSnapshotOfVersion };
@@ -108,7 +116,7 @@ export async function reconcileFinalPrescriptionV2(
       : null;
 
   const final = dailyPlan.final_session;
-  return buildFinalPrescriptionWithinTodayTimeV2({
+  const result = buildFinalPrescriptionWithinTodayTimeV2({
     availableMinutes,
     adaptation,
     finalPrescriptionId: input.finalPrescriptionId,
@@ -151,4 +159,6 @@ export async function reconcileFinalPrescriptionV2(
             structure: planned.structure,
           },
   });
+  // PHYS-01 — the load guidance of a Force session, from the rider's own completed sets (never changes the decision).
+  return input.athleteId === undefined ? result : withStrengthLoadGuidance(result, client, input.athleteId, dailyPlan.date, deps.strengthLoadGuidance);
 }

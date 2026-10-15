@@ -14,6 +14,29 @@ export type ExerciseMeasureView =
   | { type: "duration"; minSeconds: number; maxSeconds: number; perSide: boolean }
   | { type: "distance"; minMeters: number; maxMeters: number };
 
+/** PHYS-01 — the load a past session used (the rider's own recorded sets). */
+export interface LoadReferenceView {
+  sessionDate: string;
+  loadKg: number;
+  reps: number[];
+  setsPrescribed: number | null;
+  repsRange: RangeView | null;
+  rpeMax: number | null;
+}
+
+/** PHYS-01 — the load to use today for a work exercise, read by the engine from the rider's own history (never a 1RM). */
+export type LoadGuidanceView =
+  | { mode: "calibrate"; reason: "no_history" | "history_without_load"; repsInReserve: RangeView | null }
+  | { mode: "reference"; reason: "different_dose" | "history_too_old"; reference: LoadReferenceView; repsInReserve: RangeView | null }
+  | {
+      mode: "target";
+      reason: "top_of_range_reached" | "within_range" | "below_range" | "effort_too_high";
+      change: "increase" | "keep" | "decrease";
+      targetKg: number;
+      stepKg: number;
+      reference: LoadReferenceView;
+    };
+
 export interface ExerciseItemView {
   kind: "exercise";
   prescriptionItemId: string;
@@ -27,6 +50,8 @@ export interface ExerciseItemView {
   cue: string;
   vigilances: string[];
   rampUp?: { instruction: string; sets: RangeView };
+  /** PHYS-01 — present on a Force work exercise carrying an external load. */
+  loadGuidance?: LoadGuidanceView;
 }
 
 export interface DrillItemView {

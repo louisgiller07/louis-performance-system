@@ -120,6 +120,8 @@ describe("V2 content — import boundary", () => {
       // UX-11A.5c.3 — V2 daily reconciliation (runtime import, loaded lazily) and its outcome mapping (type-only).
       join("head-coach-engine", "src", "supabase", "dailyV2", "reconcileFinalPrescriptionV2.ts"),
       join("head-coach-engine", "src", "supabase", "dailyV2", "finalPrescriptionOutcome.ts"),
+      // PHYS-01 — the Force load guidance of the V2 daily reconciliation (imported by it only, so loaded lazily too).
+      join("head-coach-engine", "src", "supabase", "dailyV2", "strengthLoadGuidance.ts"),
       // UX-11A.5c.3.1 — the daily-run V2 Deno bundle entry (same source, bundled by esbuild).
       join("head-coach-engine", "src", "edge", "dailyRunV2EdgeEntry.ts"),
     ]);

@@ -23,7 +23,13 @@
  *   catalogue for this session kind;
  * - templateId: the template actually used (traceability, UX-11A.5a.4.2);
  * - the warm_up block carries no generated duration (UX-11A.5a.4.2): the
- *   detailed prescription is its three exercises, sets, measures and rests.
+ *   detailed prescription is its three exercises, sets, measures and rests;
+ * - cool-down (PHYS-01): the template's cool-down items (sets from the
+ *   template; measure, perSide, rest, cue, vigilances from the exercise
+ *   catalogue), one canonical instruction, after the work blocks;
+ * - short Force (PHYS-01, `variant: "short"`, LIGHT only): the same template,
+ *   warm-up and exercises, the first STRENGTH_SHORT_VARIANT_V2.workSlots work
+ *   slots and the first cool-down item — never another exercise.
  *
  * Composition depends only on (sessionKind, athleteTier, equipment,
  * template version): never on a date, an ordinal, a week or randomness.
@@ -34,6 +40,7 @@ import { INTENT_CATALOG_V2_ENTRIES } from "../../catalog/intentCatalogV2.js";
 import { PROTOCOL_CATALOG_V2 } from "../../catalog/protocolCatalogV2.js";
 import { COACHING_TEXT_CATALOG } from "../../catalog/coachingTextCatalog.js";
 import {
+  STRENGTH_SHORT_VARIANT_V2,
   STRENGTH_TEMPLATE_CATALOG_V2_ENTRIES,
   STRENGTH_TEMPLATE_SESSION_KINDS_V2,
   type StrengthTemplateSessionKindV2,
@@ -55,6 +62,10 @@ import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError } fro
 import { isExerciseAllowedForTierV2, STRENGTH_TIER_ORDER_V2 } from "../strengthTiers.js";
 
 export const STRENGTH_WARM_UP_PROTOCOL_ID = "strength_warm_up_v1";
+/** PHYS-01 — the cool-down's canonical instruction (an existing catalogue text). */
+export const STRENGTH_COOL_DOWN_INSTRUCTION_ID = "instruction.recovery.light_mobility";
+/** PHYS-01 — standard: the whole template; short: the short Force of STRENGTH_SHORT_VARIANT_V2. */
+export type StrengthVariantV2 = "standard" | "short";
 
 export interface StrengthPrescriptionV2Input {
   sessionKind: StrengthTemplateSessionKindV2;
@@ -66,6 +77,8 @@ export interface StrengthPrescriptionV2Input {
   /** BUG-V2-2 — the block's dose step; absent = the load profile's own step. Must map to `loadProfile`. */
   doseStep?: StrengthDoseStepV2;
   catalog: SessionModelV2CatalogManifest;
+  /** PHYS-01 — absent = standard. The short Force exists at the LIGHT dose only. */
+  variant?: StrengthVariantV2;
 }
 
 /** Why a candidate was not selected (explains a no_compatible_strength_exercise block). */
@@ -129,6 +142,7 @@ function referenceMeasure(exercise: SessionExerciseV2): ExerciseMeasureV2 {
   throw new SessionModelV2ContractError(`exercise ${exercise.exerciseId} has no usable reference measure for ${exercise.measureType}`);
 }
 
+/** A warm-up or cool-down exercise of the template: exact sets from the template, the rest from the exercise catalogue. */
 function warmUpItem(item: StrengthWarmUpItemV2, role: SessionExerciseRoleV2): ExerciseItemV2Content {
   const exercise = exerciseOrThrow(item.exerciseId);
   if (!exercise.roles.includes(role)) throw new SessionModelV2ContractError(`warm-up exercise ${exercise.exerciseId} does not hold role ${role}`);
@@ -173,6 +187,10 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
     throw new SessionModelV2ContractError(`${STRENGTH_WARM_UP_PROTOCOL_ID} does not cover ${input.sessionKind}`);
   }
 
+  const variant: StrengthVariantV2 = input.variant ?? "standard";
+  if (variant === "short" && input.loadProfile !== STRENGTH_SHORT_VARIANT_V2.doseStep) {
+    throw new SessionModelV2ContractError(`the short Force exists at the ${STRENGTH_SHORT_VARIANT_V2.doseStep} dose only, got ${input.loadProfile}`);
+  }
   const template = strengthTemplateFor(input.sessionKind, input.athleteTier);
   const intentId = strengthIntentFor(input.sessionKind);
   const doseStep: StrengthDoseStepV2 = input.doseStep ?? input.loadProfile;
@@ -191,7 +209,8 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
     ],
   };
 
-  const workBlocks: BlockV2Content[] = template.workSlots.map((slot, index) => {
+  const slots = variant === "short" ? template.workSlots.slice(0, STRENGTH_SHORT_VARIANT_V2.workSlots) : template.workSlots;
+  const workBlocks: BlockV2Content[] = slots.map((slot, index) => {
     const resolution = resolveStrengthSlotCandidate(slot, input.athleteTier, input.equipment);
     if (!resolution.ok) {
       throw new SessionModelV2GenerationBlockedError("no_compatible_strength_exercise", {
@@ -230,6 +249,13 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
     return { role: slot.blockRole, instructionIds: [], items: [item] };
   });
 
+  const coolDownItems = variant === "short" ? template.coolDown.slice(0, STRENGTH_SHORT_VARIANT_V2.coolDownItems) : template.coolDown;
+  const coolDown: BlockV2Content = {
+    role: "cool_down",
+    instructionIds: [STRENGTH_COOL_DOWN_INSTRUCTION_ID],
+    items: coolDownItems.map((item) => warmUpItem(item, "cool_down")),
+  };
+
   return {
     schemaVersion: "v2",
     family: "strength",
@@ -237,6 +263,6 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
     intentId,
     templateId: template.templateId,
     catalog: input.catalog,
-    blocks: [warmUp, ...workBlocks],
+    blocks: [warmUp, ...workBlocks, coolDown],
   };
 }

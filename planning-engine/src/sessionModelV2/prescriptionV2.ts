@@ -23,7 +23,10 @@
  *   `activitySelection`; endurance blocks may have no item at all;
  * - `rampUp` only on a strength principal exercise: instruction + one or
  *   two light sets, no load, no RPE, no id, never `derivedFromItemId`;
- * - no load in kg, %1RM, FTP, watts or heart-rate zone anywhere.
+ * - no load in kg, %1RM, FTP, watts or heart-rate zone anywhere — with ONE
+ *   exception (PHYS-01): `loadGuidance` on a work exercise of a FINAL Force
+ *   prescription, read from the rider's own recorded loads (never a 1RM, a %
+ *   or a declared value; validated at that place only).
  *
  * Not generated, not persisted, not read by any engine yet.
  */
@@ -33,6 +36,7 @@ import type { SessionBlockRoleV2 } from "../catalog/sessionFrameV2.js";
 import type { EnduranceActivityV2, ProtocolBlockFocusV2 } from "../catalog/protocolCatalogV2.js";
 import type { SessionKind } from "../types/sharedVocabulary.js";
 import type { SessionModelV2CatalogManifest } from "./catalogManifest.js";
+import type { StrengthLoadGuidanceV2 } from "./strengthLoadGuidanceV2.js";
 
 export const PRESCRIPTION_V2_SCHEMA_VERSION = "v2";
 
@@ -72,6 +76,8 @@ export interface ExerciseItemV2Content {
   cueId: string;
   vigilanceIds: readonly string[];
   rampUp?: RampUpV2;
+  /** PHYS-01 — final Force prescription, work blocks only: the load to use today, from the rider's own history. */
+  loadGuidance?: StrengthLoadGuidanceV2;
 }
 
 export interface DrillItemV2Content {

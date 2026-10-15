@@ -27,3 +27,5 @@ export * from "./final/validateKeepFinalPrescriptionV2.js";
 export * from "./final/buildKeepFinalPrescriptionV2.js";
 export * from "./final/buildFinalPrescriptionV2.js";
 export * from "./final/todayTimeLimitV2.js";
+export * from "./strengthDurationV2.js";
+export * from "./strengthLoadGuidanceV2.js";

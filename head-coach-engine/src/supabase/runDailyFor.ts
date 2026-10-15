@@ -389,6 +389,8 @@ export async function runDailyFor(
       mintId: deps.mintId,
       // A10 — the rider's time today, from the same check-in row the decision is versioned on.
       availableMinutes: inputVersions.checkin?.available_minutes_today ?? null,
+      // PHYS-01 — the rider whose completed sets give the Force load guidance.
+      athleteId,
     });
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.
@@ -411,7 +413,12 @@ export async function runDailyFor(
     return {
       ...computed,
       dailyPlan: personalizedPlanV2,
-      warnings: [...projectionWarnings, ...computed.warnings, ...personalizationWarningsV2],
+      warnings: [
+        ...projectionWarnings,
+        ...computed.warnings,
+        ...personalizationWarningsV2,
+        ...(reconciliation.loadGuidanceWarning !== undefined ? [reconciliation.loadGuidanceWarning] : []),
+      ],
       persistence: { decision_id: persisted.decision_id, health_flag_id: persisted.health_flag_id },
       executablePrescription: null,
       executablePrescriptionStatus: reconciliation.status === "created" ? "unsupported_schema_version" : "none",

@@ -24,16 +24,19 @@ import {
 } from "./sessionModelV2Support";
 
 describe("supported Session Model V2 version (UX-11A.5c.4)", () => {
-  it("the supported manifest is exactly the engine's session-model-v2.6 manifest", () => {
+  it("the supported manifest is exactly the engine's session-model-v2.7 manifest (PHYS-01)", () => {
     expect(SUPPORTED_SESSION_MODEL_V2_MANIFEST).toEqual(buildSessionModelV2CatalogManifest());
-    expect(SUPPORTED_SESSION_MODEL_V2_MANIFEST.aggregate).toBe("session-model-v2.6");
+    expect(SUPPORTED_SESSION_MODEL_V2_MANIFEST.aggregate).toBe("session-model-v2.7");
   });
 
-  it("BUG-V2-2 — v2.5 stays readable: it differs from v2.6 only by the strength dose / plan dose policy versions (same id tables)", () => {
-    expect(SUPPORTED_SESSION_MODEL_V2_MANIFESTS.map((m) => m.aggregate)).toEqual(["session-model-v2.6", "session-model-v2.5"]);
-    const [current, previous] = SUPPORTED_SESSION_MODEL_V2_MANIFESTS;
-    const differing = Object.keys(current!).filter((k) => current![k] !== previous![k]);
-    expect(differing).toEqual(["aggregate", "strengthDoses", "planDosePolicy"]);
+  it("PHYS-01 — v2.6 (the production plans) and v2.5 stay readable: same id tables, only template / dose / policy versions differ", () => {
+    expect(SUPPORTED_SESSION_MODEL_V2_MANIFESTS.map((m) => m.aggregate)).toEqual(["session-model-v2.7", "session-model-v2.6", "session-model-v2.5"]);
+    const [current, v26, v25] = SUPPORTED_SESSION_MODEL_V2_MANIFESTS;
+    const differing = (other: Readonly<Record<string, string>>) => Object.keys(current!).filter((k) => current![k] !== other[k]);
+    expect(differing(v26!)).toEqual(["aggregate", "templates", "planDosePolicy"]);
+    expect(differing(v25!)).toEqual(["aggregate", "templates", "strengthDoses", "planDosePolicy"]);
+    // The v2.6 entry is exactly the manifest D's runtime writes (BUG-V2-2 / INT-01 releases).
+    expect(v26).toEqual({ ...current, aggregate: "session-model-v2.6", templates: "strength-templates-v2.1", planDosePolicy: "plan-dose-policy-v2.4" });
   });
 
   it("the generated text mirror equals the engine catalogue of the supported texts version (regenerate with scripts/generate-session-model-v2-texts.mjs)", () => {

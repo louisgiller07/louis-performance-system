@@ -62,6 +62,19 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     return { athleteId, planVersionId: persisted.planVersionId };
   }
 
+  /** PHYS-01 — a stored final structure without its load guidance, and which items carried one (exercise, mode). */
+  function withoutLoadGuidance(structure: unknown): { structure: unknown; guided: [string, string][] } {
+    const copy = JSON.parse(JSON.stringify(structure)) as { blocks: { items: Record<string, unknown>[] }[] };
+    const guided: [string, string][] = [];
+    for (const b of copy.blocks)
+      for (const i of b.items)
+        if (i.loadGuidance !== undefined) {
+          guided.push([i.exerciseId as string, (i.loadGuidance as { mode: string }).mode]);
+          delete i.loadGuidance;
+        }
+    return { structure: copy, guided };
+  }
+
   async function decisionsOn(athleteId: string, day: string) {
     const { data } = await admin
       .from("decisions")
@@ -126,7 +139,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       const finals = await finalsOf(decisions[0]!.id);
       expect(finals).toHaveLength(1);
       expect(finals[0]).toMatchObject({ id: result.finalPrescription!.id, planned_prescription_id: planned.id, plan_version_id: a.planVersionId, reconciliation_action: "keep", active_session_origin: "generated" });
-      expect(finals[0]!.structure).toEqual(planned.structure);
+      // PHYS-01 — the planned content verbatim; a Force work exercise carrying a load also gets its load guidance (never content).
+      const { structure: content, guided } = withoutLoadGuidance(finals[0]!.structure);
+      expect(content).toEqual(planned.structure);
+      expect(guided).toEqual(kind === "STRENGTH_LOWER" ? [["goblet_squat", "calibrate"], ["dumbbell_romanian_deadlift", "calibrate"]] : []);
       expect(sportFingerprint(finals[0]!.structure)).toBe(sportFingerprint(planned.structure));
       // Not rendered by the web yet: the V1 reader stays fail-closed.
       expect(result.executablePrescription).toBeNull();
@@ -258,7 +274,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     expect(decision).toMatchObject({
       final_prescription_status: "blocked",
       final_prescription_status_code: "final_prescription_catalog_mismatch",
-      final_prescription_status_detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.6" },
+      final_prescription_status_detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.7" },
     });
     expect(await finalsOf(decision!.id)).toEqual([]);
   });

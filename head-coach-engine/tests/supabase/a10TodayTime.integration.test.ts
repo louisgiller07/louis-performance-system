@@ -19,6 +19,10 @@ import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/genera
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { V2_TODAY_TIME_CONSTRAINT_RULE_ID } from "../../src/supabase/dailyV2/applyV2TodayTimeConstraint.js";
+import { estimateStrengthDurationMinutesV2 } from "planning-engine/session-model-v2";
+
+/** PHYS-01 — a Force session's real duration under the rider's time: its content's estimate. */
+const minutesOf = (structure: unknown) => estimateStrengthDurationMinutesV2(structure as never);
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
@@ -120,11 +124,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     expect(r.dailyPlan.triggered_rules.some((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)).toBe(false);
   });
 
-  it("B then C — 90 min for a 60-min Force: KEEP (traced « fits »); the rider changes to 45 and recalculates: MODIFY → real LIGHT Force 45 everywhere", async () => {
+  it("B then C — 90 min for a 60-min Force slot: KEEP at its real duration (traced « fits »); the rider changes to 45 and recalculates: MODIFY → real LIGHT Force, at its real duration, everywhere", async () => {
     const d = day(isForce, "MODERATE");
     await insertCheckin(admin, athleteId, d, { available_minutes_today: 90 });
     const b = await runDailyFor(admin, athleteId, d);
-    expect([b.dailyPlan.decision, b.dailyPlan.final_session.duration_min]).toEqual(["KEEP", 60]);
+    const keepMinutes = minutesOf(b.finalPrescription!.structure);
+    expect(keepMinutes).toBeGreaterThan(45);
+    expect(keepMinutes).toBeLessThanOrEqual(60);
+    expect([b.dailyPlan.decision, b.dailyPlan.final_session.duration_min]).toEqual(["KEEP", keepMinutes]);
     expect(b.dailyPlan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(/90 min.*Action : fits/);
     expect(b.dailyPlan.decision_reasoning?.some((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)).toBe(false);
 
@@ -132,22 +139,29 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     const c = await runDailyFor(admin, athleteId, d);
     expect(c.dailyPlan.decision).toBe("MODIFY");
     const { plan, fp } = await assertWithin(d, 45);
-    expect(plan.final_session).toMatchObject({ load_profile: "LIGHT", duration_min: 45 });
-    expect(plan.training.duration_min).toBe(45);
+    const lightMinutes = minutesOf(fp!.structure);
+    expect(lightMinutes).toBeLessThanOrEqual(45);
+    expect(plan.final_session).toMatchObject({ load_profile: "LIGHT", duration_min: lightMinutes });
+    expect(plan.training.duration_min).toBe(lightMinutes);
     expect(fp).toMatchObject({ reconciliation_action: "modify", adaptation_rule_ids: ["v2.modify.strength_light_dose", "v2.time.today_limit"] });
     expect(plan.decision_reasoning?.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toBe("Tu as 45 min aujourd'hui : la séance a été allégée pour tenir dans ce temps.");
     expect(plan.training.objective).toBe("Tu as 45 min aujourd'hui : la séance a été allégée pour tenir dans ce temps.");
-    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(/45 min\. Avant : KEEP STRENGTH_\w+ MODERATE 60 min\. Action : adapted → MODIFY STRENGTH_\w+ LIGHT 45 min\./);
+    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(
+      new RegExp(`45 min\\. Avant : KEEP STRENGTH_\\w+ MODERATE ${keepMinutes} min\\. Action : adapted → MODIFY STRENGTH_\\w+ LIGHT ${lightMinutes} min\\.`)
+    );
   });
 
-  it("D — Force 60 + 30 min: no « 30-min Force »; active recovery inside 30 min (REPLACE)", async () => {
+  it("D — Force 60 + 30 min (PHYS-01): the short Force — same session, LIGHT, fewer exercises — inside 30 min (MODIFY)", async () => {
     const d = day(isForce, "MODERATE");
     await insertCheckin(admin, athleteId, d, { available_minutes_today: 30 });
     const r = await runDailyFor(admin, athleteId, d);
-    expect(r.dailyPlan.decision).toBe("REPLACE");
+    expect(r.dailyPlan.decision).toBe("MODIFY");
     const { plan, fp } = await assertWithin(d, 30);
-    expect([plan.final_session.kind, fp!.structure.family]).toEqual(["RECOVERY_ACTIVE", "recovery"]);
-    expect(plan.training.objective).toBe("Tu as 30 min aujourd'hui : la séance prévue ne tient pas dans ce temps, récupération active à la place.");
+    expect([plan.final_session.kind, plan.final_session.load_profile, fp!.structure.family]).toEqual([fp!.structure.sessionKind, "LIGHT", "strength"]);
+    expect(plan.final_session.duration_min).toBe(minutesOf(fp!.structure));
+    expect(fp!.adaptation_rule_ids).toEqual(["v2.time.strength_short", "v2.time.today_limit"]);
+    expect(fp!.structure.blocks.map((b) => b.role)).toEqual(["warm_up", "main", "complementary", "cool_down"]);
+    expect(plan.training.objective).toBe("Tu as 30 min aujourd'hui : la séance a été allégée pour tenir dans ce temps.");
   });
 
   it("E — endurance 60 + 45 min: MODIFY → the same protocol at 45 min", async () => {
@@ -220,7 +234,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     await runDailyFor(admin, athleteId, d);
     const [d2] = await decisions(d);
     const fp2 = await finalOf(d2!.id);
-    expect(fp2!.structure.family).toBe("recovery");
+    // PHYS-01 — 30 min now gives the short Force; the started execution still blocks a second main session.
+    expect([fp2!.structure.family, fp2!.adaptation_rule_ids]).toEqual(["strength", ["v2.time.strength_short", "v2.time.today_limit"]]);
     expect((await record(start(fp2!.id, d).payload)).code).toBe("active_execution_exists");
 
     const { data: row } = await admin.from("session_executions").select("final_prescription_id, decision_id").eq("id", exec.id).single();
@@ -233,22 +248,24 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     expect(done.status).toBe("ok");
   });
 
-  it("L — M1 MODIFY (systemic RED, Force LIGHT 45) + 30 min: recovery, the load never goes back up, both reasons kept", async () => {
+  it("L — M1 MODIFY (systemic RED, Force LIGHT) + 30 min (PHYS-01): the short Force, still LIGHT, the load never goes back up, both reasons kept", async () => {
     const d = day(isForce, "MODERATE");
     await insertCheckin(admin, athleteId, d, { ...SYSTEMIC_RED, available_minutes_today: 30 });
     const r = await runDailyFor(admin, athleteId, d);
-    expect(r.dailyPlan.decision).toBe("REPLACE");
-    const { plan } = await assertWithin(d, 30);
-    expect(plan.final_session.kind).toBe("RECOVERY_ACTIVE");
+    expect(r.dailyPlan.decision).toBe("MODIFY");
+    const { plan, fp } = await assertWithin(d, 30);
+    expect([plan.final_session.load_profile, fp!.adaptation_rule_ids]).toEqual(["LIGHT", ["v2.time.strength_short", "v2.time.today_limit"]]);
     expect(plan.triggered_rules.map((t) => t.rule_id)).toEqual(expect.arrayContaining(["C3.3", V2_TODAY_TIME_CONSTRAINT_RULE_ID]));
-    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(/Avant : MODIFY STRENGTH_\w+ LIGHT 45 min/);
+    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(/Avant : MODIFY STRENGTH_\w+ LIGHT \d+ min\. Action : adapted → MODIFY STRENGTH_\w+ LIGHT \d+ min/);
   });
 
-  it("an M1 MODIFY (systemic RED) + 60 min: the LIGHT Force fits, nothing else changes", async () => {
+  it("an M1 MODIFY (systemic RED) + 60 min: the LIGHT Force fits at its real duration, nothing else changes", async () => {
     const d = day(isForce, "MODERATE");
     await insertCheckin(admin, athleteId, d, { ...SYSTEMIC_RED, available_minutes_today: 60 });
     const r = await runDailyFor(admin, athleteId, d);
-    expect([r.dailyPlan.decision, r.dailyPlan.final_session.load_profile, r.dailyPlan.final_session.duration_min]).toEqual(["MODIFY", "LIGHT", 45]);
+    const minutes = minutesOf(r.finalPrescription!.structure);
+    expect(minutes).toBeLessThanOrEqual(45);
+    expect([r.dailyPlan.decision, r.dailyPlan.final_session.load_profile, r.dailyPlan.final_session.duration_min]).toEqual(["MODIFY", "LIGHT", minutes]);
   });
 
   it("the DB refuses a non-positive time", async () => {

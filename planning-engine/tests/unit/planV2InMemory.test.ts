@@ -63,9 +63,9 @@ describe("A — development plan: every session kind gets a valid V2 prescriptio
       inputSnapshotSchemaVersion: "v2",
       prescriptionSchemaVersion: "v2",
       plannerVersion: "v2",
-      catalogVersion: "session-model-v2.6",
+      catalogVersion: "session-model-v2.7",
     });
-    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.4");
+    expect(plan.catalog.planDosePolicy).toBe("plan-dose-policy-v2.5");
   });
 
   it("BUG-V2-2 — introduction then build (no recent history): Force LIGHT 45 (3 sets) → MODERATE 60 (4 sets), DH 75 min / 5 passages → 90 / 6, AEROBIC_BASE 45; N sessions → N V2 prescriptions", () => {

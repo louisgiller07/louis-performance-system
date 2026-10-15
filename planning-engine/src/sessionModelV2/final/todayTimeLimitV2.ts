@@ -7,8 +7,12 @@
  * stays as is. Otherwise the session is adapted with validated content only,
  * the load never going up, in this order:
  *
- *   Force: its LIGHT dose (45 min, the same template — MODIFY, or REPLACE
- *     when the Force was itself a replacement). No shorter Force exists.
+ *   Force: its LIGHT dose (the same template — MODIFY, or REPLACE when the
+ *     Force was itself a replacement), then the short Force (PHYS-01: same
+ *     template and exercises, LIGHT, principal + secondary, one cool-down
+ *     item). A Force session's duration here is its content's estimate
+ *     (estimateStrengthDurationMinutesV2), never the planner's 45 / 60-min
+ *     slot — also for the session decided before the constraint.
  *   DH: the planner's availability windows (90 / 75 / 60 min, passages
  *     capped by the window), same drill. Nothing under 60 min.
  *   Endurance: the same protocol, 15 min shorter per step (the planner's
@@ -26,6 +30,8 @@ import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_PROGRESSION_CAPS_V2 } from "../../catalog/planDosePolicyV2.js";
 import type { PrescriptionV2 } from "../prescriptionV2.js";
 import { buildFinalPrescriptionV2, type BuildFinalPrescriptionV2Input } from "./buildFinalPrescriptionV2.js";
+import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
+import type { StrengthVariantV2 } from "../builders/strengthPrescriptionV2.js";
 import type { FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
 
 type Decision = BuildFinalPrescriptionV2Input["decision"]["decision"];
@@ -62,6 +68,12 @@ export function prescriptionMaxMinutes(result: Extract<FinalPrescriptionV2Result
   return blocks.reduce((sum, b) => sum + b.durationMinutes!.max, 0);
 }
 
+/** PHYS-01 — under the rider's time, a Force prescription's duration is its content's estimate. */
+function withStrengthEstimate<R extends FinalPrescriptionV2Result>(result: R): R {
+  if (result.status !== "created" || result.finalPrescription.structure.family !== "strength") return result;
+  return { ...result, effectiveDurationMin: estimateStrengthDurationMinutesV2(result.finalPrescription.structure) };
+}
+
 function fits(result: FinalPrescriptionV2Result, limit: number): boolean {
   if (result.status !== "created") return false;
   const max = prescriptionMaxMinutes(result);
@@ -78,14 +90,18 @@ function sessionOf(decision: Decision, final: FinalSession, durationMin: number 
 }
 
 /** The adapted sessions to try, in order (each lower or equal in load, shorter). */
-function candidates(structure: PrescriptionV2, decision: Decision, final: FinalSession, plannedKind: string | null, current: number | null, limit: number): { decision: Decision; finalSession: FinalSession }[] {
+type Candidate = { decision: Decision; finalSession: FinalSession; strengthVariant?: StrengthVariantV2 };
+
+function candidates(structure: PrescriptionV2, decision: Decision, final: FinalSession, plannedKind: string | null, current: number | null, limit: number): Candidate[] {
   const sameKind = plannedKind === final.kind && decision !== "REPLACE";
   const action: Decision = sameKind ? "MODIFY" : "REPLACE";
   const shorter = (d: number) => d <= limit && (current === null || d < current);
-  const out: { decision: Decision; finalSession: FinalSession }[] = [];
+  const out: Candidate[] = [];
   switch (structure.family) {
     case "strength":
       if (final.loadProfile !== "LIGHT") out.push({ decision: action, finalSession: { kind: final.kind, loadProfile: "LIGHT" } });
+      // PHYS-01 — the short Force, last Force step before active recovery.
+      out.push({ decision: action, finalSession: { kind: final.kind, loadProfile: "LIGHT" }, strengthVariant: "short" });
       break;
     case "dh_technical":
       for (const step of PLAN_DH_DURATION_STEPS_V2) {
@@ -108,8 +124,8 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
 
 export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescriptionV2Input & { availableMinutes: number | null }): FinalPrescriptionWithinTodayTimeV2Result {
   const { availableMinutes, ...base } = input;
-  const result = buildFinalPrescriptionV2(base);
-  if (availableMinutes === null) return result;
+  if (availableMinutes === null) return buildFinalPrescriptionV2(base);
+  const result = withStrengthEstimate(buildFinalPrescriptionV2(base));
   if (!Number.isInteger(availableMinutes) || availableMinutes <= 0) throw new RangeError(`availableMinutes must be a positive integer, got ${availableMinutes}`);
 
   const { decision: decisionValue, finalSession } = base.decision;
@@ -123,7 +139,14 @@ export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescri
 
   const plannedKind = base.lineage?.generatedSession?.kind ?? null;
   for (const candidate of candidates(result.finalPrescription.structure, decisionValue, finalSession, plannedKind, current, availableMinutes)) {
-    const adapted = buildFinalPrescriptionV2({ ...base, decision: { ...base.decision, decision: candidate.decision, finalSession: candidate.finalSession }, timeLimitMin: availableMinutes });
+    const adapted = withStrengthEstimate(
+      buildFinalPrescriptionV2({
+        ...base,
+        decision: { ...base.decision, decision: candidate.decision, finalSession: candidate.finalSession },
+        timeLimitMin: availableMinutes,
+        ...(candidate.strengthVariant !== undefined ? { strengthVariant: candidate.strengthVariant } : {}),
+      })
+    );
     if (adapted.status === "created" && fits(adapted, availableMinutes)) {
       // The decided duration is the content's own (A07); a recovery range has none.
       return { ...adapted, timeConstraint: outcome("adapted", sessionOf(candidate.decision, { kind: candidate.finalSession.kind, ...(candidate.finalSession.loadProfile !== undefined ? { loadProfile: candidate.finalSession.loadProfile } : {}) }, adapted.effectiveDurationMin)) };

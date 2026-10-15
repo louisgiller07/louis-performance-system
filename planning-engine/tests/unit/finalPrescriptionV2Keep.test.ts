@@ -90,7 +90,7 @@ describe("KEEP with lineage — the final prescription is a verbatim copy", () =
       reconciliationAction: "keep",
       adaptationRuleIds: [],
       schemaVersion: "v2",
-      catalogVersion: "session-model-v2.6",
+      catalogVersion: "session-model-v2.7",
     });
   });
 
@@ -263,7 +263,7 @@ describe("UX-11A.5c.3 — planned prescription from another catalogue aggregate"
         rec.catalogVersion = "session-model-v2.0";
         st.blocks.find((b: any) => b.role === "main").items[0].exerciseId = "exercise_removed_since_v2_0";
       })
-    ).toEqual({ status: "blocked", code: "final_prescription_catalog_mismatch", detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.6" } });
+    ).toEqual({ status: "blocked", code: "final_prescription_catalog_mismatch", detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.7" } });
   });
 
   it("older aggregate still valid for this runtime → KEEP copies it verbatim with its own manifest", () => {

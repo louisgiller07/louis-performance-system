@@ -31,7 +31,7 @@ import { STRENGTH_TEMPLATE_CATALOG_V2_VERSION } from "../catalog/strengthTemplat
 import { STRENGTH_DOSE_CATALOG_V2_VERSION } from "../catalog/strengthDoseCatalogV2.js";
 import { PLAN_DOSE_POLICY_V2_VERSION } from "../catalog/planDosePolicyV2.js";
 
-export const SESSION_MODEL_V2_AGGREGATE_VERSION = "session-model-v2.6";
+export const SESSION_MODEL_V2_AGGREGATE_VERSION = "session-model-v2.7";
 
 export interface SessionModelV2CatalogManifest {
   aggregate: string;

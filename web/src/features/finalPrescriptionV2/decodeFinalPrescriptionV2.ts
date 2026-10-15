@@ -7,7 +7,7 @@
 // every id must resolve (exercise / drill names, cue, criterion, vigilance,
 // instruction, intent, activity); one unresolved id makes the whole document
 // invalid — never a partial rendering.
-import type { BlockView, DrillItemView, ExerciseItemView, ExerciseMeasureView, FinalPrescriptionV2View, RangeView } from "./finalPrescriptionV2Types";
+import type { BlockView, DrillItemView, ExerciseItemView, ExerciseMeasureView, FinalPrescriptionV2View, LoadGuidanceView, LoadReferenceView, RangeView } from "./finalPrescriptionV2Types";
 import {
   BLOCK_ROLE_LABELS_V2,
   drillNameV2,
@@ -71,6 +71,49 @@ function measure(v: unknown, path: string): ExerciseMeasureView {
   return fail(`${path}: invalid exercise measure`);
 }
 
+const isRir = (r: unknown): r is RangeView | null =>
+  r === null || (isObject(r) && Number.isInteger(r.min) && Number.isInteger(r.max) && (r.min as number) >= 0 && (r.min as number) <= (r.max as number) && (r.max as number) <= 10);
+const isKg = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 1000;
+
+function loadReference(r: unknown): LoadReferenceView | null {
+  if (!isObject(r) || typeof r.sessionDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.sessionDate) || !isKg(r.loadKg)) return null;
+  if (!Array.isArray(r.reps) || r.reps.length === 0 || !r.reps.every((n) => Number.isInteger(n) && n > 0)) return null;
+  const range = r.repsRange === null ? null : isObject(r.repsRange) && Number.isInteger(r.repsRange.min) && Number.isInteger(r.repsRange.max) ? { min: r.repsRange.min as number, max: r.repsRange.max as number } : undefined;
+  if (range === undefined) return null;
+  const rpeMax = r.rpeMax === null ? null : typeof r.rpeMax === "number" && r.rpeMax >= 1 && r.rpeMax <= 10 ? r.rpeMax : undefined;
+  if (rpeMax === undefined) return null;
+  const setsPrescribed = r.setsPrescribed === null ? null : isCount(r.setsPrescribed) ? r.setsPrescribed : undefined;
+  if (setsPrescribed === undefined) return null;
+  return { sessionDate: r.sessionDate, loadKg: r.loadKg, reps: r.reps as number[], setsPrescribed, repsRange: range, rpeMax };
+}
+
+/**
+ * PHYS-01 — the load guidance of a work exercise, decoded leniently: it is
+ * advice, so a malformed or unknown guidance is dropped (never shown as a
+ * guess) while the session itself stays readable.
+ */
+function loadGuidance(g: unknown): LoadGuidanceView | undefined {
+  if (!isObject(g) || g.ruleVersion !== "strength-load-guidance-v1") return undefined;
+  if (g.mode === "calibrate" && (g.reason === "no_history" || g.reason === "history_without_load") && isRir(g.repsInReserve)) {
+    return { mode: "calibrate", reason: g.reason, repsInReserve: g.repsInReserve };
+  }
+  if (g.mode === "reference" && (g.reason === "different_dose" || g.reason === "history_too_old") && isRir(g.repsInReserve)) {
+    const reference = loadReference(g.reference);
+    return reference ? { mode: "reference", reason: g.reason, reference, repsInReserve: g.repsInReserve } : undefined;
+  }
+  if (
+    g.mode === "target" &&
+    (g.reason === "top_of_range_reached" || g.reason === "within_range" || g.reason === "below_range" || g.reason === "effort_too_high") &&
+    (g.change === "increase" || g.change === "keep" || g.change === "decrease") &&
+    isKg(g.targetKg) &&
+    isKg(g.stepKg)
+  ) {
+    const reference = loadReference(g.reference);
+    return reference ? { mode: "target", reason: g.reason, change: g.change, targetKg: g.targetKg, stepKg: g.stepKg, reference } : undefined;
+  }
+  return undefined;
+}
+
 function item(v: unknown, path: string): ExerciseItemView | DrillItemView {
   if (!isObject(v) || !isNonEmptyString(v.prescriptionItemId)) fail(`${path}: invalid item`);
   if (v.kind === "exercise") {
@@ -85,6 +128,7 @@ function item(v: unknown, path: string): ExerciseItemView | DrillItemView {
     }
     const restSeconds = optionalRange(v.restSeconds, `${path}.restSeconds`);
     const rpeTarget = optionalRange(v.rpeTarget, `${path}.rpeTarget`);
+    const guidance = loadGuidance(v.loadGuidance);
     return {
       kind: "exercise",
       prescriptionItemId: v.prescriptionItemId,
@@ -98,6 +142,7 @@ function item(v: unknown, path: string): ExerciseItemView | DrillItemView {
       cue: text(v.cueId, "cue", `${path}.cueId`),
       vigilances: texts(v.vigilanceIds, "vigilance", `${path}.vigilanceIds`),
       ...(rampUp ? { rampUp } : {}),
+      ...(guidance ? { loadGuidance: guidance } : {}),
     };
   }
   if (v.kind === "drill") {

@@ -16,3 +16,7 @@ export { sportFingerprint } from "./sportFingerprint.js";
 export { SESSION_MODEL_V2_AGGREGATE_VERSION } from "./catalogManifest.js";
 export type { PrescriptionV2 } from "./prescriptionV2.js";
 export type { PlanInputSnapshotV2 } from "./planInputSnapshotV2.js";
+// PHYS-01 — Force load guidance from the rider's own recorded sets (attached by the daily integration layer).
+export * from "./strengthLoadGuidanceV2.js";
+export * from "./strengthDurationV2.js";
+export { validatePrescriptionV2 } from "./validatePrescriptionV2.js";

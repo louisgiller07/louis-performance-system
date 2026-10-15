@@ -10,6 +10,8 @@ import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
 import { formatMeasure, formatSeconds, setsLabel, span } from "../../finalPrescriptionV2/finalPrescriptionV2Copy";
 import type { BlockView, ExerciseItemView } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
+import { LoadGuidanceNote } from "../../finalPrescriptionV2/LoadGuidanceNote";
+import { formatKg, loadGuidanceLines } from "../../finalPrescriptionV2/loadGuidanceCopy";
 import type { GuidedSessionModuleProps } from "../sessionModules";
 import { draftOf, EMPTY_FORM, liveForm, type OpenForm } from "./strengthDraft";
 import {
@@ -56,6 +58,12 @@ function ReadOnlyBlock({ block }: { block: BlockView }) {
       </ul>
     </section>
   );
+}
+
+/** PHYS-01 — the advised load, next to the load field (never pre-filled: the rider records what was really used). */
+function suggestedLoadHint(item: ExerciseItemView): string | undefined {
+  const kg = item.loadGuidance ? loadGuidanceLines(item.loadGuidance, item.measure).suggestedKg : null;
+  return kg === null ? undefined : `Conseillé : ${formatKg(kg)}`;
 }
 
 const fieldId = (form: OpenForm, field: keyof SetFormValues) => `set-${form.key.replace(/[^a-z0-9]/gi, "-")}-${field}`;
@@ -114,7 +122,7 @@ function SetForm({ form, item, busy, onChange, onSave, onCancel }: { form: OpenF
         </legend>
         {field("value", form.measureType === "reps" ? `Répétitions réalisées${perSide}` : `Durée réalisée en secondes${perSide}`, { inputMode: "numeric", step: "1", min: 1 })}
         {field("rpe", "RPE ressenti (1–10, facultatif)", { inputMode: "decimal", step: "0.5", min: 1, max: 10 }, item.rpeTarget ? `Prévu : RPE ${span(item.rpeTarget)}` : undefined)}
-        {field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 })}
+        {field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 }, suggestedLoadHint(item))}
       </fieldset>
       <PrimaryButton type="submit" disabled={busy} className="w-full">
         {form.supersedes ? "Enregistrer la correction" : "Enregistrer la série"}
@@ -169,6 +177,7 @@ function ExerciseCard({ item, measureType, slots, current, canEdit, showSlots, b
         <span className="font-medium">Prévu : </span>
         {prescribedDose(item)}
       </p>
+      <LoadGuidanceNote item={item} />
       {item.rampUp && (
         <p className="text-sm text-muted">
           Montée en charge : {span(item.rampUp.sets)} {item.rampUp.sets.max > 1 ? "séries" : "série"} — {item.rampUp.instruction}

@@ -7,6 +7,7 @@ import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionR
 import type { BlockView, DrillItemView, ExerciseItemView, FinalPrescriptionV2State, FinalPrescriptionV2View } from "./finalPrescriptionV2Types";
 import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
 import { strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
+import { LoadGuidanceNote } from "./LoadGuidanceNote";
 
 function Vigilances({ items }: { items: string[] }) {
   if (items.length === 0) return null;
@@ -32,6 +33,7 @@ function ExerciseItem({ item, work }: { item: ExerciseItemView; work: boolean })
         {item.rpeTarget && ` — RPE ${span(item.rpeTarget)}`}
       </p>
       {item.restSeconds && <p className="text-sm text-muted">Repos : {formatSeconds(item.restSeconds)}</p>}
+      {work && <LoadGuidanceNote item={item} />}
       {item.rampUp && (
         <p className="text-sm text-muted">
           Montée en charge : {span(item.rampUp.sets)} {item.rampUp.sets.max > 1 ? "séries" : "série"} — {item.rampUp.instruction}

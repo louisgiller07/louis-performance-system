@@ -6179,3 +6179,47 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 
 **Statut** : READY LOCAL / NOT DEPLOYED. Proposée comme 7e migration de REL-01 sur décision HPM.
 
+
+## 2026-10-15 — ADR PHYS-01 : coaching physique exécutable (Force) — PROPOSÉE
+
+**Contexte (décision produit Louis / HPM, 2026-10-15).** Le rider doit recevoir une séance physique complète et personnalisée, puis la suite doit s'ajuster à ses résultats. L'inventaire de V2 (candidat D `649a0a2`) montre :
+- la Force est déjà détaillée : échauffement, exercices par niveau et matériel, séries, répétitions, RPE, repos, montée en charge, consignes, guidage série par série, avec saisie de la charge et du RPE ;
+- mais elle n'a pas de retour au calme ;
+- sa durée vient du créneau du planificateur (45 / 60 min) et non de son contenu (28–49 min mesurés), si bien qu'un rider qui n'a que 30 min ne reçoit jamais de Force ;
+- aucun moteur ne relit les séries enregistrées ;
+- le canon interdisait toute charge calculée et toute progression fondée sur la performance (docs/03 §5 et §10, docs/05 « Charge »). Il annonçait qu'une telle progression « demandera des données de réalisation et une décision séparée » : cette ADR est cette décision. Louis a choisi l'option « implémenter + diff canon », le 2026-10-15.
+
+**Décision proposée (règles PROVISIONAL, validation par un préparateur physique qualifié avant toute commercialisation).**
+
+1. **Retour au calme** (`strength-templates-v2.2`) :
+   - d'abord la mobilité de la zone chargée, puis une respiration à expiration longue ;
+   - uniquement des exercices existants ayant le rôle `cool_down`, et la consigne existante `instruction.recovery.light_mobility`.
+2. **Durée réelle** :
+   - elle est estimée à partir du contenu, avec des bornes hautes prudentes (`PLAN_STRENGTH_TIMING_V2`, `plan-dose-policy-v2.5`) ;
+   - elle n'est utilisée que sous le temps du jour (A10) ;
+   - les créneaux du planificateur et les entrées de M1 sont inchangés.
+3. **Force courte** :
+   - même gabarit, même échauffement et mêmes exercices au dosage LIGHT ;
+   - exercice principal et secondaire seulement, plus la mobilité du retour au calme ;
+   - 26 à 28 min, quels que soient le profil et le matériel ;
+   - dernière marche de la Force sous A10, avant la récupération active ;
+   - la filiation se fait par exercice, jamais par position.
+4. **Conseil de charge** (`strength-load-guidance-v1`), sur les exercices de travail à charge externe d'une prescription **finale** :
+   - double progression, appliquée uniquement aux charges que le rider a réellement enregistrées dans une exécution terminée ;
+   - sans historique → calibration par l'effort (répétitions en réserve), sans aucun chiffre ;
+   - fourchette différente ou référence de plus de 28 jours → la dernière charge est montrée, jamais convertie ;
+   - sinon, un cran au plus : monter si toutes les séries prescrites sont au haut de la fourchette sans dépasser l'effort cible ; descendre si une série est sous la fourchette ou si le RPE atteint la cible + 2 ; garder dans tous les autres cas ;
+   - jamais de 1RM, de % ni de valeur déclarée au profil ;
+   - le conseil est validé à cet endroit seulement ; partout ailleurs, `forbidden_load_field` est inchangé.
+5. **Intégration** : le conseil est lu et attaché par la réconciliation V2 (couche Supabase).
+   - Il est consultatif : un échec de lecture ne bloque jamais la décision, et un avertissement stable est émis.
+   - Il est persisté avec la prescription finale ; aucune migration n'est nécessaire.
+   - Il est exclu de l'empreinte sport.
+   - M1 n'est pas modifié.
+6. **Versions** : agrégat `session-model-v2.7`.
+   - Le web lit v2.7, v2.6 et v2.5.
+   - Un plan v2.6 garde son KEEP. Son MODIFY est un `final_prescription_catalog_mismatch` (§9).
+
+**Canon** : diffs proposés pour docs/03, docs/04, docs/05, docs/07 et docs/10 (`docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`). Rien n'est appliqué avant accord.
+
+**Statut** : READY LOCAL (parcours vertical Force) / NOT DEPLOYED, branche `feat/phys-01-physical-coaching`. Intégration après REL-01, sur GO HPM.
