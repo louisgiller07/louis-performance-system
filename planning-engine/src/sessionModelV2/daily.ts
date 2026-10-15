@@ -19,4 +19,5 @@ export type { PlanInputSnapshotV2 } from "./planInputSnapshotV2.js";
 // PHYS-01 — Force load guidance from the rider's own recorded sets (attached by the daily integration layer).
 export * from "./strengthLoadGuidanceV2.js";
 export * from "./strengthDurationV2.js";
+export * from "./strengthDailyV2.js";
 export { validatePrescriptionV2 } from "./validatePrescriptionV2.js";

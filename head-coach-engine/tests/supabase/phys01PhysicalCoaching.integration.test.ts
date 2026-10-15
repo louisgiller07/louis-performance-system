@@ -21,7 +21,7 @@ import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 const INTEGRATION_ENABLED = localIntegrationRequested();
 const GENERATED_ON = "2026-10-04";
 const FIRST_DAY = "2026-10-05";
-const WINDOW_END = "2026-10-25";
+const WINDOW_END = "2026-11-15";
 const FULL_GYM = ["barbell", "squat_rack", "dumbbells", "bench", "resistance_bands", "cable_machine", "pull_up_bar"];
 
 type Item = {
@@ -44,7 +44,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
     admin = createTestClient();
   });
 
-  async function rider(name: string, tier: "beginner" | "intermediate" | "advanced", equipment: string[]) {
+  async function rider(name: string, tier: "beginner" | "intermediate" | "advanced", equipment: string[], durationWeeks = 3) {
     const { athleteId } = await createTestAthlete(admin, name);
     await setAthleteDiscipline(admin, athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, athleteId, {
@@ -57,7 +57,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
     const persisted = await generateAndPersistTrainingPlanV2(
-      { planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 3, today: GENERATED_ON },
+      { planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks, today: GENERATED_ON },
       { buildPlanInputSnapshotV2, callRpc: generateTrainingPlanVersionRpcV2, mintId: () => randomUUID() }
     );
     if (persisted.status !== "persisted") throw new Error(`expected a persisted V2 plan, got ${persisted.status}`);
@@ -141,68 +141,81 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
     expect(JSON.stringify(s)).not.toMatch(/loadGuidance|Kg/);
   });
 
-  it("B — advanced with a load history: calibration first, then the last load shown when the dose changes, then +1 step when every set reached the top of the range", async () => {
-    const b = await rider("PHYS-01 B advanced", "advanced", FULL_GYM);
-    const uppers = await datesOf(b.planVersionId, "STRENGTH_UPPER");
-    expect(uppers.length).toBeGreaterThanOrEqual(3);
-    const [u1, u2, u3] = uppers as [string, string, string];
+  it("B — advanced with a load history, over a 6-week block: calibration, the last load shown when the range changes, the load held when the dose already goes up, +1 step at the same range, held again on the next overload", async () => {
+    const b = await rider("PHYS-01 B advanced", "advanced", FULL_GYM, 6);
+    const [u1, u2, u3, u4, u5] = (await datesOf(b.planVersionId, "STRENGTH_UPPER")) as [string, string, string, string, string];
+    const dose = (i: Item) => [i.sets, i.measure.min, i.measure.max, i.rpeTarget!.min, i.rpeTarget!.max];
+    const benchOf = (s: Structure) => byExercise(s, "barbell_bench_press");
+    const log: unknown[] = [];
 
-    // Session 1 — no history: calibration by effort on the loaded exercises, nothing on bodyweight ones.
+    // Session 1 — introduction week (LIGHT 3 × 8–10, RPE 5–6), no history: calibration by effort, no number.
     const d1 = await day(b.athleteId, u1);
-    const s1 = d1.structure!;
-    expect(work(s1).map((i) => [i.exerciseId, i.loadGuidance?.mode ?? null, i.loadGuidance?.reason ?? null])).toEqual([
-      ["barbell_bench_press", "calibrate", "no_history"],
-      ["lat_pulldown", "calibrate", "no_history"],
-      ["hanging_leg_raise", null, null],
+    const bench1 = benchOf(d1.structure!);
+    expect(dose(bench1)).toEqual([3, 8, 10, 5, 6]);
+    expect(bench1.loadGuidance).toMatchObject({ mode: "calibrate", reason: "no_history", loadBasis: "total" });
+    expect(work(d1.structure!).map((i) => [i.exerciseId, i.loadGuidance?.mode ?? null])).toEqual([
+      ["barbell_bench_press", "calibrate"],
+      ["lat_pulldown", "calibrate"],
+      ["hanging_leg_raise", null],
     ]);
-    const bench1 = byExercise(s1, "barbell_bench_press");
-    const lat1 = byExercise(s1, "lat_pulldown");
-    console.info("B session 1:", bench1.sets, "×", bench1.measure, bench1.loadGuidance);
-    // The rider records the loads actually used: every set at the top of the range, effort within the target.
-    await perform(b.athleteId, u1, d1.finalPrescriptionId!, [...sets(bench1, bench1.sets, bench1.measure.max!, 50, bench1.rpeTarget!.max), ...sets(lat1, lat1.sets, lat1.measure.max!, 40, lat1.rpeTarget!.max)]);
+    // The rider chooses 50 kg: 3 × 10, RPE 6 (the top of the range, inside the effort target).
+    await perform(b.athleteId, u1, d1.finalPrescriptionId!, sets(bench1, 3, 10, 50, 6));
+    log.push({ session: 1, date: u1, dose: dose(bench1), guidance: bench1.loadGuidance, recorded: "3 × 10 @ 50 kg, RPE 6" });
 
-    // The plan's own progression: introduction (LIGHT, 3 × 8–10) → build (MODERATE, 4 × 6–8) → build+ (MODERATE_PLUS, 5 × 6–8).
-    expect([bench1.sets, bench1.measure.min, bench1.measure.max]).toEqual([3, 8, 10]);
-
-    // Session 2 — the history is read; another repetition range today → the last load is shown, never converted.
+    // Session 2 — build week (MODERATE 4 × 6–8, RPE 7–8): no session at this range yet → the last load is shown, never converted.
     const d2 = await day(b.athleteId, u2);
-    const bench2 = byExercise(d2.structure!, "barbell_bench_press");
-    const lat2 = byExercise(d2.structure!, "lat_pulldown");
-    console.info("B session 2:", bench2.sets, "×", bench2.measure, bench2.loadGuidance);
-    expect([bench2.sets, bench2.measure.min, bench2.measure.max]).toEqual([4, 6, 8]);
+    const bench2 = benchOf(d2.structure!);
+    expect(dose(bench2)).toEqual([4, 6, 8, 7, 8]);
     expect(bench2.loadGuidance).toEqual({
       ruleVersion: "strength-load-guidance-v1",
       mode: "reference",
       reason: "different_dose",
+      loadBasis: "total",
       reference: { sessionDate: u1, loadKg: 50, reps: [10, 10, 10], setsPrescribed: 3, repsRange: { min: 8, max: 10 }, rpeMax: 6 },
       repsInReserve: { min: 2, max: 3 },
     });
-    await perform(b.athleteId, u2, d2.finalPrescriptionId!, [
-      ...sets(bench2, bench2.sets, bench2.measure.max!, 55, bench2.rpeTarget!.max),
-      ...sets(lat2, lat2.sets, lat2.measure.min!, 45, lat2.rpeTarget!.max),
-    ]);
+    // The rider adjusts by effort and chooses 55 kg: 4 × 8, RPE 8.
+    await perform(b.athleteId, u2, d2.finalPrescriptionId!, sets(bench2, 4, 8, 55, 8));
+    log.push({ session: 2, date: u2, dose: dose(bench2), guidance: bench2.loadGuidance, recorded: "4 × 8 @ 55 kg, RPE 8" });
 
-    // Session 3 — same repetition range as session 2 at the top with the effort in target → one step up (barbell: 2.5 kg).
+    // Session 3 — overload week (MODERATE_PLUS 5 × 6–8, RPE 8): session 2 reached the top at RPE 8, but today the dose already goes
+    // up (+1 set): one lever at a time → same load, held because of the dose.
     const d3 = await day(b.athleteId, u3);
-    const bench3 = byExercise(d3.structure!, "barbell_bench_press");
-    console.info("B session 3:", bench3.sets, "×", bench3.measure, bench3.loadGuidance);
-    expect([bench3.measure.min, bench3.measure.max]).toEqual([bench2.measure.min, bench2.measure.max]);
-    expect(bench3.loadGuidance).toMatchObject({ mode: "target", reason: "top_of_range_reached", change: "increase", targetKg: 57.5, stepKg: 2.5, reference: { sessionDate: u2, loadKg: 55 } });
-    // The guidance is persisted with the decision's final prescription (traceable), and validated.
-    const { data: persisted } = await admin.from("decision_final_prescriptions").select("structure").eq("id", d3.finalPrescriptionId!).single();
-    expect(byExercise(persisted!.structure as Structure, "barbell_bench_press").loadGuidance).toEqual(bench3.loadGuidance);
-    expect([bench3.sets, bench3.measure.min, bench3.measure.max]).toEqual([5, 6, 8]);
-    // The lat pulldown's range changed between build (8–12) and build+ (8–10): its last load is shown, never converted.
-    const lat3 = byExercise(d3.structure!, "lat_pulldown");
-    console.info("B session 3 lat:", lat3.measure, lat3.loadGuidance);
-    expect(lat3.loadGuidance).toMatchObject({ mode: "reference", reason: "different_dose", reference: { sessionDate: u2, loadKg: 45, repsRange: { min: 8, max: 12 } } });
+    const bench3 = benchOf(d3.structure!);
+    expect(dose(bench3)).toEqual([5, 6, 8, 8, 8]);
+    expect(bench3.loadGuidance).toMatchObject({ mode: "target", reason: "top_of_range_reached", change: "keep", hold: "dose_up", targetKg: 55, reference: { sessionDate: u2, loadKg: 55 } });
+    await perform(b.athleteId, u3, d3.finalPrescriptionId!, sets(bench3, 5, 8, 55, 8));
+    log.push({ session: 3, date: u3, dose: dose(bench3), guidance: bench3.loadGuidance, recorded: "5 × 8 @ 55 kg, RPE 8" });
+
+    // (Week 4 is the consolidation week: no upper-body Force.)
+    // Session 4 — build week of the next cycle (MODERATE 4 × 6–8): the same-range reference is session 3 (5 × 8 @ 55, RPE 8);
+    // today's dose is not heavier (4 sets ≤ 5, RPE 8 ≤ 8) → +2.5 kg = 57.5.
+    const d4 = await day(b.athleteId, u4);
+    const bench4 = benchOf(d4.structure!);
+    expect(dose(bench4)).toEqual([4, 6, 8, 7, 8]);
+    expect(bench4.loadGuidance).toMatchObject({ mode: "target", reason: "top_of_range_reached", change: "increase", targetKg: 57.5, stepKg: 2.5, reference: { sessionDate: u3, loadKg: 55, reps: [8, 8, 8, 8, 8], rpeMax: 8 } });
+    expect(bench4.loadGuidance).not.toHaveProperty("hold");
+    // The guidance is persisted with the decision's final prescription (traceable) and equals what was computed.
+    const { data: persisted } = await admin.from("decision_final_prescriptions").select("structure").eq("id", d4.finalPrescriptionId!).single();
+    expect(benchOf(persisted!.structure as Structure).loadGuidance).toEqual(bench4.loadGuidance);
+    // The rider follows it: 4 × 8 @ 57.5 kg, RPE 8.
+    await perform(b.athleteId, u4, d4.finalPrescriptionId!, sets(bench4, 4, 8, 57.5, 8));
+    log.push({ session: 4, date: u4, dose: dose(bench4), guidance: bench4.loadGuidance, recorded: "4 × 8 @ 57.5 kg, RPE 8" });
+
+    // Session 5 — next overload week (5 × 6–8): the top was reached again, but the dose goes up → 57.5 kg held (dose_up).
+    const d5 = await day(b.athleteId, u5);
+    const bench5 = benchOf(d5.structure!);
+    expect(dose(bench5)).toEqual([5, 6, 8, 8, 8]);
+    expect(bench5.loadGuidance).toMatchObject({ mode: "target", change: "keep", hold: "dose_up", targetKg: 57.5, reference: { sessionDate: u4, loadKg: 57.5 } });
+    log.push({ session: 5, date: u5, dose: dose(bench5), guidance: bench5.loadGuidance });
+    console.info("PHYS-01.1 B history:", JSON.stringify(log));
   });
 
-  it("C — 30 minutes today, dumbbells only: the short Force (same exercises, LIGHT, principal + secondary, cool-down mobility) within 30 minutes, guided by effort", async () => {
+  it("C — 30 minutes today, dumbbells only: the same LIGHT session, two exercises kept at their dose, full warm-up, the cool-down's mobility, within 30 minutes", async () => {
     const c = await rider("PHYS-01 C 30 min", "intermediate", ["dumbbells"]);
     const [lower] = await datesOf(c.planVersionId, "STRENGTH_LOWER");
     const d = await day(c.athleteId, lower!, { available_minutes_today: 30 });
-    expect(d.ruleIds).toContain("v2.time.strength_short");
+    expect(d.ruleIds).toEqual(["v2.time.strength_shortened", "v2.time.today_limit"]);
     expect(d.result.dailyPlan.final_session).toMatchObject({ kind: "STRENGTH_LOWER", load_profile: "LIGHT" });
     expect(d.result.dailyPlan.final_session.duration_min!).toBeLessThanOrEqual(30);
     const s = d.structure!;
@@ -212,9 +225,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
       ["complementary", ["dumbbell_romanian_deadlift"]],
       ["cool_down", ["hip_flexor_mobility"]],
     ]);
-    expect(work(s).map((i) => [i.exerciseId, i.loadGuidance?.mode, i.loadGuidance?.repsInReserve])).toEqual([
-      ["goblet_squat", "calibrate", { min: 4, max: 5 }],
-      ["dumbbell_romanian_deadlift", "calibrate", { min: 4, max: 5 }],
+    // Same LIGHT dose as the planned session (3 × 8–10 / 2 × 10–12, RPE 5–6, planned rests).
+    expect(work(s).map((i) => [i.sets, i.measure.min, i.measure.max, i.rpeTarget, i.restSeconds])).toEqual([
+      [3, 8, 10, { min: 5, max: 6 }, { min: 90, max: 120 }],
+      [2, 10, 12, { min: 5, max: 6 }, { min: 60, max: 90 }],
+    ]);
+    expect(work(s).map((i) => [i.exerciseId, i.loadGuidance?.mode, i.loadGuidance?.loadBasis, i.loadGuidance?.repsInReserve])).toEqual([
+      ["goblet_squat", "calibrate", "per_dumbbell", { min: 4, max: 5 }],
+      ["dumbbell_romanian_deadlift", "calibrate", "per_dumbbell", { min: 4, max: 5 }],
     ]);
   });
 
@@ -245,4 +263,21 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
     const { data: executions } = await admin.from("session_executions").select("id").eq("athlete_id", r.athleteId);
     expect(executions).toEqual([]);
   });
+  it("E — a day with a light pain (not stopping the session): the history allows +1 step, the guidance holds the load (hold: pain)", async () => {
+    const e = await rider("PHYS-01 E pain", "intermediate", ["dumbbells", "bench"], 6);
+    const uppers = (await datesOf(e.planVersionId, "STRENGTH_UPPER")) as string[];
+    // Build week (4 × 6–8): every set at the top, inside the effort target, 20 kg per dumbbell.
+    const u2 = uppers[1]!;
+    const d2 = await day(e.athleteId, u2);
+    const bench2 = byExercise(d2.structure!, "dumbbell_bench_press");
+    expect([bench2.sets, bench2.measure.min, bench2.measure.max]).toEqual([4, 6, 8]);
+    await perform(e.athleteId, u2, d2.finalPrescriptionId!, sets(bench2, 4, 8, 20, 8));
+    // The next build week (same range, same dose → +1 step expected) — but the rider reports a light, known pain that day.
+    const u4 = uppers[3]!;
+    const d4 = await day(e.athleteId, u4, { pain: true, pain_intensity: 2, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
+    expect(d4.result.dailyPlan.final_session.kind).toBe("STRENGTH_UPPER");
+    const bench4 = byExercise(d4.structure!, "dumbbell_bench_press");
+    expect(bench4.loadGuidance).toMatchObject({ mode: "target", reason: "top_of_range_reached", change: "keep", hold: "pain", targetKg: 20, loadBasis: "per_dumbbell" });
+  });
+
 });

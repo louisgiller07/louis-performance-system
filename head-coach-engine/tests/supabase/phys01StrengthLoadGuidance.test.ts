@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assignPrescriptionIds, buildSessionModelV2CatalogManifest, buildStrengthPrescriptionV2Content, type PrescriptionV2 } from "planning-engine/session-model-v2";
 import type { FinalPrescriptionWithinTodayTimeV2Result } from "planning-engine/session-model-v2/daily";
 import { LOAD_GUIDANCE_WARNINGS, toStrengthHistoryByExercise, withStrengthLoadGuidance } from "../../src/supabase/dailyV2/strengthLoadGuidance.js";
+import { todayLoadHold } from "../../src/supabase/dailyV2/todayLoadHold.js";
 import type { StrengthSetHistoryRead, StrengthSetResultRow } from "../../src/supabase/repositories/strengthSetHistoryRepo.js";
 
 // PHYS-01 — the integration layer of the Force load guidance: history read → pure rule → validated final prescription.
@@ -89,8 +90,6 @@ describe("PHYS-01 — withStrengthLoadGuidance", () => {
       ["dumbbell_bench_press", "target"],
       ["one_arm_dumbbell_row", "calibrate"],
       ["dead_bug", null],
-      ["cat_cow", null],
-      ["breathing_long_exhale", null],
     ]);
     expect(r).not.toHaveProperty("loadGuidanceWarning");
     const bench = r.status === "created" ? r.finalPrescription.structure.blocks.find((b) => b.role === "main")!.items[0]! : null;
@@ -123,5 +122,23 @@ describe("PHYS-01 — withStrengthLoadGuidance", () => {
     const bw = finalOf(bodyweight);
     expect(await withStrengthLoadGuidance(bw, client, "a", TODAY, { getCompletedStrengthSetHistory })).toBe(bw);
     expect(getCompletedStrengthSetHistory).not.toHaveBeenCalled();
+  });
+});
+
+describe("PHYS-01.1 — today's state never lets the load go up automatically", () => {
+  const rule = (rule_id: string) => ({ layer: "C", rule_id, detail: "" });
+  it("pain in today's check-in → pain; an M1 fatigue / load rule (C3.3, C3.5, C3.6, C3.7) → fatigue; pain wins; nothing → none", () => {
+    expect(todayLoadHold({ pain: true }, { triggered_rules: [] })).toBe("pain");
+    for (const id of ["C3.3", "C3.5", "C3.6", "C3.7"]) expect(todayLoadHold({ pain: false }, { triggered_rules: [rule(id)] as never })).toBe("fatigue");
+    expect(todayLoadHold({ pain: true }, { triggered_rules: [rule("C3.6")] as never })).toBe("pain");
+    expect(todayLoadHold({ pain: false }, { triggered_rules: [rule("C3.1")] as never })).toBeUndefined();
+    expect(todayLoadHold(undefined, { triggered_rules: [] })).toBeUndefined();
+  });
+
+  it("the hold reaches the guidance: top of the range recorded, but pain today → same load, hold: pain", async () => {
+    const sets = [1, 2, 3, 4].map((s) => row({ id: `s${s}`, execution_id: "ex-1", set_number: s }));
+    const r = await withStrengthLoadGuidance(finalOf(upper), client, "athlete-1", TODAY, { getCompletedStrengthSetHistory: vi.fn().mockResolvedValue(read(sets)) }, "pain");
+    const bench = r.status === "created" ? r.finalPrescription.structure.blocks.find((b) => b.role === "main")!.items[0]! : null;
+    expect(bench && bench.kind === "exercise" ? bench.loadGuidance : null).toMatchObject({ mode: "target", change: "keep", hold: "pain", targetKg: 20 });
   });
 });

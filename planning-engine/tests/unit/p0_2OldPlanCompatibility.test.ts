@@ -89,8 +89,8 @@ describe("P0-2 — an existing V2 plan with the off-camber drill, after the cata
   const moderate = dhOf(old, "MODERATE");
   const offCamber = SESSION_DRILL_CATALOG_V2.cornering_off_camber!;
 
-  it("no catalogue version changed: the stored manifest is the runtime's (session-model-v2.7 since PHYS-01; P0-2 itself changed no version), so §9 never sees a mismatch", () => {
-    expect(SESSION_MODEL_V2_AGGREGATE_VERSION).toBe("session-model-v2.7");
+  it("no catalogue version changed: the stored manifest is the runtime's (session-model-v2.6), so §9 never sees a mismatch", () => {
+    expect(SESSION_MODEL_V2_AGGREGATE_VERSION).toBe("session-model-v2.6");
     expect([SESSION_DRILL_CATALOG_V2_VERSION, COACHING_TEXT_CATALOG_VERSION, INTENT_CATALOG_V2_VERSION]).toEqual(["session-drills-v2.0", "coaching-text-v1.0", "session-intents-v2.0"]);
     expect(moderate.plannedPrescription.structure.catalog).toEqual(buildSessionModelV2CatalogManifest());
     // The stored content is exactly the base's: same drill, texts, vigilances and intent.

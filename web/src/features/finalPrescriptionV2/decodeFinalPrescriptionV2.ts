@@ -94,22 +94,27 @@ function loadReference(r: unknown): LoadReferenceView | null {
  */
 function loadGuidance(g: unknown): LoadGuidanceView | undefined {
   if (!isObject(g) || g.ruleVersion !== "strength-load-guidance-v1") return undefined;
+  if (g.loadBasis !== "per_dumbbell" && g.loadBasis !== "total") return undefined;
+  const loadBasis = g.loadBasis;
   if (g.mode === "calibrate" && (g.reason === "no_history" || g.reason === "history_without_load") && isRir(g.repsInReserve)) {
-    return { mode: "calibrate", reason: g.reason, repsInReserve: g.repsInReserve };
+    return { mode: "calibrate", reason: g.reason, loadBasis, repsInReserve: g.repsInReserve };
   }
   if (g.mode === "reference" && (g.reason === "different_dose" || g.reason === "history_too_old") && isRir(g.repsInReserve)) {
     const reference = loadReference(g.reference);
-    return reference ? { mode: "reference", reason: g.reason, reference, repsInReserve: g.repsInReserve } : undefined;
+    return reference ? { mode: "reference", reason: g.reason, loadBasis, reference, repsInReserve: g.repsInReserve } : undefined;
   }
+  const hold = g.hold === undefined ? undefined : g.hold === "dose_up" || g.hold === "pain" || g.hold === "fatigue" ? g.hold : null;
   if (
     g.mode === "target" &&
     (g.reason === "top_of_range_reached" || g.reason === "within_range" || g.reason === "below_range" || g.reason === "effort_too_high") &&
     (g.change === "increase" || g.change === "keep" || g.change === "decrease") &&
+    hold !== null &&
+    (hold === undefined || (g.change === "keep" && g.reason === "top_of_range_reached")) &&
     isKg(g.targetKg) &&
     isKg(g.stepKg)
   ) {
     const reference = loadReference(g.reference);
-    return reference ? { mode: "target", reason: g.reason, change: g.change, targetKg: g.targetKg, stepKg: g.stepKg, reference } : undefined;
+    return reference ? { mode: "target", reason: g.reason, change: g.change, ...(hold ? { hold } : {}), targetKg: g.targetKg, stepKg: g.stepKg, loadBasis, reference } : undefined;
   }
   return undefined;
 }

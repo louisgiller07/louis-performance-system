@@ -2,7 +2,7 @@
  * PHYS-01 — how long a Force prescription really takes, computed from its
  * content (never the planner's 45 / 60-minute slot).
  *
- * Conservative by construction (PLAN_STRENGTH_TIMING_V2): every range is read
+ * Conservative by construction (STRENGTH_TIMING_V2, strengthDailyCatalogV2): every range is read
  * at its upper bound. For each exercise item: sets × (setup + work), the rests
  * between its sets, one transition after it; the principal movement's ramp-up
  * sets with their own short rest. Rounded up to the minute. Blocks without
@@ -12,10 +12,10 @@
  * Pure and deterministic. Used by the rider's-time adaptation (A10): a Force
  * session is offered only when this estimate fits the rider's time.
  */
-import { PLAN_STRENGTH_TIMING_V2 } from "../catalog/planDosePolicyV2.js";
+import { STRENGTH_TIMING_V2 } from "../catalog/strengthDailyCatalogV2.js";
 import type { ExerciseMeasureV2, PrescriptionItemV2Content } from "./prescriptionV2.js";
 
-const T = PLAN_STRENGTH_TIMING_V2;
+const T = STRENGTH_TIMING_V2;
 
 /** Work time of ONE set (seconds), at the measure's upper bound. */
 function setWorkSeconds(measure: ExerciseMeasureV2): number {

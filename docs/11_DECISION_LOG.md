@@ -6223,3 +6223,28 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 **Canon** : diffs proposés pour docs/03, docs/04, docs/05, docs/07 et docs/10 (`docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`). Rien n'est appliqué avant accord.
 
 **Statut** : READY LOCAL (parcours vertical Force) / NOT DEPLOYED, branche `feat/phys-01-physical-coaching`. Intégration après REL-01, sur GO HPM.
+
+## 2026-10-15 — ADR PHYS-01.1 : stabilisation Force, compatibilité sans changement de version — PROPOSÉE (révise PHYS-01)
+
+**Constat (HPM, PHYS-01.1).** PHYS-01 (`5ec0976`) passait le Session Model en v2.7. Le web de D n'accepte que les manifestes v2.6 et v2.5 (liste blanche) : il aurait refusé toute séance PHYS-01, et un retour du web vers D devenait impossible dès le premier document v2.7. Démontré sur le code réel de D, en contre-preuve.
+
+**Décision proposée.**
+1. **Aucun changement de version du Session Model.** Le retour au calme n'est pas inscrit dans les gabarits : c'est un **ajout quotidien** à toute prescription finale de Force. Il n'utilise que des identifiants existants, et son catalogue `strength-daily-v1` est hors manifeste, comme les règles A04 et A10.
+   - Le plan reste celui de D, octet pour octet.
+   - KEEP = contenu prévu repris à l'identique + retour au calme ajouté à la fin ; aucune règle d'adaptation.
+2. **A10 Force à dose constante.**
+   - Plus de passage en LIGHT pour une raison de temps.
+   - Échelle : retour au calme réduit, puis derniers exercices accessoires retirés ; ensuite récupération, puis REST.
+   - Jamais un repos raccourci, ni un échauffement amputé. La filiation au plan se fait par exercice.
+3. **Conseil de charge affiné** :
+   - la référence est la dernière séance de **même fourchette** (moins de 28 jours) ;
+   - une seule progression à la fois (`hold: dose_up`) ;
+   - aucune hausse un jour de douleur déclarée ou de fatigue M1, C3.3, C3.5, C3.6 ou C3.7 (`hold: pain` / `fatigue`) ;
+   - unité explicite (`loadBasis` : par haltère ou totale) ;
+   - même exercice seulement.
+4. **Déploiement** : seule `daily-run` change de comportement. `generate-training-plan` produit des plans identiques et n'a pas besoin d'être redéployée. Le web PHYS-01 n'ajoute que l'affichage du conseil.
+   - Le web de D lit toutes les séances PHYS-01.1.
+   - Le `runDailyFor` de D fonctionne sur des données PHYS-01.1 (KEEP, MODIFY).
+   - Le rollback vers D est donc possible à tout moment, dans les deux sens.
+
+**Statut** : READY LOCAL / NOT DEPLOYED. Les diffs canoniques sont révisés dans `docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`. Toutes les valeurs restent PROVISIONAL, en attente d'une validation sportive qualifiée.

@@ -56,12 +56,13 @@
  *     below the protocol's minimum.
  * Force has no time variant: only its validated doses (LIGHT 45 / MODERATE 60).
  *
- * PHYS-01 — under a time limit, a Force session's duration is its content's
- * estimate (estimateStrengthDurationMinutesV2), and one more Force step exists:
- * the short Force (`strengthVariant: "short"`, LIGHT, same template and
- * exercises, fewer items). A short MODIFY keeps lineage by exercise: each of
- * its items derives from the planned item of the same block role and
- * exercise, never by position.
+ * PHYS-01.1 — daily Force additions (strengthDailyV2.ts), never a plan
+ * change: every created Force final prescription ends with the cool-down
+ * (`dailyMintId` gives its ids; absent = no addition); under the rider's
+ * time (A10) a Force session keeps its dose and drops its last work
+ * exercises (`strengthWorkSlots`), the cool-down keeping its mobility only;
+ * a shortened MODIFY keeps lineage by exercise, never by position. A Force
+ * session's duration under A10 is its content's estimate.
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -73,8 +74,9 @@ import { toSessionModelV2Input, type PlanInputSnapshotV2, type SessionModelV2Inp
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { BlockV2, DrillItemV2Content, ExerciseItemV2Content, PrescriptionItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
-import { buildStrengthPrescriptionV2Content, type StrengthVariantV2 } from "../builders/strengthPrescriptionV2.js";
+import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
 import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
+import { appendStrengthCoolDownV2, shortenStrengthContentV2 } from "../strengthDailyV2.js";
 import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND, dhDrillForLoad, dhIntentForDrillV2 } from "../builders/dhPrescriptionV2.js";
 import { SESSION_DRILL_CATALOG_V2 } from "../../catalog/sessionDrillCatalogV2.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
@@ -110,8 +112,10 @@ export interface BuildFinalPrescriptionV2Input extends BuildKeepFinalPrescriptio
   adaptation: DailyAdaptationContextV2 | null;
   /** A10 — minutes available today when a time adaptation is requested (see buildFinalPrescriptionWithinTodayTimeV2). */
   timeLimitMin?: number;
-  /** PHYS-01 — A10 only: the Force variant to build (absent = standard). */
-  strengthVariant?: StrengthVariantV2;
+  /** PHYS-01.1 — A10 only: keep the first N work exercises of a Force session, same dose (absent = all). */
+  strengthWorkSlots?: number;
+  /** PHYS-01.1 — ids of the daily Force additions (cool-down); the daily runtime always passes it. Absent = no addition. */
+  dailyMintId?: () => string;
 }
 
 /** Stable rule ids of a modify / replace document (`adaptation_rule_ids`, never empty for those actions). */
@@ -127,8 +131,8 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   todayTimeLimit: "v2.time.today_limit",
   /** P0-3 — the content was built for the rider's manual session (no planned prescription). */
   manualSession: "v2.manual.session",
-  /** PHYS-01 — A10: the short Force (same template and exercises, fewer items). */
-  strengthShortVariant: "v2.time.strength_short",
+  /** PHYS-01.1 — A10: the same Force session and dose, its last work exercises left out. */
+  strengthShortened: "v2.time.strength_shortened",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
@@ -242,6 +246,21 @@ const withPasses = (content: PrescriptionV2Content, passes: (count: number) => n
 const composition = (c: { templateId?: string; blocks: readonly { items: readonly unknown[] }[] }) =>
   JSON.stringify([c.templateId, flatItems(c.blocks).map((i) => (i as ExerciseItemV2Content).exerciseId)]);
 
+/** The planned Force session at the LIGHT dose: same template and exercises (the composition must be identical, §5). */
+function lightStrengthContent(planned: PrescriptionV2, context: DailyAdaptationContextV2): PrescriptionV2Content {
+  const rebuilt = buildStrengthPrescriptionV2Content({
+    sessionKind: planned.sessionKind as (typeof STRENGTH_KINDS)[number],
+    athleteTier: context.athlete.strengthExperienceTier,
+    equipment: context.athlete.equipment,
+    loadProfile: "LIGHT",
+    catalog: planned.catalog,
+  });
+  if (composition(rebuilt) !== composition(planned)) {
+    throw new SessionModelV2ContractError(`MODIFY Force: the LIGHT rebuild changed the planned composition (${composition(planned)} → ${composition(rebuilt)})`);
+  }
+  return rebuilt;
+}
+
 /** MODIFY content: same session, lower dose (or the planned dose when M1 did not lower it). */
 function modifiedContent(
   planned: PrescriptionV2,
@@ -249,26 +268,18 @@ function modifiedContent(
   final: { loadProfile?: LoadProfile; durationMin?: number },
   context: DailyAdaptationContextV2,
   timeLimitMin: number | undefined,
-  strengthVariant: StrengthVariantV2 | undefined
+  strengthWorkSlots: number | undefined
 ): Built {
   const finalLoad = final.loadProfile;
   const upward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] > LOAD_RANK[plannedLoad];
   // §6 — never raise the planned dose automatically, never a "modified" copy of the planned dose.
   if (upward) return { blocked: { reason: "upward_modify_not_supported", planned: plannedLoad, final: finalLoad } };
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
-  // PHYS-01 — A10 short Force: the planned template and exercises, LIGHT, fewer items (same or lower load).
-  if (timeLimitMin !== undefined && planned.family === "strength" && strengthVariant === "short") {
-    if (finalLoad !== "LIGHT") return { blocked: { reason: "short_strength_light_only", final: finalLoad ?? null } };
-    const short = buildStrengthPrescriptionV2Content({
-      sessionKind: planned.sessionKind as (typeof STRENGTH_KINDS)[number],
-      athleteTier: context.athlete.strengthExperienceTier,
-      equipment: context.athlete.equipment,
-      loadProfile: "LIGHT",
-      catalog: planned.catalog,
-      variant: "short",
-    });
-    if (short.templateId !== planned.templateId) throw new SessionModelV2ContractError(`short Force: template ${short.templateId} is not the planned ${planned.templateId}`);
-    return { content: short, rule: DAILY_ADAPTATION_RULES_V2.strengthShortVariant, durationMin: estimateStrengthDurationMinutesV2(short), lineageByExercise: true };
+  // PHYS-01.1 — A10 shortened Force: the planned session (or M1's LIGHT dose of it), its last work exercises left out.
+  if (timeLimitMin !== undefined && planned.family === "strength" && strengthWorkSlots !== undefined) {
+    const base = downward ? lightStrengthContent(planned, context) : contentOf(planned);
+    const content = shortenStrengthContentV2(base, strengthWorkSlots);
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.strengthShortened, durationMin: estimateStrengthDurationMinutesV2(content), lineageByExercise: true };
   }
   // A10 — a shorter DH or endurance session for the rider's time today (same or lower load).
   if (timeLimitMin !== undefined && final.durationMin !== undefined && final.durationMin <= timeLimitMin && planned.family !== "strength") {
@@ -278,18 +289,8 @@ function modifiedContent(
   const light = PLAN_ROLE_DOSES_V2.consolidation;
   switch (planned.family) {
     case "strength": {
-      const rebuilt = buildStrengthPrescriptionV2Content({
-        sessionKind: planned.sessionKind as (typeof STRENGTH_KINDS)[number],
-        athleteTier: context.athlete.strengthExperienceTier,
-        equipment: context.athlete.equipment,
-        loadProfile: "LIGHT",
-        catalog: planned.catalog,
-      });
-      if (composition(rebuilt) !== composition(planned)) {
-        throw new SessionModelV2ContractError(`MODIFY Force: the LIGHT rebuild changed the planned composition (${composition(planned)} → ${composition(rebuilt)})`);
-      }
-      // PHYS-01 — under the rider's time, the content's own duration (never the planner's slot).
-      return { content: rebuilt, rule: DAILY_ADAPTATION_RULES_V2.strengthLightDose, durationMin: timeLimitMin !== undefined ? estimateStrengthDurationMinutesV2(rebuilt) : light.forceDurationMin };
+      const rebuilt = lightStrengthContent(planned, context);
+      return { content: rebuilt, rule: DAILY_ADAPTATION_RULES_V2.strengthLightDose, durationMin: light.forceDurationMin };
     }
     case "dh_technical": {
       // P0 — fewer passages AND a mission the LIGHT dose can carry (no race-intensity drill).
@@ -340,27 +341,24 @@ function replacementContent(
   final: { kind: string; loadProfile?: LoadProfile; durationMin?: number },
   context: DailyAdaptationContextV2,
   timeLimitMin: number | undefined,
-  strengthVariant: StrengthVariantV2 | undefined
+  strengthWorkSlots: number | undefined
 ): Built {
   const catalog = buildSessionModelV2CatalogManifest();
   const load: "LIGHT" | "MODERATE" = final.loadProfile === "LIGHT" ? "LIGHT" : "MODERATE";
   if ((STRENGTH_KINDS as readonly string[]).includes(final.kind)) {
-    // PHYS-01 — the short Force exists under a time limit only, at the LIGHT dose.
-    const variant = timeLimitMin !== undefined && strengthVariant === "short" ? "short" : "standard";
-    if (variant === "short" && load !== "LIGHT") return { blocked: { reason: "short_strength_light_only", final: final.loadProfile ?? null } };
-    const content = buildStrengthPrescriptionV2Content({
+    const built = buildStrengthPrescriptionV2Content({
       sessionKind: final.kind as (typeof STRENGTH_KINDS)[number],
       athleteTier: context.athlete.strengthExperienceTier,
       equipment: context.athlete.equipment,
       loadProfile: load,
       catalog,
-      variant,
     });
-    const rule = variant === "short" ? DAILY_ADAPTATION_RULES_V2.strengthShortVariant : DAILY_ADAPTATION_RULES_V2.replaceStrength;
-    // PHYS-01 — under the rider's time, the content's own duration (never the planner's slot).
-    const durationMin =
-      timeLimitMin !== undefined ? estimateStrengthDurationMinutesV2(content) : load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.forceDurationMin : PLAN_ROLE_DOSES_V2.build.forceDurationMin;
-    return { content, rule, durationMin };
+    // PHYS-01.1 — under the rider's time: the same session and dose, its last work exercises left out.
+    if (timeLimitMin !== undefined && strengthWorkSlots !== undefined) {
+      const content = shortenStrengthContentV2(built, strengthWorkSlots);
+      return { content, rule: DAILY_ADAPTATION_RULES_V2.strengthShortened, durationMin: estimateStrengthDurationMinutesV2(content) };
+    }
+    return { content: built, rule: DAILY_ADAPTATION_RULES_V2.replaceStrength, durationMin: load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.forceDurationMin : PLAN_ROLE_DOSES_V2.build.forceDurationMin };
   }
   if (DH_REPLACE_KINDS.includes(final.kind)) {
     const passes = load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses : PLAN_ROLE_DOSES_V2.build.dhFocusedPasses;
@@ -408,10 +406,9 @@ function replacementContent(
 }
 
 /**
- * PHYS-01 — lineage of a short Force: each of its items derives from the
- * planned item of the same block role and exercise (first unused, in order).
- * An item without such a planned item is a contract error (the short Force
- * never adds an exercise).
+ * PHYS-01.1 — lineage of a shortened Force: each item derives from the planned
+ * item of the same block role and exercise (first unused, in order). An item
+ * without such a planned item is a contract error (shortening never adds).
  */
 function lineageByExercise(planned: PrescriptionV2, content: PrescriptionV2Content): string[] {
   const used = new Set<string>();
@@ -422,7 +419,7 @@ function lineageByExercise(planned: PrescriptionV2, content: PrescriptionV2Conte
         .filter((b) => b.role === block.role)
         .flatMap((b) => b.items)
         .find((p) => !used.has(p.prescriptionItemId) && (p.kind === "exercise" ? p.exerciseId : p.drillId) === id);
-      if (!source) throw new SessionModelV2ContractError(`short Force: ${id} (${block.role}) is not in the planned session`);
+      if (!source) throw new SessionModelV2ContractError(`shortened Force: ${id} (${block.role}) is not in the planned session`);
       used.add(source.prescriptionItemId);
       return source.prescriptionItemId;
     })
@@ -458,7 +455,7 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
 
   let built: Built;
   try {
-    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthVariant);
+    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
     throw error;
@@ -490,7 +487,24 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
   return { status: "created", finalPrescription, ...(effectiveDurationMin !== undefined ? { effectiveDurationMin } : {}) };
 }
 
+/**
+ * PHYS-01.1 — every created Force final prescription ends with the daily
+ * cool-down (its mobility only when the session was shortened). Validated as
+ * a final prescription. Without `dailyMintId` nothing is added.
+ */
+function withDailyStrengthAdditions(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  if (result.status !== "created" || input.dailyMintId === undefined || result.finalPrescription.structure.family !== "strength") return result;
+  const structure = appendStrengthCoolDownV2(result.finalPrescription.structure, input.dailyMintId, input.strengthWorkSlots !== undefined ? "mobility" : "full");
+  const validation = validatePrescriptionV2(structure, { stage: "final" });
+  if (!validation.ok) throw new SessionModelV2ContractError(`Force cool-down addition is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
+  return { ...result, finalPrescription: { ...result.finalPrescription, structure } };
+}
+
 export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  return withDailyStrengthAdditions(buildFinalPrescriptionV2Content(input), input);
+}
+
+function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
   const { decision, lineage, plannedPrescription, adaptation } = input;
   // P0-3 — a manual session: built from the rider's V2 context for M1's final kind (REST stays REST below).
   if (decision.decision !== "REST" && lineage !== null && lineage.plannedSessionSource === "manual") return buildManualFinalPrescriptionV2(input);
@@ -517,8 +531,8 @@ export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): 
   let built: Built;
   try {
     built = isModify
-      ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthVariant)
-      : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthVariant);
+      ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthWorkSlots)
+      : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
   } catch (error) {
     // A V2 locked block (no compatible exercise for the declared equipment, DH data missing…) is an explicit refusal, never a fallback.
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });

@@ -20,20 +20,13 @@
  *
  * Content (exercise choices and their order): PROVISIONAL — coaching
  * validation required. Not read by any engine yet (no Force builder).
- *
- * v2.2 (PHYS-01): an explicit cool-down per template — a mobility of the
- * zone the session loaded first, then a long-exhale breathing hold (catalogue exercises
- * holding the `cool_down` role, sets from the template). The short Force
- * (rider's time today) keeps the first cool-down item only. Template ids are
- * unchanged: older documents keep validating (KEEP), the manifest version
- * says which content they were built with. PROVISIONAL.
  */
 import type { StrengthExperienceTier } from "../types/planInputSnapshot.js";
 import type { ContentValidationStatus } from "./coachingTextCatalog.js";
 import type { SessionExerciseFamilyV2 } from "./sessionExerciseCatalogV2.js";
 
 // v2.1 (UX-11A.5a.4.1): warm-up items carry their exact number of sets.
-export const STRENGTH_TEMPLATE_CATALOG_V2_VERSION = "strength-templates-v2.2";
+export const STRENGTH_TEMPLATE_CATALOG_V2_VERSION = "strength-templates-v2.1";
 
 export const STRENGTH_TEMPLATE_SESSION_KINDS_V2 = ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const;
 export type StrengthTemplateSessionKindV2 = (typeof STRENGTH_TEMPLATE_SESSION_KINDS_V2)[number];
@@ -75,21 +68,12 @@ export interface StrengthWarmUpV2 {
   activation: readonly StrengthWarmUpItemV2[];
 }
 
-/**
- * PHYS-01 — one cool-down exercise (same shape as a warm-up item): exact sets
- * from the template; measure, perSide, rest, cue and vigilances from the
- * exercise catalogue. The first item is the session's mobility (kept by the
- * short Force), the last the breathing hold.
- */
-export type StrengthCoolDownItemV2 = StrengthWarmUpItemV2;
-
 export interface StrengthTemplateV2 {
   templateId: string;
   sessionKind: StrengthTemplateSessionKindV2;
   athleteTier: StrengthExperienceTier;
   warmUp: StrengthWarmUpV2;
   workSlots: readonly [StrengthWorkSlotV2, StrengthWorkSlotV2, StrengthWorkSlotV2];
-  coolDown: readonly StrengthCoolDownItemV2[];
   validationStatus: ContentValidationStatus;
 }
 
@@ -110,16 +94,6 @@ const UPPER_WARM_UP: StrengthWarmUpV2 = {
   activation: [{ exerciseId: "bear_crawl", sets: 2 }],
 };
 
-// PHYS-01 — the zone the session loaded first (hips / spine; never an exercise already in the warm-up), then breathing to come back to calm.
-const LOWER_COOL_DOWN: readonly StrengthCoolDownItemV2[] = [
-  { exerciseId: "hip_flexor_mobility", sets: 1 },
-  { exerciseId: "breathing_long_exhale", sets: 1 },
-];
-const UPPER_COOL_DOWN: readonly StrengthCoolDownItemV2[] = [
-  { exerciseId: "cat_cow", sets: 1 },
-  { exerciseId: "breathing_long_exhale", sets: 1 },
-];
-
 const main = (...candidates: string[]): StrengthWorkSlotV2 => ({ blockRole: "main", role: "principal", candidates });
 const secondary = (...candidates: string[]): StrengthWorkSlotV2 => ({ blockRole: "complementary", role: "secondary", candidates });
 const unilateral = (...candidates: string[]): StrengthWorkSlotV2 => ({ blockRole: "complementary", role: "unilateral", candidates });
@@ -132,8 +106,7 @@ function template(
   workSlots: StrengthTemplateV2["workSlots"]
 ): StrengthTemplateV2 {
   const kind = sessionKind === "STRENGTH_LOWER" ? "lower" : "upper";
-  const coolDown = sessionKind === "STRENGTH_LOWER" ? LOWER_COOL_DOWN : UPPER_COOL_DOWN;
-  return { templateId: `strength_${kind}_${athleteTier}_v1`, sessionKind, athleteTier, warmUp, workSlots, coolDown, validationStatus: "PROVISIONAL" };
+  return { templateId: `strength_${kind}_${athleteTier}_v1`, sessionKind, athleteTier, warmUp, workSlots, validationStatus: "PROVISIONAL" };
 }
 
 const ENTRIES: StrengthTemplateV2[] = [
@@ -166,14 +139,5 @@ const ENTRIES: StrengthTemplateV2[] = [
 ];
 
 export const STRENGTH_TEMPLATE_CATALOG_V2_ENTRIES: readonly StrengthTemplateV2[] = ENTRIES;
-
-/**
- * PHYS-01 — the short Force, for a day when the rider has little time: the
- * same template and exercises at the LIGHT dose, the template's warm-up, the
- * first `workSlots` work slots (principal and secondary) and the first
- * `coolDownItems` cool-down item (the session's mobility). Offered only when
- * its estimated duration fits the rider's time. PROVISIONAL.
- */
-export const STRENGTH_SHORT_VARIANT_V2 = { doseStep: "LIGHT", workSlots: 2, coolDownItems: 1 } as const;
 
 export const STRENGTH_TEMPLATE_CATALOG_V2: Readonly<Record<string, StrengthTemplateV2>> = Object.fromEntries(ENTRIES.map((t) => [t.templateId, t]));

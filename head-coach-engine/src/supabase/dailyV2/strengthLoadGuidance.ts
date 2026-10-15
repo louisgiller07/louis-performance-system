@@ -107,7 +107,8 @@ export async function withStrengthLoadGuidance(
   client: SupabaseClient,
   athleteId: string,
   today: string,
-  deps: StrengthLoadGuidanceDeps = DEFAULT_DEPS
+  deps: StrengthLoadGuidanceDeps = DEFAULT_DEPS,
+  todayHold?: "pain" | "fatigue"
 ): Promise<WithLoadGuidanceResult> {
   if (result.status !== "created") return result;
   const structure: PrescriptionV2 = result.finalPrescription.structure;
@@ -120,7 +121,7 @@ export async function withStrengthLoadGuidance(
   } catch {
     return { ...result, loadGuidanceWarning: LOAD_GUIDANCE_WARNINGS.readFailed };
   }
-  const guided = attachStrengthLoadGuidanceV2(structure, today, history);
+  const guided = attachStrengthLoadGuidanceV2(structure, today, history, todayHold);
   if (!validatePrescriptionV2(guided, { stage: "final" }).ok) return { ...result, loadGuidanceWarning: LOAD_GUIDANCE_WARNINGS.invalid };
   return { ...result, finalPrescription: { ...result.finalPrescription, structure: guided } };
 }

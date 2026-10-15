@@ -1,27 +1,37 @@
 /**
- * PHYS-01 — Force load guidance (pure): what load the rider should use today
- * for one work exercise, read from the loads they actually recorded.
+ * PHYS-01 / PHYS-01.1 — Force load guidance (pure): what load the rider should
+ * use today for one work exercise, read only from the loads they actually
+ * recorded for THIS exercise (same catalogue id: same movement, same
+ * equipment). Another variant (another id, e.g. dumbbell vs barbell bench
+ * press) is never compared: its load does not mean the same thing.
  *
  * Double progression (PROVISIONAL, STRENGTH_LOAD_GUIDANCE_POLICY_V2):
  * - no recorded load for this exercise → `calibrate`: no number, an effort
  *   target (repetitions in reserve derived from today's RPE target) and the
  *   instruction to record the load used;
- * - a reference (the latest completed session with a recorded load) older
- *   than the policy's age, or prescribed with another repetition range
- *   (another dose, e.g. today's lighter session) → `reference`: the last load
- *   is shown, never converted to today's dose;
- * - same repetition range, recent reference → `target`, at the reference's
- *   working load (the load of most of its done sets, the lighter on a tie):
+ * - the TARGET reference is the latest completed session of this exercise
+ *   prescribed with TODAY'S repetition range, no older than the policy's age.
+ *   None → `reference`: the latest recorded load is shown (another dose, or
+ *   too old), never converted to today's dose;
+ * - `target`, at the reference's working load (the load of most of its done
+ *   sets, the lighter on a tie):
  *     effort too high (RPE ≥ target max + margin) → one step down;
  *     a set below the range's minimum → one step down;
  *     every prescribed set done at the top of the range without exceeding
- *     the RPE target (or RPE not recorded) → one step up;
+ *     the RPE target (or RPE not recorded) → one step up — UNLESS today holds
+ *     it (`hold`): today's dose is already heavier than the reference's
+ *     (more sets or a higher RPE target: one lever at a time), or today's
+ *     check-in reports pain or M1 saw a fatigue signal. A held increase is
+ *     "keep", with the reason it was held;
  *     otherwise → same load.
- *   One step at most, never below one step.
+ *   One step at most, never below one step. A decrease is never held.
+ *
+ * `loadBasis`: dumbbells are recorded and advised per dumbbell; every other
+ * load (barbell, cable stack, kettlebell) is the total moved.
  *
  * Never a 1RM, a % of 1RM or a declared profile value. Deterministic: same
- * history and date → same guidance. A non-loadable exercise (bodyweight,
- * bands) or a non-repetition measure gets no guidance (null).
+ * history, date and today's state → same guidance. A non-loadable exercise
+ * (bodyweight, bands) or a non-repetition measure gets no guidance (null).
  */
 import { SESSION_EXERCISE_CATALOG_V2, type RangeV2 } from "../catalog/sessionExerciseCatalogV2.js";
 import { STRENGTH_LOAD_GUIDANCE_POLICY_V2, STRENGTH_LOAD_GUIDANCE_RULES_VERSION, STRENGTH_LOAD_STEPS_KG_V2 } from "../catalog/strengthLoadGuidancePolicyV2.js";
@@ -55,23 +65,31 @@ export interface StrengthLoadReferenceV2 {
   rpeMax: number | null;
 }
 
+export type StrengthLoadBasisV2 = "per_dumbbell" | "total";
+/** Why an increase the history allows is not applied today. */
+export type StrengthLoadHoldV2 = "dose_up" | "pain" | "fatigue";
+
 export const STRENGTH_LOAD_GUIDANCE_MODES = ["calibrate", "reference", "target"] as const;
 export const STRENGTH_LOAD_GUIDANCE_REASONS = {
   calibrate: ["no_history", "history_without_load"],
   reference: ["different_dose", "history_too_old"],
   target: ["top_of_range_reached", "within_range", "below_range", "effort_too_high"],
 } as const;
+export const STRENGTH_LOAD_HOLDS_V2: readonly StrengthLoadHoldV2[] = ["dose_up", "pain", "fatigue"];
 
 export type StrengthLoadGuidanceV2 =
-  | { ruleVersion: string; mode: "calibrate"; reason: "no_history" | "history_without_load"; repsInReserve: RangeV2 | null }
-  | { ruleVersion: string; mode: "reference"; reason: "different_dose" | "history_too_old"; reference: StrengthLoadReferenceV2; repsInReserve: RangeV2 | null }
+  | { ruleVersion: string; mode: "calibrate"; reason: "no_history" | "history_without_load"; loadBasis: StrengthLoadBasisV2; repsInReserve: RangeV2 | null }
+  | { ruleVersion: string; mode: "reference"; reason: "different_dose" | "history_too_old"; loadBasis: StrengthLoadBasisV2; reference: StrengthLoadReferenceV2; repsInReserve: RangeV2 | null }
   | {
       ruleVersion: string;
       mode: "target";
       reason: "top_of_range_reached" | "within_range" | "below_range" | "effort_too_high";
       change: "increase" | "keep" | "decrease";
+      /** Present only when the history allowed an increase that today does not apply. */
+      hold?: StrengthLoadHoldV2;
       targetKg: number;
       stepKg: number;
+      loadBasis: StrengthLoadBasisV2;
       reference: StrengthLoadReferenceV2;
     };
 
@@ -80,13 +98,21 @@ export interface StrengthLoadGuidanceInputV2 {
   /** The decision date (ISO). Only sessions strictly before it are read. */
   today: string;
   history: readonly StrengthExerciseSessionRecordV2[];
+  /** Today's state that forbids an automatic increase (from the day's check-in and M1's signals); absent = none. */
+  todayHold?: "pain" | "fatigue";
+}
+
+/** The load step of an exercise (kg) and how its load is counted; null when it carries no external load. */
+export function strengthLoadStepV2(exerciseId: string): { stepKg: number; loadBasis: StrengthLoadBasisV2 } | null {
+  const exercise = SESSION_EXERCISE_CATALOG_V2[exerciseId];
+  if (!exercise) return null;
+  const step = STRENGTH_LOAD_STEPS_KG_V2.find((s) => exercise.requiredEquipment.includes(s.equipment));
+  return step ? { stepKg: step.stepKg, loadBasis: step.equipment === "dumbbells" ? "per_dumbbell" : "total" } : null;
 }
 
 /** The load step of an exercise (kg), null when it carries no external load. */
 export function strengthLoadStepKgV2(exerciseId: string): number | null {
-  const exercise = SESSION_EXERCISE_CATALOG_V2[exerciseId];
-  if (!exercise) return null;
-  return STRENGTH_LOAD_STEPS_KG_V2.find((s) => exercise.requiredEquipment.includes(s.equipment))?.stepKg ?? null;
+  return strengthLoadStepV2(exerciseId)?.stepKg ?? null;
 }
 
 const dayNumber = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))) / 86_400_000;
@@ -106,46 +132,63 @@ function workingLoad(sets: readonly StrengthSetRecordV2[]): number {
   return [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0];
 }
 
+function referenceOf(session: StrengthExerciseSessionRecordV2): { reference: StrengthLoadReferenceV2; atLoad: StrengthSetRecordV2[] } {
+  const load = workingLoad(session.sets);
+  const atLoad = session.sets.filter((s) => loaded(s) && s.loadKg === load).sort((a, b) => a.setNumber - b.setNumber);
+  const rpes = atLoad.map((s) => s.rpe).filter((r): r is number => r !== null);
+  return {
+    atLoad,
+    reference: {
+      sessionDate: session.sessionDate,
+      loadKg: load,
+      reps: atLoad.map((s) => s.reps!),
+      setsPrescribed: session.prescribed?.sets ?? null,
+      repsRange: session.prescribed ? { ...session.prescribed.reps } : null,
+      rpeMax: rpes.length > 0 ? Math.max(...rpes) : null,
+    },
+  };
+}
+
 export function strengthLoadGuidanceV2(input: StrengthLoadGuidanceInputV2): StrengthLoadGuidanceV2 | null {
   const { item, today } = input;
-  const stepKg = strengthLoadStepKgV2(item.exerciseId);
-  if (stepKg === null || item.measure.type !== "reps") return null;
+  const step = strengthLoadStepV2(item.exerciseId);
+  if (step === null || item.measure.type !== "reps") return null;
+  const { stepKg, loadBasis } = step;
+  const range = item.measure;
   const rir = repsInReserve(item.rpeTarget);
   const base = { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION };
+  const recent = (s: StrengthExerciseSessionRecordV2) => dayNumber(today) - dayNumber(s.sessionDate) <= STRENGTH_LOAD_GUIDANCE_POLICY_V2.maxReferenceAgeDays;
 
   const past = input.history.filter((s) => s.sessionDate < today).sort((a, b) => (a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0));
   const withLoad = past.filter((s) => s.sets.some(loaded));
   if (withLoad.length === 0) {
-    return { ...base, mode: "calibrate", reason: past.some((s) => s.sets.some(doneWithReps)) ? "history_without_load" : "no_history", repsInReserve: rir };
+    return { ...base, mode: "calibrate", reason: past.some((s) => s.sets.some(doneWithReps)) ? "history_without_load" : "no_history", loadBasis, repsInReserve: rir };
   }
 
-  const ref = withLoad[0]!;
-  const load = workingLoad(ref.sets);
-  const atLoad = ref.sets.filter((s) => loaded(s) && s.loadKg === load).sort((a, b) => a.setNumber - b.setNumber);
-  const rpes = atLoad.map((s) => s.rpe).filter((r): r is number => r !== null);
-  const reference: StrengthLoadReferenceV2 = {
-    sessionDate: ref.sessionDate,
-    loadKg: load,
-    reps: atLoad.map((s) => s.reps!),
-    setsPrescribed: ref.prescribed?.sets ?? null,
-    repsRange: ref.prescribed ? { ...ref.prescribed.reps } : null,
-    rpeMax: rpes.length > 0 ? Math.max(...rpes) : null,
-  };
-
-  if (dayNumber(today) - dayNumber(ref.sessionDate) > STRENGTH_LOAD_GUIDANCE_POLICY_V2.maxReferenceAgeDays) {
-    return { ...base, mode: "reference", reason: "history_too_old", reference, repsInReserve: rir };
-  }
-  const range = item.measure;
-  if (ref.prescribed === null || ref.prescribed.reps.min !== range.min || ref.prescribed.reps.max !== range.max) {
-    return { ...base, mode: "reference", reason: "different_dose", reference, repsInReserve: rir };
+  // The target reference: the latest recent session prescribed with today's repetition range.
+  const same = withLoad.find((s) => recent(s) && s.prescribed !== null && s.prescribed.reps.min === range.min && s.prescribed.reps.max === range.max);
+  if (same === undefined) {
+    const latest = withLoad[0]!;
+    return { ...base, mode: "reference", reason: recent(latest) ? "different_dose" : "history_too_old", loadBasis, reference: referenceOf(latest).reference, repsInReserve: rir };
   }
 
-  const target = (change: "increase" | "keep" | "decrease", reason: "top_of_range_reached" | "within_range" | "below_range" | "effort_too_high") => {
+  const { reference, atLoad } = referenceOf(same);
+  const load = reference.loadKg;
+  const target = (change: "increase" | "keep" | "decrease", reason: "top_of_range_reached" | "within_range" | "below_range" | "effort_too_high", hold?: StrengthLoadHoldV2) => {
     const next = change === "increase" ? load + stepKg : change === "decrease" ? load - stepKg : load;
     // Never below one step: a decrease that would reach 0 keeps the load.
-    return next < stepKg
-      ? { ...base, mode: "target" as const, reason, change: "keep" as const, targetKg: roundHalf(load), stepKg, reference }
-      : { ...base, mode: "target" as const, reason, change, targetKg: roundHalf(next), stepKg, reference };
+    const applied = next < stepKg ? "keep" : change;
+    return {
+      ...base,
+      mode: "target" as const,
+      reason,
+      change: applied,
+      ...(hold !== undefined ? { hold } : {}),
+      targetKg: roundHalf(applied === change ? next : load),
+      stepKg,
+      loadBasis,
+      reference,
+    };
   };
 
   const rpeCeiling = item.rpeTarget?.max ?? null;
@@ -153,10 +196,17 @@ export function strengthLoadGuidanceV2(input: StrengthLoadGuidanceInputV2): Stre
     return target("decrease", "effort_too_high");
   }
   if (atLoad.some((s) => s.reps! < range.min)) return target("decrease", "below_range");
-  const everySet = atLoad.length >= ref.prescribed.sets;
+  const everySet = atLoad.length >= same.prescribed!.sets;
   const topReached = atLoad.every((s) => s.reps! >= range.max);
   const effortOk = reference.rpeMax === null || rpeCeiling === null || reference.rpeMax <= rpeCeiling;
-  if (everySet && topReached && effortOk) return target("increase", "top_of_range_reached");
+  if (everySet && topReached && effortOk) {
+    // One lever at a time: today's dose already heavier than the reference's → the load waits.
+    const refRpeMax = same.prescribed!.rpeTarget?.max ?? null;
+    const doseUp = item.sets > same.prescribed!.sets || (rpeCeiling !== null && refRpeMax !== null && rpeCeiling > refRpeMax);
+    if (input.todayHold !== undefined) return target("keep", "top_of_range_reached", input.todayHold);
+    if (doseUp) return target("keep", "top_of_range_reached", "dose_up");
+    return target("increase", "top_of_range_reached");
+  }
   return target("keep", "within_range");
 }
 
@@ -170,7 +220,12 @@ const WORK_BLOCK_ROLES: readonly string[] = ["main", "complementary"];
  * non-loadable exercises are unchanged; a non-Force prescription is returned
  * as is. Pure: the caller reads the history and validates the result.
  */
-export function attachStrengthLoadGuidanceV2<P extends PrescriptionV2>(structure: P, today: string, historyByExercise: Readonly<Record<string, readonly StrengthExerciseSessionRecordV2[]>>): P {
+export function attachStrengthLoadGuidanceV2<P extends PrescriptionV2>(
+  structure: P,
+  today: string,
+  historyByExercise: Readonly<Record<string, readonly StrengthExerciseSessionRecordV2[]>>,
+  todayHold?: "pain" | "fatigue"
+): P {
   if (structure.family !== "strength") return structure;
   return {
     ...structure,
@@ -181,7 +236,7 @@ export function attachStrengthLoadGuidanceV2<P extends PrescriptionV2>(structure
             ...block,
             items: block.items.map((item) => {
               if (item.kind !== "exercise") return item;
-              const guidance = strengthLoadGuidanceV2({ item, today, history: historyByExercise[item.exerciseId] ?? [] });
+              const guidance = strengthLoadGuidanceV2({ item, today, history: historyByExercise[item.exerciseId] ?? [], ...(todayHold !== undefined ? { todayHold } : {}) });
               return guidance === null ? item : { ...item, loadGuidance: guidance };
             }),
           }

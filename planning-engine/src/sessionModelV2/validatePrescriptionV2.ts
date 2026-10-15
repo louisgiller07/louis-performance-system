@@ -325,17 +325,21 @@ function checkLoadGuidance(g: unknown, path: string, add: (path: string, code: P
     (r.setsPrescribed === null || (isInt(r.setsPrescribed) && r.setsPrescribed > 0)) &&
     (r.repsRange === null || (isObj(r.repsRange) && hasOnlyKeys(r.repsRange, ["min", "max"]) && isInt(r.repsRange.min) && isInt(r.repsRange.max) && r.repsRange.min >= 1 && r.repsRange.min <= r.repsRange.max)) &&
     (r.rpeMax === null || (typeof r.rpeMax === "number" && r.rpeMax >= 1 && r.rpeMax <= 10));
+  if (g.loadBasis !== "per_dumbbell" && g.loadBasis !== "total") return bad();
   switch (g.mode) {
     case "calibrate":
-      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "repsInReserve"]) || !rir(g.repsInReserve)) bad();
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "loadBasis", "repsInReserve"]) || !rir(g.repsInReserve)) bad();
       return;
     case "reference":
-      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "reference", "repsInReserve"]) || !rir(g.repsInReserve) || !reference(g.reference)) bad();
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "loadBasis", "reference", "repsInReserve"]) || !rir(g.repsInReserve) || !reference(g.reference)) bad();
       return;
-    case "target":
+    case "target": {
+      // PHYS-01.1 — `hold` only on a held increase: change keep, reason top_of_range_reached.
+      const keys = ["ruleVersion", "mode", "reason", "change", "targetKg", "stepKg", "loadBasis", "reference", ...(g.hold !== undefined ? ["hold"] : [])];
       if (
-        !hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "change", "targetKg", "stepKg", "reference"]) ||
+        !hasOnlyKeys(g, keys) ||
         !["increase", "keep", "decrease"].includes(g.change as string) ||
+        (g.hold !== undefined && (!["dose_up", "pain", "fatigue"].includes(g.hold as string) || g.change !== "keep" || g.reason !== "top_of_range_reached")) ||
         !isKg(g.targetKg) ||
         !isKg(g.stepKg) ||
         !reference(g.reference)
@@ -343,5 +347,6 @@ function checkLoadGuidance(g: unknown, path: string, add: (path: string, code: P
         bad();
       }
       return;
+    }
   }
 }

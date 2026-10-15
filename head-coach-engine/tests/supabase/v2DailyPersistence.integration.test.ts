@@ -192,7 +192,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.2 — V2 daily persistence (loc
         reconciliation_action: "keep",
         adaptation_rule_ids: [],
         schema_version: "v2",
-        catalog_version: "session-model-v2.7",
+        catalog_version: "session-model-v2.6",
       });
       // Exact document: the planned structure, same ids, nothing recomputed by SQL.
       expect(finals[0]!.structure).toEqual(f.strengthPlanned.structure);

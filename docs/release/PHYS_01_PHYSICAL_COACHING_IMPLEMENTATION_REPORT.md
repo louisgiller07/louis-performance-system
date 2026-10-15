@@ -1,5 +1,7 @@
 # PHYS-01 — PHYSICAL COACHING IMPLEMENTATION REPORT
 
+> **Remplacé par `PHYS_01_1_FORCE_STABILIZATION_REPORT.md` (PHYS-01.1).** Ce rapport décrit la première version (`5ec0976`, Session Model v2.7), abandonnée parce que le web de D ne pouvait pas lire ses séances. Conservé pour l'historique.
+
 **Date** : 2026-10-15 · **Pour** : HPM (via Louis)
 
 **Branche** : `feat/phys-01-physical-coaching`, créée depuis le candidat D `649a0a2` (worktree `D:\nx\phys01`).

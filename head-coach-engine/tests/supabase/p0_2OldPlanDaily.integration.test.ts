@@ -64,9 +64,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0-2 — an existing off-camber V2 plan, 
     await upsertPerformanceProfileFor(admin, athleteId, profile(["technical_trail"]));
   }, 90_000);
 
-  it("the stored plan holds the off-camber drill under the runtime aggregate (session-model-v2.7 since PHYS-01), with its unchanged texts and intent", async () => {
+  it("the stored plan holds the off-camber drill under session-model-v2.6, with its unchanged texts and intent", async () => {
     const st = await plannedStructure("2026-10-12");
-    expect(st.catalog.aggregate).toBe("session-model-v2.7");
+    expect(st.catalog.aggregate).toBe("session-model-v2.6");
     expect(mainDrill(st)).toMatchObject({ drillId: "cornering_off_camber", cueId: "cue.cornering_off_camber", successCriterionId: "criterion.cornering_off_camber" });
     expect(st.intentId).toBe("dh_corner_exit_speed");
   });

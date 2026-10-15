@@ -66,6 +66,8 @@ export interface ReconcileFinalPrescriptionV2Input {
   availableMinutes?: number | null;
   /** PHYS-01 — the rider whose recorded sets give the load guidance; absent = no guidance read. */
   athleteId?: string;
+  /** PHYS-01.1 — today's state forbidding an automatic load increase (todayLoadHold.ts); absent = none. */
+  todayHold?: "pain" | "fatigue";
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
@@ -119,6 +121,8 @@ export async function reconcileFinalPrescriptionV2(
   const result = buildFinalPrescriptionWithinTodayTimeV2({
     availableMinutes,
     adaptation,
+    // PHYS-01.1 — ids of the daily Force additions (cool-down).
+    dailyMintId: input.mintId,
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {
       decisionId: input.decisionId,
@@ -160,5 +164,5 @@ export async function reconcileFinalPrescriptionV2(
           },
   });
   // PHYS-01 — the load guidance of a Force session, from the rider's own completed sets (never changes the decision).
-  return input.athleteId === undefined ? result : withStrengthLoadGuidance(result, client, input.athleteId, dailyPlan.date, deps.strengthLoadGuidance);
+  return input.athleteId === undefined ? result : withStrengthLoadGuidance(result, client, input.athleteId, dailyPlan.date, deps.strengthLoadGuidance, input.todayHold);
 }

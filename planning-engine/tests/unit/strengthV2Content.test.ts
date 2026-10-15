@@ -59,7 +59,7 @@ describe("Strength template catalogue V2", () => {
   const get = (kind: "STRENGTH_LOWER" | "STRENGTH_UPPER", tier: string) => T.find((t) => t.sessionKind === kind && t.athleteTier === tier)!;
 
   it("has its own version and exactly six templates, one per session kind × athlete tier", () => {
-    expect(STRENGTH_TEMPLATE_CATALOG_V2_VERSION).toBe("strength-templates-v2.2");
+    expect(STRENGTH_TEMPLATE_CATALOG_V2_VERSION).toBe("strength-templates-v2.1");
     expect(T).toHaveLength(6);
     expect(Object.keys(STRENGTH_TEMPLATE_CATALOG_V2).sort()).toEqual([
       "strength_lower_advanced_v1",
@@ -248,8 +248,8 @@ describe("UX-11A.5a.4.1 — floor_ytw_raise holds `secondary` in V2 only", () =>
 });
 
 describe("V2 Plan Dose Policy", () => {
-  it("v2.3: every generated kind has its load, duration and passages in the policy; race = no normal session (kept in v2.4 and v2.5)", () => {
-    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.5");
+  it("v2.3: every generated kind has its load, duration and passages in the policy; race = no normal session (kept in v2.4)", () => {
+    expect(PLAN_DOSE_POLICY_V2_VERSION).toBe("plan-dose-policy-v2.4");
     expect(PLAN_DOSE_POLICY_V2).toEqual({
       development: { forceLoad: "MODERATE", forceDurationMin: 60, dhLoad: "MODERATE", dhDurationMin: 90, dhFocusedPasses: 6, aerobicLoad: "MODERATE", aerobicBaseDurationMin: 45 },
       taper: { forceLoad: "LIGHT", forceDurationMin: 45, dhLoad: "LIGHT", dhDurationMin: 60, dhFocusedPasses: 4, aerobicLoad: "LIGHT", aerobicBaseDurationMin: 45 },

@@ -87,7 +87,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
       id: result.planVersionId,
       input_snapshot_schema_version: "v2",
       prescription_schema_version: "v2",
-      catalog_version: "session-model-v2.7",
+      catalog_version: "session-model-v2.6",
       planner_version: "v2",
       relaxed_constraints: [],
     });
@@ -119,12 +119,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5b.5b — V2 local persistence (re
       [2, "development", "Build week: standard development load."],
     ]);
     expect(weeks!.map((w) => (w.dose_summary as { progression: unknown }).progression)).toEqual([
-      { model: "plan-dose-policy-v2.5", role: "introduction", cycle: 0, reasonCodes: ["block_start_baseline"], targets: { forceDoseStep: "LIGHT", forceDurationMin: 45, dhDurationMin: 75, dhPasses: 5, aerobicDurationMin: 45 }, sessionCount: 5, physicalMinutes: 135, ridingMinutes: 150 },
-      { model: "plan-dose-policy-v2.5", role: "build", cycle: 0, reasonCodes: ["cycle_progression"], targets: { forceDoseStep: "MODERATE", forceDurationMin: 60, dhDurationMin: 90, dhPasses: 6, aerobicDurationMin: 45 }, sessionCount: 5, physicalMinutes: 165, ridingMinutes: 180 },
+      { model: "plan-dose-policy-v2.4", role: "introduction", cycle: 0, reasonCodes: ["block_start_baseline"], targets: { forceDoseStep: "LIGHT", forceDurationMin: 45, dhDurationMin: 75, dhPasses: 5, aerobicDurationMin: 45 }, sessionCount: 5, physicalMinutes: 135, ridingMinutes: 150 },
+      { model: "plan-dose-policy-v2.4", role: "build", cycle: 0, reasonCodes: ["cycle_progression"], targets: { forceDoseStep: "MODERATE", forceDurationMin: 60, dhDurationMin: 90, dhPasses: 6, aerobicDurationMin: 45 }, sessionCount: 5, physicalMinutes: 165, ridingMinutes: 180 },
     ]);
     expect(prescriptions).toHaveLength(sessions.length);
     expect(new Set(prescriptions.map((p) => p.generated_plan_session_id))).toEqual(new Set(sessions.map((s) => s.id)));
-    expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.7"]));
+    expect(new Set(prescriptions.map((p) => `${p.schema_version}/${p.catalog_version}`))).toEqual(new Set(["v2/session-model-v2.6"]));
 
     // The first session of that kind by date (sessions are ordered; prescription rows are not).
     const byKind = (kind: string) => prescriptions.find((p) => p.generated_plan_session_id === sessions.find((s) => s.kind === kind)!.id)!.structure as Record<string, any>;

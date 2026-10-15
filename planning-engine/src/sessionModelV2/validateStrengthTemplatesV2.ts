@@ -24,8 +24,6 @@ export type StrengthTemplateIssueCode =
   | "invalid_warm_up"
   | "warm_up_not_in_protocol"
   | "invalid_warm_up_sets"
-  | "invalid_cool_down"
-  | "invalid_cool_down_sets"
   | "invalid_work_slots"
   | "empty_candidates"
   | "unknown_exercise"
@@ -96,22 +94,6 @@ export function validateStrengthTemplatesV2(templates: readonly StrengthTemplate
         if (!Number.isInteger(w.sets) || w.sets < ref.min || w.sets > ref.max) add(t.templateId, "invalid_warm_up_sets", `${w.exerciseId}: ${w.sets} (reference ${ref.min}–${ref.max})`);
       }
       note(w.exerciseId, "warm-up");
-    }
-
-    // PHYS-01 — cool-down: a mobility of the session first (kept by the short Force), every item holding the cool_down role.
-    if (t.coolDown.length === 0 || SESSION_EXERCISE_CATALOG_V2[t.coolDown[0]!.exerciseId]?.family !== "mobility") {
-      add(t.templateId, "invalid_cool_down", t.coolDown.map((c) => c.exerciseId).join(", ") || "empty");
-    }
-    for (const c of t.coolDown) {
-      const e = SESSION_EXERCISE_CATALOG_V2[c.exerciseId];
-      if (!e) add(t.templateId, "unknown_exercise", c.exerciseId);
-      else {
-        if (!e.roles.includes("cool_down")) add(t.templateId, "role_not_held", `${c.exerciseId} has no role cool_down`);
-        if (!isExerciseAllowedForTierV2(e, t.athleteTier)) add(t.templateId, "tier_not_allowed", `${c.exerciseId} (cool-down)`);
-        const ref = e.referencePrescription.sets;
-        if (!Number.isInteger(c.sets) || c.sets < ref.min || c.sets > ref.max) add(t.templateId, "invalid_cool_down_sets", `${c.exerciseId}: ${c.sets} (reference ${ref.min}–${ref.max})`);
-      }
-      note(c.exerciseId, "cool-down");
     }
 
     // Exactly three work slots, principal first in `main`.

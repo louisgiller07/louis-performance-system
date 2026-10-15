@@ -148,17 +148,17 @@ describe("P0-3 — A10 applies to manual sessions like to generated ones", () =>
     expect(r.status === "created" && [r.finalPrescription.structure.sessionKind, r.effectiveDurationMin, r.timeConstraint?.action]).toEqual(["DH_TECHNICAL", 60, "adapted"]);
   });
 
-  it("manual Force MODERATE (estimated 47) + 45 min → its LIGHT dose (38); + 30 min → the short Force (27, PHYS-01); + 90 → fits at 47", () => {
+  it("manual Force MODERATE (PHYS-01.1, same dose for time): + 45 min → all exercises, no cool-down added here (39); + 30 min → the principal alone (24); + 90 → fits (39)", () => {
     const f45 = timed(45, { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" });
-    expect(f45.status === "created" && [f45.finalPrescription.structure.sessionKind, f45.effectiveDurationMin]).toEqual(["STRENGTH_UPPER", 38]);
+    expect(f45.status === "created" && [f45.finalPrescription.structure.sessionKind, f45.effectiveDurationMin, f45.timeConstraint?.action]).toEqual(["STRENGTH_UPPER", 39, "fits"]);
     const f30 = timed(30, { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" });
-    expect(f30.status === "created" && [f30.finalPrescription.structure.sessionKind, f30.effectiveDurationMin, f30.finalPrescription.adaptationRuleIds.includes(DAILY_ADAPTATION_RULES_V2.strengthShortVariant)]).toEqual([
+    expect(f30.status === "created" && [f30.finalPrescription.structure.sessionKind, f30.effectiveDurationMin, f30.finalPrescription.adaptationRuleIds]).toEqual([
       "STRENGTH_UPPER",
-      27,
-      true,
+      24,
+      [DAILY_ADAPTATION_RULES_V2.manualSession, DAILY_ADAPTATION_RULES_V2.strengthShortened, DAILY_ADAPTATION_RULES_V2.todayTimeLimit],
     ]);
     const f90 = timed(90, { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" });
-    expect(f90.status === "created" && [f90.effectiveDurationMin, f90.timeConstraint?.action]).toEqual([47, "fits"]);
+    expect(f90.status === "created" && [f90.effectiveDurationMin, f90.timeConstraint?.action]).toEqual([39, "fits"]);
   });
 });
 

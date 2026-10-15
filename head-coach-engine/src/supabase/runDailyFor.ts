@@ -87,6 +87,7 @@ import { persistDailyRunV2, type FinalPrescriptionStatus } from "./dailyV2/persi
 import { applyV2SystemicFloor } from "./dailyV2/applyV2SystemicFloor.js";
 import { applyV2EffectiveSession } from "./dailyV2/applyV2EffectiveSession.js";
 import { applyV2TodayTimeConstraint } from "./dailyV2/applyV2TodayTimeConstraint.js";
+import { todayLoadHold } from "./dailyV2/todayLoadHold.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
 import { projectTrainingPlan } from "./projectTrainingPlan.js";
@@ -391,6 +392,8 @@ export async function runDailyFor(
       availableMinutes: inputVersions.checkin?.available_minutes_today ?? null,
       // PHYS-01 — the rider whose completed sets give the Force load guidance.
       athleteId,
+      // PHYS-01.1 — pain in today's check-in or an M1 fatigue signal: no automatic load increase today.
+      todayHold: todayLoadHold(computed.rawContext?.checkin, dailyPlanV2),
     });
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.

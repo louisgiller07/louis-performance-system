@@ -62,9 +62,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     return { athleteId, planVersionId: persisted.planVersionId };
   }
 
-  /** PHYS-01 — a stored final structure without its load guidance, and which items carried one (exercise, mode). */
-  function withoutLoadGuidance(structure: unknown): { structure: unknown; guided: [string, string][] } {
-    const copy = JSON.parse(JSON.stringify(structure)) as { blocks: { items: Record<string, unknown>[] }[] };
+  /** PHYS-01.1 — a stored final structure without its daily Force additions: the appended cool-down and the load guidance. */
+  function withoutDailyForceAdditions(structure: unknown): { structure: unknown; guided: [string, string][]; coolDown: string[] } {
+    const copy = JSON.parse(JSON.stringify(structure)) as { family: string; blocks: { role: string; items: Record<string, unknown>[] }[] };
     const guided: [string, string][] = [];
     for (const b of copy.blocks)
       for (const i of b.items)
@@ -72,7 +72,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
           guided.push([i.exerciseId as string, (i.loadGuidance as { mode: string }).mode]);
           delete i.loadGuidance;
         }
-    return { structure: copy, guided };
+    const last = copy.blocks.at(-1);
+    const coolDown = copy.family === "strength" && last?.role === "cool_down" ? last.items.map((i) => i.exerciseId as string) : [];
+    if (coolDown.length > 0) copy.blocks.pop();
+    return { structure: copy, guided, coolDown };
   }
 
   async function decisionsOn(athleteId: string, day: string) {
@@ -139,11 +142,13 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       const finals = await finalsOf(decisions[0]!.id);
       expect(finals).toHaveLength(1);
       expect(finals[0]).toMatchObject({ id: result.finalPrescription!.id, planned_prescription_id: planned.id, plan_version_id: a.planVersionId, reconciliation_action: "keep", active_session_origin: "generated" });
-      // PHYS-01 — the planned content verbatim; a Force work exercise carrying a load also gets its load guidance (never content).
-      const { structure: content, guided } = withoutLoadGuidance(finals[0]!.structure);
+      // PHYS-01.1 — the planned content verbatim; a Force session also ends with its daily cool-down, and its loaded
+      // work exercises carry their load guidance (never content, never a plan change).
+      const { structure: content, guided, coolDown } = withoutDailyForceAdditions(finals[0]!.structure);
       expect(content).toEqual(planned.structure);
       expect(guided).toEqual(kind === "STRENGTH_LOWER" ? [["goblet_squat", "calibrate"], ["dumbbell_romanian_deadlift", "calibrate"]] : []);
-      expect(sportFingerprint(finals[0]!.structure)).toBe(sportFingerprint(planned.structure));
+      expect(coolDown).toEqual(kind === "STRENGTH_LOWER" ? ["hip_flexor_mobility", "breathing_long_exhale"] : []);
+      expect(sportFingerprint(content)).toBe(sportFingerprint(planned.structure));
       // Not rendered by the web yet: the V1 reader stays fail-closed.
       expect(result.executablePrescription).toBeNull();
       expect(result.executablePrescriptionStatus).toBe("unsupported_schema_version");
@@ -274,7 +279,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     expect(decision).toMatchObject({
       final_prescription_status: "blocked",
       final_prescription_status_code: "final_prescription_catalog_mismatch",
-      final_prescription_status_detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.7" },
+      final_prescription_status_detail: { plannedAggregate: "session-model-v2.0", runtimeAggregate: "session-model-v2.6" },
     });
     expect(await finalsOf(decision!.id)).toEqual([]);
   });

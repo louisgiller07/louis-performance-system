@@ -24,9 +24,7 @@ const build = (input: Partial<StrengthPrescriptionV2Input> & Pick<StrengthPrescr
   buildStrengthPrescriptionV2Content({ equipment: [], loadProfile: "MODERATE", catalog: MANIFEST, ...input });
 
 const items = (p: PrescriptionV2Content) => p.blocks.flatMap((b) => b.items) as ExerciseItemV2Content[];
-// Work blocks only (PHYS-01: the cool-down is neither warm-up nor work).
-const work = (p: PrescriptionV2Content) => p.blocks.filter((b) => b.role === "main" || b.role === "complementary").map((b) => (b.items[0] as ExerciseItemV2Content).exerciseId);
-const workItems = (p: PrescriptionV2Content) => p.blocks.filter((b) => b.role === "main" || b.role === "complementary").flatMap((b) => b.items) as ExerciseItemV2Content[];
+const work = (p: PrescriptionV2Content) => p.blocks.filter((b) => b.role !== "warm_up").map((b) => (b.items[0] as ExerciseItemV2Content).exerciseId);
 
 function counter() {
   let n = 0;
@@ -133,14 +131,13 @@ describe("Force builder — warm-up, rampUp, structure", () => {
     expect((upper.blocks[0]!.items[2] as ExerciseItemV2Content).measure).toEqual({ type: "duration", minSeconds: 20, maxSeconds: 30, perSide: false });
   });
 
-  it("blocks: warm_up → main (principal) → complementary → complementary → cool_down (PHYS-01); rampUp on the principal only", () => {
+  it("blocks: warm_up → main (principal) → complementary → complementary; no cool_down; rampUp on the principal only", () => {
     const p = build({ sessionKind: "STRENGTH_UPPER", athleteTier: "advanced", equipment: FULL_GYM });
     expect(p.blocks.map((b) => [b.role, b.items.length])).toEqual([
       ["warm_up", 3],
       ["main", 1],
       ["complementary", 1],
       ["complementary", 1],
-      ["cool_down", 2],
     ]);
     const withRamp = items(p).filter((i) => i.rampUp !== undefined);
     expect(withRamp.map((i) => i.role)).toEqual(["principal"]);
@@ -154,7 +151,7 @@ describe("Force builder — warm-up, rampUp, structure", () => {
         for (const equipment of [[], FULL_GYM]) {
           const p = build({ sessionKind: kind, athleteTier: tier, equipment });
           assertValid(p);
-          expect(workItems(p).map((i) => i.role)).toEqual(kind === "STRENGTH_LOWER" ? ["principal", "secondary", "unilateral"] : ["principal", "secondary", "prevention"]);
+          expect(items(p).slice(3).map((i) => i.role)).toEqual(kind === "STRENGTH_LOWER" ? ["principal", "secondary", "unilateral"] : ["principal", "secondary", "prevention"]);
         }
       }
     }
@@ -194,15 +191,15 @@ describe("Force builder — stability, fingerprint, blocks and contract errors",
 
   it("carries the current manifest", () => {
     expect(build({ sessionKind: "STRENGTH_LOWER", athleteTier: "beginner" }).catalog).toEqual({
-      aggregate: "session-model-v2.7",
+      aggregate: "session-model-v2.6",
       exercises: "session-exercises-v2.1",
       drills: "session-drills-v2.0",
       intents: "session-intents-v2.0",
       protocols: "session-protocols-v2.0",
       texts: "coaching-text-v1.0",
-      templates: "strength-templates-v2.2",
+      templates: "strength-templates-v2.1",
       strengthDoses: "strength-doses-v2.2",
-      planDosePolicy: "plan-dose-policy-v2.5",
+      planDosePolicy: "plan-dose-policy-v2.4",
     });
   });
 
@@ -228,47 +225,5 @@ describe("Force builder — stability, fingerprint, blocks and contract errors",
   it("contract errors: unknown session kind or tier", () => {
     expect(() => build({ sessionKind: "STRENGTH_FULL_LIGHT" as never, athleteTier: "beginner" })).toThrow(SessionModelV2ContractError);
     expect(() => build({ sessionKind: "STRENGTH_LOWER", athleteTier: "elite" as never })).toThrow(SessionModelV2ContractError);
-  });
-});
-
-describe("PHYS-01 — Force cool-down and short Force", () => {
-  it("cool-down: the template's mobility of the loaded zone then the breathing hold, sets from the template, measure / rest / cue from the exercise, one canonical instruction", () => {
-    const lower = build({ sessionKind: "STRENGTH_LOWER", athleteTier: "intermediate", equipment: ["dumbbells", "bench"] });
-    expect(lower.blocks.at(-1)).toEqual({
-      role: "cool_down",
-      instructionIds: ["instruction.recovery.light_mobility"],
-      items: [
-        { kind: "exercise", exerciseId: "hip_flexor_mobility", role: "cool_down", sets: 1, measure: { type: "duration", minSeconds: 45, maxSeconds: 60, perSide: true }, restSeconds: { min: 0, max: 15 }, cueId: "cue.hip_flexor_mobility", vigilanceIds: expect.any(Array) },
-        { kind: "exercise", exerciseId: "breathing_long_exhale", role: "cool_down", sets: 1, measure: { type: "duration", minSeconds: 180, maxSeconds: 300, perSide: false }, restSeconds: { min: 0, max: 0 }, cueId: "cue.breathing_long_exhale", vigilanceIds: expect.any(Array) },
-      ],
-    });
-    const upper = build({ sessionKind: "STRENGTH_UPPER", athleteTier: "beginner" });
-    expect(upper.blocks.at(-1)!.items.map((i) => (i as ExerciseItemV2Content).exerciseId)).toEqual(["cat_cow", "breathing_long_exhale"]);
-    // The cool-down never repeats a warm-up exercise.
-    const warm = upper.blocks[0]!.items.map((i) => (i as ExerciseItemV2Content).exerciseId);
-    expect(upper.blocks.at(-1)!.items.some((i) => warm.includes((i as ExerciseItemV2Content).exerciseId))).toBe(false);
-    assertValid(lower);
-    assertValid(upper);
-  });
-
-  it("short Force: same template, warm-up and first two work exercises at the LIGHT dose, first cool-down item only", () => {
-    for (const kind of ["STRENGTH_LOWER", "STRENGTH_UPPER"] as const) {
-      for (const tier of ["beginner", "intermediate", "advanced"] as const) {
-        for (const equipment of [[], ["dumbbells"], FULL_GYM]) {
-          const standard = build({ sessionKind: kind, athleteTier: tier, equipment, loadProfile: "LIGHT" });
-          const short = build({ sessionKind: kind, athleteTier: tier, equipment, loadProfile: "LIGHT", variant: "short" });
-          expect(short.templateId).toBe(standard.templateId);
-          expect(short.blocks[0]).toEqual(standard.blocks[0]);
-          expect(workItems(short)).toEqual(workItems(standard).slice(0, 2));
-          expect(short.blocks.at(-1)!.items).toEqual(standard.blocks.at(-1)!.items.slice(0, 1));
-          expect(short.blocks.map((b) => b.role)).toEqual(["warm_up", "main", "complementary", "cool_down"]);
-          assertValid(short);
-        }
-      }
-    }
-  });
-
-  it("the short Force exists at the LIGHT dose only (contract error otherwise)", () => {
-    expect(() => build({ sessionKind: "STRENGTH_UPPER", athleteTier: "beginner", loadProfile: "MODERATE", variant: "short" })).toThrow(SessionModelV2ContractError);
   });
 });

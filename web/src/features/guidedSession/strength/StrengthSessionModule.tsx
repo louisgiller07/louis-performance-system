@@ -11,7 +11,7 @@ import { SecondaryButton } from "../../../components/SecondaryButton";
 import { formatMeasure, formatSeconds, setsLabel, span } from "../../finalPrescriptionV2/finalPrescriptionV2Copy";
 import type { BlockView, ExerciseItemView } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 import { LoadGuidanceNote } from "../../finalPrescriptionV2/LoadGuidanceNote";
-import { formatKg, loadGuidanceLines } from "../../finalPrescriptionV2/loadGuidanceCopy";
+import { loadFieldHint } from "../../finalPrescriptionV2/loadGuidanceCopy";
 import type { GuidedSessionModuleProps } from "../sessionModules";
 import { draftOf, EMPTY_FORM, liveForm, type OpenForm } from "./strengthDraft";
 import {
@@ -60,10 +60,9 @@ function ReadOnlyBlock({ block }: { block: BlockView }) {
   );
 }
 
-/** PHYS-01 — the advised load, next to the load field (never pre-filled: the rider records what was really used). */
+/** PHYS-01 — the advised load and how to count it, next to the load field (never pre-filled: the rider records what was really used). */
 function suggestedLoadHint(item: ExerciseItemView): string | undefined {
-  const kg = item.loadGuidance ? loadGuidanceLines(item.loadGuidance, item.measure).suggestedKg : null;
-  return kg === null ? undefined : `Conseillé : ${formatKg(kg)}`;
+  return loadFieldHint(item.loadGuidance, item.measure);
 }
 
 const fieldId = (form: OpenForm, field: keyof SetFormValues) => `set-${form.key.replace(/[^a-z0-9]/gi, "-")}-${field}`;

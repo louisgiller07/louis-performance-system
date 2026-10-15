@@ -24,16 +24,22 @@ export interface LoadReferenceView {
   rpeMax: number | null;
 }
 
+/** PHYS-01.1 — dumbbells are counted per dumbbell; barbell, cable stack and kettlebell loads are the total moved. */
+export type LoadBasisView = "per_dumbbell" | "total";
+
 /** PHYS-01 — the load to use today for a work exercise, read by the engine from the rider's own history (never a 1RM). */
 export type LoadGuidanceView =
-  | { mode: "calibrate"; reason: "no_history" | "history_without_load"; repsInReserve: RangeView | null }
-  | { mode: "reference"; reason: "different_dose" | "history_too_old"; reference: LoadReferenceView; repsInReserve: RangeView | null }
+  | { mode: "calibrate"; reason: "no_history" | "history_without_load"; loadBasis: LoadBasisView; repsInReserve: RangeView | null }
+  | { mode: "reference"; reason: "different_dose" | "history_too_old"; loadBasis: LoadBasisView; reference: LoadReferenceView; repsInReserve: RangeView | null }
   | {
       mode: "target";
       reason: "top_of_range_reached" | "within_range" | "below_range" | "effort_too_high";
       change: "increase" | "keep" | "decrease";
+      /** PHYS-01.1 — why an increase the history allowed is not applied today. */
+      hold?: "dose_up" | "pain" | "fatigue";
       targetKg: number;
       stepKg: number;
+      loadBasis: LoadBasisView;
       reference: LoadReferenceView;
     };
 

@@ -32,11 +32,6 @@
  * passes; endurance: duration). `development` / `taper` above are kept
  * (development = build, cycle 0).
  *
- * v2.5 (PHYS-01): under the rider's time today (A10) a Force session's
- * duration is the content's own estimate (PLAN_STRENGTH_TIMING_V2), never the
- * planner's slot. The short Force composition is template content
- * (STRENGTH_SHORT_VARIANT_V2). The planner's Force slots above are unchanged.
- *
  * Every value: PROVISIONAL — coaching validation required.
  */
 import type { ContentValidationStatus } from "./coachingTextCatalog.js";
@@ -46,7 +41,7 @@ import type { WeekProgressionRole } from "../types/planWeek.js";
 /** Session load levels a V2 policy may assign (HEAVY out of scope). */
 export type PlanLoadV2 = "LIGHT" | "MODERATE";
 
-export const PLAN_DOSE_POLICY_V2_VERSION = "plan-dose-policy-v2.5";
+export const PLAN_DOSE_POLICY_V2_VERSION = "plan-dose-policy-v2.4";
 
 export interface PlanWeekDoseV2 {
   forceLoad: StrengthLoadLevelV2;
@@ -119,20 +114,3 @@ export const PLAN_DH_DURATION_STEPS_V2: readonly { durationMin: number; maxPasse
 export const PLAN_RECENT_TRAINING_MINUTES_V2 = 180;
 /** Missed or replaced sessions from which the first overload week is held at build. */
 export const PLAN_MISSED_SESSIONS_HOLD_V2 = 2;
-
-/**
- * PHYS-01 — how long a Force prescription really takes (estimator inputs,
- * conservative: the upper bound of every range). A set = setup + work (reps
- * at a controlled tempo, or the hold's duration; per side doubles it; a carry
- * is walked at about 1 m/s); rests between the sets of an exercise; one
- * transition after each exercise; the ramp-up sets of the principal movement
- * with their own short rest. PROVISIONAL.
- */
-export const PLAN_STRENGTH_TIMING_V2 = {
-  repSeconds: 4,
-  setSetupSeconds: 10,
-  metersPerSecond: 1,
-  transitionSeconds: 60,
-  rampUpSetSeconds: 30,
-  rampUpRestSeconds: 60,
-} as const;

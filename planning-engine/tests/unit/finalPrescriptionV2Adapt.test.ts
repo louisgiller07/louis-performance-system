@@ -190,7 +190,7 @@ describe("A04 — MODIFY: same session, lower dose, real content", () => {
     const old = JSON.parse(JSON.stringify(i.plannedPrescription!.structure));
     old.catalog = { ...old.catalog, aggregate: "session-model-v2.5", strengthDoses: "strength-doses-v2.1", planDosePolicy: "plan-dose-policy-v2.3" };
     const r = buildFinalPrescriptionV2({ ...i, plannedPrescription: { ...i.plannedPrescription!, catalogVersion: "session-model-v2.5", structure: old } });
-    expect(r).toEqual({ status: "blocked", code: "final_prescription_catalog_mismatch", detail: { plannedAggregate: "session-model-v2.5", runtimeAggregate: "session-model-v2.7" } });
+    expect(r).toEqual({ status: "blocked", code: "final_prescription_catalog_mismatch", detail: { plannedAggregate: "session-model-v2.5", runtimeAggregate: "session-model-v2.6" } });
   });
 });
 

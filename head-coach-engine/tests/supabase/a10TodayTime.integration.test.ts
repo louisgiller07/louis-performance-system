@@ -21,8 +21,9 @@ import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { V2_TODAY_TIME_CONSTRAINT_RULE_ID } from "../../src/supabase/dailyV2/applyV2TodayTimeConstraint.js";
 import { estimateStrengthDurationMinutesV2 } from "planning-engine/session-model-v2";
 
-/** PHYS-01 — a Force session's real duration under the rider's time: its content's estimate. */
+/** PHYS-01.1 — a Force session's real duration under the rider's time: its content's estimate (cool-down included). */
 const minutesOf = (structure: unknown) => estimateStrengthDurationMinutesV2(structure as never);
+const SHORTENED = ["v2.time.strength_shortened", "v2.time.today_limit"];
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const INTEGRATION_ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
@@ -45,6 +46,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
   let admin: SupabaseClient;
   let athleteId: string;
   let sessions: Generated[];
+  let planVersionId: string;
   const used = new Set<string>();
 
   /** The first unused generated session matching, its date reserved for one scenario. */
@@ -55,6 +57,19 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     return s.date;
   }
   const isForce = (k: string) => k === "STRENGTH_LOWER" || k === "STRENGTH_UPPER";
+
+  /** PHYS-01.1 — the first free Force day whose planned principal has `sets` sets (4: build, 5: overload week). */
+  async function forceDay(sets: number): Promise<string> {
+    for (const s of sessions.filter((g) => isForce(g.kind) && !used.has(g.date))) {
+      const { data } = await admin.from("training_plan_planned_prescriptions").select("structure").eq("generated_plan_session_id", s.id).single();
+      const principal = (data!.structure as Structure).blocks.find((b) => b.role === "main")!.items[0] as unknown as { sets: number };
+      if (principal.sets === sets) {
+        used.add(s.date);
+        return s.date;
+      }
+    }
+    throw new Error(`no free Force day with a ${sets}-set principal`);
+  }
 
   async function decisions(d: string) {
     const { data } = await admin.from("decisions").select("id, daily_plan, final_prescription_status").eq("athlete_id", athleteId).eq("decision_date", d).order("created_at", { ascending: false });
@@ -111,6 +126,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
     const persisted = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 6, today: "2026-10-04" });
     if (persisted.status !== "persisted") throw new Error("plan");
+    planVersionId = persisted.planVersionId;
     await acceptTrainingPlanVersion(admin, athleteId, persisted.planVersionId, "2026-10-05", "2026-11-15");
     const { data } = await admin.from("training_plan_generated_sessions").select("id, date, kind, load_profile, duration_min").eq("plan_version_id", persisted.planVersionId).order("date");
     sessions = data as Generated[];
@@ -124,8 +140,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     expect(r.dailyPlan.triggered_rules.some((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)).toBe(false);
   });
 
-  it("B then C — 90 min for a 60-min Force slot: KEEP at its real duration (traced « fits »); the rider changes to 45 and recalculates: MODIFY → real LIGHT Force, at its real duration, everywhere", async () => {
-    const d = day(isForce, "MODERATE");
+  it("B then C — 90 min for a 60-min Force slot: KEEP at its real duration (traced « fits »); the rider changes to 45 and recalculates: the same session at the same dose, shortened, everywhere (PHYS-01.1)", async () => {
+    const d = await forceDay(4);
     await insertCheckin(admin, athleteId, d, { available_minutes_today: 90 });
     const b = await runDailyFor(admin, athleteId, d);
     const keepMinutes = minutesOf(b.finalPrescription!.structure);
@@ -139,29 +155,35 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     const c = await runDailyFor(admin, athleteId, d);
     expect(c.dailyPlan.decision).toBe("MODIFY");
     const { plan, fp } = await assertWithin(d, 45);
-    const lightMinutes = minutesOf(fp!.structure);
-    expect(lightMinutes).toBeLessThanOrEqual(45);
-    expect(plan.final_session).toMatchObject({ load_profile: "LIGHT", duration_min: lightMinutes });
-    expect(plan.training.duration_min).toBe(lightMinutes);
-    expect(fp).toMatchObject({ reconciliation_action: "modify", adaptation_rule_ids: ["v2.modify.strength_light_dose", "v2.time.today_limit"] });
-    expect(plan.decision_reasoning?.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toBe("Tu as 45 min aujourd'hui : la séance a été allégée pour tenir dans ce temps.");
-    expect(plan.training.objective).toBe("Tu as 45 min aujourd'hui : la séance a été allégée pour tenir dans ce temps.");
-    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(
-      new RegExp(`45 min\\. Avant : KEEP STRENGTH_\\w+ MODERATE ${keepMinutes} min\\. Action : adapted → MODIFY STRENGTH_\\w+ LIGHT ${lightMinutes} min\\.`)
+    const shortMinutes = minutesOf(fp!.structure);
+    expect(shortMinutes).toBeLessThanOrEqual(45);
+    expect(plan.final_session).toMatchObject({ load_profile: "MODERATE", duration_min: shortMinutes });
+    expect(plan.training.duration_min).toBe(shortMinutes);
+    expect(fp).toMatchObject({ reconciliation_action: "modify", adaptation_rule_ids: SHORTENED });
+    expect(plan.decision_reasoning?.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toBe("Tu as 45 min aujourd'hui : la séance a été raccourcie pour tenir dans ce temps.");
+    expect(plan.training.objective).toBe("Tu as 45 min aujourd'hui : la séance a été raccourcie pour tenir dans ce temps.");
+    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toBe(
+      `Temps disponible : 45 min. Avant : KEEP ${plan.final_session.kind} MODERATE ${keepMinutes} min. Action : adapted → MODIFY ${plan.final_session.kind} MODERATE ${shortMinutes} min.`
     );
   });
 
-  it("D — Force 60 + 30 min (PHYS-01): the short Force — same session, LIGHT, fewer exercises — inside 30 min (MODIFY)", async () => {
-    const d = day(isForce, "MODERATE");
+  it("D — build-week Force + 30 min (PHYS-01.1): the principal alone at its planned dose, full warm-up, the cool-down's mobility (MODIFY)", async () => {
+    const d = await forceDay(4);
     await insertCheckin(admin, athleteId, d, { available_minutes_today: 30 });
     const r = await runDailyFor(admin, athleteId, d);
     expect(r.dailyPlan.decision).toBe("MODIFY");
     const { plan, fp } = await assertWithin(d, 30);
-    expect([plan.final_session.kind, plan.final_session.load_profile, fp!.structure.family]).toEqual([fp!.structure.sessionKind, "LIGHT", "strength"]);
+    expect([plan.final_session.load_profile, fp!.adaptation_rule_ids, fp!.structure.blocks.map((b) => b.role)]).toEqual(["MODERATE", SHORTENED, ["warm_up", "main", "cool_down"]]);
     expect(plan.final_session.duration_min).toBe(minutesOf(fp!.structure));
-    expect(fp!.adaptation_rule_ids).toEqual(["v2.time.strength_short", "v2.time.today_limit"]);
-    expect(fp!.structure.blocks.map((b) => b.role)).toEqual(["warm_up", "main", "complementary", "cool_down"]);
-    expect(plan.training.objective).toBe("Tu as 30 min aujourd'hui : la séance a été allégée pour tenir dans ce temps.");
+  });
+
+  it("D' — overload-week Force (5 sets) + 30 min: its principal alone does not fit, so active recovery — never fewer sets (REPLACE)", async () => {
+    const d = await forceDay(5);
+    await insertCheckin(admin, athleteId, d, { available_minutes_today: 30 });
+    const r = await runDailyFor(admin, athleteId, d);
+    expect(r.dailyPlan.decision).toBe("REPLACE");
+    const { plan, fp } = await assertWithin(d, 30);
+    expect([plan.final_session.kind, fp!.structure.family]).toEqual(["RECOVERY_ACTIVE", "recovery"]);
   });
 
   it("E — endurance 60 + 45 min: MODIFY → the same protocol at 45 min", async () => {
@@ -222,7 +244,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
   });
 
   it("K — an execution already started keeps its frozen prescription: the new time makes D2, D1's execution stays and completes, no second main session", async () => {
-    const d = day(isForce, "MODERATE");
+    const d = await forceDay(4);
     await insertCheckin(admin, athleteId, d);
     await runDailyFor(admin, athleteId, d);
     const [d1] = await decisions(d);
@@ -234,8 +256,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     await runDailyFor(admin, athleteId, d);
     const [d2] = await decisions(d);
     const fp2 = await finalOf(d2!.id);
-    // PHYS-01 — 30 min now gives the short Force; the started execution still blocks a second main session.
-    expect([fp2!.structure.family, fp2!.adaptation_rule_ids]).toEqual(["strength", ["v2.time.strength_short", "v2.time.today_limit"]]);
+    // PHYS-01.1 — 30 min now gives the shortened Force; the started execution still blocks a second main session.
+    expect([fp2!.structure.family, fp2!.adaptation_rule_ids]).toEqual(["strength", SHORTENED]);
     expect((await record(start(fp2!.id, d).payload)).code).toBe("active_execution_exists");
 
     const { data: row } = await admin.from("session_executions").select("final_prescription_id, decision_id").eq("id", exec.id).single();
@@ -248,15 +270,15 @@ describe.skipIf(!INTEGRATION_ENABLED)("A10 — the rider's time today (local Sup
     expect(done.status).toBe("ok");
   });
 
-  it("L — M1 MODIFY (systemic RED, Force LIGHT) + 30 min (PHYS-01): the short Force, still LIGHT, the load never goes back up, both reasons kept", async () => {
+  it("L — M1 MODIFY (systemic RED, Force LIGHT) + 30 min (PHYS-01.1): M1's LIGHT dose, shortened, the load never goes back up, both reasons kept", async () => {
     const d = day(isForce, "MODERATE");
     await insertCheckin(admin, athleteId, d, { ...SYSTEMIC_RED, available_minutes_today: 30 });
     const r = await runDailyFor(admin, athleteId, d);
     expect(r.dailyPlan.decision).toBe("MODIFY");
     const { plan, fp } = await assertWithin(d, 30);
-    expect([plan.final_session.load_profile, fp!.adaptation_rule_ids]).toEqual(["LIGHT", ["v2.time.strength_short", "v2.time.today_limit"]]);
+    expect([plan.final_session.load_profile, fp!.adaptation_rule_ids]).toEqual(["LIGHT", SHORTENED]);
     expect(plan.triggered_rules.map((t) => t.rule_id)).toEqual(expect.arrayContaining(["C3.3", V2_TODAY_TIME_CONSTRAINT_RULE_ID]));
-    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(/Avant : MODIFY STRENGTH_\w+ LIGHT \d+ min\. Action : adapted → MODIFY STRENGTH_\w+ LIGHT \d+ min/);
+    expect(plan.triggered_rules.find((t) => t.rule_id === V2_TODAY_TIME_CONSTRAINT_RULE_ID)?.detail).toMatch(/Avant : MODIFY STRENGTH_\w+ LIGHT \d+ min\. Action : adapted → MODIFY STRENGTH_\w+ LIGHT \d+ min\./);
   });
 
   it("an M1 MODIFY (systemic RED) + 60 min: the LIGHT Force fits at its real duration, nothing else changes", async () => {

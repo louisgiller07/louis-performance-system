@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignPrescriptionIds, buildSessionModelV2CatalogManifest, buildStrengthPrescriptionV2Content, validatePrescriptionV2, type PrescriptionV2 } from "../../src/sessionModelV2/index.js";
+import { appendStrengthCoolDownV2, assignPrescriptionIds, buildSessionModelV2CatalogManifest, buildStrengthPrescriptionV2Content, validatePrescriptionV2, type PrescriptionV2 } from "../../src/sessionModelV2/index.js";
 import { STRENGTH_LOAD_GUIDANCE_RULES_VERSION } from "../../src/catalog/strengthLoadGuidancePolicyV2.js";
 
 // PHYS-01 — the single exception to « no load anywhere »: `loadGuidance` on a work exercise of a FINAL Force
@@ -18,6 +18,7 @@ const TARGET = {
   change: "increase",
   targetKg: 22,
   stepKg: 2,
+  loadBasis: "per_dumbbell",
   reference: { sessionDate: "2026-10-13", loadKg: 20, reps: [8, 8, 8, 8], setsPrescribed: 4, repsRange: { min: 6, max: 8 }, rpeMax: 7 },
 };
 
@@ -36,17 +37,21 @@ const codes = (value: unknown, stage: "planned" | "final" = "final") => {
 describe("PHYS-01 — where load guidance is allowed", () => {
   it("a work exercise of a final Force prescription: accepted (target, reference and calibrate shapes)", () => {
     expect(codes(withGuidance(main))).toEqual([]);
-    expect(codes(withGuidance(main, { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION, mode: "calibrate", reason: "no_history", repsInReserve: { min: 2, max: 3 } }))).toEqual([]);
-    expect(codes(withGuidance(main, { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION, mode: "reference", reason: "different_dose", reference: TARGET.reference, repsInReserve: null }))).toEqual([]);
+    expect(codes(withGuidance(main, { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION, mode: "calibrate", reason: "no_history", loadBasis: "per_dumbbell", repsInReserve: { min: 2, max: 3 } }))).toEqual([]);
+    expect(codes(withGuidance(main, { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION, mode: "reference", reason: "different_dose", loadBasis: "total", reference: TARGET.reference, repsInReserve: null }))).toEqual([]);
+    // PHYS-01.1 — a held increase: same load, the reason it was held.
+    expect(codes(withGuidance(main, { ...TARGET, change: "keep", targetKg: 20, hold: "pain" }))).toEqual([]);
   });
 
   it("a planned prescription never carries it", () => {
     expect(codes(withGuidance(main), "planned")).toEqual(["load_guidance_not_allowed"]);
   });
 
-  it("never on a warm-up or cool-down exercise", () => {
+  it("never on a warm-up or a cool-down exercise", () => {
     expect(codes(withGuidance((p) => p.blocks[0]!.items[0]!))).toEqual(["load_guidance_not_allowed"]);
-    expect(codes(withGuidance((p) => p.blocks.at(-1)!.items[0]!))).toEqual(["load_guidance_not_allowed"]);
+    const withCoolDown = JSON.parse(JSON.stringify(appendStrengthCoolDownV2(base(), mint))) as Mutable;
+    withCoolDown.blocks.at(-1)!.items[0]!.loadGuidance = TARGET;
+    expect(codes(withCoolDown)).toEqual(["load_guidance_not_allowed"]);
   });
 
   it("anywhere else (prescription or block level) it is a forbidden load field, as before", () => {
@@ -71,10 +76,15 @@ describe("PHYS-01 — exact shape", () => {
     ["a target without a positive load", { ...TARGET, targetKg: 0 }],
     ["a load above 1000 kg", { ...TARGET, targetKg: 1200 }],
     ["an unknown change", { ...TARGET, change: "double" }],
+    ["no load basis", { ...TARGET, loadBasis: undefined }],
+    ["an unknown load basis", { ...TARGET, loadBasis: "per_arm" }],
+    ["a hold on an increase", { ...TARGET, hold: "pain" }],
+    ["a hold on a decrease", { ...TARGET, change: "decrease", reason: "below_range", targetKg: 18, hold: "fatigue" }],
+    ["an unknown hold", { ...TARGET, change: "keep", targetKg: 20, hold: "mood" }],
     ["a reference without repetitions", { ...TARGET, reference: { ...TARGET.reference, reps: [] } }],
     ["a reference date not ISO", { ...TARGET, reference: { ...TARGET.reference, sessionDate: "13.10.2026" } }],
     ["an RPE out of 1–10", { ...TARGET, reference: { ...TARGET.reference, rpeMax: 11 } }],
-    ["reps in reserve out of 0–10", { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION, mode: "calibrate", reason: "no_history", repsInReserve: { min: 2, max: 12 } }],
+    ["reps in reserve out of 0–10", { ruleVersion: STRENGTH_LOAD_GUIDANCE_RULES_VERSION, mode: "calibrate", reason: "no_history", loadBasis: "total", repsInReserve: { min: 2, max: 12 } }],
     ["not an object", "22 kg"],
   ])("refused: %s", (_label, guidance) => {
     const cleaned = JSON.parse(JSON.stringify(guidance ?? null));

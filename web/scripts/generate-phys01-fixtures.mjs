@@ -1,7 +1,9 @@
-// PHYS-01 — regenerates the web test fixtures of the physical coaching path:
-// genuine session-model-v2.7 Force final prescriptions produced by the engine
-// itself (in-memory V2 plan → pure KEEP / A10 builders → pure load guidance
-// from a recorded history), never hand-made shapes. Deterministic ids.
+// PHYS-01.1 — regenerates the web test fixtures of the physical coaching path:
+// genuine Force final prescriptions produced by the engine itself (in-memory
+// V2 plan → pure final builders with the daily additions → pure load
+// guidance from a recorded history), never hand-made shapes. They stay
+// session-model-v2.6 documents (no version change): the previous web reads
+// them too. Deterministic ids.
 //
 // Usage (from web/): node scripts/generate-phys01-fixtures.mjs
 // Requires planning-engine to be built (cd ../planning-engine && npm run build).
@@ -48,6 +50,7 @@ const base = (decision, finalSession, i) => ({
   },
   plannedPrescription: { ...upper.plannedPrescription, generatedPlanSessionId: upper.generatedPlanSessionId },
   adaptation: { athlete: v2.toSessionModelV2Input(snapshot), ridingAvailable: true, mintId },
+  dailyMintId: mintId,
 });
 
 const TODAY = "2026-10-20";
@@ -60,21 +63,25 @@ const HISTORY = {
 
 const out = { generatedFrom: v2.SESSION_MODEL_V2_AGGREGATE_VERSION, today: TODAY, finalPrescriptions: {} };
 
-// KEEP upper body (MODERATE) with its load guidance.
+const keepSession = { kind: upper.kind, loadProfile: upper.loadProfile, durationMin: upper.durationMin };
+const guided = (r, todayHold) => {
+  if (r.status !== "created") throw new Error(`not created: ${JSON.stringify(r)}`);
+  const structure = v2.attachStrengthLoadGuidanceV2(r.finalPrescription.structure, TODAY, HISTORY, todayHold);
+  if (!v2.validatePrescriptionV2(structure, { stage: "final" }).ok) throw new Error("guided final invalid");
+  return { ...r.finalPrescription, structure, ...(r.effectiveDurationMin !== undefined ? { effectiveDurationMin: r.effectiveDurationMin } : {}) };
+};
+// KEEP upper body (MODERATE): the planned content + its daily cool-down, and the load guidance (+1 step per dumbbell).
+out.finalPrescriptions.GUIDED_KEEP_UPPER = guided(v2.buildFinalPrescriptionV2(base("KEEP", keepSession, 1)));
+// The same day with a pain reported: the increase is held.
+out.finalPrescriptions.GUIDED_KEEP_UPPER_PAIN = guided(v2.buildFinalPrescriptionV2(base("KEEP", keepSession, 2)), "pain");
+// A10 — 30 minutes today: the same session at the same dose, the principal alone, the cool-down's mobility.
 {
-  const r = v2.buildKeepFinalPrescriptionV2(base("KEEP", { kind: upper.kind, loadProfile: upper.loadProfile, durationMin: upper.durationMin }, 1));
-  if (r.status !== "created") throw new Error("KEEP not created");
-  const structure = v2.attachStrengthLoadGuidanceV2(r.finalPrescription.structure, TODAY, HISTORY);
-  if (!v2.validatePrescriptionV2(structure, { stage: "final" }).ok) throw new Error("guided KEEP invalid");
-  out.finalPrescriptions.GUIDED_KEEP_UPPER = { ...r.finalPrescription, structure };
+  const r = v2.buildFinalPrescriptionWithinTodayTimeV2({ ...base("KEEP", keepSession, 3), availableMinutes: 30 });
+  if (r.status !== "created" || !r.finalPrescription.adaptationRuleIds.includes("v2.time.strength_shortened")) throw new Error("shortened Force not created");
+  out.finalPrescriptions.SHORTENED_UPPER_30 = guided(r);
 }
-// A10 — 30 minutes today: the short Force, with its load guidance (another dose: the last load is shown).
-{
-  const r = v2.buildFinalPrescriptionWithinTodayTimeV2({ ...base("KEEP", { kind: upper.kind, loadProfile: upper.loadProfile, durationMin: upper.durationMin }, 2), availableMinutes: 30 });
-  if (r.status !== "created" || !r.finalPrescription.adaptationRuleIds.includes("v2.time.strength_short")) throw new Error("short Force not created");
-  const structure = v2.attachStrengthLoadGuidanceV2(r.finalPrescription.structure, TODAY, HISTORY);
-  out.finalPrescriptions.SHORT_UPPER_30 = { ...r.finalPrescription, structure, effectiveDurationMin: r.effectiveDurationMin };
-}
+// M1 MODIFY (LIGHT): another repetition range → the last load is shown, never converted.
+out.finalPrescriptions.GUIDED_MODIFY_UPPER_LIGHT = guided(v2.buildFinalPrescriptionV2(base("MODIFY", { kind: upper.kind, loadProfile: "LIGHT" }, 4)));
 
 writeFileSync(join(here, "..", "src", "test", "fixtures", "phys01FinalPrescriptionV2.json"), JSON.stringify(out, null, 2) + "\n");
 console.log(`written: ${Object.keys(out.finalPrescriptions).join(", ")} (${out.generatedFrom})`);
