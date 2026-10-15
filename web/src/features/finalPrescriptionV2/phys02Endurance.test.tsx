@@ -90,10 +90,19 @@ describe("PHYS-02 — the intervals session, readable", () => {
     }
   });
 
-  it("a lighter intervals session does not exist: the precise reason, never an empty session", () => {
-    const blocked = fixtures.blockedLightIntervals as { code: string; detail: Record<string, unknown> };
+  it("PHYS-02.1 — a LIGHT day: the base endurance LIGHT session replacing the intervals reads as base endurance (45 min, easy RPE)", () => {
+    const v = view("MODIFY_LIGHT_INTERVALS_FALLBACK");
+    expect([v.sessionKind, intervalsSummary(v), v.blocks.map((b) => b.durationMinutes!.max)]).toEqual(["AEROBIC_BASE", null, [10, 30, 5]]);
+    render(<PrescriptionV2Details prescription={v} />);
+    expect(screen.queryByTestId("intervals")).toBeNull();
+    expect(screen.getAllByTestId("rpe-hint")[1]!.textContent).toBe("Facile : respiration aisée, tu peux parler en phrases complètes.");
+  });
+
+  it("a manual intervals session at another load than moderate: the precise reason (not the Force one), never an empty session", () => {
+    const blocked = fixtures.blockedManualLightIntervals as { code: string; detail: Record<string, unknown> };
     render(<FinalPrescriptionV2Card state={{ kind: "blocked", code: blocked.code, detail: blocked.detail }} />);
-    expect(screen.getByText(/le fractionné n'existe qu'en une seule version : NALYNT ne propose pas de fractionné allégé\. Ne fais pas le fractionné prévu aujourd'hui\./)).toBeTruthy();
+    expect(screen.getByText("Le fractionné n'existe qu'en une seule version, à charge modérée. Choisis une charge modérée dans ton programme pour obtenir le détail de la séance.")).toBeTruthy();
+    expect(screen.queryByText(/renfo/)).toBeNull();
   });
 
   it("an unreadable guidance is dropped, never a failure of the document", () => {

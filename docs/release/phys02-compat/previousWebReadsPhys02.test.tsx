@@ -25,6 +25,8 @@ describe("REL-01 D web × PHYS-02 documents", () => {
     const p = fixtures.plannedPrescriptions.PLANNED_INTERVALS as unknown as Doc & { generatedPlanSessionId: string };
     const planned = decodePlannedPrescriptionV2({ id: p.id, generatedPlanSessionId: p.generatedPlanSessionId, schemaVersion: p.schemaVersion, catalogVersion: p.catalogVersion, structure: p.structure });
     expect(planned.ok).toBe(true);
+    // PHYS-02.1 — the LIGHT-day fallback is a plain base endurance document for this web.
+    expect(view("MODIFY_LIGHT_INTERVALS_FALLBACK").blocks.map((b) => [b.role, b.durationMinutes?.max])).toEqual([["warm_up", 10], ["main", 30], ["cool_down", 5]]);
     const v = view("KEEP_INTERVALS_GUIDED");
     expect(v.blocks.map((b) => [b.role, b.durationMinutes?.max, b.rpeTarget?.max ?? null])).toEqual([
       ["warm_up", 15, null],

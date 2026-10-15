@@ -7,19 +7,24 @@
  *
  * Proves, on real data:
  *   1. intervals option OFF (the default): the previous planner and PHYS-02 produce exactly the same plan;
- *   2. option ON, Edge rolled back to D: D's KEEP of a planned intervals session works (a verbatim copy);
- *   3. option ON, the rollback HAZARD that keeps the option off: D cannot MODIFY a planned intervals session
- *      to LIGHT (a short night) — its daily run throws and nothing is persisted that day — while PHYS-02, on
- *      the same data, persists the decision with its reason; D blocks MENTAL_RED gracefully;
- *   4. roll-forward: base endurance sessions performed under D are read by PHYS-02's guidance.
+ *   2. option ON, daily run rolled back to D: D's KEEP of a planned intervals session works (a verbatim copy),
+ *      and an intervals session performed under D is read back by PHYS-02's guidance;
+ *   3. option ON, the rollback HAZARD: D cannot MODIFY a planned intervals session to LIGHT (a short night) —
+ *      its daily run throws and nothing is persisted that day — while PHYS-02.1, on the same data, persists
+ *      the decision with the base endurance LIGHT fallback; D blocks MENTAL_RED gracefully;
+ *   4. roll-forward: base endurance sessions performed under D are read by PHYS-02's guidance;
+ *   5. PHYS-02.1 — what D still does on a plan holding intervals sessions: every other day (A10 on an
+ *      intervals day, a LIGHT base day, a manual intervals session) works; only an intervals day lowered to
+ *      LIGHT fails — exactly what docs/release/phys02-rollback/ROLLBACK_TO_D_PRECONDITION.sql counts.
  */
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, insertCheckin, setAthleteDiscipline, type CheckinFixture } from "./testDb.js";
-import { localIntegrationRequested } from "./localDb.js";
+import { readFileSync } from "node:fs";
+import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline, type CheckinFixture } from "./testDb.js";
+import { execLocalSql, localIntegrationRequested, sqlLiteral } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
@@ -29,6 +34,16 @@ import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import * as currentV2 from "planning-engine/session-model-v2";
 
 const PREVIOUS = process.env.PHYS011_PREVIOUS_RUNTIME_ROOT;
+const PRECONDITION_SQL = readFileSync(new URL("../../../docs/release/phys02-rollback/ROLLBACK_TO_D_PRECONDITION.sql", import.meta.url), "utf8");
+/** The versioned precondition query, for one rider and a given product date (the operational query reads the whole base at today's date). */
+function rollbackBlockers(athleteId: string, fromDate: string): { ahead: number; last: string | null } {
+  const sql = PRECONDITION_SQL.replace("(now() at time zone 'Europe/Zurich')::date", `${sqlLiteral(fromDate)}::date`).replace(
+    "where g.kind = 'AEROBIC_INTERVALS'",
+    `where c.athlete_id = ${sqlLiteral(athleteId)} and g.kind = 'AEROBIC_INTERVALS'`
+  );
+  const [ahead, , last] = execLocalSql(sql).trim().split("|");
+  return { ahead: Number(ahead), last: last === "" ? null : last! };
+}
 const ENABLED = localIntegrationRequested() && !!PREVIOUS;
 const SYSTEMIC_RED: CheckinFixture = { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 };
 const MENTAL_RED: CheckinFixture = { work_stress: 8, motivation: 3, leg_fatigue: 2, grip_fatigue: 2, sleep_hours: 7.5 };
@@ -103,22 +118,31 @@ describe.skipIf(!ENABLED)("PHYS-02 — previous runtime (D) and PHYS-02 on the s
     expect(generate(currentV2)).toEqual(generate(previousV2));
   });
 
-  it("2 — option ON, daily run rolled back to D: D's KEEP of the planned intervals session is a verbatim copy", async () => {
+  it("2 — option ON, daily run rolled back to D: D's KEEP of the planned intervals session is a verbatim copy; performed under D, it is PHYS-02's next reference", async () => {
     const athleteId = await rider("KEEP", true);
     await insertCheckin(admin, athleteId, "2026-10-23");
     const d = await previousRunDailyFor(admin, athleteId, "2026-10-23");
     expect([d.dailyPlan.decision, d.finalPrescriptionStatus]).toEqual(["KEEP", "created"]);
     const f = await finalOf(d.persistence.decision_id);
     expect([f.structure.protocolId, f.structure.blocks.map((b) => b.durationMinutes.max)]).toEqual(["endurance_intervals_3min", [15, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 10]]);
+    const id = randomUUID();
+    await record(athleteId, { execution: { id, session_date: "2026-10-23", started_at: "2026-10-23T17:00:00Z", final_prescription_id: f.id }, events: [{ id: randomUUID(), execution_id: id, event_type: "started", occurred_at: "2026-10-23T17:00:00Z" }] });
+    await record(athleteId, {
+      activities: [{ id: randomUUID(), execution_id: id, activity_id: "road_bike", duration_seconds: 3240, distance_m: 27000, rpe_actual: 7, comment: null, supersedes_id: null, occurred_at: "2026-10-23T18:00:00Z" }],
+      events: [{ id: randomUUID(), execution_id: id, event_type: "completed", occurred_at: "2026-10-23T18:01:00Z" }],
+    });
+    await insertCheckin(admin, athleteId, "2026-11-13");
+    const next = await finalOf((await runDailyFor(admin, athleteId, "2026-11-13")).persistence.decision_id);
+    expect(next.structure.enduranceGuidance).toEqual({ ruleVersion: "endurance-guidance-v1", reference: { sessionDate: "2026-10-23", activityId: "road_bike", durationSeconds: 3240, distanceM: 27000, rpeActual: 7 } });
   });
 
-  it("3 — option ON, the rollback hazard: D's daily run throws on a LIGHT intervals day (nothing persisted); PHYS-02 persists the decision with its reason; D blocks MENTAL_RED gracefully", async () => {
+  it("3 — option ON, the rollback hazard: D's daily run throws on a LIGHT intervals day (nothing persisted); PHYS-02.1 persists M1's MODIFY LIGHT with the base endurance fallback; D blocks MENTAL_RED gracefully", async () => {
     const athleteId = await rider("hazard", true);
     await insertCheckin(admin, athleteId, "2026-10-23", SYSTEMIC_RED);
     await expect(previousRunDailyFor(admin, athleteId, "2026-10-23")).rejects.toThrow(/does not cover session kind AEROBIC_INTERVALS/);
     expect(await decisionsOn(athleteId, "2026-10-23")).toBe(0);
     const now = await runDailyFor(admin, athleteId, "2026-10-23");
-    expect([now.dailyPlan.decision, now.finalPrescriptionStatus, now.finalPrescriptionStatusDetail]).toEqual(["MODIFY", "blocked", { reason: "intervals_load_not_supported", planned: "MODERATE", final: "LIGHT" }]);
+    expect([now.dailyPlan.decision, now.dailyPlan.final_session, now.finalPrescriptionStatus]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 }, "created"]);
     expect(await decisionsOn(athleteId, "2026-10-23")).toBe(1);
 
     await insertCheckin(admin, athleteId, "2026-11-13", MENTAL_RED);
@@ -128,6 +152,40 @@ describe.skipIf(!ENABLED)("PHYS-02 — previous runtime (D) and PHYS-02 on the s
       "blocked",
       { reason: "modify_kind_change_not_supported", planned: "AEROBIC_INTERVALS", final: "AEROBIC_BASE" },
     ]);
+  });
+
+  it("5 — PHYS-02.1: on a plan holding intervals sessions D serves every other day; only an intervals day lowered to LIGHT fails — what the precondition query counts", async () => {
+    const athleteId = await rider("conditions", true);
+    // A10 on an intervals day: D replaces it by active recovery (no crash).
+    await insertCheckin(admin, athleteId, "2026-10-23", { available_minutes_today: 40 });
+    const a10 = await previousRunDailyFor(admin, athleteId, "2026-10-23");
+    expect([a10.dailyPlan.decision, a10.dailyPlan.final_session.kind, a10.finalPrescriptionStatus]).toEqual(["REPLACE", "RECOVERY_ACTIVE", "created"]);
+    // A base day lowered to LIGHT on the same plan: D's own endurance MODIFY (45 min).
+    await insertCheckin(admin, athleteId, "2026-11-06", SYSTEMIC_RED);
+    const base = await previousRunDailyFor(admin, athleteId, "2026-11-06");
+    expect([base.dailyPlan.decision, base.finalPrescriptionStatus, (await finalOf(base.persistence.decision_id)).structure.blocks.map((b) => b.durationMinutes.max)]).toEqual(["MODIFY", "created", [10, 30, 5]]);
+    // A manual intervals session (rest day of the plan) lowered to LIGHT: D refuses it explicitly (no crash).
+    // Written as the rider does it in /plan (the service role has no write access to planned_sessions).
+    const { error } = await (await getAthleteAuthClient(athleteId))
+      .from("planned_sessions")
+      .upsert({ athlete_id: athleteId, planned_date: "2026-10-24", session_type: "AEROBIC_INTERVALS", intervention: { kind: "AEROBIC_INTERVALS", load_profile: "MODERATE" }, planned_intent: null, source: "manual", is_committed: false, source_plan_version_id: null, source_generated_session_id: null }, { onConflict: "athlete_id,planned_date" });
+    if (error) throw new Error(error.message);
+    await insertCheckin(admin, athleteId, "2026-10-24", SYSTEMIC_RED);
+    const manual = await previousRunDailyFor(admin, athleteId, "2026-10-24");
+    expect([manual.dailyPlan.decision, manual.finalPrescriptionStatus, manual.finalPrescriptionStatusDetail?.reason]).toEqual(["MODIFY", "blocked", "manual_kind_not_supported"]);
+    // The precondition query: intervals sessions still ahead of a date = the days D cannot serve on a LIGHT day.
+    expect([rollbackBlockers(athleteId, "2026-10-23"), rollbackBlockers(athleteId, "2026-10-24"), rollbackBlockers(athleteId, "2026-11-14")]).toEqual([
+      { ahead: 2, last: "2026-11-13" },
+      { ahead: 1, last: "2026-11-13" },
+      { ahead: 0, last: null },
+    ]);
+    // After the last intervals session (blockers = 0), a LIGHT day under D is served normally.
+    await insertCheckin(admin, athleteId, "2026-11-14", SYSTEMIC_RED);
+    const after = await previousRunDailyFor(admin, athleteId, "2026-11-14");
+    expect(after.persistence.decision_id).toBeTruthy();
+    // ...whereas the last intervals day, lowered to LIGHT, still fails under D.
+    await insertCheckin(admin, athleteId, "2026-11-13", SYSTEMIC_RED);
+    await expect(previousRunDailyFor(admin, athleteId, "2026-11-13")).rejects.toThrow(/does not cover session kind AEROBIC_INTERVALS/);
   });
 
   it("4 — roll-forward: a base endurance session performed under D is the reference of PHYS-02's next base session", async () => {

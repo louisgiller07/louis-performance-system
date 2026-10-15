@@ -83,9 +83,24 @@ out.finalPrescriptions.KEEP_BASE_EFFORT = guided(created(v2.buildFinalPrescripti
 out.finalPrescriptions.MODIFY_INTERVALS_TO_BASE = guided(created(v2.buildFinalPrescriptionV2(input(intervals, "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "MODERATE" }, 3))));
 // A10 — 50 minutes today: intervals are never cut, the base endurance session at 45 min instead.
 out.finalPrescriptions.A10_INTERVALS_TO_BASE_45 = guided(created(v2.buildFinalPrescriptionWithinTodayTimeV2({ ...input(intervals, "KEEP", { kind: "AEROBIC_INTERVALS", loadProfile: "MODERATE", durationMin: 53 }, 4), availableMinutes: 50 })));
-// MODIFY LIGHT (C3.3 / C3.6 / pain): no lighter intervals — the blocked outcome as the engine returns it.
-out.blockedLightIntervals = v2.buildFinalPrescriptionV2(input(intervals, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" }, 5));
-if (out.blockedLightIntervals.status !== "blocked") throw new Error("LIGHT intervals must be blocked");
+// PHYS-02.1 — MODIFY LIGHT (C3.3 / C3.6 / pain): no lighter intervals — the base endurance LIGHT fallback.
+{
+  const r = created(v2.buildFinalPrescriptionV2(input(intervals, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT", durationMin: 53 }, 5)));
+  if (!r.finalPrescription.adaptationRuleIds.includes("v2.modify.intervals_light_to_base")) throw new Error("LIGHT intervals must fall back to base endurance");
+  out.finalPrescriptions.MODIFY_LIGHT_INTERVALS_FALLBACK = guided(r);
+}
+// PHYS-02.1 — a manual intervals session the rider set to LIGHT (M1 KEEP): refused, as the engine returns it.
+{
+  const manual = {
+    finalPrescriptionId: "f9200000-0000-4000-8000-000000000006",
+    decision: { decisionId: "d9200000-0000-4000-8000-000000000006", decision: "KEEP", finalSession: { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" } },
+    lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: plan.planVersionId, generatedSession: null, currentPlanCoversDate: true },
+    plannedPrescription: null,
+    adaptation: { athlete: v2.toSessionModelV2Input(snapshot), ridingAvailable: true, mintId },
+  };
+  out.blockedManualLightIntervals = v2.buildFinalPrescriptionV2(manual);
+  if (out.blockedManualLightIntervals.status !== "blocked") throw new Error("a manual LIGHT intervals session must be refused");
+}
 
 writeFileSync(join(here, "..", "src", "test", "fixtures", "phys02FinalPrescriptionV2.json"), `${JSON.stringify(out, null, 2)}\n`);
 console.log("phys02 fixtures written");

@@ -13,7 +13,7 @@ Reproduce (Git Bash):
     cp <phys02>/docs/release/phys02-compat/*.test.tsx src/zz-phys02/
     npx vitest run src/zz-phys02
 
-Expected: 3/3 — D's web decodes every PHYS-02 document (session-model-v2.6, no format change), shows the
+Expected: 3/3 — D's web decodes every PHYS-02 / PHYS-02.1 document (including the LIGHT-day base endurance fallback) (session-model-v2.6, no format change), shows the
 intervals block by block (warm-up, 6 work blocks with RPE 8, 5 easy blocks, cool-down), ignores the
 endurance guidance, and its guided endurance module records the activity of an intervals session.
 

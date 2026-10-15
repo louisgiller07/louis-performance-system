@@ -5,7 +5,7 @@
 import { PlanSection } from "../../components/PlanSection";
 import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionRead";
 import type { BlockView, DrillItemView, ExerciseItemView, FinalPrescriptionV2State, FinalPrescriptionV2View } from "./finalPrescriptionV2Types";
-import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, REASON_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
+import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, MANUAL_INTERVALS_LOAD_MESSAGE, REASON_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
 import { enduranceRpeHint, intervalsSummary, intervalsSummaryLine, type IntervalsSummary } from "./enduranceCoachingCopy";
 import { EnduranceGuidanceNote } from "./EnduranceGuidanceNote";
 import { strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
@@ -158,6 +158,8 @@ export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { 
 /** P0-3 — the precise refusal of a manual session, from the blocked decision's detail.reason; null otherwise. */
 function manualBlockedMessage(detail: Record<string, unknown> | null): string | null {
   const reason = detail?.reason;
+  // PHYS-02.1 — the load refusal of a manual intervals session is not the Force one.
+  if (reason === "manual_load_not_supported" && detail?.target === "AEROBIC_INTERVALS") return MANUAL_INTERVALS_LOAD_MESSAGE;
   return typeof reason === "string" && Object.prototype.hasOwnProperty.call(MANUAL_BLOCKED_MESSAGES, reason) ? MANUAL_BLOCKED_MESSAGES[reason]! : null;
 }
 

@@ -10,7 +10,7 @@
 
 Deux points demandent une décision HPM :
 1. **Conflit canonique.** « Fractionné adapté au niveau » contredit l'ADR UX-11A.5a.3 §5 (« aucun sélecteur 4 / 6, aucune règle de fatigue, de niveau ou de phase »). Ce point n'est donc **pas livré** au-delà de l'intensité au RPE et du guidage par l'historique.
-2. **Fractionné un jour LIGHT.** Aucune séance du jour n'est proposée : c'est le cas « non défini » du canon.
+2. **Fractionné un jour LIGHT.** Aucune séance du jour n'est proposée : c'est le cas « non défini » du canon. **Révisé par PHYS-02.1** : repli sur l'endurance fondamentale LIGHT (`PHYS_02_1_ENDURANCE_STABILIZATION_REPORT.md`).
 
 ## 1. Existant réutilisé (non reconstruit)
 

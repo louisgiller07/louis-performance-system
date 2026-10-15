@@ -24,13 +24,16 @@ export const MANUAL_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
 };
 /**
  * PHYS-02 — why an intervals session has no daily document (detail.reason of the blocked decision): the
- * intervals session exists in one version only (6 × 3 min at RPE 8), never lighter, never shorter.
+ * intervals session exists in one version only (6 × 3 min at RPE 8), never shorter; on a LIGHT day it is
+ * replaced by light base endurance (PHYS-02.1), so these are the remaining, rare cases.
  */
 export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
-  intervals_load_not_supported:
-    "Ton état du jour demande moins d'intensité, et le fractionné n'existe qu'en une seule version : NALYNT ne propose pas de fractionné allégé. Ne fais pas le fractionné prévu aujourd'hui.",
+  intervals_load_not_supported: "Le fractionné n'existe qu'en une seule version (6 × 3 min à RPE 8) : NALYNT ne construit pas cette adaptation.",
   intervals_not_shortened: "Le fractionné n'est jamais raccourci : il ne tient pas dans le temps que tu as aujourd'hui.",
 };
+/** PHYS-02.1 — a manual intervals session at another load than moderate (detail.target = AEROBIC_INTERVALS). */
+export const MANUAL_INTERVALS_LOAD_MESSAGE =
+  "Le fractionné n'existe qu'en une seule version, à charge modérée. Choisis une charge modérée dans ton programme pour obtenir le détail de la séance.";
 export const REST_MESSAGE = "Repos aujourd'hui : aucune séance à réaliser.";
 export const MISSING_MESSAGE = "Le détail de ta séance est momentanément indisponible.";
 export const INVALID_MESSAGE = "Le détail de cette séance n'est pas disponible.";

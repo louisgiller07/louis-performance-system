@@ -66,14 +66,23 @@
  *
  * PHYS-02 — intervals (AEROBIC_INTERVALS, protocol `endurance_intervals_3min`)
  * have ONE dose, the protocol's (ADR UX-11A.5a.3 §5: no 4 / 6 selector, no
- * fatigue, level or phase rule): KEEP copies it; a lighter or shorter
- * intervals session is never built (`intervals_load_not_supported`: M1's
- * decision is kept without a daily document, the reason traced); M1's
- * same-nature MODIFY intervals → AEROBIC_BASE (MENTAL_RED, committed family)
- * gets the base endurance session with the planned activity choice
- * (`v2.modify.intervals_to_base`: the planned duration, LIGHT → the policy's
- * LIGHT endurance duration); REPLACE / a manual session of that kind gets the
- * catalogue session at MODERATE (`v2.replace.intervals`).
+ * level or phase rule): KEEP copies it; a lighter or shorter intervals
+ * session is never built. M1's same-nature MODIFY intervals → AEROBIC_BASE
+ * (MENTAL_RED, committed family) gets the base endurance session with the
+ * planned activity choice (`v2.modify.intervals_to_base`: the planned
+ * duration, LIGHT → the policy's LIGHT endurance duration); REPLACE / a
+ * manual session of that kind gets the catalogue session at MODERATE
+ * (`v2.replace.intervals`).
+ *
+ * PHYS-02.1 — the one exception to §5 (ADR PHYS-02.1): when M1 MODIFIES an
+ * intervals session down to LIGHT (planned or manual), the intervals session
+ * is replaced by the catalogue base endurance session at the LIGHT dose
+ * (`v2.modify.intervals_light_to_base`: the planned activity choice, the
+ * policy's LIGHT endurance duration). The document's kind is then
+ * AEROBIC_BASE under M1's MODIFY AEROBIC_INTERVALS LIGHT: the integration
+ * layer aligns the persisted decision on it, traced (V2_INTERVALS_LIGHT_FALLBACK).
+ * Any other load change of an intervals session stays undefined
+ * (`intervals_load_not_supported`).
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -149,6 +158,8 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   intervalsToBase: "v2.modify.intervals_to_base",
   /** PHYS-02 — REPLACE / manual session of the intervals kind: the catalogue intervals session. */
   replaceIntervals: "v2.replace.intervals",
+  /** PHYS-02.1 — M1 MODIFY of an intervals session down to LIGHT: the base endurance session at the LIGHT dose replaces it. */
+  intervalsLightToBase: "v2.modify.intervals_light_to_base",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
@@ -292,7 +303,14 @@ function modifiedContent(
   if (upward) return { blocked: { reason: "upward_modify_not_supported", planned: plannedLoad, final: finalLoad } };
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
   // PHYS-02 — the intervals session has one dose: never lighter, never shorter (ADR UX-11A.5a.3 §5).
-  if (planned.sessionKind === "AEROBIC_INTERVALS") return { blocked: { reason: "intervals_load_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
+  // PHYS-02.1 — on M1's LIGHT day, the base endurance session at the LIGHT dose replaces it (ADR PHYS-02.1).
+  if (planned.sessionKind === "AEROBIC_INTERVALS") {
+    if (downward && finalLoad === "LIGHT") {
+      const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
+      return intervalsLightFallback(ridingAvailable, planned.catalog, enduranceMinutes(planned));
+    }
+    return { blocked: { reason: "intervals_load_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
+  }
   // PHYS-01.1 — A10 shortened Force: the planned session (or M1's LIGHT dose of it), its last work exercises left out.
   if (timeLimitMin !== undefined && planned.family === "strength" && strengthWorkSlots !== undefined) {
     const base = downward ? lightStrengthContent(planned, context) : contentOf(planned);
@@ -345,6 +363,19 @@ function intervalsToBaseContent(planned: PrescriptionV2, final: { loadProfile?: 
   };
 }
 
+/**
+ * PHYS-02.1 — no lighter intervals session exists: the catalogue base endurance session at the policy's LIGHT
+ * endurance duration (never longer than the intervals session), with the intervals' activity choice.
+ */
+function intervalsLightFallback(ridingAvailable: boolean, catalog: PrescriptionV2["catalog"], intervalsMinutes: number): Built {
+  const minutes = Math.min(intervalsMinutes, PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin);
+  return {
+    content: buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable }),
+    rule: DAILY_ADAPTATION_RULES_V2.intervalsLightToBase,
+    durationMin: minutes,
+  };
+}
+
 /** A10 — MODIFY for time: the same DH drill in a planner window, or the same endurance protocol, shorter. */
 function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downward: boolean, finalLoad: LoadProfile | undefined, terrainAccess: readonly string[]): Built {
   switch (planned.family) {
@@ -375,7 +406,9 @@ function replacementContent(
   final: { kind: string; loadProfile?: LoadProfile; durationMin?: number },
   context: DailyAdaptationContextV2,
   timeLimitMin: number | undefined,
-  strengthWorkSlots: number | undefined
+  strengthWorkSlots: number | undefined,
+  /** PHYS-02.1 — M1 MODIFIED a manual intervals session down to LIGHT: the base endurance fallback is allowed. */
+  intervalsLightModify = false
 ): Built {
   const catalog = buildSessionModelV2CatalogManifest();
   const load: "LIGHT" | "MODERATE" = final.loadProfile === "LIGHT" ? "LIGHT" : "MODERATE";
@@ -431,6 +464,10 @@ function replacementContent(
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
   }
   if (final.kind === "AEROBIC_INTERVALS") {
+    // PHYS-02.1 — M1's MODIFY to LIGHT of a manual intervals session: the base endurance fallback (the day's riding availability).
+    if (intervalsLightModify && final.loadProfile === "LIGHT") {
+      return intervalsLightFallback(context.ridingAvailable, catalog, aerobicIntervalsDurationMinV2());
+    }
     // PHYS-02 — the catalogue session at its one dose (MODERATE), never shortened.
     if (final.loadProfile !== undefined && final.loadProfile !== "MODERATE") return { blocked: { reason: "intervals_load_not_supported", final: final.loadProfile } };
     const minutes = aerobicIntervalsDurationMinV2();
@@ -494,10 +531,14 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
   if ((STRENGTH_KINDS as readonly string[]).includes(final.kind) && final.loadProfile === "HEAVY") {
     return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: "HEAVY" });
   }
+  // PHYS-02.1 — a manual intervals session has one dose (MODERATE); only M1's MODIFY to LIGHT gets the base endurance fallback.
+  if (final.kind === "AEROBIC_INTERVALS" && final.loadProfile !== undefined && final.loadProfile !== "MODERATE" && !(decision.decision === "MODIFY" && final.loadProfile === "LIGHT")) {
+    return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: final.loadProfile });
+  }
 
   let built: Built;
   try {
-    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
+    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, decision.decision === "MODIFY");
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
     throw error;

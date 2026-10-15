@@ -87,6 +87,7 @@ import { persistDailyRunV2, type FinalPrescriptionStatus } from "./dailyV2/persi
 import { applyV2SystemicFloor } from "./dailyV2/applyV2SystemicFloor.js";
 import { applyV2EffectiveSession } from "./dailyV2/applyV2EffectiveSession.js";
 import { applyV2TodayTimeConstraint } from "./dailyV2/applyV2TodayTimeConstraint.js";
+import { applyV2IntervalsLightFallback } from "./dailyV2/applyV2IntervalsLightFallback.js";
 import { todayLoadHold } from "./dailyV2/todayLoadHold.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
@@ -398,7 +399,9 @@ export async function runDailyFor(
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.
     const timedPlanV2 = applyV2TodayTimeConstraint(dailyPlanV2, reconciliation);
-    const effectivePlanV2 = applyV2EffectiveSession(timedPlanV2, reconciliation);
+    // PHYS-02.1 — an intervals session lowered to LIGHT by M1 is executed as base endurance LIGHT: the decision says so (traced).
+    const fallbackPlanV2 = applyV2IntervalsLightFallback(timedPlanV2, reconciliation);
+    const effectivePlanV2 = applyV2EffectiveSession(fallbackPlanV2, reconciliation);
     const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, effectivePlanV2, deps.getAthleteCoachingContext);
 
     const decisionRowV2 = {

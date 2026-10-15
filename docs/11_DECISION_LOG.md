@@ -6206,7 +6206,7 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 2. **Placement** (politique `endurance-intervals-plan-v1`, hors manifeste, PROVISIONAL) : la séance d'endurance de chaque semaine de surcharge (`build_plus`) devient le fractionné, **uniquement** si le plan est généré avec l'option serveur `NALYNT_V2_ENDURANCE_INTERVALS_ENABLED=true` (absente = plans identiques à D). Le fractionné n'est jamais raccourci : sans créneau de 53 min, la semaine retombe sur l'endurance fondamentale qui tient (`adapted_to_availability`). La semaine le dit (raison `endurance_intervals`, phrase, `targets.aerobicSessionKind`, `intervalsPolicy`). Retenue des séances manquées, semaines de course et d'affûtage : endurance fondamentale.
 3. **Jour (une seule dose)** :
    - KEEP : copie du fractionné prévu ;
-   - MODIFY vers LIGHT (C3.3, C3.6, douleur) : aucun fractionné allégé n'existe → décision M1 conservée sans prescription du jour, raison `intervals_load_not_supported` (cas « non défini » de docs/03 §6) ;
+   - MODIFY vers LIGHT (C3.3, C3.6, douleur) : aucun fractionné allégé n'existe → **révisé par l'ADR PHYS-02.1** (repli sur l'endurance fondamentale LIGHT) ;
    - MODIFY fractionné → endurance fondamentale (MENTAL_RED, famille engagée — paire de même nature de M1) : la séance d'endurance fondamentale avec les activités prévues, à la durée prévue (LIGHT : 45 min), règle `v2.modify.intervals_to_base` ;
    - REPLACE / séance manuelle `AEROBIC_INTERVALS` : la séance du catalogue en MODERATE seulement (`v2.replace.intervals`) ;
    - A10 : le fractionné n'est jamais coupé ; s'il ne tient pas, endurance fondamentale qui tient (45 min), puis récupération active. L'échelle d'endurance atteint 45 min depuis une durée hors grille.
@@ -6215,4 +6215,20 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 
 **Canon** : diffs proposés dans `docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`. Conflit signalé : « fractionné adapté au niveau » (demande HPM) contre ADR UX-11A.5a.3 §5 (aucune règle de niveau, aucun sélecteur 4 / 6) ; non résolu ici.
 
-**Statut** : READY LOCAL / NOT DEPLOYED, branche `feat/phys-02-endurance`. Activation de l'option sur GO HPM séparé. Aucune migration, M1 inchangé.
+**Statut** : base technique locale acceptée par HPM (`869d3c6`, 2026-10-15), NOT DEPLOYED. L'option reste désactivée ; la génération 6 × 3 min à RPE 8 reste PROVISIONAL et n'est pas activée pour les riders. Aucune migration, M1 inchangé.
+
+## 2026-10-15 — ADR PHYS-02.1 : repli du fractionné sur l'endurance fondamentale LIGHT — PROPOSÉE (exception minimale à UX-11A.5a.3 §5)
+
+**Contexte (HPM, PHYS-02.1).** Un jour où M1 baisse un fractionné prévu à LIGHT (nuit courte C3.3, jambes C3.6, douleur non-safety), PHYS-02 ne produisait aucune prescription du jour : l'ADR UX-11A.5a.3 §5 interdit toute version allégée du fractionné (aucun sélecteur 4 / 6, aucune règle de fatigue, de niveau ou de phase). Le rider restait sans séance exécutable, et le runtime de D plante sur ce cas.
+
+**Décision proposée.**
+1. **Exception à UX-11A.5a.3 §5, et seulement celle-ci** : quand M1 décide MODIFY vers LIGHT sur une séance `AEROBIC_INTERVALS` (prévue ou manuelle), le fractionné est remplacé par la séance d'endurance fondamentale du catalogue (`endurance_base_continuous`) à la dose LIGHT : durée LIGHT de la politique (45 min), activités prévues (ou celles du jour pour une séance manuelle). Règle `v2.modify.intervals_light_to_base`. Le fractionné reste une dose unique : jamais 4 × 3, jamais raccourci, aucune règle de niveau ou de phase.
+2. **Décision et dose de M1 conservées** : le libellé reste MODIFY, la charge LIGHT. Seul le type de séance persisté devient `AEROBIC_BASE`, pour qu'un seul type de séance effectif soit affiché partout (A07 refuse un écart de type) : transformation V2 tracée `V2_INTERVALS_LIGHT_FALLBACK` (couche ARBITRATION, séance de M1 et règles M1 dans le détail, phrase pour le rider dans `decision_reasoning` et `training.objective`), comme `V2_TODAY_TIME_CONSTRAINT`. M1 lui-même n'est pas modifié. Exception au principe « la décision de M1 n'est pas changée », au même titre que `V2_SYSTEMIC_FLOOR`.
+3. **Limites conservées** : REST reste REST ; P0-SAFE (A1–A7) passe avant (aucune séance) ; A10 s'applique ensuite (45 min si le temps le permet, sinon récupération active, sinon REST) ; toute autre variation de charge d'un fractionné reste non définie (`intervals_load_not_supported`) ; un fractionné manuel choisi en LIGHT par le rider est refusé (`manual_load_not_supported`, cible `AEROBIC_INTERVALS`).
+4. **Rollback** : ce repli n'existe pas dans D. Démontré sur son code : D sert un plan contenant des fractionnés tous les jours, sauf un jour de fractionné baissé à LIGHT (erreur de contrat, rien n'est persisté). Le retour complet de `daily-run` vers D exige qu'aucun plan courant ne contienne de fractionné à partir de la date du jour (`docs/release/phys02-rollback/ROLLBACK_TO_D_PRECONDITION.sql`). Désactiver l'option ne modifie aucun plan : les plans existants restent servis par le runtime PHYS-02.1.
+
+**Conflit maintenu** : « fractionné adapté au niveau » reste hors périmètre (aucune donnée de niveau d'endurance au profil) ; aucune règle de niveau n'est introduite.
+
+**Canon** : exception et diffs proposés dans `docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`. Rien n'est appliqué avant accord.
+
+**Statut** : READY LOCAL / NOT DEPLOYED, branche `feat/phys-02-endurance`. Option fractionné désactivée. Aucune migration, M1 inchangé.

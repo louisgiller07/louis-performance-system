@@ -7,6 +7,7 @@ import {
   buildFinalPrescriptionV2,
   buildFinalPrescriptionWithinTodayTimeV2,
   buildSessionModelV2CatalogManifest,
+  dailyAdaptationContextV2,
   enduranceGuidanceV2,
   generatePlanV2InMemory,
   sportFingerprint,
@@ -141,7 +142,7 @@ describe("PHYS-02 — plan placement (server option only)", () => {
   });
 
   it("race-specific and taper weeks keep the base endurance session", () => {
-    const race = plan({ ...SNAPSHOT, races: [{ name: "Race", startDate: "2026-11-14", endDate: "2026-11-15", priority: "A" }] as PlanInputSnapshotV2["races"] }, true);
+    const race = plan({ ...SNAPSHOT, races: [{ eventName: "Race", startDate: "2026-11-14", endDate: "2026-11-15", priority: "A" }] }, true);
     const roles = race.weeks.map((w) => w.doseSummary.progression!.role);
     expect(roles.slice(3)).toEqual(["race_specific", "taper", "race"]);
     expect(aerobicByWeek(race).slice(3, 5).map((w) => w.map((s) => s[0]))).toEqual([["AEROBIC_BASE"], ["AEROBIC_BASE"]]);
@@ -183,12 +184,28 @@ describe("PHYS-02 — daily: the intervals session has one dose (never lighter, 
     expect(f.structure.blocks).toEqual(INTERVALS.plannedPrescription.structure.blocks);
   });
 
-  it("MODIFY to LIGHT (C3.3 sleep, C3.6 legs, pain): no lighter intervals session — M1's decision kept without a document, the reason traced", () => {
-    expect(buildFinalPrescriptionV2(input(INTERVALS, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" }))).toEqual({
-      status: "blocked",
-      code: "final_prescription_adaptation_not_defined",
-      detail: { reason: "intervals_load_not_supported", planned: "MODERATE", final: "LIGHT" },
-    });
+  it("PHYS-02.1 — MODIFY to LIGHT (C3.3 sleep, C3.6 legs, pain): no lighter intervals session exists — the base endurance session at the LIGHT dose replaces it, traced", () => {
+    const f = created(buildFinalPrescriptionV2(input(INTERVALS, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT", durationMin: 53 })));
+    expect([f.reconciliationAction, f.adaptationRuleIds, f.plannedPrescriptionId, f.effectiveDurationMin]).toEqual(["modify", ["v2.modify.intervals_light_to_base"], INTERVALS.plannedPrescription.id, 45]);
+    expect(f.structure).toMatchObject({ sessionKind: "AEROBIC_BASE", protocolId: "endurance_base_continuous", activitySelection: INTERVALS.plannedPrescription.structure.activitySelection });
+    expect(minutesOf(f.structure)).toEqual([10, 30, 5]);
+    expect(f.structure.blocks.map((b) => b.rpeTarget ?? null)).toEqual([{ min: 2, max: 3 }, { min: 3, max: 4 }, { min: 2, max: 2 }]);
+    expect(JSON.stringify(f.structure)).not.toMatch(/intervals_work|"rpeTarget":\{"min":8/);
+  });
+
+  it("PHYS-02.1 — a planned intervals session on a day without riding keeps its off-terrain activities in the fallback", () => {
+    const offTerrain = { ...INTERVALS, plannedPrescription: { ...INTERVALS.plannedPrescription, structure: { ...INTERVALS.plannedPrescription.structure, activitySelection: { mode: "restricted" as const, activityIds: ["home_trainer" as const, "running" as const] } } } };
+    const f = created(buildFinalPrescriptionV2(input(offTerrain, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" })));
+    expect(f.structure.activitySelection).toEqual({ mode: "restricted", activityIds: ["home_trainer", "running"] });
+  });
+
+  it("any other load change of an intervals session stays undefined (never a fallback without M1's LIGHT)", () => {
+    expect(buildFinalPrescriptionV2(input(INTERVALS, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "MODERATE" }))).toMatchObject({ status: "blocked", detail: { reason: "intervals_load_not_supported" } });
+    expect(buildFinalPrescriptionV2(input(INTERVALS, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "HEAVY" }))).toMatchObject({ status: "blocked", detail: { reason: "upward_modify_not_supported" } });
+  });
+
+  it("REST stays REST (no training out of a rest day)", () => {
+    expect(buildFinalPrescriptionV2(input(INTERVALS, "REST" as "KEEP", { kind: "REST" })).status).toBe("none");
   });
 
   it("MODIFY intervals → base, same load (MENTAL_RED): the base endurance session at the planned 53 min, the planned activity choice", () => {
@@ -210,6 +227,31 @@ describe("PHYS-02 — daily: the intervals session has one dose (never lighter, 
     expect(buildFinalPrescriptionV2(input(BASE_60, "REPLACE", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" }))).toMatchObject({ status: "blocked", detail: { reason: "intervals_load_not_supported" } });
   });
 
+  it("PHYS-02.1 — a manual intervals session: M1's MODIFY to LIGHT gets the fallback; a rider-chosen LIGHT (KEEP) is refused, never an empty session", () => {
+    const manual = (decision: "KEEP" | "MODIFY", loadProfile: "LIGHT" | "MODERATE", ridingAvailable = true): BuildFinalPrescriptionV2Input => ({
+      finalPrescriptionId: "f",
+      decision: { decisionId: "d", decision, finalSession: { kind: "AEROBIC_INTERVALS", loadProfile } },
+      lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: PLAN_ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
+      plannedPrescription: null,
+      adaptation: { ...dailyAdaptationContextV2(SNAPSHOT, "2026-10-23", counter("m")), ridingAvailable },
+    });
+    const f = created(buildFinalPrescriptionV2(manual("MODIFY", "LIGHT")));
+    expect([f.activeSessionOrigin, f.reconciliationAction, f.adaptationRuleIds, f.structure.sessionKind, minutesOf(f.structure)]).toEqual([
+      "manual_override_new_kind",
+      "modify",
+      ["v2.manual.session", "v2.modify.intervals_light_to_base"],
+      "AEROBIC_BASE",
+      [10, 30, 5],
+    ]);
+    expect(created(buildFinalPrescriptionV2(manual("MODIFY", "LIGHT", false))).structure.activitySelection).toEqual({ mode: "restricted", activityIds: ["home_trainer", "running"] });
+    expect(buildFinalPrescriptionV2(manual("KEEP", "LIGHT"))).toEqual({
+      status: "blocked",
+      code: "final_prescription_adaptation_not_defined",
+      detail: { reason: "manual_load_not_supported", target: "AEROBIC_INTERVALS", loadProfile: "LIGHT" },
+    });
+    expect(created(buildFinalPrescriptionV2(manual("KEEP", "MODERATE"))).structure.sessionKind).toBe("AEROBIC_INTERVALS");
+  });
+
   it("A10 — 60 min today: the intervals session fits, unchanged", () => {
     const r = buildFinalPrescriptionWithinTodayTimeV2({ ...input(INTERVALS, "KEEP", KEEP_INTERVALS), availableMinutes: 60 });
     expect(r.timeConstraint?.action).toBe("fits");
@@ -227,6 +269,16 @@ describe("PHYS-02 — daily: the intervals session has one dose (never lighter, 
   it("A10 — 40 min today: active recovery (the existing last step)", () => {
     const r = buildFinalPrescriptionWithinTodayTimeV2({ ...input(INTERVALS, "KEEP", KEEP_INTERVALS), availableMinutes: 40 });
     expect(r.timeConstraint).toMatchObject({ action: "adapted", after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } });
+  });
+
+  it("PHYS-02.1 — A10 on the LIGHT fallback: 50 min → the 45-min base session fits; 30 min → active recovery; 15 min → rest", () => {
+    const light = { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" as const, durationMin: 53 };
+    const r50 = buildFinalPrescriptionWithinTodayTimeV2({ ...input(INTERVALS, "MODIFY", light), availableMinutes: 50 });
+    expect([r50.timeConstraint?.action, created(r50).adaptationRuleIds, minutesOf(created(r50).structure)]).toEqual(["fits", ["v2.modify.intervals_light_to_base"], [10, 30, 5]]);
+    const r30 = buildFinalPrescriptionWithinTodayTimeV2({ ...input(INTERVALS, "MODIFY", light), availableMinutes: 30 });
+    expect(r30.timeConstraint).toMatchObject({ action: "adapted", before: { decision: "MODIFY", kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT", durationMin: 45 }, after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } });
+    const r15 = buildFinalPrescriptionWithinTodayTimeV2({ ...input(INTERVALS, "MODIFY", light), availableMinutes: 15 });
+    expect([r15.status, r15.timeConstraint?.action]).toEqual(["none", "rest"]);
   });
 
   it("A10 — a base session from an intervals one (53 min) with 50 min today: 45 min, the minimum off the 15-min grid", () => {
