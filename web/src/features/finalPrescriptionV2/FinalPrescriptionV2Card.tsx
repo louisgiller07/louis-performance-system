@@ -8,7 +8,7 @@ import type { BlockView, DrillItemView, ExerciseItemView, FinalPrescriptionV2Sta
 import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, MANUAL_INTERVALS_LOAD_MESSAGE, REASON_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
 import { enduranceRpeHint, intervalsSummary, intervalsSummaryLine, type IntervalsSummary } from "./enduranceCoachingCopy";
 import { EnduranceGuidanceNote } from "./EnduranceGuidanceNote";
-import { strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
+import { POWER_QUALITY_GUIDANCE, strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
 import { LoadGuidanceNote } from "./LoadGuidanceNote";
 
 function Vigilances({ items }: { items: string[] }) {
@@ -136,8 +136,13 @@ export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { 
       <p className="font-medium text-ink">{prescription.intent}</p>
       {summary && (
         <div data-testid="strength-summary">
-          <p className="text-sm font-semibold text-ink">{strengthSummaryLine(summary)}</p>
+          <p className="text-sm font-semibold text-ink">{strengthSummaryLine(summary, prescription.family === "power")}</p>
           {extras && <p className="text-xs text-muted">{extras}</p>}
+          {prescription.family === "power" && (
+            <p className="text-sm text-ink/80" data-testid="power-guidance">
+              {POWER_QUALITY_GUIDANCE}
+            </p>
+          )}
         </div>
       )}
       {prescription.activities && <p className="text-sm text-ink/80">Activité au choix : {prescription.activities.join(", ")}</p>}

@@ -1,4 +1,4 @@
-# PHYS-01.1 + PHYS-02 / PHYS-02.1 — PROPOSITIONS CANONIQUES (non appliquées)
+# PHYS-01.1 + PHYS-02 / PHYS-02.1 + PHYS-03 — PROPOSITIONS CANONIQUES (non appliquées)
 
 **Pour** : HPM et Louis. **Statut** : proposition, révisée par PHYS-02.1 et son correctif douleur (2026-10-15). Principe de `V2_INTERVALS_LIGHT_FALLBACK` approuvé par HPM ; paramètres sportifs PROVISIONAL.
 - Conformément à CLAUDE.md, aucun document canonique n'est modifié avant accord.
@@ -206,3 +206,45 @@ Les contenus du catalogue (6 × 3 min à RPE 8, échauffement 15 min, retour au 
 +- **Rollback** : le runtime précédent sert un plan à fractionnés tous les jours sauf un fractionné baissé à LIGHT (erreur, rien de persisté) ; séance manuelle refusée proprement ; la requête de précondition compte exactement ces jours ; désactiver l'option ne modifie aucun plan (vérifié sur le runtime Edge, secret ON et OFF) ; ses séances d'endurance sont relues par le guidage.
 +- **Bout en bout** : plan → check-in → séance → guidage → résultat → séance suivante, sur 6 semaines ; génération et daily-run sur le runtime Edge Deno local, option ON puis OFF.
 ```
+
+## F. PHYS-03 — Puissance / explosivité (implémenté, local)
+
+### F.1 Architecture technique
+- Famille `power`, kind `POWER`, intention `corner_exit_power`, format `session-model-v2.6` inchangé, aucun texte ni exercice nouveau. Builder `powerPrescriptionV2.ts` ; l'échauffement est celui du builder Force (`strengthTemplateWarmUpBlockV2`, gabarit bas du corps), le retour au calme celui de `strengthDailyCatalogV2`.
+- Politiques hors manifeste : `power-session-v1` (composition), `power-plan-v1` (placement), tracées sur la semaine (`powerPolicy`, raison `power_session`, phrase).
+- Option serveur `NALYNT_V2_POWER_ENABLED` (secret de `generate-training-plan`, valeur exacte `true`) ; absente = plans de D.
+- Règles du jour : `v2.time.power_shortened`, `v2.replace.power` ; raisons `power_load_not_supported`, `power_fatigue_not_cleared`, `no_compatible_power_exercise` ; trace `V2_POWER_FATIGUE_HOLD` (ARBITRATION, décision de M1 inchangée). La retenue lit seulement C3.6 / C3.5 de M1 (`powerFatigueGate.ts`) ; C3.7 reste informatif.
+- Web : module guidé Force réutilisé (séries enregistrées, aucun champ de charge pour la puissance) ; résumé « exercices explosifs · séries · repos complet » et consigne de qualité.
+- Compatibilité : D lit et sert ces séances sans erreur ; rollback complet seulement sans séance de puissance à venir.
+
+### F.2 Comportements implémentés
+- KEEP = copie, durée effective = estimation du contenu ; LIGHT de M1 = non défini (décision conservée) ; A10 : 4 → 3 exercices explosifs, jamais moins, repos jamais raccourcis, puis récupération, puis REST ; séance manuelle en MODERATE (niveau intermédiaire et plus) ; fatigue jambes / préhension signalée par M1 → pas de séance de puissance, tracé ; P0-SAFE et REST inchangés.
+
+### F.3 Paramètres sportifs PROVISIONAL
+
+| Paramètre | Valeur actuelle | Fichier |
+|---|---|---|
+| Exercices explosifs | 3 à 4, ordre du catalogue (squat sauté, saut en longueur, sauts du patineur, swing / pompes pliométriques) | `powerSessionPolicyV2.ts` |
+| Séries | minimum de la plage du catalogue (3) | `powerPrescriptionV2.ts` |
+| Échauffement | gabarit Force bas du corps + `pogo_hops` | `powerSessionPolicyV2.ts` |
+| Retour au calme | bas du corps (PHYS-01.1) | `strengthDailyCatalogV2.ts` |
+| Placement | semaines `build`, séance de Force bas du corps, jamais le lendemain d'une séance de développement | `powerSessionPolicyV2.ts` |
+| Durée | estimateur de la Force (59 min pour 4 exercices, 51 pour 3) | `strengthDailyCatalogV2.ts` |
+| Retenue fatigue | C3.6, C3.5 | `powerFatigueGate.ts` |
+| Mots au rider | consigne de vitesse / qualité / arrêt ; messages de refus | `strengthSummary.ts`, `finalPrescriptionV2Copy.ts` |
+
+### F.4 Décisions ouvertes et conflits
+1. **Puissance un jour LIGHT** : non définie (comme une Force déjà LIGHT). Option : moins d'exercices ou de séries — règle à valider.
+2. **Débutants** : aucun exercice explosif à leur niveau dans le catalogue ; une initiation demanderait des exercices validés.
+3. **M1 sans branche `POWER` pour C3.5 / C3.6** : comblé par la retenue V2 ; une branche M1 demanderait une décision HPM.
+4. **`strength_warm_up_v1`** ne liste pas `POWER` (échauffement réutilisé via le gabarit Force) : à aligner lors d'une prochaine version du catalogue.
+5. **Garde serveur de complétion** : aucune série exigée par le serveur pour une séance de puissance (le web l'exige) ; un garde comme `strength_set_required` demanderait une migration.
+6. **Durée affichée** : estimation pour la puissance, créneau pour la Force (voir D.5).
+7. **« Jamais après une séance fatigante » au jour même** : appliqué au plan (lendemain d'une séance de développement prévue) et aux signaux M1 du jour ; la séance réellement faite la veille n'est pas relue.
+
+### F.5 Diffs proposés
+- **docs/03 §5 Puissance** : « Séance générée (PHYS-03, PROVISIONAL) : échauffement de Force bas du corps puis activation pliométrique ; 3 à 4 exercices explosifs du catalogue selon niveau et matériel ; séries au minimum de la plage ; repos complet ; consigne d'arrêt ; retour au calme. Aucun kg, aucune hauteur. Un débutant n'a pas de séance de puissance. »
+- **docs/04 (prescription du jour)** : « Puissance : KEEP = copie ; LIGHT non défini ; A10 = retrait des derniers exercices explosifs (jamais sous trois) ; fatigue C3.5 / C3.6 → pas de séance de puissance, décision conservée, `V2_POWER_FATIGUE_HOLD`. »
+- **docs/05** : « `POWER` peut figurer dans un plan V2 (option serveur) ; prescription `power` au format v2.6 ; résultats = séries en répétitions, jamais de charge. »
+- **docs/07** : « **Séance de puissance** — séance `POWER` : échauffement, 3–4 exercices explosifs à qualité maximale et repos complet, arrêt dès que la vitesse baisse, retour au calme. »
+- **docs/10 T66** : contenu par niveau et matériel ; placement ; KEEP / LIGHT / A10 / fatigue / manuel ; P0-SAFE ; bout en bout plan → check-in → séance → séries → historique ; D (KEEP, LIGHT, A10, manuel, écart de fatigue, précondition) ; web de D en lecture seule.

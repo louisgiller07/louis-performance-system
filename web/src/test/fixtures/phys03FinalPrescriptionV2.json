@@ -1,0 +1,1175 @@
+{
+  "generatedFrom": "session-model-v2.6",
+  "finalPrescriptions": {
+    "KEEP_POWER_INTERMEDIATE": {
+      "id": "f9300000-0000-4000-8000-000000000001",
+      "decisionId": "d9300000-0000-4000-8000-000000000001",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000083",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "keep",
+      "adaptationRuleIds": [],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "power",
+        "sessionKind": "POWER",
+        "intentId": "corner_exit_power",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000067"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "knee_to_wall_ankle",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.knee_to_wall_ankle",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000068"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bird_dog",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 8,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 30
+                },
+                "cueId": "cue.bird_dog",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000069"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "pogo_hops",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 15,
+                  "max": 20,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 45,
+                  "max": 60
+                },
+                "cueId": "cue.pogo_hops",
+                "vigilanceIds": [
+                  "vigilance.achilles_pain_free"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000070"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000066"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "squat_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.squat_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000072"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000071"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "broad_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 3,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.broad_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000074"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000073"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "skater_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.skater_jump",
+                "vigilanceIds": [
+                  "vigilance.ankle_knee_landing",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000076"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000075"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "dumbbell_swing",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 5,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.dumbbell_swing",
+                "vigilanceIds": [
+                  "vigilance.back_stable_technique",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000078"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000077"
+          },
+          {
+            "role": "cool_down",
+            "instructionIds": [
+              "instruction.recovery.light_mobility"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_flexor_mobility",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_flexor_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000080"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "breathing_long_exhale",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 180,
+                  "maxSeconds": 300,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 0
+                },
+                "cueId": "cue.breathing_long_exhale",
+                "vigilanceIds": [
+                  "vigilance.breathing_normal_if_dizzy"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000081"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000079"
+          }
+        ]
+      },
+      "effectiveDurationMin": 59
+    },
+    "KEEP_POWER_ADVANCED_NO_EQUIPMENT": {
+      "id": "f9300000-0000-4000-8000-000000000002",
+      "decisionId": "d9300000-0000-4000-8000-000000000002",
+      "planVersionId": "00000000-0000-4000-8000-000000000266",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000348",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "keep",
+      "adaptationRuleIds": [],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "power",
+        "sessionKind": "POWER",
+        "intentId": "corner_exit_power",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000332"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "knee_to_wall_ankle",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.knee_to_wall_ankle",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000333"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bird_dog",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 8,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 30
+                },
+                "cueId": "cue.bird_dog",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000334"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "pogo_hops",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 15,
+                  "max": 20,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 45,
+                  "max": 60
+                },
+                "cueId": "cue.pogo_hops",
+                "vigilanceIds": [
+                  "vigilance.achilles_pain_free"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000335"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000331"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "squat_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.squat_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000337"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000336"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "broad_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 3,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.broad_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000339"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000338"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "skater_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.skater_jump",
+                "vigilanceIds": [
+                  "vigilance.ankle_knee_landing",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000341"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000340"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "plyo_pushup",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.plyo_pushup",
+                "vigilanceIds": [
+                  "vigilance.wrist_thumb_stop_on_pain",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000343"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000342"
+          },
+          {
+            "role": "cool_down",
+            "instructionIds": [
+              "instruction.recovery.light_mobility"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_flexor_mobility",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_flexor_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000345"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "breathing_long_exhale",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 180,
+                  "maxSeconds": 300,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 0
+                },
+                "cueId": "cue.breathing_long_exhale",
+                "vigilanceIds": [
+                  "vigilance.breathing_normal_if_dizzy"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000346"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000344"
+          }
+        ]
+      },
+      "effectiveDurationMin": 59
+    },
+    "A10_POWER_SHORTENED": {
+      "id": "f9300000-0000-4000-8000-000000000003",
+      "decisionId": "d9300000-0000-4000-8000-000000000003",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000083",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "modify",
+      "adaptationRuleIds": [
+        "v2.time.power_shortened",
+        "v2.time.today_limit"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "power",
+        "sessionKind": "POWER",
+        "intentId": "corner_exit_power",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000532",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000067"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "knee_to_wall_ankle",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.knee_to_wall_ankle",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000533",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000068"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bird_dog",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 8,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 30
+                },
+                "cueId": "cue.bird_dog",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000534",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000069"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "pogo_hops",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 15,
+                  "max": 20,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 45,
+                  "max": 60
+                },
+                "cueId": "cue.pogo_hops",
+                "vigilanceIds": [
+                  "vigilance.achilles_pain_free"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000535",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000070"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000531"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "squat_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.squat_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000537",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000072"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000536"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "broad_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 3,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.broad_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000539",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000074"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000538"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "skater_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.skater_jump",
+                "vigilanceIds": [
+                  "vigilance.ankle_knee_landing",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000541",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000076"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000540"
+          },
+          {
+            "role": "cool_down",
+            "instructionIds": [
+              "instruction.recovery.light_mobility"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_flexor_mobility",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_flexor_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000543",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000080"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "breathing_long_exhale",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 180,
+                  "maxSeconds": 300,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 0
+                },
+                "cueId": "cue.breathing_long_exhale",
+                "vigilanceIds": [
+                  "vigilance.breathing_normal_if_dizzy"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000544",
+                "derivedFromItemId": "00000000-0000-4000-8000-000000000081"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000542"
+          }
+        ]
+      },
+      "effectiveDurationMin": 51
+    }
+  },
+  "plannedPrescriptions": {
+    "PLANNED_POWER_INTERMEDIATE": {
+      "id": "00000000-0000-4000-8000-000000000083",
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "power",
+        "sessionKind": "POWER",
+        "intentId": "corner_exit_power",
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "instructionIds": [
+              "instruction.strength_warm_up.mobility",
+              "instruction.strength_warm_up.activation"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_90_90",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_90_90",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000067"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "knee_to_wall_ankle",
+                "role": "warm_up",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 30,
+                  "maxSeconds": 45,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.knee_to_wall_ankle",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range",
+                  "vigilance.knee_pain_free_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000068"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "bird_dog",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 8,
+                  "max": 8,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 30,
+                  "max": 30
+                },
+                "cueId": "cue.bird_dog",
+                "vigilanceIds": [
+                  "vigilance.wrist_support_alternative"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000069"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "pogo_hops",
+                "role": "activation",
+                "sets": 2,
+                "measure": {
+                  "type": "reps",
+                  "min": 15,
+                  "max": 20,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 45,
+                  "max": 60
+                },
+                "cueId": "cue.pogo_hops",
+                "vigilanceIds": [
+                  "vigilance.achilles_pain_free"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000070"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000066"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "squat_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.squat_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000072"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000071"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "broad_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 3,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.broad_jump",
+                "vigilanceIds": [
+                  "vigilance.knee_pain_free_range",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000074"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000073"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "skater_jump",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 3,
+                  "max": 5,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.skater_jump",
+                "vigilanceIds": [
+                  "vigilance.ankle_knee_landing",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000076"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000075"
+          },
+          {
+            "role": "main",
+            "instructionIds": [],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "dumbbell_swing",
+                "role": "explosive",
+                "sets": 3,
+                "measure": {
+                  "type": "reps",
+                  "min": 5,
+                  "max": 5,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 120,
+                  "max": 180
+                },
+                "cueId": "cue.dumbbell_swing",
+                "vigilanceIds": [
+                  "vigilance.back_stable_technique",
+                  "vigilance.power_stop_on_quality_loss"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000078"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000077"
+          },
+          {
+            "role": "cool_down",
+            "instructionIds": [
+              "instruction.recovery.light_mobility"
+            ],
+            "items": [
+              {
+                "kind": "exercise",
+                "exerciseId": "hip_flexor_mobility",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 45,
+                  "maxSeconds": 60,
+                  "perSide": true
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 15
+                },
+                "cueId": "cue.hip_flexor_mobility",
+                "vigilanceIds": [
+                  "vigilance.mobility_no_forced_range"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000080"
+              },
+              {
+                "kind": "exercise",
+                "exerciseId": "breathing_long_exhale",
+                "role": "cool_down",
+                "sets": 1,
+                "measure": {
+                  "type": "duration",
+                  "minSeconds": 180,
+                  "maxSeconds": 300,
+                  "perSide": false
+                },
+                "restSeconds": {
+                  "min": 0,
+                  "max": 0
+                },
+                "cueId": "cue.breathing_long_exhale",
+                "vigilanceIds": [
+                  "vigilance.breathing_normal_if_dizzy"
+                ],
+                "prescriptionItemId": "00000000-0000-4000-8000-000000000081"
+              }
+            ],
+            "blockId": "00000000-0000-4000-8000-000000000079"
+          }
+        ]
+      },
+      "generatedPlanSessionId": "00000000-0000-4000-8000-000000000082"
+    }
+  },
+  "blockedPowerLight": {
+    "status": "blocked",
+    "code": "final_prescription_adaptation_not_defined",
+    "detail": {
+      "reason": "power_load_not_supported",
+      "planned": "MODERATE",
+      "final": "LIGHT"
+    }
+  },
+  "blockedPowerFatigue": {
+    "status": "blocked",
+    "code": "final_prescription_adaptation_not_defined",
+    "detail": {
+      "reason": "power_fatigue_not_cleared",
+      "rules": [
+        "C3.6"
+      ]
+    }
+  }
+}

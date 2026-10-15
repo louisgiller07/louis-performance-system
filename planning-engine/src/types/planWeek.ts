@@ -46,7 +46,9 @@ export type WeekProgressionReasonCode =
   | "beginner_strength_cap"
   | "adapted_to_availability"
   /** PHYS-02 — the week's endurance session is the intervals session (plans generated with the intervals option only). */
-  | "endurance_intervals";
+  | "endurance_intervals"
+  /** PHYS-03 — the week's lower-body Force session is the power session (plans generated with the power option only). */
+  | "power_session";
 
 /** The week's executable targets (null = no session of that domain this week). */
 export interface WeekProgressionTargets {
@@ -75,6 +77,8 @@ export interface WeekProgressionSummary {
   ridingMinutes: number;
   /** PHYS-02 — the intervals placement policy (e.g. "endurance-intervals-plan-v1"), present only on a week with the intervals session. */
   intervalsPolicy?: string;
+  /** PHYS-03 — the power placement and session policies, present only on a week with the power session. */
+  powerPolicy?: string;
 }
 
 export interface TrainingPlanWeek {

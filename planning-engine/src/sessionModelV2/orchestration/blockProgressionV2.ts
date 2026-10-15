@@ -91,6 +91,7 @@ export const BLOCK_PROGRESSION_PHRASES_V2 = {
   beginner_strength_cap: "Strength volume kept moderate for a beginner level.",
   adapted_to_availability: "Sessions shortened to fit the available time.",
   endurance_intervals: "This week's endurance session is an intervals session.",
+  power_session: "This week's lower-body strength session is a power session.",
 } as const;
 
 interface DomainOption {

@@ -89,6 +89,8 @@ import { applyV2EffectiveSession } from "./dailyV2/applyV2EffectiveSession.js";
 import { applyV2TodayTimeConstraint } from "./dailyV2/applyV2TodayTimeConstraint.js";
 import { applyV2IntervalsLightFallback } from "./dailyV2/applyV2IntervalsLightFallback.js";
 import { enduranceFallbackPainGate } from "./dailyV2/enduranceFallbackPainGate.js";
+import { powerFatigueGate } from "./dailyV2/powerFatigueGate.js";
+import { applyV2PowerFatigueHold } from "./dailyV2/applyV2PowerFatigueHold.js";
 import { todayLoadHold } from "./dailyV2/todayLoadHold.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
@@ -398,12 +400,14 @@ export async function runDailyFor(
       todayHold: todayLoadHold(computed.rawContext?.checkin, dailyPlanV2),
       // PHYS-02.1 — the intervals LIGHT fallback is proposed only for a pain the existing rule clears for endurance.
       enduranceFallbackPain: enduranceFallbackPainGate(computed.rawContext?.checkin),
+      // PHYS-03 — the power session only on a day M1 does not flag legs / grip fatigue.
+      powerFatigue: powerFatigueGate(dailyPlanV2),
     });
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.
     const timedPlanV2 = applyV2TodayTimeConstraint(dailyPlanV2, reconciliation);
     // PHYS-02.1 — an intervals session lowered to LIGHT by M1 is executed as base endurance LIGHT: the decision says so (traced).
-    const fallbackPlanV2 = applyV2IntervalsLightFallback(timedPlanV2, reconciliation);
+    const fallbackPlanV2 = applyV2PowerFatigueHold(applyV2IntervalsLightFallback(timedPlanV2, reconciliation), reconciliation);
     const effectivePlanV2 = applyV2EffectiveSession(fallbackPlanV2, reconciliation);
     const { dailyPlan: personalizedPlanV2, warnings: personalizationWarningsV2 } = await personalizeReasoning(client, athleteId, effectivePlanV2, deps.getAthleteCoachingContext);
 

@@ -29,20 +29,23 @@ import { buildSessionModelV2CatalogManifest, type SessionModelV2CatalogManifest 
 import { assignPrescriptionIds } from "../assignPrescriptionIds.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { sportFingerprint } from "../sportFingerprint.js";
-import { toSessionModelV2Input, type PlanInputSnapshotV2 } from "../planInputSnapshotV2.js";
+import { toSessionModelV2Input, type PlanInputSnapshotV2, type SessionModelV2Input } from "../planInputSnapshotV2.js";
 import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError, type SessionModelV2GenerationBlockCode } from "../generationErrors.js";
 import type { ExerciseItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { buildDhPrescriptionV2Content } from "../builders/dhPrescriptionV2.js";
 import { deriveDhSessionOrdinals } from "../builders/dhSessionOrdinals.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
 import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Content } from "../builders/aerobicIntervalsPrescriptionV2.js";
+import { buildPowerPrescriptionV2Content, isPowerSessionPossibleV2 } from "../builders/powerPrescriptionV2.js";
+import { POWER_PLAN_POLICY_V2, POWER_PLAN_POLICY_V2_VERSION, POWER_SESSION_POLICY_V2_VERSION } from "../../catalog/powerSessionPolicyV2.js";
+import { BLOCK_PROGRESSION_PHRASES_V2 } from "./blockProgressionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
 import { PLAN_DOSE_MODEL_V2, planDoseModelV2 } from "./planDoseModelV2.js";
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 import type { StrengthDoseStepV2 } from "../../catalog/strengthDoseCatalogV2.js";
 
-export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS"];
+export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS", "POWER"];
 
 export interface GeneratePlanV2InMemoryInput {
   /** Block content only — id / planVersionId are minted here. */
@@ -52,6 +55,8 @@ export interface GeneratePlanV2InMemoryInput {
   mintId: () => string;
   /** PHYS-02 — place the intervals session in overload weeks (server switch; absent / false = the previous plans exactly). */
   enduranceIntervals?: boolean;
+  /** PHYS-03 — place the power session in build weeks (server switch; absent / false = the previous plans exactly). */
+  powerSessions?: boolean;
 }
 
 export interface PlannedPrescriptionV2InMemory {
@@ -134,7 +139,9 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
     sessionDoseModel: input.enduranceIntervals === true ? planDoseModelV2({ enduranceIntervals: true }) : PLAN_DOSE_MODEL_V2,
   });
 
-  const flat = planning.weeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
+  // PHYS-03 — with the power option only: the lower-body Force session of a build week becomes the power session.
+  const plannedWeeks = input.powerSessions === true ? placePowerSessionsV2(planning.weeks, modelInput.strengthExperienceTier, modelInput.equipment) : planning.weeks;
+  const flat = plannedWeeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
   for (const { session } of flat) {
     if (!V2_SUPPORTED_SESSION_KINDS.includes(session.kind)) throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
   }
@@ -155,7 +162,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   // Identities and validation.
   const weeks: PlanWeekV2InMemory[] = [];
   let index = 0;
-  for (const week of planning.weeks) {
+  for (const week of plannedWeeks) {
     const weekId = mintId();
     const sessions: PlanSessionV2InMemory[] = week.sessions.map((session) => {
       const content = contents[index++]!;
@@ -263,6 +270,9 @@ function buildContent(
         // BUG-V2-1 — no riding window that day: off-terrain endurance only.
         ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
       });
+    case "POWER":
+      // PHYS-03 — the power session composed from the catalogue (tier, equipment); its slot keeps the Force duration and load.
+      return buildPowerPrescriptionV2Content({ athleteTier: modelInput.strengthExperienceTier, equipment: modelInput.equipment, catalog });
     case "AEROBIC_INTERVALS":
       // PHYS-02 — the catalogue intervals session, at its fixed protocol duration (never shortened).
       if (session.durationMin !== aerobicIntervalsDurationMinV2()) throw new SessionModelV2ContractError(`intervals session on ${session.date} placed with ${session.durationMin} min`);
@@ -274,6 +284,41 @@ function buildContent(
     default:
       throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
   }
+}
+
+export type PlannedWeekV2 = ReturnType<typeof runPlanningPipeline>["weeks"][number];
+
+/**
+ * PHYS-03 — POWER_PLAN_POLICY_V2 (PROVISIONAL): in each week of a listed role, the week's first lower-body
+ * Force session (same slot: date, duration, load) becomes the power session — only when the rider's tier and
+ * equipment allow a power session, and never the day after a development session (docs/03 §5 « jamais après une
+ * séance fatigante », M1's development kinds at MODERATE / HEAVY). Traced on the week (reason, phrase, policies).
+ */
+export function placePowerSessionsV2(weeks: readonly PlannedWeekV2[], tier: SessionModelV2Input["strengthExperienceTier"], equipment: readonly string[]): PlannedWeekV2[] {
+  if (!isPowerSessionPossibleV2(tier, equipment)) return [...weeks];
+  const sessionsOn = new Map<string, { kind: SessionKind; loadProfile?: LoadProfile }[]>();
+  for (const w of weeks) for (const s of w.sessions) sessionsOn.set(s.date, [...(sessionsOn.get(s.date) ?? []), s]);
+  const previousDay = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const developmentOn = (iso: string) =>
+    (sessionsOn.get(iso) ?? []).some((s) => POWER_PLAN_POLICY_V2.developmentKinds.includes(s.kind) && (s.loadProfile === "MODERATE" || s.loadProfile === "HEAVY"));
+  return weeks.map((week) => {
+    const progression = week.doseSummary.progression;
+    if (progression === undefined || !POWER_PLAN_POLICY_V2.weekRoles.includes(progression.role)) return week;
+    const target = [...week.sessions].sort((a, b) => a.date.localeCompare(b.date)).find((s) => s.kind === "STRENGTH_LOWER");
+    if (target === undefined || developmentOn(previousDay(target.date))) return week;
+    const phrase = BLOCK_PROGRESSION_PHRASES_V2.power_session;
+    const sessions = week.sessions.map((s) => (s === target ? { ...s, kind: "POWER" as SessionKind, rationale: `${s.rationale} ${phrase}` } : s));
+    sessionsOn.set(target.date, (sessionsOn.get(target.date) ?? []).map((s) => (s === target ? { ...s, kind: "POWER" as SessionKind } : s)));
+    return {
+      ...week,
+      rationale: `${week.rationale} ${phrase}`,
+      sessions,
+      doseSummary: {
+        ...week.doseSummary,
+        progression: { ...progression, reasonCodes: [...progression.reasonCodes, "power_session"], powerPolicy: `${POWER_PLAN_POLICY_V2_VERSION}+${POWER_SESSION_POLICY_V2_VERSION}` },
+      },
+    };
+  });
 }
 
 /** Same strength kind → same template and same exercises for the whole plan version (only the dose may differ). */

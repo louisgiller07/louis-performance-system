@@ -18,8 +18,13 @@ import { WORK_BLOCK_ROLES } from "../../finalPrescriptionV2/strengthSummary";
 /** Measures a Force set result can carry in C.2 (duration in seconds, never converted to repetitions). */
 export type StrengthMeasureType = "reps" | "duration";
 
+/** PHYS-03 — a power session (family power, kind POWER): guided set by set like Force, never with a load. */
+export function isPowerPrescription(p: FinalPrescriptionV2View): boolean {
+  return p.family === "power" && p.sessionKind === "POWER";
+}
+
 export function isGuidedStrengthPrescription(p: FinalPrescriptionV2View): boolean {
-  return p.family === "strength" && (STRENGTH_SESSION_KINDS as readonly string[]).includes(p.sessionKind);
+  return (p.family === "strength" && (STRENGTH_SESSION_KINDS as readonly string[]).includes(p.sessionKind)) || isPowerPrescription(p);
 }
 
 export interface WorkItem {

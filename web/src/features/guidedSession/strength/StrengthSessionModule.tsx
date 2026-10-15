@@ -24,6 +24,7 @@ import {
   type SetFormValues,
   type StrengthMeasureType,
   type StrengthSlot,
+  isPowerPrescription,
 } from "./strengthSets";
 import { STRENGTH_COPY, formatResult, strengthProgressLine } from "./strengthCopy";
 
@@ -67,7 +68,7 @@ function suggestedLoadHint(item: ExerciseItemView): string | undefined {
 
 const fieldId = (form: OpenForm, field: keyof SetFormValues) => `set-${form.key.replace(/[^a-z0-9]/gi, "-")}-${field}`;
 
-function SetForm({ form, item, busy, onChange, onSave, onCancel }: { form: OpenForm; item: ExerciseItemView; busy: boolean; onChange: (patch: Partial<SetFormValues>) => void; onSave: () => void; onCancel: () => void }) {
+function SetForm({ form, item, busy, withLoad, onChange, onSave, onCancel }: { form: OpenForm; item: ExerciseItemView; busy: boolean; withLoad: boolean; onChange: (patch: Partial<SetFormValues>) => void; onSave: () => void; onCancel: () => void }) {
   const firstInput = useRef<HTMLInputElement>(null);
   // The entry takes the keyboard focus when it opens.
   useEffect(() => firstInput.current?.focus(), []);
@@ -121,7 +122,8 @@ function SetForm({ form, item, busy, onChange, onSave, onCancel }: { form: OpenF
         </legend>
         {field("value", form.measureType === "reps" ? `Répétitions réalisées${perSide}` : `Durée réalisée en secondes${perSide}`, { inputMode: "numeric", step: "1", min: 1 })}
         {field("rpe", "RPE ressenti (1–10, facultatif)", { inputMode: "decimal", step: "0.5", min: 1, max: 10 }, item.rpeTarget ? `Prévu : RPE ${span(item.rpeTarget)}` : undefined)}
-        {field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 }, suggestedLoadHint(item))}
+        {/* PHYS-03 — a power set is speed and quality: no load is asked. */}
+        {withLoad && field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 }, suggestedLoadHint(item))}
       </fieldset>
       <PrimaryButton type="submit" disabled={busy} className="w-full">
         {form.supersedes ? "Enregistrer la correction" : "Enregistrer la série"}
@@ -289,6 +291,7 @@ export function StrengthSessionModule({ prescription, executionId, setResults, e
                         form={form}
                         item={item}
                         busy={busy}
+                        withLoad={!isPowerPrescription(prescription)}
                         onChange={(patch) => setUiState({ form: { ...form, values: { ...form.values, ...patch } } })}
                         onSave={() => void save(form)}
                         onCancel={() => setUiState({ form: null })}

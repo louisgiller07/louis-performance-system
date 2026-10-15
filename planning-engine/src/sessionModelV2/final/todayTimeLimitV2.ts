@@ -29,6 +29,7 @@
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_PROGRESSION_CAPS_V2 } from "../../catalog/planDosePolicyV2.js";
+import { POWER_SESSION_POLICY_V2 } from "../../catalog/powerSessionPolicyV2.js";
 import type { PrescriptionV2 } from "../prescriptionV2.js";
 import { buildFinalPrescriptionV2, type BuildFinalPrescriptionV2Input } from "./buildFinalPrescriptionV2.js";
 import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
@@ -102,6 +103,12 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
       // PHYS-01.1 — same session, same dose (M1's): cool-down reduced, then the last work exercises left out.
       const work = structure.blocks.filter((b) => b.role === "main" || b.role === "complementary").length;
       for (let n = work; n >= 1; n -= 1) out.push({ decision: action, finalSession: { kind: final.kind, ...(final.loadProfile !== undefined ? { loadProfile: final.loadProfile } : {}) }, strengthWorkSlots: n });
+      break;
+    }
+    case "power": {
+      // PHYS-03 — same session, same dose (M1's): the last explosive exercises left out, never below three.
+      const work = structure.blocks.filter((b) => b.role === "main").length;
+      for (let n = work - 1; n >= POWER_SESSION_POLICY_V2.explosiveExercises.min; n -= 1) out.push({ decision: action, finalSession: { kind: final.kind, ...(final.loadProfile !== undefined ? { loadProfile: final.loadProfile } : {}) }, strengthWorkSlots: n });
       break;
     }
     case "dh_technical":

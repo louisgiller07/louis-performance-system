@@ -16,6 +16,7 @@ export * from "./builders/dhPrescriptionV2.js";
 export * from "./builders/dhSessionOrdinals.js";
 export * from "./builders/aerobicBasePrescriptionV2.js";
 export * from "./builders/aerobicIntervalsPrescriptionV2.js";
+export * from "./builders/powerPrescriptionV2.js";
 export * from "./builders/recoveryActivePrescriptionV2.js";
 export * from "./strengthTiers.js";
 export * from "./validateStrengthTemplatesV2.js";

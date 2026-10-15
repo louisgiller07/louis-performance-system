@@ -31,6 +31,12 @@ export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   intervals_load_not_supported: "Le fractionné n'existe qu'en une seule version (6 × 3 min à RPE 8) : NALYNT ne construit pas cette adaptation.",
   intervals_not_shortened: "Le fractionné n'est jamais raccourci : il ne tient pas dans le temps que tu as aujourd'hui.",
   // PHYS-02.1 — the light base endurance fallback is withheld for today's pain.
+  // PHYS-03 — the power session has one dose and needs fresh legs and forearms.
+  power_load_not_supported:
+    "Ton état du jour demande moins d'intensité, et la séance de puissance n'existe qu'en une seule version (qualité maximale) : NALYNT ne propose pas de puissance allégée aujourd'hui.",
+  power_fatigue_not_cleared:
+    "Fatigue des jambes ou des avant-bras signalée aujourd'hui : la puissance demande une fraîcheur complète, NALYNT ne la propose pas aujourd'hui.",
+  no_compatible_power_exercise: "NALYNT ne propose pas encore de séance de puissance à ton niveau déclaré.",
   intervals_fallback_pain_not_cleared:
     "Tu as signalé une douleur que l'endurance solliciterait. NALYNT ne sait pas encore quelle activité la ménage : aucune séance n'est proposée aujourd'hui à la place du fractionné.",
 };

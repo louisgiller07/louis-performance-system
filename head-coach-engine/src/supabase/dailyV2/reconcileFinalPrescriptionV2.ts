@@ -49,6 +49,7 @@ import { getPlanInputSnapshotOfVersion } from "../repositories/trainingPlanVersi
 import { withStrengthLoadGuidance, type StrengthLoadGuidanceDeps } from "./strengthLoadGuidance.js";
 import { withEnduranceGuidance, type EnduranceGuidanceDeps, type WithEnduranceGuidanceResult } from "./enduranceGuidance.js";
 import type { EnduranceFallbackPainGate } from "./enduranceFallbackPainGate.js";
+import type { PowerFatigueGate } from "./powerFatigueGate.js";
 
 /** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today; PHYS-01 / PHYS-02 — and why no guidance could be attached. */
 export type FinalPrescriptionV2Result = WithEnduranceGuidanceResult;
@@ -75,6 +76,8 @@ export interface ReconcileFinalPrescriptionV2Input {
   todayHold?: "pain" | "fatigue";
   /** PHYS-02.1 — today's pain against the intervals LIGHT fallback (enduranceFallbackPainGate.ts); absent = no information. */
   enduranceFallbackPain?: EnduranceFallbackPainGate;
+  /** PHYS-03 — M1's legs / grip fatigue against a power session (powerFatigueGate.ts); absent = no information. */
+  powerFatigue?: PowerFatigueGate;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
@@ -134,6 +137,8 @@ export async function reconcileFinalPrescriptionV2(
     dailyMintId: input.mintId,
     // PHYS-02.1 — the intervals LIGHT fallback only for a pain the existing rule clears for endurance.
     ...(input.enduranceFallbackPain !== undefined ? { enduranceFallbackPain: input.enduranceFallbackPain } : {}),
+    // PHYS-03 — no power session on a day M1 flags legs / grip fatigue without adapting it.
+    ...(input.powerFatigue !== undefined ? { powerFatigue: input.powerFatigue } : {}),
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {
       decisionId: input.decisionId,
