@@ -1,4 +1,4 @@
-# PHYS-01.1 + PHYS-02 / PHYS-02.1 + PHYS-03 — PROPOSITIONS CANONIQUES (non appliquées)
+# PHYS-01.1 + PHYS-02 / PHYS-02.1 + PHYS-03 + PHYS-04 — PROPOSITIONS CANONIQUES (non appliquées)
 
 **Pour** : HPM et Louis. **Statut** : proposition, révisée par PHYS-02.1 et son correctif douleur (2026-10-15). Principe de `V2_INTERVALS_LIGHT_FALLBACK` approuvé par HPM ; paramètres sportifs PROVISIONAL.
 - Conformément à CLAUDE.md, aucun document canonique n'est modifié avant accord.
@@ -248,3 +248,48 @@ Les contenus du catalogue (6 × 3 min à RPE 8, échauffement 15 min, retour au 
 - **docs/05** : « `POWER` peut figurer dans un plan V2 (option serveur) ; prescription `power` au format v2.6 ; résultats = séries en répétitions, jamais de charge. »
 - **docs/07** : « **Séance de puissance** — séance `POWER` : échauffement, 3–4 exercices explosifs à qualité maximale et repos complet, arrêt dès que la vitesse baisse, retour au calme. »
 - **docs/10 T66** : contenu par niveau et matériel ; placement ; KEEP / LIGHT / A10 / fatigue / manuel ; P0-SAFE ; bout en bout plan → check-in → séance → séries → historique ; D (KEEP, LIGHT, A10, manuel, écart de fatigue, précondition) ; web de D en lecture seule.
+
+## G. PHYS-04 — Mobilité guidée et Force au poids du corps (implémenté, local)
+
+### G.1 Architecture technique
+- Mobilité : famille `mobility`, kind `MOBILITY`, intention `mobility_on_bike_range`, protocole `mobility_routine_v1` repris tel quel ; format `session-model-v2.6` inchangé, aucun exercice ni texte nouveau. Builder `mobilityPrescriptionV2.ts` (conversion de blocs partagée avec la récupération active, `protocolSessionBlockV2`).
+- Politique hors manifeste `mobility-plan-v1` (placement), tracée sur la semaine (`mobilityPolicy`, raison `mobility_session`, phrase). Option serveur `NALYNT_V2_MOBILITY_ENABLED` (secret de `generate-training-plan`, valeur exacte `true`) ; absente = plans de D.
+- Règles du jour : `v2.time.mobility_minimum`, `v2.replace.mobility` ; raison `mobility_duration_not_supported`.
+- Poids du corps : ajout quotidien `repsGuidance` (`bodyweight-reps-guidance-v1`) sur l'exercice, posé par la même lecture d'historique que le conseil de charge (une lecture, une validation, mêmes avertissements `phys01_load_guidance_*`) ; validé seulement sur une prescription finale de Force, exercice de travail en répétitions, jamais avec `loadGuidance` ; exclu de l'empreinte sport ; ignoré par le web de D.
+- Web : module guidé `mobility` (un mouvement à la fois, rien à mesurer, complétion par le rider) ; note de répétitions et indication sur le champ (jamais pré-rempli) ; message de blocage ; phrase de semaine traduite.
+
+### G.2 Comportements implémentés
+| | Séance de mobilité (PHYS-04) | Récupération active (A04) | Retours au calme (existants) |
+|---|---|---|---|
+| Origine | plan (semaine de consolidation, option) ou séance manuelle | REPLACE de M1, A10 | fin de Force (PHYS-01.1), d'endurance, de puissance |
+| Contenu | `mobility_routine_v1` : 8 mouvements en durée, 22–30 min | activité très facile 20–40 min RPE 2–3, mobilité / respiration en option | 1 à 3 exercices, quelques minutes |
+| Guidage | un mouvement à la fois, rien à mesurer | contenu affiché, rien à mesurer | lecture seule dans la séance |
+- Mobilité : KEEP = copie ; A10 : minimum 22 min si 22 ≤ temps < 30, sinon récupération active, puis REST ; manuelle = la routine ; douleur bloquante (P0-SAFE) → REST ; aucune règle médicale, aucun étirement ciblé sur une blessure.
+- Poids du corps : calibrer → +1 répétition par séance réussie dans la cible d'effort → haut de la fourchette gardé, sans variante plus difficile ; baisse au minimum si effort trop haut ou série sous la fourchette ; retenue douleur / fatigue M1 / dose de la semaine déjà augmentée ; une séance manquée n'invente rien (la référence reste la dernière séance terminée).
+
+### G.3 Paramètres sportifs PROVISIONAL
+| Paramètre | Valeur actuelle | Fichier |
+|---|---|---|
+| Semaines recevant la mobilité | consolidation uniquement, 1 séance | `mobilityPlanPolicyV2.ts` |
+| Jour et durée | premier jour libre (capacité ≥ 30 min), 30 min | `generatePlanV2InMemory.ts` |
+| Minimum A10 | 22 min (minimum de chaque bloc du protocole) | `mobilityPrescriptionV2.ts` |
+| Fenêtre de référence | 28 jours, même fourchette de répétitions | `bodyweightRepsGuidancePolicyV2.ts` |
+| Effort trop haut | RPE ≥ cible max + 2 | `bodyweightRepsGuidancePolicyV2.ts` |
+| Pas de progression | +1 répétition par série, jamais au-dessus de la fourchette | `bodyweightRepsGuidancePolicyV2.ts` |
+| Mots au rider | notes de répétitions, guide de mobilité, message de blocage | `repsGuidanceCopy.ts`, `MobilitySessionModule.tsx`, `finalPrescriptionV2Copy.ts` |
+
+### G.4 Décisions ouvertes et conflits
+1. **docs/03 §7 / §10** : « pas de progression fondée sur la performance réelle » ; PHYS-04 l'étend aux répétitions (conseil consultatif, dose prescrite inchangée). La ligne proposée par PHYS-01 « ni le poids du corps ni la DH ne s'adaptent aux résultats » doit être révisée (G.5).
+2. **Variantes sans matériel** : le catalogue n'a aucune progression sans matériel entre exercices en répétitions (`bodyweight_squat` → `goblet_squat`, `glute_bridge` → `dumbbell_hip_thrust`, `reverse_lunge` → `bulgarian_split_squat`, `pushup` → `dumbbell_bench_press` ; seule `plank` → `side_plank`, en durée). Au haut de la fourchette, le rider garde l'exercice. Débloquer demande des variantes validées (ex. tempo, pause, unilatéral) et une règle de passage — non inventées.
+3. **Niveaux sans matériel** : le niveau change la dose par semaine et un exercice (soulevé de terre roumain sur une jambe dès intermédiaire au lieu de la fente arrière), pas la difficulté des autres exercices.
+4. **Volume de la semaine de consolidation** : +30 min de mobilité ; à valider avec l'intention d'allègement.
+5. **D** : complétion guidée de la mobilité impossible sur le web de D (lecture seule) ; A10 de D → récupération active au lieu du minimum de 22 min.
+
+### G.5 Diffs proposés
+- **docs/03 §5 Mobilité** : « Séance générée (PHYS-04, PROVISIONAL) : la routine `mobility_routine_v1` telle quelle, guidée mouvement par mouvement ; au minimum 22 min ; une séance par semaine de consolidation (option). Aucune règle médicale. »
+- **docs/03 §7** (ajout au diff PHYS-01) : « Poids du corps : la fourchette de répétitions progresse d'**une répétition au plus** par séance, selon les séries enregistrées ; au haut de la fourchette, l'exercice est gardé tant qu'aucune variante sans matériel n'est validée. Même retenue (douleur, fatigue M1, dose de la semaine). »
+- **docs/03 §10** (remplace la ligne proposée par PHYS-01) : « Progression fondée sur la performance réelle : la charge des exercices chargés et les répétitions des exercices au poids du corps (conseils consultatifs). L'endurance montre la dernière séance enregistrée sans rien adapter ; la DH ne s'adapte pas aux résultats. »
+- **docs/04 (prescription du jour)** : « Mobilité : KEEP = copie ; A10 = minimum de 22 min, puis récupération, puis REST ; manuelle = la routine. Force au poids du corps : `repsGuidance` ajouté après A04 / A10. »
+- **docs/05** : « `MOBILITY` peut figurer dans un plan V2 (option serveur) ; prescription `mobility` au format v2.6 ; aucun résultat exigé. `repsGuidance` sur l'exercice d'une prescription finale de Force. »
+- **docs/07** : « **Séance de mobilité** — séance `MOBILITY` : routine par zones (hanches, chevilles, dos, poignets) en durée, terminée par la respiration ; distincte de la récupération active et des retours au calme. **Conseil de répétitions** — nombre de répétitions visé pour un exercice au poids du corps, tiré des séries enregistrées. »
+- **docs/10 T67** : plan (option ON / OFF), KEEP / A10 / manuel / P0-SAFE de la mobilité ; module guidé ; poids du corps débutant / avancé / séance manquée / temps réduit ; bout en bout plan → check-in → séance → guidage → résultat → séance suivante ; runtime Edge ON / OFF ; D (runtime et web), précondition.

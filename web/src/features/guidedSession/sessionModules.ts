@@ -24,6 +24,7 @@ import { EnduranceSessionModule } from "./endurance/EnduranceSessionModule";
 import { enduranceCompletion } from "./endurance/enduranceDraft";
 import { isGuidedEndurancePrescription } from "./endurance/enduranceActivity";
 import { isGuidedRecoveryPrescription, recoveryCompletion, RecoverySessionModule } from "./recovery/RecoverySessionModule";
+import { isGuidedMobilityPrescription, mobilityCompletion, MobilitySessionModule } from "./mobility/MobilitySessionModule";
 import { COMPLETION_NOT_READY_MESSAGE } from "./guidedSessionCopy";
 
 /** What the shell reports back after a module write (the state shown is always re-read from the database). */
@@ -91,5 +92,7 @@ export function resolveSessionModule(prescription: FinalPrescriptionV2View): Gui
   if (isGuidedEndurancePrescription(prescription)) return { kind: "endurance", completion: enduranceCompletion, Content: EnduranceSessionModule };
   // A04 — active recovery (REPLACE → RECOVERY_ACTIVE): nothing to measure, the rider completes it.
   if (isGuidedRecoveryPrescription(prescription)) return { kind: "recovery", completion: recoveryCompletion, Content: RecoverySessionModule };
+  // PHYS-04 — mobility (protocol routine): movements guided one at a time, nothing to measure, the rider completes it.
+  if (isGuidedMobilityPrescription(prescription)) return { kind: "mobility", completion: mobilityCompletion, Content: MobilitySessionModule };
   return readOnlyModule(prescription.family);
 }

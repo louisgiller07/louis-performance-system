@@ -92,6 +92,7 @@ export const BLOCK_PROGRESSION_PHRASES_V2 = {
   adapted_to_availability: "Sessions shortened to fit the available time.",
   endurance_intervals: "This week's endurance session is an intervals session.",
   power_session: "This week's lower-body strength session is a power session.",
+  mobility_session: "A mobility session is added on a free day this week.",
 } as const;
 
 interface DomainOption {

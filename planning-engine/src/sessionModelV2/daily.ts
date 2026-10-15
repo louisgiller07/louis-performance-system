@@ -23,3 +23,5 @@ export * from "./strengthDailyV2.js";
 export { validatePrescriptionV2 } from "./validatePrescriptionV2.js";
 // PHYS-02 — endurance guidance from the rider's own recorded sessions (attached by the daily integration layer).
 export * from "./enduranceGuidanceV2.js";
+// PHYS-04 — bodyweight repetitions guidance from the rider's own recorded sets (attached by the daily integration layer).
+export * from "./bodyweightRepsGuidanceV2.js";

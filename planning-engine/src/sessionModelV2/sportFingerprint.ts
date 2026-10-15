@@ -42,6 +42,8 @@ export const SPORT_FINGERPRINT_EXCLUDED_KEYS: readonly string[] = [
   "loadGuidance",
   // PHYS-02 — advice from the rider's history (final endurance prescriptions only), not sport content.
   "enduranceGuidance",
+  // PHYS-04 — bodyweight repetitions advice (final Force items only), not sport content.
+  "repsGuidance",
 ];
 
 const EXCLUDED = new Set(SPORT_FINGERPRINT_EXCLUDED_KEYS);

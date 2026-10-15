@@ -10,10 +10,16 @@
  * the daily decision — the prescription is kept without guidance and a
  * stable warning says why. M1's decision, the content, the doses and the
  * durations are never changed here. Nothing is written here.
+ *
+ * PHYS-04: the same read also gives the bodyweight repetitions guidance
+ * (`repsGuidance`, attachBodyweightRepsGuidanceV2) to the work exercises that
+ * need no equipment — one history read, one validation, same warnings.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  attachBodyweightRepsGuidanceV2,
   attachStrengthLoadGuidanceV2,
+  bodyweightRepsGuidanceExerciseIdsV2,
   strengthLoadGuidanceExerciseIdsV2,
   validatePrescriptionV2,
   type FinalPrescriptionWithinTodayTimeV2Result,
@@ -112,7 +118,7 @@ export async function withStrengthLoadGuidance(
 ): Promise<WithLoadGuidanceResult> {
   if (result.status !== "created") return result;
   const structure: PrescriptionV2 = result.finalPrescription.structure;
-  const exerciseIds = strengthLoadGuidanceExerciseIdsV2(structure);
+  const exerciseIds = [...new Set([...strengthLoadGuidanceExerciseIdsV2(structure), ...bodyweightRepsGuidanceExerciseIdsV2(structure)])];
   if (exerciseIds.length === 0) return result;
 
   let history: Record<string, StrengthExerciseSessionRecordV2[]>;
@@ -121,7 +127,7 @@ export async function withStrengthLoadGuidance(
   } catch {
     return { ...result, loadGuidanceWarning: LOAD_GUIDANCE_WARNINGS.readFailed };
   }
-  const guided = attachStrengthLoadGuidanceV2(structure, today, history, todayHold);
+  const guided = attachBodyweightRepsGuidanceV2(attachStrengthLoadGuidanceV2(structure, today, history, todayHold), today, history, todayHold);
   if (!validatePrescriptionV2(guided, { stage: "final" }).ok) return { ...result, loadGuidanceWarning: LOAD_GUIDANCE_WARNINGS.invalid };
   return { ...result, finalPrescription: { ...result.finalPrescription, structure: guided } };
 }

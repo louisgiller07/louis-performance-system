@@ -12,6 +12,7 @@ import { formatMeasure, formatSeconds, setsLabel, span } from "../../finalPrescr
 import type { BlockView, ExerciseItemView } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 import { LoadGuidanceNote } from "../../finalPrescriptionV2/LoadGuidanceNote";
 import { loadFieldHint } from "../../finalPrescriptionV2/loadGuidanceCopy";
+import { repsFieldHint } from "../../finalPrescriptionV2/repsGuidanceCopy";
 import type { GuidedSessionModuleProps } from "../sessionModules";
 import { draftOf, EMPTY_FORM, liveForm, type OpenForm } from "./strengthDraft";
 import {
@@ -120,7 +121,7 @@ function SetForm({ form, item, busy, withLoad, onChange, onSave, onCancel }: { f
         <legend className="text-sm font-semibold text-ink">
           {form.supersedes ? "Corriger" : "Saisir"} la série {form.setNumber} — {form.itemName}
         </legend>
-        {field("value", form.measureType === "reps" ? `Répétitions réalisées${perSide}` : `Durée réalisée en secondes${perSide}`, { inputMode: "numeric", step: "1", min: 1 })}
+        {field("value", form.measureType === "reps" ? `Répétitions réalisées${perSide}` : `Durée réalisée en secondes${perSide}`, { inputMode: "numeric", step: "1", min: 1 }, form.measureType === "reps" ? repsFieldHint(item.repsGuidance) : undefined)}
         {field("rpe", "RPE ressenti (1–10, facultatif)", { inputMode: "decimal", step: "0.5", min: 1, max: 10 }, item.rpeTarget ? `Prévu : RPE ${span(item.rpeTarget)}` : undefined)}
         {/* PHYS-03 — a power set is speed and quality: no load is asked. */}
         {withLoad && field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 }, suggestedLoadHint(item))}

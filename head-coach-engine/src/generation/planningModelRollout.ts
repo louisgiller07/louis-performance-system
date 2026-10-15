@@ -43,6 +43,9 @@ export const V2_ENDURANCE_INTERVALS_FLAG = "NALYNT_V2_ENDURANCE_INTERVALS_ENABLE
 /** PHYS-03 — name of the Edge secret placing the power session in build weeks of a V2 plan (POWER_PLAN_POLICY_V2). Same parsing; absent = the previous plans. */
 export const V2_POWER_SESSIONS_FLAG = "NALYNT_V2_POWER_ENABLED";
 
+/** PHYS-04 — name of the Edge secret adding a mobility session to consolidation weeks of a V2 plan (MOBILITY_PLAN_POLICY_V2). Same parsing; absent = the previous plans. */
+export const V2_MOBILITY_SESSIONS_FLAG = "NALYNT_V2_MOBILITY_ENABLED";
+
 export function resolvePlanningModelForAthlete(input: { globalV2Enabled: boolean; assignment: PlanningModel | null }): PlanningModelResolution {
   // A09 — the switch stays a real V2 kill switch, and an athlete assigned V2 is refused, never served V1.
   if (!input.globalV2Enabled) return input.assignment === "v2" ? { planningModel: "v2", reason: "assigned_v2_disabled" } : { planningModel: "v1", reason: "global_v2_disabled" };

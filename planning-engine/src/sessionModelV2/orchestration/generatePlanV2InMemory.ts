@@ -39,13 +39,16 @@ import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Conte
 import { buildPowerPrescriptionV2Content, isPowerSessionPossibleV2 } from "../builders/powerPrescriptionV2.js";
 import { POWER_PLAN_POLICY_V2, POWER_PLAN_POLICY_V2_VERSION, POWER_SESSION_POLICY_V2_VERSION } from "../../catalog/powerSessionPolicyV2.js";
 import { BLOCK_PROGRESSION_PHRASES_V2 } from "./blockProgressionV2.js";
+import { buildMobilityPrescriptionV2Content, mobilityDurationRangeV2 } from "../builders/mobilityPrescriptionV2.js";
+import { MOBILITY_PLAN_POLICY_V2, MOBILITY_PLAN_POLICY_V2_VERSION } from "../../catalog/mobilityPlanPolicyV2.js";
+import { availabilityByDate } from "../../pipeline/availabilityActivity.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
 import { PLAN_DOSE_MODEL_V2, planDoseModelV2 } from "./planDoseModelV2.js";
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 import type { StrengthDoseStepV2 } from "../../catalog/strengthDoseCatalogV2.js";
 
-export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS", "POWER"];
+export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS", "POWER", "MOBILITY"];
 
 export interface GeneratePlanV2InMemoryInput {
   /** Block content only — id / planVersionId are minted here. */
@@ -57,6 +60,8 @@ export interface GeneratePlanV2InMemoryInput {
   enduranceIntervals?: boolean;
   /** PHYS-03 — place the power session in build weeks (server switch; absent / false = the previous plans exactly). */
   powerSessions?: boolean;
+  /** PHYS-04 — add a mobility session in consolidation weeks (server switch; absent / false = the previous plans exactly). */
+  mobilitySessions?: boolean;
 }
 
 export interface PlannedPrescriptionV2InMemory {
@@ -140,7 +145,9 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   });
 
   // PHYS-03 — with the power option only: the lower-body Force session of a build week becomes the power session.
-  const plannedWeeks = input.powerSessions === true ? placePowerSessionsV2(planning.weeks, modelInput.strengthExperienceTier, modelInput.equipment) : planning.weeks;
+  const powerWeeks = input.powerSessions === true ? placePowerSessionsV2(planning.weeks, modelInput.strengthExperienceTier, modelInput.equipment) : planning.weeks;
+  // PHYS-04 — with the mobility option only: one mobility session on a free day of each consolidation week.
+  const plannedWeeks = input.mobilitySessions === true ? placeMobilitySessionsV2(powerWeeks, snapshot.availability, snapshot.lockedDates) : powerWeeks;
   const flat = plannedWeeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
   for (const { session } of flat) {
     if (!V2_SUPPORTED_SESSION_KINDS.includes(session.kind)) throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
@@ -270,6 +277,9 @@ function buildContent(
         // BUG-V2-1 — no riding window that day: off-terrain endurance only.
         ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
       });
+    case "MOBILITY":
+      // PHYS-04 — the catalogue mobility protocol, unchanged (its full 22–30 min ranges).
+      return buildMobilityPrescriptionV2Content({ catalog });
     case "POWER":
       // PHYS-03 — the power session composed from the catalogue (tier, equipment); its slot keeps the Force duration and load.
       return buildPowerPrescriptionV2Content({ athleteTier: modelInput.strengthExperienceTier, equipment: modelInput.equipment, catalog });
@@ -316,6 +326,47 @@ export function placePowerSessionsV2(weeks: readonly PlannedWeekV2[], tier: Sess
       doseSummary: {
         ...week.doseSummary,
         progression: { ...progression, reasonCodes: [...progression.reasonCodes, "power_session"], powerPolicy: `${POWER_PLAN_POLICY_V2_VERSION}+${POWER_SESSION_POLICY_V2_VERSION}` },
+      },
+    };
+  });
+}
+
+/**
+ * PHYS-04 — MOBILITY_PLAN_POLICY_V2 (PROVISIONAL): in each week of a listed role, ONE mobility session (the
+ * protocol, 22–30 min, planned at its 30-min maximum) on the first date of the week without any session whose
+ * physical availability holds the 30 minutes (locked dates and unavailable days excluded). Never a second
+ * session on a day. Traced on the week (reason, phrase, policy); the week's counts follow the added session.
+ */
+export function placeMobilitySessionsV2(weeks: readonly PlannedWeekV2[], availability: PlanInputAvailability, lockedDates: readonly PlanInputLockedDate[]): PlannedWeekV2[] {
+  const duration = mobilityDurationRangeV2().max;
+  const addDay = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return weeks.map((week) => {
+    const progression = week.doseSummary.progression;
+    if (progression === undefined || !MOBILITY_PLAN_POLICY_V2.weekRoles.includes(progression.role)) return week;
+    const dates: string[] = [];
+    for (let d = week.startDate; d <= week.endDate; d = addDay(d)) dates.push(d);
+    const taken = new Set(week.sessions.map((s) => s.date));
+    const free = availabilityByDate(dates.filter((d) => !taken.has(d)), availability, lockedDates).find((a) => typeof a.physical === "number" && a.physical >= duration);
+    if (free === undefined) return week;
+    const phrase = BLOCK_PROGRESSION_PHRASES_V2.mobility_session;
+    const session = {
+      date: free.date,
+      domain: "strength",
+      kind: "MOBILITY" as SessionKind,
+      durationMin: duration,
+      doseTarget: { domain: "recovery" as const },
+      rationale: `${week.rationale} ${phrase}`,
+    } as unknown as PlannedWeekV2["sessions"][number];
+    const sessions = [...week.sessions, session].sort((a, b) => a.date.localeCompare(b.date));
+    return {
+      ...week,
+      rationale: `${week.rationale} ${phrase}`,
+      sessions,
+      doseSummary: {
+        ...week.doseSummary,
+        plannedRestOrRecoveryDayCount: week.doseSummary.plannedRestOrRecoveryDayCount - 1,
+        totalPlannedMinutes: week.doseSummary.totalPlannedMinutes + duration,
+        progression: { ...progression, sessionCount: progression.sessionCount + 1, reasonCodes: [...progression.reasonCodes, "mobility_session"], mobilityPolicy: MOBILITY_PLAN_POLICY_V2_VERSION },
       },
     };
   });

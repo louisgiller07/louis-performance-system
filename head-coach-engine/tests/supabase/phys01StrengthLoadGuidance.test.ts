@@ -82,14 +82,17 @@ describe("PHYS-01 — withStrengthLoadGuidance", () => {
     const sets = [1, 2, 3, 4].map((s) => row({ id: `s${s}`, execution_id: "ex-1", set_number: s }));
     const getCompletedStrengthSetHistory = vi.fn().mockResolvedValue(read(sets));
     const r = await withStrengthLoadGuidance(finalOf(upper), client, "athlete-1", TODAY, { getCompletedStrengthSetHistory });
-    expect(getCompletedStrengthSetHistory).toHaveBeenCalledWith(client, "athlete-1", ["dumbbell_bench_press", "one_arm_dumbbell_row"], "2026-08-25", TODAY);
-    expect(r.status === "created" && r.finalPrescription.structure.blocks.flatMap((b) => b.items).map((i) => (i.kind === "exercise" ? [i.exerciseId, i.loadGuidance?.mode ?? null] : null))).toEqual([
-      ["thoracic_rotation_mobility", null],
-      ["wrist_mobility", null],
-      ["bear_crawl", null],
-      ["dumbbell_bench_press", "target"],
-      ["one_arm_dumbbell_row", "calibrate"],
-      ["dead_bug", null],
+    // PHYS-04 — the same read serves the bodyweight work exercise (dead_bug): one read for both guidances.
+    expect(getCompletedStrengthSetHistory).toHaveBeenCalledWith(client, "athlete-1", ["dumbbell_bench_press", "one_arm_dumbbell_row", "dead_bug"], "2026-08-25", TODAY);
+    expect(
+      r.status === "created" && r.finalPrescription.structure.blocks.flatMap((b) => b.items).map((i) => (i.kind === "exercise" ? [i.exerciseId, i.loadGuidance?.mode ?? null, i.repsGuidance?.mode ?? null] : null))
+    ).toEqual([
+      ["thoracic_rotation_mobility", null, null],
+      ["wrist_mobility", null, null],
+      ["bear_crawl", null, null],
+      ["dumbbell_bench_press", "target", null],
+      ["one_arm_dumbbell_row", "calibrate", null],
+      ["dead_bug", null, "calibrate"],
     ]);
     expect(r).not.toHaveProperty("loadGuidanceWarning");
     const bench = r.status === "created" ? r.finalPrescription.structure.blocks.find((b) => b.role === "main")!.items[0]! : null;
@@ -109,7 +112,7 @@ describe("PHYS-01 — withStrengthLoadGuidance", () => {
     expect(r).toEqual({ ...original, loadGuidanceWarning: LOAD_GUIDANCE_WARNINGS.invalid });
   });
 
-  it("no read at all for REST, a blocked result, or a session without a loadable work exercise", async () => {
+  it("no read at all for REST, a blocked result, or a session without any guided work exercise", async () => {
     const getCompletedStrengthSetHistory = vi.fn();
     const rest: FinalPrescriptionWithinTodayTimeV2Result = { status: "none", reason: "rest" };
     expect(await withStrengthLoadGuidance(rest, client, "a", TODAY, { getCompletedStrengthSetHistory })).toBe(rest);
@@ -120,8 +123,12 @@ describe("PHYS-01 — withStrengthLoadGuidance", () => {
       mint
     );
     const bw = finalOf(bodyweight);
-    expect(await withStrengthLoadGuidance(bw, client, "a", TODAY, { getCompletedStrengthSetHistory })).toBe(bw);
     expect(getCompletedStrengthSetHistory).not.toHaveBeenCalled();
+    // PHYS-04 — a bodyweight session is now read too (its repetitions guidance), never a load.
+    const read = vi.fn().mockResolvedValue({ executions: [], sets: [] });
+    const guided = await withStrengthLoadGuidance(bw, client, "a", TODAY, { getCompletedStrengthSetHistory: read });
+    expect(read).toHaveBeenCalledWith(client, "a", ["pushup", "floor_ytw_raise", "dead_bug"], "2026-08-25", TODAY);
+    expect(guided.status === "created" && guided.finalPrescription.structure.blocks.flatMap((b) => b.items).some((i) => i.kind === "exercise" && i.loadGuidance !== undefined)).toBe(false);
   });
 });
 

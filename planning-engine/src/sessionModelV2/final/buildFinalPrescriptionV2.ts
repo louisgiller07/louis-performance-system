@@ -99,6 +99,12 @@
  * without adapting the power session gets no power document
  * (`power_fatigue_not_cleared`, `powerFatigue` from the integration layer):
  * docs/03 §5, never explosive work under fatigue.
+ *
+ * PHYS-04 — mobility (family `mobility`, kind MOBILITY, mobilityPrescriptionV2.ts:
+ * the `mobility_routine_v1` protocol, 22–30 min): KEEP copies it; under the
+ * rider's time (A10) every block at its protocol minimum (22 min,
+ * `v2.time.mobility_minimum`), never below; REPLACE / a manual session of
+ * that kind gets the protocol session (`v2.replace.mobility`).
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -119,6 +125,7 @@ import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePr
 import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Content } from "../builders/aerobicIntervalsPrescriptionV2.js";
 import { buildPowerPrescriptionV2Content, isPowerSessionPossibleV2, POWER_SESSION_KIND_V2, powerExplosiveExercisesV2 } from "../builders/powerPrescriptionV2.js";
 import { POWER_SESSION_POLICY_V2 } from "../../catalog/powerSessionPolicyV2.js";
+import { buildMobilityPrescriptionV2Content, mobilityDurationRangeV2 } from "../builders/mobilityPrescriptionV2.js";
 import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
 import { buildKeepFinalPrescriptionV2, lineageFailure, trustedPlannedStructure, type BuildKeepFinalPrescriptionV2Input } from "./buildKeepFinalPrescriptionV2.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
@@ -192,6 +199,10 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   replacePower: "v2.replace.power",
   /** PHYS-03 — A10: the same power session, its last explosive exercises left out (never below three). */
   powerShortened: "v2.time.power_shortened",
+  /** PHYS-04 — REPLACE / manual session of the mobility kind: the protocol mobility session. */
+  replaceMobility: "v2.replace.mobility",
+  /** PHYS-04 — A10: the same mobility session, every block at its protocol minimum. */
+  mobilityMinimum: "v2.time.mobility_minimum",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
@@ -437,6 +448,12 @@ function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downw
       const content = drillsForLoad(withPasses(contentOf(planned), (count) => Math.min(count, maxPasses, downward ? lightPasses : count)), finalLoad, terrainAccess);
       return content === null ? { blocked: { reason: "no_light_dh_drill" } } : { content, rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses, durationMin };
     }
+    case "mobility": {
+      // PHYS-04 — the protocol minimum (every block at its minimum), never below.
+      const range = mobilityDurationRangeV2();
+      if (durationMin < range.min || durationMin >= range.max) return { blocked: { reason: "mobility_duration_not_supported", durationMin } };
+      return { content: buildMobilityPrescriptionV2Content({ catalog: planned.catalog, atMinimum: true }), rule: DAILY_ADAPTATION_RULES_V2.mobilityMinimum, durationMin: range.min };
+    }
     case "endurance": {
       if (durationMin >= enduranceMinutes(planned)) return { blocked: { reason: "modify_not_supported", durationMin } };
       const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
@@ -513,6 +530,13 @@ function replacementContent(
     const minutes = Math.min(Math.max(final.durationMin ?? PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin, 45), 90);
     const content = buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable: context.ridingAvailable });
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
+  }
+  if (final.kind === "MOBILITY") {
+    // PHYS-04 — the protocol session; under the rider's time, the protocol minimum, never below.
+    const range = mobilityDurationRangeV2();
+    if (timeLimitMin !== undefined && timeLimitMin < range.min) return { blocked: { reason: "mobility_duration_not_supported", timeLimitMin } };
+    const atMinimum = timeLimitMin !== undefined && timeLimitMin < range.max;
+    return { content: buildMobilityPrescriptionV2Content({ catalog, atMinimum }), rule: DAILY_ADAPTATION_RULES_V2.replaceMobility, durationMin: atMinimum ? range.min : range.max };
   }
   if (final.kind === POWER_SESSION_KIND_V2) {
     // PHYS-03 — the catalogue power session at its one dose (MODERATE); the rider's tier and equipment from the plan's snapshot.

@@ -48,7 +48,9 @@ export type WeekProgressionReasonCode =
   /** PHYS-02 — the week's endurance session is the intervals session (plans generated with the intervals option only). */
   | "endurance_intervals"
   /** PHYS-03 — the week's lower-body Force session is the power session (plans generated with the power option only). */
-  | "power_session";
+  | "power_session"
+  /** PHYS-04 — the week holds a mobility session on a free day (plans generated with the mobility option only). */
+  | "mobility_session";
 
 /** The week's executable targets (null = no session of that domain this week). */
 export interface WeekProgressionTargets {
@@ -79,6 +81,8 @@ export interface WeekProgressionSummary {
   intervalsPolicy?: string;
   /** PHYS-03 — the power placement and session policies, present only on a week with the power session. */
   powerPolicy?: string;
+  /** PHYS-04 — the mobility placement policy, present only on a week with a mobility session. */
+  mobilityPolicy?: string;
 }
 
 export interface TrainingPlanWeek {

@@ -21,6 +21,7 @@ import { SESSION_MODEL_V2_MANIFEST_KEYS } from "./catalogManifest.js";
 import { PRESCRIPTION_V2_ITEM_KINDS, PRESCRIPTION_V2_SCHEMA_VERSION, type PrescriptionV2 } from "./prescriptionV2.js";
 import { STRENGTH_LOAD_GUIDANCE_RULES_VERSION } from "../catalog/strengthLoadGuidancePolicyV2.js";
 import { ENDURANCE_GUIDANCE_RULES_VERSION } from "../catalog/enduranceGuidancePolicyV2.js";
+import { BODYWEIGHT_REPS_GUIDANCE_RULES_VERSION } from "../catalog/bodyweightRepsGuidancePolicyV2.js";
 
 export type PrescriptionV2IssueCode =
   | "not_an_object"
@@ -61,7 +62,9 @@ export type PrescriptionV2IssueCode =
   | "load_guidance_not_allowed"
   | "invalid_load_guidance"
   | "endurance_guidance_not_allowed"
-  | "invalid_endurance_guidance";
+  | "invalid_endurance_guidance"
+  | "reps_guidance_not_allowed"
+  | "invalid_reps_guidance";
 
 export interface PrescriptionV2Issue {
   path: string;
@@ -83,6 +86,8 @@ const FORBIDDEN_KEY = /kg|load|1rm|percent|ftp|watt|heart|bpm|zone/i;
  */
 const ITEM_PATH = /^\$\.blocks\[\d+\]\.items\[\d+\]$/;
 const LOAD_GUIDANCE_KEY = "loadGuidance";
+/** PHYS-04 — bodyweight repetitions guidance on a final Force work exercise (checked by checkRepsGuidance). */
+const REPS_GUIDANCE_KEY = "repsGuidance";
 /** PHYS-02 — root key of a final endurance prescription (checked by checkEnduranceGuidance). */
 const ENDURANCE_GUIDANCE_KEY = "enduranceGuidance";
 const WORK_BLOCK_ROLES_V2: readonly string[] = ["main", "complementary"];
@@ -189,6 +194,24 @@ function validateItem(
       add(`${path}.${LOAD_GUIDANCE_KEY}`, "load_guidance_not_allowed");
     } else {
       checkLoadGuidance(item[LOAD_GUIDANCE_KEY], `${path}.${LOAD_GUIDANCE_KEY}`, add);
+    }
+  }
+  // PHYS-04 — bodyweight repetitions guidance: a final Force prescription, an exercise of a work block, in repetitions, never with a load guidance.
+  if (item[REPS_GUIDANCE_KEY] !== undefined) {
+    const measure = item.measure;
+    if (
+      stage !== "final" ||
+      family !== "strength" ||
+      item.kind !== "exercise" ||
+      typeof blockRole !== "string" ||
+      !WORK_BLOCK_ROLES_V2.includes(blockRole) ||
+      !isObj(measure) ||
+      measure.type !== "reps" ||
+      item[LOAD_GUIDANCE_KEY] !== undefined
+    ) {
+      add(`${path}.${REPS_GUIDANCE_KEY}`, "reps_guidance_not_allowed");
+    } else {
+      checkRepsGuidance(item[REPS_GUIDANCE_KEY], `${path}.${REPS_GUIDANCE_KEY}`, add);
     }
   }
   if (!isNonEmptyString(item.prescriptionItemId)) add(`${path}.prescriptionItemId`, "empty_id");
@@ -306,6 +329,50 @@ function scanForbiddenKeys(value: unknown, path: string, add: (path: string, cod
     if (key === LOAD_GUIDANCE_KEY && ITEM_PATH.test(path)) continue;
     if (FORBIDDEN_KEY.test(key)) add(`${path}.${key}`, "forbidden_load_field");
     scanForbiddenKeys(child, `${path}.${key}`, add);
+  }
+}
+
+/** PHYS-04 — the exact shape of a bodyweight repetitions guidance (BodyweightRepsGuidanceV2). */
+function checkRepsGuidance(g: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  const bad = () => add(path, "invalid_reps_guidance");
+  const range = (r: unknown, floor: number, ceiling: number) => isObj(r) && hasOnlyKeys(r, ["min", "max"]) && isInt(r.min) && isInt(r.max) && r.min >= floor && r.min <= r.max && r.max <= ceiling;
+  const reference = (r: unknown) =>
+    isObj(r) &&
+    hasOnlyKeys(r, ["sessionDate", "reps", "setsPrescribed", "repsRange", "rpeMax"]) &&
+    isIsoDate(r.sessionDate) &&
+    Array.isArray(r.reps) &&
+    r.reps.length > 0 &&
+    r.reps.every((n) => isInt(n) && n > 0) &&
+    (r.setsPrescribed === null || (isInt(r.setsPrescribed) && r.setsPrescribed > 0)) &&
+    (r.repsRange === null || range(r.repsRange, 1, 1000)) &&
+    (r.rpeMax === null || (typeof r.rpeMax === "number" && r.rpeMax >= 1 && r.rpeMax <= 10));
+  const rir = (r: unknown) => r === null || range(r, 0, 10);
+  if (!isObj(g) || g.ruleVersion !== BODYWEIGHT_REPS_GUIDANCE_RULES_VERSION) return bad();
+  switch (g.mode) {
+    case "calibrate":
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "repsInReserve"]) || g.reason !== "no_history" || !rir(g.repsInReserve)) bad();
+      return;
+    case "reference":
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "reference", "repsInReserve"]) || !["different_dose", "history_too_old"].includes(g.reason as string) || !rir(g.repsInReserve) || !reference(g.reference)) bad();
+      return;
+    case "target": {
+      const keys = ["ruleVersion", "mode", "reason", "change", "targetReps", "reference", ...(g.hold !== undefined ? ["hold"] : []), ...(g.nextStep !== undefined ? ["nextStep"] : [])];
+      if (
+        !hasOnlyKeys(g, keys) ||
+        !["effort_too_high", "below_range", "within_range", "top_of_range_reached"].includes(g.reason as string) ||
+        !["increase", "keep", "decrease"].includes(g.change as string) ||
+        !isInt(g.targetReps) ||
+        (g.targetReps as number) < 1 ||
+        (g.hold !== undefined && (!["dose_up", "pain", "fatigue"].includes(g.hold as string) || g.change !== "keep")) ||
+        (g.nextStep !== undefined && (!["no_bodyweight_variant", "variant_not_validated"].includes(g.nextStep as string) || g.reason !== "top_of_range_reached")) ||
+        !reference(g.reference)
+      ) {
+        bad();
+      }
+      return;
+    }
+    default:
+      bad();
   }
 }
 

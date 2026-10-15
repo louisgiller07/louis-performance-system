@@ -21,7 +21,7 @@
 // a real JWT/session or mutating any ESM import binding (V0.5_014 fix,
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
-import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, productToday, V2_ENDURANCE_INTERVALS_FLAG, V2_PLAN_GENERATION_FLAG, V2_POWER_SESSIONS_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
+import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, productToday, V2_ENDURANCE_INTERVALS_FLAG, V2_MOBILITY_SESSIONS_FLAG, V2_PLAN_GENERATION_FLAG, V2_POWER_SESSIONS_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
@@ -73,6 +73,8 @@ export interface HandleGenerateTrainingPlanDeps {
   readEnduranceIntervalsFlag?: () => string | undefined;
   /** PHYS-03 — the power placement switch of V2 plans, read on the server only (Edge secret); absent = off. */
   readPowerSessionsFlag?: () => string | undefined;
+  /** PHYS-04 — the mobility placement switch of V2 plans, read on the server only (Edge secret); absent = off. */
+  readMobilitySessionsFlag?: () => string | undefined;
 }
 
 const DEFAULT_DEPS: HandleGenerateTrainingPlanDeps = {
@@ -80,6 +82,7 @@ const DEFAULT_DEPS: HandleGenerateTrainingPlanDeps = {
   readV2Flag: () => Deno.env.get(V2_PLAN_GENERATION_FLAG),
   readEnduranceIntervalsFlag: () => Deno.env.get(V2_ENDURANCE_INTERVALS_FLAG),
   readPowerSessionsFlag: () => Deno.env.get(V2_POWER_SESSIONS_FLAG),
+  readMobilitySessionsFlag: () => Deno.env.get(V2_MOBILITY_SESSIONS_FLAG),
 };
 
 export async function handleGenerateTrainingPlan(
@@ -173,6 +176,8 @@ export async function handleGenerateTrainingPlan(
       ...(parseV2PlanGenerationFlag(deps.readEnduranceIntervalsFlag?.()) ? { enduranceIntervals: true } : {}),
       // PHYS-03 — off unless the Edge secret is exactly "true".
       ...(parseV2PlanGenerationFlag(deps.readPowerSessionsFlag?.()) ? { powerSessions: true } : {}),
+      // PHYS-04 — off unless the Edge secret is exactly "true".
+      ...(parseV2PlanGenerationFlag(deps.readMobilitySessionsFlag?.()) ? { mobilitySessions: true } : {}),
     });
     const modelTrace = { planningModel: result.planningModel, rolloutReason: result.reason };
 

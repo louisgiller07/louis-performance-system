@@ -37,6 +37,8 @@ export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   power_fatigue_not_cleared:
     "Fatigue des jambes ou des avant-bras signalée aujourd'hui : la puissance demande une fraîcheur complète, NALYNT ne la propose pas aujourd'hui.",
   no_compatible_power_exercise: "NALYNT ne propose pas encore de séance de puissance à ton niveau déclaré.",
+  // PHYS-04 — the mobility routine never goes below its protocol minimum (22 min).
+  mobility_duration_not_supported: "La séance de mobilité dure au moins 22 minutes : elle ne tient pas dans le temps que tu as aujourd'hui.",
   intervals_fallback_pain_not_cleared:
     "Tu as signalé une douleur que l'endurance solliciterait. NALYNT ne sait pas encore quelle activité la ménage : aucune séance n'est proposée aujourd'hui à la place du fractionné.",
 };

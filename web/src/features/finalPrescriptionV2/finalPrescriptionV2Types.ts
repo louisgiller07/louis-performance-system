@@ -43,6 +43,25 @@ export type LoadGuidanceView =
       reference: LoadReferenceView;
     };
 
+/** PHYS-04 — bodyweight repetitions guidance (advisory, from the rider's own recorded repetitions). */
+export interface RepsReferenceView {
+  sessionDate: string;
+  reps: number[];
+  rpeMax: number | null;
+}
+export type RepsGuidanceView =
+  | { mode: "calibrate"; repsInReserve: RangeView | null }
+  | { mode: "reference"; reason: "different_dose" | "history_too_old"; reference: RepsReferenceView }
+  | {
+      mode: "target";
+      reason: "effort_too_high" | "below_range" | "within_range" | "top_of_range_reached";
+      change: "increase" | "keep" | "decrease";
+      targetReps: number;
+      hold?: "dose_up" | "pain" | "fatigue";
+      nextStep?: "no_bodyweight_variant" | "variant_not_validated";
+      reference: RepsReferenceView;
+    };
+
 export interface ExerciseItemView {
   kind: "exercise";
   prescriptionItemId: string;
@@ -58,6 +77,8 @@ export interface ExerciseItemView {
   rampUp?: { instruction: string; sets: RangeView };
   /** PHYS-01 — present on a Force work exercise carrying an external load. */
   loadGuidance?: LoadGuidanceView;
+  /** PHYS-04 — present on a Force work exercise without equipment, in repetitions. */
+  repsGuidance?: RepsGuidanceView;
 }
 
 export interface DrillItemView {

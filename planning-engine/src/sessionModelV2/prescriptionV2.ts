@@ -41,6 +41,7 @@ import type { SessionKind } from "../types/sharedVocabulary.js";
 import type { SessionModelV2CatalogManifest } from "./catalogManifest.js";
 import type { StrengthLoadGuidanceV2 } from "./strengthLoadGuidanceV2.js";
 import type { EnduranceGuidanceV2 } from "./enduranceGuidanceV2.js";
+import type { BodyweightRepsGuidanceV2 } from "./bodyweightRepsGuidanceV2.js";
 
 export const PRESCRIPTION_V2_SCHEMA_VERSION = "v2";
 
@@ -82,6 +83,8 @@ export interface ExerciseItemV2Content {
   rampUp?: RampUpV2;
   /** PHYS-01 — final Force prescription, work blocks only: the load to use today, from the rider's own history. */
   loadGuidance?: StrengthLoadGuidanceV2;
+  /** PHYS-04 — final Force work exercise without equipment, in repetitions: advice from the rider's own recorded repetitions. */
+  repsGuidance?: BodyweightRepsGuidanceV2;
 }
 
 export interface DrillItemV2Content {

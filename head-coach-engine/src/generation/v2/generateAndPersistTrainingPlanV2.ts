@@ -42,6 +42,8 @@ export interface GenerateAndPersistTrainingPlanV2Input {
   enduranceIntervals?: boolean;
   /** PHYS-03 — place the power session in build weeks (server switch); absent = the previous plans exactly. */
   powerSessions?: boolean;
+  /** PHYS-04 — add a mobility session in consolidation weeks (server switch); absent = the previous plans exactly. */
+  mobilitySessions?: boolean;
 }
 
 export type GenerateAndPersistTrainingPlanV2Result =
@@ -98,6 +100,7 @@ export async function generateAndPersistTrainingPlanV2(
     mintId: deps.mintId,
     ...(input.enduranceIntervals === true ? { enduranceIntervals: true } : {}),
     ...(input.powerSessions === true ? { powerSessions: true } : {}),
+    ...(input.mobilitySessions === true ? { mobilitySessions: true } : {}),
   });
   if (generated.status === "blocked") return generated;
 
