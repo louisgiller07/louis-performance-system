@@ -20,6 +20,7 @@ import { STRENGTH_TEMPLATE_CATALOG_V2 } from "../catalog/strengthTemplateCatalog
 import { SESSION_MODEL_V2_MANIFEST_KEYS } from "./catalogManifest.js";
 import { PRESCRIPTION_V2_ITEM_KINDS, PRESCRIPTION_V2_SCHEMA_VERSION, type PrescriptionV2 } from "./prescriptionV2.js";
 import { STRENGTH_LOAD_GUIDANCE_RULES_VERSION } from "../catalog/strengthLoadGuidancePolicyV2.js";
+import { ENDURANCE_GUIDANCE_RULES_VERSION } from "../catalog/enduranceGuidancePolicyV2.js";
 
 export type PrescriptionV2IssueCode =
   | "not_an_object"
@@ -58,7 +59,9 @@ export type PrescriptionV2IssueCode =
   | "invalid_ramp_up"
   | "forbidden_load_field"
   | "load_guidance_not_allowed"
-  | "invalid_load_guidance";
+  | "invalid_load_guidance"
+  | "endurance_guidance_not_allowed"
+  | "invalid_endurance_guidance";
 
 export interface PrescriptionV2Issue {
   path: string;
@@ -80,6 +83,8 @@ const FORBIDDEN_KEY = /kg|load|1rm|percent|ftp|watt|heart|bpm|zone/i;
  */
 const ITEM_PATH = /^\$\.blocks\[\d+\]\.items\[\d+\]$/;
 const LOAD_GUIDANCE_KEY = "loadGuidance";
+/** PHYS-02 — root key of a final endurance prescription (checked by checkEnduranceGuidance). */
+const ENDURANCE_GUIDANCE_KEY = "enduranceGuidance";
 const WORK_BLOCK_ROLES_V2: readonly string[] = ["main", "complementary"];
 
 type Obj = Record<string, unknown>;
@@ -117,6 +122,11 @@ export function validatePrescriptionV2(value: unknown, options: ValidatePrescrip
   if (value.activitySelection !== undefined) {
     if (value.family !== "endurance") add("$.activitySelection", "activity_selection_not_allowed");
     checkActivitySelection(value.activitySelection, "$.activitySelection", add);
+  }
+  // PHYS-02 — endurance guidance: a final endurance prescription only, exact shape.
+  if (value[ENDURANCE_GUIDANCE_KEY] !== undefined) {
+    if (stage !== "final" || value.family !== "endurance") add(`$.${ENDURANCE_GUIDANCE_KEY}`, "endurance_guidance_not_allowed");
+    else checkEnduranceGuidance(value[ENDURANCE_GUIDANCE_KEY], `$.${ENDURANCE_GUIDANCE_KEY}`, add);
   }
 
   const blockIds = new Set<string>();
@@ -297,6 +307,28 @@ function scanForbiddenKeys(value: unknown, path: string, add: (path: string, cod
     if (FORBIDDEN_KEY.test(key)) add(`${path}.${key}`, "forbidden_load_field");
     scanForbiddenKeys(child, `${path}.${key}`, add);
   }
+}
+
+/** PHYS-02 — the exact shape of an endurance guidance (EnduranceGuidanceV2). */
+function checkEnduranceGuidance(g: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  const rpe = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= 10;
+  const r = isObj(g) ? g.reference : undefined;
+  const effort = isObj(g) ? g.effortAboveTarget : undefined;
+  const ok =
+    isObj(g) &&
+    hasOnlyKeys(g, ["ruleVersion", "reference", ...(effort !== undefined ? ["effortAboveTarget"] : [])]) &&
+    g.ruleVersion === ENDURANCE_GUIDANCE_RULES_VERSION &&
+    isObj(r) &&
+    hasOnlyKeys(r, ["sessionDate", "activityId", "durationSeconds", "distanceM", "rpeActual"]) &&
+    isIsoDate(r.sessionDate) &&
+    includes(ENDURANCE_ACTIVITIES_V2, r.activityId) &&
+    isInt(r.durationSeconds) &&
+    r.durationSeconds > 0 &&
+    (r.distanceM === null || (isInt(r.distanceM) && r.distanceM >= 0)) &&
+    (r.rpeActual === null || rpe(r.rpeActual)) &&
+    (effort === undefined ||
+      (isObj(effort) && hasOnlyKeys(effort, ["rpeActual", "rpeTargetMax"]) && rpe(effort.rpeActual) && isInt(effort.rpeTargetMax) && rpe(effort.rpeTargetMax) && (effort.rpeActual as number) > effort.rpeTargetMax && effort.rpeActual === r.rpeActual));
+  if (!ok) add(path, "invalid_endurance_guidance");
 }
 
 const LOAD_GUIDANCE_REASONS: Readonly<Record<string, readonly string[]>> = {

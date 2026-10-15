@@ -30,7 +30,7 @@ const final = (content: Parameters<typeof assignPrescriptionIds>[0], extent: "fu
 function components(p: PrescriptionV2) {
   const sum = { warmUp: 0, work: 0, rests: 0, transitions: 0, rampUp: 0, coolDown: 0 };
   for (const b of p.blocks) {
-    for (const i of b.items as ExerciseItemV2Content[]) {
+    for (const i of b.items as readonly ExerciseItemV2Content[]) {
       const measure = i.measure;
       const set = T.setSetupSeconds + (measure.type === "reps" ? measure.max * T.repSeconds * (measure.perSide ? 2 : 1) : measure.type === "duration" ? measure.maxSeconds * (measure.perSide ? 2 : 1) : measure.maxMeters);
       const rests = (i.sets - 1) * (i.restSeconds?.max ?? 0);

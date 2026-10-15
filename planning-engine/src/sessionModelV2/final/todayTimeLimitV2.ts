@@ -111,10 +111,20 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
       break;
     case "endurance": {
       const { aerobicMinMin, aerobicStepMin } = PLAN_PROGRESSION_CAPS_V2;
-      if (current !== null) {
-        for (let d = current - aerobicStepMin; d >= aerobicMinMin; d -= aerobicStepMin) {
-          if (shorter(d)) out.push({ decision: action, finalSession: { ...final, durationMin: d } });
+      if (current === null) break;
+      const steps: number[] = [];
+      for (let d = current - aerobicStepMin; d >= aerobicMinMin; d -= aerobicStepMin) steps.push(d);
+      // PHYS-02 — a duration off the 15-min grid (a base session from a 53-min intervals one) still reaches the minimum.
+      if (current > aerobicMinMin && !steps.includes(aerobicMinMin)) steps.push(aerobicMinMin);
+      if (structure.sessionKind === "AEROBIC_INTERVALS") {
+        // PHYS-02 — intervals are never shortened (one dose): the base endurance session that fits, then recovery.
+        for (const d of steps) {
+          if (shorter(d)) out.push({ decision: "REPLACE", finalSession: { kind: "AEROBIC_BASE", ...(final.loadProfile !== undefined ? { loadProfile: final.loadProfile } : {}), durationMin: d } });
         }
+        break;
+      }
+      for (const d of steps) {
+        if (shorter(d)) out.push({ decision: action, finalSession: { ...final, durationMin: d } });
       }
       break;
     }

@@ -10,6 +10,7 @@ import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
 import { FinalPrescriptionV2Card } from "../../finalPrescriptionV2/FinalPrescriptionV2Card";
 import { span } from "../../finalPrescriptionV2/finalPrescriptionV2Copy";
+import { intervalsSummary } from "../../finalPrescriptionV2/enduranceCoachingCopy";
 import type { GuidedSessionModuleProps } from "../sessionModules";
 import { activeActivityResult, isCorrectable } from "../results/activeResults";
 import {
@@ -33,7 +34,7 @@ function ActivityEntry({
   form,
   allowed,
   plannedLabel,
-  rpeLabel,
+  rpeHint,
   busy,
   onChange,
   onSave,
@@ -42,7 +43,7 @@ function ActivityEntry({
   form: EnduranceForm | null;
   allowed: readonly ActivityOption[];
   plannedLabel: string | null;
-  rpeLabel: string | null;
+  rpeHint: string | null;
   busy: boolean;
   onChange: (patch: Partial<ActivityFormValues>) => void;
   onSave: () => void;
@@ -111,7 +112,7 @@ function ActivityEntry({
       </fieldset>
       {field("activity-minutes", ENDURANCE_COPY.minutesLabel, "minutes", "numeric", plannedLabel ? `Prévu : ${plannedLabel}` : null)}
       {field("activity-km", ENDURANCE_COPY.kmLabel, "km", "decimal", null)}
-      {field("activity-rpe", ENDURANCE_COPY.rpeLabel, "rpe", "decimal", rpeLabel ? `Prévu : RPE ${rpeLabel} (bloc principal)` : null)}
+      {field("activity-rpe", ENDURANCE_COPY.rpeLabel, "rpe", "decimal", rpeHint)}
       <PrimaryButton type="submit" disabled={busy} className="w-full">
         {correcting ? "Enregistrer la correction" : "Enregistrer l'activité"}
       </PrimaryButton>
@@ -140,6 +141,9 @@ export function EnduranceSessionModule({ prescription, executionId, activityResu
   const planned = plannedMinutes(prescription);
   const plannedLabel = planned ? span(planned, " min") : null;
   const rpe = mainBlockRpe(prescription);
+  // PHYS-02 — an intervals session: the RPE asked is the repetitions'; the rider notes the whole session's.
+  const intervals = intervalsSummary(prescription);
+  const rpeHint = intervals ? `Prévu : RPE ${span(intervals.workRpe)} pendant les répétitions — note ton ressenti sur toute la séance` : rpe ? `Prévu : RPE ${span(rpe)} (bloc principal)` : null;
   const labelOf = (id: string) => allowed.find((a) => a.id === id)?.label ?? id;
 
   const change = (patch: Partial<ActivityFormValues>) => {
@@ -207,7 +211,7 @@ export function EnduranceSessionModule({ prescription, executionId, activityResu
               form={form}
               allowed={allowed}
               plannedLabel={plannedLabel}
-              rpeLabel={rpe ? span(rpe) : null}
+              rpeHint={rpeHint}
               busy={busy}
               onChange={change}
               onSave={() => void save()}

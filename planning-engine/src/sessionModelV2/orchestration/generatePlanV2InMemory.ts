@@ -4,7 +4,7 @@
  * PlanInputSnapshotV2 → shared planning pipeline with the V2 dose model
  * (BUG-V2-2: block progression — each week's role and dose, fitted to the
  * availability → final durations → placement) → generated
- * sessions → V2 builders (Force, DH, AEROBIC_BASE) → assignPrescriptionIds
+ * sessions → V2 builders (Force, DH, AEROBIC_BASE, PHYS-02 AEROBIC_INTERVALS) → assignPrescriptionIds
  * (injected mintId) → validatePrescriptionV2 → sport fingerprints.
  *
  * - Explicit only: nothing here is reached unless a caller asks for a V2
@@ -35,13 +35,14 @@ import type { ExerciseItemV2Content, PrescriptionV2, PrescriptionV2Content } fro
 import { buildDhPrescriptionV2Content } from "../builders/dhPrescriptionV2.js";
 import { deriveDhSessionOrdinals } from "../builders/dhSessionOrdinals.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
+import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Content } from "../builders/aerobicIntervalsPrescriptionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
-import { PLAN_DOSE_MODEL_V2 } from "./planDoseModelV2.js";
+import { PLAN_DOSE_MODEL_V2, planDoseModelV2 } from "./planDoseModelV2.js";
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 import type { StrengthDoseStepV2 } from "../../catalog/strengthDoseCatalogV2.js";
 
-export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE"];
+export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS"];
 
 export interface GeneratePlanV2InMemoryInput {
   /** Block content only — id / planVersionId are minted here. */
@@ -49,6 +50,8 @@ export interface GeneratePlanV2InMemoryInput {
   snapshot: PlanInputSnapshotV2;
   /** Identity strategy, injected (random UUIDs at runtime, deterministic in tests). */
   mintId: () => string;
+  /** PHYS-02 — place the intervals session in overload weeks (server switch; absent / false = the previous plans exactly). */
+  enduranceIntervals?: boolean;
 }
 
 export interface PlannedPrescriptionV2InMemory {
@@ -128,7 +131,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
     // Kept only because the pipeline input requires it: with the V2 dose model
     // HistoryAdjuster (its only reader) is never applied.
     recentHistory: snapshot.recentHistory,
-    sessionDoseModel: PLAN_DOSE_MODEL_V2,
+    sessionDoseModel: input.enduranceIntervals === true ? planDoseModelV2({ enduranceIntervals: true }) : PLAN_DOSE_MODEL_V2,
   });
 
   const flat = planning.weeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
@@ -258,6 +261,14 @@ function buildContent(
         durationMin: session.durationMin,
         catalog,
         // BUG-V2-1 — no riding window that day: off-terrain endurance only.
+        ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
+      });
+    case "AEROBIC_INTERVALS":
+      // PHYS-02 — the catalogue intervals session, at its fixed protocol duration (never shortened).
+      if (session.durationMin !== aerobicIntervalsDurationMinV2()) throw new SessionModelV2ContractError(`intervals session on ${session.date} placed with ${session.durationMin} min`);
+      return buildAerobicIntervalsPrescriptionV2Content({
+        sessionKind: session.kind,
+        catalog,
         ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
       });
     default:

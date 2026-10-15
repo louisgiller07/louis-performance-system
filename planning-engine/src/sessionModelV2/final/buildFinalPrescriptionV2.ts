@@ -41,7 +41,7 @@
  * persist_daily_run_v2 20261013120000): origin `manual_override_new_kind`, action = M1's decision (keep with no
  * adaptation rule / modify / replace), no planned prescription, the current plan version — only when that
  * version covers the date. A kind or load the builders cannot honour (POWER, GRIP_WORK,
- * PUMPTRACK, STRENGTH_FULL_LIGHT, AEROBIC_INTERVALS, MOBILITY, DH_PERFORMANCE…, a HEAVY Force) is an
+ * PUMPTRACK, STRENGTH_FULL_LIGHT, MOBILITY, DH_PERFORMANCE…, a HEAVY Force, intervals at another load than MODERATE) is an
  * explicit refusal, never an empty session. A10 applies as for any REPLACE.
  *
  * A10 — `timeLimitMin` (the rider's time today, chosen by
@@ -63,6 +63,17 @@
  * exercises (`strengthWorkSlots`), the cool-down keeping its mobility only;
  * a shortened MODIFY keeps lineage by exercise, never by position. A Force
  * session's duration under A10 is its content's estimate.
+ *
+ * PHYS-02 — intervals (AEROBIC_INTERVALS, protocol `endurance_intervals_3min`)
+ * have ONE dose, the protocol's (ADR UX-11A.5a.3 §5: no 4 / 6 selector, no
+ * fatigue, level or phase rule): KEEP copies it; a lighter or shorter
+ * intervals session is never built (`intervals_load_not_supported`: M1's
+ * decision is kept without a daily document, the reason traced); M1's
+ * same-nature MODIFY intervals → AEROBIC_BASE (MENTAL_RED, committed family)
+ * gets the base endurance session with the planned activity choice
+ * (`v2.modify.intervals_to_base`: the planned duration, LIGHT → the policy's
+ * LIGHT endurance duration); REPLACE / a manual session of that kind gets the
+ * catalogue session at MODERATE (`v2.replace.intervals`).
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -80,6 +91,7 @@ import { appendStrengthCoolDownV2, shortenStrengthContentV2 } from "../strengthD
 import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND, dhDrillForLoad, dhIntentForDrillV2 } from "../builders/dhPrescriptionV2.js";
 import { SESSION_DRILL_CATALOG_V2 } from "../../catalog/sessionDrillCatalogV2.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
+import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Content } from "../builders/aerobicIntervalsPrescriptionV2.js";
 import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
 import { buildKeepFinalPrescriptionV2, lineageFailure, trustedPlannedStructure, type BuildKeepFinalPrescriptionV2Input } from "./buildKeepFinalPrescriptionV2.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
@@ -133,6 +145,10 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   manualSession: "v2.manual.session",
   /** PHYS-01.1 — A10: the same Force session and dose, its last work exercises left out. */
   strengthShortened: "v2.time.strength_shortened",
+  /** PHYS-02 — M1's same-nature MODIFY of a planned intervals session: the base endurance session. */
+  intervalsToBase: "v2.modify.intervals_to_base",
+  /** PHYS-02 — REPLACE / manual session of the intervals kind: the catalogue intervals session. */
+  replaceIntervals: "v2.replace.intervals",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
@@ -275,6 +291,8 @@ function modifiedContent(
   // §6 — never raise the planned dose automatically, never a "modified" copy of the planned dose.
   if (upward) return { blocked: { reason: "upward_modify_not_supported", planned: plannedLoad, final: finalLoad } };
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
+  // PHYS-02 — the intervals session has one dose: never lighter, never shorter (ADR UX-11A.5a.3 §5).
+  if (planned.sessionKind === "AEROBIC_INTERVALS") return { blocked: { reason: "intervals_load_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
   // PHYS-01.1 — A10 shortened Force: the planned session (or M1's LIGHT dose of it), its last work exercises left out.
   if (timeLimitMin !== undefined && planned.family === "strength" && strengthWorkSlots !== undefined) {
     const base = downward ? lightStrengthContent(planned, context) : contentOf(planned);
@@ -309,6 +327,22 @@ function modifiedContent(
     default:
       return { blocked: { reason: "modify_family_not_supported", family: planned.family } };
   }
+}
+
+/**
+ * PHYS-02 — M1's same-nature MODIFY of a planned intervals session (MENTAL_RED, committed family): the base
+ * endurance session with the planned activity choice, at the planned duration (LIGHT: the policy's LIGHT
+ * endurance duration, as `v2.modify.endurance_light_duration`).
+ */
+function intervalsToBaseContent(planned: PrescriptionV2, final: { loadProfile?: LoadProfile }): Built {
+  const plannedMinutes = enduranceMinutes(planned);
+  const minutes = final.loadProfile === "LIGHT" ? Math.min(plannedMinutes, PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin) : plannedMinutes;
+  const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
+  return {
+    content: buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog: planned.catalog, ridingAvailable }),
+    rule: DAILY_ADAPTATION_RULES_V2.intervalsToBase,
+    durationMin: minutes,
+  };
 }
 
 /** A10 — MODIFY for time: the same DH drill in a planner window, or the same endurance protocol, shorter. */
@@ -395,6 +429,14 @@ function replacementContent(
     const minutes = Math.min(Math.max(final.durationMin ?? PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin, 45), 90);
     const content = buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable: context.ridingAvailable });
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
+  }
+  if (final.kind === "AEROBIC_INTERVALS") {
+    // PHYS-02 — the catalogue session at its one dose (MODERATE), never shortened.
+    if (final.loadProfile !== undefined && final.loadProfile !== "MODERATE") return { blocked: { reason: "intervals_load_not_supported", final: final.loadProfile } };
+    const minutes = aerobicIntervalsDurationMinV2();
+    if (timeLimitMin !== undefined && minutes > timeLimitMin) return { blocked: { reason: "intervals_not_shortened", durationMin: minutes, timeLimitMin } };
+    const content = buildAerobicIntervalsPrescriptionV2Content({ sessionKind: "AEROBIC_INTERVALS", catalog, ridingAvailable: context.ridingAvailable });
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceIntervals, durationMin: minutes };
   }
   if (final.kind === "RECOVERY_ACTIVE") {
     const content = buildRecoveryActivePrescriptionV2Content({ catalog });
@@ -524,15 +566,19 @@ function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): 
     // §9 — never adapt an older document with the current tables.
     return blocked("final_prescription_catalog_mismatch", { plannedAggregate: trusted.catalog.aggregate, runtimeAggregate: SESSION_MODEL_V2_AGGREGATE_VERSION });
   }
-  if (isModify && final.kind !== generated.kind) {
+  // PHYS-02 — the one same-nature kind change M1 makes (AEROBIC_INTERVALS → AEROBIC_BASE) has a document.
+  const intervalsToBase = isModify && generated.kind === "AEROBIC_INTERVALS" && final.kind === "AEROBIC_BASE";
+  if (isModify && final.kind !== generated.kind && !intervalsToBase) {
     return blocked("final_prescription_adaptation_not_defined", { reason: "modify_kind_change_not_supported", planned: generated.kind, final: final.kind });
   }
 
   let built: Built;
   try {
-    built = isModify
-      ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthWorkSlots)
-      : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
+    built = intervalsToBase
+      ? intervalsToBaseContent(trusted, final)
+      : isModify
+        ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthWorkSlots)
+        : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
   } catch (error) {
     // A V2 locked block (no compatible exercise for the declared equipment, DH data missing…) is an explicit refusal, never a fallback.
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });

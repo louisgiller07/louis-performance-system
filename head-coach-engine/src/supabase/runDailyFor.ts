@@ -421,6 +421,7 @@ export async function runDailyFor(
         ...computed.warnings,
         ...personalizationWarningsV2,
         ...(reconciliation.loadGuidanceWarning !== undefined ? [reconciliation.loadGuidanceWarning] : []),
+        ...(reconciliation.enduranceGuidanceWarning !== undefined ? [reconciliation.enduranceGuidanceWarning] : []),
       ],
       persistence: { decision_id: persisted.decision_id, health_flag_id: persisted.health_flag_id },
       executablePrescription: null,

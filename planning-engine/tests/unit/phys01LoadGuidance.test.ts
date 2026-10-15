@@ -69,7 +69,7 @@ describe("PHYS-01.1 — units and steps", () => {
     expect(strengthLoadStepV2("pushup")).toBeNull();
     expect(strengthLoadStepV2("resistance_band_row")).toBeNull();
     expect(guide([top4("2026-10-13", 60)], { ...BENCH, exerciseId: "barbell_bench_press" })).toMatchObject({ targetKg: 62.5, stepKg: 2.5, loadBasis: "total" });
-    expect(guide([], { ...BENCH, measure: { type: "duration", minSeconds: 30, maxSeconds: 45, perSide: false } })).toBeNull();
+    expect(guide([], { ...BENCH, measure: { type: "duration", minSeconds: 30, maxSeconds: 45, perSide: false } } as unknown as typeof BENCH)).toBeNull();
   });
 });
 

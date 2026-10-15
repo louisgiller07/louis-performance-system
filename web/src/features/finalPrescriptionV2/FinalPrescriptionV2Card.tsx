@@ -5,7 +5,9 @@
 import { PlanSection } from "../../components/PlanSection";
 import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionRead";
 import type { BlockView, DrillItemView, ExerciseItemView, FinalPrescriptionV2State, FinalPrescriptionV2View } from "./finalPrescriptionV2Types";
-import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
+import { BLOCKED_FALLBACK_MESSAGE, BLOCKED_MESSAGES, MANUAL_BLOCKED_MESSAGES, REASON_BLOCKED_MESSAGES, formatMeasure, formatSeconds, INVALID_MESSAGE, MISSING_MESSAGE, REST_MESSAGE, setsLabel, span } from "./finalPrescriptionV2Copy";
+import { enduranceRpeHint, intervalsSummary, intervalsSummaryLine, type IntervalsSummary } from "./enduranceCoachingCopy";
+import { EnduranceGuidanceNote } from "./EnduranceGuidanceNote";
 import { strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
 import { LoadGuidanceNote } from "./LoadGuidanceNote";
 
@@ -58,7 +60,7 @@ function DrillItem({ item }: { item: DrillItemView }) {
   );
 }
 
-function Block({ block }: { block: BlockView }) {
+function Block({ block, endurance }: { block: BlockView; endurance: boolean }) {
   const facts = [block.durationMinutes && span(block.durationMinutes, " min"), block.rpeTarget && `RPE ${span(block.rpeTarget)}`].filter(Boolean);
   return (
     <section className="flex flex-col gap-1.5" data-block-role={block.role}>
@@ -66,6 +68,11 @@ function Block({ block }: { block: BlockView }) {
         {block.roleLabel}
         {facts.length > 0 && ` · ${facts.join(" · ")}`}
       </p>
+      {endurance && block.rpeTarget && (
+        <p className="text-sm text-ink/80" data-testid="rpe-hint">
+          {enduranceRpeHint(block.rpeTarget)}
+        </p>
+      )}
       {block.instructions.map((instruction) => (
         <p key={instruction} className="text-sm text-ink/80">
           {instruction}
@@ -87,14 +94,43 @@ function Block({ block }: { block: BlockView }) {
   );
 }
 
+/** PHYS-02 — the intervals of an intervals session, as one part: the repetitions, then each step in order. */
+function IntervalsPart({ intervals }: { intervals: IntervalsSummary }) {
+  return (
+    <section className="flex flex-col gap-1.5" data-block-role="main" data-testid="intervals">
+      <p className="text-xs uppercase tracking-wide text-muted">Fractionné · {intervals.totalMinutes} min</p>
+      <p className="text-sm font-semibold text-ink">{intervalsSummaryLine(intervals)}</p>
+      <p className="text-sm text-ink/80" data-testid="rpe-hint">
+        {enduranceRpeHint(intervals.workRpe)}
+      </p>
+      <p className="text-sm text-ink/80">{intervals.workInstruction}</p>
+      <p className="text-sm text-ink/80">{intervals.easyInstruction}</p>
+      <ol className="flex flex-col gap-0.5 text-sm text-ink/80" aria-label="Déroulé des répétitions">
+        {Array.from({ length: intervals.repetitions }, (_, i) => (
+          <li key={i}>
+            Répétition {i + 1} : {intervals.workMinutes} min à RPE {span(intervals.workRpe)}
+            {i < intervals.repetitions - 1 ? `, puis ${intervals.easyMinutes} min faciles` : ""}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 /**
  * A02 — the content of a V2 prescription (Today, Program): its intent, for a
  * Force session what the counts mean (work exercises and work sets, warm-up
- * and ramp-up shown apart), then every block in order.
+ * and ramp-up shown apart), then every block in order. PHYS-02 — an
+ * endurance session also says what its RPE means, the rider's last session
+ * of the same protocol, and an intervals session shows its repetitions as one
+ * part (warm-up, intervals, cool-down).
  */
 export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { prescription: FinalPrescriptionV2View; title?: string }) {
   const summary = strengthSummary(prescription);
   const extras = summary ? strengthExtrasLine(summary) : null;
+  const endurance = prescription.family === "endurance";
+  const intervals = endurance ? intervalsSummary(prescription) : null;
+  const firstMain = prescription.blocks.findIndex((b) => b.role === "main");
   return (
     <PlanSection title={title}>
       <p className="font-medium text-ink">{prescription.intent}</p>
@@ -105,10 +141,15 @@ export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { 
         </div>
       )}
       {prescription.activities && <p className="text-sm text-ink/80">Activité au choix : {prescription.activities.join(", ")}</p>}
+      {prescription.enduranceGuidance && <EnduranceGuidanceNote guidance={prescription.enduranceGuidance} intervals={intervals !== null} />}
       <div className="flex flex-col gap-4">
-        {prescription.blocks.map((block) => (
-          <Block key={block.blockId} block={block} />
-        ))}
+        {prescription.blocks.map((block, index) =>
+          intervals && block.role === "main" ? (
+            index === firstMain ? <IntervalsPart key={block.blockId} intervals={intervals} /> : null
+          ) : (
+            <Block key={block.blockId} block={block} endurance={endurance} />
+          )
+        )}
       </div>
     </PlanSection>
   );
@@ -118,6 +159,12 @@ export function PrescriptionV2Details({ prescription, title = "Ta séance" }: { 
 function manualBlockedMessage(detail: Record<string, unknown> | null): string | null {
   const reason = detail?.reason;
   return typeof reason === "string" && Object.prototype.hasOwnProperty.call(MANUAL_BLOCKED_MESSAGES, reason) ? MANUAL_BLOCKED_MESSAGES[reason]! : null;
+}
+
+/** PHYS-02 — the precise reason an intervals session has no daily document; null otherwise. */
+function reasonBlockedMessage(detail: Record<string, unknown> | null): string | null {
+  const reason = detail?.reason;
+  return typeof reason === "string" && Object.prototype.hasOwnProperty.call(REASON_BLOCKED_MESSAGES, reason) ? REASON_BLOCKED_MESSAGES[reason]! : null;
 }
 
 /** Read-only view of today's V2 final prescription state (created, REST, blocked, or a fail-closed state). */
@@ -135,7 +182,7 @@ export function FinalPrescriptionV2Card({ state }: { state: FinalPrescriptionV2S
       return (
         <PlanSection title="Ta séance">
           <p className="text-ink/80" data-code={state.code}>
-            {manualBlockedMessage(state.detail) ?? BLOCKED_MESSAGES[state.code] ?? BLOCKED_FALLBACK_MESSAGE}
+            {manualBlockedMessage(state.detail) ?? reasonBlockedMessage(state.detail) ?? BLOCKED_MESSAGES[state.code] ?? BLOCKED_FALLBACK_MESSAGE}
           </p>
         </PlanSection>
       );

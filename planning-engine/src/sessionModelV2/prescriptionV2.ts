@@ -27,6 +27,9 @@
  *   exception (PHYS-01): `loadGuidance` on a work exercise of a FINAL Force
  *   prescription, read from the rider's own recorded loads (never a 1RM, a %
  *   or a declared value; validated at that place only).
+ * - PHYS-02: `enduranceGuidance` at the root of a FINAL endurance
+ *   prescription: the rider's last recorded session of the same protocol
+ *   (activity, duration, distance, RPE) — advisory, never a dose.
  *
  * Not generated, not persisted, not read by any engine yet.
  */
@@ -37,6 +40,7 @@ import type { EnduranceActivityV2, ProtocolBlockFocusV2 } from "../catalog/proto
 import type { SessionKind } from "../types/sharedVocabulary.js";
 import type { SessionModelV2CatalogManifest } from "./catalogManifest.js";
 import type { StrengthLoadGuidanceV2 } from "./strengthLoadGuidanceV2.js";
+import type { EnduranceGuidanceV2 } from "./enduranceGuidanceV2.js";
 
 export const PRESCRIPTION_V2_SCHEMA_VERSION = "v2";
 
@@ -130,6 +134,8 @@ export interface PrescriptionV2Content {
   activitySelection?: ActivitySelectionV2;
   catalog: SessionModelV2CatalogManifest;
   blocks: readonly BlockV2Content[];
+  /** PHYS-02 — final endurance prescription only: advice from the rider's own recorded sessions. */
+  enduranceGuidance?: EnduranceGuidanceV2;
 }
 
 /**

@@ -223,7 +223,11 @@ export function runPlanningPipeline(input: PlanningPipelineOrchestratorInput): P
       sessionDurationMinByDomain,
     });
 
-    const { assignments } = assignSessionKinds({ placedSlots });
+    const assigned = assignSessionKinds({ placedSlots }).assignments;
+    const refine = input.sessionDoseModel?.refineSessionKind;
+    const assignments = refine
+      ? assigned.map((a) => ({ ...a, kind: refine({ kind: a.kind, domain: a.domain, ...(shape !== undefined ? { shape } : {}) }) }))
+      : assigned;
 
     // --- Session-level calls: LoadDerivation then HistoryAdjuster, threaded via PipelineSessionEnvelope ---
     const historyAdjustedEnvelopes: PipelineSessionEnvelope<HistoryAdjusterOutput>[] = assignments.map((assignment) => {

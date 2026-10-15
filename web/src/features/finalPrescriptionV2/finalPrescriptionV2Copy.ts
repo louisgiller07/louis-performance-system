@@ -22,6 +22,15 @@ export const MANUAL_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   manual_session_outside_current_plan: "Cette séance ajoutée à la main est en dehors de ton programme actuel : NALYNT n'en construit pas le contenu.",
   riding_not_available: "Ton profil n'a pas de créneau vélo ce jour-là : NALYNT ne construit pas de séance de vélo pour ce jour.",
 };
+/**
+ * PHYS-02 — why an intervals session has no daily document (detail.reason of the blocked decision): the
+ * intervals session exists in one version only (6 × 3 min at RPE 8), never lighter, never shorter.
+ */
+export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
+  intervals_load_not_supported:
+    "Ton état du jour demande moins d'intensité, et le fractionné n'existe qu'en une seule version : NALYNT ne propose pas de fractionné allégé. Ne fais pas le fractionné prévu aujourd'hui.",
+  intervals_not_shortened: "Le fractionné n'est jamais raccourci : il ne tient pas dans le temps que tu as aujourd'hui.",
+};
 export const REST_MESSAGE = "Repos aujourd'hui : aucune séance à réaliser.";
 export const MISSING_MESSAGE = "Le détail de ta séance est momentanément indisponible.";
 export const INVALID_MESSAGE = "Le détail de cette séance n'est pas disponible.";

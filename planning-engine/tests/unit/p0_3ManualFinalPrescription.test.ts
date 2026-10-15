@@ -97,7 +97,8 @@ describe("P0-3 — manual Force: the rider's explicit kind, equipment and dose",
 });
 
 describe("P0-3 — preconditions and refusals", () => {
-  it.each(["POWER", "GRIP_WORK", "PUMPTRACK", "BIKE_MAINTENANCE", "STRENGTH_FULL_LIGHT", "AEROBIC_INTERVALS", "MOBILITY", "DH_PERFORMANCE"])("%s: explicit refusal, never an empty session", (kind) => {
+  // PHYS-02 — AEROBIC_INTERVALS has a builder now (catalogue session at MODERATE; see phys02EnduranceDaily.test.ts).
+  it.each(["POWER", "GRIP_WORK", "PUMPTRACK", "BIKE_MAINTENANCE", "STRENGTH_FULL_LIGHT", "MOBILITY", "DH_PERFORMANCE"])("%s: explicit refusal, never an empty session", (kind) => {
     const r = buildFinalPrescriptionV2(manualInput("KEEP", { kind, loadProfile: "MODERATE" }));
     expect(r).toMatchObject({ status: "blocked", code: "final_prescription_adaptation_not_defined", detail: { reason: "manual_kind_not_supported", target: kind } });
   });

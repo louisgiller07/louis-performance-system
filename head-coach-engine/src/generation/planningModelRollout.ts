@@ -33,6 +33,13 @@ export function parseV2PlanGenerationFlag(raw: string | undefined | null): boole
   return raw === "true";
 }
 
+/**
+ * PHYS-02 — name of the Edge secret placing the intervals session in the overload weeks of a V2 plan
+ * (ENDURANCE_INTERVALS_PLAN_POLICY_V2). Same parsing: only "true" turns it on; absent = the previous plans exactly.
+ * Read on the server only, never from the request.
+ */
+export const V2_ENDURANCE_INTERVALS_FLAG = "NALYNT_V2_ENDURANCE_INTERVALS_ENABLED";
+
 export function resolvePlanningModelForAthlete(input: { globalV2Enabled: boolean; assignment: PlanningModel | null }): PlanningModelResolution {
   // A09 — the switch stays a real V2 kill switch, and an athlete assigned V2 is refused, never served V1.
   if (!input.globalV2Enabled) return input.assignment === "v2" ? { planningModel: "v2", reason: "assigned_v2_disabled" } : { planningModel: "v1", reason: "global_v2_disabled" };

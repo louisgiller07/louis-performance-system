@@ -7,7 +7,7 @@
 // every id must resolve (exercise / drill names, cue, criterion, vigilance,
 // instruction, intent, activity); one unresolved id makes the whole document
 // invalid — never a partial rendering.
-import type { BlockView, DrillItemView, ExerciseItemView, ExerciseMeasureView, FinalPrescriptionV2View, LoadGuidanceView, LoadReferenceView, RangeView } from "./finalPrescriptionV2Types";
+import type { BlockView, DrillItemView, EnduranceGuidanceView, ExerciseItemView, ExerciseMeasureView, FinalPrescriptionV2View, LoadGuidanceView, LoadReferenceView, RangeView } from "./finalPrescriptionV2Types";
 import {
   BLOCK_ROLE_LABELS_V2,
   drillNameV2,
@@ -117,6 +117,26 @@ function loadGuidance(g: unknown): LoadGuidanceView | undefined {
     return reference ? { mode: "target", reason: g.reason, change: g.change, ...(hold ? { hold } : {}), targetKg: g.targetKg, stepKg: g.stepKg, loadBasis, reference } : undefined;
   }
   return undefined;
+}
+
+/**
+ * PHYS-02 — the endurance guidance, decoded leniently: advisory, so an
+ * unreadable one is dropped (undefined), never a failure of the document.
+ */
+function enduranceGuidance(g: unknown): EnduranceGuidanceView | undefined {
+  if (!isObject(g) || g.ruleVersion !== "endurance-guidance-v1" || !isObject(g.reference)) return undefined;
+  const r = g.reference;
+  const rpe = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= 10;
+  if (typeof r.sessionDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.sessionDate)) return undefined;
+  if (typeof r.activityId !== "string" || !Object.prototype.hasOwnProperty.call(ENDURANCE_ACTIVITY_LABELS_V2, r.activityId)) return undefined;
+  if (!isCount(r.durationSeconds)) return undefined;
+  if (r.distanceM !== null && !(typeof r.distanceM === "number" && Number.isInteger(r.distanceM) && r.distanceM >= 0)) return undefined;
+  if (r.rpeActual !== null && !rpe(r.rpeActual)) return undefined;
+  const reference = { sessionDate: r.sessionDate, activityLabel: ENDURANCE_ACTIVITY_LABELS_V2[r.activityId]!, durationSeconds: r.durationSeconds, distanceM: r.distanceM, rpeActual: r.rpeActual };
+  const e = g.effortAboveTarget;
+  if (e === undefined) return { reference };
+  if (!isObject(e) || !rpe(e.rpeActual) || !rpe(e.rpeTargetMax) || e.rpeActual <= e.rpeTargetMax) return { reference };
+  return { reference, effortAboveTarget: { rpeActual: e.rpeActual, rpeTargetMax: e.rpeTargetMax } };
 }
 
 function item(v: unknown, path: string): ExerciseItemView | DrillItemView {
@@ -241,6 +261,9 @@ export function decodeFinalPrescriptionV2(record: FinalPrescriptionV2Record): De
       ...(activityOptions ? { activities: activityOptions.map((a) => a.label), activityOptions } : {}),
       blocks: s.blocks.map((b, i) => block(b, `blocks[${i}]`)),
     };
+    // PHYS-02 — advisory, endurance only, never a reason to refuse the document.
+    const guidance = s.family === "endurance" ? enduranceGuidance(s.enduranceGuidance) : undefined;
+    if (guidance) view.enduranceGuidance = guidance;
     return { ok: true, view };
   } catch (e) {
     if (e instanceof Invalid) return { ok: false, kind: "invalid", reason: e.message };

@@ -6180,71 +6180,39 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 **Statut** : READY LOCAL / NOT DEPLOYED. Proposée comme 7e migration de REL-01 sur décision HPM.
 
 
-## 2026-10-15 — ADR PHYS-01 : coaching physique exécutable (Force) — PROPOSÉE
+## 2026-10-15 — ADR PHYS-01.1 : coaching physique Force exécutable, sans changement de format — ACCEPTÉE comme base technique locale (HPM, 2026-10-15)
 
-**Contexte (décision produit Louis / HPM, 2026-10-15).** Le rider doit recevoir une séance physique complète et personnalisée, puis la suite doit s'ajuster à ses résultats. L'inventaire de V2 (candidat D `649a0a2`) montre :
-- la Force est déjà détaillée : échauffement, exercices par niveau et matériel, séries, répétitions, RPE, repos, montée en charge, consignes, guidage série par série, avec saisie de la charge et du RPE ;
-- mais elle n'a pas de retour au calme ;
-- sa durée vient du créneau du planificateur (45 / 60 min) et non de son contenu (28–49 min mesurés), si bien qu'un rider qui n'a que 30 min ne reçoit jamais de Force ;
-- aucun moteur ne relit les séries enregistrées ;
-- le canon interdisait toute charge calculée et toute progression fondée sur la performance (docs/03 §5 et §10, docs/05 « Charge »). Il annonçait qu'une telle progression « demandera des données de réalisation et une décision séparée » : cette ADR est cette décision. Louis a choisi l'option « implémenter + diff canon », le 2026-10-15.
+**Contexte (décision produit Louis / HPM, 2026-10-15).** Le rider doit recevoir une séance physique complète et personnalisée, puis la suite doit s'ajuster à ses résultats. Dans V2 (candidat D `649a0a2`), la Force est déjà détaillée et guidée série par série, mais elle n'a pas de retour au calme, sa durée sous A10 vient du créneau du planificateur et non de son contenu, et aucun moteur ne relit les séries enregistrées. Le canon annonçait qu'une progression fondée sur la performance « demandera des données de réalisation et une décision séparée » : cette ADR est cette décision. Une première version (`5ec0976`) changeait la version du Session Model ; elle a été abandonnée, car le web de D ne lit qu'une liste fermée de manifestes.
 
-**Décision proposée (règles PROVISIONAL, validation par un préparateur physique qualifié avant toute commercialisation).**
+**Décision (comportement implémenté ; paramètres sportifs PROVISIONAL).**
+1. **Format inchangé.** Session Model `session-model-v2.6`, mêmes composants. Un plan est identique, octet pour octet, à celui de D.
+2. **Ajouts quotidiens, jamais au plan** (catalogue `strength-daily-v1`, hors manifeste, comme les règles A04 et A10) :
+   - toute prescription finale de Force se termine par le retour au calme : mobilité de la zone chargée, puis respiration à expiration longue, consigne `instruction.recovery.light_mobility` ; uniquement des identifiants existants ;
+   - KEEP = contenu prévu repris à l'identique + retour au calme ; aucune règle d'adaptation.
+3. **A10 Force à dose constante** (règle `v2.time.strength_shortened`) : la durée est l'estimation du contenu ; échelle = retour au calme réduit à sa mobilité, puis derniers exercices accessoires retirés (le principal est toujours gardé), puis récupération active, puis REST. Jamais un repos raccourci, jamais un échauffement amputé, jamais une dose plus légère pour une raison de temps. Filiation au plan par exercice.
+4. **Conseil de charge** (`loadGuidance`, `strength-load-guidance-v1`) sur les exercices de travail chargés d'une prescription **finale** : double progression sur les séries réellement enregistrées du même exercice (exécutions terminées, 56 jours) ; calibration par l'effort sans chiffre quand aucune charge n'existe ; référence de même fourchette de moins de 28 jours, sinon dernière charge montrée ; un cran de matériel au plus, unité explicite (par haltère / totale) ; une seule progression à la fois (`hold: dose_up`) ; aucune hausse un jour de douleur ou de fatigue M1 (`hold: pain` / `fatigue`). Consultatif, persisté avec la prescription finale, ignoré par le web de D, exclu de l'empreinte sport.
+5. **Compatibilité** : démontrée avec le code réel de D dans les deux sens (plan identique ; KEEP / MODIFY de D sur les données ; web de D lisant toutes les prescriptions ; séries enregistrées sous D relues). Seule `daily-run` change de comportement. Aucune migration, M1 inchangé.
 
-1. **Retour au calme** (`strength-templates-v2.2`) :
-   - d'abord la mobilité de la zone chargée, puis une respiration à expiration longue ;
-   - uniquement des exercices existants ayant le rôle `cool_down`, et la consigne existante `instruction.recovery.light_mobility`.
-2. **Durée réelle** :
-   - elle est estimée à partir du contenu, avec des bornes hautes prudentes (`PLAN_STRENGTH_TIMING_V2`, `plan-dose-policy-v2.5`) ;
-   - elle n'est utilisée que sous le temps du jour (A10) ;
-   - les créneaux du planificateur et les entrées de M1 sont inchangés.
-3. **Force courte** :
-   - même gabarit, même échauffement et mêmes exercices au dosage LIGHT ;
-   - exercice principal et secondaire seulement, plus la mobilité du retour au calme ;
-   - 26 à 28 min, quels que soient le profil et le matériel ;
-   - dernière marche de la Force sous A10, avant la récupération active ;
-   - la filiation se fait par exercice, jamais par position.
-4. **Conseil de charge** (`strength-load-guidance-v1`), sur les exercices de travail à charge externe d'une prescription **finale** :
-   - double progression, appliquée uniquement aux charges que le rider a réellement enregistrées dans une exécution terminée ;
-   - sans historique → calibration par l'effort (répétitions en réserve), sans aucun chiffre ;
-   - fourchette différente ou référence de plus de 28 jours → la dernière charge est montrée, jamais convertie ;
-   - sinon, un cran au plus : monter si toutes les séries prescrites sont au haut de la fourchette sans dépasser l'effort cible ; descendre si une série est sous la fourchette ou si le RPE atteint la cible + 2 ; garder dans tous les autres cas ;
-   - jamais de 1RM, de % ni de valeur déclarée au profil ;
-   - le conseil est validé à cet endroit seulement ; partout ailleurs, `forbidden_load_field` est inchangé.
-5. **Intégration** : le conseil est lu et attaché par la réconciliation V2 (couche Supabase).
-   - Il est consultatif : un échec de lecture ne bloque jamais la décision, et un avertissement stable est émis.
-   - Il est persisté avec la prescription finale ; aucune migration n'est nécessaire.
-   - Il est exclu de l'empreinte sport.
-   - M1 n'est pas modifié.
-6. **Versions** : agrégat `session-model-v2.7`.
-   - Le web lit v2.7, v2.6 et v2.5.
-   - Un plan v2.6 garde son KEEP. Son MODIFY est un `final_prescription_catalog_mismatch` (§9).
+**Canon** : diffs proposés dans `docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md` (architecture, comportements, paramètres sportifs séparés). Rien n'est appliqué avant accord.
 
-**Canon** : diffs proposés pour docs/03, docs/04, docs/05, docs/07 et docs/10 (`docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`). Rien n'est appliqué avant accord.
+**Statut** : base technique locale acceptée par HPM (`5466df3`), NOT DEPLOYED. Paramètres sportifs PROVISIONAL, validation par un préparateur physique qualifié requise.
 
-**Statut** : READY LOCAL (parcours vertical Force) / NOT DEPLOYED, branche `feat/phys-01-physical-coaching`. Intégration après REL-01, sur GO HPM.
+## 2026-10-15 — ADR PHYS-02 : endurance et fractionné exécutables — PROPOSÉE
 
-## 2026-10-15 — ADR PHYS-01.1 : stabilisation Force, compatibilité sans changement de version — PROPOSÉE (révise PHYS-01)
-
-**Constat (HPM, PHYS-01.1).** PHYS-01 (`5ec0976`) passait le Session Model en v2.7. Le web de D n'accepte que les manifestes v2.6 et v2.5 (liste blanche) : il aurait refusé toute séance PHYS-01, et un retour du web vers D devenait impossible dès le premier document v2.7. Démontré sur le code réel de D, en contre-preuve.
+**Contexte (HPM, GO LOCAL PHYS-02).** L'endurance fondamentale V2 existe de bout en bout (plan, KEEP / MODIFY / A10, module guidé, activité réalisée). Le protocole `endurance_intervals_3min` existe dans le catalogue v2.6 (ADR UX-11A.5a.3 §5–6 : 6 × 3 min à RPE 8, 2 min faciles entre, échauffement et retour au calme sans RPE ; variante 4 × 3 non sélectionnable, aucune règle de fatigue, de niveau ou de phase), mais aucun builder ne le produit, le planificateur ne place que `AEROBIC_BASE`, et le format `PrescriptionV2` n'a pas d'élément « intervalles ». Le runtime de D construit tout MODIFY d'endurance avec le builder d'endurance fondamentale : sur une séance prévue `AEROBIC_INTERVALS`, il lève une erreur de contrat non rattrapée.
 
 **Décision proposée.**
-1. **Aucun changement de version du Session Model.** Le retour au calme n'est pas inscrit dans les gabarits : c'est un **ajout quotidien** à toute prescription finale de Force. Il n'utilise que des identifiants existants, et son catalogue `strength-daily-v1` est hors manifeste, comme les règles A04 et A10.
-   - Le plan reste celui de D, octet pour octet.
-   - KEEP = contenu prévu repris à l'identique + retour au calme ajouté à la fin ; aucune règle d'adaptation.
-2. **A10 Force à dose constante.**
-   - Plus de passage en LIGHT pour une raison de temps.
-   - Échelle : retour au calme réduit, puis derniers exercices accessoires retirés ; ensuite récupération, puis REST.
-   - Jamais un repos raccourci, ni un échauffement amputé. La filiation au plan se fait par exercice.
-3. **Conseil de charge affiné** :
-   - la référence est la dernière séance de **même fourchette** (moins de 28 jours) ;
-   - une seule progression à la fois (`hold: dose_up`) ;
-   - aucune hausse un jour de douleur déclarée ou de fatigue M1, C3.3, C3.5, C3.6 ou C3.7 (`hold: pain` / `fatigue`) ;
-   - unité explicite (`loadBasis` : par haltère ou totale) ;
-   - même exercice seulement.
-4. **Déploiement** : seule `daily-run` change de comportement. `generate-training-plan` produit des plans identiques et n'a pas besoin d'être redéployée. Le web PHYS-01 n'ajoute que l'affichage du conseil.
-   - Le web de D lit toutes les séances PHYS-01.1.
-   - Le `runDailyFor` de D fonctionne sur des données PHYS-01.1 (KEEP, MODIFY).
-   - Le rollback vers D est donc possible à tout moment, dans les deux sens.
+1. **Format inchangé** (`session-model-v2.6`). Le fractionné est le protocole du catalogue, encodé avec des champs existants : un bloc `main` par répétition (3 min, RPE 8, consigne de travail) et un bloc `main` par récupération entre deux répétitions (2 min, consigne facile), `items: []`. Total 53 min. Le web de D le lit bloc par bloc.
+2. **Placement** (politique `endurance-intervals-plan-v1`, hors manifeste, PROVISIONAL) : la séance d'endurance de chaque semaine de surcharge (`build_plus`) devient le fractionné, **uniquement** si le plan est généré avec l'option serveur `NALYNT_V2_ENDURANCE_INTERVALS_ENABLED=true` (absente = plans identiques à D). Le fractionné n'est jamais raccourci : sans créneau de 53 min, la semaine retombe sur l'endurance fondamentale qui tient (`adapted_to_availability`). La semaine le dit (raison `endurance_intervals`, phrase, `targets.aerobicSessionKind`, `intervalsPolicy`). Retenue des séances manquées, semaines de course et d'affûtage : endurance fondamentale.
+3. **Jour (une seule dose)** :
+   - KEEP : copie du fractionné prévu ;
+   - MODIFY vers LIGHT (C3.3, C3.6, douleur) : aucun fractionné allégé n'existe → décision M1 conservée sans prescription du jour, raison `intervals_load_not_supported` (cas « non défini » de docs/03 §6) ;
+   - MODIFY fractionné → endurance fondamentale (MENTAL_RED, famille engagée — paire de même nature de M1) : la séance d'endurance fondamentale avec les activités prévues, à la durée prévue (LIGHT : 45 min), règle `v2.modify.intervals_to_base` ;
+   - REPLACE / séance manuelle `AEROBIC_INTERVALS` : la séance du catalogue en MODERATE seulement (`v2.replace.intervals`) ;
+   - A10 : le fractionné n'est jamais coupé ; s'il ne tient pas, endurance fondamentale qui tient (45 min), puis récupération active. L'échelle d'endurance atteint 45 min depuis une durée hors grille.
+4. **Guidage** (`enduranceGuidance`, `endurance-guidance-v1`, consultatif) : la dernière séance terminée du **même protocole** (28 jours), telle qu'enregistrée (activité, durée, distance, RPE). En endurance fondamentale seulement, un RPE noté au-dessus de la cible du jour est rappelé (test de la parole). Jamais de fréquence cardiaque, de FTP ni de zone. Persisté avec la prescription finale, ignoré par le web de D, exclu de l'empreinte sport ; un échec de lecture ne bloque jamais la décision.
+5. **Rollback** : tant que l'option est absente, D reste un retour arrière sûr dans les deux sens (démontré sur son code). Une fois des plans avec fractionné acceptés, le retour du runtime vers D n'est plus sûr pour ces riders (D plante sur un fractionné allégé, rien n'est persisté ce jour-là) : le retour arrière est alors l'option à `false` avec le runtime PHYS-02, qui sait servir les plans existants.
 
-**Statut** : READY LOCAL / NOT DEPLOYED. Les diffs canoniques sont révisés dans `docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`. Toutes les valeurs restent PROVISIONAL, en attente d'une validation sportive qualifiée.
+**Canon** : diffs proposés dans `docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`. Conflit signalé : « fractionné adapté au niveau » (demande HPM) contre ADR UX-11A.5a.3 §5 (aucune règle de niveau, aucun sélecteur 4 / 6) ; non résolu ici.
+
+**Statut** : READY LOCAL / NOT DEPLOYED, branche `feat/phys-02-endurance`. Activation de l'option sur GO HPM séparé. Aucune migration, M1 inchangé.

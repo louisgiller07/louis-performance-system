@@ -38,6 +38,8 @@ export interface GenerateAndPersistTrainingPlanV2Input {
   today: string;
   generationTrigger?: GenerationTrigger;
   baseVersionId?: string;
+  /** PHYS-02 — place the intervals session in overload weeks (server switch); absent = the previous plans exactly. */
+  enduranceIntervals?: boolean;
 }
 
 export type GenerateAndPersistTrainingPlanV2Result =
@@ -88,7 +90,7 @@ export async function generateAndPersistTrainingPlanV2(
   const block = deriveTrainingPlanBlock(input.today, input.durationWeeks);
   const snapshot = await deps.buildPlanInputSnapshotV2(input.client, input.athleteId, input.today, { startDate: block.startDate, endDate: block.endDate });
 
-  const generated = generatePlanV2InMemory({ block, snapshot, mintId: deps.mintId });
+  const generated = generatePlanV2InMemory({ block, snapshot, mintId: deps.mintId, ...(input.enduranceIntervals === true ? { enduranceIntervals: true } : {}) });
   if (generated.status === "blocked") return generated;
 
   const generationTrigger = input.generationTrigger ?? "initial";

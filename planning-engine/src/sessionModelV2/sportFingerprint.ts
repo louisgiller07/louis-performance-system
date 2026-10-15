@@ -40,6 +40,8 @@ export const SPORT_FINGERPRINT_EXCLUDED_KEYS: readonly string[] = [
   "occurredAt",
   // PHYS-01 — derived daily from the rider's recorded sets, never session content.
   "loadGuidance",
+  // PHYS-02 — advice from the rider's history (final endurance prescriptions only), not sport content.
+  "enduranceGuidance",
 ];
 
 const EXCLUDED = new Set(SPORT_FINGERPRINT_EXCLUDED_KEYS);

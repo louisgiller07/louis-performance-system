@@ -27,6 +27,8 @@ export interface GenerateTrainingPlanForAthleteInput {
   today: string;
   /** Parsed global switch (parseV2PlanGenerationFlag). */
   globalV2Enabled: boolean;
+  /** PHYS-02 — parsed V2_ENDURANCE_INTERVALS_FLAG (V2 plans only); absent / false = no intervals session placed. */
+  enduranceIntervals?: boolean;
 }
 
 // Derived from the V2 path itself, so this dispatcher stays outside the Session Model V2 import boundary.
@@ -61,7 +63,7 @@ export async function generateTrainingPlanForAthlete(
       const v1 = await deps.generateAndPersistTrainingPlan(common);
       return { ...resolution, status: "persisted", planVersionId: v1.planVersionId, idempotentReplay: v1.idempotentReplay };
     }
-    const v2 = await deps.generateAndPersistTrainingPlanV2({ planningModel: "v2", ...common });
+    const v2 = await deps.generateAndPersistTrainingPlanV2({ planningModel: "v2", ...common, ...(input.enduranceIntervals === true ? { enduranceIntervals: true } : {}) });
     if (v2.status === "blocked") return { ...resolution, status: "blocked", code: v2.code, detail: v2.detail };
     return { ...resolution, status: "persisted", planVersionId: v2.planVersionId, idempotentReplay: v2.idempotentReplay };
   } catch (error) {

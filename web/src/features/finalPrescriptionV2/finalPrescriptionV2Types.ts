@@ -82,6 +82,13 @@ export interface BlockView {
   items: (ExerciseItemView | DrillItemView)[];
 }
 
+/** PHYS-02 — the rider's last recorded session of the same endurance protocol (advisory). */
+export interface EnduranceGuidanceView {
+  reference: { sessionDate: string; activityLabel: string; durationSeconds: number; distanceM: number | null; rpeActual: number | null };
+  /** Base endurance only: the recorded RPE was above today's main-block target. */
+  effortAboveTarget?: { rpeActual: number; rpeTargetMax: number };
+}
+
 /** A final prescription V2 fully decoded and resolved against the supported catalogue version. */
 export interface FinalPrescriptionV2View {
   id: string;
@@ -97,6 +104,8 @@ export interface FinalPrescriptionV2View {
   /** Endurance only (UX-11C.4): the same choice with the prescription's activity ids, in order. */
   activityOptions?: { id: string; label: string }[];
   blocks: BlockView[];
+  /** PHYS-02 — final endurance prescriptions only; absent when the engine gave none or it is unreadable. */
+  enduranceGuidance?: EnduranceGuidanceView;
 }
 
 /**
