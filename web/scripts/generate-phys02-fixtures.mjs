@@ -89,6 +89,9 @@ out.finalPrescriptions.A10_INTERVALS_TO_BASE_45 = guided(created(v2.buildFinalPr
   if (!r.finalPrescription.adaptationRuleIds.includes("v2.modify.intervals_light_to_base")) throw new Error("LIGHT intervals must fall back to base endurance");
   out.finalPrescriptions.MODIFY_LIGHT_INTERVALS_FALLBACK = guided(r);
 }
+// PHYS-02.1 — the same LIGHT day with a pain the existing rule does not clear for endurance: no activity, as the engine returns it.
+out.blockedPainFallback = v2.buildFinalPrescriptionV2({ ...input(intervals, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT", durationMin: 53 }, 7), enduranceFallbackPain: { cleared: false, zone: "lower" } });
+if (out.blockedPainFallback.status !== "blocked") throw new Error("the fallback must be withheld for an uncleared pain");
 // PHYS-02.1 — a manual intervals session the rider set to LIGHT (M1 KEEP): refused, as the engine returns it.
 {
   const manual = {

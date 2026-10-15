@@ -30,6 +30,9 @@ export const MANUAL_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
 export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   intervals_load_not_supported: "Le fractionné n'existe qu'en une seule version (6 × 3 min à RPE 8) : NALYNT ne construit pas cette adaptation.",
   intervals_not_shortened: "Le fractionné n'est jamais raccourci : il ne tient pas dans le temps que tu as aujourd'hui.",
+  // PHYS-02.1 — the light base endurance fallback is withheld for today's pain.
+  intervals_fallback_pain_not_cleared:
+    "Tu as signalé une douleur que l'endurance solliciterait. NALYNT ne sait pas encore quelle activité la ménage : aucune séance n'est proposée aujourd'hui à la place du fractionné.",
 };
 /** PHYS-02.1 — a manual intervals session at another load than moderate (detail.target = AEROBIC_INTERVALS). */
 export const MANUAL_INTERVALS_LOAD_MESSAGE =

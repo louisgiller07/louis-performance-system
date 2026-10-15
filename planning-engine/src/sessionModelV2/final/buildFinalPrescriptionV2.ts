@@ -82,7 +82,11 @@
  * AEROBIC_BASE under M1's MODIFY AEROBIC_INTERVALS LIGHT: the integration
  * layer aligns the persisted decision on it, traced (V2_INTERVALS_LIGHT_FALLBACK).
  * Any other load change of an intervals session stays undefined
- * (`intervals_load_not_supported`).
+ * (`intervals_load_not_supported`). The fallback offers activities
+ * (bike, home trainer, running): it is proposed only when today's pain, if
+ * any, is cleared for endurance by the existing pain rule
+ * (`enduranceFallbackPain`, given by the integration layer); otherwise
+ * `intervals_fallback_pain_not_cleared` — no activity chosen for the rider.
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -137,6 +141,11 @@ export interface BuildFinalPrescriptionV2Input extends BuildKeepFinalPrescriptio
   strengthWorkSlots?: number;
   /** PHYS-01.1 — ids of the daily Force additions (cool-down); the daily runtime always passes it. Absent = no addition. */
   dailyMintId?: () => string;
+  /**
+   * PHYS-02.1 — today's pain against the intervals LIGHT fallback (base endurance), from the existing pain rule
+   * (integration layer). Not cleared → the fallback is not proposed. Absent = no pain information (pure callers).
+   */
+  enduranceFallbackPain?: { cleared: true } | { cleared: false; zone: string };
 }
 
 /** Stable rule ids of a modify / replace document (`adaptation_rule_ids`, never empty for those actions). */
@@ -584,7 +593,13 @@ function withDailyStrengthAdditions(result: FinalPrescriptionV2Result, input: Bu
 }
 
 export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
-  return withDailyStrengthAdditions(buildFinalPrescriptionV2Content(input), input);
+  const result = buildFinalPrescriptionV2Content(input);
+  // PHYS-02.1 — no activity is proposed for a pain the existing rule does not clear for endurance.
+  const pain = input.enduranceFallbackPain;
+  if (result.status === "created" && pain !== undefined && !pain.cleared && result.finalPrescription.adaptationRuleIds.includes(DAILY_ADAPTATION_RULES_V2.intervalsLightToBase)) {
+    return blocked("final_prescription_adaptation_not_defined", { reason: "intervals_fallback_pain_not_cleared", zone: pain.zone });
+  }
+  return withDailyStrengthAdditions(result, input);
 }
 
 function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {

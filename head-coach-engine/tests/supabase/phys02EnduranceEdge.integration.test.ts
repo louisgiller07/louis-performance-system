@@ -137,6 +137,11 @@ describe.skipIf(!ENABLED)(`PHYS-02 — the intervals option over HTTP (local Edg
     expect(light.body.dailyPlan.triggered_rules.map((t: { rule_id: string }) => t.rule_id)).toContain("V2_INTERVALS_LIGHT_FALLBACK");
     expect([light.body.finalPrescription.structure.protocolId, light.body.finalPrescription.structure.blocks.map((x: { durationMinutes: { max: number } }) => x.durationMinutes.max)]).toEqual(["endurance_base_continuous", [10, 30, 5]]);
 
+    // B — 11-13 with a mild knee pain: no activity proposed (the existing pain rule does not clear endurance), traced.
+    await insertCheckin(admin, b.athleteId, "2026-11-13", { pain: true, pain_intensity: 3, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
+    const knee = await invoke(b.client, "daily-run", { date: "2026-11-13" });
+    expect([knee.status, knee.body.dailyPlan.decision, knee.body.finalPrescriptionStatus, knee.body.finalPrescriptionStatusDetail]).toEqual([200, "MODIFY", "blocked", { reason: "intervals_fallback_pain_not_cleared", zone: "lower" }]);
+
     // Deactivating the option is the secret only: the existing plans are untouched by serving them.
     expect([await planState(a.athleteId, a.planVersionId), await planState(b.athleteId, b.planVersionId)]).toEqual(before);
   });

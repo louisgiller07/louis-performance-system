@@ -46,7 +46,7 @@ Quand M1 décide **MODIFY vers LIGHT** sur une séance `AEROBIC_INTERVALS` (pré
   - aucune autre règle de fatigue, aucun sélecteur 4 / 6, aucune règle de niveau ou de phase.
 - **Deuxième exception, à valider avec la première** : principe « la décision de M1 n'est pas changée ». Seul le type de séance persisté est aligné, de façon tracée, comme `V2_SYSTEMIC_FLOOR` et `V2_TODAY_TIME_CONSTRAINT`. Le libellé MODIFY et la charge LIGHT restent ceux de M1.
 - **Règle technique et paramètres sportifs séparés** :
-  - technique (architecture §A.8) : transformation tracée, ordre P0-SAFE → M1 → plancher systémique → prescription → A10 → repli → A07 ;
+  - technique (architecture §A.9) : transformation tracée, ordre P0-SAFE → M1 → plancher systémique → prescription → A10 → repli → A07 ;
   - sportif provisoire (tableau §C) : séance de remplacement, 45 min, phrase au rider.
 - **Niveau d'endurance** : non introduit (aucune donnée au profil). Le conflit « fractionné adapté au niveau » reste ouvert.
 - **Journal** : ADR PHYS-02 annotée (jour LIGHT révisé), ADR PHYS-02.1 ajoutée. Diffs mis à jour pour docs/03 §6, docs/04, docs/07 (« Repli du fractionné »), docs/10 T65.
@@ -112,6 +112,6 @@ Aucune suppression de données, aucune modification de plan.
 
 - Génération 6 × 3 min à RPE 8 et placement en semaine de surcharge : non activés.
 - Repli LIGHT : séance (endurance fondamentale), durée 45 min, formulation au rider.
-- Douleur non-safety localisée (genou, cheville…) : le repli garde les activités prévues, course à pied comprise. Le choix d'activité selon la zone douloureuse n'est pas une règle existante.
+- Douleur non-safety localisée (genou, cheville…) : **corrigé** dans le rapport final (`PHYS_02_FINAL_REPORT.md`) — aucune activité n'est plus proposée quand la règle douleur existante ne libère pas la zone.
 - Niveau d'endurance absent du profil ; résultats par répétition non enregistrés.
 - Tous les autres paramètres de PHYS-01.1 / PHYS-02 (tableau §C des propositions) restent à valider.

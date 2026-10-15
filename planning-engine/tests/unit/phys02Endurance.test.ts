@@ -199,6 +199,25 @@ describe("PHYS-02 — daily: the intervals session has one dose (never lighter, 
     expect(f.structure.activitySelection).toEqual({ mode: "restricted", activityIds: ["home_trainer", "running"] });
   });
 
+  it("PHYS-02.1 — a pain the existing rule does not clear for endurance: no activity is proposed — a safe, explicit state (whatever the riding window)", () => {
+    const light = { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" as const, durationMin: 53 };
+    for (const ridingAvailable of [true, false]) {
+      expect(buildFinalPrescriptionV2({ ...input(INTERVALS, "MODIFY", light, ridingAvailable), enduranceFallbackPain: { cleared: false, zone: "lower" } })).toEqual({
+        status: "blocked",
+        code: "final_prescription_adaptation_not_defined",
+        detail: { reason: "intervals_fallback_pain_not_cleared", zone: "lower" },
+      });
+    }
+    // Under the rider's time too: no recovery activity chosen either (the state stays explicit).
+    const timed = buildFinalPrescriptionWithinTodayTimeV2({ ...input(INTERVALS, "MODIFY", light), enduranceFallbackPain: { cleared: false, zone: "unspecified" }, availableMinutes: 30 });
+    expect([timed.status, timed.timeConstraint?.action]).toEqual(["blocked", "not_evaluated"]);
+    // Cleared (no pain, or a zone endurance does not solicit): the fallback as before, off-terrain activities on a day without riding.
+    expect(created(buildFinalPrescriptionV2({ ...input(INTERVALS, "MODIFY", light), enduranceFallbackPain: { cleared: true } })).adaptationRuleIds).toEqual(["v2.modify.intervals_light_to_base"]);
+    // The gate concerns the fallback only: KEEP intervals and a base session are untouched.
+    expect(created(buildFinalPrescriptionV2({ ...input(INTERVALS, "KEEP", KEEP_INTERVALS), enduranceFallbackPain: { cleared: false, zone: "lower" } })).structure.sessionKind).toBe("AEROBIC_INTERVALS");
+    expect(created(buildFinalPrescriptionV2({ ...input(BASE_60, "KEEP", { kind: "AEROBIC_BASE", loadProfile: "MODERATE", durationMin: 60 }), enduranceFallbackPain: { cleared: false, zone: "lower" } })).structure.sessionKind).toBe("AEROBIC_BASE");
+  });
+
   it("any other load change of an intervals session stays undefined (never a fallback without M1's LIGHT)", () => {
     expect(buildFinalPrescriptionV2(input(INTERVALS, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "MODERATE" }))).toMatchObject({ status: "blocked", detail: { reason: "intervals_load_not_supported" } });
     expect(buildFinalPrescriptionV2(input(INTERVALS, "MODIFY", { kind: "AEROBIC_INTERVALS", loadProfile: "HEAVY" }))).toMatchObject({ status: "blocked", detail: { reason: "upward_modify_not_supported" } });
@@ -244,6 +263,7 @@ describe("PHYS-02 — daily: the intervals session has one dose (never lighter, 
       [10, 30, 5],
     ]);
     expect(created(buildFinalPrescriptionV2(manual("MODIFY", "LIGHT", false))).structure.activitySelection).toEqual({ mode: "restricted", activityIds: ["home_trainer", "running"] });
+    expect(buildFinalPrescriptionV2({ ...manual("MODIFY", "LIGHT"), enduranceFallbackPain: { cleared: false, zone: "lower" } })).toMatchObject({ status: "blocked", detail: { reason: "intervals_fallback_pain_not_cleared", zone: "lower" } });
     expect(buildFinalPrescriptionV2(manual("KEEP", "LIGHT"))).toEqual({
       status: "blocked",
       code: "final_prescription_adaptation_not_defined",

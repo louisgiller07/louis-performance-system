@@ -98,6 +98,14 @@ describe("PHYS-02 — the intervals session, readable", () => {
     expect(screen.getAllByTestId("rpe-hint")[1]!.textContent).toBe("Facile : respiration aisée, tu peux parler en phrases complètes.");
   });
 
+  it("PHYS-02.1 — a LIGHT day with a pain endurance would solicit: the precise reason, no activity proposed", () => {
+    const blocked = fixtures.blockedPainFallback as { code: string; detail: Record<string, unknown> };
+    expect(blocked.detail).toEqual({ reason: "intervals_fallback_pain_not_cleared", zone: "lower" });
+    render(<FinalPrescriptionV2Card state={{ kind: "blocked", code: blocked.code, detail: blocked.detail }} />);
+    expect(screen.getByText("Tu as signalé une douleur que l'endurance solliciterait. NALYNT ne sait pas encore quelle activité la ménage : aucune séance n'est proposée aujourd'hui à la place du fractionné.")).toBeTruthy();
+    expect(screen.queryByText(/Activité au choix/)).toBeNull();
+  });
+
   it("a manual intervals session at another load than moderate: the precise reason (not the Force one), never an empty session", () => {
     const blocked = fixtures.blockedManualLightIntervals as { code: string; detail: Record<string, unknown> };
     render(<FinalPrescriptionV2Card state={{ kind: "blocked", code: blocked.code, detail: blocked.detail }} />);

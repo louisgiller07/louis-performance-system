@@ -871,6 +871,14 @@
       "generatedPlanSessionId": "00000000-0000-4000-8000-000000000149"
     }
   },
+  "blockedPainFallback": {
+    "status": "blocked",
+    "code": "final_prescription_adaptation_not_defined",
+    "detail": {
+      "reason": "intervals_fallback_pain_not_cleared",
+      "zone": "lower"
+    }
+  },
   "blockedManualLightIntervals": {
     "status": "blocked",
     "code": "final_prescription_adaptation_not_defined",

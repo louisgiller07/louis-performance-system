@@ -168,13 +168,39 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
     expect([d13.dailyPlan.decision, minutesOf(f13.structure), f13.structure.enduranceGuidance]).toEqual(["KEEP", INTERVALS_MINUTES, undefined]);
   });
 
-  it("B2 — PHYS-02.1, tired legs (C3.6) and a mild knee pain (non-safety) on intervals days: the same LIGHT fallback", async () => {
+  it("B2 — PHYS-02.1, tired legs (C3.6) on an intervals day: the same LIGHT fallback", async () => {
     const r = await rider("B2", true);
     await insertCheckin(admin, r.athleteId, "2026-10-23", { leg_fatigue: 8 });
     expect((await expectLightFallback(r.athleteId, "2026-10-23")).ruleIds).toContain("C3.6");
-    await insertCheckin(admin, r.athleteId, "2026-11-13", { pain: true, pain_intensity: 3, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
-    expect((await expectLightFallback(r.athleteId, "2026-11-13")).ruleIds).toContain("PAIN_NON_SAFETY");
-  })
+  });
+
+  it("B3 — PHYS-02.1, a mild knee pain (non-safety, solicited by endurance): no activity proposed — M1's decision kept, a safe, explicit, traced state", async () => {
+    const r = await rider("B3", true);
+    await insertCheckin(admin, r.athleteId, "2026-10-23", { pain: true, pain_intensity: 3, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    expect([d.dailyPlan.decision, d.dailyPlan.final_session, d.finalPrescriptionStatus, d.finalPrescriptionStatusCode, d.finalPrescriptionStatusDetail]).toEqual([
+      "MODIFY",
+      { kind: "AEROBIC_INTERVALS", load_profile: "LIGHT", duration_min: 53 },
+      "blocked",
+      "final_prescription_adaptation_not_defined",
+      { reason: "intervals_fallback_pain_not_cleared", zone: "lower" },
+    ]);
+    const rules = d.dailyPlan.triggered_rules.map((t) => t.rule_id);
+    expect(rules).toContain("PAIN_NON_SAFETY");
+    expect(d.dailyPlan.triggered_rules.at(-1)!.rule_id).toBe("V2_INTERVALS_LIGHT_FALLBACK");
+    const { data } = await admin.from("decision_final_prescriptions").select("id").eq("decision_id", d.persistence.decision_id);
+    expect(data).toEqual([]);
+    // The same pain without location (the rule's cautious reading), with little time: still no activity chosen.
+    await insertCheckin(admin, r.athleteId, "2026-11-13", { pain: true, pain_intensity: 2, pain_new: false, pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false, available_minutes_today: 30 });
+    const d2 = await runDailyFor(admin, r.athleteId, "2026-11-13");
+    expect([d2.dailyPlan.decision, d2.finalPrescriptionStatus, d2.finalPrescriptionStatusDetail]).toEqual(["MODIFY", "blocked", { reason: "intervals_fallback_pain_not_cleared", zone: "unspecified" }]);
+  });
+
+  it("B4 — PHYS-02.1, a wrist pain (not solicited by endurance per the existing rule) after a short night: the fallback as without pain", async () => {
+    const r = await rider("B4", true);
+    await insertCheckin(admin, r.athleteId, "2026-10-23", { ...SYSTEMIC_RED, pain: true, pain_intensity: 3, pain_new: false, pain_location_code: "wrist_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
+    expect((await expectLightFallback(r.athleteId, "2026-10-23")).ruleIds).toContain("C3.3");
+  });
 
   it("C — docs/10 T1.3 (mental RED on an intervals day): MODIFY → the base endurance session at the planned 53 min", async () => {
     const r = await rider("C", true);

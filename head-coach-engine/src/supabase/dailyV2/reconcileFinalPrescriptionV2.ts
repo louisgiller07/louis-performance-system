@@ -48,6 +48,7 @@ import { getPlannedPrescriptionRowOfVersion } from "../repositories/trainingPlan
 import { getPlanInputSnapshotOfVersion } from "../repositories/trainingPlanVersionSnapshotRepo.js";
 import { withStrengthLoadGuidance, type StrengthLoadGuidanceDeps } from "./strengthLoadGuidance.js";
 import { withEnduranceGuidance, type EnduranceGuidanceDeps, type WithEnduranceGuidanceResult } from "./enduranceGuidance.js";
+import type { EnduranceFallbackPainGate } from "./enduranceFallbackPainGate.js";
 
 /** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today; PHYS-01 / PHYS-02 — and why no guidance could be attached. */
 export type FinalPrescriptionV2Result = WithEnduranceGuidanceResult;
@@ -72,6 +73,8 @@ export interface ReconcileFinalPrescriptionV2Input {
   athleteId?: string;
   /** PHYS-01.1 — today's state forbidding an automatic load increase (todayLoadHold.ts); absent = none. */
   todayHold?: "pain" | "fatigue";
+  /** PHYS-02.1 — today's pain against the intervals LIGHT fallback (enduranceFallbackPainGate.ts); absent = no information. */
+  enduranceFallbackPain?: EnduranceFallbackPainGate;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
@@ -129,6 +132,8 @@ export async function reconcileFinalPrescriptionV2(
     adaptation,
     // PHYS-01.1 — ids of the daily Force additions (cool-down).
     dailyMintId: input.mintId,
+    // PHYS-02.1 — the intervals LIGHT fallback only for a pain the existing rule clears for endurance.
+    ...(input.enduranceFallbackPain !== undefined ? { enduranceFallbackPain: input.enduranceFallbackPain } : {}),
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {
       decisionId: input.decisionId,

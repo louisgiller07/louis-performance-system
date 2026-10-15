@@ -15,6 +15,9 @@
  *   M1's own reasons; `training.objective` carries that sentence;
  * - no signal is consumed: the LIGHT dose is M1's, already traced by the
  *   rules that decided it.
+ * When the fallback was withheld for today's pain
+ * (`intervals_fallback_pain_not_cleared`), the decision is kept as M1's and
+ * only the trace is added (no session, the reason and the zone category).
  * Any other result (REST, blocked, another rule, an A10 adaptation) is
  * returned as is: never a session out of a rest day or a health stop.
  */
@@ -38,6 +41,15 @@ export class IntervalsLightFallbackMismatchError extends Error {
 }
 
 export function applyV2IntervalsLightFallback(plan: DailyPlan, reconciliation: FinalPrescriptionV2Result): DailyPlan {
+  if (reconciliation.status === "blocked" && reconciliation.detail.reason === "intervals_fallback_pain_not_cleared") {
+    const withheld: TriggeredRule = {
+      layer: "ARBITRATION",
+      rule_id: V2_INTERVALS_LIGHT_FALLBACK_RULE_ID,
+      detail: `Repli non proposé : douleur du jour (zone ${String(reconciliation.detail.zone)}) que la règle douleur existante ne libère pas pour l'endurance ; compatibilité d'activité non établie, aucune séance du jour. M1 : ${plan.decision} ${plan.final_session.kind}${"load_profile" in plan.final_session && plan.final_session.load_profile ? ` ${plan.final_session.load_profile}` : ""}.`,
+      signals_used: [],
+    };
+    return { ...plan, triggered_rules: [...plan.triggered_rules, withheld] };
+  }
   if (reconciliation.status !== "created") return plan;
   const fp = reconciliation.finalPrescription;
   if (!fp.adaptationRuleIds.includes(INTERVALS_LIGHT_TO_BASE_ADAPTATION_RULE)) return plan;

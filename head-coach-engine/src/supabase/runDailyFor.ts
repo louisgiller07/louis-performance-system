@@ -88,6 +88,7 @@ import { applyV2SystemicFloor } from "./dailyV2/applyV2SystemicFloor.js";
 import { applyV2EffectiveSession } from "./dailyV2/applyV2EffectiveSession.js";
 import { applyV2TodayTimeConstraint } from "./dailyV2/applyV2TodayTimeConstraint.js";
 import { applyV2IntervalsLightFallback } from "./dailyV2/applyV2IntervalsLightFallback.js";
+import { enduranceFallbackPainGate } from "./dailyV2/enduranceFallbackPainGate.js";
 import { todayLoadHold } from "./dailyV2/todayLoadHold.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result, ReconcileFinalPrescriptionV2Input } from "./dailyV2/reconcileFinalPrescriptionV2.js";
 import { applyGoalPersonalization } from "./goalReasoning.js";
@@ -395,6 +396,8 @@ export async function runDailyFor(
       athleteId,
       // PHYS-01.1 — pain in today's check-in or an M1 fatigue signal: no automatic load increase today.
       todayHold: todayLoadHold(computed.rawContext?.checkin, dailyPlanV2),
+      // PHYS-02.1 — the intervals LIGHT fallback is proposed only for a pain the existing rule clears for endurance.
+      enduranceFallbackPain: enduranceFallbackPainGate(computed.rawContext?.checkin),
     });
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.
