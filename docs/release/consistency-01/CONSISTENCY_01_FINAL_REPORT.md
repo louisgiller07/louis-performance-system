@@ -97,4 +97,4 @@ Comptes de test et vrais comptes : seul le compte de simulation est prouvable (i
 
 ## 7. Commit local
 
-COMMIT_SHA (sur `50eaa18`). Aucun push.
+`cb350c9` (finalisation, sur `50eaa18`), puis ce correctif de rapport. Aucun push.
