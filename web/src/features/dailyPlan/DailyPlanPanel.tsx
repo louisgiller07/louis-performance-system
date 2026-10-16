@@ -70,6 +70,8 @@ interface DailyPlanPanelProps {
   checkinSnapshot?: CheckinRow | null;
   /** UX-05 — with checkinSnapshot: where the collapsible plan detail goes (bottom of Today). */
   detailsTarget?: HTMLElement | null;
+  /** CONSISTENCY-01 — with checkinSnapshot: the day's planned session is the rider's own modification (« Modifiée par toi »). */
+  sessionModifiedByAthlete?: boolean;
   /**
    * UX-11C.1 — entry into the guided session, rendered ONLY when today's V2
    * final prescription state is `created` (never for REST, blocked, V1,
@@ -116,6 +118,7 @@ export function DailyPlanPanel({
   loadingSlot,
   checkinSnapshot,
   detailsTarget,
+  sessionModifiedByAthlete = false,
   guidedSessionEntry,
   onDecision,
   onDisplayedDecision,
@@ -322,7 +325,7 @@ export function DailyPlanPanel({
         <DailyPlanResult
           result={result}
           finalPrescriptionV2={finalPrescriptionV2}
-          today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun, detailsTarget } : undefined}
+          today={checkinSnapshot !== undefined ? { checkin: checkinSnapshot, revealed: freshRun, detailsTarget, sessionModifiedByAthlete } : undefined}
         />
       )}
 

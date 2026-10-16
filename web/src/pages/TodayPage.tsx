@@ -267,6 +267,7 @@ export function TodayPage() {
           loadingSlot={checkinKnown ? heroSkeleton : null}
           checkinSnapshot={checkinValues}
           detailsTarget={detailsTarget}
+          sessionModifiedByAthlete={todayContext?.planned.some((row) => row.planned_date === canonicalDate && row.source === "manual") ?? false}
           onDisplayedDecision={setDisplayedPlan}
           guidedSessionEntry={({ dailyPlan, finalPrescriptionCreated }) => {
             const kind = daySessionEntryKind({ executions: dayExecutions, finalPrescriptionCreated, healthSuspended: healthSuspendedBy(dailyPlan) });

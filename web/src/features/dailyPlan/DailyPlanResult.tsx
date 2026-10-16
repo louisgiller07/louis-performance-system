@@ -20,6 +20,8 @@ export interface TodayPresentation {
   revealed: boolean;
   /** UX-05 — where "Voir les détails du plan" is rendered (bottom of Today); null until mounted. */
   detailsTarget?: HTMLElement | null;
+  /** CONSISTENCY-01 — the day's planned session is the rider's own modification (planned_sessions.source = 'manual'). */
+  sessionModifiedByAthlete?: boolean;
 }
 
 export function DailyPlanResult({
@@ -54,7 +56,7 @@ export function DailyPlanResult({
           <ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} bodyStatus={bodyStatus} />
         )
       }
-      missionSlot={<MissionHero dailyPlan={dailyPlan} />}
+      missionSlot={<MissionHero dailyPlan={dailyPlan} sessionModifiedByAthlete={today?.sessionModifiedByAthlete ?? false} />}
       heroInMission
       detailsTarget={today ? (today.detailsTarget ?? null) : undefined}
       executablePrescription={executablePrescription}

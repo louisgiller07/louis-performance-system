@@ -439,7 +439,8 @@ export async function getLatestDraft(): Promise<TrainingPlanReview | null> {
 /**
  * V06-02 — dates in [fromDate, toDate] (inclusive) where the athlete's own
  * planning (`planned_sessions`) holds an athlete-authored row
- * (`source = 'manual'`) — the rows `project_training_plan` never overwrites.
+ * (`source = 'manual'`) — on the accepted plan, the rider's modifications of
+ * it, which `project_training_plan` never overwrites (CONSISTENCY-01).
  * Read-only, same own-client/RLS discipline as the rest of this file
  * (planned_sessions_own_data scopes the rows to the caller's athlete). A
  * supplementary read: callers must treat a failure as "unknown", never
@@ -459,6 +460,36 @@ export async function getManualPlannedDates(fromDate: string, toDate: string): P
   }
 
   return ((data ?? []) as { planned_date: string }[]).map((row) => row.planned_date);
+}
+
+/**
+ * CONSISTENCY-01 (HPM 2026-10-16) — the dates in [fromDate, toDate] whose manual
+ * session accepting a NEW programme replaces: every manual row there (all of them
+ * were written before that acceptance) on a day not used — the P0-3 day lock rule
+ * of project_training_plan (20261016120000): a V1 debrief of any status, or a guided
+ * execution in progress or completed. An abandoned-only day is not used. Read-only,
+ * RLS-scoped like getManualPlannedDates; a failure throws (the caller fails closed).
+ */
+export async function getManualDatesReplacedByAcceptance(fromDate: string, toDate: string): Promise<string[]> {
+  if (fromDate > toDate) return [];
+  const dates = await getManualPlannedDates(fromDate, toDate);
+  if (dates.length === 0) return [];
+
+  const [executions, debriefs] = await Promise.all([
+    supabase.from("session_executions").select("session_date, execution_events(event_type)").in("session_date", dates),
+    supabase.from("completed_sessions").select("session_date").in("session_date", dates),
+  ]);
+  if (executions.error || debriefs.error) {
+    console.error("trainingPlanReviewRepo.getManualDatesReplacedByAcceptance failed", executions.error?.code ?? debriefs.error?.code);
+    throw new TrainingPlanReviewError();
+  }
+
+  const used = new Set(((debriefs.data ?? []) as { session_date: string }[]).map((row) => row.session_date));
+  for (const execution of (executions.data ?? []) as { session_date: string; execution_events: { event_type: string }[] | null }[]) {
+    const events = (execution.execution_events ?? []).map((event) => event.event_type);
+    if (events.includes("completed") || !events.includes("abandoned")) used.add(execution.session_date);
+  }
+  return dates.filter((date) => !used.has(date)).sort();
 }
 
 /**

@@ -21,7 +21,8 @@ import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/ath
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
-import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
+import { acceptTrainingPlanVersion, type AcceptTrainingPlanVersionDeps } from "../../src/supabase/acceptTrainingPlanVersion.js";
+import { acceptTrainingPlanVersionRpc } from "../../src/supabase/acceptTrainingPlanVersionRpc.js";
 import { projectTrainingPlan } from "../../src/supabase/projectTrainingPlan.js";
 import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor, type RunDailyForDeps } from "../../src/supabase/runDailyFor.js";
 
@@ -62,7 +63,7 @@ describe.skipIf(!ENABLED)("CONSISTENCY-01 — Today follows the active programme
   });
 
   /** A fictitious DH rider with a 6-week V2 programme generated on 2026-10-04; `beforeAccept` runs on the draft. */
-  async function rider(name: string, beforeAccept?: (athleteId: string, sessions: Map<string, string>) => Promise<void>): Promise<Rider> {
+  async function rider(name: string, beforeAccept?: (athleteId: string, sessions: Map<string, string>) => Promise<void>, acceptDeps?: AcceptTrainingPlanVersionDeps): Promise<Rider> {
     const { athleteId } = await createTestAthlete(admin, `CONSISTENCY-01 ${name}`);
     await setAthleteDiscipline(admin, athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, athleteId, {
@@ -83,7 +84,7 @@ describe.skipIf(!ENABLED)("CONSISTENCY-01 — Today follows the active programme
     const sessions = new Map((data as { date: string; kind: string }[]).map((s) => [s.date, s.kind]));
     const { data: version } = await admin.from("training_plan_versions").select("horizon_end_date").eq("id", persisted.planVersionId).single();
     if (beforeAccept) await beforeAccept(athleteId, sessions);
-    await acceptTrainingPlanVersion(admin, athleteId, persisted.planVersionId, "2026-10-05", "2026-11-15");
+    await acceptTrainingPlanVersion(admin, athleteId, persisted.planVersionId, "2026-10-05", "2026-11-15", acceptDeps);
     return { athleteId, planVersionId: persisted.planVersionId, sessions, horizonEnd: (version as { horizon_end_date: string }).horizon_end_date };
   }
 
@@ -193,6 +194,42 @@ describe.skipIf(!ENABLED)("CONSISTENCY-01 — Today follows the active programme
     expect((await plannedRow(r.athleteId, extra))?.source).toBe("manual");
     expect(d.dailyPlan.planned_session_before?.kind).toBe("AEROBIC_BASE");
     if (d.dailyPlan.decision === "KEEP") expect((await originOf(d.persistence.decision_id))?.active_session_origin).toBe("manual_override_new_kind");
+
+    // The programme rest day with the rider's added session: Today serves it, the programme keeps its rest, and no
+    // projection (acceptance replay included) ever removes it — the web marks it « Modifiée par toi » (source manual).
+    await acceptTrainingPlanVersion(admin, r.athleteId, r.planVersionId, "2026-10-05", "2026-11-15");
+    await insertCheckin(admin, r.athleteId, extra);
+    const onRest = await runDailyFor(admin, r.athleteId, extra, PROJECTING);
+    expect(r.sessions.has(extra)).toBe(false);
+    expect(onRest.dailyPlan.planned_session_before?.kind).toBe("AEROBIC_BASE");
+    expect((await plannedRow(r.athleteId, extra))?.source).toBe("manual");
+  });
+
+  it("projection deferred: the acceptance could not project; the next daily-run supersedes the old row, and an edit made meanwhile stays", async () => {
+    let oldDay = "";
+    const failingProjection: AcceptTrainingPlanVersionDeps = {
+      acceptTrainingPlanVersionRpc,
+      projectTrainingPlan: async () => {
+        throw new Error("projection unavailable");
+      },
+    };
+    const r = await rider(
+      "deferred",
+      async (athleteId, sessions) => {
+        oldDay = restDay({ sessions, horizonEnd: "2026-11-15" }, "2026-10-19");
+        await riderWrites(athleteId, oldDay, OLD_DH);
+      },
+      failingProjection
+    );
+    expect((await plannedRow(r.athleteId, oldDay))?.source).toBe("manual"); // nothing projected at the acceptance
+    const editedAfter = restDay(r, addDays(oldDay, 1));
+    await riderWrites(r.athleteId, editedAfter, { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 });
+
+    await insertCheckin(admin, r.athleteId, oldDay);
+    const d = await runDailyFor(admin, r.athleteId, oldDay, PROJECTING);
+    expect(await plannedRow(r.athleteId, oldDay)).toBeNull();
+    expect(d.dailyPlan.planned_session_before).toBeNull();
+    expect((await plannedRow(r.athleteId, editedAfter))?.source).toBe("manual");
   });
 
   it("history: a day before the projection window keeps its old row and its decision; reconciled days are re-decided, never duplicated or lost", async () => {

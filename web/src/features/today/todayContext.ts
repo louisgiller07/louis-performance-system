@@ -97,6 +97,8 @@ export interface WeekDay {
   performed: boolean;
   /** A07 — the Head Coach adapted the planned session that day (MODIFY / REPLACE / REST); the labels above are the effective session. */
   adapted?: boolean;
+  /** CONSISTENCY-01 — the session shown is the rider's own modification (planned_sessions.source = 'manual'), not the coach's prescription. */
+  modifiedByAthlete?: boolean;
   race: string | null;
 }
 
@@ -138,6 +140,8 @@ export function weekSummary(
         plannedDurationMin: (fromPlanOnly ? row?.intervention?.duration_min : day.session?.duration_min) ?? null,
         performed: day?.status === "completed",
         adapted: day?.adaptation !== null && day?.adaptation !== undefined,
+        // CONSISTENCY-01 — the rider's own session, unless the coach replaced it or rested the day.
+        modifiedByAthlete: hasSession && row?.source === "manual" && day?.adaptation !== "REPLACE" && day?.adaptation !== "REST",
         race: race ? race.eventName : null,
       };
     });
@@ -165,6 +169,7 @@ export function weekSummary(
       plannedDurationMin: row?.intervention?.duration_min ?? null,
       performed,
       adapted: false,
+      modifiedByAthlete: row?.source === "manual",
       race: race ? race.eventName : null,
     };
   });

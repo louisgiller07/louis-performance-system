@@ -67,7 +67,14 @@ export function WeekDaysPicker({ days, initialIndex }: { days: WeekDay[]; initia
           <p className="mt-1 font-display text-2xl font-extrabold uppercase leading-tight text-ink">{day.plannedLabel ?? "Libre"}</p>
         )}
         <p className="mt-1 text-sm text-ink/75">
-          {[day.plannedDurationMin !== null ? formatDuration(day.plannedDurationMin) : null, day.race ? "Course" : statusLabel(day)].filter(Boolean).join(" · ")}
+          {[
+            day.plannedDurationMin !== null ? formatDuration(day.plannedDurationMin) : null,
+            day.race ? "Course" : statusLabel(day),
+            // CONSISTENCY-01 — the rider's own session, never presented as the coach's prescription.
+            !day.race && day.plannedLabel && day.modifiedByAthlete ? "Modifiée par toi" : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
       </div>
     </>

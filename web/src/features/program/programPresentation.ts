@@ -110,7 +110,9 @@ export function programWeekDays(
   completed: CompletedSessionRecord[],
   races: RaceOverlayEvent[],
   guided: readonly GuidedCompletion[] = [],
-  effectiveByDate: ReadonlyMap<string, EffectiveDay> = new Map()
+  effectiveByDate: ReadonlyMap<string, EffectiveDay> = new Map(),
+  /** CONSISTENCY-01 — dates of the rider's own sessions (planned_sessions.source = 'manual') on the accepted plan. */
+  manualDates: readonly string[] = []
 ): WeekDay[] {
   return weekDates(monday).map((date) => {
     const session = sessionOn(review, date);
@@ -128,6 +130,7 @@ export function programWeekDays(
         plannedDurationMin: effective.session.duration_min ?? null,
         performed: effective.status === "completed",
         adapted: effective.adaptation !== null,
+        modifiedByAthlete: manualDates.includes(date) && effective.adaptation !== "REPLACE" && effective.adaptation !== "REST",
         race: race ? race.eventName : null,
       };
     }
@@ -139,6 +142,7 @@ export function programWeekDays(
       plannedLabel: session ? sessionTitle(session) : null,
       plannedDurationMin: session?.durationMin ?? null,
       performed: performedOn(date, completed, guided),
+      modifiedByAthlete: Boolean(session) && manualDates.includes(date),
       race: race ? race.eventName : null,
     };
   });

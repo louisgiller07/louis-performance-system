@@ -6,19 +6,20 @@ import { TrainingPlanPreviewPage } from "./TrainingPlanPreviewPage";
 import { TrainingPlanVersionNotFoundError } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import type { TrainingPlanDraftSummary, TrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewTypes";
 
-const { getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates, getPlanVersionGeneratedAt } = vi.hoisted(() => ({
+const { getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates, getPlanVersionGeneratedAt, getManualDatesReplacedByAcceptance } = vi.hoisted(() => ({
   getTrainingPlanDrafts: vi.fn(),
   getTrainingPlanReview: vi.fn(),
   getActivePlanVersionId: vi.fn(),
   getManualPlannedDates: vi.fn(),
   getPlanVersionGeneratedAt: vi.fn(),
+  getManualDatesReplacedByAcceptance: vi.fn(),
 }));
 
 vi.mock("../features/trainingPlanReview/trainingPlanReviewRepo", async () => {
   const actual = await vi.importActual<typeof import("../features/trainingPlanReview/trainingPlanReviewRepo")>(
     "../features/trainingPlanReview/trainingPlanReviewRepo"
   );
-  return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates, getPlanVersionGeneratedAt };
+  return { ...actual, getTrainingPlanDrafts, getTrainingPlanReview, getActivePlanVersionId, getManualPlannedDates, getPlanVersionGeneratedAt, getManualDatesReplacedByAcceptance };
 });
 
 const { acceptTrainingPlan } = vi.hoisted(() => ({ acceptTrainingPlan: vi.fn() }));
@@ -75,6 +76,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   getActivePlanVersionId.mockResolvedValue(null);
   getManualPlannedDates.mockResolvedValue([]);
+  getManualDatesReplacedByAcceptance.mockResolvedValue([]); // CONSISTENCY-01 — no manual session replaced by default
   // UX-11R.9 — the active plan's generated_at; "active" stands for DRAFT_1's generation time.
   getPlanVersionGeneratedAt.mockImplementation(async (id: string) => (id === DRAFT_2.id ? DRAFT_2.generatedAt : DRAFT_1.generatedAt));
 });
@@ -235,6 +237,7 @@ describe("TrainingPlanPreviewPage — acceptance (V0.5_050, UX-06)", () => {
 
     expect(await screen.findByText("Ton premier plan est prêt")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Commencer ma préparation" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirmer" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
 
     await waitFor(() => expect(screen.queryByText("Ton premier plan est prêt")).not.toBeInTheDocument());
@@ -253,6 +256,7 @@ describe("TrainingPlanPreviewPage — acceptance (V0.5_050, UX-06)", () => {
     renderPage(`/training-plan-preview/${DRAFT_1.id}`);
 
     await userEvent.click(await screen.findByRole("button", { name: "Commencer ma préparation" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirmer" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Confirmer" }));
 
     expect(await screen.findByText("Erreur serveur.")).toBeInTheDocument();

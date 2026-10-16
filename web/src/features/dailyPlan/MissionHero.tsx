@@ -74,7 +74,12 @@ function AdaptationCompare({ before, after, adaptedTitle }: { before: TrainingIn
   );
 }
 
-export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
+/**
+ * `sessionModifiedByAthlete` (CONSISTENCY-01, Today only): the day's planned session is the rider's own modification
+ * (planned_sessions.source = 'manual'); while the mission still is that session (KEEP / MODIFY, never a suspension or a
+ * coach REPLACE / REST), it says so with the V06-02 fact « Modifiée par toi », not as the coach's prescription.
+ */
+export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false }: { dailyPlan: DailyPlan; sessionModifiedByAthlete?: boolean }) {
   const final = dailyPlan.final_session;
   const before = dailyPlan.planned_session_before;
   const tone = DECISION_TONE[dailyPlan.decision] ?? DECISION_TONE.KEEP!;
@@ -83,6 +88,7 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   // P0-SAFE — A6 / A7: a suspension of the coaching, not "Repos".
   const suspended = isCoachingSuspended(dailyPlan);
   const adapted = dailyPlan.decision !== "KEEP" && before !== null;
+  const riderSession = sessionModifiedByAthlete && !suspended && (dailyPlan.decision === "KEEP" || dailyPlan.decision === "MODIFY");
 
   const isDh = dailyPlan.dh_or_technical.active;
   const durationMin = final.duration_min ?? dailyPlan.training.duration_min;
@@ -135,6 +141,9 @@ export function MissionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
 
       <div className="ux-enter mt-5 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ ["--d" as string]: "240ms" }}>
         <span className={`inline-flex items-center rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${tone.chip}`}>{status}</span>
+        {riderSession && (
+          <span className="inline-flex items-center rounded-sm border border-line px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-ink/75">Modifiée par toi</span>
+        )}
       </div>
 
       {(headline || body || spotHint) && (

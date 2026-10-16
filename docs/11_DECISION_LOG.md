@@ -3118,6 +3118,7 @@ La couverture passe à **21/21** (7 × 3). Chaque nouveau drill reprend le terra
 **REV-03 — séances du plan A visibles après acceptation du plan B.** `project_training_plan` ne faisait que l'upsert des dates candidates du plan courant. Les lignes `generated` de A sur des dates absentes de B n'étaient jamais retirées.
 - **Contrat de réconciliation** : un nouveau paramètre optionnel `p_window_start` supprime, dans la même transaction que la projection, les lignes `source = 'generated'` datées de `p_window_start` ou après et appartenant à une autre version (résultat `removed_superseded`).
 - Les séances manuelles ne sont jamais touchées. Une date avec une séance complétée garde sa ligne (`skipped_completed`), et `completed_sessions` n'est jamais modifiée. L'historique antérieur à la fenêtre est inchangé.
+- **Amendé le 2026-10-16 (CONSISTENCY-01, décision HPM)** : une modification manuelle faite sous le programme actif reste protégée. Une modification future non commencée provenant d'un ancien programme est remplacée à l'acceptation d'un nouveau programme, le rider en étant averti avant d'accepter ; aucune donnée historique ni séance commencée ou terminée n'est perdue (ADR CONSISTENCY-01).
 - Les appels sans le paramètre gardent le comportement précédent. Le rejeu reste idempotent.
 
 **Atomicité** : l'acceptation (pointeur) et la projection restent deux transactions (V0.4_014). Une projection échouée laisse transitoirement l'ancienne projection. Elle est signalée par `plan_acceptance_projection_warning` et convergée par la projection du daily-run suivant ou par un rejeu d'acceptation, grâce à la réconciliation.
@@ -6215,6 +6216,19 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 
 **Effet attendu en production après livraison** : au premier daily-run de chaque rider (projection configurée), ses anciennes lignes manuelles d'aujourd'hui à la fin de l'horizon sont remplacées ou retirées ; une décision du jour calculée dessus devient non courante (REV-01) et se recalcule.
 
-**Canon** : diff proposé pour `docs/05_DATA_MODEL.md` (§`planned_sessions`), **en attente d'accord**.
+**Canon** : `docs/05_DATA_MODEL.md` mis à jour (§P0-3) après accord HPM ; PILOT_022 REV-03 amendé.
 
-**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/consistency-01-today-programme`, depuis `a188a1f`).
+**Décision HPM (2026-10-16, finalisation)** : la règle est approuvée. La variante « avant la première acceptation » est écartée : elle ne résout pas O-43 / O-46.
+- **Avertissement** : quand des séances manuelles futures seraient remplacées, l'étape de confirmation existante de l'acceptation l'affiche, et le bouton devient « Confirmer et remplacer mes modifications ». Aucune étape de plus, et aucun avertissement sans modification concernée.
+  - Texte (programme actif) : « En acceptant ce nouveau programme, tes modifications manuelles des prochaines séances de l'ancien programme seront remplacées. Les séances déjà commencées ou terminées restent conservées. »
+  - Variantes : un texte pour un premier programme ; un texte prudent si la vérification ne peut pas être lue (fail closed).
+  - Lecture : `getManualDatesReplacedByAcceptance`, même règle que la projection (jour utilisé exclu), à partir d'aujourd'hui (Europe/Zurich) dans l'horizon du brouillon.
+- **Projection différée** : si l'acceptation ne projette pas, le daily-run suivant remplace. Une modification faite entre-temps est postérieure à l'acceptation, donc protégée (testé).
+- **Jour de repos modifié par le rider** : partout où la séance apparaît, elle porte « Modifiée par toi » :
+  - Aujourd'hui : mission, en KEEP / MODIFY seulement, jamais après un REPLACE ou un repos ;
+  - « Prochaine étape » ;
+  - frises de la semaine d'Aujourd'hui et du Programme.
+  Programme ne liste toujours que les séances générées. Aucune modification actuelle n'est effacée.
+- **Transition** : mesure en lecture seule `docs/release/consistency-01/CONSISTENCY_01_IMPACT_READONLY.sql`. Production le 2026-10-16 : 0 ligne. À relancer juste avant toute livraison : une acceptation faite en production avant la livraison, sans avertissement, peut en créer.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/consistency-01-today-programme`, depuis `a188a1f`). NO GO production (HPM).

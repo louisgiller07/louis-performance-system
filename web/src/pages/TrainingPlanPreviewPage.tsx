@@ -70,7 +70,7 @@ export function TrainingPlanPreviewPage() {
   const [errorMessage, setErrorMessage] = useState<string>(LOAD_ERROR_MESSAGE);
   // V06-02 — keyed by plan version so a result can never be shown against a
   // different plan than the one it was computed for.
-  const [modifications, setModifications] = useState<{ planVersionId: string; dates: string[] } | null>(null);
+  const [modifications, setModifications] = useState<{ planVersionId: string; dates: string[]; manualDates: string[] } | null>(null);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -130,7 +130,7 @@ export function TrainingPlanPreviewPage() {
     let cancelled = false;
     getManualPlannedDates(review.version.horizonStartDate, review.version.horizonEndDate)
       .then((manualDates) => {
-        if (!cancelled) setModifications({ planVersionId: review.version.id, dates: findAthleteModifiedProgramDates(review, manualDates) });
+        if (!cancelled) setModifications({ planVersionId: review.version.id, dates: findAthleteModifiedProgramDates(review, manualDates), manualDates });
       })
       .catch(() => {
         // Deliberately silent: the plan review stays fully usable without it.
@@ -142,6 +142,8 @@ export function TrainingPlanPreviewPage() {
 
   const athleteModifiedDates =
     review && review.lifecycleState === "accepted" && modifications?.planVersionId === review.version.id ? modifications.dates : null;
+  // CONSISTENCY-01 — every date of the rider's own sessions (a plan rest day included) for the week timeline.
+  const athleteManualDates = review && review.lifecycleState === "accepted" && modifications?.planVersionId === review.version.id ? modifications.manualDates : [];
 
   // UX-06 — read-only facts around the plan (race / objective, completed
   // sessions, the Head Coach decisions of today and past days). A draft is
@@ -221,7 +223,7 @@ export function TrainingPlanPreviewPage() {
         <>
           <ProgramHero review={review} horizon={horizon} objective={context?.objective ?? null} today={today} />
           <ProgramDraftSummary drafts={drafts} review={review} hasActivePlan={hasActivePlan} activeGeneratedAt={activeGeneratedAt} onSelect={handleSelectDraft} onAccepted={handleAccepted} />
-          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} guided={isAccepted ? (context?.guided ?? []) : []} races={context?.races ?? []} effectiveByDate={isAccepted && context ? context.effectiveByDate : new Map()} />
+          <ProgramWeekTimeline key={review.version.id} review={review} today={today} completed={isAccepted ? (context?.completed ?? []) : []} guided={isAccepted ? (context?.guided ?? []) : []} races={context?.races ?? []} effectiveByDate={isAccepted && context ? context.effectiveByDate : new Map()} manualDates={athleteManualDates} />
           <ProgramSessions
             review={review}
             today={today}

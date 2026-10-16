@@ -26,6 +26,7 @@ export function ProgramWeekTimeline({
   guided = [],
   races,
   effectiveByDate = new Map(),
+  manualDates = [],
 }: {
   review: TrainingPlanReview;
   today: string;
@@ -35,11 +36,13 @@ export function ProgramWeekTimeline({
   races: RaceOverlayEvent[];
   /** A07 — the effective session of today / past plan days. */
   effectiveByDate?: ReadonlyMap<string, EffectiveDay>;
+  /** CONSISTENCY-01 — dates of the rider's own sessions on the accepted plan (« Modifiée par toi »). */
+  manualDates?: readonly string[];
 }) {
   const mondays = useMemo(() => calendarMondays(review), [review]);
   const [monday, setMonday] = useState(() => initialMonday(mondays, today));
   const index = mondays.indexOf(monday);
-  const days = programWeekDays(monday, today, review, completed, races, guided, effectiveByDate);
+  const days = programWeekDays(monday, today, review, completed, races, guided, effectiveByDate, manualDates);
   const phase = weekDates(monday)
     .map((date) => planWeekAt(review, date)?.phase)
     .find(Boolean);
