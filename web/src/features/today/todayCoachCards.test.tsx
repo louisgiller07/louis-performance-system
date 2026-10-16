@@ -95,6 +95,21 @@ describe("NextStepCard", () => {
     expect(card).toHaveTextContent("Ton objectif reste. Ton plan s'adapte.");
   });
 
+  it("CONSISTENCY-01 — a session the rider set in /plan says so (« Modifiée par toi »); a programme session does not", () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <NextStepCard next={{ ...row("2026-09-30", "DH_PERFORMANCE", 240), source: "manual" }} today={TODAY} horizon={null} objective={null} />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("region", { name: "Prochaine étape" })).toHaveTextContent("Modifiée par toi");
+    rerender(
+      <MemoryRouter>
+        <NextStepCard next={row("2026-09-30", "DH_PERFORMANCE", 240)} today={TODAY} horizon={null} objective={null} />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole("region", { name: "Prochaine étape" })).not.toHaveTextContent("Modifiée par toi");
+  });
+
   it("no upcoming session: says so honestly", () => {
     render(
       <MemoryRouter>

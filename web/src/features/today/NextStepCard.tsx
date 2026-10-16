@@ -59,6 +59,12 @@ export function NextStepCard({
           <p className="mt-3 text-sm text-muted">{whenLabel(next.planned_date, today)}</p>
           <p className="mt-0.5 font-display text-3xl font-extrabold uppercase leading-tight text-ink">{session.title}</p>
           {session.detail && <p className="mt-0.5 text-sm text-gold">{session.detail}</p>}
+          {/* CONSISTENCY-01 — a session the rider set in /plan is not the programme's: same V06-02 fact as Programme. */}
+          {next.source === "manual" && (
+            <span className="mt-2 inline-flex items-center rounded-sm border border-line px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-ink/75">
+              Modifiée par toi
+            </span>
+          )}
         </>
       ) : (
         <p className="mt-3 text-sm text-ink/80">Aucune séance prévue dans les deux prochaines semaines.</p>

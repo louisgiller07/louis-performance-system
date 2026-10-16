@@ -6179,3 +6179,42 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 
 **Statut** : READY LOCAL / NOT DEPLOYED. Proposée comme 7e migration de REL-01 sur décision HPM.
 
+
+## 2026-10-16 — ADR CONSISTENCY-01 : la séance du jour suit le programme actif (O-43 / O-46)
+
+> **Une séance manuelle fait partie du programme actif si elle a été écrite après que ce programme est devenu courant. Plus ancienne, dans la fenêtre de projection et l'horizon du programme, elle est remplacée par la séance du programme, ou retirée un jour de repos du programme.** Local seulement.
+
+**Constat (P0-SAFETY-INV-01, reproduit sur C et D′)** : `project_training_plan` ne touchait jamais une ligne `planned_sessions` dont la source n'est pas `generated`, quel que soit son âge. Une ligne manuelle posée sous un programme ou un planning antérieur survivait donc à tout nouveau programme. Elle était lue comme séance du jour par :
+- daily-run (`buildRawContext` → `getPlannedSessionFor`) ;
+- « Prochaine étape » (`todayContext.nextPlannedSession`) ;
+- `/plan`.
+
+`/training-plan` montrait, lui, le programme : un repos, ou la séance du programme avec le badge « Modifiée par toi » (`getManualPlannedDates` limité aux jours du programme).
+
+**Décision HPM** : la prescription principale d'Aujourd'hui vient du programme actif ; une séance d'un ancien programme ne redevient pas une mission ; un repos n'est pas transformé en DH par une ancienne séance ; historique, résultats et priorité santé intacts.
+
+**Règle** :
+- **Référence** : `training_plan_current_version.updated_at`, écrit à l'acceptation ; un rejeu idempotent ne le modifie pas.
+- **Ligne manuelle écrite après cette date** : modification du rider (V06-02, UX-10B-2B, P0-3), jamais touchée.
+- **Ligne manuelle plus ancienne**, datée à partir de `p_window_start` dans l'horizon du programme :
+  - remplacée par la séance du programme sur une date candidate (`projected`, aucun champ manuel repris : engagement, intention, note) ;
+  - retirée sur toute autre date (`removed_superseded`), comme la réconciliation PILOT_022 (REV-03) pour les lignes générées d'un plan remplacé.
+
+**Inchangés** :
+- un jour utilisé (`skipped_completed`, verrou P0-3) ;
+- les dates avant la fenêtre (historique) et hors horizon ;
+- les appels sans `p_window_start` ;
+- décisions, exécutions, `completed_sessions`, `training_blocks` ;
+- vocabulaire des résultats (aucun changement TypeScript ni Edge) ;
+- signature, `SECURITY DEFINER`, `search_path`, droits ;
+- M1 et les moteurs.
+
+**Web** : « Prochaine étape » affiche « Modifiée par toi » (fait V06-02 existant) pour une ligne manuelle, comme Programme et `/plan`.
+
+**Implémentation** : migration `20261016120000_consistency_01_superseded_manual_projection.sql` (fonction seule) ; rollback exact `supabase/rollbacks/consistency01/`.
+
+**Effet attendu en production après livraison** : au premier daily-run de chaque rider (projection configurée), ses anciennes lignes manuelles d'aujourd'hui à la fin de l'horizon sont remplacées ou retirées ; une décision du jour calculée dessus devient non courante (REV-01) et se recalcule.
+
+**Canon** : diff proposé pour `docs/05_DATA_MODEL.md` (§`planned_sessions`), **en attente d'accord**.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/consistency-01-today-programme`, depuis `a188a1f`).

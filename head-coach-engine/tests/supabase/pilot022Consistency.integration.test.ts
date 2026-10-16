@@ -248,7 +248,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("PILOT_022 — consistency & provenance (r
     });
   });
 
-  it("REV-03 — accepting a replacement plan reconciles superseded projections, preserving manual and completed sessions, idempotently", async () => {
+  it("REV-03 — accepting a replacement plan reconciles superseded projections (and, CONSISTENCY-01, manual edits made under the old plan), preserving completed sessions and edits made under the new plan, idempotently", async () => {
     await withAthlete("PILOT_022 REV-03", async (athlete, own) => {
       await seedProfile(admin, athlete.athleteId);
       await setAvailability(admin, own, athlete.athleteId, PLAN_A_DAYS);
@@ -295,8 +295,10 @@ describe.skipIf(!INTEGRATION_ENABLED)("PILOT_022 — consistency & provenance (r
         expect(byDate.has(date)).toBe(false);
         expect(removed).toContain(date);
       }
-      // B — manual preserved.
-      expect(byDate.get(manualDate)?.source).toBe("manual");
+      // B — CONSISTENCY-01 (HPM 2026-10-16): the manual edit was made under plan A, before B became current; B rests
+      // that day, so B supersedes it like A's own rows (it was preserved before CONSISTENCY-01).
+      expect(byDate.has(manualDate)).toBe(false);
+      expect(removed).toContain(manualDate);
       // C — completed history preserved (and its day's row kept).
       const { count: completedCount } = await admin
         .from("completed_sessions")
@@ -315,6 +317,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("PILOT_022 — consistency & provenance (r
       const afterReplay = await plannedRows(admin, athlete.athleteId);
       expect(afterReplay).toEqual(afterB);
       expect(new Set(afterReplay.map((r) => r.planned_date)).size).toBe(afterReplay.length);
+
+      // E — a manual edit made AFTER B's acceptance is the rider's modification of B: preserved by every projection.
+      await saveManualSession(own, athlete.athleteId, manualDate, "MOBILITY", "RECOVERY", "LIGHT");
+      const replayAfterEdit = await acceptTrainingPlanVersion(admin, athlete.athleteId, generatedB.planVersionId, TODAY, WINDOW_END);
+      expect(replayAfterEdit.projection!.plannedSessions.some((s) => s.date === manualDate)).toBe(false);
+      expect((await plannedRows(admin, athlete.athleteId)).find((r) => r.planned_date === manualDate)?.source).toBe("manual");
     });
   });
 
