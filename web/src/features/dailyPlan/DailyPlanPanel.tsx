@@ -144,10 +144,19 @@ export function DailyPlanPanel({
   // an apparently-normal empty state).
   const [restorePhase, setRestorePhase] = useState<RestorePhase>("loading");
 
+  // CONSISTENCY-02 (O-32) — the panel can stay mounted while its date changes (a tab left open past midnight, a
+  // return to Today the next day, /simulation « +1 jour »). Everything shown belongs to ONE date: on a new date it
+  // is cleared during the very render that receives it (see below the hooks), and any answer that arrives for a
+  // previous date (restore or analysis started before the change) is ignored.
+  const [shownDate, setShownDate] = useState(date);
+  const dateRef = useRef(date);
+  dateRef.current = date;
+
   const restoreTodayDecision = useCallback(async () => {
     setRestorePhase("loading");
     try {
       const row = await loadLatestDecisionForDate(athleteId, date);
+      if (dateRef.current !== date) return; // CONSISTENCY-02 — a previous date's answer
       if (row && isValidDailyPlan(row.dailyPlan)) {
         // PILOT_022 (REV-01) — the latest decision is not necessarily a valid
         // one: it is restored as today's executable plan only while the
@@ -155,10 +164,13 @@ export function DailyPlanPanel({
         // (persisted provenance, evaluated server-side). A stale decision
         // stays in history but is never shown as current.
         const currency = await loadDecisionCurrency(row.id);
+        if (dateRef.current !== date) return;
         if (currency.isCurrent) {
           // UX-11A.5c.4 — a V2 decision restores its durable status and, when
           // created, its own final prescription row (never rebuilt from the plan).
-          setFinalPrescriptionV2(await loadFinalPrescriptionV2State(row));
+          const finalPrescription = await loadFinalPrescriptionV2State(row);
+          if (dateRef.current !== date) return;
+          setFinalPrescriptionV2(finalPrescription);
           setResult({ dailyPlan: row.dailyPlan, decisionId: row.id, healthFlagId: null, warnings: [] });
           setState("success");
         } else {
@@ -170,6 +182,7 @@ export function DailyPlanPanel({
       // generation flow (existing behavior) is what the athlete sees.
       setRestorePhase("ready");
     } catch {
+      if (dateRef.current !== date) return;
       setRestorePhase("error");
     }
   }, [athleteId, date]);
@@ -200,6 +213,10 @@ export function DailyPlanPanel({
   useEffect(() => {
     if (result !== null || error !== null) hadVisibleResultRef.current = true;
   }, [result, error]);
+  // CONSISTENCY-02 — what was visible on a previous day says nothing about today's check-in.
+  useEffect(() => {
+    hadVisibleResultRef.current = false;
+  }, [date]);
 
   useEffect(() => {
     if (previousRevisionRef.current === checkinRevision) return;
@@ -227,6 +244,8 @@ export function DailyPlanPanel({
     // closed-over value (which would just equal itself and never detect a
     // change that happened while the request was in flight).
     const requestRevision = checkinRevision;
+    // CONSISTENCY-02 — the date this request is for; the decision belongs to it, never to a later day on screen.
+    const requestDate = date;
 
     // Clear immediately: a previous SUCCESS must never remain visible
     // alongside a new attempt's error, and vice versa.
@@ -243,6 +262,12 @@ export function DailyPlanPanel({
       // stays visible at least minAnalysisMs before the reveal.
       const remaining = minAnalysisMs - (Date.now() - startedAt);
       if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, remaining));
+
+      if (dateRef.current !== requestDate) {
+        // The day changed while the request was in flight: the server decision exists for its own date (append-only,
+        // never undone) and is history there; it is never shown or reported as the new day's mission.
+        return;
+      }
 
       if (latestRevisionRef.current !== requestRevision) {
         // The checkin was saved again while this request was in flight.
@@ -272,6 +297,19 @@ export function DailyPlanPanel({
     } finally {
       inFlightRef.current = false;
     }
+  }
+
+  // CONSISTENCY-02 — a new date: clear the previous day and render nothing built from it (React re-renders at once).
+  if (shownDate !== date) {
+    setShownDate(date);
+    setResult(null);
+    setFinalPrescriptionV2(undefined);
+    setError(null);
+    setInvalidatedNotice(null);
+    setFreshRun(false);
+    setState("idle");
+    setRestorePhase("loading");
+    return loadingSlot !== undefined ? <>{loadingSlot}</> : null;
   }
 
   // NAL-003 — the restore lookup gates everything below it: never briefly

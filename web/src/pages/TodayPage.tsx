@@ -194,6 +194,19 @@ export function TodayPage() {
   // an open follow-up signal, or the decision on screen (restored or just run) a Safety REST — healthBlockOf,
   // mirror of the server's execution_health_block, which stays the authority.
   const [displayedPlan, setDisplayedPlan] = useState<DailyPlan | null>(null);
+
+  // CONSISTENCY-02 (O-32) — everything Today keeps for a day belongs to canonicalDate: when the day changes while the
+  // page stays open (midnight, a return the next day, /simulation « +1 jour »), it is cleared during that render —
+  // the new day's check-in, executions and decision are then read again (never yesterday's reused).
+  const [shownDate, setShownDate] = useState(canonicalDate);
+  if (shownDate !== canonicalDate) {
+    setShownDate(canonicalDate);
+    setHasCheckin(false);
+    setCheckinKnown(false);
+    setCheckinValues(null);
+    setDayExecutions([]);
+    setDisplayedPlan(null);
+  }
   const healthSuspendedBy = useCallback(
     (dailyPlan: DailyPlan | null) =>
       healthBlockOf({ openFlagTypes: openHealthFlags.map((flag) => flag.type), family: null, latestDecision: dailyPlan ? { dailyPlan, isCurrent: true } : null }) === "health_suspended",
@@ -278,7 +291,7 @@ export function TodayPage() {
       )}
 
       {/* UX-08 — closing the loop: what was really done, right after the mission. */}
-      {athleteId && <AfterSessionEntry date={canonicalDate} athleteId={athleteId} healthSuspended={healthSuspendedBy(displayedPlan)} />}
+      {athleteId && <AfterSessionEntry key={canonicalDate} date={canonicalDate} athleteId={athleteId} healthSuspended={healthSuspendedBy(displayedPlan)} />}
 
       {/* UX-04/05 — where today leads: next step, the week, and plain regularity. */}
       {todayContext && (
@@ -305,6 +318,7 @@ export function TodayPage() {
       <CheckinSheet open={sheetOpen} onClose={closeSheet}>
         {athleteId && (
           <CheckinForm
+            key={canonicalDate}
             athleteId={athleteId}
             date={canonicalDate}
             mode="guided"

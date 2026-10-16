@@ -8,7 +8,9 @@
 
 **P0-4 — historique et résultats des séances guidées : PASS LOCAL / NOT DEPLOYED (HPM 2026-10-13)** : branche `fix/p0-4-guided-history` depuis la production P0-SAFE ; web seulement (aucune migration, aucune Edge) ; aucun push, merge ou déploiement.
 
-**CONSISTENCY-01 — la séance du jour suit le programme actif (O-43 / O-46) : READY LOCAL / NOT DEPLOYED, NO GO production (HPM 2026-10-16)** : branche `fix/consistency-01-today-programme` depuis la production REL-01 D′ (`a188a1f`) ; migration de fonction `20261016120000` (projection) et web (avertissement à l'acceptation, « Modifiée par toi ») ; aucune Edge ; `docs/05` à jour, PILOT_022 REV-03 amendé ; aucun push, merge ou déploiement.
+**CONSISTENCY-01 — la séance du jour suit le programme actif (O-43 / O-46) : CLOSED, en production (HPM 2026-10-16)** : web `31ca956` puis migration `20261016120000` (base 75/75) ; aucune Edge.
+
+**CONSISTENCY-02 — Aujourd'hui représente la date courante (O-32) : READY LOCAL / NOT DEPLOYED (HPM 2026-10-16)** : branche `fix/consistency-02-stale-today-mission` depuis `31ca956` ; web seulement (aucune migration, aucune Edge) ; aucun push, merge ou déploiement.
 
 **REL-01 — revue de sécurité finale (2026-10-14)** : assemblage local `rel/rel-01-assembly` READY LOCAL (73 migrations, suites complètes vertes sur la stack neuve vérifiée `nalynt-rel01`, rollback vers C vert). P0-SEC-MAINTAIN prêt en local (proposition, sur GO HPM). Déploiement BLOCKED par les gates REL-01. Aucun push, merge ni déploiement.
 

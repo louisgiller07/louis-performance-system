@@ -1,3 +1,4 @@
+import { useEffect, useReducer, useRef } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { todayLocal } from "./date";
 
@@ -50,8 +51,59 @@ export function writeSimulatedDate(date: string): void {
  */
 export function useEffectiveToday(): string {
   const { athleteId } = useAuth();
+  const today = effectiveToday(athleteId);
+  useRerenderOnDayChange(athleteId, today);
+  return today;
+}
+
+function effectiveToday(athleteId: string | null): string {
   if (isSimulationAthlete(athleteId)) {
     return readSimulatedDate() ?? todayLocal();
   }
   return todayLocal();
+}
+
+/**
+ * CONSISTENCY-02 (O-32) — milliseconds until the next local midnight, in calendar days (the local Date constructor
+ * makes it 23 h or 25 h on a clock-change day, e.g. Europe/Zurich in March / October).
+ */
+export function msUntilNextLocalMidnight(now: Date = new Date()): number {
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  return nextMidnight.getTime() - now.getTime();
+}
+
+/**
+ * CONSISTENCY-02 (O-32) — a page left open follows the calendar: it re-renders when the effective day differs from
+ * the one it shows, checked at the next local midnight (re-armed every day) and when the tab comes back to the
+ * foreground (a background tab's timers are throttled). Same day: no re-render. Reads the clock only — no server
+ * call. The simulation date only moves with « +1 jour » (its own re-render), never at real midnight.
+ */
+function useRerenderOnDayChange(athleteId: string | null, shownDay: string): void {
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const shownDayRef = useRef(shownDay);
+  shownDayRef.current = shownDay;
+
+  useEffect(() => {
+    const check = () => {
+      if (effectiveToday(athleteId) !== shownDayRef.current) rerender();
+    };
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      timer = setTimeout(() => {
+        check();
+        arm();
+      }, msUntilNextLocalMidnight() + 1_000);
+    };
+    arm();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", check);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", check);
+    };
+  }, [athleteId]);
 }

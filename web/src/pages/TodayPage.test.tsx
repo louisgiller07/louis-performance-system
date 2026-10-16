@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { TodayPage } from "./TodayPage";
 import { addDays, todayLocal } from "../lib/date";
@@ -602,5 +602,39 @@ describe("TodayPage — INT-01 R1 the after-session block knows the health suspe
     renderTodayPage();
     await waitFor(() => expect(loadOpenHealthFlags).toHaveBeenCalled());
     expect(afterSession()).toHaveAttribute("data-health-suspended", "false");
+  });
+});
+
+// CONSISTENCY-02 (HPM 2026-10-16, O-32) — Today when the calendar day changes while the page stays open.
+describe("TodayPage — CONSISTENCY-02, a new day on an open page", () => {
+  it("real calendar, tab left open past midnight: back on the tab, Today is the new day — yesterday's check-in, executions and decision are not carried over", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 16, 23, 50, 0));
+    const { container } = renderTodayPage();
+    screen.getByText("simulate checkin available (load)").click();
+    await waitFor(() => expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("date=2026-10-16 hasCheckin=true"));
+
+    vi.setSystemTime(new Date(2026, 9, 17, 7, 30, 0)); // the night passed, no timer ran in the background tab
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(container.querySelector("time")).toHaveAttribute("dateTime", "2026-10-17");
+    expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent("date=2026-10-17");
+    expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("date=2026-10-17 hasCheckin=false");
+    await waitFor(() => expect(loadDayExecutions).toHaveBeenCalledWith("athlete-1", "2026-10-17"));
+  });
+
+  it("simulation « +1 jour »: the simulated day moves on, the real calendar does not decide it", async () => {
+    vi.stubEnv("VITE_SIMULATION_ATHLETE_ID", "athlete-1");
+    writeSimulatedDate("2026-11-02");
+    const { container } = renderTodayPage("/simulation");
+    screen.getByText("simulate checkin available (load)").click();
+    await waitFor(() => expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("date=2026-11-02 hasCheckin=true"));
+
+    writeSimulatedDate("2026-11-03"); // SimulationLabPage « +1 jour »
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+    expect(container.querySelector("time")).toHaveAttribute("dateTime", "2026-11-03");
+    expect(screen.getByTestId("daily-plan-panel-stub")).toHaveTextContent("date=2026-11-03 hasCheckin=false");
+    expect(screen.getByTestId("checkin-form-stub")).toHaveTextContent("date=2026-11-03");
   });
 });

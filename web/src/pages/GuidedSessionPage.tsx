@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { PageShell } from "../components/PageShell";
@@ -10,8 +11,17 @@ import { useGuidedSession } from "../features/guidedSession/useGuidedSession";
 // is resolved from the authenticated rider's own rows (RLS) and every write
 // is checked by the backend.
 function GuidedSession({ athleteId }: { athleteId: string }) {
-  const date = useEffectiveToday();
-  const session = useGuidedSession(athleteId, date);
+  const today = useEffectiveToday();
+  // CONSISTENCY-02 (O-32) — the page follows the calendar day, except while a guided session is in progress (active
+  // or paused): it keeps its own day until it ends, so its results, resume and safe stop stay reachable past
+  // midnight. Nothing in progress: the new day — a session is never started from yesterday's prescription.
+  const [day, setDay] = useState(today);
+  const session = useGuidedSession(athleteId, day);
+  const inProgress =
+    session.load.status === "ready" &&
+    session.load.snapshot.kind === "execution" &&
+    (session.load.snapshot.phase === "active" || session.load.snapshot.phase === "paused");
+  if (day !== today && !inProgress) setDay(today);
   return (
     <GuidedSessionView
       load={session.load}

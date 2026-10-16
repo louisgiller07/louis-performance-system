@@ -6232,3 +6232,25 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 - **Transition** : mesure en lecture seule `docs/release/consistency-01/CONSISTENCY_01_IMPACT_READONLY.sql`. Production le 2026-10-16 : 0 ligne. À relancer juste avant toute livraison : une acceptation faite en production avant la livraison, sans avertissement, peut en créer.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/consistency-01-today-programme`, depuis `a188a1f`). NO GO production (HPM).
+
+## 2026-10-17 — ADR CONSISTENCY-02 : Aujourd'hui représente la date courante (O-32)
+
+> **Une page laissée ouverte suit le calendrier ; tout ce qu'Aujourd'hui affiche appartient à sa date ; une réponse arrivée pour une date précédente n'est jamais affichée ; une séance guidée en cours garde son jour jusqu'à sa fin.** Web seulement, local.
+
+**Constat (P0-SAFETY-INV-01, O-32, reproduit sur C, D′ et `31ca956`)**
+- `DailyPlanPanel.restoreTodayDecision` relisait la décision de la nouvelle date sans vider le résultat, le statut ni la prescription V2 de la veille. Sans décision courante pour le nouveau jour, la mission de la veille restait affichée comme celle du jour ; avec une décision périmée, l'avis s'affichait à côté d'elle, sans bouton.
+- Une restauration ou une analyse lancée pour la veille et terminée après le changement de date écrivait son résultat : seule la révision du check-in était contrôlée, jamais la date.
+- `useEffectiveToday` recalculait `todayLocal()` à chaque rendu, sans minuterie ni écoute du retour sur l'onglet : une page ouverte après minuit restait sur la veille jusqu'à un rendu fortuit. Un check-in saisi le matin dans un onglet de la veille pouvait donc être enregistré, et analysé, pour la date d'hier (`daily-run` accepte toute date valide, voulu pour la simulation).
+- `/today/session` changeait de date au premier rendu après minuit : une séance guidée en cours disparaissait de l'écran (données intactes en base).
+
+**Décision HPM (2026-10-16)** : aucune décision ou séance périmée présentée comme actuelle ; un état explicite et sûr sans décision courante ; aucune opération serveur nouvelle ; séances en cours, historique et P0-SAFE préservés.
+
+**Implémentation**
+- `useEffectiveToday` : nouveau rendu quand le jour effectif change, vérifié au minuit local suivant (réarmé chaque jour, 23 h ou 25 h les jours de changement d'heure) et au retour sur l'onglet (`visibilitychange`, `focus`). Même jour : aucun rendu. Horloge seulement, aucun appel serveur. La date simulée ne bouge qu'avec « +1 jour ». Fuseau inchangé (celui de l'appareil, comme avant).
+- `DailyPlanPanel` : au rendu qui reçoit une nouvelle date, résultat, statut, prescription V2, erreur et avis sont vidés, et rien n'est construit avec la veille. Toute réponse pour une date précédente (restauration ou analyse) est ignorée et n'est jamais remontée comme décision du jour. Sans décision courante : invitation au check-in, ou « Préparer ma séance du jour » (comportement existant).
+- `TodayPage` : check-in connu, valeurs, exécutions du jour et décision affichée vidés au changement de date ; formulaire de check-in et « Après ta séance » remontés par date.
+- `/today/session` : suit le jour courant, sauf une séance en cours (active ou en pause), qui garde son jour jusqu'à sa fin. Sans séance en cours, jamais de démarrage depuis la prescription de la veille.
+
+**Inchangés** : SQL (75), Edge (graphes identiques à la production), moteurs, CONSISTENCY-01, complétion partielle, PHYS, JARVIS ; aucune génération automatique.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/consistency-02-stale-today-mission`, depuis `31ca956`).
