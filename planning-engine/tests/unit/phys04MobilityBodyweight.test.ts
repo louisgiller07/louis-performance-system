@@ -24,6 +24,9 @@ import {
   type StrengthExerciseSessionRecordV2,
 } from "../../src/sessionModelV2/index.js";
 import type { PlanInputAvailabilityWindow } from "../../src/types/planInputSnapshot.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with their switches ON (every switch off: the production behaviour,
+// proven by the production tests kept unchanged and by phys00FlagsOffEquivalence).
+const PHYS_ON = { daily: true, intervals: true, power: true, mobility: true } as const;
 
 // PHYS-04 — mobility sessions (the catalogue protocol, guided, recorded) and bodyweight progression on
 // repetitions (the rider's own recorded sets; never a load, never another exercise imposed).
@@ -114,6 +117,7 @@ describe("PHYS-04 — mobility in the plan (server option only)", () => {
 const MOBILITY_SESSION = ON.weeks[3]!.sessions.find((s) => s.kind === "MOBILITY")!;
 function input(s: PlanSessionV2InMemory, decision: "KEEP" | "MODIFY" | "REPLACE", finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"]): BuildFinalPrescriptionV2Input {
   return {
+    phys: PHYS_ON,
     finalPrescriptionId: "final-1",
     decision: { decisionId: "decision-1", decision, finalSession },
     lineage: {
@@ -156,7 +160,7 @@ describe("PHYS-04 — daily mobility", () => {
     const manual: BuildFinalPrescriptionV2Input = {
       finalPrescriptionId: "f",
       decision: { decisionId: "d", decision: "KEEP", finalSession: { kind: "MOBILITY" } },
-      lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
+      phys: PHYS_ON, lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
       plannedPrescription: null,
       adaptation: dailyAdaptationContextV2(SNAPSHOT, "2026-10-29", counter("x")),
     };
@@ -221,5 +225,21 @@ describe("PHYS-04 — bodyweight progression on repetitions (explicit rules, no 
     const first = guided.blocks.find((b) => b.role === "main")!.items[0] as ExerciseItemV2;
     const bad = { ...guided, blocks: guided.blocks.map((b) => (b.role === "main" ? { ...b, items: [{ ...first, repsGuidance: { ...first.repsGuidance!, kg: 10 } }] } : b)) };
     expect(validatePrescriptionV2(bad, { stage: "final" }).ok).toBe(false);
+  });
+});
+
+describe("V2-PHYS-INTEGRATION-01 — a REPLACE by the mobility kind needs the mobility switch", () => {
+  const anySession = ON.weeks[3]!.sessions.find((s) => s.kind !== "MOBILITY" && s.kind !== "REST")!;
+
+  it("mobility on: M1's REPLACE by MOBILITY → the protocol session (v2.replace.mobility); mobility off: unsupported, as before PHYS", () => {
+    const on = created(buildFinalPrescriptionV2(input(anySession, "REPLACE", { kind: "MOBILITY" })));
+    expect([on.structure.family, on.reconciliationAction, on.adaptationRuleIds]).toEqual(["mobility", "replace", ["v2.replace.mobility"]]);
+    const off = buildFinalPrescriptionV2({ ...input(anySession, "REPLACE", { kind: "MOBILITY" }), phys: { ...PHYS_ON, mobility: false } });
+    expect(off).toMatchObject({ status: "blocked", detail: { reason: "replace_target_not_supported", target: "MOBILITY" } });
+  });
+
+  it("mobility off: a mobility session already in the accepted plan keeps its own rules (KEEP copy)", () => {
+    const kept = created(buildFinalPrescriptionV2({ ...input(MOBILITY_SESSION, "KEEP", KEEP_MOBILITY), phys: {} }));
+    expect([kept.structure.family, kept.reconciliationAction]).toEqual(["mobility", "keep"]);
   });
 });

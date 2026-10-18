@@ -22,6 +22,8 @@ import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnaps
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 
 const SERVED = process.env.PHYS02_EDGE_INTERVALS_SERVED;
+// V2-PHYS-INTEGRATION-01 — the endurance guidance needs NALYNT_V2_PHYS_DAILY_ENABLED (see phys01DailyRunEdge).
+const DAILY_SERVED = process.env.PHYS01_EDGE_DAILY_SERVED === "true";
 const ENABLED = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && (SERVED === "true" || SERVED === "false");
 
 async function invoke(client: SupabaseClient, fn: string, body: unknown): Promise<{ status: number; body: Record<string, any> }> {
@@ -125,10 +127,15 @@ describe.skipIf(!ENABLED)(`PHYS-02 — the intervals option over HTTP (local Edg
     // A — 11-13: the next intervals day reads it.
     await insertCheckin(admin, a.athleteId, "2026-11-13");
     const day2 = await invoke(a.client, "daily-run", { date: "2026-11-13" });
-    expect(day2.body.finalPrescription.structure.enduranceGuidance).toEqual({
-      ruleVersion: "endurance-guidance-v1",
-      reference: { sessionDate: "2026-10-23", activityId: "home_trainer", durationSeconds: 3180, distanceM: null, rpeActual: 7 },
-    });
+    if (DAILY_SERVED) {
+      expect(day2.body.finalPrescription.structure.enduranceGuidance).toEqual({
+        ruleVersion: "endurance-guidance-v1",
+        reference: { sessionDate: "2026-10-23", activityId: "home_trainer", durationSeconds: 3180, distanceM: null, rpeActual: 7 },
+      });
+    } else {
+      // PHYS daily secret absent: the intervals session is served, without any guidance (the production behaviour).
+      expect([day2.body.finalPrescription.structure.protocolId, day2.body.finalPrescription.structure.enduranceGuidance]).toEqual(["endurance_intervals_3min", undefined]);
+    }
 
     // B — 10-23 after a short night (C3.3): PHYS-02.1's LIGHT fallback through the deployed path.
     await insertCheckin(admin, b.athleteId, "2026-10-23", { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 });

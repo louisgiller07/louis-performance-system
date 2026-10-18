@@ -24,7 +24,10 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const PREVIOUS = process.env.PHYS011_PREVIOUS_RUNTIME_ROOT;
 const ENABLED = localIntegrationRequested() && !!PREVIOUS;
@@ -82,7 +85,7 @@ describe.skipIf(!ENABLED)("PHYS-04 — previous runtime (D) on plans holding mob
     expect([keep.dailyPlan.decision, keep.finalPrescriptionStatus, fKeep.structure.family, fKeep.structure.protocolId]).toEqual(["KEEP", "created", "mobility", "mobility_routine_v1"]);
     const now = await rider("PHYS-04 runtime");
     await insertCheckin(admin, now, "2026-10-28");
-    expect(exerciseIds(fKeep.structure)).toEqual(exerciseIds((await finalOf((await runDailyFor(admin, now, "2026-10-28")).persistence.decision_id))!.structure));
+    expect(exerciseIds(fKeep.structure)).toEqual(exerciseIds((await finalOf((await runDailyFor(admin, now, "2026-10-28", PHYS_ON_DEPS)).persistence.decision_id))!.structure));
 
     const a10Rider = await rider("D A10");
     await insertCheckin(admin, a10Rider, "2026-10-28", { available_minutes_today: 25 });
@@ -101,7 +104,7 @@ describe.skipIf(!ENABLED)("PHYS-04 — previous runtime (D) on plans holding mob
   it("3 — a bodyweight Force day after recorded sets: D builds the same work exercises, without repetitions guidance", async () => {
     const athleteId = await rider("bodyweight", "beginner");
     await insertCheckin(admin, athleteId, "2026-10-14");
-    const f14 = (await finalOf((await runDailyFor(admin, athleteId, "2026-10-14")).persistence.decision_id))!;
+    const f14 = (await finalOf((await runDailyFor(admin, athleteId, "2026-10-14", PHYS_ON_DEPS)).persistence.decision_id))!;
     const workOf = (s: Structure) => s.blocks.filter((b) => b.role === "main" || b.role === "complementary").flatMap((b) => b.items);
     const work = workOf(f14.structure);
     const id = randomUUID();

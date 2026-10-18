@@ -17,8 +17,11 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { computeDailyFor } from "../../src/supabase/computeDailyFor.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const ENABLED = localIntegrationRequested();
 const SYSTEMIC_RED: CheckinFixture = { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 };
@@ -75,7 +78,7 @@ describe.skipIf(!ENABLED)("PHYS-03 — power session end to end (local Supabase)
       ["2026-11-11", "STRENGTH_LOWER", 60, "MODERATE"],
     ]);
     await insertCheckin(admin, r.athleteId, "2026-10-14");
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-14");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-14", PHYS_ON_DEPS);
     // The decision says the realistic duration (A07: the content's estimate).
     expect([d.dailyPlan.decision, d.dailyPlan.final_session, d.finalPrescriptionStatus]).toEqual(["KEEP", { kind: "POWER", load_profile: "MODERATE", duration_min: 59 }, "created"]);
     const f = (await finalOf(d.persistence.decision_id))!;
@@ -115,7 +118,7 @@ describe.skipIf(!ENABLED)("PHYS-03 — power session end to end (local Supabase)
   it("B — advanced without equipment: the plyometric push-up instead of the swing", async () => {
     const r = await rider("B", "advanced", []);
     await insertCheckin(admin, r.athleteId, "2026-10-14");
-    const f = (await finalOf((await runDailyFor(admin, r.athleteId, "2026-10-14")).persistence.decision_id))!;
+    const f = (await finalOf((await runDailyFor(admin, r.athleteId, "2026-10-14", PHYS_ON_DEPS)).persistence.decision_id))!;
     expect(explosive(f.structure).map((i) => i.exerciseId)).toEqual(["squat_jump", "broad_jump", "skater_jump", "plyo_pushup"]);
   });
 
@@ -127,14 +130,14 @@ describe.skipIf(!ENABLED)("PHYS-03 — power session end to end (local Supabase)
   it("D — limited equipment and limited time: 3 jumps; 55 min fits (51), 45 min → active recovery (never below three); with dumbbells 55 min drops the swing", async () => {
     const limited = await rider("D", "intermediate", []);
     await insertCheckin(admin, limited.athleteId, "2026-10-14", { available_minutes_today: 55 });
-    const d55 = await runDailyFor(admin, limited.athleteId, "2026-10-14");
+    const d55 = await runDailyFor(admin, limited.athleteId, "2026-10-14", PHYS_ON_DEPS);
     expect([d55.dailyPlan.decision, d55.dailyPlan.final_session.duration_min, explosive((await finalOf(d55.persistence.decision_id))!.structure).map((i) => i.exerciseId)]).toEqual(["KEEP", 51, ["squat_jump", "broad_jump", "skater_jump"]]);
     await insertCheckin(admin, limited.athleteId, "2026-11-04", { available_minutes_today: 45 });
-    const d45 = await runDailyFor(admin, limited.athleteId, "2026-11-04");
+    const d45 = await runDailyFor(admin, limited.athleteId, "2026-11-04", PHYS_ON_DEPS);
     expect([d45.dailyPlan.decision, d45.dailyPlan.final_session.kind]).toEqual(["REPLACE", "RECOVERY_ACTIVE"]);
     const full = await rider("D2", "intermediate", ["dumbbells"]);
     await insertCheckin(admin, full.athleteId, "2026-10-14", { available_minutes_today: 55 });
-    const s55 = await runDailyFor(admin, full.athleteId, "2026-10-14");
+    const s55 = await runDailyFor(admin, full.athleteId, "2026-10-14", PHYS_ON_DEPS);
     const f55 = (await finalOf(s55.persistence.decision_id))!;
     expect([s55.dailyPlan.decision, f55.adaptation_rule_ids, explosive(f55.structure).map((i) => i.exerciseId), s55.dailyPlan.final_session.duration_min]).toEqual([
       "MODIFY",
@@ -147,7 +150,7 @@ describe.skipIf(!ENABLED)("PHYS-03 — power session end to end (local Supabase)
   it("E — tired legs (C3.6): M1 keeps the power session; NALYNT does not prescribe it — decision kept, traced, no document", async () => {
     const r = await rider("E", "intermediate", ["dumbbells"]);
     await insertCheckin(admin, r.athleteId, "2026-10-14", { leg_fatigue: 8 });
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-14");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-14", PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session.kind, d.finalPrescriptionStatus, d.finalPrescriptionStatusDetail]).toEqual(["KEEP", "POWER", "blocked", { reason: "power_fatigue_not_cleared", rules: ["C3.6"] }]);
     expect(d.dailyPlan.triggered_rules.at(-1)!.rule_id).toBe("V2_POWER_FATIGUE_HOLD");
     expect(await finalOf(d.persistence.decision_id)).toBeNull();
@@ -156,20 +159,20 @@ describe.skipIf(!ENABLED)("PHYS-03 — power session end to end (local Supabase)
   it("F — short night (C3.3 → LIGHT): no lighter power session — decision kept, reason traced", async () => {
     const r = await rider("F", "intermediate", ["dumbbells"]);
     await insertCheckin(admin, r.athleteId, "2026-10-14", SYSTEMIC_RED);
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-14");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-14", PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session.kind, d.finalPrescriptionStatus, d.finalPrescriptionStatusDetail?.reason]).toEqual(["MODIFY", "POWER", "blocked", "power_load_not_supported"]);
   });
 
   it("G — health first (P0-SAFE): a traumatic pain, or a strong pain still open from the day before → REST, no power session", async () => {
     const r = await rider("G", "intermediate", ["dumbbells"]);
     await insertCheckin(admin, r.athleteId, "2026-10-14", { pain: true, pain_intensity: 6, pain_new: false, pain_location_code: "ankle_R", pain_traumatic: true, pain_function_loss: false, pain_getting_worse: false });
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-14");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-14", PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session.kind, await finalOf(d.persistence.decision_id)]).toEqual(["REST", "REST", null]);
     const r2 = await rider("G2", "intermediate", ["dumbbells"]);
     await insertCheckin(admin, r2.athleteId, "2026-11-03", { pain: true, pain_intensity: 7, pain_new: false, pain_location_code: "knee_L", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
-    expect((await runDailyFor(admin, r2.athleteId, "2026-11-03")).dailyPlan.decision).toBe("REST");
+    expect((await runDailyFor(admin, r2.athleteId, "2026-11-03", PHYS_ON_DEPS)).dailyPlan.decision).toBe("REST");
     await insertCheckin(admin, r2.athleteId, "2026-11-04");
-    const d2 = await runDailyFor(admin, r2.athleteId, "2026-11-04");
+    const d2 = await runDailyFor(admin, r2.athleteId, "2026-11-04", PHYS_ON_DEPS);
     expect([d2.dailyPlan.decision, d2.dailyPlan.final_session.kind, await finalOf(d2.persistence.decision_id)]).toEqual(["REST", "REST", null]);
   });
 });

@@ -152,7 +152,8 @@ describe("V2 content — import boundary", () => {
     // A04 — buildFinalPrescriptionV2 (MODIFY / REPLACE) builds real content with the V2 builders and the
     // plan dose policy; A10 — todayTimeLimitV2 reads the plan dose policy's availability steps to fit the
     // rider's time. The KEEP copy itself stays pure. No module of final/ ever reads a legacy dose field.
-    expect(readdirSync(dir).sort()).toEqual(["buildFinalPrescriptionV2.ts", "buildKeepFinalPrescriptionV2.ts", "finalPrescriptionV2.ts", "todayTimeLimitV2.ts", "validateKeepFinalPrescriptionV2.ts"]);
+    // V2-PHYS-INTEGRATION-01 — physSwitchesV2.ts: the PHYS daily switches, a type and a constant (no import).
+    expect(readdirSync(dir).sort()).toEqual(["buildFinalPrescriptionV2.ts", "buildKeepFinalPrescriptionV2.ts", "finalPrescriptionV2.ts", "physSwitchesV2.ts", "todayTimeLimitV2.ts", "validateKeepFinalPrescriptionV2.ts"]);
     for (const file of sourceFiles(dir)) {
       const text = readFileSync(file, "utf8");
       expect(text, file).not.toMatch(/setVolume|targetRpeOrRir|intensityZone/);

@@ -6389,3 +6389,40 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 Les contrats du moteur gelé et les règles de progression sont inchangés.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/partial-01-partial-sessions`, depuis `940bb75` ; finalisation HPM 2026-10-18, APPROVE WITH CONDITIONS).
+
+## 2026-10-18 — ADR V2-PHYS-INTEGRATION-01 : intégration locale de PHYS, tout OFF = production
+
+> **Les sept commits PHYS sont intégrés sur la production `863f3fb`. Tous interrupteurs éteints, le comportement V2 est celui de la production, prouvé résultat par résultat contre son runtime compilé.** Chaque comportement PHYS ne s'active que par un secret serveur, dont la valeur doit être exactement `"true"`. Local seulement.
+
+**Intégration**
+- Fusion `--no-ff` de `91bb721` (pile `5ec0976..91bb721`, base D `649a0a2`) : les SHA d'origine sont conservés.
+- Seul conflit : `docs/11`. Les ADR des deux côtés sont gardées, dans l'ordre chronologique.
+- Aucune migration. Dossiers gelés de M1 non touchés.
+
+**Interrupteurs du chemin quotidien** (`planning-engine` `PhysSwitchesV2`, lus par `daily-run` dans les secrets Edge à chaque requête : `physDailySwitches.ts`)
+
+| Secret | Ouvre |
+|---|---|
+| `NALYNT_V2_PHYS_DAILY_ENABLED` | retour au calme de Force ; Force sous A10 à dose égale, durée estimée d'après le contenu (PHYS-01.1) ; guidage d'endurance (PHYS-02) |
+| `NALYNT_V2_PHYS_PERFORMANCE_GUIDANCE_ENABLED` (seulement avec le précédent) | guidage de charge (PHYS-01) et de répétitions au poids du corps (PHYS-04). **Non autorisé** tant que `docs/03` §10 l'interdit |
+| `NALYNT_V2_ENDURANCE_INTERVALS_ENABLED` / `NALYNT_V2_POWER_ENABLED` / `NALYNT_V2_MOBILITY_ENABLED` (secrets de génération de PHYS-02 / 03 / 04) | en plus du placement dans un nouveau programme : la séance manuelle et le REPLACE de leur famille |
+
+**Comportement tout OFF**
+- Pas de retour au calme ajouté, aucun guidage lu ni écrit.
+- Force sous A10 à sa dose LIGHT.
+- Grille d'endurance de 15 min.
+- Séance manuelle ou REPLACE de type POWER, AEROBIC_INTERVALS ou MOBILITY : refusée comme avant PHYS (`manual_kind_not_supported` / `replace_target_not_supported`).
+
+**Ce qui est déjà accepté reste servi**. Une séance de ces familles déjà présente dans le programme accepté du rider garde ses règles, même son flag éteint : KEEP, A10, maintien en cas de fatigue, repli LIGHT des intervalles. Éteindre une famille ferme seulement les nouvelles entrées ; cela ne casse jamais un programme en cours.
+
+**Preuves**
+- Les tests de production modifiés par PHYS sont restaurés à l'identique et passent, flags OFF ; les variantes PHYS passent avec leurs interrupteurs ON.
+- Test différentiel contre le runtime compilé de `863f3fb` (73 profils de plan, 47 970 cas quotidiens planifiés, 11 088 cas manuels) : résultats identiques. Contre-épreuve : avec les interrupteurs ON, la comparaison trouve bien les différences.
+- Base réelle : la production et le candidat décident les mêmes jours de la même façon.
+
+**Hors de cette ADR** :
+- garde serveur POWER, proposée sans migration : `docs/release/v2-phys-integration-01/POWER_GUARD_01_PROPOSAL.md` ;
+- guidage de performance : `PERFORMANCE_GUIDANCE_CANON_NOTE.md`, `docs/03` inchangé ;
+- V2-L1 et V2-L2.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `int/v2-phys-integration-01`, depuis `863f3fb`). Aucun flag activé.

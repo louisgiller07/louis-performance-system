@@ -63,7 +63,8 @@ function input(decision: "KEEP" | "MODIFY", finalSession: BuildFinalPrescription
     },
     plannedPrescription: { ...force.plannedPrescription, generatedPlanSessionId: force.generatedPlanSessionId },
     adaptation: { athlete: toSessionModelV2Input(SNAPSHOT), ridingAvailable: true, mintId: counter("b") },
-    ...(daily ? { dailyMintId: counter("c") } : {}),
+    // V2-PHYS-INTEGRATION-01 — the PHYS-01.1 daily runtime: the PHYS daily switch on.
+    ...(daily ? { dailyMintId: counter("c"), phys: { daily: true } } : {}),
   };
 }
 const created = (r: ReturnType<typeof buildFinalPrescriptionV2>) => {

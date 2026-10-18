@@ -181,6 +181,11 @@ export interface RunDailyForDeps {
   persistDailyRunV2: typeof persistDailyRunV2;
   /** UX-11A.5c.3 — ids minted after M1 (decision, final prescription). */
   mintId: () => string;
+  /**
+   * V2-PHYS-INTEGRATION-01 — the PHYS switches of the V2 path, from the Edge secrets (dailyV2/physDailySwitches.ts).
+   * Absent = all off: the production daily behaviour before PHYS.
+   */
+  physSwitches?: ReconcileFinalPrescriptionV2Input["phys"];
 }
 
 /**
@@ -402,6 +407,8 @@ export async function runDailyFor(
       enduranceFallbackPain: enduranceFallbackPainGate(computed.rawContext?.checkin),
       // PHYS-03 — the power session only on a day M1 does not flag legs / grip fatigue.
       powerFatigue: powerFatigueGate(dailyPlanV2),
+      // V2-PHYS-INTEGRATION-01 — the server's PHYS switches (absent = all off).
+      phys: deps.physSwitches ?? {},
     });
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.

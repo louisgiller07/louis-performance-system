@@ -23,6 +23,9 @@ import {
   type PrescriptionV2Content,
 } from "../../src/sessionModelV2/index.js";
 import type { PlanInputAvailabilityWindow } from "../../src/types/planInputSnapshot.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with their switches ON (every switch off: the production behaviour,
+// proven by the production tests kept unchanged and by phys00FlagsOffEquivalence).
+const PHYS_ON = { daily: true, intervals: true, power: true, mobility: true } as const;
 
 // PHYS-03 — the power (explosiveness) session: existing catalogue content composed in the v2.6 format
 // (docs/03 §5 envelope), placed in build weeks with the server option only, one dose per day.
@@ -167,6 +170,7 @@ const POWER_SESSION = ON.weeks[1]!.sessions.find((s) => s.kind === "POWER")!;
 const UPPER = ON.weeks[1]!.sessions.find((s) => s.kind === "STRENGTH_UPPER")!;
 function input(s: PlanSessionV2InMemory, decision: "KEEP" | "MODIFY" | "REPLACE", finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"]): BuildFinalPrescriptionV2Input {
   return {
+    phys: PHYS_ON,
     finalPrescriptionId: "final-1",
     decision: { decisionId: "decision-1", decision, finalSession },
     lineage: {
@@ -233,7 +237,7 @@ describe("PHYS-03 — daily: one dose, the rider's time, M1's fatigue", () => {
     const manual = (loadProfile: "LIGHT" | "MODERATE", tier: "beginner" | "intermediate"): BuildFinalPrescriptionV2Input => ({
       finalPrescriptionId: "f",
       decision: { decisionId: "d", decision: "KEEP", finalSession: { kind: "POWER", loadProfile } },
-      lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
+      phys: PHYS_ON, lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
       plannedPrescription: null,
       adaptation: dailyAdaptationContextV2({ ...SNAPSHOT, strengthExperienceTier: tier }, "2026-10-14", counter("m")),
     });
@@ -245,5 +249,19 @@ describe("PHYS-03 — daily: one dose, the rider's time, M1's fatigue", () => {
       detail: { reason: "no_compatible_power_exercise", athleteTier: "beginner", available: [], target: "POWER" },
     });
     expect(buildFinalPrescriptionV2(manual("LIGHT", "intermediate"))).toMatchObject({ status: "blocked", detail: { reason: "power_load_not_supported" } });
+  });
+});
+
+describe("V2-PHYS-INTEGRATION-01 — a REPLACE by the power kind needs the power switch", () => {
+  it("power on: M1's REPLACE of a Force session by POWER → the catalogue power session (v2.replace.power); power off: unsupported, as before PHYS", () => {
+    const on = created(buildFinalPrescriptionV2(input(UPPER, "REPLACE", { kind: "POWER", loadProfile: "MODERATE" })));
+    expect([on.structure.family, on.reconciliationAction, on.adaptationRuleIds]).toEqual(["power", "replace", ["v2.replace.power"]]);
+    const off = buildFinalPrescriptionV2({ ...input(UPPER, "REPLACE", { kind: "POWER", loadProfile: "MODERATE" }), phys: { ...PHYS_ON, power: false } });
+    expect(off).toMatchObject({ status: "blocked", detail: { reason: "replace_target_not_supported", target: "POWER" } });
+  });
+
+  it("power off: a power session already in the accepted plan keeps its own rules (KEEP copy), never closed under the rider", () => {
+    const kept = created(buildFinalPrescriptionV2({ ...input(POWER_SESSION, "KEEP", KEEP_POWER), phys: {} }));
+    expect([kept.structure.family, kept.reconciliationAction]).toEqual(["power", "keep"]);
   });
 });

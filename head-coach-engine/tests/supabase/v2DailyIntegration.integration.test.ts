@@ -62,22 +62,6 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
     return { athleteId, planVersionId: persisted.planVersionId };
   }
 
-  /** PHYS-01.1 — a stored final structure without its daily Force additions: the appended cool-down and the load guidance. */
-  function withoutDailyForceAdditions(structure: unknown): { structure: unknown; guided: [string, string][]; coolDown: string[] } {
-    const copy = JSON.parse(JSON.stringify(structure)) as { family: string; blocks: { role: string; items: Record<string, unknown>[] }[] };
-    const guided: [string, string][] = [];
-    for (const b of copy.blocks)
-      for (const i of b.items)
-        if (i.loadGuidance !== undefined) {
-          guided.push([i.exerciseId as string, (i.loadGuidance as { mode: string }).mode]);
-          delete i.loadGuidance;
-        }
-    const last = copy.blocks.at(-1);
-    const coolDown = copy.family === "strength" && last?.role === "cool_down" ? last.items.map((i) => i.exerciseId as string) : [];
-    if (coolDown.length > 0) copy.blocks.pop();
-    return { structure: copy, guided, coolDown };
-  }
-
   async function decisionsOn(athleteId: string, day: string) {
     const { data } = await admin
       .from("decisions")
@@ -142,13 +126,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       const finals = await finalsOf(decisions[0]!.id);
       expect(finals).toHaveLength(1);
       expect(finals[0]).toMatchObject({ id: result.finalPrescription!.id, planned_prescription_id: planned.id, plan_version_id: a.planVersionId, reconciliation_action: "keep", active_session_origin: "generated" });
-      // PHYS-01.1 — the planned content verbatim; a Force session also ends with its daily cool-down, and its loaded
-      // work exercises carry their load guidance (never content, never a plan change).
-      const { structure: content, guided, coolDown } = withoutDailyForceAdditions(finals[0]!.structure);
-      expect(content).toEqual(planned.structure);
-      expect(guided).toEqual(kind === "STRENGTH_LOWER" ? [["goblet_squat", "calibrate"], ["dumbbell_romanian_deadlift", "calibrate"]] : []);
-      expect(coolDown).toEqual(kind === "STRENGTH_LOWER" ? ["hip_flexor_mobility", "breathing_long_exhale"] : []);
-      expect(sportFingerprint(content)).toBe(sportFingerprint(planned.structure));
+      expect(finals[0]!.structure).toEqual(planned.structure);
+      expect(sportFingerprint(finals[0]!.structure)).toBe(sportFingerprint(planned.structure));
       // Not rendered by the web yet: the V1 reader stays fail-closed.
       expect(result.executablePrescription).toBeNull();
       expect(result.executablePrescriptionStatus).toBe("unsupported_schema_version");

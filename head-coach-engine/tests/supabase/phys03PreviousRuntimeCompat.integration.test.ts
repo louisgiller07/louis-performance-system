@@ -26,7 +26,10 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const PREVIOUS = process.env.PHYS011_PREVIOUS_RUNTIME_ROOT;
 const ENABLED = localIntegrationRequested() && !!PREVIOUS;
@@ -94,7 +97,7 @@ describe.skipIf(!ENABLED)("PHYS-03 — previous runtime (D) on plans holding pow
     const manual = await previousRunDailyFor(admin, athleteId, "2026-10-18");
     expect([manual.finalPrescriptionStatus, manual.finalPrescriptionStatusDetail?.reason]).toEqual(["blocked", "manual_kind_not_supported"]);
     // …which PHYS-03 builds (the rider's own choice, at MODERATE, intermediate tier).
-    const now = await runDailyFor(admin, athleteId, "2026-10-18");
+    const now = await runDailyFor(admin, athleteId, "2026-10-18", PHYS_ON_DEPS);
     expect([now.finalPrescriptionStatus, await familyOf(now.persistence.decision_id)]).toEqual(["created", "power"]);
   });
 
@@ -103,7 +106,7 @@ describe.skipIf(!ENABLED)("PHYS-03 — previous runtime (D) on plans holding pow
     await insertCheckin(admin, athleteId, "2026-10-14", { leg_fatigue: 8 });
     const d = await previousRunDailyFor(admin, athleteId, "2026-10-14");
     expect([d.dailyPlan.decision, d.finalPrescriptionStatus, await familyOf(d.persistence.decision_id)]).toEqual(["KEEP", "created", "power"]);
-    const now = await runDailyFor(admin, athleteId, "2026-10-14");
+    const now = await runDailyFor(admin, athleteId, "2026-10-14", PHYS_ON_DEPS);
     expect([now.finalPrescriptionStatus, now.finalPrescriptionStatusDetail?.reason]).toEqual(["blocked", "power_fatigue_not_cleared"]);
   });
 

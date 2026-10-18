@@ -9,6 +9,8 @@ import { prescriptionView } from "../../test/guidedSessionFakeBackend";
 import { workItems } from "../guidedSession/strength/strengthSets";
 import { mainDrill } from "../guidedSession/dh/dhPasses";
 import type { SetResultRow } from "../guidedSession/executionState";
+import phys03 from "../../test/fixtures/phys03FinalPrescriptionV2.json";
+import { decodeFinalPrescriptionV2 } from "../finalPrescriptionV2/decodeFinalPrescriptionV2";
 
 const result = (prescriptionItemId: string, set_number: number, done = true, id = `${prescriptionItemId}-${set_number}`, supersedes_id: string | null = null): SetResultRow => ({
   id, prescription_item_id: prescriptionItemId, other_exercise_name: null, set_number, done, measure_type: "reps", measure_value: 8, load_kg: null, rpe_actual: null, success: null, supersedes_id,
@@ -56,5 +58,25 @@ describe("PARTIAL-01 — guidedRealisationOf", () => {
   it("ambiguous results (two active results for one set) are never arbitrated → null", () => {
     const all = everySet();
     expect(guidedRealisationOf(LOWER, [...all, { ...all[0]!, id: "dup" }])).toBeNull();
+  });
+});
+
+// V2-PHYS-INTEGRATION-01 — PHYS-03: a power session is guided set by set like Force (strengthSets.isPowerPrescription),
+// so PARTIAL-01 tells its realisation the same way: every explosive work set performed → complete; fewer → partial.
+
+describe("PARTIAL-01 × PHYS-03 — a power session", () => {
+  type Doc = { id: string; decisionId: string; schemaVersion: string; catalogVersion: string; structure: unknown };
+  const doc = (phys03.finalPrescriptions as unknown as Record<string, Doc>).KEEP_POWER_INTERMEDIATE!;
+  const decoded = decodeFinalPrescriptionV2({ id: doc.id, decisionId: doc.decisionId, schemaVersion: doc.schemaVersion, catalogVersion: doc.catalogVersion, structure: doc.structure });
+  if (!decoded.ok) throw new Error(decoded.reason);
+  const POWER = decoded.view;
+  const explosive = workItems(POWER).map((w) => w.item);
+  const all = () => explosive.flatMap((item) => Array.from({ length: item.sets }, (_, i) => result(item.prescriptionItemId, i + 1)));
+
+  it("every explosive work set performed → complete; one missing → partial; none → partial (the server guard is POWER-GUARD-01's)", () => {
+    expect(explosive).toHaveLength(4);
+    expect(guidedRealisationOf(POWER, all())).toBe("complete");
+    expect(guidedRealisationOf(POWER, all().slice(1))).toBe("partial");
+    expect(guidedRealisationOf(POWER, [])).toBe("partial");
   });
 });

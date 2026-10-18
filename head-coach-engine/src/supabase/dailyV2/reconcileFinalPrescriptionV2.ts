@@ -38,6 +38,7 @@ import {
   buildFinalPrescriptionWithinTodayTimeV2,
   dailyAdaptationContextV2,
   type FinalPrescriptionV2,
+  type PhysSwitchesV2,
   type PlanInputSnapshotV2,
   type TodayTimeConstraintV2,
 } from "planning-engine/session-model-v2/daily";
@@ -78,6 +79,8 @@ export interface ReconcileFinalPrescriptionV2Input {
   enduranceFallbackPain?: EnduranceFallbackPainGate;
   /** PHYS-03 — M1's legs / grip fatigue against a power session (powerFatigueGate.ts); absent = no information. */
   powerFatigue?: PowerFatigueGate;
+  /** V2-PHYS-INTEGRATION-01 — the server's PHYS switches (physDailySwitches.ts); absent = all off, the production behaviour. */
+  phys?: PhysSwitchesV2;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
@@ -130,11 +133,14 @@ export async function reconcileFinalPrescriptionV2(
       : null;
 
   const final = dailyPlan.final_session;
+  // V2-PHYS-INTEGRATION-01 — every switch off: no daily addition, no guidance, no new family (the production behaviour).
+  const phys = input.phys ?? {};
   const result = buildFinalPrescriptionWithinTodayTimeV2({
     availableMinutes,
     adaptation,
-    // PHYS-01.1 — ids of the daily Force additions (cool-down).
-    dailyMintId: input.mintId,
+    phys,
+    // PHYS-01.1 — ids of the daily Force additions (cool-down), only while the PHYS daily switch is on.
+    ...(phys.daily === true ? { dailyMintId: input.mintId } : {}),
     // PHYS-02.1 — the intervals LIGHT fallback only for a pain the existing rule clears for endurance.
     ...(input.enduranceFallbackPain !== undefined ? { enduranceFallbackPain: input.enduranceFallbackPain } : {}),
     // PHYS-03 — no power session on a day M1 flags legs / grip fatigue without adapting it.
@@ -179,9 +185,14 @@ export async function reconcileFinalPrescriptionV2(
             structure: planned.structure,
           },
   });
-  if (input.athleteId === undefined) return result;
-  // PHYS-01 — the load guidance of a Force session, from the rider's own completed sets (never changes the decision).
-  const withLoad = await withStrengthLoadGuidance(result, client, input.athleteId, dailyPlan.date, deps.strengthLoadGuidance, input.todayHold);
+  // V2-PHYS-INTEGRATION-01 — no guidance read or written while the PHYS daily switch is off.
+  if (input.athleteId === undefined || phys.daily !== true) return result;
+  // PHYS-01 / PHYS-04 — the load and repetitions guidance of a Force session, from the rider's own completed sets
+  // (never changes the decision): a progression from real performance, only behind its own switch (docs/03 §10).
+  const withLoad =
+    phys.performanceGuidance === true
+      ? await withStrengthLoadGuidance(result, client, input.athleteId, dailyPlan.date, deps.strengthLoadGuidance, input.todayHold)
+      : result;
   // PHYS-02 — the guidance of an endurance session, from the rider's own completed endurance sessions.
   return withEnduranceGuidance(withLoad, client, input.athleteId, dailyPlan.date, deps.enduranceGuidance);
 }

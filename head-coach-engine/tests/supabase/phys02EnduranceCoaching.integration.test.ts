@@ -17,8 +17,11 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { INTERVALS_LIGHT_FALLBACK_SENTENCE } from "../../src/supabase/dailyV2/applyV2IntervalsLightFallback.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const ENABLED = localIntegrationRequested();
 const SYSTEMIC_RED: CheckinFixture = { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 };
@@ -94,14 +97,14 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
 
     // 10-09 — introduction: base 45, no history yet → no guidance. Performed a little too hard (RPE 6).
     await insertCheckin(admin, r.athleteId, "2026-10-09");
-    const d1 = await runDailyFor(admin, r.athleteId, "2026-10-09");
+    const d1 = await runDailyFor(admin, r.athleteId, "2026-10-09", PHYS_ON_DEPS);
     const f1 = await finalOf(d1.persistence.decision_id);
     expect([d1.dailyPlan.decision, f1.reconciliation_action, f1.structure.sessionKind, minutesOf(f1.structure), f1.structure.enduranceGuidance]).toEqual(["KEEP", "keep", "AEROBIC_BASE", [10, 30, 5], undefined]);
     await perform(r.athleteId, "2026-10-09", f1.id, { activity_id: "mtb_rolling", minutes: 47, distance_m: 18400, rpe_actual: 6 });
 
     // 10-16 — the guidance reads 10-09 as recorded, and restates the talk test (RPE 6 for 3–4).
     await insertCheckin(admin, r.athleteId, "2026-10-16");
-    const f2 = await finalOf((await runDailyFor(admin, r.athleteId, "2026-10-16")).persistence.decision_id);
+    const f2 = await finalOf((await runDailyFor(admin, r.athleteId, "2026-10-16", PHYS_ON_DEPS)).persistence.decision_id);
     expect(f2.structure.enduranceGuidance).toEqual({
       ruleVersion: "endurance-guidance-v1",
       reference: { sessionDate: "2026-10-09", activityId: "mtb_rolling", durationSeconds: 2820, distanceM: 18400, rpeActual: 6 },
@@ -111,7 +114,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
 
     // 10-23 — overload week: the intervals session, verbatim; no intervals history yet → no guidance.
     await insertCheckin(admin, r.athleteId, "2026-10-23");
-    const d3 = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d3 = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     const f3 = await finalOf(d3.persistence.decision_id);
     expect([d3.dailyPlan.decision, f3.reconciliation_action, f3.structure.protocolId, minutesOf(f3.structure), f3.structure.enduranceGuidance]).toEqual(["KEEP", "keep", "endurance_intervals_3min", INTERVALS_MINUTES, undefined]);
     expect(f3.structure.blocks.filter((b) => b.rpeTarget?.max === 8)).toHaveLength(6);
@@ -119,7 +122,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
 
     // 11-06 — base 60: the last BASE session (10-16) is the reference (not the intervals); effort was on target.
     await insertCheckin(admin, r.athleteId, "2026-11-06");
-    const f4 = await finalOf((await runDailyFor(admin, r.athleteId, "2026-11-06")).persistence.decision_id);
+    const f4 = await finalOf((await runDailyFor(admin, r.athleteId, "2026-11-06", PHYS_ON_DEPS)).persistence.decision_id);
     expect([minutesOf(f4.structure), f4.structure.enduranceGuidance]).toEqual([
       [10, 45, 5],
       { ruleVersion: "endurance-guidance-v1", reference: { sessionDate: "2026-10-16", activityId: "road_bike", durationSeconds: 2700, distanceM: 24000, rpeActual: 4 } },
@@ -127,7 +130,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
 
     // 11-13 — the second intervals session reads the first one (reference only, the session RPE never compared with RPE 8).
     await insertCheckin(admin, r.athleteId, "2026-11-13");
-    const f5 = await finalOf((await runDailyFor(admin, r.athleteId, "2026-11-13")).persistence.decision_id);
+    const f5 = await finalOf((await runDailyFor(admin, r.athleteId, "2026-11-13", PHYS_ON_DEPS)).persistence.decision_id);
     expect([minutesOf(f5.structure), f5.structure.enduranceGuidance]).toEqual([
       INTERVALS_MINUTES,
       { ruleVersion: "endurance-guidance-v1", reference: { sessionDate: "2026-10-23", activityId: "home_trainer", durationSeconds: 3180, distanceM: null, rpeActual: 7 } },
@@ -136,7 +139,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
 
   /** PHYS-02.1 — the LIGHT fallback day as persisted: M1's MODIFY and LIGHT, the base endurance session, traced. */
   async function expectLightFallback(athleteId: string, date: string) {
-    const d = await runDailyFor(admin, athleteId, date);
+    const d = await runDailyFor(admin, athleteId, date, PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session, d.finalPrescriptionStatus]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 }, "created"]);
     const ruleIds = d.dailyPlan.triggered_rules.map((r) => r.rule_id);
     expect(ruleIds.slice(-2)).toEqual(["V2_INTERVALS_LIGHT_FALLBACK", "V2_EFFECTIVE_SESSION"]);
@@ -159,11 +162,11 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
     await perform(r.athleteId, "2026-10-23", f.id, { activity_id: "road_bike", minutes: 46, distance_m: 22000, rpe_actual: 3 });
     // Next base session (11-06): the LIGHT fallback performed on 10-23 is its reference (same base protocol).
     await insertCheckin(admin, r.athleteId, "2026-11-06");
-    const next = await finalOf((await runDailyFor(admin, r.athleteId, "2026-11-06")).persistence.decision_id);
+    const next = await finalOf((await runDailyFor(admin, r.athleteId, "2026-11-06", PHYS_ON_DEPS)).persistence.decision_id);
     expect(next.structure.enduranceGuidance).toEqual({ ruleVersion: "endurance-guidance-v1", reference: { sessionDate: "2026-10-23", activityId: "road_bike", durationSeconds: 2760, distanceM: 22000, rpeActual: 3 } });
     // Next intervals day (11-13), rested: the intervals session again; no intervals history yet → no guidance.
     await insertCheckin(admin, r.athleteId, "2026-11-13");
-    const d13 = await runDailyFor(admin, r.athleteId, "2026-11-13");
+    const d13 = await runDailyFor(admin, r.athleteId, "2026-11-13", PHYS_ON_DEPS);
     const f13 = await finalOf(d13.persistence.decision_id);
     expect([d13.dailyPlan.decision, minutesOf(f13.structure), f13.structure.enduranceGuidance]).toEqual(["KEEP", INTERVALS_MINUTES, undefined]);
   });
@@ -177,7 +180,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
   it("B3 — PHYS-02.1, a mild knee pain (non-safety, solicited by endurance): no activity proposed — M1's decision kept, a safe, explicit, traced state", async () => {
     const r = await rider("B3", true);
     await insertCheckin(admin, r.athleteId, "2026-10-23", { pain: true, pain_intensity: 3, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session, d.finalPrescriptionStatus, d.finalPrescriptionStatusCode, d.finalPrescriptionStatusDetail]).toEqual([
       "MODIFY",
       { kind: "AEROBIC_INTERVALS", load_profile: "LIGHT", duration_min: 53 },
@@ -192,7 +195,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
     expect(data).toEqual([]);
     // The same pain without location (the rule's cautious reading), with little time: still no activity chosen.
     await insertCheckin(admin, r.athleteId, "2026-11-13", { pain: true, pain_intensity: 2, pain_new: false, pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false, available_minutes_today: 30 });
-    const d2 = await runDailyFor(admin, r.athleteId, "2026-11-13");
+    const d2 = await runDailyFor(admin, r.athleteId, "2026-11-13", PHYS_ON_DEPS);
     expect([d2.dailyPlan.decision, d2.finalPrescriptionStatus, d2.finalPrescriptionStatusDetail]).toEqual(["MODIFY", "blocked", { reason: "intervals_fallback_pain_not_cleared", zone: "unspecified" }]);
   });
 
@@ -205,7 +208,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
   it("C — docs/10 T1.3 (mental RED on an intervals day): MODIFY → the base endurance session at the planned 53 min", async () => {
     const r = await rider("C", true);
     await insertCheckin(admin, r.athleteId, "2026-10-23", MENTAL_RED);
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session.kind]).toEqual(["MODIFY", "AEROBIC_BASE"]);
     const f = await finalOf(d.persistence.decision_id);
     expect([f.reconciliation_action, f.adaptation_rule_ids, f.structure.protocolId, minutesOf(f.structure)]).toEqual(["modify", ["v2.modify.intervals_to_base"], "endurance_base_continuous", [10, 38, 5]]);
@@ -214,31 +217,31 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
   it("D2 — PHYS-02.1, short night AND little time: 30 min → active recovery; 15 min → rest (never more than the time given)", async () => {
     const r = await rider("D2", true);
     await insertCheckin(admin, r.athleteId, "2026-10-23", { ...SYSTEMIC_RED, available_minutes_today: 30 });
-    const d30 = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d30 = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     expect([d30.dailyPlan.decision, d30.dailyPlan.final_session.kind]).toEqual(["REPLACE", "RECOVERY_ACTIVE"]);
     expect(d30.dailyPlan.triggered_rules.map((t) => t.rule_id)).not.toContain("V2_INTERVALS_LIGHT_FALLBACK");
     await insertCheckin(admin, r.athleteId, "2026-11-13", { ...SYSTEMIC_RED, available_minutes_today: 15 });
-    const d15 = await runDailyFor(admin, r.athleteId, "2026-11-13");
+    const d15 = await runDailyFor(admin, r.athleteId, "2026-11-13", PHYS_ON_DEPS);
     expect([d15.dailyPlan.decision, d15.dailyPlan.final_session.kind, d15.finalPrescriptionStatus]).toEqual(["REST", "REST", "not_required"]);
   });
 
   it("D — the rider's time (A10): 50 min → base endurance 45 min (intervals never cut); 40 min → active recovery", async () => {
     const r = await rider("D", true);
     await insertCheckin(admin, r.athleteId, "2026-10-23", { available_minutes_today: 50 });
-    const d50 = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d50 = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     const f50 = await finalOf(d50.persistence.decision_id);
     expect([d50.dailyPlan.decision, d50.dailyPlan.final_session.kind, f50.reconciliation_action, minutesOf(f50.structure)]).toEqual(["REPLACE", "AEROBIC_BASE", "replace", [10, 30, 5]]);
     await insertCheckin(admin, r.athleteId, "2026-11-13", { available_minutes_today: 40 });
-    const d40 = await runDailyFor(admin, r.athleteId, "2026-11-13");
+    const d40 = await runDailyFor(admin, r.athleteId, "2026-11-13", PHYS_ON_DEPS);
     expect([d40.dailyPlan.decision, d40.dailyPlan.final_session.kind]).toEqual(["REPLACE", "RECOVERY_ACTIVE"]);
   });
 
   it("E2 — health first (P0-SAFE A6 → A7): a strong pain declared the day before keeps coaching suspended on the intervals day — no session, no fallback", async () => {
     const r = await rider("E2", true);
     await insertCheckin(admin, r.athleteId, "2026-10-22", { pain: true, pain_intensity: 7, pain_new: false, pain_location_code: "knee_R", pain_traumatic: false, pain_function_loss: false, pain_getting_worse: false });
-    expect((await runDailyFor(admin, r.athleteId, "2026-10-22")).dailyPlan.decision).toBe("REST");
+    expect((await runDailyFor(admin, r.athleteId, "2026-10-22", PHYS_ON_DEPS)).dailyPlan.decision).toBe("REST");
     await insertCheckin(admin, r.athleteId, "2026-10-23");
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     expect([d.dailyPlan.decision, d.dailyPlan.final_session.kind]).toEqual(["REST", "REST"]);
     expect(d.dailyPlan.triggered_rules.map((t) => t.rule_id)).not.toContain("V2_INTERVALS_LIGHT_FALLBACK");
     const { data } = await admin.from("decision_final_prescriptions").select("id").eq("decision_id", d.persistence.decision_id);
@@ -248,7 +251,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — endurance and intervals end to end (local
   it("E — health first (P0-SAFE unchanged): a traumatic pain on an intervals day → no session at all", async () => {
     const r = await rider("E", true);
     await insertCheckin(admin, r.athleteId, "2026-10-23", { pain: true, pain_intensity: 7, pain_new: false, pain_location_code: "knee_R", pain_traumatic: true, pain_function_loss: false, pain_getting_worse: false });
-    const d = await runDailyFor(admin, r.athleteId, "2026-10-23");
+    const d = await runDailyFor(admin, r.athleteId, "2026-10-23", PHYS_ON_DEPS);
     expect(d.dailyPlan.decision).toBe("REST");
     expect(d.finalPrescriptionStatus).not.toBe("created");
     const { data } = await admin.from("decision_final_prescriptions").select("id").eq("decision_id", d.persistence.decision_id);

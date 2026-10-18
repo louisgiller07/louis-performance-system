@@ -16,7 +16,10 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const INTEGRATION_ENABLED = localIntegrationRequested();
 const GENERATED_ON = "2026-10-04";
@@ -74,7 +77,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
   /** The day's check-in, then the real daily run; the persisted final prescription row (null when none). */
   async function day(athleteId: string, date: string, checkin: CheckinFixture = {}) {
     await insertCheckin(admin, athleteId, date, checkin);
-    const result = await runDailyFor(admin, athleteId, date);
+    const result = await runDailyFor(admin, athleteId, date, PHYS_ON_DEPS);
     const { data: rows } = await admin.from("decision_final_prescriptions").select("id, structure, adaptation_rule_ids").eq("decision_id", result.persistence.decision_id);
     const row = rows?.[0] ?? null;
     return { result, finalPrescriptionId: (row?.id as string | undefined) ?? null, structure: (row?.structure as Structure | undefined) ?? null, ruleIds: (row?.adaptation_rule_ids as string[] | undefined) ?? [] };
@@ -248,7 +251,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("PHYS-01 — physical coaching vertical pa
       .eq("athlete_id", r.athleteId)
       .eq("checkin_date", upper!);
     expect(error).toBeNull();
-    const after = await runDailyFor(admin, r.athleteId, upper!);
+    const after = await runDailyFor(admin, r.athleteId, upper!, PHYS_ON_DEPS);
     expect([after.dailyPlan.decision, after.finalPrescriptionStatus, after.finalPrescription]).toEqual(["REST", "not_required", undefined]);
     const { data: flags } = await admin.from("health_flags").select("status").eq("athlete_id", r.athleteId);
     expect(flags!.map((f) => f.status)).toContain("active");

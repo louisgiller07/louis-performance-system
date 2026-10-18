@@ -6,6 +6,7 @@
 // runDailyFor.
 import { withSupabase } from "@supabase/server";
 import { runDailyFor, DEFAULT_RUN_DAILY_FOR_DEPS } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
+import { physSwitchesFromEnv } from "../../../head-coach-engine/dist/supabase/dailyV2/physDailySwitches.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapDailyRunError } from "./errorMapping.ts";
 
@@ -104,7 +105,8 @@ export default {
     try {
       // ctx.supabaseAdmin only — athleteId came exclusively from the
       // RLS-scoped ctx.supabase query above, never from client input.
-      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue, DAILY_RUN_DEPS);
+      // V2-PHYS-INTEGRATION-01 — the PHYS switches from the Edge secrets, per request (never from the request body).
+      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue, { ...DAILY_RUN_DEPS, physSwitches: physSwitchesFromEnv((name) => Deno.env.get(name)) });
 
       // REST/MODIFY/REPLACE are normal coaching outcomes: daily_run_succeeded (info), never an error.
       await recordPilotEvent(ctx.supabaseAdmin, {

@@ -35,6 +35,10 @@ async function invoke(client: SupabaseClient, fn: string, body: unknown): Promis
 type Item = { prescriptionItemId: string; exerciseId: string; sets: number; measure: { min: number; max: number }; rpeTarget?: { max: number }; repsGuidance?: { mode: string; change?: string; targetReps?: number } };
 type Structure = { family: string; protocolId?: string; blocks: { role: string; items: Item[] }[] };
 const guided = (s: Structure) => s.blocks.filter((b) => b.role === "main" || b.role === "complementary").flatMap((b) => b.items).filter((i) => i.repsGuidance);
+// V2-PHYS-INTEGRATION-01 — the bodyweight work exercises, guided or not (the guidance needs the PHYS daily + performance secrets).
+const BODYWEIGHT = ["bodyweight_squat", "glute_bridge", "reverse_lunge"];
+const bodyweight = (s: Structure) => s.blocks.filter((b) => b.role === "main" || b.role === "complementary").flatMap((b) => b.items).filter((i) => BODYWEIGHT.includes(i.exerciseId));
+const DAILY_SERVED = process.env.PHYS01_EDGE_DAILY_SERVED === "true";
 
 describe.skipIf(!ENABLED)(`PHYS-04 — mobility and bodyweight guidance over HTTP (local Edge runtime, secret served = ${SERVED})`, { timeout: 240_000 }, () => {
   let admin: SupabaseClient;
@@ -82,14 +86,19 @@ describe.skipIf(!ENABLED)(`PHYS-04 — mobility and bodyweight guidance over HTT
     const d14 = await invoke(r.client, "daily-run", { date: "2026-10-14" });
     expect([d14.status, d14.body.dailyPlan.final_session.kind, d14.body.finalPrescriptionStatus], JSON.stringify(d14.body).slice(0, 300)).toEqual([200, "STRENGTH_LOWER", "created"]);
     const f14 = d14.body.finalPrescription as { id: string; structure: Structure };
-    expect(guided(f14.structure).map((i) => [i.exerciseId, i.repsGuidance!.mode])).toEqual([
-      ["bodyweight_squat", "calibrate"],
-      ["glute_bridge", "calibrate"],
-      ["reverse_lunge", "calibrate"],
-    ]);
+    expect(bodyweight(f14.structure).map((i) => i.exerciseId)).toEqual(BODYWEIGHT);
+    if (DAILY_SERVED) {
+      expect(guided(f14.structure).map((i) => [i.exerciseId, i.repsGuidance!.mode])).toEqual([
+        ["bodyweight_squat", "calibrate"],
+        ["glute_bridge", "calibrate"],
+        ["reverse_lunge", "calibrate"],
+      ]);
+    } else {
+      expect(guided(f14.structure)).toEqual([]);
+    }
     const exec = randomUUID();
     const start = await invoke(r.client, "session-execution", { execution: { id: exec, session_date: "2026-10-14", started_at: "2026-10-14T17:00:00Z", final_prescription_id: f14.id, comment: null }, events: [{ id: randomUUID(), execution_id: exec, event_type: "started", occurred_at: "2026-10-14T17:00:00Z" }] });
-    const sets = guided(f14.structure).flatMap((i) =>
+    const sets = bodyweight(f14.structure).flatMap((i) =>
       Array.from({ length: i.sets }, (_, k) => ({ id: randomUUID(), execution_id: exec, prescription_item_id: i.prescriptionItemId, set_number: k + 1, done: true, measure_type: "reps", measure_value: i.measure.min, rpe: i.rpeTarget?.max ?? null, occurred_at: `2026-10-14T17:${String(10 + k).padStart(2, "0")}:00Z` }))
     );
     const done = await invoke(r.client, "session-execution", { sets, events: [{ id: randomUUID(), execution_id: exec, event_type: "completed", occurred_at: "2026-10-14T17:55:00Z" }] });
@@ -98,7 +107,8 @@ describe.skipIf(!ENABLED)(`PHYS-04 — mobility and bodyweight guidance over HTT
     await insertCheckin(admin, r.athleteId, "2026-10-21");
     const d21 = await invoke(r.client, "daily-run", { date: "2026-10-21" });
     const g21 = guided((d21.body.finalPrescription as { structure: Structure }).structure);
-    expect(g21.map((i) => [i.exerciseId, i.repsGuidance!.change, i.repsGuidance!.targetReps])).toEqual(guided(f14.structure).map((i) => [i.exerciseId, "increase", i.measure.min + 1]));
+    if (DAILY_SERVED) expect(g21.map((i) => [i.exerciseId, i.repsGuidance!.change, i.repsGuidance!.targetReps])).toEqual(bodyweight(f14.structure).map((i) => [i.exerciseId, "increase", i.measure.min + 1]));
+    else expect(g21).toEqual([]);
 
     await insertCheckin(admin, r.athleteId, "2026-10-28");
     const d28 = await invoke(r.client, "daily-run", { date: "2026-10-28" });

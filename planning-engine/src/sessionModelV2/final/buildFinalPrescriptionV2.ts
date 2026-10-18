@@ -127,6 +127,7 @@ import { buildPowerPrescriptionV2Content, isPowerSessionPossibleV2, POWER_SESSIO
 import { POWER_SESSION_POLICY_V2 } from "../../catalog/powerSessionPolicyV2.js";
 import { buildMobilityPrescriptionV2Content, mobilityDurationRangeV2 } from "../builders/mobilityPrescriptionV2.js";
 import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
+import type { PhysSwitchesV2 } from "./physSwitchesV2.js";
 import { buildKeepFinalPrescriptionV2, lineageFailure, trustedPlannedStructure, type BuildKeepFinalPrescriptionV2Input } from "./buildKeepFinalPrescriptionV2.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
 
@@ -172,6 +173,11 @@ export interface BuildFinalPrescriptionV2Input extends BuildKeepFinalPrescriptio
    * without adapting the power session → no power document. Absent = no information (pure callers).
    */
   powerFatigue?: { cleared: true } | { cleared: false; rules: readonly string[] };
+  /**
+   * V2-PHYS-INTEGRATION-01 — the server's PHYS switches (physSwitchesV2.ts). Absent = all off: a manual session or a
+   * REPLACE of the intervals / power / mobility kind is refused exactly as before PHYS.
+   */
+  phys?: PhysSwitchesV2;
 }
 
 /** Stable rule ids of a modify / replace document (`adaptation_rule_ids`, never empty for those actions). */
@@ -475,6 +481,8 @@ function replacementContent(
   context: DailyAdaptationContextV2,
   timeLimitMin: number | undefined,
   strengthWorkSlots: number | undefined,
+  /** V2-PHYS-INTEGRATION-01 — the families a manual session or a REPLACE may open (absent = none, as before PHYS). */
+  phys: PhysSwitchesV2 | undefined,
   /** PHYS-02.1 — M1 MODIFIED a manual intervals session down to LIGHT: the base endurance fallback is allowed. */
   intervalsLightModify = false
 ): Built {
@@ -531,14 +539,16 @@ function replacementContent(
     const content = buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable: context.ridingAvailable });
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
   }
-  if (final.kind === "MOBILITY") {
+  // V2-PHYS-INTEGRATION-01 — a PHYS family is reached by a manual session or a REPLACE only while its switch is on;
+  // off, the target stays unsupported, exactly as before PHYS (`replace_target_not_supported` below).
+  if (final.kind === "MOBILITY" && phys?.mobility === true) {
     // PHYS-04 — the protocol session; under the rider's time, the protocol minimum, never below.
     const range = mobilityDurationRangeV2();
     if (timeLimitMin !== undefined && timeLimitMin < range.min) return { blocked: { reason: "mobility_duration_not_supported", timeLimitMin } };
     const atMinimum = timeLimitMin !== undefined && timeLimitMin < range.max;
     return { content: buildMobilityPrescriptionV2Content({ catalog, atMinimum }), rule: DAILY_ADAPTATION_RULES_V2.replaceMobility, durationMin: atMinimum ? range.min : range.max };
   }
-  if (final.kind === POWER_SESSION_KIND_V2) {
+  if (final.kind === POWER_SESSION_KIND_V2 && phys?.power === true) {
     // PHYS-03 — the catalogue power session at its one dose (MODERATE); the rider's tier and equipment from the plan's snapshot.
     if (final.loadProfile !== undefined && final.loadProfile !== "MODERATE") return { blocked: { reason: "power_load_not_supported", final: final.loadProfile } };
     const { strengthExperienceTier, equipment } = context.athlete;
@@ -548,7 +558,7 @@ function replacementContent(
     const content = buildPowerPrescriptionV2Content({ athleteTier: context.athlete.strengthExperienceTier, equipment: context.athlete.equipment, catalog });
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replacePower, durationMin: estimateStrengthDurationMinutesV2(content) };
   }
-  if (final.kind === "AEROBIC_INTERVALS") {
+  if (final.kind === "AEROBIC_INTERVALS" && phys?.intervals === true) {
     // PHYS-02.1 — M1's MODIFY to LIGHT of a manual intervals session: the base endurance fallback (the day's riding availability).
     if (intervalsLightModify && final.loadProfile === "LIGHT") {
       return intervalsLightFallback(context.ridingAvailable, catalog, aerobicIntervalsDurationMinV2());
@@ -628,13 +638,14 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
     return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: "HEAVY" });
   }
   // PHYS-02.1 — a manual intervals session has one dose (MODERATE); only M1's MODIFY to LIGHT gets the base endurance fallback.
-  if (final.kind === "AEROBIC_INTERVALS" && final.loadProfile !== undefined && final.loadProfile !== "MODERATE" && !(decision.decision === "MODIFY" && final.loadProfile === "LIGHT")) {
+  // V2-PHYS-INTEGRATION-01 — only while intervals are open: off, the kind is refused below as before PHYS.
+  if (input.phys?.intervals === true && final.kind === "AEROBIC_INTERVALS" && final.loadProfile !== undefined && final.loadProfile !== "MODERATE" && !(decision.decision === "MODIFY" && final.loadProfile === "LIGHT")) {
     return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: final.loadProfile });
   }
 
   let built: Built;
   try {
-    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, decision.decision === "MODIFY");
+    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, input.phys, decision.decision === "MODIFY");
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
     throw error;
@@ -721,7 +732,7 @@ function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): 
       ? intervalsToBaseContent(trusted, final)
       : isModify
         ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthWorkSlots)
-        : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
+        : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, input.phys);
   } catch (error) {
     // A V2 locked block (no compatible exercise for the declared equipment, DH data missing…) is an explicit refusal, never a fallback.
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });

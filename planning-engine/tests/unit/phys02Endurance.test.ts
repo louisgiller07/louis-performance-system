@@ -25,6 +25,9 @@ import {
 import { PLAN_MISSED_SESSIONS_HOLD_V2 } from "../../src/catalog/planDosePolicyV2.js";
 import { PROTOCOL_CATALOG_V2 } from "../../src/catalog/protocolCatalogV2.js";
 import type { PlanInputAvailabilityWindow } from "../../src/types/planInputSnapshot.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with their switches ON (every switch off: the production behaviour,
+// proven by the production tests kept unchanged and by phys00FlagsOffEquivalence).
+const PHYS_ON = { daily: true, intervals: true, power: true, mobility: true } as const;
 
 // PHYS-02 — endurance and intervals: the catalogue intervals protocol in the existing
 // format, placed in overload weeks with the server option only, one dose per day
@@ -156,6 +159,7 @@ const BASE_60 = PLAN_ON.weeks[4]!.sessions.find((s) => s.kind === "AEROBIC_BASE"
 
 function input(s: PlanSessionV2InMemory, decision: "KEEP" | "MODIFY" | "REPLACE", finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"], ridingAvailable = true): BuildFinalPrescriptionV2Input {
   return {
+    phys: PHYS_ON,
     finalPrescriptionId: "final-1",
     decision: { decisionId: "decision-1", decision, finalSession },
     lineage: {
@@ -244,13 +248,18 @@ describe("PHYS-02 — daily: the intervals session has one dose (never lighter, 
     const f = created(buildFinalPrescriptionV2(input(BASE_60, "REPLACE", { kind: "AEROBIC_INTERVALS", loadProfile: "MODERATE" })));
     expect([f.reconciliationAction, f.adaptationRuleIds, minutesOf(f.structure)]).toEqual(["replace", ["v2.replace.intervals"], [15, 3, 2, 3, 2, 3, 2, 3, 2, 3, 2, 3, 10]]);
     expect(buildFinalPrescriptionV2(input(BASE_60, "REPLACE", { kind: "AEROBIC_INTERVALS", loadProfile: "LIGHT" }))).toMatchObject({ status: "blocked", detail: { reason: "intervals_load_not_supported" } });
+    // V2-PHYS-INTEGRATION-01 — intervals off: the REPLACE target stays unsupported, as before PHYS.
+    expect(buildFinalPrescriptionV2({ ...input(BASE_60, "REPLACE", { kind: "AEROBIC_INTERVALS", loadProfile: "MODERATE" }), phys: { ...PHYS_ON, intervals: false } })).toMatchObject({
+      status: "blocked",
+      detail: { reason: "replace_target_not_supported", target: "AEROBIC_INTERVALS" },
+    });
   });
 
   it("PHYS-02.1 — a manual intervals session: M1's MODIFY to LIGHT gets the fallback; a rider-chosen LIGHT (KEEP) is refused, never an empty session", () => {
     const manual = (decision: "KEEP" | "MODIFY", loadProfile: "LIGHT" | "MODERATE", ridingAvailable = true): BuildFinalPrescriptionV2Input => ({
       finalPrescriptionId: "f",
       decision: { decisionId: "d", decision, finalSession: { kind: "AEROBIC_INTERVALS", loadProfile } },
-      lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: PLAN_ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
+      phys: PHYS_ON, lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: PLAN_ON.planVersionId, generatedSession: null, currentPlanCoversDate: true },
       plannedPrescription: null,
       adaptation: { ...dailyAdaptationContextV2(SNAPSHOT, "2026-10-23", counter("m")), ridingAvailable },
     });

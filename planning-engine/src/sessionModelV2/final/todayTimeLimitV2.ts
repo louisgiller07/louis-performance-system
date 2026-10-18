@@ -35,6 +35,7 @@ import type { PrescriptionV2 } from "../prescriptionV2.js";
 import { buildFinalPrescriptionV2, type BuildFinalPrescriptionV2Input } from "./buildFinalPrescriptionV2.js";
 import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
 import type { FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
+import { PHYS_SWITCHES_OFF_V2, type PhysSwitchesV2 } from "./physSwitchesV2.js";
 
 type Decision = BuildFinalPrescriptionV2Input["decision"]["decision"];
 type FinalSession = BuildFinalPrescriptionV2Input["decision"]["finalSession"];
@@ -94,13 +95,18 @@ function sessionOf(decision: Decision, final: FinalSession, durationMin: number 
 /** The adapted sessions to try, in order (each lower or equal in load, shorter). */
 type Candidate = { decision: Decision; finalSession: FinalSession; strengthWorkSlots?: number };
 
-function candidates(structure: PrescriptionV2, decision: Decision, final: FinalSession, plannedKind: string | null, current: number | null, limit: number): Candidate[] {
+function candidates(structure: PrescriptionV2, decision: Decision, final: FinalSession, plannedKind: string | null, current: number | null, limit: number, phys: PhysSwitchesV2): Candidate[] {
   const sameKind = plannedKind === final.kind && decision !== "REPLACE";
   const action: Decision = sameKind ? "MODIFY" : "REPLACE";
   const shorter = (d: number) => d <= limit && (current === null || d < current);
   const out: Candidate[] = [];
   switch (structure.family) {
     case "strength": {
+      // V2-PHYS-INTEGRATION-01 — PHYS daily off: the Force session at its LIGHT dose, as before PHYS.
+      if (phys.daily !== true) {
+        if (final.loadProfile !== "LIGHT") out.push({ decision: action, finalSession: { kind: final.kind, loadProfile: "LIGHT" } });
+        break;
+      }
       // PHYS-01.1 — same session, same dose (M1's): cool-down reduced, then the last work exercises left out.
       const work = structure.blocks.filter((b) => b.role === "main" || b.role === "complementary").length;
       for (let n = work; n >= 1; n -= 1) out.push({ decision: action, finalSession: { kind: final.kind, ...(final.loadProfile !== undefined ? { loadProfile: final.loadProfile } : {}) }, strengthWorkSlots: n });
@@ -129,7 +135,9 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
       const steps: number[] = [];
       for (let d = current - aerobicStepMin; d >= aerobicMinMin; d -= aerobicStepMin) steps.push(d);
       // PHYS-02 — a duration off the 15-min grid (a base session from a 53-min intervals one) still reaches the minimum.
-      if (current > aerobicMinMin && !steps.includes(aerobicMinMin)) steps.push(aerobicMinMin);
+      // V2-PHYS-INTEGRATION-01 — for an intervals session, or while intervals are open; otherwise the grid as before PHYS.
+      const offGridMinimum = structure.sessionKind === "AEROBIC_INTERVALS" || phys.intervals === true;
+      if (offGridMinimum && current > aerobicMinMin && !steps.includes(aerobicMinMin)) steps.push(aerobicMinMin);
       if (structure.sessionKind === "AEROBIC_INTERVALS") {
         // PHYS-02 — intervals are never shortened (one dose): the base endurance session that fits, then recovery.
         for (const d of steps) {
@@ -150,7 +158,10 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
 export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescriptionV2Input & { availableMinutes: number | null }): FinalPrescriptionWithinTodayTimeV2Result {
   const { availableMinutes, ...base } = input;
   if (availableMinutes === null) return buildFinalPrescriptionV2(base);
-  const result = withStrengthEstimate(buildFinalPrescriptionV2(base));
+  // V2-PHYS-INTEGRATION-01 — PHYS daily off: a Force duration stays the decided one, as before PHYS.
+  const phys = base.phys ?? PHYS_SWITCHES_OFF_V2;
+  const estimate = <R extends FinalPrescriptionV2Result>(r: R): R => (phys.daily === true ? withStrengthEstimate(r) : r);
+  const result = estimate(buildFinalPrescriptionV2(base));
   if (!Number.isInteger(availableMinutes) || availableMinutes <= 0) throw new RangeError(`availableMinutes must be a positive integer, got ${availableMinutes}`);
 
   const { decision: decisionValue, finalSession } = base.decision;
@@ -163,8 +174,8 @@ export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescri
   if (fits(result, availableMinutes)) return { ...result, timeConstraint: outcome("fits", before) };
 
   const plannedKind = base.lineage?.generatedSession?.kind ?? null;
-  for (const candidate of candidates(result.finalPrescription.structure, decisionValue, finalSession, plannedKind, current, availableMinutes)) {
-    const adapted = withStrengthEstimate(
+  for (const candidate of candidates(result.finalPrescription.structure, decisionValue, finalSession, plannedKind, current, availableMinutes, phys)) {
+    const adapted = estimate(
       buildFinalPrescriptionV2({
         ...base,
         decision: { ...base.decision, decision: candidate.decision, finalSession: candidate.finalSession },

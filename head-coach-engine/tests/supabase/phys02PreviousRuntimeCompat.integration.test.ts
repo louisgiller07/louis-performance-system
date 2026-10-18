@@ -30,8 +30,11 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
 import * as currentV2 from "planning-engine/session-model-v2";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const PREVIOUS = process.env.PHYS011_PREVIOUS_RUNTIME_ROOT;
 const PRECONDITION_SQL = readFileSync(new URL("../../../docs/release/phys02-rollback/ROLLBACK_TO_D_PRECONDITION.sql", import.meta.url), "utf8");
@@ -132,7 +135,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — previous runtime (D) and PHYS-02 on the s
       events: [{ id: randomUUID(), execution_id: id, event_type: "completed", occurred_at: "2026-10-23T18:01:00Z" }],
     });
     await insertCheckin(admin, athleteId, "2026-11-13");
-    const next = await finalOf((await runDailyFor(admin, athleteId, "2026-11-13")).persistence.decision_id);
+    const next = await finalOf((await runDailyFor(admin, athleteId, "2026-11-13", PHYS_ON_DEPS)).persistence.decision_id);
     expect(next.structure.enduranceGuidance).toEqual({ ruleVersion: "endurance-guidance-v1", reference: { sessionDate: "2026-10-23", activityId: "road_bike", durationSeconds: 3240, distanceM: 27000, rpeActual: 7 } });
   });
 
@@ -141,7 +144,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — previous runtime (D) and PHYS-02 on the s
     await insertCheckin(admin, athleteId, "2026-10-23", SYSTEMIC_RED);
     await expect(previousRunDailyFor(admin, athleteId, "2026-10-23")).rejects.toThrow(/does not cover session kind AEROBIC_INTERVALS/);
     expect(await decisionsOn(athleteId, "2026-10-23")).toBe(0);
-    const now = await runDailyFor(admin, athleteId, "2026-10-23");
+    const now = await runDailyFor(admin, athleteId, "2026-10-23", PHYS_ON_DEPS);
     expect([now.dailyPlan.decision, now.dailyPlan.final_session, now.finalPrescriptionStatus]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 }, "created"]);
     expect(await decisionsOn(athleteId, "2026-10-23")).toBe(1);
 
@@ -201,7 +204,7 @@ describe.skipIf(!ENABLED)("PHYS-02 — previous runtime (D) and PHYS-02 on the s
       events: [{ id: randomUUID(), execution_id: id, event_type: "completed", occurred_at: "2026-10-09T18:01:00Z" }],
     });
     await insertCheckin(admin, athleteId, "2026-10-16");
-    const next = await finalOf((await runDailyFor(admin, athleteId, "2026-10-16")).persistence.decision_id);
+    const next = await finalOf((await runDailyFor(admin, athleteId, "2026-10-16", PHYS_ON_DEPS)).persistence.decision_id);
     expect(next.structure.enduranceGuidance).toEqual({
       ruleVersion: "endurance-guidance-v1",
       reference: { sessionDate: "2026-10-09", activityId: "running", durationSeconds: 2700, distanceM: 8200, rpeActual: 5 },

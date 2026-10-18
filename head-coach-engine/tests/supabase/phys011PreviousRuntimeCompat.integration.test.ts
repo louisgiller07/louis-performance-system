@@ -24,8 +24,11 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
 import * as currentV2 from "planning-engine/session-model-v2";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const PREVIOUS = process.env.PHYS011_PREVIOUS_RUNTIME_ROOT;
 const ENABLED = localIntegrationRequested() && !!PREVIOUS;
@@ -113,7 +116,7 @@ describe.skipIf(!ENABLED)("PHYS-01.1 — previous runtime (D) and PHYS-01.1 on t
 
     // Day u1 — PHYS-01.1: KEEP + daily cool-down + calibration guidance; the rider records 50 kg.
     await insertCheckin(admin, athleteId, u1);
-    const r1 = await runDailyFor(admin, athleteId, u1);
+    const r1 = await runDailyFor(admin, athleteId, u1, PHYS_ON_DEPS);
     const f1 = await finalOf(r1.persistence.decision_id);
     expect([f1.reconciliation_action, f1.structure.blocks.at(-1)!.role, f1.structure.catalog.aggregate, bench(f1.structure).loadGuidance?.mode]).toEqual(["keep", "cool_down", "session-model-v2.6", "calibrate"]);
     await perform(u1, f1, 50);
@@ -133,7 +136,7 @@ describe.skipIf(!ENABLED)("PHYS-01.1 — previous runtime (D) and PHYS-01.1 on t
 
     // Day u3 — rolled forward to PHYS-01.1: the guidance reads the sets recorded against the previous runtime's prescription (u2).
     await insertCheckin(admin, athleteId, u3);
-    const r3 = await runDailyFor(admin, athleteId, u3);
+    const r3 = await runDailyFor(admin, athleteId, u3, PHYS_ON_DEPS);
     const f3 = await finalOf(r3.persistence.decision_id);
     expect(bench(f3.structure).loadGuidance).toMatchObject({ mode: "target", reference: { sessionDate: u2, loadKg: 55 } });
     expect(f3.structure.blocks.at(-1)!.role).toBe("cool_down");

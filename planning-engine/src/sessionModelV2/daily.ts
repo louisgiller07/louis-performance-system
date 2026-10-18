@@ -12,6 +12,8 @@ export * from "./final/validateKeepFinalPrescriptionV2.js";
 export * from "./final/buildKeepFinalPrescriptionV2.js";
 export * from "./final/buildFinalPrescriptionV2.js";
 export * from "./final/todayTimeLimitV2.js";
+// V2-PHYS-INTEGRATION-01 — the PHYS daily switches (server flags; absent = the production behaviour).
+export * from "./final/physSwitchesV2.js";
 export { sportFingerprint } from "./sportFingerprint.js";
 export { SESSION_MODEL_V2_AGGREGATE_VERSION } from "./catalogManifest.js";
 export type { PrescriptionV2 } from "./prescriptionV2.js";

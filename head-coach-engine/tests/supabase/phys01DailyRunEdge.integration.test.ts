@@ -2,6 +2,11 @@
  * PHYS-01 — the same load guidance through the deployed path: the daily-run Edge Function (Deno bundle of the
  * V2 reconciliation) on the LOCAL runtime, called with the rider's real JWT, reads the rider's completed sets
  * and persists the guidance with the day's final prescription. Local only (`npx supabase functions serve`).
+ *
+ * V2-PHYS-INTEGRATION-01 — PHYS01_EDGE_DAILY_SERVED = "true" when the runtime is served with
+ * NALYNT_V2_PHYS_DAILY_ENABLED and NALYNT_V2_PHYS_PERFORMANCE_GUIDANCE_ENABLED exactly "true": the guidance is
+ * persisted. Otherwise (the default, every PHYS secret absent): the Edge daily-run reads no history and writes no
+ * guidance — the production behaviour.
  */
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -13,9 +18,13 @@ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athlet
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
 import { generateAndPersistTrainingPlanV2, generateTrainingPlanVersionRpcV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
-import { runDailyFor } from "../../src/supabase/runDailyFor.js";
+import { DEFAULT_RUN_DAILY_FOR_DEPS, runDailyFor } from "../../src/supabase/runDailyFor.js";
+// V2-PHYS-INTEGRATION-01 — these PHYS rules run with every PHYS switch ON (performance guidance included); every
+// switch off is the production behaviour (the production tests kept unchanged, phys00FlagsOffEquivalence).
+const PHYS_ON_DEPS = { ...DEFAULT_RUN_DAILY_FOR_DEPS, physSwitches: { daily: true, performanceGuidance: true, intervals: true, power: true, mobility: true } };
 
 const ENABLED = localIntegrationRequested({ requirePublishableKey: true });
+const DAILY_SERVED = process.env.PHYS01_EDGE_DAILY_SERVED === "true";
 
 async function assertServing(fn: string) {
   let last = "";
@@ -52,7 +61,7 @@ describe.skipIf(!ENABLED)("PHYS-01 — load guidance through the daily-run Edge 
     admin = createTestClient();
   });
 
-  it("history recorded on session 1 → the Edge daily-run of session 2 persists the guidance read from it", async () => {
+  it(`history recorded on session 1 → the Edge daily-run of session 2: ${DAILY_SERVED ? "persists the guidance read from it" : "PHYS secrets absent, no guidance (production)"}`, async () => {
     const { athleteId } = await createTestAthlete(admin, "PHYS-01 Edge");
     await setAthleteDiscipline(admin, athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, athleteId, {
@@ -75,7 +84,7 @@ describe.skipIf(!ENABLED)("PHYS-01 — load guidance through the daily-run Edge 
 
     // Session 1 (Node path), recorded and completed with the loads used.
     await insertCheckin(admin, athleteId, u1);
-    const d1 = await runDailyFor(admin, athleteId, u1);
+    const d1 = await runDailyFor(admin, athleteId, u1, PHYS_ON_DEPS);
     const s1 = d1.finalPrescription!.structure as unknown as Structure;
     const bench = s1.blocks.find((b) => b.role === "main")!.items[0]!;
     expect(bench.exerciseId).toBe("dumbbell_bench_press");
@@ -97,6 +106,12 @@ describe.skipIf(!ENABLED)("PHYS-01 — load guidance through the daily-run Edge 
     const { data: decisions } = await admin.from("decisions").select("id").eq("athlete_id", athleteId).eq("decision_date", u2);
     const { data: finals } = await admin.from("decision_final_prescriptions").select("structure").eq("decision_id", decisions![0]!.id);
     const bench2 = (finals![0]!.structure as Structure).blocks.find((b) => b.role === "main")!.items[0]!;
-    expect(bench2.loadGuidance).toMatchObject({ ruleVersion: "strength-load-guidance-v1", reference: { sessionDate: u1, loadKg: 18 } });
+    if (DAILY_SERVED) {
+      expect(bench2.loadGuidance).toMatchObject({ ruleVersion: "strength-load-guidance-v1", reference: { sessionDate: u1, loadKg: 18 } });
+    } else {
+      // Every PHYS secret absent: no guidance read or written, no PHYS cool-down — the production document.
+      expect(JSON.stringify(finals![0]!.structure)).not.toMatch(/loadGuidance|repsGuidance|enduranceGuidance/);
+      expect((finals![0]!.structure as Structure).blocks.map((b) => b.role)).not.toContain("cool_down");
+    }
   });
 });
