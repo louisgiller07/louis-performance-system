@@ -12,7 +12,7 @@
 
 **CONSISTENCY-02 — Aujourd'hui représente la date courante (O-32) : CLOSED, en production (HPM 2026-10-18)** : web `940bb75` ; aucune migration, aucune Edge.
 
-**PARTIAL-01 — cohérence des séances partielles : READY LOCAL / NOT DEPLOYED (HPM 2026-10-18)** : branche `fix/partial-01-partial-sessions` depuis `940bb75` ; web seulement (aucune migration, aucune Edge) ; aucun push, merge ou déploiement.
+**PARTIAL-01 — cohérence des séances partielles : CLOSED, en production (HPM 2026-10-18)** : web `863f3fb` (Vercel `EtPdCZGxCUPBcgJHE2DeF4JcKiEm`, 2026-10-18 10:15 UTC) ; aucune migration, aucune Edge ; base 75. Limites PARTIAL-01-L1 et -L2 ouvertes (avant la bêta V2).
 
 **REL-01 — revue de sécurité finale (2026-10-14)** : assemblage local `rel/rel-01-assembly` READY LOCAL (73 migrations, suites complètes vertes sur la stack neuve vérifiée `nalynt-rel01`, rollback vers C vert). P0-SEC-MAINTAIN prêt en local (proposition, sur GO HPM). Déploiement BLOCKED par les gates REL-01. Aucun push, merge ni déploiement.
 
