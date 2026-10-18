@@ -497,6 +497,46 @@ Configuration serveur, hors modèle coaching : quel modèle de planification uti
 
 Accès : RLS activée sans policy ; aucun privilège pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`, `UPDATE`, `DELETE` seulement. Aucune ligne créée par la migration : table vide → tout le monde en V1. Résolution : interrupteur inactif → V1, **sauf athlète affecté `v2` → génération refusée** (`assigned_v2_disabled`, HTTP 503 `v2_generation_disabled`, rien n'est écrit) ; actif sans ligne → V1 ; `v1` → V1 ; `v2` → V2. **Aucun repli V1 n'est autorisé pour un athlète explicitement affecté `v2`** (garde de la bêta payante, A09). L'interrupteur reste un vrai kill switch de la génération V2. Ne gouverne pas Daily, les prescriptions du jour ni les exécutions, qui suivent les plans persistés. Les événements `plan_generation_*` de `pilot_observability_events` portent `metadata.planningModel` et `metadata.rolloutReason`. Voir `11_DECISION_LOG.md` (ADR UX-11R.2) et `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7.
 
+### Historique de la génération V2 (V2-L2-01a, HPM 2026-10-18 — local, flag `NALYNT_V2_L2_HISTORY_ENABLED` OFF par défaut)
+
+Ce que la génération d'un programme V2 sait de l'entraînement récent (`PlanInputSnapshotV2.recentHistory`). Le planificateur, ses seuils (180 min ; 2 séances manquées, PROVISIONAL, **non validés pour une activation commerciale**) et M1 sont inchangés. Seul l'adaptateur de génération V2 lit les faits ci-dessous.
+
+- **Flag absent, ou différent de `"true"`** : comportement inchangé. Seuls les débriefs V1 (`completed_sessions`) sont lus. `trailingVolumeMinutes` est la somme de `actual_duration_min` ; `recentMissedOrReplacedCount` compte `skipped` et `replaced`.
+- **Flag `"true"`, V2 seulement** (le snapshot V1 n'est jamais concerné) : les règles ci-dessous. `recentSessionKinds` reste calculé comme avant (aucun consommateur).
+
+**Fenêtre** : `[today − 7, today]`, bornes incluses (8 jours), avec le même `today` que la génération (`productToday()`, Europe/Zurich, jamais une date du client). Toute date postérieure à `today` est ignorée, y compris les dates futures d'une simulation.
+
+**Un fait par jour**, dans cet ordre de priorité, sans double comptage. C'est l'ordre de `dayCompletion` et du verrou d'une séance principale par jour.
+1. Débrief V1 `done`, `partial` ou `replaced` : séance réalisée, déclarée par le rider.
+2. Sinon, exécution guidée avec un événement `completed` : séance réalisée, guidée. On prend la première par `started_at` puis `id`.
+3. Sinon, débrief V1 `skipped` : non réalisée, déclarée.
+4. Sinon, aucun fait. C'est le cas d'une séance arrêtée, ouverte, non enregistrée, d'un repos ou d'un jour sans décision.
+
+**Volume réalisé** (`trailingVolumeMinutes`). Rien n'est inventé.
+- Débrief V1 réalisé : `actual_duration_min` déclarée (absente : 0).
+- Endurance guidée terminée : `duration_seconds` de l'unique activité active, arrondie à la minute inférieure. Une activité absente ou ambiguë compte 0.
+- Force (`strength`) ou DH technique guidée **entièrement réalisée** : la durée effective décidée (`daily_plan.final_session.duration_min` de **la décision de l'exécution**), seule approximation créditée.
+  - « Entièrement réalisée » : chaque série de travail prévue (`main` / `complementary`), ou chaque passage du drill principal, a un résultat actif réalisé. Mêmes règles que PARTIAL-01.
+- **Tout le reste compte 0** :
+  - une séance partielle (provisoire) ;
+  - une séance de puissance, de mobilité ou de récupération ;
+  - une réalisation non qualifiable (prescription non lisible, résultats ambigus) ;
+  - une durée décidée absente.
+
+**Séance V2 manquée** (`recentMissedOrReplacedCount` en V2). Un jour `D` est compté **seulement si toutes** les conditions suivantes sont prouvées par les données persistées :
+1. `today − 7 ≤ D < today` ;
+2. le fait du jour est un débrief V1 `skipped` ;
+3. son motif est `time_life`, `motivation`, `weather_terrain` ou `mechanical`. Les motifs `pain`, `fatigue_control`, `coach_criterion`, `activity_change`, `other` ou un motif absent ne comptent jamais ;
+4. le débrief ne signale pas de nouvelle douleur (`new_pain` n'est pas vrai) ;
+5. la dernière décision du jour (`created_at desc, id desc`) existe et prescrivait un entraînement : ni `REST`, ni `RACE_ACTIVITY`, ni `BIKE_MAINTENANCE` ;
+6. **aucune** décision du jour n'a déclenché de règle de sécurité (couche `A`) ;
+7. le check-in du jour existe et déclare `pain = false`, `fever_or_illness = false` et `suspected_concussion = false` ;
+8. aucun signal de santé ne couvre `D`, quel que soit son type. Un signal couvre `[flag_date, resolved_at]`. Il couvre jusqu'à `today` s'il est encore ouvert. Il couvre toute la fenêtre si ses dates sont incohérentes ou si un signal clos n'a pas de `resolved_at`.
+
+Absence de résultat, séance arrêtée, séance partielle, repos, remplacement volontaire ou donnée insuffisante : **jamais** une séance manquée. Le jour est simplement non compté.
+
+**Lecture** : une lecture groupée par table (débriefs V1, exécutions, événements, décisions, prescriptions finales, séries, activités, check-ins, signaux de santé), sous le client service role de la génération. Une lecture en échec, ou un résultat atteignant le plafond de lignes, **refuse la génération** ; jamais un historique silencieusement vide.
+
 ### `athlete_onboarding_profiles` — consentement données de santé (PILOT_012, additif)
 
 Deux colonnes ajoutées par `20260924100000_pilot_002_health_data_consent.sql` :
