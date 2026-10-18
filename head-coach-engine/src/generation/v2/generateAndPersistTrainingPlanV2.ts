@@ -44,6 +44,8 @@ export interface GenerateAndPersistTrainingPlanV2Input {
   powerSessions?: boolean;
   /** PHYS-04 — add a mobility session in consolidation weeks (server switch); absent = the previous plans exactly. */
   mobilitySessions?: boolean;
+  /** V2-L2-01a — recent history from the V2 facts (server switch); absent = the previous snapshots exactly. */
+  v2History?: boolean;
 }
 
 export type GenerateAndPersistTrainingPlanV2Result =
@@ -92,7 +94,11 @@ export async function generateAndPersistTrainingPlanV2(
   if (input.planningModel !== "v2") throw new Error(`generateAndPersistTrainingPlanV2 requires planningModel "v2", got ${String(input.planningModel)}`);
 
   const block = deriveTrainingPlanBlock(input.today, input.durationWeeks);
-  const snapshot = await deps.buildPlanInputSnapshotV2(input.client, input.athleteId, input.today, { startDate: block.startDate, endDate: block.endDate });
+  const horizon = { startDate: block.startDate, endDate: block.endDate };
+  const snapshot =
+    input.v2History === true
+      ? await deps.buildPlanInputSnapshotV2(input.client, input.athleteId, input.today, horizon, undefined, { v2History: true })
+      : await deps.buildPlanInputSnapshotV2(input.client, input.athleteId, input.today, horizon);
 
   const generated = generatePlanV2InMemory({
     block,

@@ -6458,3 +6458,26 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 **Canon** : diff proposé pour `docs/05` (invariants UX-11R.9, F-6C), à appliquer sur accord HPM avant la release (rapport POWER-GUARD-01).
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `int/v2-phys-integration-01`, au-dessus de `36b0b3f`). `NALYNT_V2_POWER_ENABLED` reste OFF.
+
+## 2026-10-18 — ADR V2-L2-01a : la génération V2 lit l'historique V2 (flag `NALYNT_V2_L2_HISTORY_ENABLED`, OFF par défaut)
+
+> **Avec le flag `"true"`, un programme V2 voit enfin l'entraînement V2 récent** : les séances guidées terminées comptent dans le volume, et seules des « Non réalisée » prouvées comptent comme manquées. Flag absent ou différent de `"true"` : comportement actuel exact. Local seulement, rien de déployé.
+
+**Constat (V2-L2-01, rapport de contrat `05fe664`)**
+- `buildPlanInputSnapshotV2` ne lisait que les débriefs V1 (`completed_sessions`). Un rider V2 qui s'entraîne par séances guidées avait 0 minute : chaque nouveau programme recommençait par une semaine d'introduction.
+- `recentMissedOrReplacedCount` comptait tout `skipped` et `replaced`, motifs de santé compris.
+
+**Décision HPM (V2-L2-01 APPROVED WITH CONDITIONS)** — contrat canonique dans `docs/05` (« Historique de la génération V2 », commit `d91dbaf`, avant le code) :
+- fenêtre `[today − 7, today]` (celle de `getRecentSessions`), `today` = `productToday()` du serveur ; les dates postérieures sont ignorées ;
+- un fait par jour : débrief V1 réalisé, sinon exécution guidée terminée, sinon débrief V1 `skipped`, sinon rien ;
+- volume : minutes déclarées (V1) ; durée enregistrée (endurance guidée) ; durée décidée de **la décision de l'exécution** pour une Force ou un DH **entièrement** réalisé ; 0 pour tout le reste (partielle, puissance, mobilité, récupération, non qualifiable) ;
+- manquée seulement si toutes les preuves existent (jour passé, motif `time_life` / `motivation` / `weather_terrain` / `mechanical`, pas de `new_pain`, dernière décision d'entraînement, aucune règle de couche A du jour, check-in explicite sans douleur ni maladie ni commotion, aucun signal de santé couvrant le jour) ;
+- lecture en échec ou au plafond (1000 lignes) : génération refusée.
+
+**Implémentation** (adaptateur de génération V2 seulement)
+- `head-coach-engine/src/supabase/repositories/planHistoryV2Repo.ts` : lectures groupées par table, filtre `athlete_id` explicite, refus en cas d'erreur ou de plafond.
+- `head-coach-engine/src/supabase/mapping/planHistoryV2.ts` : mappeur pur (règle de réalisation PARTIAL-01 portée côté serveur).
+- `buildPlanInputSnapshotV2` (option `v2History`) → `generateAndPersistTrainingPlanV2` → `generateTrainingPlanForAthlete` → Edge `generate-training-plan` (`V2_L2_HISTORY_FLAG` dans `src/generation/planHistoryRolloutV2.ts`, même analyse que les autres flags). Seul le graphe Edge de `generate-training-plan` change ; celui de `daily-run` est identique.
+- Seuls `trailingVolumeMinutes` et `recentMissedOrReplacedCount` du snapshot V2 changent. `recentSessionKinds`, le snapshot V1, M1, le planificateur et ses seuils (180 min, 2 manquées, PROVISIONAL, non validés pour une activation commerciale), `daily-run` et le web sont inchangés. Aucune migration.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `int/v2-phys-integration-01`). Rapport `docs/release/v2-l2-01/V2_L2_01A_REPORT.md`.

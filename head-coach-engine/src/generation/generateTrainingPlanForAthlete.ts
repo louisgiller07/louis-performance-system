@@ -33,6 +33,8 @@ export interface GenerateTrainingPlanForAthleteInput {
   powerSessions?: boolean;
   /** PHYS-04 — parsed V2_MOBILITY_SESSIONS_FLAG (V2 plans only); absent / false = no mobility session added. */
   mobilitySessions?: boolean;
+  /** V2-L2-01a — parsed V2_L2_HISTORY_FLAG (V2 plans only); absent / false = the historical recent history. */
+  v2History?: boolean;
 }
 
 // Derived from the V2 path itself, so this dispatcher stays outside the Session Model V2 import boundary.
@@ -73,6 +75,7 @@ export async function generateTrainingPlanForAthlete(
       ...(input.enduranceIntervals === true ? { enduranceIntervals: true } : {}),
       ...(input.powerSessions === true ? { powerSessions: true } : {}),
       ...(input.mobilitySessions === true ? { mobilitySessions: true } : {}),
+      ...(input.v2History === true ? { v2History: true } : {}),
     });
     if (v2.status === "blocked") return { ...resolution, status: "blocked", code: v2.code, detail: v2.detail };
     return { ...resolution, status: "persisted", planVersionId: v2.planVersionId, idempotentReplay: v2.idempotentReplay };

@@ -7,6 +7,12 @@
  * builder's own read is captured and reused for the DH tier, so both parts of
  * the snapshot come from the same row. After this function returns, a V2 plan
  * never reads the live profile again.
+ *
+ * V2-L2-01a — with `v2History` (flag `NALYNT_V2_L2_HISTORY_ENABLED`, OFF by
+ * default), the recent volume and missed-session count come from the V2
+ * history (mapping/planHistoryV2.ts, canon docs/05); `recentSessionKinds` and
+ * every other field stay the historical ones. Without it, the snapshot is
+ * exactly the historical one.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlanInputSnapshotV2 } from "planning-engine/session-model-v2";
@@ -18,6 +24,8 @@ import { getAvailabilityExceptionsFor } from "./repositories/athleteAvailability
 import { getLockedDatesFor } from "./repositories/athleteLockedDatesRepo.js";
 import { getRacesOverlappingRange } from "./repositories/raceCalendarRepo.js";
 import { getRecentSessions } from "./repositories/completedSessionsRepo.js";
+import { readPlanHistoryFactsV2 } from "./repositories/planHistoryV2Repo.js";
+import { planHistoryV2 } from "./mapping/planHistoryV2.js";
 
 /** Same repositories as buildPlanInputSnapshot's own defaults. */
 const DEFAULT_DEPS: BuildPlanInputSnapshotDeps = {
@@ -39,12 +47,19 @@ export class InvalidDhTechnicalTierError extends Error {
   }
 }
 
+export interface BuildPlanInputSnapshotV2Options {
+  /** V2-L2-01a — read the V2 history; anything but `true` keeps the historical snapshot. */
+  v2History?: boolean;
+  readPlanHistoryFactsV2?: typeof readPlanHistoryFactsV2;
+}
+
 export async function buildPlanInputSnapshotV2(
   client: SupabaseClient,
   athleteId: string,
   today: string,
   horizon: PlanInputSnapshotHorizon,
-  deps: BuildPlanInputSnapshotDeps = DEFAULT_DEPS
+  deps: BuildPlanInputSnapshotDeps = DEFAULT_DEPS,
+  options: BuildPlanInputSnapshotV2Options = {}
 ): Promise<PlanInputSnapshotV2> {
   let profile: AthletePerformanceProfileRawRow | null | undefined;
   const capturing: BuildPlanInputSnapshotDeps = {
@@ -61,5 +76,14 @@ export async function buildPlanInputSnapshotV2(
   const raw = profile?.dh_technical_tier ?? null;
   if (raw !== null && !(DH_TECHNICAL_TIERS as readonly string[]).includes(raw)) throw new InvalidDhTechnicalTierError(raw);
 
-  return { ...snapshot, dhTechnicalTier: raw as PlanInputSnapshotV2["dhTechnicalTier"] };
+  const historical: PlanInputSnapshotV2 = { ...snapshot, dhTechnicalTier: raw as PlanInputSnapshotV2["dhTechnicalTier"] };
+  if (options.v2History !== true) return historical;
+
+  // A failed or capped read throws: the generation is refused, never fed an empty history.
+  const facts = await (options.readPlanHistoryFactsV2 ?? readPlanHistoryFactsV2)(client, athleteId, today);
+  const history = planHistoryV2(facts, today);
+  return {
+    ...historical,
+    recentHistory: { ...historical.recentHistory, trailingVolumeMinutes: history.trailingVolumeMinutes, recentMissedOrReplacedCount: history.recentMissedOrReplacedCount },
+  };
 }
