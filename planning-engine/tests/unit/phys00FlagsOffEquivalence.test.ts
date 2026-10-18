@@ -116,6 +116,7 @@ const REPLACE_TARGETS: BuildFinalPrescriptionV2Input["decision"]["finalSession"]
 const MANUAL_KINDS = ["DH_TECHNICAL", "DH_PERFORMANCE", "DH_LIGHT", "PUMPTRACK", "BIKE_MAINTENANCE", "STRENGTH_LOWER", "STRENGTH_UPPER", "STRENGTH_FULL_LIGHT", "POWER", "GRIP_WORK", "AEROBIC_BASE", "AEROBIC_INTERVALS", "MOBILITY", "RECOVERY_ACTIVE"];
 const TIME_LIMITS = [null, 20, 30, 45, 60, 90] as const;
 const LOWER: Record<string, "LIGHT" | "MODERATE"> = { HEAVY: "MODERATE", MODERATE: "LIGHT" };
+const HIGHER: Record<string, "MODERATE" | "HEAVY"> = { LIGHT: "MODERATE", MODERATE: "HEAVY" };
 
 /** SPORT-SAFE-01 — production's "modified" copy of the planned dose, and the refusal that replaces it. */
 function unchangedModify(prod: unknown, s: PlanSessionV2InMemory, decision: string): prod is Extract<current.FinalPrescriptionWithinTodayTimeV2Result, { status: "created" }> {
@@ -149,12 +150,12 @@ function generatedInput(runtime: Runtime, p: PlanV2InMemory, s: PlanSessionV2InM
   } as BuildFinalPrescriptionV2Input & { availableMinutes: number | null };
 }
 
-function manualInput(runtime: Runtime, p: PlanV2InMemory, snap: PlanInputSnapshotV2, date: string, decision: "KEEP" | "MODIFY" | "REPLACE", finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"], availableMinutes: number | null) {
+function manualInput(runtime: Runtime, p: PlanV2InMemory, snap: PlanInputSnapshotV2, date: string, decision: "KEEP" | "MODIFY" | "REPLACE", finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"], availableMinutes: number | null, manualSession?: BuildFinalPrescriptionV2Input["decision"]["finalSession"]) {
   return {
     availableMinutes,
     finalPrescriptionId: "final-m",
     decision: { decisionId: "decision-m", decision, finalSession },
-    lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: p.planVersionId, generatedSession: null, currentPlanCoversDate: true },
+    lineage: { plannedSessionSource: "manual", sourcePlanVersionId: null, sourceGeneratedSessionId: null, currentPlanVersionId: p.planVersionId, generatedSession: null, currentPlanCoversDate: true, ...(manualSession !== undefined ? { manualSession } : {}) },
     plannedPrescription: null,
     adaptation: runtime.dailyAdaptationContextV2(snap, date, counter("m")),
   } as BuildFinalPrescriptionV2Input & { availableMinutes: number | null };
@@ -212,6 +213,8 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
 
   it("daily: a manual session of every plannable kind and load, KEEP / MODIFY / REPLACE, every time limit — the very same result", () => {
     let cases = 0;
+    let manualWithSession = 0;
+    const manualRefused = new Map<string, number>();
     for (const { name, snap } of PROFILES.filter((_, i) => i % 6 === 0)) {
       const generated = plan(production!, snap);
       if (!("status" in generated) || generated.status !== "generated") continue;
@@ -227,11 +230,47 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
               expect(cur, `${name} manual ${kind} ${loadProfile} ${decision} ${minutes}`).toEqual(prod);
               cases += 1;
             }
+            // SPORT-SAFE-01R — the same MODIFY with the rider's session before M1 (one load higher, what M1 lowered):
+            // production ignores it; the current runtime refuses only a document identical to that session's KEEP.
+            const higher = loadProfile !== undefined ? HIGHER[loadProfile] : undefined;
+            if (decision !== "MODIFY" || higher === undefined) continue;
+            const manualSession = { kind, loadProfile: higher };
+            const copy = outcome(() => production!.buildFinalPrescriptionWithinTodayTimeV2(manualInput(production!, p, snap, date, "MODIFY", finalSession, null, manualSession))) as current.FinalPrescriptionWithinTodayTimeV2Result;
+            const keep = outcome(() => production!.buildFinalPrescriptionWithinTodayTimeV2(manualInput(production!, p, snap, date, "KEEP", manualSession, null))) as current.FinalPrescriptionWithinTodayTimeV2Result;
+            const identical = copy.status === "created" && keep.status === "created" && current.canonicalSportContent(copy.finalPrescription.structure) === current.canonicalSportContent(keep.finalPrescription.structure);
+            for (const minutes of TIME_LIMITS) {
+              const label = `${name} manual ${kind} ${higher}→${loadProfile} MODIFY ${minutes}`;
+              const prod = outcome(() => production!.buildFinalPrescriptionWithinTodayTimeV2(manualInput(production!, p, snap, date, "MODIFY", finalSession, minutes, manualSession))) as current.FinalPrescriptionWithinTodayTimeV2Result;
+              const cur = outcome(() => current.buildFinalPrescriptionWithinTodayTimeV2(manualInput(current, p, snap, date, "MODIFY", finalSession, minutes, manualSession)));
+              if (identical && copy.status === "created") {
+                const before = prod.timeConstraint?.before;
+                expect(cur, label).toEqual({
+                  status: "blocked",
+                  code: "final_prescription_adaptation_not_defined",
+                  detail: { reason: "modify_not_supported", planned: higher, final: loadProfile, durationMin: copy.effectiveDurationMin ?? null },
+                  ...(prod.timeConstraint !== undefined ? { timeConstraint: { availableMinutes: prod.timeConstraint.availableMinutes, action: "not_evaluated", before, after: before } } : {}),
+                });
+                const key = `${kind} ${higher}→${loadProfile}`;
+                manualRefused.set(key, (manualRefused.get(key) ?? 0) + 1);
+              } else expect(cur, label).toEqual(prod);
+              manualWithSession += 1;
+            }
           }
         }
       }
     }
-    note(`daily manual: ${cases} cases`);
+    note(`daily manual: ${cases} cases; with the session before M1: ${manualWithSession} cases, SPORT-SAFE-01R refusals ${JSON.stringify(Object.fromEntries(manualRefused))}`);
+    // SPORT-SAFE-01R — the intended manual differences, exactly where the builder has no lever for M1's lower load:
+    // endurance (fixed protocol RPE), a HEAVY DH (built at the MODERATE dose), active recovery (fixed dose; a load on it
+    // is not plannable in /plan, reached here only). Force and the other kinds are really lighter, unchanged.
+    expect([...manualRefused.keys()].sort()).toEqual([
+      "AEROBIC_BASE HEAVY→MODERATE",
+      "AEROBIC_BASE MODERATE→LIGHT",
+      "DH_LIGHT HEAVY→MODERATE",
+      "DH_TECHNICAL HEAVY→MODERATE",
+      "RECOVERY_ACTIVE HEAVY→MODERATE",
+      "RECOVERY_ACTIVE MODERATE→LIGHT",
+    ]);
     expect(cases).toBeGreaterThan(3000);
   });
 

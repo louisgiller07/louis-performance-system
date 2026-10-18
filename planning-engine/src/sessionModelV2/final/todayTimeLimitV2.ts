@@ -163,15 +163,35 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
  * the only endurance lever.
  * SPORT-SAFE-01R (HPM 2026-10-18) — the refusal is A04's outcome, so it comes before A10: a blocked prescription stays
  * blocked and the rider's time is not evaluated (`docs/04`, A10 « Priorité »).
+ * A manual session (P0-3) has no planned prescription: its reference is the document its KEEP would get, built by the
+ * same builders from the rider's session before M1 (its endurance builder has no load lever either).
  */
 function refuseUnchangedModifyV2(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
-  if (result.status !== "created" || input.decision.decision !== "MODIFY" || input.plannedPrescription === null) return result;
-  if (canonicalSportContent(result.finalPrescription.structure) !== canonicalSportContent(input.plannedPrescription.structure)) return result;
+  if (result.status !== "created" || input.decision.decision !== "MODIFY") return result;
+  const reference = referenceStructure(input);
+  if (reference === null || canonicalSportContent(result.finalPrescription.structure) !== canonicalSportContent(reference.structure)) return result;
   return {
     status: "blocked",
     code: "final_prescription_adaptation_not_defined",
-    detail: { reason: "modify_not_supported", planned: input.lineage?.generatedSession?.loadProfile ?? null, final: input.decision.finalSession.loadProfile ?? null, durationMin: result.effectiveDurationMin ?? null },
+    detail: { reason: "modify_not_supported", planned: reference.loadProfile, final: input.decision.finalSession.loadProfile ?? null, durationMin: result.effectiveDurationMin ?? null },
   };
+}
+
+/** The dose a MODIFY must really lighten: the planned prescription, or a manual session's KEEP document. */
+function referenceStructure(input: BuildFinalPrescriptionV2Input): { structure: unknown; loadProfile: LoadProfile | null } | null {
+  if (input.plannedPrescription !== null) return { structure: input.plannedPrescription.structure, loadProfile: input.lineage?.generatedSession?.loadProfile ?? null };
+  const manual = input.lineage?.plannedSessionSource === "manual" ? input.lineage.manualSession : undefined;
+  if (manual === undefined || input.adaptation === null) return null;
+  // Never persisted, only compared without its ids: its own ids, none taken from the day's generators.
+  let n = 0;
+  const mintId = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+  const keep = buildFinalPrescriptionV2({
+    ...input,
+    decision: { ...input.decision, decision: "KEEP", finalSession: manual },
+    adaptation: { ...input.adaptation, mintId },
+    ...(input.dailyMintId !== undefined ? { dailyMintId: mintId } : {}),
+  });
+  return keep.status === "created" ? { structure: keep.finalPrescription.structure, loadProfile: manual.loadProfile ?? null } : null;
 }
 
 export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescriptionV2Input & { availableMinutes: number | null }): FinalPrescriptionWithinTodayTimeV2Result {

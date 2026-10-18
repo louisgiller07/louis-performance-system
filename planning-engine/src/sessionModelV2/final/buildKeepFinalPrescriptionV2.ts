@@ -60,6 +60,11 @@ export interface PlannedSessionLineageV2 {
    * (a canonical plan covers it — the precondition of `manual_override_new_kind`). Absent = unknown = not covered.
    */
   currentPlanCoversDate?: boolean;
+  /**
+   * SPORT-SAFE-01R — for a manual session only: the rider's session before M1 (DailyPlan.planned_session_before), the
+   * reference a MODIFY must really lighten (ADR A04 §6). Absent = no reference: no §6 check.
+   */
+  manualSession?: { kind: string; loadProfile?: LoadProfile; durationMin?: number };
 }
 
 /** A training_plan_planned_prescriptions row as read (structure not yet trusted). */

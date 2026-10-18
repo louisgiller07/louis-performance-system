@@ -13,7 +13,9 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sportFingerprint } from "planning-engine/session-model-v2";
-import { createTestAthlete, createTestClient, insertCheckin, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, setAthleteDiscipline, type CheckinFixture } from "./testDb.js";
+import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, setAthleteDiscipline, type CheckinFixture } from "./testDb.js";
+import { mapTrainingInterventionToDbSessionType } from "../../src/mapping/trainingInterventionToDbSessionType.js";
+import type { TrainingIntervention } from "../../src/types/index.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
@@ -31,6 +33,7 @@ const ENDURANCE_45 = "2026-10-16";
 const ENDURANCE_60 = "2026-10-23";
 const DH_DAY = "2026-10-12";
 const REST_DAY = "2026-10-10";
+const FREE_DAY = "2026-10-17"; // nothing planned: the rider adds a manual session (P0-3)
 
 const LIGHT_FATIGUE: CheckinFixture = { sleep_hours: 6.5, sleep_quality: 6, energy: 6 };
 const SYSTEMIC_RED: CheckinFixture = { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 };
@@ -90,6 +93,18 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
     return { ...r, result, plan: result.dailyPlan, decision: await decisionOn(r.athleteId, date), planned: await plannedOn(r.planVersionId, date).catch(() => null) };
   }
   const rules = (plan: { triggered_rules: { rule_id: string }[] }) => plan.triggered_rules.map((t) => t.rule_id);
+  /** SPORT-SAFE-01R — a manual session written by the rider (RLS), then the day. */
+  async function manualDay(name: string, intervention: TrainingIntervention, checkin: CheckinFixture) {
+    const r = await rider(name);
+    const client = await getAthleteAuthClient(r.athleteId);
+    const { error } = await client
+      .from("planned_sessions")
+      .upsert({ athlete_id: r.athleteId, planned_date: FREE_DAY, session_type: mapTrainingInterventionToDbSessionType(intervention), intervention, planned_intent: null, source: "manual", is_committed: false, source_plan_version_id: null, source_generated_session_id: null }, { onConflict: "athlete_id,planned_date" });
+    expect(error).toBeNull();
+    await insertCheckin(admin, r.athleteId, FREE_DAY, checkin);
+    const result = await runDailyFor(admin, r.athleteId, FREE_DAY);
+    return { ...r, result, plan: result.dailyPlan, decision: await decisionOn(r.athleteId, FREE_DAY) };
+  }
 
   it("the plan: endurance MODERATE 45 (build), endurance MODERATE 60 (build_plus), DH MODERATE 90 with 6 passes, nothing planned on the rest day", async () => {
     const r = await rider("plan");
@@ -166,6 +181,54 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
       expect([d.plan.decision, d.plan.final_session.kind]).toEqual(["REPLACE", "RECOVERY_ACTIVE"]);
       expect(d.decision).toMatchObject({ final_prescription_status: "created" });
       expect(minutesOf(d.decision.finals[0]!.structure as Structure)).toBeLessThanOrEqual(30);
+    });
+  });
+
+  describe("manual sessions (SPORT-SAFE-01R): the reference is the document the manual session's KEEP gets", () => {
+    const MANUAL_45: TrainingIntervention = { kind: "AEROBIC_BASE", load_profile: "MODERATE", duration_min: 45 };
+    const MANUAL_60: TrainingIntervention = { kind: "AEROBIC_BASE", load_profile: "MODERATE", duration_min: 60 };
+
+    it("manual endurance 45, no fatigue → KEEP: created (main 30 min RPE 3–4)", async () => {
+      const d = await manualDay("manual endurance 45 neutral", MANUAL_45, {});
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["KEEP", { kind: "AEROBIC_BASE", load_profile: "MODERATE", duration_min: 45 }]);
+      expect(d.decision.finals).toHaveLength(1);
+      expect(d.decision.finals[0]).toMatchObject({ reconciliation_action: "keep", adaptation_rule_ids: [] });
+      expect(mainOf(d.decision.finals[0]!.structure as Structure).map((b) => [b.durationMinutes, b.rpeTarget])).toEqual([[{ min: 30, max: 30 }, { min: 3, max: 4 }]]);
+    });
+
+    it.each([
+      ["45 min, systemic RED", MANUAL_45, SYSTEMIC_RED, 45],
+      ["45 min, knee pain 4/10", MANUAL_45, KNEE_PAIN_4, 45],
+      ["60 min, systemic RED", MANUAL_60, SYSTEMIC_RED, 60],
+    ] as const)("manual endurance %s → M1 MODIFY LIGHT, refused modify_not_supported: never the KEEP document shown as lighter", async (name, intervention, checkin, min) => {
+      const d = await manualDay(`manual endurance ${name}`, intervention, checkin);
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: min }]);
+      expect(d.decision).toMatchObject({
+        final_prescription_status: "blocked",
+        final_prescription_status_code: "final_prescription_adaptation_not_defined",
+        final_prescription_status_detail: { reason: "modify_not_supported", planned: "MODERATE", final: "LIGHT", durationMin: min },
+      });
+      expect(d.decision.finals).toEqual([]);
+    });
+
+    it("manual endurance 45, systemic RED and 30 min available → refused before A10, time not evaluated", async () => {
+      const d = await manualDay("manual endurance 45 red 30 min", MANUAL_45, { ...SYSTEMIC_RED, available_minutes_today: 30 });
+      expect(d.plan.decision).toBe("MODIFY");
+      expect(d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT")?.detail).toBe("Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : not_evaluated.");
+      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "modify_not_supported" } });
+    });
+
+    it("manual DH HEAVY 120, systemic RED → M1 MODIFY MODERATE, the same 6 passes as its KEEP: refused", async () => {
+      const d = await manualDay("manual DH heavy red", { kind: "DH_TECHNICAL", load_profile: "HEAVY", duration_min: 120 }, SYSTEMIC_RED);
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["MODIFY", { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 120 }]);
+      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "modify_not_supported", planned: "HEAVY", final: "MODERATE" } });
+    });
+
+    it("counter-proof: manual Force upper MODERATE, systemic RED → M1 MODIFY LIGHT, really lighter: created", async () => {
+      const d = await manualDay("manual force red", { kind: "STRENGTH_UPPER", load_profile: "MODERATE" }, SYSTEMIC_RED);
+      expect(d.plan.decision).toBe("MODIFY");
+      expect(d.decision).toMatchObject({ final_prescription_status: "created" });
+      expect(d.decision.finals[0]).toMatchObject({ reconciliation_action: "modify", adaptation_rule_ids: ["v2.manual.session", "v2.replace.strength"] });
     });
   });
 
