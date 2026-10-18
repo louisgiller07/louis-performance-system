@@ -6541,3 +6541,45 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 - annoté : `finalPrescriptionV2Adapt`.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/sport-safe-01`, depuis `99d2add`). Une release toucherait `daily-run` seulement.
+
+## 2026-10-18 — ADR SPORT-SAFE-01R : refus §6 avant A10, séances manuelles, consignes de M1 sur la séance guidée
+
+> **SPORT-SAFE-01 approuvé avec conditions (HPM 2026-10-18).** Trois corrections locales, chacune dans son commit. Aucune règle sportive, dose, seuil, colonne ni migration nouvelle.
+
+**1. Ordre A04 → A10** (commit `4181de5`) :
+- `docs/04` (A10, « Priorité ») : « la contrainte s'applique après M1, `V2_SYSTEMIC_FLOOR` et la prescription A04 » ; « Une prescription bloquée reste bloquée (`not_evaluated`) ».
+- Le refus §6 est le résultat d'A04 : il précède A10 pour tout temps donné. Exemple : endurance prévue 45 min, LIGHT de M1, 30 min disponibles → `blocked` / `modify_not_supported`, temps `not_evaluated`. `5067a35` donnait encore la récupération active d'A10, ce qui était une exception non approuvée.
+- Une vraie réduction reste adaptable par A10 (endurance 60 → 45 min, puis récupération active si 30 min).
+
+**2. Séances manuelles (P0-3)** (commit `5ea811d`) :
+- Les builders REPLACE construisent le contenu pour le type et la charge finaux de M1. Quand le builder n'a aucun levier pour la charge plus basse, le MODIFY reconstruisait le document du KEEP, présenté comme adapté.
+- Cas reproduits avec le runtime de production :
+  - endurance manuelle 45 et 60 min (RPE du protocole fixe) ;
+  - DH HEAVY (construite à la dose MODERATE).
+- La référence est le document du KEEP de la séance manuelle avant M1 :
+  - `DailyPlan.planned_session_before`, transmis par `reconcileFinalPrescriptionV2` ;
+  - champ TypeScript additif `lineage.manualSession` ;
+  - document construit avec des identifiants jetables, jamais persisté.
+- Même règle §6, même refus, avant A10. La Force manuelle reste réellement allégée.
+
+**3. Consignes de M1 sur la séance guidée (A1)** (commit `ab6b3a3`, web) :
+- `/today/session` montre la protection (`do_not_do`) et la surveillance (`observe`) que M1 a décidées et persistées, assainies comme sur Aujourd'hui (libellé de zone), sous « À éviter » / « À surveiller ».
+- Avant le démarrage : la décision courante. Pendant la séance, rechargement compris : la décision de l'exécution (`decision_id`, ligne append-only), donc figée comme sa prescription.
+- Jamais sur une séance terminée, arrêtée ou suspendue pour la santé. Rien quand M1 n'a rien décidé. Une ligne invalide ne donne rien. Une lecture en échec fait échouer l'écran.
+- `DecisionHero` (Historique) : plus de « prêt à performer » quand M1 a adapté pour une douleur déclarée (`PAIN_NON_SAFETY`).
+
+**Différences flags OFF** (différentiel contre `863f3fb`, identique à `99d2add` flags OFF) :
+- planifié : 47 970 cas, 192 refus, tous « AEROBIC_BASE MODERATE→LIGHT 45 min » (32 sans temps, 96 « fits », 64 adaptés par A10 en production) ;
+- manuel : 11 088 cas identiques sans la séance avant M1 ;
+- manuel avec elle : 1 848 cas MODIFY, refus seulement pour AEROBIC_BASE (MODERATE→LIGHT, HEAVY→MODERATE), DH_TECHNICAL / DH_LIGHT HEAVY→MODERATE et RECOVERY_ACTIVE (une charge n'y est pas planifiable dans `/plan`).
+
+**Arbitrages ouverts** (rapport SPORT-SAFE-01R) :
+- amender `docs/04` pour qu'A10 évalue un refus §6 (récupération active quand le temps manque) ;
+- B1, vraie dose LIGHT d'endurance : A1 rend visible le décalage entre la protection de M1 (« RPE cible réduit ») et le document LIGHT d'A04 (RPE 3–4, durée réduite) ;
+- B2, message rider dédié ;
+- DH manuelle HEAVY : le KEEP est déjà à la dose MODERATE ;
+- A2, A3, A4, A5 inchangés.
+
+**Canon** : diffs `docs/04`, `docs/05` et `docs/10` proposés dans le rapport, non appliqués.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/sport-safe-01`). Rapport `docs/release/sport-safe-01/SPORT_SAFE_01R_REPORT.md`.
