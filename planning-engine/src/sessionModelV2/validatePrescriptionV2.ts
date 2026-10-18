@@ -19,6 +19,9 @@ import { SESSION_BLOCK_ROLES_V2 } from "../catalog/sessionFrameV2.js";
 import { STRENGTH_TEMPLATE_CATALOG_V2 } from "../catalog/strengthTemplateCatalogV2.js";
 import { SESSION_MODEL_V2_MANIFEST_KEYS } from "./catalogManifest.js";
 import { PRESCRIPTION_V2_ITEM_KINDS, PRESCRIPTION_V2_SCHEMA_VERSION, type PrescriptionV2 } from "./prescriptionV2.js";
+import { STRENGTH_LOAD_GUIDANCE_RULES_VERSION } from "../catalog/strengthLoadGuidancePolicyV2.js";
+import { ENDURANCE_GUIDANCE_RULES_VERSION } from "../catalog/enduranceGuidancePolicyV2.js";
+import { BODYWEIGHT_REPS_GUIDANCE_RULES_VERSION } from "../catalog/bodyweightRepsGuidancePolicyV2.js";
 
 export type PrescriptionV2IssueCode =
   | "not_an_object"
@@ -55,7 +58,13 @@ export type PrescriptionV2IssueCode =
   | "template_id_not_allowed"
   | "ramp_up_not_allowed"
   | "invalid_ramp_up"
-  | "forbidden_load_field";
+  | "forbidden_load_field"
+  | "load_guidance_not_allowed"
+  | "invalid_load_guidance"
+  | "endurance_guidance_not_allowed"
+  | "invalid_endurance_guidance"
+  | "reps_guidance_not_allowed"
+  | "invalid_reps_guidance";
 
 export interface PrescriptionV2Issue {
   path: string;
@@ -71,6 +80,17 @@ export interface ValidatePrescriptionV2Options {
 
 /** Load / intensity prescriptions NALYNT never makes (kg, %1RM, FTP, watts, heart-rate zones), at any depth. */
 const FORBIDDEN_KEY = /kg|load|1rm|percent|ftp|watt|heart|bpm|zone/i;
+/**
+ * PHYS-01 — the single exception: `loadGuidance` directly on an item (its
+ * place and shape are then checked by validateItem / checkLoadGuidance).
+ */
+const ITEM_PATH = /^\$\.blocks\[\d+\]\.items\[\d+\]$/;
+const LOAD_GUIDANCE_KEY = "loadGuidance";
+/** PHYS-04 — bodyweight repetitions guidance on a final Force work exercise (checked by checkRepsGuidance). */
+const REPS_GUIDANCE_KEY = "repsGuidance";
+/** PHYS-02 — root key of a final endurance prescription (checked by checkEnduranceGuidance). */
+const ENDURANCE_GUIDANCE_KEY = "enduranceGuidance";
+const WORK_BLOCK_ROLES_V2: readonly string[] = ["main", "complementary"];
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -108,6 +128,11 @@ export function validatePrescriptionV2(value: unknown, options: ValidatePrescrip
     if (value.family !== "endurance") add("$.activitySelection", "activity_selection_not_allowed");
     checkActivitySelection(value.activitySelection, "$.activitySelection", add);
   }
+  // PHYS-02 — endurance guidance: a final endurance prescription only, exact shape.
+  if (value[ENDURANCE_GUIDANCE_KEY] !== undefined) {
+    if (stage !== "final" || value.family !== "endurance") add(`$.${ENDURANCE_GUIDANCE_KEY}`, "endurance_guidance_not_allowed");
+    else checkEnduranceGuidance(value[ENDURANCE_GUIDANCE_KEY], `$.${ENDURANCE_GUIDANCE_KEY}`, add);
+  }
 
   const blockIds = new Set<string>();
   const itemIds = new Set<string>();
@@ -128,7 +153,7 @@ export function validatePrescriptionV2(value: unknown, options: ValidatePrescrip
       if (!Array.isArray(block.instructionIds)) add(`${path}.instructionIds`, "invalid_block");
       else block.instructionIds.forEach((id, i) => checkText(id, "instruction", `${path}.instructionIds[${i}]`, add));
       if (!Array.isArray(block.items)) return add(`${path}.items`, "invalid_block");
-      block.items.forEach((item, i) => validateItem(item, `${path}.items[${i}]`, value.family, stage, itemIds, add));
+      block.items.forEach((item, i) => validateItem(item, `${path}.items[${i}]`, value.family, stage, itemIds, add, block.role));
     });
   }
 
@@ -150,9 +175,45 @@ function validateItem(
   family: unknown,
   stage: "planned" | "final",
   itemIds: Set<string>,
-  add: (path: string, code: PrescriptionV2IssueCode) => void
+  add: (path: string, code: PrescriptionV2IssueCode) => void,
+  blockRole: unknown
 ) {
   if (!isObj(item)) return add(path, "invalid_item_kind");
+  // PHYS-01 — load guidance: a final Force prescription, an exercise of a work block, measured in repetitions.
+  if (item[LOAD_GUIDANCE_KEY] !== undefined) {
+    const measure = item.measure;
+    if (
+      stage !== "final" ||
+      family !== "strength" ||
+      item.kind !== "exercise" ||
+      typeof blockRole !== "string" ||
+      !WORK_BLOCK_ROLES_V2.includes(blockRole) ||
+      !isObj(measure) ||
+      measure.type !== "reps"
+    ) {
+      add(`${path}.${LOAD_GUIDANCE_KEY}`, "load_guidance_not_allowed");
+    } else {
+      checkLoadGuidance(item[LOAD_GUIDANCE_KEY], `${path}.${LOAD_GUIDANCE_KEY}`, add);
+    }
+  }
+  // PHYS-04 — bodyweight repetitions guidance: a final Force prescription, an exercise of a work block, in repetitions, never with a load guidance.
+  if (item[REPS_GUIDANCE_KEY] !== undefined) {
+    const measure = item.measure;
+    if (
+      stage !== "final" ||
+      family !== "strength" ||
+      item.kind !== "exercise" ||
+      typeof blockRole !== "string" ||
+      !WORK_BLOCK_ROLES_V2.includes(blockRole) ||
+      !isObj(measure) ||
+      measure.type !== "reps" ||
+      item[LOAD_GUIDANCE_KEY] !== undefined
+    ) {
+      add(`${path}.${REPS_GUIDANCE_KEY}`, "reps_guidance_not_allowed");
+    } else {
+      checkRepsGuidance(item[REPS_GUIDANCE_KEY], `${path}.${REPS_GUIDANCE_KEY}`, add);
+    }
+  }
   if (!isNonEmptyString(item.prescriptionItemId)) add(`${path}.prescriptionItemId`, "empty_id");
   else if (itemIds.has(item.prescriptionItemId)) add(`${path}.prescriptionItemId`, "duplicate_prescription_item_id");
   else itemIds.add(item.prescriptionItemId);
@@ -264,7 +325,127 @@ function scanForbiddenKeys(value: unknown, path: string, add: (path: string, cod
   if (Array.isArray(value)) return value.forEach((v, i) => scanForbiddenKeys(v, `${path}[${i}]`, add));
   if (!isObj(value)) return;
   for (const [key, child] of Object.entries(value)) {
+    // PHYS-01 — `loadGuidance` directly on an item is checked by validateItem, never scanned; anywhere else it is forbidden.
+    if (key === LOAD_GUIDANCE_KEY && ITEM_PATH.test(path)) continue;
     if (FORBIDDEN_KEY.test(key)) add(`${path}.${key}`, "forbidden_load_field");
     scanForbiddenKeys(child, `${path}.${key}`, add);
+  }
+}
+
+/** PHYS-04 — the exact shape of a bodyweight repetitions guidance (BodyweightRepsGuidanceV2). */
+function checkRepsGuidance(g: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  const bad = () => add(path, "invalid_reps_guidance");
+  const range = (r: unknown, floor: number, ceiling: number) => isObj(r) && hasOnlyKeys(r, ["min", "max"]) && isInt(r.min) && isInt(r.max) && r.min >= floor && r.min <= r.max && r.max <= ceiling;
+  const reference = (r: unknown) =>
+    isObj(r) &&
+    hasOnlyKeys(r, ["sessionDate", "reps", "setsPrescribed", "repsRange", "rpeMax"]) &&
+    isIsoDate(r.sessionDate) &&
+    Array.isArray(r.reps) &&
+    r.reps.length > 0 &&
+    r.reps.every((n) => isInt(n) && n > 0) &&
+    (r.setsPrescribed === null || (isInt(r.setsPrescribed) && r.setsPrescribed > 0)) &&
+    (r.repsRange === null || range(r.repsRange, 1, 1000)) &&
+    (r.rpeMax === null || (typeof r.rpeMax === "number" && r.rpeMax >= 1 && r.rpeMax <= 10));
+  const rir = (r: unknown) => r === null || range(r, 0, 10);
+  if (!isObj(g) || g.ruleVersion !== BODYWEIGHT_REPS_GUIDANCE_RULES_VERSION) return bad();
+  switch (g.mode) {
+    case "calibrate":
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "repsInReserve"]) || g.reason !== "no_history" || !rir(g.repsInReserve)) bad();
+      return;
+    case "reference":
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "reference", "repsInReserve"]) || !["different_dose", "history_too_old"].includes(g.reason as string) || !rir(g.repsInReserve) || !reference(g.reference)) bad();
+      return;
+    case "target": {
+      const keys = ["ruleVersion", "mode", "reason", "change", "targetReps", "reference", ...(g.hold !== undefined ? ["hold"] : []), ...(g.nextStep !== undefined ? ["nextStep"] : [])];
+      if (
+        !hasOnlyKeys(g, keys) ||
+        !["effort_too_high", "below_range", "within_range", "top_of_range_reached"].includes(g.reason as string) ||
+        !["increase", "keep", "decrease"].includes(g.change as string) ||
+        !isInt(g.targetReps) ||
+        (g.targetReps as number) < 1 ||
+        (g.hold !== undefined && (!["dose_up", "pain", "fatigue"].includes(g.hold as string) || g.change !== "keep")) ||
+        (g.nextStep !== undefined && (!["no_bodyweight_variant", "variant_not_validated"].includes(g.nextStep as string) || g.reason !== "top_of_range_reached")) ||
+        !reference(g.reference)
+      ) {
+        bad();
+      }
+      return;
+    }
+    default:
+      bad();
+  }
+}
+
+/** PHYS-02 — the exact shape of an endurance guidance (EnduranceGuidanceV2). */
+function checkEnduranceGuidance(g: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  const rpe = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= 10;
+  const r = isObj(g) ? g.reference : undefined;
+  const effort = isObj(g) ? g.effortAboveTarget : undefined;
+  const ok =
+    isObj(g) &&
+    hasOnlyKeys(g, ["ruleVersion", "reference", ...(effort !== undefined ? ["effortAboveTarget"] : [])]) &&
+    g.ruleVersion === ENDURANCE_GUIDANCE_RULES_VERSION &&
+    isObj(r) &&
+    hasOnlyKeys(r, ["sessionDate", "activityId", "durationSeconds", "distanceM", "rpeActual"]) &&
+    isIsoDate(r.sessionDate) &&
+    includes(ENDURANCE_ACTIVITIES_V2, r.activityId) &&
+    isInt(r.durationSeconds) &&
+    r.durationSeconds > 0 &&
+    (r.distanceM === null || (isInt(r.distanceM) && r.distanceM >= 0)) &&
+    (r.rpeActual === null || rpe(r.rpeActual)) &&
+    (effort === undefined ||
+      (isObj(effort) && hasOnlyKeys(effort, ["rpeActual", "rpeTargetMax"]) && rpe(effort.rpeActual) && isInt(effort.rpeTargetMax) && rpe(effort.rpeTargetMax) && (effort.rpeActual as number) > effort.rpeTargetMax && effort.rpeActual === r.rpeActual));
+  if (!ok) add(path, "invalid_endurance_guidance");
+}
+
+const LOAD_GUIDANCE_REASONS: Readonly<Record<string, readonly string[]>> = {
+  calibrate: ["no_history", "history_without_load"],
+  reference: ["different_dose", "history_too_old"],
+  target: ["top_of_range_reached", "within_range", "below_range", "effort_too_high"],
+};
+const isIsoDate = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+const isKg = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 1000;
+const hasOnlyKeys = (o: Obj, keys: readonly string[]) => Object.keys(o).every((k) => keys.includes(k)) && keys.every((k) => k in o);
+
+/** PHYS-01 — the exact shape of a load guidance (StrengthLoadGuidanceV2). */
+function checkLoadGuidance(g: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  const bad = () => add(path, "invalid_load_guidance");
+  if (!isObj(g) || g.ruleVersion !== STRENGTH_LOAD_GUIDANCE_RULES_VERSION || typeof g.mode !== "string" || !(g.mode in LOAD_GUIDANCE_REASONS)) return bad();
+  if (typeof g.reason !== "string" || !LOAD_GUIDANCE_REASONS[g.mode]!.includes(g.reason)) return bad();
+  const rir = (r: unknown) => r === null || (isObj(r) && hasOnlyKeys(r, ["min", "max"]) && isInt(r.min) && isInt(r.max) && r.min >= 0 && r.min <= r.max && r.max <= 10);
+  const reference = (r: unknown) =>
+    isObj(r) &&
+    hasOnlyKeys(r, ["sessionDate", "loadKg", "reps", "setsPrescribed", "repsRange", "rpeMax"]) &&
+    isIsoDate(r.sessionDate) &&
+    isKg(r.loadKg) &&
+    Array.isArray(r.reps) &&
+    r.reps.length > 0 &&
+    r.reps.every((n) => isInt(n) && n > 0) &&
+    (r.setsPrescribed === null || (isInt(r.setsPrescribed) && r.setsPrescribed > 0)) &&
+    (r.repsRange === null || (isObj(r.repsRange) && hasOnlyKeys(r.repsRange, ["min", "max"]) && isInt(r.repsRange.min) && isInt(r.repsRange.max) && r.repsRange.min >= 1 && r.repsRange.min <= r.repsRange.max)) &&
+    (r.rpeMax === null || (typeof r.rpeMax === "number" && r.rpeMax >= 1 && r.rpeMax <= 10));
+  if (g.loadBasis !== "per_dumbbell" && g.loadBasis !== "total") return bad();
+  switch (g.mode) {
+    case "calibrate":
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "loadBasis", "repsInReserve"]) || !rir(g.repsInReserve)) bad();
+      return;
+    case "reference":
+      if (!hasOnlyKeys(g, ["ruleVersion", "mode", "reason", "loadBasis", "reference", "repsInReserve"]) || !rir(g.repsInReserve) || !reference(g.reference)) bad();
+      return;
+    case "target": {
+      // PHYS-01.1 — `hold` only on a held increase: change keep, reason top_of_range_reached.
+      const keys = ["ruleVersion", "mode", "reason", "change", "targetKg", "stepKg", "loadBasis", "reference", ...(g.hold !== undefined ? ["hold"] : [])];
+      if (
+        !hasOnlyKeys(g, keys) ||
+        !["increase", "keep", "decrease"].includes(g.change as string) ||
+        (g.hold !== undefined && (!["dose_up", "pain", "fatigue"].includes(g.hold as string) || g.change !== "keep" || g.reason !== "top_of_range_reached")) ||
+        !isKg(g.targetKg) ||
+        !isKg(g.stepKg) ||
+        !reference(g.reference)
+      ) {
+        bad();
+      }
+      return;
+    }
   }
 }

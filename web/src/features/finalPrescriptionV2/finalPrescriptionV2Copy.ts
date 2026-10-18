@@ -22,6 +22,29 @@ export const MANUAL_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   manual_session_outside_current_plan: "Cette séance ajoutée à la main est en dehors de ton programme actuel : NALYNT n'en construit pas le contenu.",
   riding_not_available: "Ton profil n'a pas de créneau vélo ce jour-là : NALYNT ne construit pas de séance de vélo pour ce jour.",
 };
+/**
+ * PHYS-02 — why an intervals session has no daily document (detail.reason of the blocked decision): the
+ * intervals session exists in one version only (6 × 3 min at RPE 8), never shorter; on a LIGHT day it is
+ * replaced by light base endurance (PHYS-02.1), so these are the remaining, rare cases.
+ */
+export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
+  intervals_load_not_supported: "Le fractionné n'existe qu'en une seule version (6 × 3 min à RPE 8) : NALYNT ne construit pas cette adaptation.",
+  intervals_not_shortened: "Le fractionné n'est jamais raccourci : il ne tient pas dans le temps que tu as aujourd'hui.",
+  // PHYS-02.1 — the light base endurance fallback is withheld for today's pain.
+  // PHYS-03 — the power session has one dose and needs fresh legs and forearms.
+  power_load_not_supported:
+    "Ton état du jour demande moins d'intensité, et la séance de puissance n'existe qu'en une seule version (qualité maximale) : NALYNT ne propose pas de puissance allégée aujourd'hui.",
+  power_fatigue_not_cleared:
+    "Fatigue des jambes ou des avant-bras signalée aujourd'hui : la puissance demande une fraîcheur complète, NALYNT ne la propose pas aujourd'hui.",
+  no_compatible_power_exercise: "NALYNT ne propose pas encore de séance de puissance à ton niveau déclaré.",
+  // PHYS-04 — the mobility routine never goes below its protocol minimum (22 min).
+  mobility_duration_not_supported: "La séance de mobilité dure au moins 22 minutes : elle ne tient pas dans le temps que tu as aujourd'hui.",
+  intervals_fallback_pain_not_cleared:
+    "Tu as signalé une douleur que l'endurance solliciterait. NALYNT ne sait pas encore quelle activité la ménage : aucune séance n'est proposée aujourd'hui à la place du fractionné.",
+};
+/** PHYS-02.1 — a manual intervals session at another load than moderate (detail.target = AEROBIC_INTERVALS). */
+export const MANUAL_INTERVALS_LOAD_MESSAGE =
+  "Le fractionné n'existe qu'en une seule version, à charge modérée. Choisis une charge modérée dans ton programme pour obtenir le détail de la séance.";
 export const REST_MESSAGE = "Repos aujourd'hui : aucune séance à réaliser.";
 export const MISSING_MESSAGE = "Le détail de ta séance est momentanément indisponible.";
 export const INVALID_MESSAGE = "Le détail de cette séance n'est pas disponible.";

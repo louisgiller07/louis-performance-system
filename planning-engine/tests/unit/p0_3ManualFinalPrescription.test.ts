@@ -97,7 +97,10 @@ describe("P0-3 — manual Force: the rider's explicit kind, equipment and dose",
 });
 
 describe("P0-3 — preconditions and refusals", () => {
-  it.each(["POWER", "GRIP_WORK", "PUMPTRACK", "BIKE_MAINTENANCE", "STRENGTH_FULL_LIGHT", "AEROBIC_INTERVALS", "MOBILITY", "DH_PERFORMANCE"])("%s: explicit refusal, never an empty session", (kind) => {
+  // PHYS-02 — AEROBIC_INTERVALS has a builder now (catalogue session at MODERATE; see phys02EnduranceDaily.test.ts).
+  // PHYS-03 — POWER has a builder now (catalogue power session at MODERATE; see phys03Power.test.ts).
+  // PHYS-04 — MOBILITY has a builder now (the mobility_routine_v1 protocol; see phys04MobilityBodyweight.test.ts).
+  it.each(["GRIP_WORK", "PUMPTRACK", "BIKE_MAINTENANCE", "STRENGTH_FULL_LIGHT", "DH_PERFORMANCE"])("%s: explicit refusal, never an empty session", (kind) => {
     const r = buildFinalPrescriptionV2(manualInput("KEEP", { kind, loadProfile: "MODERATE" }));
     expect(r).toMatchObject({ status: "blocked", code: "final_prescription_adaptation_not_defined", detail: { reason: "manual_kind_not_supported", target: kind } });
   });
@@ -148,13 +151,17 @@ describe("P0-3 — A10 applies to manual sessions like to generated ones", () =>
     expect(r.status === "created" && [r.finalPrescription.structure.sessionKind, r.effectiveDurationMin, r.timeConstraint?.action]).toEqual(["DH_TECHNICAL", 60, "adapted"]);
   });
 
-  it("manual Force (60) + 45 min → its LIGHT 45-min dose; + 30 min → active recovery; + 90 → fits", () => {
+  it("manual Force MODERATE (PHYS-01.1, same dose for time): + 45 min → all exercises, no cool-down added here (39); + 30 min → the principal alone (24); + 90 → fits (39)", () => {
     const f45 = timed(45, { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" });
-    expect(f45.status === "created" && [f45.finalPrescription.structure.sessionKind, f45.effectiveDurationMin]).toEqual(["STRENGTH_UPPER", 45]);
+    expect(f45.status === "created" && [f45.finalPrescription.structure.sessionKind, f45.effectiveDurationMin, f45.timeConstraint?.action]).toEqual(["STRENGTH_UPPER", 39, "fits"]);
     const f30 = timed(30, { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" });
-    expect(f30.status === "created" && f30.finalPrescription.structure.sessionKind).toBe("RECOVERY_ACTIVE");
+    expect(f30.status === "created" && [f30.finalPrescription.structure.sessionKind, f30.effectiveDurationMin, f30.finalPrescription.adaptationRuleIds]).toEqual([
+      "STRENGTH_UPPER",
+      24,
+      [DAILY_ADAPTATION_RULES_V2.manualSession, DAILY_ADAPTATION_RULES_V2.strengthShortened, DAILY_ADAPTATION_RULES_V2.todayTimeLimit],
+    ]);
     const f90 = timed(90, { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" });
-    expect(f90.status === "created" && [f90.effectiveDurationMin, f90.timeConstraint?.action]).toEqual([60, "fits"]);
+    expect(f90.status === "created" && [f90.effectiveDurationMin, f90.timeConstraint?.action]).toEqual([39, "fits"]);
   });
 });
 

@@ -99,10 +99,12 @@ describe("V2 content — import boundary", () => {
     expect(sourceFiles(join(REPO, "planning-engine", "src", "sessionModelV2")).length).toBeGreaterThan(0);
   });
 
-  it("UX-11A.5b.4 — the V2 builders are DH, aerobic base and Force; only the Force builder reads the strength templates and doses; none reads the plan dose policy yet", () => {
+  it("UX-11A.5b.4 — the V2 builders are DH, aerobic base, intervals, power, mobility and Force; only the Force builder reads the strength templates and doses; none reads the plan dose policy yet", () => {
     const dir = join(REPO, "planning-engine", "src", "sessionModelV2", "builders");
     // A04 — recovery content (REPLACE → RECOVERY_ACTIVE), from the recovery protocol only.
-    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts", "recoveryActivePrescriptionV2.ts", "strengthPrescriptionV2.ts"]);
+    // PHYS-02 — the intervals builder, from the intervals protocol only.
+    // PHYS-03 — the power builder: catalogue exercises, the Force warm-up through the Force builder, never the templates or doses directly.
+    expect(readdirSync(dir).sort()).toEqual(["aerobicBasePrescriptionV2.ts", "aerobicIntervalsPrescriptionV2.ts", "dhPrescriptionV2.ts", "dhSessionOrdinals.ts", "mobilityPrescriptionV2.ts", "powerPrescriptionV2.ts", "recoveryActivePrescriptionV2.ts", "strengthPrescriptionV2.ts"]);
     for (const file of sourceFiles(dir)) {
       const text = readFileSync(file, "utf8");
       expect(text, file).not.toMatch(/planDosePolicyV2|PLAN_DOSE_POLICY/);
@@ -120,6 +122,10 @@ describe("V2 content — import boundary", () => {
       // UX-11A.5c.3 — V2 daily reconciliation (runtime import, loaded lazily) and its outcome mapping (type-only).
       join("head-coach-engine", "src", "supabase", "dailyV2", "reconcileFinalPrescriptionV2.ts"),
       join("head-coach-engine", "src", "supabase", "dailyV2", "finalPrescriptionOutcome.ts"),
+      // PHYS-01 — the Force load guidance of the V2 daily reconciliation (imported by it only, so loaded lazily too).
+      join("head-coach-engine", "src", "supabase", "dailyV2", "strengthLoadGuidance.ts"),
+      // PHYS-02 — the endurance guidance of the V2 daily reconciliation (imported by it only, so loaded lazily too).
+      join("head-coach-engine", "src", "supabase", "dailyV2", "enduranceGuidance.ts"),
       // UX-11A.5c.3.1 — the daily-run V2 Deno bundle entry (same source, bundled by esbuild).
       join("head-coach-engine", "src", "edge", "dailyRunV2EdgeEntry.ts"),
     ]);

@@ -20,7 +20,7 @@ export interface StrengthSummary {
 }
 
 export function strengthSummary(p: FinalPrescriptionV2View): StrengthSummary | null {
-  if (p.family !== "strength") return null;
+  if (p.family !== "strength" && p.family !== "power") return null;
   const workExercises = p.blocks
     .filter((b) => (WORK_BLOCK_ROLES as readonly string[]).includes(b.role))
     .flatMap((b) => b.items)
@@ -32,10 +32,16 @@ export function strengthSummary(p: FinalPrescriptionV2View): StrengthSummary | n
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
-/** "4 exercices de travail · 12 séries de travail" — never a bare "12 séries". */
-export function strengthSummaryLine(s: StrengthSummary): string {
-  return `${plural(s.workExercises.length, "exercice de travail", "exercices de travail")} · ${plural(s.workSets, "série de travail", "séries de travail")}`;
+/** "4 exercices de travail · 12 séries de travail" — never a bare "12 séries". PHYS-03: "explosifs" for a power session. */
+export function strengthSummaryLine(s: StrengthSummary, power = false): string {
+  return power
+    ? `${plural(s.workExercises.length, "exercice explosif", "exercices explosifs")} · ${plural(s.workSets, "série", "séries")} · repos complet entre les séries`
+    : `${plural(s.workExercises.length, "exercice de travail", "exercices de travail")} · ${plural(s.workSets, "série de travail", "séries de travail")}`;
 }
+
+/** PHYS-03 — how a power session is done (PROVISIONAL wording, docs/03 §5): speed, quality, full rest, the stop rule. */
+export const POWER_QUALITY_GUIDANCE =
+  "Chaque répétition à vitesse maximale, technique propre. Repos complet entre les séries. Arrête la série dès que la hauteur ou la vitesse baisse : la qualité compte plus que le nombre.";
 
 /** "Non comptés : échauffement (3 exercices), montée en charge (1–2 séries)." — null when there is neither. */
 export function strengthExtrasLine(s: StrengthSummary): string | null {
@@ -52,4 +58,5 @@ export const WORK_ROLE_LABELS: Readonly<Record<string, string>> = {
   secondary: "Secondaire",
   unilateral: "Unilatéral",
   prevention: "Prévention",
+  explosive: "Explosif",
 };

@@ -4,7 +4,7 @@
  * PlanInputSnapshotV2 → shared planning pipeline with the V2 dose model
  * (BUG-V2-2: block progression — each week's role and dose, fitted to the
  * availability → final durations → placement) → generated
- * sessions → V2 builders (Force, DH, AEROBIC_BASE) → assignPrescriptionIds
+ * sessions → V2 builders (Force, DH, AEROBIC_BASE, PHYS-02 AEROBIC_INTERVALS) → assignPrescriptionIds
  * (injected mintId) → validatePrescriptionV2 → sport fingerprints.
  *
  * - Explicit only: nothing here is reached unless a caller asks for a V2
@@ -29,19 +29,26 @@ import { buildSessionModelV2CatalogManifest, type SessionModelV2CatalogManifest 
 import { assignPrescriptionIds } from "../assignPrescriptionIds.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { sportFingerprint } from "../sportFingerprint.js";
-import { toSessionModelV2Input, type PlanInputSnapshotV2 } from "../planInputSnapshotV2.js";
+import { toSessionModelV2Input, type PlanInputSnapshotV2, type SessionModelV2Input } from "../planInputSnapshotV2.js";
 import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError, type SessionModelV2GenerationBlockCode } from "../generationErrors.js";
 import type { ExerciseItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { buildDhPrescriptionV2Content } from "../builders/dhPrescriptionV2.js";
 import { deriveDhSessionOrdinals } from "../builders/dhSessionOrdinals.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
+import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Content } from "../builders/aerobicIntervalsPrescriptionV2.js";
+import { buildPowerPrescriptionV2Content, isPowerSessionPossibleV2 } from "../builders/powerPrescriptionV2.js";
+import { POWER_PLAN_POLICY_V2, POWER_PLAN_POLICY_V2_VERSION, POWER_SESSION_POLICY_V2_VERSION } from "../../catalog/powerSessionPolicyV2.js";
+import { BLOCK_PROGRESSION_PHRASES_V2 } from "./blockProgressionV2.js";
+import { buildMobilityPrescriptionV2Content, mobilityDurationRangeV2 } from "../builders/mobilityPrescriptionV2.js";
+import { MOBILITY_PLAN_POLICY_V2, MOBILITY_PLAN_POLICY_V2_VERSION } from "../../catalog/mobilityPlanPolicyV2.js";
+import { availabilityByDate } from "../../pipeline/availabilityActivity.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
-import { PLAN_DOSE_MODEL_V2 } from "./planDoseModelV2.js";
+import { PLAN_DOSE_MODEL_V2, planDoseModelV2 } from "./planDoseModelV2.js";
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 import type { StrengthDoseStepV2 } from "../../catalog/strengthDoseCatalogV2.js";
 
-export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE"];
+export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS", "POWER", "MOBILITY"];
 
 export interface GeneratePlanV2InMemoryInput {
   /** Block content only — id / planVersionId are minted here. */
@@ -49,6 +56,12 @@ export interface GeneratePlanV2InMemoryInput {
   snapshot: PlanInputSnapshotV2;
   /** Identity strategy, injected (random UUIDs at runtime, deterministic in tests). */
   mintId: () => string;
+  /** PHYS-02 — place the intervals session in overload weeks (server switch; absent / false = the previous plans exactly). */
+  enduranceIntervals?: boolean;
+  /** PHYS-03 — place the power session in build weeks (server switch; absent / false = the previous plans exactly). */
+  powerSessions?: boolean;
+  /** PHYS-04 — add a mobility session in consolidation weeks (server switch; absent / false = the previous plans exactly). */
+  mobilitySessions?: boolean;
 }
 
 export interface PlannedPrescriptionV2InMemory {
@@ -128,10 +141,14 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
     // Kept only because the pipeline input requires it: with the V2 dose model
     // HistoryAdjuster (its only reader) is never applied.
     recentHistory: snapshot.recentHistory,
-    sessionDoseModel: PLAN_DOSE_MODEL_V2,
+    sessionDoseModel: input.enduranceIntervals === true ? planDoseModelV2({ enduranceIntervals: true }) : PLAN_DOSE_MODEL_V2,
   });
 
-  const flat = planning.weeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
+  // PHYS-03 — with the power option only: the lower-body Force session of a build week becomes the power session.
+  const powerWeeks = input.powerSessions === true ? placePowerSessionsV2(planning.weeks, modelInput.strengthExperienceTier, modelInput.equipment) : planning.weeks;
+  // PHYS-04 — with the mobility option only: one mobility session on a free day of each consolidation week.
+  const plannedWeeks = input.mobilitySessions === true ? placeMobilitySessionsV2(powerWeeks, snapshot.availability, snapshot.lockedDates) : powerWeeks;
+  const flat = plannedWeeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
   for (const { session } of flat) {
     if (!V2_SUPPORTED_SESSION_KINDS.includes(session.kind)) throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
   }
@@ -152,7 +169,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   // Identities and validation.
   const weeks: PlanWeekV2InMemory[] = [];
   let index = 0;
-  for (const week of planning.weeks) {
+  for (const week of plannedWeeks) {
     const weekId = mintId();
     const sessions: PlanSessionV2InMemory[] = week.sessions.map((session) => {
       const content = contents[index++]!;
@@ -260,9 +277,99 @@ function buildContent(
         // BUG-V2-1 — no riding window that day: off-terrain endurance only.
         ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
       });
+    case "MOBILITY":
+      // PHYS-04 — the catalogue mobility protocol, unchanged (its full 22–30 min ranges).
+      return buildMobilityPrescriptionV2Content({ catalog });
+    case "POWER":
+      // PHYS-03 — the power session composed from the catalogue (tier, equipment); its slot keeps the Force duration and load.
+      return buildPowerPrescriptionV2Content({ athleteTier: modelInput.strengthExperienceTier, equipment: modelInput.equipment, catalog });
+    case "AEROBIC_INTERVALS":
+      // PHYS-02 — the catalogue intervals session, at its fixed protocol duration (never shortened).
+      if (session.durationMin !== aerobicIntervalsDurationMinV2()) throw new SessionModelV2ContractError(`intervals session on ${session.date} placed with ${session.durationMin} min`);
+      return buildAerobicIntervalsPrescriptionV2Content({
+        sessionKind: session.kind,
+        catalog,
+        ridingAvailable: isActivityAvailableOn(session.date, "riding", availability, lockedDates),
+      });
     default:
       throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
   }
+}
+
+export type PlannedWeekV2 = ReturnType<typeof runPlanningPipeline>["weeks"][number];
+
+/**
+ * PHYS-03 — POWER_PLAN_POLICY_V2 (PROVISIONAL): in each week of a listed role, the week's first lower-body
+ * Force session (same slot: date, duration, load) becomes the power session — only when the rider's tier and
+ * equipment allow a power session, and never the day after a development session (docs/03 §5 « jamais après une
+ * séance fatigante », M1's development kinds at MODERATE / HEAVY). Traced on the week (reason, phrase, policies).
+ */
+export function placePowerSessionsV2(weeks: readonly PlannedWeekV2[], tier: SessionModelV2Input["strengthExperienceTier"], equipment: readonly string[]): PlannedWeekV2[] {
+  if (!isPowerSessionPossibleV2(tier, equipment)) return [...weeks];
+  const sessionsOn = new Map<string, { kind: SessionKind; loadProfile?: LoadProfile }[]>();
+  for (const w of weeks) for (const s of w.sessions) sessionsOn.set(s.date, [...(sessionsOn.get(s.date) ?? []), s]);
+  const previousDay = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const developmentOn = (iso: string) =>
+    (sessionsOn.get(iso) ?? []).some((s) => POWER_PLAN_POLICY_V2.developmentKinds.includes(s.kind) && (s.loadProfile === "MODERATE" || s.loadProfile === "HEAVY"));
+  return weeks.map((week) => {
+    const progression = week.doseSummary.progression;
+    if (progression === undefined || !POWER_PLAN_POLICY_V2.weekRoles.includes(progression.role)) return week;
+    const target = [...week.sessions].sort((a, b) => a.date.localeCompare(b.date)).find((s) => s.kind === "STRENGTH_LOWER");
+    if (target === undefined || developmentOn(previousDay(target.date))) return week;
+    const phrase = BLOCK_PROGRESSION_PHRASES_V2.power_session;
+    const sessions = week.sessions.map((s) => (s === target ? { ...s, kind: "POWER" as SessionKind, rationale: `${s.rationale} ${phrase}` } : s));
+    sessionsOn.set(target.date, (sessionsOn.get(target.date) ?? []).map((s) => (s === target ? { ...s, kind: "POWER" as SessionKind } : s)));
+    return {
+      ...week,
+      rationale: `${week.rationale} ${phrase}`,
+      sessions,
+      doseSummary: {
+        ...week.doseSummary,
+        progression: { ...progression, reasonCodes: [...progression.reasonCodes, "power_session"], powerPolicy: `${POWER_PLAN_POLICY_V2_VERSION}+${POWER_SESSION_POLICY_V2_VERSION}` },
+      },
+    };
+  });
+}
+
+/**
+ * PHYS-04 — MOBILITY_PLAN_POLICY_V2 (PROVISIONAL): in each week of a listed role, ONE mobility session (the
+ * protocol, 22–30 min, planned at its 30-min maximum) on the first date of the week without any session whose
+ * physical availability holds the 30 minutes (locked dates and unavailable days excluded). Never a second
+ * session on a day. Traced on the week (reason, phrase, policy); the week's counts follow the added session.
+ */
+export function placeMobilitySessionsV2(weeks: readonly PlannedWeekV2[], availability: PlanInputAvailability, lockedDates: readonly PlanInputLockedDate[]): PlannedWeekV2[] {
+  const duration = mobilityDurationRangeV2().max;
+  const addDay = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return weeks.map((week) => {
+    const progression = week.doseSummary.progression;
+    if (progression === undefined || !MOBILITY_PLAN_POLICY_V2.weekRoles.includes(progression.role)) return week;
+    const dates: string[] = [];
+    for (let d = week.startDate; d <= week.endDate; d = addDay(d)) dates.push(d);
+    const taken = new Set(week.sessions.map((s) => s.date));
+    const free = availabilityByDate(dates.filter((d) => !taken.has(d)), availability, lockedDates).find((a) => typeof a.physical === "number" && a.physical >= duration);
+    if (free === undefined) return week;
+    const phrase = BLOCK_PROGRESSION_PHRASES_V2.mobility_session;
+    const session = {
+      date: free.date,
+      domain: "strength",
+      kind: "MOBILITY" as SessionKind,
+      durationMin: duration,
+      doseTarget: { domain: "recovery" as const },
+      rationale: `${week.rationale} ${phrase}`,
+    } as unknown as PlannedWeekV2["sessions"][number];
+    const sessions = [...week.sessions, session].sort((a, b) => a.date.localeCompare(b.date));
+    return {
+      ...week,
+      rationale: `${week.rationale} ${phrase}`,
+      sessions,
+      doseSummary: {
+        ...week.doseSummary,
+        plannedRestOrRecoveryDayCount: week.doseSummary.plannedRestOrRecoveryDayCount - 1,
+        totalPlannedMinutes: week.doseSummary.totalPlannedMinutes + duration,
+        progression: { ...progression, sessionCount: progression.sessionCount + 1, reasonCodes: [...progression.reasonCodes, "mobility_session"], mobilityPolicy: MOBILITY_PLAN_POLICY_V2_VERSION },
+      },
+    };
+  });
 }
 
 /** Same strength kind → same template and same exercises for the whole plan version (only the dose may differ). */

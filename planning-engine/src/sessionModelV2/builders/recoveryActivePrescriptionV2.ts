@@ -29,10 +29,18 @@ function referenceMeasure(exercise: SessionExerciseV2): ExerciseMeasureV2 {
 }
 
 function blockContent(block: ProtocolBlockV2): BlockV2Content {
+  return protocolSessionBlockV2(block, RECOVERY_ACTIVE_PROTOCOL_ID);
+}
+
+/**
+ * A protocol block as prescription content: the block verbatim (role, focus, duration range, RPE, instructions),
+ * each exercise at its catalogue reference (one set). PHYS-04 — shared with the mobility builder.
+ */
+export function protocolSessionBlockV2(block: ProtocolBlockV2, protocolId: string): BlockV2Content {
   const items: ExerciseItemV2Content[] = block.items.map((item) => {
-    if (item.kind !== "exercise") throw new SessionModelV2ContractError(`${RECOVERY_ACTIVE_PROTOCOL_ID} block ${block.role} holds a ${item.kind}, not an exercise`);
+    if (item.kind !== "exercise") throw new SessionModelV2ContractError(`${protocolId} block ${block.role} holds a ${item.kind}, not an exercise`);
     const exercise = SESSION_EXERCISE_CATALOG_V2[item.exerciseId];
-    if (!exercise) throw new SessionModelV2ContractError(`unknown exercise ${item.exerciseId} in ${RECOVERY_ACTIVE_PROTOCOL_ID}`);
+    if (!exercise) throw new SessionModelV2ContractError(`unknown exercise ${item.exerciseId} in ${protocolId}`);
     return {
       kind: "exercise",
       exerciseId: exercise.exerciseId,

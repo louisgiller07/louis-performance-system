@@ -27,6 +27,11 @@
  *
  * Composition depends only on (sessionKind, athleteTier, equipment,
  * template version): never on a date, an ordinal, a week or randomness.
+ *
+ * PHYS-01.1 — `workSlots` (daily only, the rider's time today): the first N
+ * work slots of the template, at the same dose; absent = all three. A plan
+ * never uses it, so a planned prescription stays exactly the previous
+ * runtime's. The cool-down is a daily addition (strengthDailyV2.ts).
  */
 import type { StrengthExperienceTier } from "../../types/planInputSnapshot.js";
 import { SESSION_EXERCISE_CATALOG_V2, type SessionExerciseRoleV2, type SessionExerciseV2 } from "../../catalog/sessionExerciseCatalogV2.js";
@@ -66,6 +71,8 @@ export interface StrengthPrescriptionV2Input {
   /** BUG-V2-2 — the block's dose step; absent = the load profile's own step. Must map to `loadProfile`. */
   doseStep?: StrengthDoseStepV2;
   catalog: SessionModelV2CatalogManifest;
+  /** PHYS-01.1 — daily only: keep the first N work slots (1 to 3, the principal always first); absent = all. */
+  workSlots?: number;
 }
 
 /** Why a candidate was not selected (explains a no_compatible_strength_exercise block). */
@@ -160,6 +167,27 @@ function protocolChoiceRole(focus: "mobility" | "activation"): SessionExerciseRo
   return choice.exerciseRole;
 }
 
+/**
+ * The warm-up block of a Force template (its mobility then activation items, the strength_warm_up_v1
+ * instructions). PHYS-03 — also the warm-up of the power session (lower-body template), never rebuilt.
+ */
+export function strengthTemplateWarmUpBlockV2(sessionKind: StrengthTemplateSessionKindV2, athleteTier: StrengthExperienceTier): BlockV2Content {
+  const template = strengthTemplateFor(sessionKind, athleteTier);
+  return {
+    role: "warm_up",
+    instructionIds: [protocolInstructionId("mobility"), protocolInstructionId("activation")],
+    items: [
+      ...template.warmUp.mobility.map((item) => warmUpItem(item, protocolChoiceRole("mobility"))),
+      ...template.warmUp.activation.map((item) => warmUpItem(item, protocolChoiceRole("activation"))),
+    ],
+  };
+}
+
+/** The exercise's own reference measure (reps / duration / distance) — PHYS-03: shared with the power builder. */
+export function referenceMeasureV2(exercise: SessionExerciseV2): ExerciseMeasureV2 {
+  return referenceMeasure(exercise);
+}
+
 export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2Input): PrescriptionV2Content {
   if (!(STRENGTH_TEMPLATE_SESSION_KINDS_V2 as readonly string[]).includes(input.sessionKind)) {
     throw new SessionModelV2ContractError(`the Force builder only builds ${STRENGTH_TEMPLATE_SESSION_KINDS_V2.join(" / ")}, got ${input.sessionKind}`);
@@ -182,16 +210,12 @@ export function buildStrengthPrescriptionV2Content(input: StrengthPrescriptionV2
   const doses = STRENGTH_DOSE_CATALOG_V2[doseStep];
   const rampUpInstructionId = protocolInstructionId("main_movement_prep");
 
-  const warmUp: BlockV2Content = {
-    role: "warm_up",
-    instructionIds: [protocolInstructionId("mobility"), protocolInstructionId("activation")],
-    items: [
-      ...template.warmUp.mobility.map((item) => warmUpItem(item, protocolChoiceRole("mobility"))),
-      ...template.warmUp.activation.map((item) => warmUpItem(item, protocolChoiceRole("activation"))),
-    ],
-  };
+  const warmUp: BlockV2Content = strengthTemplateWarmUpBlockV2(input.sessionKind, input.athleteTier);
 
-  const workBlocks: BlockV2Content[] = template.workSlots.map((slot, index) => {
+  if (input.workSlots !== undefined && (!Number.isInteger(input.workSlots) || input.workSlots < 1 || input.workSlots > template.workSlots.length)) {
+    throw new SessionModelV2ContractError(`workSlots must be 1 to ${template.workSlots.length}, got ${input.workSlots}`);
+  }
+  const workBlocks: BlockV2Content[] = template.workSlots.slice(0, input.workSlots ?? template.workSlots.length).map((slot, index) => {
     const resolution = resolveStrengthSlotCandidate(slot, input.athleteTier, input.equipment);
     if (!resolution.ok) {
       throw new SessionModelV2GenerationBlockedError("no_compatible_strength_exercise", {

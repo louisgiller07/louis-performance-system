@@ -41,7 +41,7 @@
  * persist_daily_run_v2 20261013120000): origin `manual_override_new_kind`, action = M1's decision (keep with no
  * adaptation rule / modify / replace), no planned prescription, the current plan version — only when that
  * version covers the date. A kind or load the builders cannot honour (POWER, GRIP_WORK,
- * PUMPTRACK, STRENGTH_FULL_LIGHT, AEROBIC_INTERVALS, MOBILITY, DH_PERFORMANCE…, a HEAVY Force) is an
+ * PUMPTRACK, STRENGTH_FULL_LIGHT, MOBILITY, DH_PERFORMANCE…, a HEAVY Force, intervals at another load than MODERATE) is an
  * explicit refusal, never an empty session. A10 applies as for any REPLACE.
  *
  * A10 — `timeLimitMin` (the rider's time today, chosen by
@@ -55,6 +55,56 @@
  *     bound lowered, optional blocks left out when they do not fit), never
  *     below the protocol's minimum.
  * Force has no time variant: only its validated doses (LIGHT 45 / MODERATE 60).
+ *
+ * PHYS-01.1 — daily Force additions (strengthDailyV2.ts), never a plan
+ * change: every created Force final prescription ends with the cool-down
+ * (`dailyMintId` gives its ids; absent = no addition); under the rider's
+ * time (A10) a Force session keeps its dose and drops its last work
+ * exercises (`strengthWorkSlots`), the cool-down keeping its mobility only;
+ * a shortened MODIFY keeps lineage by exercise, never by position. A Force
+ * session's duration under A10 is its content's estimate.
+ *
+ * PHYS-02 — intervals (AEROBIC_INTERVALS, protocol `endurance_intervals_3min`)
+ * have ONE dose, the protocol's (ADR UX-11A.5a.3 §5: no 4 / 6 selector, no
+ * level or phase rule): KEEP copies it; a lighter or shorter intervals
+ * session is never built. M1's same-nature MODIFY intervals → AEROBIC_BASE
+ * (MENTAL_RED, committed family) gets the base endurance session with the
+ * planned activity choice (`v2.modify.intervals_to_base`: the planned
+ * duration, LIGHT → the policy's LIGHT endurance duration); REPLACE / a
+ * manual session of that kind gets the catalogue session at MODERATE
+ * (`v2.replace.intervals`).
+ *
+ * PHYS-02.1 — the one exception to §5 (ADR PHYS-02.1): when M1 MODIFIES an
+ * intervals session down to LIGHT (planned or manual), the intervals session
+ * is replaced by the catalogue base endurance session at the LIGHT dose
+ * (`v2.modify.intervals_light_to_base`: the planned activity choice, the
+ * policy's LIGHT endurance duration). The document's kind is then
+ * AEROBIC_BASE under M1's MODIFY AEROBIC_INTERVALS LIGHT: the integration
+ * layer aligns the persisted decision on it, traced (V2_INTERVALS_LIGHT_FALLBACK).
+ * Any other load change of an intervals session stays undefined
+ * (`intervals_load_not_supported`). The fallback offers activities
+ * (bike, home trainer, running): it is proposed only when today's pain, if
+ * any, is cleared for endurance by the existing pain rule
+ * (`enduranceFallbackPain`, given by the integration layer); otherwise
+ * `intervals_fallback_pain_not_cleared` — no activity chosen for the rider.
+ *
+ * PHYS-03 — power (family `power`, kind POWER, powerPrescriptionV2.ts): one
+ * dose, the catalogue reference (MODERATE). KEEP copies it; its effective
+ * duration is always its content's estimate. A lower load (M1 LIGHT) is not
+ * defined (`power_load_not_supported`, decision kept); under the rider's time
+ * (A10) the same session drops its last explosive exercises, never below
+ * three, never a shorter rest (`v2.time.power_shortened`); REPLACE / a manual
+ * session of that kind gets the catalogue session at MODERATE
+ * (`v2.replace.power`). A day M1 flags legs or grip fatigue (C3.6 / C3.5)
+ * without adapting the power session gets no power document
+ * (`power_fatigue_not_cleared`, `powerFatigue` from the integration layer):
+ * docs/03 §5, never explosive work under fatigue.
+ *
+ * PHYS-04 — mobility (family `mobility`, kind MOBILITY, mobilityPrescriptionV2.ts:
+ * the `mobility_routine_v1` protocol, 22–30 min): KEEP copies it; under the
+ * rider's time (A10) every block at its protocol minimum (22 min,
+ * `v2.time.mobility_minimum`), never below; REPLACE / a manual session of
+ * that kind gets the protocol session (`v2.replace.mobility`).
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -67,9 +117,15 @@ import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { BlockV2, DrillItemV2Content, ExerciseItemV2Content, PrescriptionItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
+import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
+import { appendStrengthCoolDownV2, shortenStrengthContentV2 } from "../strengthDailyV2.js";
 import { buildDhPrescriptionV2Content, DH_V2_SESSION_KIND, dhDrillForLoad, dhIntentForDrillV2 } from "../builders/dhPrescriptionV2.js";
 import { SESSION_DRILL_CATALOG_V2 } from "../../catalog/sessionDrillCatalogV2.js";
 import { buildAerobicBasePrescriptionV2Content } from "../builders/aerobicBasePrescriptionV2.js";
+import { aerobicIntervalsDurationMinV2, buildAerobicIntervalsPrescriptionV2Content } from "../builders/aerobicIntervalsPrescriptionV2.js";
+import { buildPowerPrescriptionV2Content, isPowerSessionPossibleV2, POWER_SESSION_KIND_V2, powerExplosiveExercisesV2 } from "../builders/powerPrescriptionV2.js";
+import { POWER_SESSION_POLICY_V2 } from "../../catalog/powerSessionPolicyV2.js";
+import { buildMobilityPrescriptionV2Content, mobilityDurationRangeV2 } from "../builders/mobilityPrescriptionV2.js";
 import { buildRecoveryActivePrescriptionV2Content, RECOVERY_ACTIVE_PROTOCOL_ID } from "../builders/recoveryActivePrescriptionV2.js";
 import { buildKeepFinalPrescriptionV2, lineageFailure, trustedPlannedStructure, type BuildKeepFinalPrescriptionV2Input } from "./buildKeepFinalPrescriptionV2.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
@@ -102,6 +158,20 @@ export interface BuildFinalPrescriptionV2Input extends BuildKeepFinalPrescriptio
   adaptation: DailyAdaptationContextV2 | null;
   /** A10 — minutes available today when a time adaptation is requested (see buildFinalPrescriptionWithinTodayTimeV2). */
   timeLimitMin?: number;
+  /** PHYS-01.1 — A10 only: keep the first N work exercises of a Force session, same dose (absent = all). */
+  strengthWorkSlots?: number;
+  /** PHYS-01.1 — ids of the daily Force additions (cool-down); the daily runtime always passes it. Absent = no addition. */
+  dailyMintId?: () => string;
+  /**
+   * PHYS-02.1 — today's pain against the intervals LIGHT fallback (base endurance), from the existing pain rule
+   * (integration layer). Not cleared → the fallback is not proposed. Absent = no pain information (pure callers).
+   */
+  enduranceFallbackPain?: { cleared: true } | { cleared: false; zone: string };
+  /**
+   * PHYS-03 — M1's fatigue signals against a power session (integration layer): legs or grip fatigue M1 flagged
+   * without adapting the power session → no power document. Absent = no information (pure callers).
+   */
+  powerFatigue?: { cleared: true } | { cleared: false; rules: readonly string[] };
 }
 
 /** Stable rule ids of a modify / replace document (`adaptation_rule_ids`, never empty for those actions). */
@@ -117,6 +187,22 @@ export const DAILY_ADAPTATION_RULES_V2 = {
   todayTimeLimit: "v2.time.today_limit",
   /** P0-3 — the content was built for the rider's manual session (no planned prescription). */
   manualSession: "v2.manual.session",
+  /** PHYS-01.1 — A10: the same Force session and dose, its last work exercises left out. */
+  strengthShortened: "v2.time.strength_shortened",
+  /** PHYS-02 — M1's same-nature MODIFY of a planned intervals session: the base endurance session. */
+  intervalsToBase: "v2.modify.intervals_to_base",
+  /** PHYS-02 — REPLACE / manual session of the intervals kind: the catalogue intervals session. */
+  replaceIntervals: "v2.replace.intervals",
+  /** PHYS-02.1 — M1 MODIFY of an intervals session down to LIGHT: the base endurance session at the LIGHT dose replaces it. */
+  intervalsLightToBase: "v2.modify.intervals_light_to_base",
+  /** PHYS-03 — REPLACE / manual session of the power kind: the catalogue power session. */
+  replacePower: "v2.replace.power",
+  /** PHYS-03 — A10: the same power session, its last explosive exercises left out (never below three). */
+  powerShortened: "v2.time.power_shortened",
+  /** PHYS-04 — REPLACE / manual session of the mobility kind: the protocol mobility session. */
+  replaceMobility: "v2.replace.mobility",
+  /** PHYS-04 — A10: the same mobility session, every block at its protocol minimum. */
+  mobilityMinimum: "v2.time.mobility_minimum",
 } as const;
 
 const LOAD_RANK: Readonly<Record<LoadProfile, number>> = { LIGHT: 0, MODERATE: 1, HEAVY: 2 };
@@ -164,7 +250,7 @@ function recoveryWithin(content: PrescriptionV2Content, limit: number): Prescrip
 }
 
 /** `durationMin` = the effective session duration the content was built for (absent: the decision's own, or a range). */
-type Built = { content: PrescriptionV2Content; rule: string; durationMin?: number } | { blocked: Record<string, unknown> };
+type Built = { content: PrescriptionV2Content; rule: string; durationMin?: number; lineageByExercise?: true } | { blocked: Record<string, unknown> };
 
 function blocked(code: "final_prescription_no_lineage" | "final_prescription_adaptation_not_defined" | "final_prescription_catalog_mismatch", detail: Record<string, unknown>): FinalPrescriptionV2Result {
   return { status: "blocked", code, detail };
@@ -230,19 +316,59 @@ const withPasses = (content: PrescriptionV2Content, passes: (count: number) => n
 const composition = (c: { templateId?: string; blocks: readonly { items: readonly unknown[] }[] }) =>
   JSON.stringify([c.templateId, flatItems(c.blocks).map((i) => (i as ExerciseItemV2Content).exerciseId)]);
 
+/** The planned Force session at the LIGHT dose: same template and exercises (the composition must be identical, §5). */
+function lightStrengthContent(planned: PrescriptionV2, context: DailyAdaptationContextV2): PrescriptionV2Content {
+  const rebuilt = buildStrengthPrescriptionV2Content({
+    sessionKind: planned.sessionKind as (typeof STRENGTH_KINDS)[number],
+    athleteTier: context.athlete.strengthExperienceTier,
+    equipment: context.athlete.equipment,
+    loadProfile: "LIGHT",
+    catalog: planned.catalog,
+  });
+  if (composition(rebuilt) !== composition(planned)) {
+    throw new SessionModelV2ContractError(`MODIFY Force: the LIGHT rebuild changed the planned composition (${composition(planned)} → ${composition(rebuilt)})`);
+  }
+  return rebuilt;
+}
+
 /** MODIFY content: same session, lower dose (or the planned dose when M1 did not lower it). */
 function modifiedContent(
   planned: PrescriptionV2,
   plannedLoad: LoadProfile | null,
   final: { loadProfile?: LoadProfile; durationMin?: number },
   context: DailyAdaptationContextV2,
-  timeLimitMin: number | undefined
+  timeLimitMin: number | undefined,
+  strengthWorkSlots: number | undefined
 ): Built {
   const finalLoad = final.loadProfile;
   const upward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] > LOAD_RANK[plannedLoad];
   // §6 — never raise the planned dose automatically, never a "modified" copy of the planned dose.
   if (upward) return { blocked: { reason: "upward_modify_not_supported", planned: plannedLoad, final: finalLoad } };
   const downward = finalLoad !== undefined && plannedLoad !== null && LOAD_RANK[finalLoad] < LOAD_RANK[plannedLoad];
+  // PHYS-03 — the power session has one dose: never lighter; under the rider's time, its last explosive exercises left out.
+  if (planned.family === "power") {
+    if (downward) return { blocked: { reason: "power_load_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
+    if (timeLimitMin !== undefined && strengthWorkSlots !== undefined) {
+      const content = shortenPowerContentV2(contentOf(planned), strengthWorkSlots);
+      return { content, rule: DAILY_ADAPTATION_RULES_V2.powerShortened, durationMin: estimateStrengthDurationMinutesV2(content), lineageByExercise: true };
+    }
+    return { blocked: { reason: "modify_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
+  }
+  // PHYS-02 — the intervals session has one dose: never lighter, never shorter (ADR UX-11A.5a.3 §5).
+  // PHYS-02.1 — on M1's LIGHT day, the base endurance session at the LIGHT dose replaces it (ADR PHYS-02.1).
+  if (planned.sessionKind === "AEROBIC_INTERVALS") {
+    if (downward && finalLoad === "LIGHT") {
+      const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
+      return intervalsLightFallback(ridingAvailable, planned.catalog, enduranceMinutes(planned));
+    }
+    return { blocked: { reason: "intervals_load_not_supported", planned: plannedLoad, final: finalLoad ?? null } };
+  }
+  // PHYS-01.1 — A10 shortened Force: the planned session (or M1's LIGHT dose of it), its last work exercises left out.
+  if (timeLimitMin !== undefined && planned.family === "strength" && strengthWorkSlots !== undefined) {
+    const base = downward ? lightStrengthContent(planned, context) : contentOf(planned);
+    const content = shortenStrengthContentV2(base, strengthWorkSlots);
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.strengthShortened, durationMin: estimateStrengthDurationMinutesV2(content), lineageByExercise: true };
+  }
   // A10 — a shorter DH or endurance session for the rider's time today (same or lower load).
   if (timeLimitMin !== undefined && final.durationMin !== undefined && final.durationMin <= timeLimitMin && planned.family !== "strength") {
     return timeModifiedContent(planned, final.durationMin, downward, finalLoad, context.athlete.terrainAccess);
@@ -251,16 +377,7 @@ function modifiedContent(
   const light = PLAN_ROLE_DOSES_V2.consolidation;
   switch (planned.family) {
     case "strength": {
-      const rebuilt = buildStrengthPrescriptionV2Content({
-        sessionKind: planned.sessionKind as (typeof STRENGTH_KINDS)[number],
-        athleteTier: context.athlete.strengthExperienceTier,
-        equipment: context.athlete.equipment,
-        loadProfile: "LIGHT",
-        catalog: planned.catalog,
-      });
-      if (composition(rebuilt) !== composition(planned)) {
-        throw new SessionModelV2ContractError(`MODIFY Force: the LIGHT rebuild changed the planned composition (${composition(planned)} → ${composition(rebuilt)})`);
-      }
+      const rebuilt = lightStrengthContent(planned, context);
       return { content: rebuilt, rule: DAILY_ADAPTATION_RULES_V2.strengthLightDose, durationMin: light.forceDurationMin };
     }
     case "dh_technical": {
@@ -282,6 +399,45 @@ function modifiedContent(
   }
 }
 
+/**
+ * PHYS-02 — M1's same-nature MODIFY of a planned intervals session (MENTAL_RED, committed family): the base
+ * endurance session with the planned activity choice, at the planned duration (LIGHT: the policy's LIGHT
+ * endurance duration, as `v2.modify.endurance_light_duration`).
+ */
+function intervalsToBaseContent(planned: PrescriptionV2, final: { loadProfile?: LoadProfile }): Built {
+  const plannedMinutes = enduranceMinutes(planned);
+  const minutes = final.loadProfile === "LIGHT" ? Math.min(plannedMinutes, PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin) : plannedMinutes;
+  const ridingAvailable = (planned.activitySelection?.activityIds ?? []).some((a) => RIDING_ENDURANCE_ACTIVITIES.includes(a));
+  return {
+    content: buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog: planned.catalog, ridingAvailable }),
+    rule: DAILY_ADAPTATION_RULES_V2.intervalsToBase,
+    durationMin: minutes,
+  };
+}
+
+/** PHYS-03 — the same power content keeping its first `workSlots` explosive exercises (never below the policy minimum). */
+function shortenPowerContentV2(content: PrescriptionV2Content, workSlots: number): PrescriptionV2Content {
+  const work = content.blocks.filter((b) => b.role === "main");
+  if (!Number.isInteger(workSlots) || workSlots < POWER_SESSION_POLICY_V2.explosiveExercises.min || workSlots > work.length) {
+    throw new SessionModelV2ContractError(`power workSlots must be ${POWER_SESSION_POLICY_V2.explosiveExercises.min} to ${work.length}, got ${workSlots}`);
+  }
+  const keep = new Set(work.slice(0, workSlots));
+  return { ...content, blocks: content.blocks.filter((b) => b.role !== "main" || keep.has(b)) };
+}
+
+/**
+ * PHYS-02.1 — no lighter intervals session exists: the catalogue base endurance session at the policy's LIGHT
+ * endurance duration (never longer than the intervals session), with the intervals' activity choice.
+ */
+function intervalsLightFallback(ridingAvailable: boolean, catalog: PrescriptionV2["catalog"], intervalsMinutes: number): Built {
+  const minutes = Math.min(intervalsMinutes, PLAN_ROLE_DOSES_V2.taper.aerobicBaseDurationMin);
+  return {
+    content: buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable }),
+    rule: DAILY_ADAPTATION_RULES_V2.intervalsLightToBase,
+    durationMin: minutes,
+  };
+}
+
 /** A10 — MODIFY for time: the same DH drill in a planner window, or the same endurance protocol, shorter. */
 function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downward: boolean, finalLoad: LoadProfile | undefined, terrainAccess: readonly string[]): Built {
   switch (planned.family) {
@@ -291,6 +447,12 @@ function timeModifiedContent(planned: PrescriptionV2, durationMin: number, downw
       const lightPasses = PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses;
       const content = drillsForLoad(withPasses(contentOf(planned), (count) => Math.min(count, maxPasses, downward ? lightPasses : count)), finalLoad, terrainAccess);
       return content === null ? { blocked: { reason: "no_light_dh_drill" } } : { content, rule: DAILY_ADAPTATION_RULES_V2.dhLightPasses, durationMin };
+    }
+    case "mobility": {
+      // PHYS-04 — the protocol minimum (every block at its minimum), never below.
+      const range = mobilityDurationRangeV2();
+      if (durationMin < range.min || durationMin >= range.max) return { blocked: { reason: "mobility_duration_not_supported", durationMin } };
+      return { content: buildMobilityPrescriptionV2Content({ catalog: planned.catalog, atMinimum: true }), rule: DAILY_ADAPTATION_RULES_V2.mobilityMinimum, durationMin: range.min };
     }
     case "endurance": {
       if (durationMin >= enduranceMinutes(planned)) return { blocked: { reason: "modify_not_supported", durationMin } };
@@ -311,19 +473,27 @@ function replacementContent(
   planned: PrescriptionV2 | null,
   final: { kind: string; loadProfile?: LoadProfile; durationMin?: number },
   context: DailyAdaptationContextV2,
-  timeLimitMin: number | undefined
+  timeLimitMin: number | undefined,
+  strengthWorkSlots: number | undefined,
+  /** PHYS-02.1 — M1 MODIFIED a manual intervals session down to LIGHT: the base endurance fallback is allowed. */
+  intervalsLightModify = false
 ): Built {
   const catalog = buildSessionModelV2CatalogManifest();
   const load: "LIGHT" | "MODERATE" = final.loadProfile === "LIGHT" ? "LIGHT" : "MODERATE";
   if ((STRENGTH_KINDS as readonly string[]).includes(final.kind)) {
-    const content = buildStrengthPrescriptionV2Content({
+    const built = buildStrengthPrescriptionV2Content({
       sessionKind: final.kind as (typeof STRENGTH_KINDS)[number],
       athleteTier: context.athlete.strengthExperienceTier,
       equipment: context.athlete.equipment,
       loadProfile: load,
       catalog,
     });
-    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceStrength, durationMin: load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.forceDurationMin : PLAN_ROLE_DOSES_V2.build.forceDurationMin };
+    // PHYS-01.1 — under the rider's time: the same session and dose, its last work exercises left out.
+    if (timeLimitMin !== undefined && strengthWorkSlots !== undefined) {
+      const content = shortenStrengthContentV2(built, strengthWorkSlots);
+      return { content, rule: DAILY_ADAPTATION_RULES_V2.strengthShortened, durationMin: estimateStrengthDurationMinutesV2(content) };
+    }
+    return { content: built, rule: DAILY_ADAPTATION_RULES_V2.replaceStrength, durationMin: load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.forceDurationMin : PLAN_ROLE_DOSES_V2.build.forceDurationMin };
   }
   if (DH_REPLACE_KINDS.includes(final.kind)) {
     const passes = load === "LIGHT" ? PLAN_ROLE_DOSES_V2.consolidation.dhFocusedPasses : PLAN_ROLE_DOSES_V2.build.dhFocusedPasses;
@@ -361,6 +531,35 @@ function replacementContent(
     const content = buildAerobicBasePrescriptionV2Content({ sessionKind: "AEROBIC_BASE", durationMin: minutes, catalog, ridingAvailable: context.ridingAvailable });
     return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceEndurance, durationMin: minutes };
   }
+  if (final.kind === "MOBILITY") {
+    // PHYS-04 — the protocol session; under the rider's time, the protocol minimum, never below.
+    const range = mobilityDurationRangeV2();
+    if (timeLimitMin !== undefined && timeLimitMin < range.min) return { blocked: { reason: "mobility_duration_not_supported", timeLimitMin } };
+    const atMinimum = timeLimitMin !== undefined && timeLimitMin < range.max;
+    return { content: buildMobilityPrescriptionV2Content({ catalog, atMinimum }), rule: DAILY_ADAPTATION_RULES_V2.replaceMobility, durationMin: atMinimum ? range.min : range.max };
+  }
+  if (final.kind === POWER_SESSION_KIND_V2) {
+    // PHYS-03 — the catalogue power session at its one dose (MODERATE); the rider's tier and equipment from the plan's snapshot.
+    if (final.loadProfile !== undefined && final.loadProfile !== "MODERATE") return { blocked: { reason: "power_load_not_supported", final: final.loadProfile } };
+    const { strengthExperienceTier, equipment } = context.athlete;
+    if (!isPowerSessionPossibleV2(strengthExperienceTier, equipment)) {
+      return { blocked: { reason: "no_compatible_power_exercise", athleteTier: strengthExperienceTier, available: powerExplosiveExercisesV2(strengthExperienceTier, equipment).map((e) => e.exerciseId) } };
+    }
+    const content = buildPowerPrescriptionV2Content({ athleteTier: context.athlete.strengthExperienceTier, equipment: context.athlete.equipment, catalog });
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.replacePower, durationMin: estimateStrengthDurationMinutesV2(content) };
+  }
+  if (final.kind === "AEROBIC_INTERVALS") {
+    // PHYS-02.1 — M1's MODIFY to LIGHT of a manual intervals session: the base endurance fallback (the day's riding availability).
+    if (intervalsLightModify && final.loadProfile === "LIGHT") {
+      return intervalsLightFallback(context.ridingAvailable, catalog, aerobicIntervalsDurationMinV2());
+    }
+    // PHYS-02 — the catalogue session at its one dose (MODERATE), never shortened.
+    if (final.loadProfile !== undefined && final.loadProfile !== "MODERATE") return { blocked: { reason: "intervals_load_not_supported", final: final.loadProfile } };
+    const minutes = aerobicIntervalsDurationMinV2();
+    if (timeLimitMin !== undefined && minutes > timeLimitMin) return { blocked: { reason: "intervals_not_shortened", durationMin: minutes, timeLimitMin } };
+    const content = buildAerobicIntervalsPrescriptionV2Content({ sessionKind: "AEROBIC_INTERVALS", catalog, ridingAvailable: context.ridingAvailable });
+    return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceIntervals, durationMin: minutes };
+  }
   if (final.kind === "RECOVERY_ACTIVE") {
     const content = buildRecoveryActivePrescriptionV2Content({ catalog });
     if (timeLimitMin === undefined) return { content, rule: DAILY_ADAPTATION_RULES_V2.replaceRecovery };
@@ -368,6 +567,38 @@ function replacementContent(
     return within === null ? { blocked: { reason: "recovery_duration_not_supported", timeLimitMin } } : { content: within, rule: DAILY_ADAPTATION_RULES_V2.replaceRecovery };
   }
   return { blocked: { reason: "replace_target_not_supported", target: final.kind } };
+}
+
+/**
+ * PHYS-03 — a power document: none on a day M1 flags legs / grip fatigue without adapting it (docs/03 §5);
+ * otherwise its effective duration is its content's estimate (warm-up, sets, full rests, cool-down).
+ */
+function withPowerRules(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  if (result.status !== "created" || result.finalPrescription.structure.family !== "power") return result;
+  const fatigue = input.powerFatigue;
+  if (fatigue !== undefined && !fatigue.cleared) return blocked("final_prescription_adaptation_not_defined", { reason: "power_fatigue_not_cleared", rules: [...fatigue.rules] });
+  return { ...result, effectiveDurationMin: estimateStrengthDurationMinutesV2(result.finalPrescription.structure) };
+}
+
+/**
+ * PHYS-01.1 — lineage of a shortened Force: each item derives from the planned
+ * item of the same block role and exercise (first unused, in order). An item
+ * without such a planned item is a contract error (shortening never adds).
+ */
+function lineageByExercise(planned: PrescriptionV2, content: PrescriptionV2Content): string[] {
+  const used = new Set<string>();
+  return content.blocks.flatMap((block) =>
+    block.items.map((item) => {
+      const id = item.kind === "exercise" ? item.exerciseId : item.drillId;
+      const source = planned.blocks
+        .filter((b) => b.role === block.role)
+        .flatMap((b) => b.items)
+        .find((p) => !used.has(p.prescriptionItemId) && (p.kind === "exercise" ? p.exerciseId : p.drillId) === id);
+      if (!source) throw new SessionModelV2ContractError(`shortened Force: ${id} (${block.role}) is not in the planned session`);
+      used.add(source.prescriptionItemId);
+      return source.prescriptionItemId;
+    })
+  );
 }
 
 function identified(content: PrescriptionV2Content, mintId: () => string, derivedFrom: readonly string[] | null): PrescriptionV2 {
@@ -396,10 +627,14 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
   if ((STRENGTH_KINDS as readonly string[]).includes(final.kind) && final.loadProfile === "HEAVY") {
     return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: "HEAVY" });
   }
+  // PHYS-02.1 — a manual intervals session has one dose (MODERATE); only M1's MODIFY to LIGHT gets the base endurance fallback.
+  if (final.kind === "AEROBIC_INTERVALS" && final.loadProfile !== undefined && final.loadProfile !== "MODERATE" && !(decision.decision === "MODIFY" && final.loadProfile === "LIGHT")) {
+    return blocked("final_prescription_adaptation_not_defined", { reason: "manual_load_not_supported", target: final.kind, loadProfile: final.loadProfile });
+  }
 
   let built: Built;
   try {
-    built = replacementContent(null, final, adaptation, input.timeLimitMin);
+    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, decision.decision === "MODIFY");
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
     throw error;
@@ -431,7 +666,30 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
   return { status: "created", finalPrescription, ...(effectiveDurationMin !== undefined ? { effectiveDurationMin } : {}) };
 }
 
+/**
+ * PHYS-01.1 — every created Force final prescription ends with the daily
+ * cool-down (its mobility only when the session was shortened). Validated as
+ * a final prescription. Without `dailyMintId` nothing is added.
+ */
+function withDailyStrengthAdditions(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  if (result.status !== "created" || input.dailyMintId === undefined || result.finalPrescription.structure.family !== "strength") return result;
+  const structure = appendStrengthCoolDownV2(result.finalPrescription.structure, input.dailyMintId, input.strengthWorkSlots !== undefined ? "mobility" : "full");
+  const validation = validatePrescriptionV2(structure, { stage: "final" });
+  if (!validation.ok) throw new SessionModelV2ContractError(`Force cool-down addition is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
+  return { ...result, finalPrescription: { ...result.finalPrescription, structure } };
+}
+
 export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  const result = withPowerRules(buildFinalPrescriptionV2Content(input), input);
+  // PHYS-02.1 — no activity is proposed for a pain the existing rule does not clear for endurance.
+  const pain = input.enduranceFallbackPain;
+  if (result.status === "created" && pain !== undefined && !pain.cleared && result.finalPrescription.adaptationRuleIds.includes(DAILY_ADAPTATION_RULES_V2.intervalsLightToBase)) {
+    return blocked("final_prescription_adaptation_not_defined", { reason: "intervals_fallback_pain_not_cleared", zone: pain.zone });
+  }
+  return withDailyStrengthAdditions(result, input);
+}
+
+function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
   const { decision, lineage, plannedPrescription, adaptation } = input;
   // P0-3 — a manual session: built from the rider's V2 context for M1's final kind (REST stays REST below).
   if (decision.decision !== "REST" && lineage !== null && lineage.plannedSessionSource === "manual") return buildManualFinalPrescriptionV2(input);
@@ -451,15 +709,19 @@ export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): 
     // §9 — never adapt an older document with the current tables.
     return blocked("final_prescription_catalog_mismatch", { plannedAggregate: trusted.catalog.aggregate, runtimeAggregate: SESSION_MODEL_V2_AGGREGATE_VERSION });
   }
-  if (isModify && final.kind !== generated.kind) {
+  // PHYS-02 — the one same-nature kind change M1 makes (AEROBIC_INTERVALS → AEROBIC_BASE) has a document.
+  const intervalsToBase = isModify && generated.kind === "AEROBIC_INTERVALS" && final.kind === "AEROBIC_BASE";
+  if (isModify && final.kind !== generated.kind && !intervalsToBase) {
     return blocked("final_prescription_adaptation_not_defined", { reason: "modify_kind_change_not_supported", planned: generated.kind, final: final.kind });
   }
 
   let built: Built;
   try {
-    built = isModify
-      ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin)
-      : replacementContent(trusted, final, adaptation, input.timeLimitMin);
+    built = intervalsToBase
+      ? intervalsToBaseContent(trusted, final)
+      : isModify
+        ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthWorkSlots)
+        : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots);
   } catch (error) {
     // A V2 locked block (no compatible exercise for the declared equipment, DH data missing…) is an explicit refusal, never a fallback.
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
@@ -467,7 +729,11 @@ export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): 
   }
   if ("blocked" in built) return blocked("final_prescription_adaptation_not_defined", built.blocked);
 
-  const derivedFrom = isModify ? flatItems(trusted.blocks).map((i) => (i as { prescriptionItemId: string }).prescriptionItemId) : null;
+  const derivedFrom = !isModify
+    ? null
+    : built.lineageByExercise
+      ? lineageByExercise(trusted, built.content)
+      : flatItems(trusted.blocks).map((i) => (i as { prescriptionItemId: string }).prescriptionItemId);
   if (isModify && derivedFrom!.length !== flatItems(built.content.blocks).length) {
     throw new SessionModelV2ContractError(`MODIFY changed the number of items (${derivedFrom!.length} → ${flatItems(built.content.blocks).length})`);
   }

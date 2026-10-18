@@ -45,6 +45,12 @@ const KNOWN_PHRASES: ReadonlyArray<readonly [english: string, french: string]> =
   ["Build week: standard development load.", "Semaine de construction : charge de développement standard."],
   ["Build week: load raised from the previous cycle.", "Semaine de construction : charge augmentée par rapport au cycle précédent."],
   ["Overload week: the highest load of the cycle.", "Semaine de surcharge : la charge la plus haute du cycle."],
+  // PHYS-02 — a week whose endurance session is the intervals session (plans generated with the intervals option).
+  ["This week's endurance session is an intervals session.", "Cette semaine, la séance d'endurance est un fractionné."],
+  // PHYS-03 — a build week whose lower-body Force session is the power session (plans generated with the power option).
+  ["This week's lower-body strength session is a power session.", "Cette semaine, la séance de renfo bas du corps est une séance de puissance."],
+  // PHYS-04 — a consolidation week with a mobility session (plans generated with the mobility option).
+  ["A mobility session is added on a free day this week.", "Une séance de mobilité est ajoutée sur un jour libre cette semaine."],
   ["Consolidation week: reduced load to absorb the previous weeks.", "Semaine de consolidation : charge réduite pour assimiler les semaines précédentes."],
   [
     "Race-specific week, two weeks before the race: riding first, strength maintained without overload.",

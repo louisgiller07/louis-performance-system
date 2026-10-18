@@ -25,6 +25,11 @@
  * fitted to the real availability. Every placed session's load and duration
  * then come from its week's shape. placementDurationMinByDomain(weekType) is
  * kept for callers without shapes (development = build cycle 0).
+ *
+ * PHYS-02: `planDoseModelV2({ enduranceIntervals: true })` also places the
+ * intervals session in the weeks its policy names (blockProgressionV2) and
+ * gives that week's aerobic slot the AEROBIC_INTERVALS kind, at the
+ * protocol's duration. PLAN_DOSE_MODEL_V2 (no option) is unchanged.
  */
 import { PLAN_DOSE_POLICY_V2, PLAN_DOSE_POLICY_V2_VERSION, type PlanWeekDoseV2 } from "../../catalog/planDosePolicyV2.js";
 import type { LoadDerivationOutput } from "../../pipeline/loadDerivation.js";
@@ -33,13 +38,24 @@ import type { SessionDomain } from "../../pipeline/weekSegmenter.js";
 import type { SessionKind } from "../../types/sharedVocabulary.js";
 import type { WeekType } from "../../types/planWeek.js";
 import { SessionModelV2ContractError } from "../generationErrors.js";
-import { shapeBlockWeeksV2, shapedLoadV2 } from "./blockProgressionV2.js";
+import { shapeBlockWeeksV2, shapedLoadV2, type BlockProgressionOptionsV2 } from "./blockProgressionV2.js";
 
 function weekDose(weekType: WeekType): PlanWeekDoseV2 | null {
   if (weekType === "development") return PLAN_DOSE_POLICY_V2.development;
   if (weekType === "taper") return PLAN_DOSE_POLICY_V2.taper;
   if (weekType === "race") return null;
   throw new SessionModelV2ContractError(`no V2 plan dose for week type "${weekType}" (not produced by the current planner)`);
+}
+
+export function planDoseModelV2(options: BlockProgressionOptionsV2 = {}): SessionDoseModel {
+  const model: SessionDoseModel = { ...PLAN_DOSE_MODEL_V2, shapeWeeks: (input) => shapeBlockWeeksV2(input, options) };
+  if (options.enduranceIntervals !== true) return model;
+  return {
+    ...model,
+    // The week's aerobic slot is the intervals session only when its shape placed one.
+    refineSessionKind: ({ kind, domain, shape }) =>
+      domain === "aerobic" && kind === "AEROBIC_BASE" && shape?.progression.targets.aerobicSessionKind === "AEROBIC_INTERVALS" ? "AEROBIC_INTERVALS" : kind,
+  };
 }
 
 export const PLAN_DOSE_MODEL_V2: SessionDoseModel = {
@@ -90,6 +106,10 @@ function resolveShapedSessionLoad(kind: SessionKind, domain: SessionDomain, base
     case "STRENGTH_UPPER":
     case "AEROBIC_BASE":
       return { loadProfile, durationMin: durations[domain], doseTarget: baseline.doseTarget };
+    case "AEROBIC_INTERVALS":
+      // PHYS-02 — only in a week whose shape placed the intervals session (its placement duration is the protocol's).
+      if (shape.progression.targets.aerobicSessionKind !== "AEROBIC_INTERVALS") throw new SessionModelV2ContractError(`AEROBIC_INTERVALS in a week without an intervals target`);
+      return { loadProfile, durationMin: durations.aerobic, doseTarget: baseline.doseTarget };
     case "DH_TECHNICAL": {
       const passes = shape.progression.targets.dhPasses;
       if (passes === null) throw new SessionModelV2ContractError(`DH session in a week without a DH target`);

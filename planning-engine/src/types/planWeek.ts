@@ -44,7 +44,13 @@ export type WeekProgressionReasonCode =
   | "recent_missed_sessions_hold"
   | "fixed_sessions_hold"
   | "beginner_strength_cap"
-  | "adapted_to_availability";
+  | "adapted_to_availability"
+  /** PHYS-02 — the week's endurance session is the intervals session (plans generated with the intervals option only). */
+  | "endurance_intervals"
+  /** PHYS-03 — the week's lower-body Force session is the power session (plans generated with the power option only). */
+  | "power_session"
+  /** PHYS-04 — the week holds a mobility session on a free day (plans generated with the mobility option only). */
+  | "mobility_session";
 
 /** The week's executable targets (null = no session of that domain this week). */
 export interface WeekProgressionTargets {
@@ -53,6 +59,8 @@ export interface WeekProgressionTargets {
   dhDurationMin: number | null;
   dhPasses: number | null;
   aerobicDurationMin: number | null;
+  /** PHYS-02 — present only when the week's endurance session is the intervals session (absent = AEROBIC_BASE). */
+  aerobicSessionKind?: "AEROBIC_INTERVALS";
 }
 
 export interface WeekProgressionSummary {
@@ -69,6 +77,12 @@ export interface WeekProgressionSummary {
   physicalMinutes: number;
   /** DH minutes placed (riding / terrain). */
   ridingMinutes: number;
+  /** PHYS-02 — the intervals placement policy (e.g. "endurance-intervals-plan-v1"), present only on a week with the intervals session. */
+  intervalsPolicy?: string;
+  /** PHYS-03 — the power placement and session policies, present only on a week with the power session. */
+  powerPolicy?: string;
+  /** PHYS-04 — the mobility placement policy, present only on a week with a mobility session. */
+  mobilityPolicy?: string;
 }
 
 export interface TrainingPlanWeek {

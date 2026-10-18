@@ -65,6 +65,12 @@ export interface SessionDoseModel {
    * dosed by its week type, as before.
    */
   shapeWeeks?(input: BlockShapingInput): readonly WeekShape[];
+  /**
+   * PHYS-02 — optional: the kind of a placed slot within its domain, from its
+   * week's shape (e.g. the week's endurance session is the intervals session).
+   * Absent: the kinds SessionKindAssignment chose, unchanged.
+   */
+  refineSessionKind?(input: { kind: SessionKind; domain: SessionDomain; shape?: WeekShape }): SessionKind;
 }
 
 export class SessionDoseModelContractError extends Error {

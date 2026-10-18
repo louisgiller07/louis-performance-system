@@ -21,7 +21,7 @@
 // a real JWT/session or mutating any ESM import binding (V0.5_014 fix,
 // applied here from the start rather than retrofitted).
 import { withSupabase } from "@supabase/server";
-import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, productToday, V2_PLAN_GENERATION_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
+import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, productToday, V2_ENDURANCE_INTERVALS_FLAG, V2_MOBILITY_SESSIONS_FLAG, V2_PLAN_GENERATION_FLAG, V2_POWER_SESSIONS_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
@@ -69,11 +69,20 @@ export interface HandleGenerateTrainingPlanDeps {
   generateTrainingPlanForAthlete: typeof generateTrainingPlanForAthlete;
   /** UX-11R.2 — the global V2 switch, read on the server only (Edge secret); never from the request. */
   readV2Flag: () => string | undefined;
+  /** PHYS-02 — the intervals placement switch of V2 plans, read on the server only (Edge secret); absent = off. */
+  readEnduranceIntervalsFlag?: () => string | undefined;
+  /** PHYS-03 — the power placement switch of V2 plans, read on the server only (Edge secret); absent = off. */
+  readPowerSessionsFlag?: () => string | undefined;
+  /** PHYS-04 — the mobility placement switch of V2 plans, read on the server only (Edge secret); absent = off. */
+  readMobilitySessionsFlag?: () => string | undefined;
 }
 
 const DEFAULT_DEPS: HandleGenerateTrainingPlanDeps = {
   generateTrainingPlanForAthlete,
   readV2Flag: () => Deno.env.get(V2_PLAN_GENERATION_FLAG),
+  readEnduranceIntervalsFlag: () => Deno.env.get(V2_ENDURANCE_INTERVALS_FLAG),
+  readPowerSessionsFlag: () => Deno.env.get(V2_POWER_SESSIONS_FLAG),
+  readMobilitySessionsFlag: () => Deno.env.get(V2_MOBILITY_SESSIONS_FLAG),
 };
 
 export async function handleGenerateTrainingPlan(
@@ -163,6 +172,12 @@ export async function handleGenerateTrainingPlan(
       // BUG-V2-3 — the product calendar's today (Europe/Zurich), never the UTC date; the plan starts the next day.
       today: productToday(),
       globalV2Enabled: parseV2PlanGenerationFlag(deps.readV2Flag()),
+      // PHYS-02 — off unless the Edge secret is exactly "true" (same parsing as the V2 switch).
+      ...(parseV2PlanGenerationFlag(deps.readEnduranceIntervalsFlag?.()) ? { enduranceIntervals: true } : {}),
+      // PHYS-03 — off unless the Edge secret is exactly "true".
+      ...(parseV2PlanGenerationFlag(deps.readPowerSessionsFlag?.()) ? { powerSessions: true } : {}),
+      // PHYS-04 — off unless the Edge secret is exactly "true".
+      ...(parseV2PlanGenerationFlag(deps.readMobilitySessionsFlag?.()) ? { mobilitySessions: true } : {}),
     });
     const modelTrace = { planningModel: result.planningModel, rolloutReason: result.reason };
 

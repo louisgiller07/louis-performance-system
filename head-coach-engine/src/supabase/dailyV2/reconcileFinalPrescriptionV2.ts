@@ -20,6 +20,13 @@
  * prescription fits in it (buildFinalPrescriptionWithinTodayTimeV2) and the
  * result says how (`timeConstraint`).
  *
+ * PHYS-01: a Force final prescription then gets its load guidance from the
+ * rider's own completed sets (strengthLoadGuidance.ts, best-effort, advisory:
+ * never blocks the decision; a failure is a `loadGuidanceWarning`).
+ * PHYS-02: an endurance final prescription gets its guidance from the
+ * rider's own completed endurance sessions (enduranceGuidance.ts, same
+ * rules; a failure is an `enduranceGuidanceWarning`).
+ *
  * Loaded lazily by runDailyFor (V2 path only): this is the only daily module
  * with a runtime import of the Session Model V2 daily entry
  * (`planning-engine/session-model-v2/daily`), so the V1 daily path's static
@@ -31,7 +38,6 @@ import {
   buildFinalPrescriptionWithinTodayTimeV2,
   dailyAdaptationContextV2,
   type FinalPrescriptionV2,
-  type FinalPrescriptionWithinTodayTimeV2Result,
   type PlanInputSnapshotV2,
   type TodayTimeConstraintV2,
 } from "planning-engine/session-model-v2/daily";
@@ -40,9 +46,13 @@ import type { PlannedSessionObservation } from "../buildRawContext.js";
 import { getGeneratedSessionOfVersion } from "../repositories/trainingPlanGeneratedSessionsRepo.js";
 import { getPlannedPrescriptionRowOfVersion } from "../repositories/trainingPlanPlannedPrescriptionsRepo.js";
 import { getPlanInputSnapshotOfVersion } from "../repositories/trainingPlanVersionSnapshotRepo.js";
+import { withStrengthLoadGuidance, type StrengthLoadGuidanceDeps } from "./strengthLoadGuidance.js";
+import { withEnduranceGuidance, type EnduranceGuidanceDeps, type WithEnduranceGuidanceResult } from "./enduranceGuidance.js";
+import type { EnduranceFallbackPainGate } from "./enduranceFallbackPainGate.js";
+import type { PowerFatigueGate } from "./powerFatigueGate.js";
 
-/** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today. */
-export type FinalPrescriptionV2Result = FinalPrescriptionWithinTodayTimeV2Result;
+/** A10 — the reconciliation result, with the time constraint's outcome when the rider gave a time today; PHYS-01 / PHYS-02 — and why no guidance could be attached. */
+export type FinalPrescriptionV2Result = WithEnduranceGuidanceResult;
 export type { FinalPrescriptionV2, TodayTimeConstraintV2 };
 
 export interface ReconcileFinalPrescriptionV2Input {
@@ -60,12 +70,24 @@ export interface ReconcileFinalPrescriptionV2Input {
   mintId: () => string;
   /** A10 — the rider's time today (daily_checkins.available_minutes_today); null / absent = no constraint. */
   availableMinutes?: number | null;
+  /** PHYS-01 — the rider whose recorded sets give the load guidance; absent = no guidance read. */
+  athleteId?: string;
+  /** PHYS-01.1 — today's state forbidding an automatic load increase (todayLoadHold.ts); absent = none. */
+  todayHold?: "pain" | "fatigue";
+  /** PHYS-02.1 — today's pain against the intervals LIGHT fallback (enduranceFallbackPainGate.ts); absent = no information. */
+  enduranceFallbackPain?: EnduranceFallbackPainGate;
+  /** PHYS-03 — M1's legs / grip fatigue against a power session (powerFatigueGate.ts); absent = no information. */
+  powerFatigue?: PowerFatigueGate;
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
   getGeneratedSessionOfVersion: typeof getGeneratedSessionOfVersion;
   getPlannedPrescriptionRowOfVersion: typeof getPlannedPrescriptionRowOfVersion;
   getPlanInputSnapshotOfVersion: typeof getPlanInputSnapshotOfVersion;
+  /** PHYS-01 — injectable history read of the load guidance (absent: the real repository). */
+  strengthLoadGuidance?: StrengthLoadGuidanceDeps;
+  /** PHYS-02 — injectable history read of the endurance guidance (absent: the real repository). */
+  enduranceGuidance?: EnduranceGuidanceDeps;
 }
 
 const DEFAULT_DEPS: ReconcileFinalPrescriptionV2Deps = { getGeneratedSessionOfVersion, getPlannedPrescriptionRowOfVersion, getPlanInputSnapshotOfVersion };
@@ -108,9 +130,15 @@ export async function reconcileFinalPrescriptionV2(
       : null;
 
   const final = dailyPlan.final_session;
-  return buildFinalPrescriptionWithinTodayTimeV2({
+  const result = buildFinalPrescriptionWithinTodayTimeV2({
     availableMinutes,
     adaptation,
+    // PHYS-01.1 — ids of the daily Force additions (cool-down).
+    dailyMintId: input.mintId,
+    // PHYS-02.1 — the intervals LIGHT fallback only for a pain the existing rule clears for endurance.
+    ...(input.enduranceFallbackPain !== undefined ? { enduranceFallbackPain: input.enduranceFallbackPain } : {}),
+    // PHYS-03 — no power session on a day M1 flags legs / grip fatigue without adapting it.
+    ...(input.powerFatigue !== undefined ? { powerFatigue: input.powerFatigue } : {}),
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {
       decisionId: input.decisionId,
@@ -151,4 +179,9 @@ export async function reconcileFinalPrescriptionV2(
             structure: planned.structure,
           },
   });
+  if (input.athleteId === undefined) return result;
+  // PHYS-01 — the load guidance of a Force session, from the rider's own completed sets (never changes the decision).
+  const withLoad = await withStrengthLoadGuidance(result, client, input.athleteId, dailyPlan.date, deps.strengthLoadGuidance, input.todayHold);
+  // PHYS-02 — the guidance of an endurance session, from the rider's own completed endurance sessions.
+  return withEnduranceGuidance(withLoad, client, input.athleteId, dailyPlan.date, deps.enduranceGuidance);
 }

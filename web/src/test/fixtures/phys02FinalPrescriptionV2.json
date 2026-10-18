@@ -1,0 +1,891 @@
+{
+  "generatedFrom": "session-model-v2.6",
+  "today": "2026-11-12",
+  "finalPrescriptions": {
+    "KEEP_INTERVALS_GUIDED": {
+      "id": "f9200000-0000-4000-8000-000000000001",
+      "decisionId": "d9200000-0000-4000-8000-000000000001",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000150",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "keep",
+      "adaptationRuleIds": [],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "endurance",
+        "sessionKind": "AEROBIC_INTERVALS",
+        "intentId": "aerobic_repeat_efforts",
+        "protocolId": "endurance_intervals_3min",
+        "activitySelection": {
+          "mode": "restricted",
+          "activityIds": [
+            "road_bike",
+            "mtb_rolling",
+            "home_trainer",
+            "running"
+          ]
+        },
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "durationMinutes": {
+              "min": 15,
+              "max": 15
+            },
+            "instructionIds": [
+              "instruction.endurance.activity_choice",
+              "instruction.endurance.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000136"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000137"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000138"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000139"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000140"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000141"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000142"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000143"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000144"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000145"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000146"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000147"
+          },
+          {
+            "role": "cool_down",
+            "durationMinutes": {
+              "min": 10,
+              "max": 10
+            },
+            "instructionIds": [
+              "instruction.endurance.cool_down_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000148"
+          }
+        ],
+        "enduranceGuidance": {
+          "ruleVersion": "endurance-guidance-v1",
+          "reference": {
+            "sessionDate": "2026-10-21",
+            "activityId": "home_trainer",
+            "durationSeconds": 3240,
+            "distanceM": null,
+            "rpeActual": 7
+          }
+        }
+      },
+      "effectiveDurationMin": 53
+    },
+    "KEEP_BASE_EFFORT": {
+      "id": "f9200000-0000-4000-8000-000000000002",
+      "decisionId": "d9200000-0000-4000-8000-000000000002",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000217",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "keep",
+      "adaptationRuleIds": [],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "endurance",
+        "sessionKind": "AEROBIC_BASE",
+        "intentId": "aerobic_base_lucidity",
+        "protocolId": "endurance_base_continuous",
+        "activitySelection": {
+          "mode": "restricted",
+          "activityIds": [
+            "road_bike",
+            "mtb_rolling",
+            "home_trainer",
+            "running"
+          ]
+        },
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "durationMinutes": {
+              "min": 10,
+              "max": 10
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 3
+            },
+            "instructionIds": [
+              "instruction.endurance.activity_choice",
+              "instruction.endurance.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000213"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 45,
+              "max": 45
+            },
+            "rpeTarget": {
+              "min": 3,
+              "max": 4
+            },
+            "talkTestId": "instruction.endurance.talk_test_full_sentences",
+            "instructionIds": [],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000214"
+          },
+          {
+            "role": "cool_down",
+            "durationMinutes": {
+              "min": 5,
+              "max": 5
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.cool_down_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000215"
+          }
+        ],
+        "enduranceGuidance": {
+          "ruleVersion": "endurance-guidance-v1",
+          "reference": {
+            "sessionDate": "2026-11-05",
+            "activityId": "mtb_rolling",
+            "durationSeconds": 3600,
+            "distanceM": 21500,
+            "rpeActual": 6
+          },
+          "effortAboveTarget": {
+            "rpeActual": 6,
+            "rpeTargetMax": 4
+          }
+        }
+      },
+      "effectiveDurationMin": 60
+    },
+    "MODIFY_INTERVALS_TO_BASE": {
+      "id": "f9200000-0000-4000-8000-000000000003",
+      "decisionId": "d9200000-0000-4000-8000-000000000003",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000150",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "modify",
+      "adaptationRuleIds": [
+        "v2.modify.intervals_to_base"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "endurance",
+        "sessionKind": "AEROBIC_BASE",
+        "intentId": "aerobic_base_lucidity",
+        "protocolId": "endurance_base_continuous",
+        "activitySelection": {
+          "mode": "restricted",
+          "activityIds": [
+            "road_bike",
+            "mtb_rolling",
+            "home_trainer",
+            "running"
+          ]
+        },
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "durationMinutes": {
+              "min": 10,
+              "max": 10
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 3
+            },
+            "instructionIds": [
+              "instruction.endurance.activity_choice",
+              "instruction.endurance.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000274"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 38,
+              "max": 38
+            },
+            "rpeTarget": {
+              "min": 3,
+              "max": 4
+            },
+            "talkTestId": "instruction.endurance.talk_test_full_sentences",
+            "instructionIds": [],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000275"
+          },
+          {
+            "role": "cool_down",
+            "durationMinutes": {
+              "min": 5,
+              "max": 5
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.cool_down_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000276"
+          }
+        ],
+        "enduranceGuidance": {
+          "ruleVersion": "endurance-guidance-v1",
+          "reference": {
+            "sessionDate": "2026-11-05",
+            "activityId": "mtb_rolling",
+            "durationSeconds": 3600,
+            "distanceM": 21500,
+            "rpeActual": 6
+          },
+          "effortAboveTarget": {
+            "rpeActual": 6,
+            "rpeTargetMax": 4
+          }
+        }
+      },
+      "effectiveDurationMin": 53
+    },
+    "A10_INTERVALS_TO_BASE_45": {
+      "id": "f9200000-0000-4000-8000-000000000004",
+      "decisionId": "d9200000-0000-4000-8000-000000000004",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "replace",
+      "adaptationRuleIds": [
+        "v2.replace.endurance",
+        "v2.time.today_limit"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "endurance",
+        "sessionKind": "AEROBIC_BASE",
+        "intentId": "aerobic_base_lucidity",
+        "protocolId": "endurance_base_continuous",
+        "activitySelection": {
+          "mode": "restricted",
+          "activityIds": [
+            "road_bike",
+            "mtb_rolling",
+            "home_trainer",
+            "running"
+          ]
+        },
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "durationMinutes": {
+              "min": 10,
+              "max": 10
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 3
+            },
+            "instructionIds": [
+              "instruction.endurance.activity_choice",
+              "instruction.endurance.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000277"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 30,
+              "max": 30
+            },
+            "rpeTarget": {
+              "min": 3,
+              "max": 4
+            },
+            "talkTestId": "instruction.endurance.talk_test_full_sentences",
+            "instructionIds": [],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000278"
+          },
+          {
+            "role": "cool_down",
+            "durationMinutes": {
+              "min": 5,
+              "max": 5
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.cool_down_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000279"
+          }
+        ],
+        "enduranceGuidance": {
+          "ruleVersion": "endurance-guidance-v1",
+          "reference": {
+            "sessionDate": "2026-11-05",
+            "activityId": "mtb_rolling",
+            "durationSeconds": 3600,
+            "distanceM": 21500,
+            "rpeActual": 6
+          },
+          "effortAboveTarget": {
+            "rpeActual": 6,
+            "rpeTargetMax": 4
+          }
+        }
+      },
+      "effectiveDurationMin": 45
+    },
+    "MODIFY_LIGHT_INTERVALS_FALLBACK": {
+      "id": "f9200000-0000-4000-8000-000000000005",
+      "decisionId": "d9200000-0000-4000-8000-000000000005",
+      "planVersionId": "00000000-0000-4000-8000-000000000001",
+      "plannedPrescriptionId": "00000000-0000-4000-8000-000000000150",
+      "activeSessionOrigin": "generated",
+      "reconciliationAction": "modify",
+      "adaptationRuleIds": [
+        "v2.modify.intervals_light_to_base"
+      ],
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "endurance",
+        "sessionKind": "AEROBIC_BASE",
+        "intentId": "aerobic_base_lucidity",
+        "protocolId": "endurance_base_continuous",
+        "activitySelection": {
+          "mode": "restricted",
+          "activityIds": [
+            "road_bike",
+            "mtb_rolling",
+            "home_trainer",
+            "running"
+          ]
+        },
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "durationMinutes": {
+              "min": 10,
+              "max": 10
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 3
+            },
+            "instructionIds": [
+              "instruction.endurance.activity_choice",
+              "instruction.endurance.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000280"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 30,
+              "max": 30
+            },
+            "rpeTarget": {
+              "min": 3,
+              "max": 4
+            },
+            "talkTestId": "instruction.endurance.talk_test_full_sentences",
+            "instructionIds": [],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000281"
+          },
+          {
+            "role": "cool_down",
+            "durationMinutes": {
+              "min": 5,
+              "max": 5
+            },
+            "rpeTarget": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.cool_down_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000282"
+          }
+        ],
+        "enduranceGuidance": {
+          "ruleVersion": "endurance-guidance-v1",
+          "reference": {
+            "sessionDate": "2026-11-05",
+            "activityId": "mtb_rolling",
+            "durationSeconds": 3600,
+            "distanceM": 21500,
+            "rpeActual": 6
+          },
+          "effortAboveTarget": {
+            "rpeActual": 6,
+            "rpeTargetMax": 4
+          }
+        }
+      },
+      "effectiveDurationMin": 45
+    }
+  },
+  "plannedPrescriptions": {
+    "PLANNED_INTERVALS": {
+      "id": "00000000-0000-4000-8000-000000000150",
+      "schemaVersion": "v2",
+      "catalogVersion": "session-model-v2.6",
+      "structure": {
+        "schemaVersion": "v2",
+        "family": "endurance",
+        "sessionKind": "AEROBIC_INTERVALS",
+        "intentId": "aerobic_repeat_efforts",
+        "protocolId": "endurance_intervals_3min",
+        "activitySelection": {
+          "mode": "restricted",
+          "activityIds": [
+            "road_bike",
+            "mtb_rolling",
+            "home_trainer",
+            "running"
+          ]
+        },
+        "catalog": {
+          "aggregate": "session-model-v2.6",
+          "exercises": "session-exercises-v2.1",
+          "drills": "session-drills-v2.0",
+          "intents": "session-intents-v2.0",
+          "protocols": "session-protocols-v2.0",
+          "texts": "coaching-text-v1.0",
+          "templates": "strength-templates-v2.1",
+          "strengthDoses": "strength-doses-v2.2",
+          "planDosePolicy": "plan-dose-policy-v2.4"
+        },
+        "blocks": [
+          {
+            "role": "warm_up",
+            "durationMinutes": {
+              "min": 15,
+              "max": 15
+            },
+            "instructionIds": [
+              "instruction.endurance.activity_choice",
+              "instruction.endurance.warm_up_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000136"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000137"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000138"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000139"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000140"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000141"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000142"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000143"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000144"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000145"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 2,
+              "max": 2
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000146"
+          },
+          {
+            "role": "main",
+            "durationMinutes": {
+              "min": 3,
+              "max": 3
+            },
+            "rpeTarget": {
+              "min": 8,
+              "max": 8
+            },
+            "instructionIds": [
+              "instruction.endurance.intervals_work"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000147"
+          },
+          {
+            "role": "cool_down",
+            "durationMinutes": {
+              "min": 10,
+              "max": 10
+            },
+            "instructionIds": [
+              "instruction.endurance.cool_down_easy"
+            ],
+            "items": [],
+            "blockId": "00000000-0000-4000-8000-000000000148"
+          }
+        ]
+      },
+      "generatedPlanSessionId": "00000000-0000-4000-8000-000000000149"
+    }
+  },
+  "blockedPainFallback": {
+    "status": "blocked",
+    "code": "final_prescription_adaptation_not_defined",
+    "detail": {
+      "reason": "intervals_fallback_pain_not_cleared",
+      "zone": "lower"
+    }
+  },
+  "blockedManualLightIntervals": {
+    "status": "blocked",
+    "code": "final_prescription_adaptation_not_defined",
+    "detail": {
+      "reason": "manual_load_not_supported",
+      "target": "AEROBIC_INTERVALS",
+      "loadProfile": "LIGHT"
+    }
+  }
+}

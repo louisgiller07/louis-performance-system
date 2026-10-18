@@ -3,6 +3,7 @@ import {
   buildFinalPrescriptionV2,
   buildFinalPrescriptionWithinTodayTimeV2,
   DAILY_ADAPTATION_RULES_V2,
+  estimateStrengthDurationMinutesV2,
   generatePlanV2InMemory,
   prescriptionMaxMinutes,
   toSessionModelV2Input,
@@ -79,8 +80,11 @@ function input(
     },
     plannedPrescription: { ...s.plannedPrescription, generatedPlanSessionId: s.generatedPlanSessionId, structure: JSON.parse(JSON.stringify(s.plannedPrescription.structure)) },
     adaptation: { athlete: toSessionModelV2Input(SNAPSHOT), ridingAvailable: over.ridingAvailable ?? true, mintId: counter("b") },
+    // PHYS-01.1 — the daily runtime always passes it: every Force final prescription ends with its cool-down.
+    dailyMintId: counter("c"),
   };
 }
+const roles = (f: FinalPrescriptionV2) => f.structure.blocks.map((b) => [b.role, b.items.map((i) => (i.kind === "exercise" ? i.exerciseId : i.drillId))]);
 
 function created(r: FinalPrescriptionWithinTodayTimeV2Result): Extract<FinalPrescriptionWithinTodayTimeV2Result, { status: "created" }> {
   if (r.status !== "created") throw new Error(`expected created, got ${JSON.stringify(r)}`);
@@ -96,46 +100,79 @@ describe("A10 — no time given, or enough time: unchanged", () => {
     expect(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, null))).toEqual(buildFinalPrescriptionV2(base));
   });
 
-  it("B — 90 min for a 60-min Force: KEEP, verbatim, outcome « fits »", () => {
+  it("B — 90 min for a 60-min Force slot: KEEP (the planned content and its cool-down), « fits », at the content's estimated duration (PHYS-01.1: 51 min)", () => {
     const s = find(BUILD, "STRENGTH_LOWER", 60);
     const r = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 90)));
     expect(r.finalPrescription).toMatchObject({ reconciliationAction: "keep", adaptationRuleIds: [] });
-    expect(r.timeConstraint).toMatchObject({ availableMinutes: 90, action: "fits", before: { decision: "KEEP", durationMin: 60 } });
+    expect([r.effectiveDurationMin, estimateStrengthDurationMinutesV2(r.finalPrescription.structure)]).toEqual([51, 51]);
+    expect(r.timeConstraint).toMatchObject({ availableMinutes: 90, action: "fits", before: { decision: "KEEP", durationMin: 51 } });
   });
 
-  it("exactly the session's duration fits (≤, not <)", () => {
+  it("exactly the session's estimated duration fits (≤, not <); one minute less shortens it", () => {
     const s = find(BUILD, "STRENGTH_LOWER", 60);
-    expect(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 60)).timeConstraint?.action).toBe("fits");
+    expect(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 51)).timeConstraint?.action).toBe("fits");
+    expect(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 50)).timeConstraint?.action).toBe("adapted");
   });
 });
 
-describe("A10 — Force: validated doses only", () => {
-  it("C — Force 60 + 45 min: MODIFY → the real LIGHT dose (same template and exercises as A04's MODIFY LIGHT), 45 min", () => {
+describe("A10 — Force (PHYS-01.1): the same session at the same dose, shortened, never a dose change for time", () => {
+  /** Exact sets / measure / RPE / rest of every work item: what « same dose » means. */
+  const doses = (f: FinalPrescriptionV2) =>
+    f.structure.blocks
+      .filter((b) => b.role === "main" || b.role === "complementary")
+      .flatMap((b) => b.items)
+      .map((i) => (i.kind === "exercise" ? [i.exerciseId, i.sets, i.measure, i.rpeTarget, i.restSeconds] : null));
+
+  it("C — Force 60 + 45 min: MODIFY at the SAME dose — every work exercise kept, the cool-down reduced to its mobility — 45 min", () => {
     const s = find(BUILD, "STRENGTH_LOWER", 60);
+    const keep = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 90)));
     const r = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 45)));
-    const a04 = created(buildFinalPrescriptionV2(input(s, BUILD, null, { decision: "MODIFY", finalSession: { kind: s.kind, loadProfile: "LIGHT" } })));
-    expect(r.finalPrescription.structure.blocks.map((b) => b.items.map((i) => (i.kind === "exercise" ? [i.exerciseId, i.sets] : null)))).toEqual(
-      a04.finalPrescription.structure.blocks.map((b) => b.items.map((i) => (i.kind === "exercise" ? [i.exerciseId, i.sets] : null)))
-    );
-    expect(r.finalPrescription).toMatchObject({ reconciliationAction: "modify", adaptationRuleIds: [DAILY_ADAPTATION_RULES_V2.strengthLightDose, DAILY_ADAPTATION_RULES_V2.todayTimeLimit] });
-    expect([r.effectiveDurationMin, r.timeConstraint?.action, r.timeConstraint?.after]).toEqual([45, "adapted", { decision: "MODIFY", kind: s.kind, loadProfile: "LIGHT", durationMin: 45 }]);
+    expect(r.finalPrescription).toMatchObject({ reconciliationAction: "modify", adaptationRuleIds: [DAILY_ADAPTATION_RULES_V2.strengthShortened, DAILY_ADAPTATION_RULES_V2.todayTimeLimit] });
+    expect(doses(r.finalPrescription)).toEqual(doses(keep.finalPrescription));
+    expect(roles(r.finalPrescription)).toEqual([
+      ["warm_up", ["hip_90_90", "knee_to_wall_ankle", "bird_dog"]],
+      ["main", ["goblet_squat"]],
+      ["complementary", ["dumbbell_romanian_deadlift"]],
+      ["complementary", ["bulgarian_split_squat"]],
+      ["cool_down", ["hip_flexor_mobility"]],
+    ]);
+    expect([r.effectiveDurationMin, r.timeConstraint?.action, r.timeConstraint?.after]).toEqual([45, "adapted", { decision: "MODIFY", kind: s.kind, loadProfile: "MODERATE", durationMin: 45 }]);
     valid(r.finalPrescription);
   });
 
-  it("D — Force 60 + 30 min: no « 30-min Force »; active recovery inside 30 min (REPLACE)", () => {
+  it("D — Force 60 + 30 min: the principal alone at its planned dose, full warm-up, the cool-down's mobility — 29 min; lineage by exercise", () => {
     const s = find(BUILD, "STRENGTH_LOWER", 60);
+    const keep = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 90)));
     const r = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 30)));
-    expect(r.finalPrescription.structure).toMatchObject({ family: "recovery", sessionKind: "RECOVERY_ACTIVE" });
-    expect(r.finalPrescription.reconciliationAction).toBe("replace");
-    expect(prescriptionMaxMinutes(r)).toBeLessThanOrEqual(30);
-    expect(r.timeConstraint?.after).toEqual({ decision: "REPLACE", kind: "RECOVERY_ACTIVE" });
+    expect(roles(r.finalPrescription)).toEqual([
+      ["warm_up", ["hip_90_90", "knee_to_wall_ankle", "bird_dog"]],
+      ["main", ["goblet_squat"]],
+      ["cool_down", ["hip_flexor_mobility"]],
+    ]);
+    expect(doses(r.finalPrescription)).toEqual(doses(keep.finalPrescription).slice(0, 1));
+    // Warm-up unchanged; rests unchanged (never a shorter rest to make a session fit).
+    expect(r.finalPrescription.structure.blocks[0]!.items.map((i) => (i.kind === "exercise" ? [i.sets, i.restSeconds] : null))).toEqual(
+      keep.finalPrescription.structure.blocks[0]!.items.map((i) => (i.kind === "exercise" ? [i.sets, i.restSeconds] : null))
+    );
+    const planned = new Map(s.plannedPrescription.structure.blocks.flatMap((b) => b.items.map((i) => [`${b.role}:${i.kind === "exercise" ? i.exerciseId : i.drillId}`, i.prescriptionItemId] as const)));
+    for (const b of r.finalPrescription.structure.blocks.filter((x) => x.role !== "cool_down")) for (const i of b.items) expect(i.derivedFromItemId).toBe(planned.get(`${b.role}:${i.kind === "exercise" ? i.exerciseId : i.drillId}`));
+    expect([r.effectiveDurationMin, r.timeConstraint?.after]).toEqual([29, { decision: "MODIFY", kind: s.kind, loadProfile: "MODERATE", durationMin: 29 }]);
     valid(r.finalPrescription);
   });
 
-  it("a Force already LIGHT 45 with 40 min: no shorter Force, recovery", () => {
+  it("a LIGHT Force (estimated 40 min): 40 fits as is; 35 → cool-down reduced (33); 25 → the principal alone (24); 20 → no Force pretends to fit (recovery)", () => {
     const s = find(INTRO, "STRENGTH_LOWER", 45);
-    const r = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, INTRO, 40)));
-    expect(r.finalPrescription.structure.family).toBe("recovery");
+    const at = (limit: number) => created(buildFinalPrescriptionWithinTodayTimeV2(input(s, INTRO, limit)));
+    expect([at(40).finalPrescription.reconciliationAction, at(40).effectiveDurationMin]).toEqual(["keep", 40]);
+    expect([at(35).effectiveDurationMin, roles(at(35).finalPrescription).length]).toEqual([33, 5]);
+    expect([at(25).effectiveDurationMin, roles(at(25).finalPrescription).map(([role]) => role)]).toEqual([24, ["warm_up", "main", "cool_down"]]);
+    expect(at(20).finalPrescription.structure.family).toBe("recovery");
+  });
+
+  it("an overload-week Force (MODERATE_PLUS) whose principal alone does not fit 30 min: recovery, never fewer sets", () => {
+    const s = BUILD.weeks[1]!.sessions.find((x) => x.kind === "STRENGTH_LOWER")!;
+    expect((s.plannedPrescription.structure.blocks.find((b) => b.role === "main")!.items[0] as { sets: number }).sets).toBe(5);
+    expect(created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 30))).finalPrescription.structure.family).toBe("recovery");
   });
 });
 
@@ -204,16 +241,18 @@ describe("A10 — recovery and REST", () => {
 });
 
 describe("A10 — L: another rule's adaptation plus the time limit, never a load increase", () => {
-  it("M1 MODIFY Force LIGHT (45) + 30 min → recovery", () => {
+  it("M1 MODIFY Force LIGHT (estimated 40) + 30 min → M1's LIGHT dose, shortened to two exercises (28), never back up", () => {
     const s = find(BUILD, "STRENGTH_LOWER", 60);
     const r = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 30, { decision: "MODIFY", finalSession: { kind: s.kind, loadProfile: "LIGHT" } })));
-    expect(r.finalPrescription.structure.family).toBe("recovery");
+    expect(r.finalPrescription).toMatchObject({ reconciliationAction: "modify", adaptationRuleIds: [DAILY_ADAPTATION_RULES_V2.strengthShortened, DAILY_ADAPTATION_RULES_V2.todayTimeLimit] });
+    expect(r.timeConstraint?.after).toEqual({ decision: "MODIFY", kind: s.kind, loadProfile: "LIGHT", durationMin: 28 });
+    expect((r.finalPrescription.structure.blocks.find((b) => b.role === "main")!.items[0] as { sets: number; rpeTarget: unknown }).rpeTarget).toEqual({ min: 5, max: 6 });
   });
 
-  it("M1 REPLACE lower → upper MODERATE (60) + 45 min → REPLACE upper LIGHT 45", () => {
+  it("M1 REPLACE lower → upper MODERATE (estimated 47) + 45 min → REPLACE upper, still MODERATE, cool-down reduced (41)", () => {
     const s = find(BUILD, "STRENGTH_LOWER", 60);
     const r = created(buildFinalPrescriptionWithinTodayTimeV2(input(s, BUILD, 45, { decision: "REPLACE", finalSession: { kind: "STRENGTH_UPPER", loadProfile: "MODERATE" } })));
-    expect(r.timeConstraint?.after).toEqual({ decision: "REPLACE", kind: "STRENGTH_UPPER", loadProfile: "LIGHT", durationMin: 45 });
+    expect(r.timeConstraint?.after).toEqual({ decision: "REPLACE", kind: "STRENGTH_UPPER", loadProfile: "MODERATE", durationMin: 41 });
   });
 
   it("M1 MODIFY DH LIGHT + 75 min: the 75-min window keeps the LIGHT passages (≤ 4), never back up", () => {

@@ -23,6 +23,13 @@
  * endurance −15 min down to 45) as long as that places more sessions; never
  * a session created to follow the curve.
  *
+ * PHYS-02 — with the intervals option only (ENDURANCE_INTERVALS_PLAN_POLICY_V2,
+ * PROVISIONAL): the endurance session of an overload week is the catalogue
+ * intervals session (its fixed protocol duration). Intervals are never
+ * shortened: when no window holds them, the week falls back to its base
+ * ladder below that duration (endurance base, adapted to availability).
+ * Without the option, every week is exactly as before.
+ *
  * Pure and deterministic: no clock, no randomness.
  */
 import {
@@ -42,6 +49,14 @@ import type { BlockShapingInput, WeekShape } from "../../pipeline/sessionDoseMod
 import type { WeekProgressionReasonCode, WeekProgressionRole, WeekType } from "../../types/planWeek.js";
 import type { PlanInputRace } from "../../types/planInputSnapshot.js";
 import { SessionModelV2ContractError } from "../generationErrors.js";
+import { ENDURANCE_INTERVALS_PLAN_POLICY_V2, ENDURANCE_INTERVALS_PLAN_POLICY_V2_VERSION } from "../../catalog/enduranceIntervalsPlanPolicyV2.js";
+import { aerobicIntervalsDurationMinV2 } from "../builders/aerobicIntervalsPrescriptionV2.js";
+
+/** PHYS-02 — options of the V2 block progression (all off by default). */
+export interface BlockProgressionOptionsV2 {
+  /** Overload weeks place the intervals session (server switch; off = the previous plans exactly). */
+  enduranceIntervals?: boolean;
+}
 
 /** Week type and template of each role (a role is never a new week type). */
 const ROLE_WEEK: Readonly<Record<WeekProgressionRole, { weekType: WeekType; templateId: string }>> = {
@@ -75,6 +90,9 @@ export const BLOCK_PROGRESSION_PHRASES_V2 = {
   fixed_sessions_hold: "Fixed sessions this week: load held, no increase.",
   beginner_strength_cap: "Strength volume kept moderate for a beginner level.",
   adapted_to_availability: "Sessions shortened to fit the available time.",
+  endurance_intervals: "This week's endurance session is an intervals session.",
+  power_session: "This week's lower-body strength session is a power session.",
+  mobility_session: "A mobility session is added on a free day this week.",
 } as const;
 
 interface DomainOption {
@@ -82,6 +100,8 @@ interface DomainOption {
   load: PlanLoadV2;
   forceDoseStep?: StrengthDoseStepV2;
   dhPasses?: number;
+  /** PHYS-02 — the endurance option is the intervals session (absent = AEROBIC_BASE). */
+  aerobicSessionKind?: "AEROBIC_INTERVALS";
 }
 
 interface ShapedWeekDoseV2 {
@@ -210,7 +230,7 @@ function targetDose(role: PlanDosedRoleV2, cycle: number, beginner: boolean): { 
 }
 
 /** Each domain's availability ladder, from the target down (target first). */
-function ladders(target: ShapedWeekDoseV2): Record<SessionDomain, DomainOption[]> {
+function ladders(target: ShapedWeekDoseV2, intervals: boolean): Record<SessionDomain, DomainOption[]> {
   const strength: DomainOption[] = [target.strength];
   if (target.strength.forceDoseStep !== "LIGHT") {
     const light = PLAN_ROLE_DOSES_V2.consolidation;
@@ -226,7 +246,14 @@ function ladders(target: ShapedWeekDoseV2): Record<SessionDomain, DomainOption[]
   for (let d = target.aerobic.durationMin - PLAN_PROGRESSION_CAPS_V2.aerobicStepMin; d >= PLAN_PROGRESSION_CAPS_V2.aerobicMinMin; d -= PLAN_PROGRESSION_CAPS_V2.aerobicStepMin) {
     aerobic.push({ ...target.aerobic, durationMin: d });
   }
-  return { strength, dh_technical: dh, aerobic };
+  if (!intervals) return { strength, dh_technical: dh, aerobic };
+  // PHYS-02 — the intervals session first (never shortened), then the base ladder below its duration.
+  const intervalsMin = aerobicIntervalsDurationMinV2();
+  return {
+    strength,
+    dh_technical: dh,
+    aerobic: [{ durationMin: intervalsMin, load: target.aerobic.load, aerobicSessionKind: "AEROBIC_INTERVALS" }, ...aerobic.filter((o) => o.durationMin < intervalsMin)],
+  };
 }
 
 const FIT_ORDER: readonly SessionDomain[] = ["dh_technical", "strength", "aerobic"];
@@ -236,9 +263,10 @@ function fitToAvailability(
   input: BlockShapingInput,
   week: BlockShapingInput["weeks"][number],
   entry: WeekTemplateCatalogEntry,
-  target: ShapedWeekDoseV2
+  target: ShapedWeekDoseV2,
+  intervals: boolean
 ): { dose: ShapedWeekDoseV2; adapted: boolean } {
-  const options = ladders(target);
+  const options = ladders(target, intervals);
   const level: Record<SessionDomain, number> = { strength: 0, dh_technical: 0, aerobic: 0 };
   const placedWith = (lv: Record<SessionDomain, number>) =>
     segmentWeek({
@@ -279,7 +307,7 @@ function fitToAvailability(
   };
 }
 
-export function shapeBlockWeeksV2(input: BlockShapingInput): WeekShape[] {
+export function shapeBlockWeeksV2(input: BlockShapingInput, options: BlockProgressionOptionsV2 = {}): WeekShape[] {
   const roles = planRoles(input);
   const beginner = input.strengthExperienceTier === "beginner";
 
@@ -311,10 +339,16 @@ export function shapeBlockWeeksV2(input: BlockShapingInput): WeekShape[] {
       reasons.push("beginner_strength_cap");
       phrases.push(BLOCK_PROGRESSION_PHRASES_V2.beginner_strength_cap);
     }
-    const { dose, adapted } = fitToAvailability(input, week, entry, target);
+    const intervalsWeek = options.enduranceIntervals === true && entry.aerobicSlotCount > 0 && ENDURANCE_INTERVALS_PLAN_POLICY_V2.weekRoles.includes(planned.role);
+    const { dose, adapted } = fitToAvailability(input, week, entry, target, intervalsWeek);
     if (adapted) {
       reasons.push("adapted_to_availability");
       phrases.push(BLOCK_PROGRESSION_PHRASES_V2.adapted_to_availability);
+    }
+    const intervalsPlaced = dose.aerobic.aerobicSessionKind === "AEROBIC_INTERVALS";
+    if (intervalsPlaced) {
+      reasons.push("endurance_intervals");
+      phrases.push(BLOCK_PROGRESSION_PHRASES_V2.endurance_intervals);
     }
 
     return {
@@ -333,7 +367,9 @@ export function shapeBlockWeeksV2(input: BlockShapingInput): WeekShape[] {
           dhDurationMin: entry.dhTechnicalSlotCount > 0 ? dose.dh_technical.durationMin : null,
           dhPasses: entry.dhTechnicalSlotCount > 0 ? dose.dh_technical.dhPasses! : null,
           aerobicDurationMin: entry.aerobicSlotCount > 0 ? dose.aerobic.durationMin : null,
+          ...(intervalsPlaced ? { aerobicSessionKind: "AEROBIC_INTERVALS" as const } : {}),
         },
+        ...(intervalsPlaced ? { intervalsPolicy: ENDURANCE_INTERVALS_PLAN_POLICY_V2_VERSION } : {}),
       },
     };
   });

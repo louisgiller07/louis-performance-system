@@ -10,6 +10,9 @@ import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
 import { formatMeasure, formatSeconds, setsLabel, span } from "../../finalPrescriptionV2/finalPrescriptionV2Copy";
 import type { BlockView, ExerciseItemView } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
+import { LoadGuidanceNote } from "../../finalPrescriptionV2/LoadGuidanceNote";
+import { loadFieldHint } from "../../finalPrescriptionV2/loadGuidanceCopy";
+import { repsFieldHint } from "../../finalPrescriptionV2/repsGuidanceCopy";
 import type { GuidedSessionModuleProps } from "../sessionModules";
 import { draftOf, EMPTY_FORM, liveForm, type OpenForm } from "./strengthDraft";
 import {
@@ -22,6 +25,7 @@ import {
   type SetFormValues,
   type StrengthMeasureType,
   type StrengthSlot,
+  isPowerPrescription,
 } from "./strengthSets";
 import { STRENGTH_COPY, formatResult, strengthProgressLine } from "./strengthCopy";
 
@@ -58,9 +62,14 @@ function ReadOnlyBlock({ block }: { block: BlockView }) {
   );
 }
 
+/** PHYS-01 — the advised load and how to count it, next to the load field (never pre-filled: the rider records what was really used). */
+function suggestedLoadHint(item: ExerciseItemView): string | undefined {
+  return loadFieldHint(item.loadGuidance, item.measure);
+}
+
 const fieldId = (form: OpenForm, field: keyof SetFormValues) => `set-${form.key.replace(/[^a-z0-9]/gi, "-")}-${field}`;
 
-function SetForm({ form, item, busy, onChange, onSave, onCancel }: { form: OpenForm; item: ExerciseItemView; busy: boolean; onChange: (patch: Partial<SetFormValues>) => void; onSave: () => void; onCancel: () => void }) {
+function SetForm({ form, item, busy, withLoad, onChange, onSave, onCancel }: { form: OpenForm; item: ExerciseItemView; busy: boolean; withLoad: boolean; onChange: (patch: Partial<SetFormValues>) => void; onSave: () => void; onCancel: () => void }) {
   const firstInput = useRef<HTMLInputElement>(null);
   // The entry takes the keyboard focus when it opens.
   useEffect(() => firstInput.current?.focus(), []);
@@ -112,9 +121,10 @@ function SetForm({ form, item, busy, onChange, onSave, onCancel }: { form: OpenF
         <legend className="text-sm font-semibold text-ink">
           {form.supersedes ? "Corriger" : "Saisir"} la série {form.setNumber} — {form.itemName}
         </legend>
-        {field("value", form.measureType === "reps" ? `Répétitions réalisées${perSide}` : `Durée réalisée en secondes${perSide}`, { inputMode: "numeric", step: "1", min: 1 })}
+        {field("value", form.measureType === "reps" ? `Répétitions réalisées${perSide}` : `Durée réalisée en secondes${perSide}`, { inputMode: "numeric", step: "1", min: 1 }, form.measureType === "reps" ? repsFieldHint(item.repsGuidance) : undefined)}
         {field("rpe", "RPE ressenti (1–10, facultatif)", { inputMode: "decimal", step: "0.5", min: 1, max: 10 }, item.rpeTarget ? `Prévu : RPE ${span(item.rpeTarget)}` : undefined)}
-        {field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 })}
+        {/* PHYS-03 — a power set is speed and quality: no load is asked. */}
+        {withLoad && field("load", "Charge utilisée en kg (facultatif)", { inputMode: "decimal", step: "0.5", min: 0, max: 1000 }, suggestedLoadHint(item))}
       </fieldset>
       <PrimaryButton type="submit" disabled={busy} className="w-full">
         {form.supersedes ? "Enregistrer la correction" : "Enregistrer la série"}
@@ -169,6 +179,7 @@ function ExerciseCard({ item, measureType, slots, current, canEdit, showSlots, b
         <span className="font-medium">Prévu : </span>
         {prescribedDose(item)}
       </p>
+      <LoadGuidanceNote item={item} />
       {item.rampUp && (
         <p className="text-sm text-muted">
           Montée en charge : {span(item.rampUp.sets)} {item.rampUp.sets.max > 1 ? "séries" : "série"} — {item.rampUp.instruction}
@@ -281,6 +292,7 @@ export function StrengthSessionModule({ prescription, executionId, setResults, e
                         form={form}
                         item={item}
                         busy={busy}
+                        withLoad={!isPowerPrescription(prescription)}
                         onChange={(patch) => setUiState({ form: { ...form, values: { ...form.values, ...patch } } })}
                         onSave={() => void save(form)}
                         onCancel={() => setUiState({ form: null })}
