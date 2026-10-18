@@ -5,7 +5,7 @@
  *
  * Anomaly 2 (corrected, ADR A04 §6): M1's LIGHT on an endurance session already at the policy's LIGHT duration (45 min,
  * fixed protocol RPE) is refused (`modify_not_supported`), never the planned dose shown as lighter; a 60-min session is
- * really shortened to 45 min; the rider's time (A10) still adapts the session.
+ * really shortened to 45 min. SPORT-SAFE-01R: the refusal is A04's outcome, so A10 does not evaluate it (`docs/04`).
  * Anomaly 1 (characterized, not changed): a knee pain 4/10 on a DH day stays M1's PAIN_NON_SAFETY adaptation (DH LIGHT,
  * the planned window, 4 passes) with its protection and monitoring texts; 6/10 is Safety (REST + health flag).
  */
@@ -145,13 +145,20 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
       expect(mainOf(st).map((b) => [b.durationMinutes, b.rpeTarget])).toEqual([[{ min: 30, max: 30 }, { min: 3, max: 4 }]]);
     });
 
-    it("45 min, high fatigue (systemic RED) and 30 min available → A10 still adapts: a real session within 30 min, not refused", async () => {
+    it("45 min, high fatigue (systemic RED) and 30 min available → refused before A10: blocked, time not evaluated, M1's decision unchanged", async () => {
       const d = await day("endurance 45 systemic red 30 min", ENDURANCE_45, { ...SYSTEMIC_RED, available_minutes_today: 30 });
-      expect(rules(d.plan)).toContain("V2_TODAY_TIME_CONSTRAINT");
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 }]);
+      const trace = d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT");
+      expect(trace?.detail).toBe("Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : not_evaluated.");
+      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "modify_not_supported" } });
+      expect(d.decision.finals).toEqual([]);
+    });
+
+    it("60 min, high fatigue (systemic RED) and 30 min available → A10 adapts the real reduction: active recovery within 30 min", async () => {
+      const d = await day("endurance 60 systemic red 30 min", ENDURANCE_60, { ...SYSTEMIC_RED, available_minutes_today: 30 });
+      expect([d.plan.decision, d.plan.final_session.kind]).toEqual(["REPLACE", "RECOVERY_ACTIVE"]);
       expect(d.decision).toMatchObject({ final_prescription_status: "created" });
-      const st = d.decision.finals[0]!.structure as Structure;
-      expect(minutesOf(st)).toBeLessThanOrEqual(30);
-      expect(sportFingerprint(st)).not.toBe(sportFingerprint(d.planned!.structure));
+      expect(minutesOf(d.decision.finals[0]!.structure as Structure)).toBeLessThanOrEqual(30);
     });
 
     it("45 min, no fatigue, 30 min available → A10: active recovery within 30 min (unchanged)", async () => {

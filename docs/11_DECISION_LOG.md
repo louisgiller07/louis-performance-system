@@ -6518,14 +6518,14 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 **Décision** :
 - Au point d'entrée quotidien (`buildFinalPrescriptionWithinTodayTimeV2`, seul appelant de production) : un MODIFY créé dont le contenu sportif (`canonicalSportContent`) est celui de la prescription prévue → `blocked` / `final_prescription_adaptation_not_defined`, détail `{ reason: "modify_not_supported", planned, final, durationMin }`.
 - Avec un temps disponible, l'action est `not_evaluated`, comme pour toute prescription bloquée.
-- Le refus porte sur le document que le temps du rider n'a pas changé. Quand A10 construit une vraie autre séance (temps plus court), elle est conservée : aucune régression du chemin temps.
+- **SPORT-SAFE-01R (HPM 2026-10-18)** : le refus est le résultat d'A04, il précède donc A10, quel que soit le temps donné. `docs/04` (A10, « Priorité ») : « la contrainte s'applique après M1, `V2_SYSTEMIC_FLOOR` et la prescription A04 » ; « Une prescription bloquée reste bloquée (`not_evaluated`) ». La version initiale gardait la récupération active d'A10 (30 min) après un refus : exception non approuvée, retirée.
 - Une endurance plus longue (60 min) reste réellement ramenée à 45 min. La DH LIGHT (4 passages) et la Force LIGHT ne sont pas concernées.
 - Inchangés : le constructeur seul (`buildFinalPrescriptionV2`), M1, V1, les séances manuelles, le web et la base.
 - Le rider voit la décision et les consignes de M1 (protection, surveillance) et, dans « Ta séance », le message existant « L'adaptation détaillée n'est pas disponible pour cette recommandation. »
 
-**Interprétation signalée** : `docs/04` (A10) place la contrainte de temps après A04 et dit « une prescription bloquée reste bloquée ». Ici, la vraie adaptation au temps (comportement de production) est conservée. À confirmer par HPM.
+**Arbitrage ouvert (SPORT-SAFE-01R)** : autoriser A10 sur un refus §6 (récupération active si le temps est inférieur à la séance décidée par M1) demanderait un amendement de `docs/04`, proposé dans le rapport SPORT-SAFE-01R, non appliqué.
 
-**Différence de comportement, flags OFF** : ce seul cas. Différentiel contre le runtime de production (`863f3fb`, identique à `99d2add` flags OFF) : 47 970 cas planifiés, 128 refus, tous « AEROBIC_BASE MODERATE→LIGHT 45 min » ; 11 088 cas manuels identiques.
+**Différence de comportement, flags OFF** : ce seul cas. Différentiel contre le runtime de production (`863f3fb`, identique à `99d2add` flags OFF) : 47 970 cas planifiés, 192 refus, tous « AEROBIC_BASE MODERATE→LIGHT 45 min » (32 sans temps, 96 où la production gardait la copie, 64 où elle l'adaptait par A10) ; 11 088 cas manuels identiques.
 
 **Non décidé** (arbitrages du rapport SPORT-SAFE-01) :
 - une vraie dose LIGHT d'endurance (RPE plus bas, ou moins de 45 min) ;

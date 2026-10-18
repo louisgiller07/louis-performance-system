@@ -14,7 +14,9 @@
  *
  * One intended difference, SPORT-SAFE-01 (HPM 2026-10-18, ADR A04 §6): where production returns a MODIFY whose sport
  * content is exactly the planned prescription's (the endurance session already at the LIGHT duration), the current
- * runtime refuses it (`modify_not_supported`, time not evaluated). Only that case differs, and it is checked exactly.
+ * runtime refuses it (`modify_not_supported`). SPORT-SAFE-01R: the refusal is A04's outcome, so under any time limit the
+ * time is not evaluated (`not_evaluated`), where production fitted the copy or adapted it (A10). Only that case
+ * differs, and it is checked exactly.
  */
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
@@ -120,12 +122,13 @@ function unchangedModify(prod: unknown, s: PlanSessionV2InMemory, decision: stri
   const r = prod as current.FinalPrescriptionWithinTodayTimeV2Result;
   return decision === "MODIFY" && r.status === "created" && current.canonicalSportContent(r.finalPrescription.structure) === current.canonicalSportContent(s.plannedPrescription.structure);
 }
-function refusalOf(prod: Extract<current.FinalPrescriptionWithinTodayTimeV2Result, { status: "created" }>, s: PlanSessionV2InMemory, finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"]) {
+function refusalOf(copy: Extract<current.FinalPrescriptionWithinTodayTimeV2Result, { status: "created" }>, prod: current.FinalPrescriptionWithinTodayTimeV2Result, s: PlanSessionV2InMemory, finalSession: BuildFinalPrescriptionV2Input["decision"]["finalSession"]) {
+  const before = prod.timeConstraint?.before;
   return {
     status: "blocked",
     code: "final_prescription_adaptation_not_defined",
-    detail: { reason: "modify_not_supported", planned: s.loadProfile ?? null, final: finalSession.loadProfile ?? null, durationMin: prod.effectiveDurationMin ?? null },
-    ...(prod.timeConstraint !== undefined ? { timeConstraint: { ...prod.timeConstraint, action: "not_evaluated" } } : {}),
+    detail: { reason: "modify_not_supported", planned: s.loadProfile ?? null, final: finalSession.loadProfile ?? null, durationMin: copy.effectiveDurationMin ?? null },
+    ...(prod.timeConstraint !== undefined ? { timeConstraint: { availableMinutes: prod.timeConstraint.availableMinutes, action: "not_evaluated", before, after: before } } : {}),
   };
 }
 
@@ -166,6 +169,7 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
     let cases = 0;
     const statuses = new Map<string, number>();
     const refused = new Map<string, number>();
+    const refusedFrom = new Map<string, number>();
     for (const { name, snap } of PROFILES.filter((_, i) => i % 4 === 0)) {
       const generated = plan(production!, snap);
       if (!("status" in generated) || generated.status !== "generated") continue;
@@ -177,15 +181,18 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
         if (typeof s.durationMin === "number" && s.durationMin > 30) decisions.push(["MODIFY", { ...planned, durationMin: s.durationMin - 15 }]);
         for (const target of REPLACE_TARGETS) decisions.push(["REPLACE", target]);
         for (const [decision, finalSession] of decisions) {
+          // SPORT-SAFE-01 — production's result with no time limit says whether A04 made the planned dose a "modified" copy.
+          const copy = outcome(() => production!.buildFinalPrescriptionWithinTodayTimeV2(generatedInput(production!, p, s, snap, decision, finalSession, null)));
           for (const minutes of TIME_LIMITS) {
             const prod = outcome(() => production!.buildFinalPrescriptionWithinTodayTimeV2(generatedInput(production!, p, s, snap, decision, finalSession, minutes)));
             const cur = outcome(() => current.buildFinalPrescriptionWithinTodayTimeV2(generatedInput(current, p, s, snap, decision, finalSession, minutes)));
             const label = `${name} ${s.date} ${s.kind} ${decision} ${JSON.stringify(finalSession)} ${minutes}`;
-            if (unchangedModify(prod, s, decision)) {
-              expect(prod.timeConstraint?.action ?? "fits", label).toBe("fits");
-              expect(cur, label).toEqual(refusalOf(prod, s, finalSession));
+            if (unchangedModify(copy, s, decision)) {
+              expect(cur, label).toEqual(refusalOf(copy, prod as current.FinalPrescriptionWithinTodayTimeV2Result, s, finalSession));
               const key = `${s.kind} ${s.loadProfile}→${finalSession.loadProfile} ${s.durationMin} min`;
               refused.set(key, (refused.get(key) ?? 0) + 1);
+              const was = `production ${(prod as current.FinalPrescriptionWithinTodayTimeV2Result).timeConstraint?.action ?? "no time"}`;
+              refusedFrom.set(was, (refusedFrom.get(was) ?? 0) + 1);
             } else expect(cur, label).toEqual(prod);
             const key = "thrown" in (prod as object) ? "thrown" : (prod as { status: string }).status;
             statuses.set(key, (statuses.get(key) ?? 0) + 1);
@@ -194,7 +201,7 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
         }
       }
     }
-    note(`daily planned: ${cases} cases ${JSON.stringify(Object.fromEntries(statuses))}; SPORT-SAFE-01 refusals ${JSON.stringify(Object.fromEntries(refused))}`);
+    note(`daily planned: ${cases} cases ${JSON.stringify(Object.fromEntries(statuses))}; SPORT-SAFE-01 refusals ${JSON.stringify(Object.fromEntries(refused))} ${JSON.stringify(Object.fromEntries(refusedFrom))}`);
     // SPORT-SAFE-01 — the one intended difference: only the endurance session already at the LIGHT duration.
     expect([...refused.keys()].sort()).toEqual(["AEROBIC_BASE MODERATE→LIGHT 45 min"]);
     // Coverage of the comparison itself: thousands of cases, every outcome kind represented.

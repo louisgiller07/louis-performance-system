@@ -21,7 +21,9 @@ import type { PlanInputAvailabilityWindow } from "../../src/types/planInputSnaps
 // (45 min) is the only endurance lever (the protocol's RPE is fixed), so M1's LIGHT on a session already planned at
 // 45 min has no lighter content. The daily entry point (buildFinalPrescriptionWithinTodayTimeV2, the only production
 // caller) refuses it (`modify_not_supported`), never a "modified" copy of the planned dose announced to the rider as
-// lighter. A longer session is still really shortened to 45 min, and the rider's time (A10) still adapts the session.
+// lighter. A longer session is still really shortened to 45 min.
+// SPORT-SAFE-01R (HPM 2026-10-18) — the refusal is A04's outcome: A10 comes after it and does not evaluate a blocked
+// prescription (`docs/04`, A10 « Priorité »), whatever time the rider gave.
 
 const ALL_DAY: PlanInputAvailabilityWindow[] = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d as PlanInputAvailabilityWindow["dayOfWeek"], startTime: "08:00", endTime: "20:00" }));
 const SNAPSHOT: PlanInputSnapshotV2 = {
@@ -97,7 +99,7 @@ describe("SPORT-SAFE-01 — endurance LIGHT: a real reduction, or an explicit re
     expect(today(input(endurance(0), "MODIFY", finalSession), availableMinutes)).toEqual(REFUSED);
   });
 
-  it.each([45, 60, 90])("planned MODERATE 45 + MODIFY LIGHT, %i min available (it fits) → refused, time not evaluated", (availableMinutes) => {
+  it.each([20, 30, 45, 60, 90])("planned MODERATE 45 + MODIFY LIGHT, %i min available → refused before A10, time not evaluated", (availableMinutes) => {
     const r = today(input(endurance(0), "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }), availableMinutes);
     expect(r).toEqual({
       ...REFUSED,
@@ -105,13 +107,10 @@ describe("SPORT-SAFE-01 — endurance LIGHT: a real reduction, or an explicit re
     });
   });
 
-  it("planned MODERATE 45 + MODIFY LIGHT, 30 min available → A10 still adapts: a real, shorter session within 30 min", () => {
-    const s = endurance(0);
-    const r = today(input(s, "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }), 30);
-    expect(r.timeConstraint?.action).toBe("adapted");
-    const f = created(r);
-    expect(minutes(f.structure)).toBeLessThanOrEqual(30);
-    expect(canonicalSportContent(f.structure)).not.toBe(canonicalSportContent(s.plannedPrescription.structure));
+  it("planned MODERATE 60 + MODIFY LIGHT, 30 min available → A10 adapts the real reduction (45 min does not fit): active recovery within 30 min", () => {
+    const r = today(input(endurance(1), "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 60 }), 30);
+    expect(r.timeConstraint).toMatchObject({ action: "adapted", before: { decision: "MODIFY", kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }, after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } });
+    expect(minutes(created(r).structure)).toBeLessThanOrEqual(30);
   });
 
   it.each([null, 60])("planned MODERATE 60 + MODIFY LIGHT (time %s) → created and really lighter: 45 min (main 30 instead of 45), same protocol and activities", (availableMinutes) => {
