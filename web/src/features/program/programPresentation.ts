@@ -1,7 +1,7 @@
 import type { EffectiveDay } from "../effectiveSession/effectiveDay";
 import { strengthSummary } from "../finalPrescriptionV2/strengthSummary";
 import type { TrainingPlanReview, TrainingPlanReviewSession, TrainingPlanReviewWeek } from "../trainingPlanReview/trainingPlanReviewTypes";
-import { dayCompletion, isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
+import { dayCompletion, isDayDone, legacyRealisation, type GuidedCompletion } from "../completion/dayCompletion";
 import type { CompletedSessionRecord, CompletionStatus } from "../completedSession/completedSessionTypes";
 import type { DecisionHistoryRow } from "../history/historyTypes";
 import type { DailyPlan, TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
@@ -11,7 +11,7 @@ import { coachWhy } from "../dailyPlan/coachInsights";
 import { translateTrainingKind, translateWeekType, UNKNOWN_SESSION_LABEL } from "../trainingLabels/trainingLabels";
 import { translateDrill, translateExercise } from "../trainingLabels/exerciseLabels";
 import { addDays } from "../../lib/date";
-import { weekDates, type WeekDay } from "../today/todayContext";
+import { realisationOf, weekDates, withRealisation, type WeekDay } from "../today/todayContext";
 
 // UX-06 — Programme presentation helpers. Pure formatting of the accepted
 // (or reviewed) plan version plus facts that already exist elsewhere
@@ -129,11 +129,13 @@ export function programWeekDays(
         plannedLabel: label,
         plannedDurationMin: effective.session.duration_min ?? null,
         performed: effective.status === "completed",
+        ...realisationOf(effective),
         adapted: effective.adaptation !== null,
         modifiedByAthlete: manualDates.includes(date) && effective.adaptation !== "REPLACE" && effective.adaptation !== "REST",
         race: race ? race.eventName : null,
       };
     }
+    const performed = performedOn(date, completed, guided);
     return {
       date,
       isToday: date === today,
@@ -141,7 +143,8 @@ export function programWeekDays(
       planned: session ? sessionTitle(session) : null,
       plannedLabel: session ? sessionTitle(session) : null,
       plannedDurationMin: session?.durationMin ?? null,
-      performed: performedOn(date, completed, guided),
+      performed,
+      ...(performed ? withRealisation(legacyRealisation(date, completed)) : {}),
       modifiedByAthlete: Boolean(session) && manualDates.includes(date),
       race: race ? race.eventName : null,
     };

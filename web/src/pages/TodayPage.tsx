@@ -285,7 +285,9 @@ export function TodayPage() {
           guidedSessionEntry={({ dailyPlan, finalPrescriptionCreated }) => {
             const kind = daySessionEntryKind({ executions: dayExecutions, finalPrescriptionCreated, healthSuspended: healthSuspendedBy(dailyPlan) });
             // UX-11R.9 (F-5) — a completion read by the week context alone still reads as done.
-            return <DaySessionEntryCard kind={kind === "start" && todayContext && hasGuidedCompletion(canonicalDate, todayContext.guided) ? "completed" : kind} />;
+            // PARTIAL-01 — a session completed in part says so (the week's effective read model knows its realisation).
+            const realisation = todayContext?.effective?.find((day) => day.date === canonicalDate)?.realisation;
+            return <DaySessionEntryCard kind={kind === "start" && todayContext && hasGuidedCompletion(canonicalDate, todayContext.guided) ? "completed" : kind} realisation={realisation} />;
           }}
         />
       )}

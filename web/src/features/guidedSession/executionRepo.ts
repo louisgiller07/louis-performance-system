@@ -4,7 +4,7 @@
 import { supabase } from "../../lib/supabase";
 import { decodeFinalPrescriptionV2 } from "../finalPrescriptionV2/decodeFinalPrescriptionV2";
 import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
-import type { ExecutionRow } from "./executionState";
+import type { ExecutionRow, SetResultRow } from "./executionState";
 import { activeActivityResult, activeResultsBySlot } from "./results/activeResults";
 
 export class GuidedSessionLoadError extends Error {
@@ -15,10 +15,13 @@ export class GuidedSessionLoadError extends Error {
 }
 
 const ACTIVITY_RESULT_COLUMNS = "id, activity_id, duration_seconds, distance_m, rpe_actual, supersedes_id, occurred_at, recorded_at";
-const SET_RESULT_COLUMNS = "id, prescription_item_id, other_exercise_name, set_number, done, measure_type, measure_value, load_kg, rpe_actual, success, supersedes_id, occurred_at, recorded_at";
+export const SET_RESULT_COLUMNS = "id, prescription_item_id, other_exercise_name, set_number, done, measure_type, measure_value, load_kg, rpe_actual, success, supersedes_id, occurred_at, recorded_at";
 
 // numeric columns may come back as strings depending on the PostgREST setting: always numbers here.
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+
+/** A set result row as read (numeric columns as numbers). */
+export const toSetResultRow = <T extends SetResultRow>(r: T): T => ({ ...r, measure_value: num(r.measure_value), load_kg: num(r.load_kg), rpe_actual: num(r.rpe_actual) });
 
 /** The rider's executions of `date` with their lifecycle events and set results (one query, no N+1). */
 export async function loadDayExecutions(athleteId: string, date: string): Promise<ExecutionRow[]> {
@@ -35,7 +38,7 @@ export async function loadDayExecutions(athleteId: string, date: string): Promis
   }
   const executions = ((data ?? []) as ExecutionRow[]).map((e) => ({
     ...e,
-    exercise_set_results: (e.exercise_set_results ?? []).map((r) => ({ ...r, measure_value: num(r.measure_value), load_kg: num(r.load_kg), rpe_actual: num(r.rpe_actual) })),
+    exercise_set_results: (e.exercise_set_results ?? []).map(toSetResultRow),
     session_activity_results: (e.session_activity_results ?? []).map((r) => ({ ...r, duration_seconds: Number(r.duration_seconds), distance_m: num(r.distance_m), rpe_actual: num(r.rpe_actual) })),
   }));
   // UX-11B.2.6 — at most one active result per slot: anything else is never arbitrated (fail closed).

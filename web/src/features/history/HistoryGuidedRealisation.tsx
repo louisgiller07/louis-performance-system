@@ -14,7 +14,8 @@ import { formatResult } from "../guidedSession/strength/strengthCopy";
 import { DH_COPY, SUCCESS_LABELS } from "../guidedSession/dh/dhCopy";
 import { choiceOf } from "../guidedSession/dh/dhPasses";
 import { formatDistance, formatDuration } from "../guidedSession/endurance/enduranceActivity";
-import { guidedStatusLabel, type GuidedAttempt } from "./guidedHistory";
+import { GUIDED_PARTIAL_LABEL, guidedStatusLabel, type GuidedAttempt } from "./guidedHistory";
+import { guidedRealisationOf } from "../completion/guidedRealisation";
 
 export const PRESCRIPTION_NO_LONGER_READABLE = "Le détail de cette séance n'est plus disponible dans cette version de l'application. Voici les résultats enregistrés.";
 export const NO_RESULT_RECORDED = "Aucun résultat enregistré.";
@@ -73,12 +74,14 @@ function Attempt({ attempt, index, count }: { attempt: GuidedAttempt; index: num
   const { execution, phase, prescription } = attempt;
   const created = prescription?.kind === "created" ? prescription.prescription : null;
   const module = created ? resolveSessionModule(created) : null;
+  // PARTIAL-01 — a completed attempt with fewer work sets / passes than its own prescription says so.
+  const partial = phase === "completed" && created !== null && guidedRealisationOf(created, execution.exercise_set_results) === "partial";
   return (
     <section className="flex flex-col gap-3" data-testid="history-guided-attempt" data-phase={phase} data-execution-id={execution.id}>
       <div>
         {count > 1 && <p className="text-xs uppercase tracking-[0.14em] text-muted">{`Tentative ${index + 1} sur ${count}`}</p>}
         <p className={`text-sm font-semibold ${phase === "completed" ? "text-gold" : "text-ink"}`} data-testid="history-guided-status">
-          {phase === "completed" ? `✓ ${guidedStatusLabel(phase)}` : guidedStatusLabel(phase)}
+          {partial ? GUIDED_PARTIAL_LABEL : phase === "completed" ? `✓ ${guidedStatusLabel(phase)}` : guidedStatusLabel(phase)}
         </p>
         <p className="text-xs text-muted">{`Commencée à ${formatLocalTime(execution.started_at)}`}</p>
       </div>

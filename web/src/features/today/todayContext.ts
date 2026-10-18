@@ -1,6 +1,7 @@
 import { isTrainingDay, type EffectiveDay } from "../effectiveSession/effectiveDay";
 import { addDays } from "../../lib/date";
-import { isDayDone, type GuidedCompletion } from "../completion/dayCompletion";
+import { isDayDone, legacyRealisation, type GuidedCompletion } from "../completion/dayCompletion";
+import type { SessionRealisation } from "../completion/guidedRealisation";
 import type { RaceOverlayEvent } from "../planning/raceOverlayRepo";
 import type { PlannedSessionRow } from "../planning/planningTypes";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
@@ -95,6 +96,10 @@ export interface WeekDay {
   plannedDurationMin: number | null;
   /** A session was actually performed (done / partial / replaced) — "skipped" does not count. */
   performed: boolean;
+  /** PARTIAL-01 — a performed day: "complete" or "partial"; absent: not performed, or its realisation could not be read. */
+  realisation?: SessionRealisation;
+  /** PARTIAL-01 — guided attempts that day were all stopped (nothing completed): never a done day. */
+  stopped?: boolean;
   /** A07 — the Head Coach adapted the planned session that day (MODIFY / REPLACE / REST); the labels above are the effective session. */
   adapted?: boolean;
   /** CONSISTENCY-01 — the session shown is the rider's own modification (planned_sessions.source = 'manual'), not the coach's prescription. */
@@ -110,6 +115,17 @@ export interface WeekSummary {
 
 function isTrainingSession(row: PlannedSessionRow): boolean {
   return row.intervention ? row.intervention.kind !== "REST" : row.session_type !== "REST";
+}
+
+/** PARTIAL-01 — the realisation field, only when known. */
+export function withRealisation(realisation: SessionRealisation | undefined): Pick<WeekDay, "realisation"> {
+  return realisation ? { realisation } : {};
+}
+
+/** PARTIAL-01 — a day of the effective read model: its realisation once completed, « stopped » for stopped attempts only. */
+export function realisationOf(day: EffectiveDay | undefined): Pick<WeekDay, "realisation" | "stopped"> {
+  if (day?.status === "completed") return withRealisation(day.realisation);
+  return day?.status === "abandoned" ? { stopped: true } : {};
 }
 
 export function weekSummary(
@@ -139,6 +155,7 @@ export function weekSummary(
         plannedLabel: hasSession ? (kind ? (TRAINING_KIND_LABELS[kind] ?? "Séance prévue") : "Séance prévue") : null,
         plannedDurationMin: (fromPlanOnly ? row?.intervention?.duration_min : day.session?.duration_min) ?? null,
         performed: day?.status === "completed",
+        ...realisationOf(day),
         adapted: day?.adaptation !== null && day?.adaptation !== undefined,
         // CONSISTENCY-01 — the rider's own session, unless the coach replaced it or rested the day.
         modifiedByAthlete: hasSession && row?.source === "manual" && day?.adaptation !== "REPLACE" && day?.adaptation !== "REST",
@@ -168,6 +185,7 @@ export function weekSummary(
       plannedLabel: row ? (kind ? (TRAINING_KIND_LABELS[kind] ?? "Séance prévue") : "Séance prévue") : null,
       plannedDurationMin: row?.intervention?.duration_min ?? null,
       performed,
+      ...(performed ? withRealisation(legacyRealisation(date, completed)) : {}),
       adapted: false,
       modifiedByAthlete: row?.source === "manual",
       race: race ? race.eventName : null,

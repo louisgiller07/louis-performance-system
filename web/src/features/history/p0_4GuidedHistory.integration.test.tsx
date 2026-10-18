@@ -107,7 +107,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0-4 — History detail of a guided V2 se
         </Routes>
       </MemoryRouter>
     );
-    expect(await screen.findByTestId("history-guided-status", {}, { timeout: 15_000 })).toHaveTextContent("✓ Séance guidée terminée");
+    // PARTIAL-01 — 2 sets of one exercise recorded out of the whole prescription: partial, never « terminée » alone.
+    expect(await screen.findByTestId("history-guided-status", {}, { timeout: 15_000 })).toHaveTextContent("◐ Séance guidée partiellement réalisée");
     expect(screen.getAllByText(/^Réalisé : 8 répétitions/)).toHaveLength(2);
     expect(screen.getAllByText(a.itemName).length).toBeGreaterThan(0);
     expect(screen.queryByText("Pas de séance enregistrée.")).toBeNull();

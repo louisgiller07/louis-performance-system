@@ -4,6 +4,7 @@
 // Never a service/secret key. This module never calls daily-run, never
 // recomputes a plan, and never writes to decisions.
 import type { EffectiveExecution } from "../effectiveSession/effectiveDay";
+import { loadGuidedRealisations } from "../completion/guidedRealisationRepo";
 import { supabase } from "../../lib/supabase";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { CompletedSessionRecord } from "../completedSession/completedSessionTypes";
@@ -264,7 +265,11 @@ export async function loadDecisionsForDates(athleteId: string, dates: readonly s
   return ((data ?? []) as DecisionRow[]).map(toHistoryRow);
 }
 
-/** A07 — every V2 execution of `dates` with its lifecycle event types (open, completed, abandoned), one query. Empty input → no query. */
+/**
+ * A07 — every V2 execution of `dates` with its lifecycle event types (open, completed, abandoned), one query. Empty
+ * input → no query. PARTIAL-01 — a completed execution also carries its realisation (best effort, two more reads;
+ * absent when it cannot be read).
+ */
 export async function loadExecutionsForDates(athleteId: string, dates: readonly string[]): Promise<EffectiveExecution[]> {
   const uniqueDates = Array.from(new Set(dates));
   if (uniqueDates.length === 0) return [];
@@ -278,7 +283,7 @@ export async function loadExecutionsForDates(athleteId: string, dates: readonly 
     throw new HistoryLoadError();
   }
   type Row = { id: string; session_date: string; decision_id: string | null; final_prescription_id: string | null; started_at: string; execution_events: { event_type: string }[] | null };
-  return ((data ?? []) as Row[]).map((row) => ({
+  const executions: EffectiveExecution[] = ((data ?? []) as Row[]).map((row) => ({
     executionId: row.id,
     sessionDate: row.session_date,
     decisionId: row.decision_id,
@@ -286,6 +291,14 @@ export async function loadExecutionsForDates(athleteId: string, dates: readonly 
     startedAt: row.started_at,
     events: (row.execution_events ?? []).map((e) => e.event_type),
   }));
+  const realisations = await loadGuidedRealisations(
+    athleteId,
+    executions.filter((e) => e.events.includes("completed"))
+  );
+  return executions.map((e) => {
+    const realisation = realisations.get(e.executionId);
+    return realisation ? { ...e, realisation } : e;
+  });
 }
 
 /** UX-11R.9 (F-5b) — the day's guided session as the legacy debrief must see it. */

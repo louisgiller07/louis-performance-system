@@ -1,5 +1,5 @@
 import { BODY_STATUS_LABELS, BODY_STATUS_TONE, COACHING_SUSPENDED_TITLE, isCoachingSuspended } from "../dailyPlan/bodyStatus";
-import { guidedStatusLabel } from "./guidedHistory";
+import { GUIDED_PARTIAL_LABEL, guidedStatusLabel } from "./guidedHistory";
 import { Link } from "react-router-dom";
 import { formatLocalTime } from "../../lib/date";
 import { formatIntervention, LOAD_PROFILE_LABELS, TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
@@ -75,7 +75,9 @@ function recordedLine(day: HistoryDay, today: string): { text: string; recorded:
   // UX-11R.9 — a guided session completed that day (and no legacy record saying more); A07: it names the session executed.
   if (day.guided) {
     const label = effectiveLabel(day);
-    return { text: label ? `${GUIDED_RECORDED} — ${label}` : GUIDED_RECORDED, recorded: true };
+    // PARTIAL-01 — completed in part (its own results against its frozen prescription): never « terminée » alone.
+    const status = day.effective.realisation === "partial" ? GUIDED_PARTIAL_LABEL : GUIDED_RECORDED;
+    return { text: label ? `${status} — ${label}` : status, recorded: true };
   }
   if (day.completed) {
     const duration = day.completed.completion_status !== "skipped" && day.completed.actual_duration_min !== null ? ` · ${formatDuration(day.completed.actual_duration_min)}` : "";

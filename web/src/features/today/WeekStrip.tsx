@@ -27,7 +27,7 @@ export function WeekStrip({ week }: { week: WeekSummary }) {
       <WeekDaysPicker days={week.days} />
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted">✓ réalisée · ● aujourd'hui · ○ prévue · ⚑ course</p>
+        <p className="text-xs text-muted">✓ réalisée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course</p>
         <Link to="/training-plan" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
           Programme →
         </Link>

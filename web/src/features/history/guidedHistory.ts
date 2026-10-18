@@ -9,6 +9,9 @@ import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPresc
 /** "Séance guidée terminée / arrêtée / en cours / en pause". */
 export const guidedStatusLabel = (phase: ExecutionPhase): string => `Séance guidée ${PHASE_LABELS[phase]}`;
 
+/** PARTIAL-01 — a guided session completed with fewer work sets / passes than its own prescription. */
+export const GUIDED_PARTIAL_LABEL = "◐ Séance guidée partiellement réalisée";
+
 /** One recorded attempt of the decision, with its OWN frozen final prescription (null: none linked). */
 export interface GuidedAttempt {
   execution: ExecutionRow;

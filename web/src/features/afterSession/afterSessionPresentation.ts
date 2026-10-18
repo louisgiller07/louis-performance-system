@@ -42,6 +42,13 @@ export const GUIDED_DONE = {
   link: "Voir la séance guidée",
 } as const;
 
+/** PARTIAL-01 (HPM 2026-10-18) — completed with fewer work sets / passes than its own prescription (no reason guessed). */
+export const GUIDED_DONE_PARTIAL = {
+  title: "Séance guidée partiellement réalisée",
+  body: "Une partie de la séance prévue n'a pas été enregistrée. Tes résultats enregistrés sont conservés dans la séance guidée.",
+  link: "Voir la séance guidée",
+} as const;
+
 /** UX-11R.9 (F-5b) — a guided session is open today: it is the day's session, no separate debrief. */
 export const GUIDED_OPEN = {
   title: "Séance guidée en cours",

@@ -236,7 +236,8 @@ describe("HistoryDetailPage", () => {
       mockedLoadExecutions.mockResolvedValue([execution(["started", "completed"], [original, correction, result(SQUAT.prescriptionItemId, 2)], FORCE.id)]);
       mockedLoadPrescription.mockResolvedValue({ kind: "created", prescription: FORCE });
       renderDetailPage();
-      expect(await screen.findByTestId("history-guided-status")).toHaveTextContent("✓ Séance guidée terminée");
+      // PARTIAL-01 — completed with 2 of its prescribed sets (slot 3 empty): partial, never « terminée » alone.
+      expect(await screen.findByTestId("history-guided-status")).toHaveTextContent("◐ Séance guidée partiellement réalisée");
       const slot = (k: number) => (document.querySelector(`[data-slot="${SQUAT.prescriptionItemId.toLowerCase()}#${k}"]`) as HTMLElement).textContent;
       expect(slot(1)).toContain("Réalisé : 8 répétitions · RPE 7 · 20 kg · corrigée");
       expect(slot(2)).toContain("Réalisé : 8 répétitions · RPE 7 · 20 kg");

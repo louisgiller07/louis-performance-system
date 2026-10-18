@@ -4,22 +4,25 @@ import type { WeekDay } from "../features/today/todayContext";
 
 // UX-05 / UX-06 — the shared Monday → Sunday strip (Today's "Cette semaine"
 // and Programme's week timeline): one symbol per day (✓ réalisée ·
-// ● aujourd'hui · ○ prévue · ⚑ course) and the selected day spelled out
-// below — today by default (or `initialIndex`), any day on tap. Pure
-// presentation of the days it is given.
+// ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course) and the selected day
+// spelled out below — today by default (or `initialIndex`), any day on tap.
+// Pure presentation of the days it is given. PARTIAL-01 — a session done in
+// part never reads as fully done; one whose realisation could not be read
+// reads « Terminée »; stopped attempts read « Arrêtée », never done.
 const DAY_LETTERS = ["L", "M", "M", "J", "V", "S", "D"];
 const DAY_NAMES =["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
 function symbol(day: WeekDay): string {
   if (day.race) return "⚑";
-  if (day.performed) return "✓";
+  if (day.performed) return day.realisation === "partial" ? "◐" : "✓";
   if (day.isToday) return "●";
   if (day.planned) return "○";
   return "·";
 }
 
 function statusLabel(day: WeekDay): string {
-  if (day.performed) return "Réalisée";
+  if (day.performed) return day.realisation === "partial" ? "Partiellement réalisée" : day.realisation === "complete" ? "Réalisée" : "Terminée";
+  if (day.stopped) return "Arrêtée";
   if (day.isToday && day.planned) return "Aujourd'hui";
   if (day.planned) return day.isPast ? "Prévue, non enregistrée" : "Prévue";
   return "Aucune séance prévue";

@@ -6254,3 +6254,43 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 **Inchangés** : SQL (75), Edge (graphes identiques à la production), moteurs, CONSISTENCY-01, complétion partielle, PHYS, JARVIS ; aucune génération automatique.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/consistency-02-stale-today-mission`, depuis `31ca956`).
+
+## 2026-10-18 — ADR PARTIAL-01 : une séance partielle n'est jamais présentée comme entièrement réalisée
+
+> **Une séance guidée terminée avec moins de séries ou de passages que sa propre prescription se lit « partiellement réalisée » sur chaque écran ; une tentative arrêtée se lit « Arrêtée » ; une réalisation qui ne peut pas être lue reste neutre (« Terminée »), jamais « Réalisée ».** Présentation web seulement, à partir des données déjà persistées.
+
+**Constat (reproduit sur `940bb75`)**
+- Une séance guidée `completed` avec des séries ou des passages manquants s'affichait comme une séance complète :
+  - « Réalisée » dans les bandeaux de semaine (Aujourd'hui, Programme) et sur la carte de séance du Programme ;
+  - « ✓ Séance guidée terminée » dans l'Historique (carte, ligne, détail) et dans « Après ta séance » ;
+  - « Séance terminée » sur l'entrée de séance d'Aujourd'hui.
+- Un débrief V1 « Partielle » s'affichait « Réalisée » dans les bandeaux de semaine. L'Historique le disait déjà.
+- Une tentative arrêtée s'affichait « Prévue, non enregistrée » dans les bandeaux de semaine.
+- **Non en cause** :
+  - le serveur : `completed` reste une fin légitime d'une séance partielle (F-6C, `docs/05`) ;
+  - les moteurs : M1 compte une séance partielle comme réalisée, par conception (V0.3_007B). Le pont V2 → M1 transmet la séance prescrite (`final_session`) avec `completion_status: "done"` ;
+  - le moteur longitudinal : il ne lit que `completed_sessions` (V1). Limite existante, inchangée.
+
+**Règle appliquée**
+- **Réalisation d'une séance guidée `completed`** : sa propre prescription figée (`decision_final_prescriptions`) comparée à ses résultats actifs (`exercise_set_results`, corrections appliquées).
+  - Les règles sont celles de la séance elle-même (`strengthProgress` / `dhProgress`, qui demandent déjà « Terminer quand même ? »).
+  - Toutes les séries de travail prévues (Force) ou tous les passages prévus (DH) réalisés → complète. Moins → partielle.
+  - Endurance, récupération, mobilité : complète une fois terminée, car aucun nombre d'unités n'est prescrit.
+- **Débrief V1** : `partial` → partielle ; `done` / `replaced` → réalisée. Les libellés V1 sont inchangés là où ils existaient.
+- **Réalisation illisible** (lecture en échec, prescription non décodable, résultats ambigus) → « Terminée » dans les bandeaux et sur la carte du Programme ; libellés « terminée » existants ailleurs.
+- Aucune série, aucun motif d'arrêt inventé. Aucun statut serveur nouveau. Les compteurs ne changent pas : « réalisées » compte toujours une séance partielle.
+
+**Implémentation (web)**
+- `completion/guidedRealisation.ts` (pur).
+- `completion/guidedRealisationRepo.ts` : deux lectures RLS groupées pour toutes les exécutions terminées, au mieux. Un échec ne fait jamais échouer l'écran.
+- `historyRepo.loadExecutionsForDates` porte la `realisation` des exécutions terminées.
+- Modèle effectif : `EffectiveDay.realisation`.
+- Bandeaux de semaine : `WeekDay.realisation` / `stopped`. `WeekDaysPicker` affiche « Partiellement réalisée » (◐), « Terminée » et « Arrêtée » ; légende « ◐ partielle ».
+- Libellés partiels ajoutés ailleurs :
+  - carte du Programme ;
+  - Historique : carte, ligne et détail ;
+  - Aujourd'hui : note sur l'entrée de séance, et « Après ta séance ».
+
+**Inchangés** : SQL (75), Edge, moteurs (M1 gelé, charge récente, longitudinal), verrou d'une séance principale par jour, P0-SAFE, CONSISTENCY-01 et -02, PHYS, ART-02, JARVIS.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/partial-01-partial-sessions`, depuis `940bb75`).

@@ -17,6 +17,8 @@ import type { CompletedSessionRecord } from "../completedSession/completedSessio
 import type { DailyPlan, TrainingIntervention } from "../dailyPlan/dailyPlanTypes";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { DecisionHistoryRow } from "../history/historyTypes";
+import type { SessionRealisation } from "../completion/guidedRealisation";
+import { legacyRealisation } from "../completion/dayCompletion";
 
 export interface EffectiveExecution {
   executionId: string;
@@ -26,6 +28,8 @@ export interface EffectiveExecution {
   startedAt: string;
   /** Lifecycle event types of the execution (any order). */
   events: readonly string[];
+  /** PARTIAL-01 — a completed execution: how much of its own frozen prescription it recorded (absent: could not be read). */
+  realisation?: SessionRealisation;
 }
 
 /** A planned session as each screen knows it (planned_sessions row, or the plan's generated session). */
@@ -67,6 +71,12 @@ export interface EffectiveDay {
   decisionId: string | null;
   executionId: string | null;
   finalPrescriptionId: string | null;
+  /**
+   * PARTIAL-01 — a completed day: "complete" or "partial" (a V2 execution's own results against its frozen
+   * prescription, a V1 debrief's completion_status). Absent: not completed, or the realisation could not be read
+   * (shown neutrally, never as fully done).
+   */
+  realisation?: SessionRealisation;
 }
 
 const TERMINAL = ["completed", "abandoned"];
@@ -80,6 +90,12 @@ function adaptationOf(plan: DailyPlan): EffectiveDay["adaptation"] {
   if (plan.decision === "REST") return plan.planned_session_before ? "REST" : null;
   if (plan.planned_session_before === null || plan.decision === "KEEP") return null;
   return plan.decision;
+}
+
+/** PARTIAL-01 — a day completed by a V1 debrief carries the debrief's realisation. */
+function legacyRealisationOf(date: string, legacy: readonly CompletedSessionRecord[]): { realisation?: SessionRealisation } {
+  const realisation = legacyRealisation(date, legacy);
+  return realisation ? { realisation } : {};
 }
 
 export function effectiveDay(date: string, sources: EffectiveSources): EffectiveDay {
@@ -106,6 +122,7 @@ export function effectiveDay(date: string, sources: EffectiveSources): Effective
       decisionId: execution.decisionId,
       executionId: execution.executionId,
       finalPrescriptionId: execution.finalPrescriptionId,
+      ...(completedExecution?.realisation ? { realisation: completedExecution.realisation } : {}),
     };
   }
 
@@ -124,14 +141,15 @@ export function effectiveDay(date: string, sources: EffectiveSources): Effective
       decisionId: latest.id,
       executionId: executions[0]?.executionId ?? null,
       finalPrescriptionId: null,
+      ...legacyRealisationOf(date, sources.legacy),
     };
   }
 
   // 3. The plan.
   if (plannedRow) {
-    return { date, session: plannedRow, status: legacyDone ? "completed" : legacySkipped ? "skipped" : "planned", source: "planned", adaptation: null, planned: plannedRow, decisionId: null, executionId: null, finalPrescriptionId: null };
+    return { date, session: plannedRow, status: legacyDone ? "completed" : legacySkipped ? "skipped" : "planned", source: "planned", adaptation: null, planned: plannedRow, decisionId: null, executionId: null, finalPrescriptionId: null, ...legacyRealisationOf(date, sources.legacy) };
   }
-  return { date, session: null, status: legacyDone ? "completed" : "none", source: "none", adaptation: null, planned: null, decisionId: null, executionId: null, finalPrescriptionId: null };
+  return { date, session: null, status: legacyDone ? "completed" : "none", source: "none", adaptation: null, planned: null, decisionId: null, executionId: null, finalPrescriptionId: null, ...legacyRealisationOf(date, sources.legacy) };
 }
 
 export function effectiveDays(dates: readonly string[], sources: EffectiveSources): EffectiveDay[] {

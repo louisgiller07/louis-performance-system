@@ -46,7 +46,9 @@ function effectiveMeta(session: TrainingIntervention): string {
 function effectiveStatus(effective: EffectiveDay, completion: CompletionStatus | null): string | null {
   switch (effective.status) {
     case "completed":
-      return completion && completion !== "skipped" ? COMPLETION_STATUS_LABELS[completion] : "Réalisée";
+      // PARTIAL-01 — a guided session done in part says so; a realisation that could not be read stays neutral.
+      if (completion && completion !== "skipped") return COMPLETION_STATUS_LABELS[completion];
+      return effective.realisation === "partial" ? "Partiellement réalisée" : effective.realisation === "complete" ? "Réalisée" : "Terminée";
     case "rest":
       return "Repos décidé";
     case "in_progress":

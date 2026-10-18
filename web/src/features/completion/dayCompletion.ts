@@ -10,6 +10,7 @@
 // 3. otherwise the day is not done. A guided execution that is open or
 //    abandoned never counts; nothing is inferred from an absent row.
 import type { CompletedSessionRecord, CompletionStatus } from "../completedSession/completedSessionTypes";
+import type { SessionRealisation } from "./guidedRealisation";
 
 /** A guided V2 execution that reached `completed` (session_executions + execution_events). */
 export interface GuidedCompletion {
@@ -34,6 +35,16 @@ export function dayCompletion(date: string, legacy: readonly CompletedSessionRec
   }
   const execution = guided.find((row) => row.sessionDate === date);
   return execution ? { source: "guided", date, guided: execution } : null;
+}
+
+/**
+ * PARTIAL-01 — what the day's V1 debrief tells of its realisation, with dayCompletion's own order: « partial » is
+ * partial; done / replaced were performed (replaced: as another session). undefined: no V1 debrief done that day.
+ */
+export function legacyRealisation(date: string, legacy: readonly CompletedSessionRecord[]): SessionRealisation | undefined {
+  const completion = dayCompletion(date, legacy, []);
+  if (completion?.source !== "legacy") return undefined;
+  return completion.status === "partial" ? "partial" : "complete";
 }
 
 export function isDayDone(date: string, legacy: readonly CompletedSessionRecord[], guided: readonly GuidedCompletion[]): boolean {

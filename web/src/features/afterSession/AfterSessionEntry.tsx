@@ -6,7 +6,7 @@ import { CheckinSheet } from "../checkin/CheckinSheet";
 import { useCompletedSessionFlow } from "./useCompletedSessionFlow";
 import { AfterSessionFlow } from "./AfterSessionFlow";
 import { AfterSessionSummary } from "./AfterSessionSummary";
-import { BUTTONS, ENTRY, GUIDED_DONE, GUIDED_OPEN, GUIDED_STOPPED, GUIDED_SUSPENDED } from "./afterSessionPresentation";
+import { BUTTONS, ENTRY, GUIDED_DONE, GUIDED_DONE_PARTIAL, GUIDED_OPEN, GUIDED_STOPPED, GUIDED_SUSPENDED } from "./afterSessionPresentation";
 import { loadDaySafetyRest, loadGuidedDayState, type GuidedDayState } from "../history/historyRepo";
 import { useEffectiveDays } from "../effectiveSession/effectiveSessionRepo";
 import { formatIntervention } from "../dailyPlan/dailyPlanLabels";
@@ -103,7 +103,8 @@ export function AfterSessionEntry({ date, athleteId, healthSuspended = false }: 
   // INT-01 — a stopped attempt without result: the debrief stays open, « Non réalisée » only after a Safety REST.
   const safetyRest = useDaySafetyRest(date, athleteId, reloadKey, guided === "stopped" && !healthSuspended);
   const dates = useMemo(() => [date], [date]);
-  const executed = executedSessionLabel(useEffectiveDays(athleteId, dates, [])?.[0]);
+  const effective = useEffectiveDays(athleteId, dates, [])?.[0];
+  const executed = executedSessionLabel(effective);
   const [fresh, setFresh] = useState(false);
   const [isNew, setIsNew] = useState(true);
 
@@ -141,7 +142,8 @@ export function AfterSessionEntry({ date, athleteId, healthSuspended = false }: 
   // no edit: the server refuses it too, completed_session_v2_exists). A legacy record that already exists stays readable.
   // A day whose attempts were all stopped reads like a day without one.
   if (guided === "completed" || guided === "open") {
-    const copy = guided === "completed" ? GUIDED_DONE : GUIDED_OPEN;
+    // PARTIAL-01 — a guided session completed in part says so.
+    const copy = guided === "open" ? GUIDED_OPEN : effective?.realisation === "partial" ? GUIDED_DONE_PARTIAL : GUIDED_DONE;
     // Canonical precedence (dayCompletion.ts): a non-skipped legacy record says more and stays readable;
     // a `skipped` one yields to the guided session.
     return flow.record && flow.record.completion_status !== "skipped" ? (
