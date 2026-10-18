@@ -6481,3 +6481,26 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 - Seuls `trailingVolumeMinutes` et `recentMissedOrReplacedCount` du snapshot V2 changent. `recentSessionKinds`, le snapshot V1, M1, le planificateur et ses seuils (180 min, 2 manquées, PROVISIONAL, non validés pour une activation commerciale), `daily-run` et le web sont inchangés. Aucune migration.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `int/v2-phys-integration-01`). Rapport `docs/release/v2-l2-01/V2_L2_01A_REPORT.md`.
+
+## 2026-10-18 — ADR V2-PHYS-RELEASE-GATE-01 : une release intégrée, tous les nouveaux interrupteurs absents
+
+> **Une seule release regroupe PHYS isolé par interrupteurs, POWER-GUARD-01 (migration 76) et V2-L2-01a, tous les nouveaux secrets absents.** Son comportement est celui de la production `863f3fb`, prouvé par différentiel. Aucune activation n'est décidée ici. Préparation locale seulement.
+
+**Contenu** (branche `int/v2-phys-integration-01`, depuis `863f3fb`) :
+- PHYS-01 à PHYS-04 et leur isolation (ADR V2-PHYS-INTEGRATION-01) ;
+- POWER-GUARD-01 (ADR POWER-GUARD-01, migration `20261018120000`) ;
+- V2-L2-01a (ADR V2-L2-01a) ;
+- branche documentaire `7c180a8` (rapport V2-PHYS-READINESS-01, PARTIAL-01 CLOSED), fusionnée sans changement de code.
+
+**Canon appliqué** (approuvé avec ces trois décisions) :
+- `docs/05` : garde POWER-GUARD-01 (après F-6C) ; tableau des interrupteurs serveur V2 et sens de OFF ;
+- `docs/04` : interrupteurs du chemin quotidien V2, sans règle sportive nouvelle ;
+- `docs/10` : **T65**, un seul scénario pour la release (isolation, garde POWER, historique V2).
+
+**Non appliqué** (non approuvé, reste bloquant pour l'activation) : les règles sportives PHYS proposées pour `docs/03`, `docs/04` et `docs/07` (`docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`), le guidage fondé sur la performance réelle (`docs/03` §10), l'exception aux intervalles (ADR UX-11A.5a.3 §5).
+
+**Numérotation** : les propositions PHYS numérotaient T64 à T67, et deux rapports proposaient chacun un T65. T64 est déjà PARTIAL-01. T65 regroupe donc la release ; les scénarios PHYS seront numérotés à leur approbation.
+
+**Ordre de livraison** : précontrôles, migration 76, `daily-run` puis `generate-training-plan`, web, vérification des secrets, contrôles sans écriture. La migration précède toute activation de `NALYNT_V2_POWER_ENABLED`.
+
+**Statut** : READY FOR GATE (local). Rapport et procédure : `docs/release/v2-phys-release-gate-01/V2_PHYS_RELEASE_GATE_01_REPORT.md`. Aucun push, déploiement ni secret.

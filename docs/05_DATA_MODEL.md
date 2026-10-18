@@ -365,6 +365,7 @@ Les lignes enregistrées après un état terminal sous l'ancien contrat restent 
   - « Terminée » garde son sens : une séance partielle reste une fin légitime (règle de l'écran Force guidé, UX-11C.2), sans exiger 100 % des séries.
   - Refus : `strength_set_required` (HTTP 422) ; tout le lot est annulé.
   - Une prescription Force sans aucune série de travail n'exige rien (défensif).
+- **POWER-GUARD-01 — fin d'une séance de puissance** (`record_session_execution`, migration additive `20261018120000`, HPM 2026-10-18) : la règle F-6C s'applique aussi à une prescription de famille `power` (PHYS-03, exercices explosifs en blocs `main`) : au moins une série active, réalisée, sur un exercice de travail de sa prescription. Une séance partielle reste légitime. Refus `strength_set_required` (HTTP 422), lot annulé. Mobilité et récupération : aucun résultat exigé. Préalable à toute activation de `NALYNT_V2_POWER_ENABLED`.
 - **F-6B / F-5b — une séance principale par jour** (`record_session_execution`) : pour le **même athlète** et la **même `session_date`**, une séance est déjà terminée si :
   - une exécution V2 a un événement `completed`, quelle que soit sa prescription ;
   - ou une ligne legacy `completed_sessions` existe avec un statut autre que `skipped` (un `skipped` ne compte pas).
@@ -496,6 +497,25 @@ Configuration serveur, hors modèle coaching : quel modèle de planification uti
 | `created_at`, `updated_at` | `timestamptz` | `now()` ; `updated_at` par trigger `set_updated_at` |
 
 Accès : RLS activée sans policy ; aucun privilège pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`, `UPDATE`, `DELETE` seulement. Aucune ligne créée par la migration : table vide → tout le monde en V1. Résolution : interrupteur inactif → V1, **sauf athlète affecté `v2` → génération refusée** (`assigned_v2_disabled`, HTTP 503 `v2_generation_disabled`, rien n'est écrit) ; actif sans ligne → V1 ; `v1` → V1 ; `v2` → V2. **Aucun repli V1 n'est autorisé pour un athlète explicitement affecté `v2`** (garde de la bêta payante, A09). L'interrupteur reste un vrai kill switch de la génération V2. Ne gouverne pas Daily, les prescriptions du jour ni les exécutions, qui suivent les plans persistés. Les événements `plan_generation_*` de `pilot_observability_events` portent `metadata.planningModel` et `metadata.rolloutReason`. Voir `11_DECISION_LOG.md` (ADR UX-11R.2) et `docs/release/UX-11R_RELEASE_CANDIDATE.md` §7.
+
+### Interrupteurs serveur V2 (V2-PHYS-INTEGRATION-01, V2-L2-01a — release V2-PHYS-RELEASE-GATE-01, HPM 2026-10-18)
+
+Secrets Edge lus **côté serveur uniquement**, jamais depuis la requête. Seule la valeur exacte `"true"` active ; absent, vide, `"TRUE"`, `"1"`… = OFF (`parseV2PlanGenerationFlag`). Aucune table ni colonne : un interrupteur ON écrit seulement des valeurs JSON additives dans les colonnes existantes (séances du plan, prescriptions, `dose_summary.progression`, snapshot).
+
+| Secret | Lu par | Ouvre (ON) | État de la release |
+|---|---|---|---|
+| `NALYNT_V2_PLAN_GENERATION_ENABLED` (UX-11R.2) | `generate-training-plan` | éligibilité V2 des athlètes affectés (`training_plan_model_assignments`) | inchangé |
+| `NALYNT_V2_PHYS_DAILY_ENABLED` | `daily-run` | ajouts quotidiens PHYS-01.1 (Force) et PHYS-02 (guidage d'endurance) | absent |
+| `NALYNT_V2_PHYS_PERFORMANCE_GUIDANCE_ENABLED` | `daily-run`, effectif seulement avec le précédent | conseils fondés sur la performance réelle (charge PHYS-01, répétitions PHYS-04) | absent ; **interdit** tant que `docs/03` §10 l'exclut |
+| `NALYNT_V2_ENDURANCE_INTERVALS_ENABLED` | `generate-training-plan`, `daily-run` | fractionné dans les nouveaux plans ; séance manuelle et REPLACE de fractionné | absent |
+| `NALYNT_V2_POWER_ENABLED` | `generate-training-plan`, `daily-run` | séance de puissance dans les nouveaux plans ; manuelle et REPLACE | absent ; **jamais avant POWER-GUARD-01** (`20261018120000`) |
+| `NALYNT_V2_MOBILITY_ENABLED` | `generate-training-plan`, `daily-run` | séance de mobilité dans les nouveaux plans ; manuelle et REPLACE | absent |
+| `NALYNT_V2_L2_HISTORY_ENABLED` | `generate-training-plan` | historique V2 de la génération (section suivante) | absent |
+
+- **Tous les nouveaux secrets absents** : le comportement de production `863f3fb` exactement (génération, quotidien, séances manuelles et REPLACE), prouvé par différentiel contre le runtime compilé de production.
+- **OFF ne réécrit rien.** Une séance d'une famille PHYS déjà présente dans un programme accepté reste servie avec ses propres règles ; un programme, un snapshot ou une prescription persistés sous ON restent tels quels. Éteindre un interrupteur ne restaure jamais un programme déjà généré.
+- **Portée globale** : chaque secret vaut pour tous les riders V2 à la fois (aucune activation par rider).
+- **Activation** : décision HPM distincte pour chaque secret. Les comportements PHYS restent des propositions non canoniques à paramètres PROVISIONAL (`docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`) ; leur canon (`docs/03`, `docs/04`, `docs/07`) est décidé avant toute activation.
 
 ### Historique de la génération V2 (V2-L2-01a, HPM 2026-10-18 — local, flag `NALYNT_V2_L2_HISTORY_ENABLED` OFF par défaut)
 

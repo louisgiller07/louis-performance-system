@@ -528,6 +528,15 @@ Depuis l'ADR P0 (2026-10-07), le chemin M1 normal n'atteint plus ce cas : M1 pla
   - A04 (`upward_modify_not_supported`) reste la garde défensive ;
   - A10 (temps disponible) s'applique ensuite et ne fait que descendre.
 
+### Interrupteurs du chemin quotidien V2 (V2-PHYS-INTEGRATION-01, HPM 2026-10-18)
+
+`daily-run` lit, côté serveur seulement, `NALYNT_V2_PHYS_DAILY_ENABLED`, `NALYNT_V2_PHYS_PERFORMANCE_GUIDANCE_ENABLED` (effectif seulement avec le précédent) et les secrets de famille `NALYNT_V2_ENDURANCE_INTERVALS_ENABLED`, `NALYNT_V2_POWER_ENABLED`, `NALYNT_V2_MOBILITY_ENABLED` (liste et portée : `docs/05`, « Interrupteurs serveur V2 »). Seule la valeur exacte `"true"` active.
+
+- **Tous absents** : le chemin quotidien V2 de production, exactement. Aucun ajout au contenu du jour, aucun guidage écrit, A10 tel que décrit ci-dessus, aucune famille nouvelle atteignable par une séance manuelle ou un REPLACE.
+- **Programme déjà accepté** : une séance de fractionné, de puissance ou de mobilité qu'il contient est servie avec ses propres règles quel que soit l'interrupteur. Fermer une famille ne casse jamais un programme en cours ; cela ne le modifie pas non plus.
+- **Inchangés** : P0-SAFE, prioritaire ; M1, non modifié.
+- Les règles quotidiennes PHYS derrière ces interrupteurs (PHYS-01.1 à PHYS-04) **ne sont pas canoniques** : propositions PROVISIONAL (`docs/release/PHYS_01_PROPOSED_CANON_DIFFS.md`), à décider avant toute activation. Le guidage fondé sur la performance réelle reste exclu (`docs/03` §10).
+
 ### Priorisation des domaines
 
 Cible normale : 2 à 4 domaines actifs par jour.

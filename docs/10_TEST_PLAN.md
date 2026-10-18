@@ -703,6 +703,20 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Intégration web, base locale** (`p0_4GuidedHistory.integration.test.tsx`) : vraie page de détail sous RLS avec une séance Force réellement enregistrée ; autre rider : décision introuvable, exécutions et prescription illisibles.
 - **Navigateur réel** (Chromium mobile, pile locale) : DH 5/5, Force 7/7 après changement de programme, DH arrêtée 2/2, V1 inchangée, séance en cours, décision plus récente du même jour (lien), arrêt puis REST A6, jour REST, rechargement et accès direct identiques, autre rider « Journée introuvable » sans fuite.
 
+### T65. Release V2-PHYS — isolation par interrupteurs, POWER-GUARD-01, historique V2 de la génération (HPM 2026-10-18)
+Règles : ADR V2-PHYS-INTEGRATION-01, POWER-GUARD-01, V2-L2-01a, V2-PHYS-RELEASE-GATE-01 (`docs/11`) ; interrupteurs `docs/05`.
+- **Tous les interrupteurs OFF = production `863f3fb`** :
+  - planning-engine (`phys00FlagsOffEquivalence.test.ts`) : différentiel contre le runtime compilé de production (`PHYS011_PREVIOUS_RUNTIME_ROOT`) ; plans, cas quotidiens planifiés (KEEP, MODIFY, REPLACE, limites de temps) et cas manuels identiques ; contre-épreuve ON : différences trouvées ;
+  - base réelle (`physSwitches.integration.test.ts`) : mêmes jours, production et candidat ; quotidien OFF / ON ; séance manuelle OFF → ON → OFF ; programme accepté contenant une séance de puissance, interrupteur OFF : servie ;
+  - lecteur de secrets : seule la valeur exacte `"true"` active ;
+  - retour arrière : le runtime de production sert les données écrites par le candidat (`phys011…` à `phys04PreviousRuntimeCompat.integration.test.ts`) ; requêtes de précondition `docs/release/phys0*-rollback`.
+- **POWER-GUARD-01** (`powerGuard01.integration.test.ts`, HTTP réel, JWT du rider) : mode `absent` à 75 migrations reproduit le défaut ; mode `installed` à 76 : zéro série → 422 `strength_set_required`, une série → terminée (partielle), résultats invalidés → refus, garde santé prioritaire, rejeu idempotent, Force / DH / mobilité inchangées, RPC appelée directement → même refus ; empreinte de la fonction (installée, retour arrière = `20261013160000`).
+- **V2-L2-01a** :
+  - unitaires (`mapping/planHistoryV2.test.ts`, `planHistoryV2Repo.test.ts`, `buildPlanInputSnapshotV2.history.test.ts`, `generation/v2HistoryFlag.test.ts`) : fenêtre, un fait par jour, 202 min exactes, partielles à 0, puissance / mobilité / récupération à 0, chaque preuve de séance manquée, plusieurs décisions, signaux de santé, déterminisme ; lectures filtrées, refus sur erreur ou plafond ; OFF = snapshot historique octet pour octet ;
+  - intégration (`v2L2History.integration.test.ts`, chemins réels) : scénarios 1 à 12 du rapport V2-L2-01, rôles et doses du plan généré, OFF comparé au runtime de production ;
+  - Edge (`v2L2HistoryEdge.integration.test.ts`) : secret absent → introduction ; `"true"` → build.
+- **Graphes Edge** : seuls `daily-run` et `generate-training-plan` diffèrent de la production ; les huit autres fonctions ont l'empreinte de production.
+
 ### T64. PARTIAL-01 — une séance partielle n'est jamais présentée comme entièrement réalisée (HPM 2026-10-18)
 Règle : ADR PARTIAL-01 (`docs/11`). Présentation web seulement ; serveur, Edge et moteurs inchangés.
 - **Règle de réalisation** (`web/src/features/completion/guidedRealisation.test.ts`) :
