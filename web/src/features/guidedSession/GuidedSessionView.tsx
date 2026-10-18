@@ -15,6 +15,7 @@ import { Link } from "react-router-dom";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
+import { DayGuidanceSections } from "../dailyPlan/dayGuidance";
 import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, HEALTH_BLOCK_COPY, PHASE_LABELS } from "./guidedSessionCopy";
 import { resolveSessionModule, type ModulePending, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
@@ -124,6 +125,8 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
   const healthBlock = open && snapshot.kind === "execution" ? snapshot.healthBlock : undefined;
   // P0-3 — training actions (results, pause / resume, completion) only when nothing blocks them.
   const trainable = open && !healthBlock;
+  // SPORT-SAFE-01R — M1's protection and monitoring before the start and while the session goes on; never read only.
+  const guidance = snapshot.kind === "ready_to_start" ? snapshot.guidance : trainable ? snapshot.guidance : undefined;
   const module = prescription ? resolveSessionModule(prescription) : null;
   const context = prescription ? { prescription, executionId, phase, setResults, activityResults, uiState: moduleState } : null;
   const completion = module && context ? module.completion(context, now) : null;
@@ -157,6 +160,8 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
           )}
         </div>
       )}
+
+      {guidance && <DayGuidanceSections guidance={guidance} />}
 
       {module && context ? (
         <module.Content {...context} editable={trainable} busy={busy} setUiState={setModuleState} submit={onSubmit} newId={newId} now={now} />

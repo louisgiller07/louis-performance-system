@@ -2,6 +2,7 @@ import { TRAINING_MODE_LABELS } from "./dailyPlanLabels";
 import { missionStatus } from "./missionStatus";
 import { athleteSafeReasoning } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
+import { bodyStatusOf } from "./bodyStatus";
 
 // V0.3 UX PREMIUM REDESIGN — presentation-only accent per decision. REST
 // is SAFETY-driven (rules/safety.ts A1-A4) and deliberately stays on the
@@ -48,6 +49,9 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   // triggered_rule.detail); see safetyPresentation.ts.
   const reasoning = athleteSafeReasoning(dailyPlan);
   const accent = DECISION_ACCENT[dailyPlan.decision] ?? DECISION_ACCENT.KEEP;
+  // SPORT-SAFE-01R (HPM 2026-10-18) — a declared pain M1 adapted for (PAIN_NON_SAFETY, « Douleur signalée ») asks for
+  // caution: no « prêt à performer » tagline that would play it down. The decision and M1's guidance stay shown.
+  const tagline = bodyStatusOf(dailyPlan) === "watch" ? undefined : accent.tagline;
 
   return (
     <div className={`rounded-xl border bg-card p-5 ${accent.border} ${accent.ring}`}>
@@ -57,9 +61,7 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
       </div>
       <p className={`mt-2 font-display text-3xl font-extrabold uppercase leading-tight ${accent.text}`}>{status}</p>
       <p className="mt-4 text-sm leading-relaxed text-ink/90">{reasoning}</p>
-      {accent.tagline && (
-        <p className={`mt-4 text-xs font-semibold uppercase tracking-wide ${accent.text}`}>✓ {accent.tagline}</p>
-      )}
+      {tagline && <p className={`mt-4 text-xs font-semibold uppercase tracking-wide ${accent.text}`}>✓ {tagline}</p>}
     </div>
   );
 }

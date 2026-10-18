@@ -20,7 +20,12 @@
 // the check-in), read from the persisted signals and decision: the screen then
 // offers no resume and no new result, only a safe stop. The server refuses those
 // actions anyway (record_session_execution, migration 20261013160000).
-import { loadLatestDecisionForDate } from "../history/historyRepo";
+// SPORT-SAFE-01R (HPM 2026-10-18, A1) — a session the rider can start or go on with carries M1's guidance of ITS
+// decision (`guidance`: protection and monitoring, see dayGuidance.tsx): the current decision before the start, the
+// execution's own decision (decision_id) while it is open. Read only or blocked: no guidance (nothing to train).
+import { loadDecisionById, loadLatestDecisionForDate } from "../history/historyRepo";
+import { dayGuidanceOf, type DayGuidance } from "../dailyPlan/dayGuidance";
+import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import { loadDecisionCurrency } from "../dailyPlan/decisionCurrencyRepo";
 import { loadFinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2State";
 import type { FinalPrescriptionV2State, FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -42,8 +47,10 @@ export type GuidedSessionSnapshot =
       restartFinalPrescriptionId?: string;
       /** P0-3 — set only on an OPEN execution that cannot go on (no resume, no new result; a safe stop stays possible). */
       healthBlock?: HealthBlock;
+      /** SPORT-SAFE-01R — set only on an OPEN execution that can go on: M1's guidance of the execution's own decision. */
+      guidance?: DayGuidance;
     }
-  | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View }
+  | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View; guidance?: DayGuidance }
   | { kind: "unavailable"; reason: UnavailableReason };
 
 function unavailableFor(state: FinalPrescriptionV2State | undefined): UnavailableReason {
@@ -83,7 +90,9 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
       ? await loadExecutionPrescription(dayExecution.execution.final_prescription_id)
       : { kind: "final_prescription_missing" };
     const healthBlock = await openExecutionHealthBlock(athleteId, date, prescription);
-    return { kind: "execution", ...dayExecution, prescription, ...(healthBlock ? { healthBlock } : {}) };
+    if (healthBlock) return { kind: "execution", ...dayExecution, prescription, healthBlock };
+    const guidance = await executionGuidance(athleteId, dayExecution.execution);
+    return { kind: "execution", ...dayExecution, prescription, ...(guidance ? { guidance } : {}) };
   }
 
   // UX-11R.9 (R9-UI-01) — a COMPLETED execution of the day is the day's session (one main session per
@@ -126,5 +135,15 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
       ? { kind: "execution", ...dayExecution, prescription: state, restartFinalPrescriptionId: current.id }
       : { kind: "execution", ...dayExecution, prescription: state };
   }
-  return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current };
+  // loadLatestDecisionForDate only returns a row whose daily plan passed isValidDailyPlan.
+  const guidance = dayGuidanceOf(decision.dailyPlan as DailyPlan);
+  return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current, ...(guidance ? { guidance } : {}) };
+}
+
+/** SPORT-SAFE-01R — M1's guidance of the decision the open execution was started from; none without that decision. */
+async function executionGuidance(athleteId: string, execution: ExecutionRow): Promise<DayGuidance | null> {
+  if (typeof execution.decision_id !== "string") return null;
+  const decision = await loadDecisionById(athleteId, execution.decision_id);
+  // A row this screen cannot read as a daily plan gives no guidance (never a text of the browser's own).
+  return decision !== null && isValidDailyPlan(decision.dailyPlan) ? dayGuidanceOf(decision.dailyPlan as DailyPlan) : null;
 }
