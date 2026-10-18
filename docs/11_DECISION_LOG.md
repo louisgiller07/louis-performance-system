@@ -6426,3 +6426,35 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 - V2-L1 et V2-L2.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `int/v2-phys-integration-01`, depuis `863f3fb`). Aucun flag activé.
+
+## 2026-10-18 — ADR POWER-GUARD-01 : une séance de puissance ne se termine pas sans série de travail
+
+> **La règle F-6C de la Force s'applique aussi à la famille `power` (PHYS-03).** Une séance de puissance n'est terminée qu'avec au moins une série de travail active et réalisée. Une séance partielle reste une fin légitime. Local seulement, migration non déployée.
+
+**Constat (reproduit sur la pile à 75 migrations)**
+- `record_session_execution` (`20261013160000`) contrôlait la fin de séance pour `strength`, `dh_technical` et une activité, mais pas pour `power`.
+- Une séance de puissance se terminait donc sans aucune série, aussi bien par l'Edge `session-execution` que par la RPC appelée directement. C'était aussi le cas avec uniquement des résultats invalidés.
+
+**Contrat (F-6C étendue)**
+- Au moins une série :
+  - **active** : aucune correction ne la remplace ;
+  - **réalisée** : `done = true` ;
+  - sur un exercice que **sa** prescription place dans un bloc `main` ou `complementary` ;
+  - avant le `completed` ou dans le même lot.
+- Ne comptent pas : une série non réalisée, un échauffement, un « autre exercice », une série corrigée en non réalisée.
+- Refus : `strength_set_required` (HTTP 422). Le message est déjà celui de l'écran guidé, que la séance de puissance partage avec la Force (« Enregistre au moins une série de travail… »). Tout le lot est annulé.
+- **Inchangés** :
+  - la garde santé, prioritaire : elle joue au `completed`, avant les invariants de fin de lot ;
+  - les rejeux identiques, jamais recontrôlés ;
+  - F-6A (DH), F-6C (Force), la garde d'activité, une séance principale par jour ;
+  - la mobilité et la récupération : aucun résultat exigé.
+- **Seul chemin d'écriture** : `record_session_execution`. `authenticated` et `service_role` n'ont que `SELECT` sur les tables d'exécution.
+
+**Implémentation** : migration `20261018120000_power_guard_01_power_set_required.sql`.
+- Elle redéfinit la fonction, copiée mot pour mot de `20261013160000`. Seule change la condition `family = 'strength'`, qui devient `family in ('strength', 'power')`, avec son commentaire.
+- Signature, `SECURITY DEFINER`, `search_path`, propriétaire et droits sont identiques. Aucune table, aucune donnée.
+- Script de retour arrière (pas une migration) : `supabase/rollbacks/power-guard-01/`.
+
+**Canon** : diff proposé pour `docs/05` (invariants UX-11R.9, F-6C), à appliquer sur accord HPM avant la release (rapport POWER-GUARD-01).
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `int/v2-phys-integration-01`, au-dessus de `36b0b3f`). `NALYNT_V2_POWER_ENABLED` reste OFF.
