@@ -155,6 +155,8 @@ describe("A04 — MODIFY: same session, lower dose, real content", () => {
     expect(f.structure.blocks.map((b) => b.instructionIds)).toEqual(planned.blocks.map((b) => b.instructionIds));
   });
 
+  // SPORT-SAFE-01 — the builder alone. When the planned session is already 45 min this is the planned content itself:
+  // the daily entry point (buildFinalPrescriptionWithinTodayTimeV2) refuses it (sportSafe01EnduranceLight.test.ts).
   it("endurance MODERATE → LIGHT: same protocol and activities, 45 min", () => {
     const s = session("AEROBIC_BASE");
     const f = created(buildFinalPrescriptionV2(input(s, "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT" })));

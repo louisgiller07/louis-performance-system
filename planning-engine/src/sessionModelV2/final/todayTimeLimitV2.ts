@@ -36,6 +36,7 @@ import { buildFinalPrescriptionV2, type BuildFinalPrescriptionV2Input } from "./
 import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
 import type { FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
 import { PHYS_SWITCHES_OFF_V2, type PhysSwitchesV2 } from "./physSwitchesV2.js";
+import { canonicalSportContent } from "../sportFingerprint.js";
 
 type Decision = BuildFinalPrescriptionV2Input["decision"]["decision"];
 type FinalSession = BuildFinalPrescriptionV2Input["decision"]["finalSession"];
@@ -155,9 +156,25 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
   return out;
 }
 
+/**
+ * SPORT-SAFE-01 (HPM 2026-10-18) — ADR A04 §6 on the day's outcome: a MODIFY whose sport content is exactly the planned
+ * prescription's is refused (`modify_not_supported`), never shown to the rider as a lighter session. Reached when M1
+ * lowers an endurance session already at the policy's LIGHT duration (45 min): its protocol RPE is fixed, the duration is
+ * the only endurance lever. Applied to the outcome that the rider's time did not adapt, so a real A10 change still stands.
+ */
+function refuseUnchangedModifyV2(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  if (result.status !== "created" || input.decision.decision !== "MODIFY" || input.plannedPrescription === null) return result;
+  if (canonicalSportContent(result.finalPrescription.structure) !== canonicalSportContent(input.plannedPrescription.structure)) return result;
+  return {
+    status: "blocked",
+    code: "final_prescription_adaptation_not_defined",
+    detail: { reason: "modify_not_supported", planned: input.lineage?.generatedSession?.loadProfile ?? null, final: input.decision.finalSession.loadProfile ?? null, durationMin: result.effectiveDurationMin ?? null },
+  };
+}
+
 export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescriptionV2Input & { availableMinutes: number | null }): FinalPrescriptionWithinTodayTimeV2Result {
   const { availableMinutes, ...base } = input;
-  if (availableMinutes === null) return buildFinalPrescriptionV2(base);
+  if (availableMinutes === null) return refuseUnchangedModifyV2(buildFinalPrescriptionV2(base), base);
   // V2-PHYS-INTEGRATION-01 — PHYS daily off: a Force duration stays the decided one, as before PHYS.
   const phys = base.phys ?? PHYS_SWITCHES_OFF_V2;
   const estimate = <R extends FinalPrescriptionV2Result>(r: R): R => (phys.daily === true ? withStrengthEstimate(r) : r);
@@ -171,7 +188,10 @@ export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescri
 
   if (result.status === "none") return { ...result, timeConstraint: outcome("fits", before) };
   if (result.status === "blocked") return { ...result, timeConstraint: outcome("not_evaluated", before) };
-  if (fits(result, availableMinutes)) return { ...result, timeConstraint: outcome("fits", before) };
+  if (fits(result, availableMinutes)) {
+    const kept = refuseUnchangedModifyV2(result, base);
+    return { ...kept, timeConstraint: outcome(kept.status === "blocked" ? "not_evaluated" : "fits", before) };
+  }
 
   const plannedKind = base.lineage?.generatedSession?.kind ?? null;
   for (const candidate of candidates(result.finalPrescription.structure, decisionValue, finalSession, plannedKind, current, availableMinutes, phys)) {

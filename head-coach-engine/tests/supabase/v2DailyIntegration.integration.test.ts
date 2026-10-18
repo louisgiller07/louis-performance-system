@@ -145,23 +145,24 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11A.5c.3 — V2 daily integration (loc
       expect(result).not.toHaveProperty("finalPrescription");
     });
 
-    it("A04 — MODIFY (systemic RED on a MODERATE endurance day): created, the same protocol and activities, 45 min, lineage to the planned prescription", async () => {
-      const day = "2026-10-16"; // build week (BUG-V2-2): AEROBIC_BASE MODERATE
+    // SPORT-SAFE-01 (HPM 2026-10-18, ADR A04 §6) — this session is already at the policy's LIGHT endurance duration (45 min,
+    // fixed protocol RPE): M1's LIGHT has no lighter content, so it is refused instead of the planned dose shown as lighter.
+    // The real reduction of a longer session (60 → 45 min) is covered by sportSafe01.integration.test.ts.
+    it("A04 / SPORT-SAFE-01 — MODIFY (systemic RED on the 45-min MODERATE endurance day): refused modify_not_supported, no final prescription", async () => {
+      const day = "2026-10-16"; // build week (BUG-V2-2): AEROBIC_BASE MODERATE 45
       await insertCheckin(admin, a.athleteId, day, SYSTEMIC_RED);
       const result = await runDailyFor(admin, a.athleteId, day);
       expect(result.dailyPlan.decision).toBe("MODIFY");
+      expect(result.dailyPlan.final_session).toMatchObject({ kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 });
       const [decision] = await decisionsOn(a.athleteId, day);
       expect((decision!.daily_plan as { decision: string }).decision).toBe("MODIFY");
-      expect(decision).toMatchObject({ final_prescription_status: "created", final_prescription_status_code: null, final_prescription_status_detail: null });
-      const planned = await plannedOn(a.planVersionId, day);
-      const [final] = await finalsOf(decision!.id);
-      expect(final).toMatchObject({ reconciliation_action: "modify", active_session_origin: "generated", planned_prescription_id: planned.id, plan_version_id: a.planVersionId, adaptation_rule_ids: ["v2.modify.endurance_light_duration"] });
-      const st = final!.structure as { protocolId: string; activitySelection: unknown; blocks: { durationMinutes?: { min: number } }[] };
-      expect(st.protocolId).toBe((planned.structure as { protocolId: string }).protocolId);
-      expect(st.activitySelection).toEqual((planned.structure as { activitySelection: unknown }).activitySelection);
-      expect(st.blocks.reduce((n, b) => n + (b.durationMinutes?.min ?? 0), 0)).toBe(45);
-      // Executable: the current final prescription starts.
-      expect(await record(a.athleteId, start(final!.id, day).payload)).toMatchObject({ status: "ok" });
+      expect(decision).toMatchObject({
+        final_prescription_status: "blocked",
+        final_prescription_status_code: "final_prescription_adaptation_not_defined",
+        final_prescription_status_detail: { reason: "modify_not_supported", planned: "MODERATE", final: "LIGHT", durationMin: 45 },
+      });
+      expect(await finalsOf(decision!.id)).toEqual([]);
+      expect(result).not.toHaveProperty("finalPrescription");
     });
 
     it("A04 — REPLACE (legs RED on a lower-body day, M1 C3.6 → STRENGTH_UPPER): created, a complete upper-body Force session, no planned prescription lineage", async () => {

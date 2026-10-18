@@ -6504,3 +6504,40 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 **Ordre de livraison** : précontrôles, migration 76, `daily-run` puis `generate-training-plan`, web, vérification des secrets, contrôles sans écriture. La migration précède toute activation de `NALYNT_V2_POWER_ENABLED`.
 
 **Statut** : READY FOR GATE (local). Rapport et procédure : `docs/release/v2-phys-release-gate-01/V2_PHYS_RELEASE_GATE_01_REPORT.md`. Aucun push, déploiement ni secret.
+
+## 2026-10-18 — ADR SPORT-SAFE-01 : un MODIFY sans contenu plus léger est refusé, jamais la dose prévue présentée comme allégée
+
+> **Application de l'ADR A04 §6, déjà approuvé, au document du jour.** Aucune règle sportive, aucune dose ni aucun seuil nouveaux.
+
+**Constat** (SPORT-VALIDATION-01, reproduit en unitaire et en intégration) :
+- Une endurance prévue MODERATE 45 min passe en LIGHT dans M1 : fatigue systémique (C3.3), jambes (C3.6) ou douleur non-SAFETY sollicitée.
+- A04 ramène l'endurance à la durée LIGHT de la politique (45 min). Le protocole a un RPE fixe (3–4).
+- Le document « modifié » est donc la dose prévue, à l'identique (même contenu sportif), sous la règle `v2.modify.endurance_light_duration`.
+- C'est contraire à A04 §6 et à `docs/04` (« jamais la dose prévue rebaptisée « modifiée » »).
+
+**Décision** :
+- Au point d'entrée quotidien (`buildFinalPrescriptionWithinTodayTimeV2`, seul appelant de production) : un MODIFY créé dont le contenu sportif (`canonicalSportContent`) est celui de la prescription prévue → `blocked` / `final_prescription_adaptation_not_defined`, détail `{ reason: "modify_not_supported", planned, final, durationMin }`.
+- Avec un temps disponible, l'action est `not_evaluated`, comme pour toute prescription bloquée.
+- Le refus porte sur le document que le temps du rider n'a pas changé. Quand A10 construit une vraie autre séance (temps plus court), elle est conservée : aucune régression du chemin temps.
+- Une endurance plus longue (60 min) reste réellement ramenée à 45 min. La DH LIGHT (4 passages) et la Force LIGHT ne sont pas concernées.
+- Inchangés : le constructeur seul (`buildFinalPrescriptionV2`), M1, V1, les séances manuelles, le web et la base.
+- Le rider voit la décision et les consignes de M1 (protection, surveillance) et, dans « Ta séance », le message existant « L'adaptation détaillée n'est pas disponible pour cette recommandation. »
+
+**Interprétation signalée** : `docs/04` (A10) place la contrainte de temps après A04 et dit « une prescription bloquée reste bloquée ». Ici, la vraie adaptation au temps (comportement de production) est conservée. À confirmer par HPM.
+
+**Différence de comportement, flags OFF** : ce seul cas. Différentiel contre le runtime de production (`863f3fb`, identique à `99d2add` flags OFF) : 47 970 cas planifiés, 128 refus, tous « AEROBIC_BASE MODERATE→LIGHT 45 min » ; 11 088 cas manuels identiques.
+
+**Non décidé** (arbitrages du rapport SPORT-SAFE-01) :
+- une vraie dose LIGHT d'endurance (RPE plus bas, ou moins de 45 min) ;
+- un message rider dédié à ce refus ;
+- le MODIFY d'une endurance manuelle (P0-3) ;
+- l'anomalie 1 (douleur au genou 4/10 et DH LIGHT) : contexte de douleur dans le document V2 et l'écran guidé, choix sportif DH avec douleur d'un membre inférieur, durée DH LIGHT sous douleur, confirmation du rider.
+
+**Canon** : `docs/04` et `docs/10` (T39), diffs proposés et non appliqués.
+
+**Tests** :
+- nouveaux : `planning-engine/tests/unit/sportSafe01EnduranceLight.test.ts` (13) et `head-coach-engine/tests/supabase/sportSafe01.integration.test.ts` (15) ;
+- mis à jour avec cette trace : `v2DailyIntegration` (et sa variante PHYS), `a04ModifyReplace` I (relecture d'un document A10 réel), `phys00FlagsOffEquivalence` (exception exacte et comptée) ;
+- annoté : `finalPrescriptionV2Adapt`.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/sport-safe-01`, depuis `99d2add`). Une release toucherait `daily-run` seulement.
