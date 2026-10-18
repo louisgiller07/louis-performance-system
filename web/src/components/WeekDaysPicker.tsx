@@ -3,7 +3,7 @@ import { formatDuration } from "../features/dailyPlan/durationLabels";
 import type { WeekDay } from "../features/today/todayContext";
 
 // UX-05 / UX-06 — the shared Monday → Sunday strip (Today's "Cette semaine"
-// and Programme's week timeline): one symbol per day (✓ réalisée ·
+// and Programme's week timeline): one symbol per day (✓ terminée ·
 // ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course) and the selected day
 // spelled out below — today by default (or `initialIndex`), any day on tap.
 // Pure presentation of the days it is given. PARTIAL-01 — a session done in

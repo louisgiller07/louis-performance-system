@@ -7,7 +7,7 @@ import type { WeekSummary } from "./todayContext";
 // shared day strip (components/WeekDaysPicker.tsx, also used by Programme).
 // No chart, gauge, score or percentage.
 
-/** Singular only for exactly one ("1 séance prévue", "0 réalisées", "5 séances prévues"). */
+/** Singular only for exactly one ("1 séance prévue", "0 terminées", "5 séances prévues"). */
 function plural(count: number, singular: string, pluralForm: string): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
@@ -21,13 +21,14 @@ export function WeekStrip({ week }: { week: WeekSummary }) {
       </h2>
       <div className="mt-3 flex items-baseline gap-5">
         <p className="font-display text-2xl font-extrabold uppercase leading-none text-ink">{plural(week.plannedCount, "séance prévue", "séances prévues")}</p>
-        <p className="font-display text-2xl font-extrabold uppercase leading-none text-gold">{plural(week.performedCount, "réalisée", "réalisées")}</p>
+        {/* PARTIAL-01 — the count includes sessions done in part: « terminées », never « réalisées ». */}
+        <p className="font-display text-2xl font-extrabold uppercase leading-none text-gold">{plural(week.performedCount, "terminée", "terminées")}</p>
       </div>
 
       <WeekDaysPicker days={week.days} />
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted">✓ réalisée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course</p>
+        <p className="text-xs text-muted">✓ terminée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course</p>
         <Link to="/training-plan" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
           Programme →
         </Link>

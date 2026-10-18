@@ -28,7 +28,7 @@ export interface EffectiveExecution {
   startedAt: string;
   /** Lifecycle event types of the execution (any order). */
   events: readonly string[];
-  /** PARTIAL-01 — a completed execution: how much of its own frozen prescription it recorded (absent: could not be read). */
+  /** PARTIAL-01 — a completed execution: how much of its own frozen prescription it recorded (absent: not provable from its results, or not readable). */
   realisation?: SessionRealisation;
 }
 
@@ -73,8 +73,8 @@ export interface EffectiveDay {
   finalPrescriptionId: string | null;
   /**
    * PARTIAL-01 — a completed day: "complete" or "partial" (a V2 execution's own results against its frozen
-   * prescription, a V1 debrief's completion_status). Absent: not completed, or the realisation could not be read
-   * (shown neutrally, never as fully done).
+   * prescription, a V1 debrief's completion_status). Absent: not completed, or the realisation cannot be proven
+   * (endurance, recovery…) or read — shown neutrally (« Terminée »), never as fully done.
    */
   realisation?: SessionRealisation;
 }

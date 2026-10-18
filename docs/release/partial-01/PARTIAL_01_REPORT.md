@@ -41,7 +41,7 @@ Le calendrier `/plan` n'affiche aucun statut de réalisation : il n'est pas conc
 - **Séance guidée** : sa prescription figée est comparée à ses résultats actifs, corrections appliquées.
   - Force : toutes les séries de travail prévues réalisées → complète, sinon partielle.
   - DH : tous les passages prévus enregistrés → complète, sinon partielle.
-  - Endurance, récupération, mobilité : complète une fois terminée (aucun nombre d'unités n'est prescrit).
+  - Endurance, récupération et autres familles : **neutre (« Terminée »)**, aucune réalisation complète n'étant prouvable (finalisation, § 9).
 - **Débrief V1** : `partial` → partielle ; `done` / `replaced` → réalisée. Les libellés V1 existants sont inchangés.
 - **Réalisation illisible** (lecture en échec ou incomplète, prescription non décodable, résultats ambigus) → « Terminée », jamais « Réalisée ».
 - **Rien d'inventé** : ni série, ni motif d'arrêt, ni statut serveur.
@@ -52,12 +52,12 @@ Le calendrier `/plan` n'affiche aucun statut de réalisation : il n'est pas conc
 |---|---|---|---|---|
 | Guidée complète | ✓ Réalisée | Réalisée | ✓ Séance guidée terminée | inchangé |
 | Guidée partielle | ◐ Partiellement réalisée | Partiellement réalisée | ◐ Séance guidée partiellement réalisée | note « Partiellement réalisée : une partie de la séance prévue n'a pas été enregistrée. » ; « Séance guidée partiellement réalisée » |
-| Guidée, réalisation illisible | ✓ Terminée | Terminée | ✓ Séance guidée terminée | inchangé |
+| Guidée, réalisation non prouvable (endurance, récupération) ou illisible | ✓ Terminée | Terminée | ✓ Séance guidée terminée | inchangé |
 | V1 « Partielle » | ◐ Partiellement réalisée | Partielle | inchangé | — |
 | Tentative arrêtée | Arrêtée | Arrêtée | inchangé | inchangé |
 | Non commencée | Prévue, non enregistrée | inchangé | inchangé | inchangé |
 
-La légende des bandeaux devient « ✓ réalisée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course ».
+La légende des bandeaux devient « ✓ terminée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course », et le compteur « N terminées » (finalisation, § 9).
 
 **Lecture**
 - `loadExecutionsForDates` lit en plus, pour les seules exécutions terminées :
@@ -146,3 +146,65 @@ La légende des bandeaux devient « ✓ réalisée · ◐ partielle · ● aujou
 ## 8. Commit local
 
 Voir le message de commit sur `fix/partial-01-partial-sessions` (sur `940bb75`). Aucun push.
+
+## 9. Complément — finalisation HPM (2026-10-18, APPROVE WITH CONDITIONS)
+
+**Statut : READY LOCAL, aucun blocage.** Aucun push, aucun déploiement. Commit de finalisation sur `5430d14`.
+
+**A. Compteur des séances**
+- Un seul affichage « N réalisées » existe : le compteur « Cette semaine » d'Aujourd'hui (`WeekStrip`). Il inclut les séances partielles.
+- Il se lit désormais « N terminées » (« 1 terminée », « 0 terminées »). Le nom est sous-entendu, comme dans « réalisées » avant et à côté de « N séances prévues ». Le gabarit reste le même : « séances terminées » en toutes lettres, en gros titre, déborderait à 375 px.
+- La légende des bandeaux de semaine (Aujourd'hui et Programme) devient « ✓ terminée · ◐ partielle ». Après le point B, un ✓ peut en effet se lire « Terminée ».
+- Compteurs, source et règles inchangés.
+- Indicateurs de sens différent, non modifiés :
+  - « séances enregistrées » de l'Historique ;
+  - les constats « réalisées comme prévu » des tendances (Insights) ;
+  - « Séries de travail réalisées » de la séance Force.
+
+**B. Endurance, récupération et mobilité : la clôture ne prouve pas une réalisation complète**
+
+| Famille | Ce qui permet de terminer (code réel) | Preuve d'une réalisation complète ? |
+|---|---|---|
+| Endurance | Une activité de durée quelconque, au moins 1 min. Côté web : `enduranceCompletion`, jamais de confirmation partielle. Côté serveur : `activity_result_required`, une ligne `session_activity_results` suffit (`20261013160000`, `record_session_execution`). La durée n'est jamais comparée à la durée prescrite. | **Non** |
+| Récupération | Aucun résultat, ni côté web (`recoveryCompletion` : « rien à mesurer ») ni côté serveur | **Non** |
+| Mobilité et autres familles | Module en lecture seule : la séance ne peut pas être terminée depuis l'écran guidé | **Non** |
+| Force | Chaque série de travail prévue a un résultat actif `done = true` (`strengthProgress`) | Oui |
+| DH | Chaque passage prévu a un résultat actif (`dhProgress`) | Oui |
+
+- `guidedRealisationOf` renvoie désormais `null` (neutre) pour toute famille autre que Force et DH, et pour une Force sans série de travail prescrite.
+- L'affichage est donc « Terminée » dans les bandeaux et sur la carte du Programme, « ✓ Séance guidée terminée » dans l'Historique, « Séance terminée » sur Aujourd'hui. Jamais « Réalisée ».
+- Aucune durée, répétition ni aucun résultat n'est inventé.
+
+**C. Documentation**
+- `docs/10_TEST_PLAN.md` : nouveau **T64**, scénarios PARTIAL-01 (règle, lecture, présentation par cas, cohérence, intégration, contre-preuve).
+- `docs/12_BACKLOG.md` : deux limites séparées, à traiter **avant la bêta V2**, non corrigées ici :
+  - **PARTIAL-01-L1** : la charge M1 peut surestimer une séance V2 partielle ;
+  - **PARTIAL-01-L2** : la génération et le moteur longitudinal ne lisent pas les résultats réels V2.
+- `docs/11` : ADR PARTIAL-01 mise à jour sur place (règle neutre, compteur, limites).
+- Contrats du moteur gelé et règles de progression inchangés.
+
+**Fichiers modifiés (finalisation)**
+
+| Fichier | Changement |
+|---|---|
+| `web/src/features/completion/guidedRealisation.ts` | endurance, récupération, autres familles et Force sans série de travail → `null` |
+| `web/src/features/effectiveSession/effectiveDay.ts` | commentaires seulement |
+| `web/src/features/today/WeekStrip.tsx` | « N terminées », légende |
+| `web/src/features/program/ProgramWeekTimeline.tsx`, `web/src/components/WeekDaysPicker.tsx` | légende (et commentaire) |
+| Tests | `guidedRealisation.test.ts`, `guidedRealisationRepo.test.ts`, `partial01Presentation.test.tsx` (compteur, cohérence entre écrans), `todayCoachCards.test.tsx` et `TodayPage.test.tsx` (« terminée ») |
+| Docs | `docs/10` (T64), `docs/11` (ADR), `docs/12` (PARTIAL-01, L1, L2), ce complément |
+
+**D. Validation**
+- **Tests ciblés** : réalisation, lecture, présentation, Aujourd'hui (`today/`, `TodayPage`), « Après ta séance » : 108/108.
+- **Suite web complète** : **2328/2328** (172 fichiers, aucun ignoré, intégrations comprises sur la pile locale à 75 migrations avec Edge servies) = 2324 + 4 nouveaux.
+- **Absence de régression** : aucun test existant en échec. Seules quatre attentes du compteur ont été adaptées (`todayCoachCards.test.tsx`, `TodayPage.test.tsx`) : « 1 réalisée » / « 0 réalisées » deviennent « 1 terminée » / « 0 terminées ». Le cas endurance du test de règle PARTIAL-01 attend désormais `null`.
+- **SQL, Edge, moteurs** : aucun fichier modifié depuis `940bb75` hors `web/` et `docs/`.
+- **TypeScript** : build OK. `tsconfig.app.json` signale les mêmes 17 fichiers de test que `940bb75` (liste comparée), aucun nouveau.
+- **Build web** OK ; le bundle contient « terminées » et la nouvelle légende.
+- **Lint** : code de sortie 0, aucun avertissement sur les fichiers modifiés.
+- **Cohérence des libellés** : un test vérifie, pour chaque cas, le même libellé dans les bandeaux d'Aujourd'hui et du Programme, sur la carte du Programme et dans l'Historique :
+  - complète → « Réalisée » / « ✓ Séance guidée terminée » ;
+  - partielle → « Partiellement réalisée » / « ◐ Séance guidée partiellement réalisée » ;
+  - non prouvable ou illisible → « Terminée » / « ✓ Séance guidée terminée ».
+
+**SHA final** : voir le commit de finalisation sur `fix/partial-01-partial-sessions` (au-dessus de `5430d14`).

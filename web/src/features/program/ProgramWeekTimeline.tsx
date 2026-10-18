@@ -84,7 +84,7 @@ export function ProgramWeekTimeline({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <p className="text-xs text-muted">✓ réalisée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course</p>
+        <p className="text-xs text-muted">✓ terminée · ◐ partielle · ● aujourd'hui · ○ prévue · ⚑ course</p>
         {monday !== currentMonday && todayInPlan && (
           <Link to="/today" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
             Voir la séance du jour →

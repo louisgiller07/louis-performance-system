@@ -6275,10 +6275,11 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 - **Réalisation d'une séance guidée `completed`** : sa propre prescription figée (`decision_final_prescriptions`) comparée à ses résultats actifs (`exercise_set_results`, corrections appliquées).
   - Les règles sont celles de la séance elle-même (`strengthProgress` / `dhProgress`, qui demandent déjà « Terminer quand même ? »).
   - Toutes les séries de travail prévues (Force) ou tous les passages prévus (DH) réalisés → complète. Moins → partielle.
-  - Endurance, récupération, mobilité : complète une fois terminée, car aucun nombre d'unités n'est prescrit.
+  - Endurance, récupération et autres familles : aucune réalisation complète prouvable. L'endurance se termine avec une activité de durée quelconque, jamais comparée à la durée prescrite ; la récupération, sans aucun résultat. Elles restent donc neutres (« Terminée »). Finalisation HPM du 2026-10-18.
 - **Débrief V1** : `partial` → partielle ; `done` / `replaced` → réalisée. Les libellés V1 sont inchangés là où ils existaient.
 - **Réalisation illisible** (lecture en échec, prescription non décodable, résultats ambigus) → « Terminée » dans les bandeaux et sur la carte du Programme ; libellés « terminée » existants ailleurs.
-- Aucune série, aucun motif d'arrêt inventé. Aucun statut serveur nouveau. Les compteurs ne changent pas : « réalisées » compte toujours une séance partielle.
+- Aucune série, aucun motif d'arrêt, aucune durée inventés. Aucun statut serveur nouveau.
+- Les compteurs ne changent pas. Le compteur de la semaine inclut les séances partielles : il se lit « N terminées », jamais « réalisées ». La légende des bandeaux se lit « ✓ terminée · ◐ partielle ». Finalisation HPM du 2026-10-18.
 
 **Implémentation (web)**
 - `completion/guidedRealisation.ts` (pur).
@@ -6293,4 +6294,10 @@ Inchangés : `service_role`, REFERENCES, MAINTAIN, droits régis par RLS, trigge
 
 **Inchangés** : SQL (75), Edge, moteurs (M1 gelé, charge récente, longitudinal), verrou d'une séance principale par jour, P0-SAFE, CONSISTENCY-01 et -02, PHYS, ART-02, JARVIS.
 
-**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/partial-01-partial-sessions`, depuis `940bb75`).
+**Limites connues, à traiter avant la bêta V2 (backlog PARTIAL-01-L1 et -L2, non traitées ici)** :
+1. La charge récente M1 peut surestimer une séance V2 partiellement réalisée. Le pont V2 → M1 transmet la séance prescrite avec `completion_status: "done"`.
+2. La génération de programme et le moteur longitudinal n'exploitent pas les résultats réels V2.
+
+Les contrats du moteur gelé et les règles de progression sont inchangés.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/partial-01-partial-sessions`, depuis `940bb75` ; finalisation HPM 2026-10-18, APPROVE WITH CONDITIONS).

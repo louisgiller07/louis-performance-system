@@ -135,23 +135,23 @@ describe("WeekStrip (UX-05)", () => {
     );
   const dayButtons = (card: HTMLElement) => within(within(card).getByRole("group", { name: "Jours de la semaine" })).getAllByRole("button");
 
-  it("Monday → Sunday, editorial counts, one symbol per day (✓ réalisée, ● aujourd'hui, ○ prévue, ⚑ course), no percentage", () => {
+  it("Monday → Sunday, editorial counts, one symbol per day (✓ terminée, ● aujourd'hui, ○ prévue, ⚑ course), no percentage", () => {
     renderWeek();
     const card = screen.getByRole("region", { name: "Cette semaine" });
     expect(card).toHaveTextContent("3 séances prévues");
-    expect(card).toHaveTextContent("1 réalisée");
+    expect(card).toHaveTextContent("1 terminée"); // PARTIAL-01 — the count includes sessions done in part
     expect(dayButtons(card).map((day) => day.textContent)).toEqual(["L✓", "M●", "M·", "J○", "V·", "S⚑", "D·"]);
     expect(card.textContent).not.toMatch(/%/);
   });
 
-  it("plural only when the count is not exactly one: 1 séance prévue · 1 réalisée / 2 séances prévues · 0 réalisées", () => {
+  it("plural only when the count is not exactly one: 1 séance prévue · 1 terminée / 2 séances prévues · 0 terminées", () => {
     const one = weekSummary(TODAY, [row("2026-09-28", "DH_TECHNICAL", 90)], [{ session_date: "2026-09-28", completion_status: "done" } as never], []);
     const { unmount } = render(
       <MemoryRouter>
         <WeekStrip week={one} />
       </MemoryRouter>
     );
-    expect(screen.getByRole("region", { name: "Cette semaine" })).toHaveTextContent("1 séance prévue1 réalisée");
+    expect(screen.getByRole("region", { name: "Cette semaine" })).toHaveTextContent("1 séance prévue1 terminée");
     unmount();
 
     const none = weekSummary(TODAY, [row("2026-09-30", "DH_TECHNICAL", 90), row("2026-10-01", "DH_TECHNICAL", 90)], [], []);
@@ -160,7 +160,7 @@ describe("WeekStrip (UX-05)", () => {
         <WeekStrip week={none} />
       </MemoryRouter>
     );
-    expect(screen.getByRole("region", { name: "Cette semaine" })).toHaveTextContent("2 séances prévues0 réalisées");
+    expect(screen.getByRole("region", { name: "Cette semaine" })).toHaveTextContent("2 séances prévues0 terminées");
   });
 
   it("today is spelled out by default: Aujourd'hui · DH technique", () => {

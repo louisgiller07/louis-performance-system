@@ -22,6 +22,7 @@ function chain(result: Result): Chain {
 }
 
 const FP = keepFinalPrescription("STRENGTH_LOWER").row;
+const ENDURANCE_FP = keepFinalPrescription("AEROBIC_BASE").row;
 const WORK = workItems(prescriptionView("STRENGTH_LOWER")).map((w) => w.item);
 const set = (executionId: string, prescriptionItemId: string, n: number) => ({
   id: `${executionId}-${prescriptionItemId}-${n}`, execution_id: executionId, prescription_item_id: prescriptionItemId, other_exercise_name: null, set_number: n, done: true,
@@ -112,6 +113,16 @@ describe("PARTIAL-01 — loadExecutionsForDates: realisation of completed execut
     expect(rows).toEqual([expect.objectContaining({ executionId: "e-part", events: ["started", "completed"] })]);
     expect(rows[0]!.realisation).toBeUndefined();
     errSpy.mockRestore();
+  });
+
+  it("an endurance session completed with its activity: no realisation (the activity does not prove the whole session)", async () => {
+    mockTables({
+      session_executions: { data: [{ ...execution("e-end", "2026-10-22", ["started", "completed"]), final_prescription_id: ENDURANCE_FP.id }], error: null },
+      decision_final_prescriptions: { data: [ENDURANCE_FP], error: null },
+      exercise_set_results: sets([]),
+    });
+    const rows = await loadExecutionsForDates("athlete-1", ["2026-10-22"]);
+    expect(rows[0]!.realisation).toBeUndefined();
   });
 
   it("a prescription that no longer decodes (older schema): no realisation", async () => {

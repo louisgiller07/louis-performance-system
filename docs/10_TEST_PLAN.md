@@ -703,6 +703,36 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Intégration web, base locale** (`p0_4GuidedHistory.integration.test.tsx`) : vraie page de détail sous RLS avec une séance Force réellement enregistrée ; autre rider : décision introuvable, exécutions et prescription illisibles.
 - **Navigateur réel** (Chromium mobile, pile locale) : DH 5/5, Force 7/7 après changement de programme, DH arrêtée 2/2, V1 inchangée, séance en cours, décision plus récente du même jour (lien), arrêt puis REST A6, jour REST, rechargement et accès direct identiques, autre rider « Journée introuvable » sans fuite.
 
+### T64. PARTIAL-01 — une séance partielle n'est jamais présentée comme entièrement réalisée (HPM 2026-10-18)
+Règle : ADR PARTIAL-01 (`docs/11`). Présentation web seulement ; serveur, Edge et moteurs inchangés.
+- **Règle de réalisation** (`web/src/features/completion/guidedRealisation.test.ts`) :
+  - Force : toutes les séries de travail prévues réalisées → complète ; une série manquante ou « non réalisée » → partielle ; une correction compte une fois (le résultat actif décide) ;
+  - DH : tous les passages prévus → complète ; moins → partielle ;
+  - endurance (une activité de durée quelconque suffit pour terminer) et récupération (aucun résultat) : aucune réalisation prouvable → neutre ;
+  - résultats ambigus → neutre.
+- **Lecture** (`guidedRealisationRepo.test.ts`) :
+  - séances terminées seulement : une tentative arrêtée n'est jamais qualifiée ; aucune lecture sans séance terminée ;
+  - client RLS, séries du rider seulement ;
+  - séries lues page après page jusqu'au comptage exact (plafond de lignes du serveur) ;
+  - lecture incomplète, échec ou prescription non décodable → neutre, et l'écran s'affiche ;
+  - endurance terminée avec son activité → neutre.
+- **Présentation** (`partial01Presentation.test.tsx`, `afterSession/partial01AfterSession.test.tsx`), une semaine, un cas par jour :
+
+  | Cas | Bandeaux de semaine (Aujourd'hui, Programme) | Carte du Programme | Historique | Aujourd'hui |
+  |---|---|---|---|---|
+  | Guidée complète | ✓ Réalisée | Réalisée | ✓ Séance guidée terminée | Séance terminée |
+  | Guidée partielle | ◐ Partiellement réalisée | Partiellement réalisée | ◐ Séance guidée partiellement réalisée | note « Partiellement réalisée… » ; « Séance guidée partiellement réalisée » |
+  | Non prouvable ou illisible (endurance, récupération, lecture en échec) | ✓ Terminée | Terminée | ✓ Séance guidée terminée | Séance terminée |
+  | Tentative arrêtée | Arrêtée (jamais comptée) | Arrêtée | Séance guidée arrêtée | inchangé |
+  | Non commencée | Prévue, non enregistrée (jamais comptée) | — | — | — |
+  | V1 « Partielle » | ◐ Partiellement réalisée | Partielle | ◐ Séance partiellement réalisée | — |
+  | V1 « Faite » | ✓ Réalisée | Faite | ✓ Séance réalisée | — |
+
+  - Compteur de la semaine : « N terminées » (il inclut les séances partielles), jamais « réalisées » ; légende « ✓ terminée · ◐ partielle ».
+  - Un même cas porte le même libellé dans les bandeaux d'Aujourd'hui et du Programme, sur la carte du Programme et dans l'Historique (test de cohérence).
+- **Intégration web, base locale, RLS** (`completion/partial01Realisation.integration.test.tsx`) : Force complète → complète ; Force à une série → partielle ; vrai détail de l'Historique ; autre rider : ni exécution, ni prescription, ni série lisible.
+- **Contre-preuve** : sur `940bb75`, les tests de présentation échouent (séance partielle, illisible et V1 partielle « Réalisée » ; tentative arrêtée « Prévue, non enregistrée » ; Historique « ✓ Séance guidée terminée »).
+
 ### T59. INT-01 R2 — compatibilité de rollback du catalogue V2 (version C, HPM 2026-10-13)
 - **Unitaires planning-engine (C)** (`int01CompatLaterPlans.test.ts` ; invariants `sessionDrillCatalogV2`, `intentCatalogV2`, `sessionModelV2Builders`) :
   - la génération ne sélectionne jamais le drill v2_only `cornering_advanced_line_exit` : toutes compétences × niveaux × 1 024 ensembles de terrains déclarables, `off_camber_section` compris ; drill de référence si son `requiredTerrain` est déclaré, sinon blocage ;

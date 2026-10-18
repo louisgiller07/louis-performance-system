@@ -483,7 +483,7 @@ describe("TodayPage — UX-11R.9 a completed guided session", () => {
     expect(within(slot).getByText("Séance terminée")).toBeInTheDocument();
     expect(within(slot).getByRole("link", { name: "Consulter" })).toHaveAttribute("href", "/today/session");
     expect(within(slot).queryByText("Ouvrir la séance guidée")).not.toBeInTheDocument();
-    expect(screen.getByText("1 réalisée")).toBeInTheDocument();
+    expect(screen.getByText("1 terminée")).toBeInTheDocument();
   });
 
   it("no guided completion today (or another day's): the normal entry", () => {

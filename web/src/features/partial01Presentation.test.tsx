@@ -15,6 +15,7 @@ import { buildHistoryDays } from "./history/historyDays";
 import { HistoryDayCard } from "./history/HistoryDayCard";
 import { KEEP_PLAN } from "./history/historyFixtures";
 import { DaySessionEntryCard } from "./guidedSession/DaySessionEntryCard";
+import { WeekStrip } from "./today/WeekStrip";
 import { effectiveDay, type EffectiveDay, type EffectiveExecution, type EffectiveSources } from "./effectiveSession/effectiveDay";
 import type { DailyPlan, TrainingIntervention } from "./dailyPlan/dailyPlanTypes";
 import type { DecisionHistoryRow } from "./history/historyTypes";
@@ -58,6 +59,52 @@ describe("PARTIAL-01 — a partly done session never reads as fully done", () =>
     const days = weekSummary(TODAY, [], [], [], [], WEEK).days;
     expect(days.map((_, i) => statusOf(days, i))).toEqual(EXPECTED);
     expect(days.filter((d) => d.performed).length).toBe(5); // a stopped attempt and a session not started are never done
+  });
+
+  it("Today's counter: « N terminées » (it includes the session done in part), never « réalisées »", () => {
+    render(
+      <MemoryRouter>
+        <WeekStrip week={weekSummary(TODAY, [], [], [], [], WEEK)} />
+      </MemoryRouter>
+    );
+    const card = screen.getByRole("region", { name: "Cette semaine" });
+    expect(card).toHaveTextContent("5 terminées");
+    expect(card).toHaveTextContent("✓ terminée · ◐ partielle");
+    expect(card.textContent).not.toMatch(/réalisées/);
+  });
+
+  it("one wording per case across Today's week, Programme's week and card, and History", () => {
+    const programDays = programWeekDays(MONDAY, TODAY, programPlan(WEEK.map((d) => session(d.date, { kind: "STRENGTH_LOWER", durationMin: 60 }))), [], [], [], new Map(WEEK.map((d) => [d.date, d] as const)));
+    const todayDays = weekSummary(TODAY, [], [], [], [], WEEK).days;
+    const cardStatus = (effective: EffectiveDay) => {
+      const { unmount } = render(
+        <MemoryRouter>
+          <ProgramSessionCard session={session(effective.date, { kind: "STRENGTH_LOWER", durationMin: 60 })} today={TODAY} variant="past" effective={effective} />
+        </MemoryRouter>
+      );
+      const text = document.body.textContent ?? "";
+      unmount();
+      return ["Partiellement réalisée", "Réalisée", "Terminée"].find((label) => text.includes(label)) ?? null;
+    };
+    const historyLine = (index: number) => {
+      const date = WEEK[index]!.date;
+      const execution = exec(`e${index}`, date, ["started", "completed"], (["complete", "partial", undefined] as const)[index]);
+      const [historyDay] = buildHistoryDays([row(`d-${date}`, date)], [], [], [], [{ executionId: execution.executionId, sessionDate: date, decisionId: `d-${date}`, finalPrescriptionId: execution.finalPrescriptionId }], [execution]);
+      const { unmount } = render(
+        <MemoryRouter>
+          <HistoryDayCard day={historyDay!} today={TODAY} />
+        </MemoryRouter>
+      );
+      const text = document.body.textContent ?? "";
+      unmount();
+      return text.match(/[✓◐] Séance guidée [a-zé ]+/)?.[0].trim() ?? null;
+    };
+    // complete / partial / realisation not provable or not readable (endurance, recovery, read failure).
+    expect([0, 1, 2].map((i) => [statusOf(todayDays, i), statusOf(programDays, i), cardStatus(WEEK[i]!), historyLine(i)])).toEqual([
+      ["Réalisée", "Réalisée", "Réalisée", "✓ Séance guidée terminée"],
+      ["Partiellement réalisée", "Partiellement réalisée", "Partiellement réalisée", "◐ Séance guidée partiellement réalisée"],
+      ["Terminée", "Terminée", "Terminée", "✓ Séance guidée terminée"],
+    ]);
   });
 
   it("Programme's week tells the same", () => {
