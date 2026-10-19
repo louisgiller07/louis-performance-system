@@ -6643,3 +6643,16 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 **Correctif d'intégration** (commit séparé) : la lecture de la décision d'une exécution ouverte, ajoutée par A1 (`ab6b3a3`), cassait le nombre constant de lectures du loader de la séance guidée (test d'intégration UX-11C.5). La décision du jour déjà lue pour la garde santé est réutilisée quand c'est celle de l'exécution. Les 13 fichiers de tests d'intégration web passent sur la pile locale.
 
 **Statut** : READY LOCAL ; intégration locale, rapport `docs/release/sport-safe-01/SPORT_SAFE_01_INTEGRATION_REPORT.md`.
+
+## 2026-10-19 — ADR SPORT-SAFE-RELEASE-01 : « État du corps » et bande de la semaine, préparation du gate
+
+> **Décision HPM (2026-10-19), présentation seulement** (commit web `d1cef44`). Aucune décision P0-SAFE ou M1, aucune prescription, aucun historique ni compteur modifiés.
+
+- **« État du corps »** : le statut ne porte que sur la santé. P0-SAFE en distingue trois valeurs : signal de santé ou règle Safety, douleur déclarée, rien de tel. Sa valeur « ready » s'affichait « Prêt », lu comme une aptitude à s'entraîner, y compris un jour de fatigue adapté par M1. Elle s'affiche désormais « Aucun signal de santé » (Aujourd'hui, carte de forme, historique).
+- **Bande « Cette semaine » et semaine du Programme** : un jour dont la décision est un refus A04 `modify_not_supported`, sans séance exécutable, affiche la séance du coach avec « Pas de séance guidée », au lieu de « Aujourd'hui » ou « Prévue ». Symboles et compteurs inchangés ; la récupération active A10 et les autres jours aussi.
+- **Compatibilité vérifiée dans les deux sens**, pile locale :
+  - le web de production (`99d2add`) lit sans erreur les décisions du nouveau `daily-run` ;
+  - le nouveau web lit sans erreur celles du `daily-run` de production.
+  - Ordre de publication proposé : web, puis `daily-run`.
+
+**Statut** : READY TO DEPLOY (local) ; publication soumise au GO séparé de l'HPM et de Louis. Rapport : `docs/release/sport-safe-01/SPORT_SAFE_RELEASE_01_READINESS_REPORT.md`.
