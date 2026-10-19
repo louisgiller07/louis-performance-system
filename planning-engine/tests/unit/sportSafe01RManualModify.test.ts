@@ -17,6 +17,9 @@ import type { PlanInputAvailabilityWindow } from "../../src/types/planInputSnaps
 // load by the REPLACE builders, and the endurance builder has no load lever (fixed protocol RPE). M1's LIGHT on a
 // manual endurance therefore rebuilt the very document its KEEP gets, whatever its duration. The reference is that KEEP
 // document (the rider's session before M1, `lineage.manualSession`): an identical MODIFY is refused, before A10.
+// SPORT-SAFE-01R.3 — option B applies as for a planned session (active-recovery alternative when the refused session is
+// longer than the rider's time); a HEAVY manual session has no reference (its KEEP is already built lighter than
+// declared: not validated by HPM, sport arbitration open), so its MODIFY stays as in production.
 
 const ALL_DAY: PlanInputAvailabilityWindow[] = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d as PlanInputAvailabilityWindow["dayOfWeek"], startTime: "08:00", endTime: "20:00" }));
 const SNAPSHOT: PlanInputSnapshotV2 = {
@@ -85,13 +88,32 @@ describe("SPORT-SAFE-01R — a manual session's MODIFY: a real reduction, or an 
     expect(manual("MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: min }, before, availableMinutes)).toEqual(refused("MODERATE", "LIGHT", min));
   });
 
-  it.each([20, 30, 45, 90])("manual endurance MODERATE 45 + MODIFY LIGHT, %i min available → refused before A10, time not evaluated", (availableMinutes) => {
+  it.each([45, 90])("manual endurance MODERATE 45 + MODIFY LIGHT, %i min available (not longer than the time) → refused, time not evaluated", (availableMinutes) => {
     const before = { kind: "AEROBIC_BASE", loadProfile: "MODERATE", durationMin: 45 } as const;
     const session = { decision: "MODIFY", kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 };
     expect(manual("MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }, before, availableMinutes)).toEqual({
       ...refused("MODERATE", "LIGHT", 45),
       timeConstraint: { availableMinutes, action: "not_evaluated", before: session, after: session },
     });
+  });
+
+  it.each([20, 30])("option B: manual endurance MODERATE 45 + MODIFY LIGHT, %i min → the refusal kept, active recovery as another session within the time", (availableMinutes) => {
+    const before = { kind: "AEROBIC_BASE", loadProfile: "MODERATE", durationMin: 45 } as const;
+    const r = manual("MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }, before, availableMinutes);
+    const f = created(r);
+    expect([f.reconciliationAction, f.structure.sessionKind, f.activeSessionOrigin]).toEqual(["replace", "RECOVERY_ACTIVE", "manual_override_new_kind"]);
+    expect(r.refusedModify).toEqual({ code: "final_prescription_adaptation_not_defined", detail: refused("MODERATE", "LIGHT", 45).detail });
+    expect(r.timeConstraint?.action).toBe("adapted");
+  });
+
+  it.each([
+    ["DH HEAVY 120 → MODERATE", { kind: "DH_TECHNICAL", loadProfile: "HEAVY", durationMin: 120 }, { kind: "DH_TECHNICAL", loadProfile: "MODERATE", durationMin: 120 }],
+    ["endurance HEAVY 60 → MODERATE", { kind: "AEROBIC_BASE", loadProfile: "HEAVY", durationMin: 60 }, { kind: "AEROBIC_BASE", loadProfile: "MODERATE", durationMin: 60 }],
+  ] as const)("HEAVY manual session (%s): its KEEP is already the MODERATE document (implicitly reduced); no reference, the MODIFY is created as in production", (_, before, after) => {
+    const keep = created(manual("KEEP", before, before, null));
+    const modify = created(manual("MODIFY", after, before, null));
+    expect(content(modify.structure)).toBe(content(keep.structure));
+    expect(modify.reconciliationAction).toBe("modify");
   });
 
   it("unchanged: KEEP of the manual endurance is created (no reference check on KEEP)", () => {

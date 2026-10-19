@@ -5,7 +5,9 @@
  *
  * Anomaly 2 (corrected, ADR A04 §6): M1's LIGHT on an endurance session already at the policy's LIGHT duration (45 min,
  * fixed protocol RPE) is refused (`modify_not_supported`), never the planned dose shown as lighter; a 60-min session is
- * really shortened to 45 min. SPORT-SAFE-01R: the refusal is A04's outcome, so A10 does not evaluate it (`docs/04`).
+ * really shortened to 45 min. SPORT-SAFE-01R.3 (HPM option B): when the refused session is longer than the rider's time,
+ * A10 selects the active recovery as another session, the refusal kept and traced (A04_MODIFY_NOT_SUPPORTED); without an
+ * admissible alternative the refusal stands (no executable session, never a REST).
  * Anomaly 1 (characterized, not changed): a knee pain 4/10 on a DH day stays M1's PAIN_NON_SAFETY adaptation (DH LIGHT,
  * the planned window, 4 passes) with its protection and monitoring texts; 6/10 is Safety (REST + health flag).
  */
@@ -160,12 +162,36 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
       expect(mainOf(st).map((b) => [b.durationMinutes, b.rpeTarget])).toEqual([[{ min: 30, max: 30 }, { min: 3, max: 4 }]]);
     });
 
-    it("45 min, high fatigue (systemic RED) and 30 min available → refused before A10: blocked, time not evaluated, M1's decision unchanged", async () => {
+    it("option B — 45 min, high fatigue (systemic RED), 30 min available → the refusal kept and traced, A10's alternative: active recovery, another session, within 30 min", async () => {
       const d = await day("endurance 45 systemic red 30 min", ENDURANCE_45, { ...SYSTEMIC_RED, available_minutes_today: 30 });
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["REPLACE", { kind: "RECOVERY_ACTIVE" }]);
+      expect(d.plan.triggered_rules.filter((t) => t.layer === "ARBITRATION").map((t) => [t.rule_id, t.detail])).toEqual([
+        ["A04_MODIFY_NOT_SUPPORTED", "Séance décidée refusée : MODIFY AEROBIC_BASE LIGHT 45 min. Aucune version guidée plus légère que la séance de référence (modify_not_supported)."],
+        ["V2_TODAY_TIME_CONSTRAINT", "Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : adapted → REPLACE RECOVERY_ACTIVE."],
+      ]);
+      expect(d.plan.training.objective).toBe("Tu as 30 min aujourd'hui : la séance prévue n'est pas proposée (NALYNT n'en a pas de version guidée plus légère, et elle ne tient pas dans ce temps). Autre séance à la place : récupération active.");
+      expect(d.decision).toMatchObject({ final_prescription_status: "created", final_prescription_status_code: null, final_prescription_status_detail: null });
+      expect(d.decision.finals).toHaveLength(1);
+      expect(d.decision.finals[0]).toMatchObject({ reconciliation_action: "replace", adaptation_rule_ids: ["v2.replace.recovery_active", "v2.time.today_limit"] });
+      const st = d.decision.finals[0]!.structure as Structure & { sessionKind: string };
+      expect(st.sessionKind).toBe("RECOVERY_ACTIVE");
+      expect(st.blocks.reduce((n, b) => n + (b.durationMinutes?.max ?? 0), 0)).toBeLessThanOrEqual(30);
+    });
+
+    it("option B — 45 min, high fatigue, 60 min available (the refused session fits) → the refusal stands, no alternative, time not evaluated", async () => {
+      const d = await day("endurance 45 systemic red 60 min", ENDURANCE_45, { ...SYSTEMIC_RED, available_minutes_today: 60 });
       expect([d.plan.decision, d.plan.final_session]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 }]);
-      const trace = d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT");
-      expect(trace?.detail).toBe("Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : not_evaluated.");
+      expect(d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT")?.detail).toBe("Temps disponible : 60 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : not_evaluated.");
+      expect(rules(d.plan)).not.toContain("A04_MODIFY_NOT_SUPPORTED");
       expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "modify_not_supported" } });
+      expect(d.decision.finals).toEqual([]);
+    });
+
+    it("option B — 45 min, high fatigue, 15 min available (below the active recovery's minimum) → no admissible alternative: the refusal stands, never a REST", async () => {
+      const d = await day("endurance 45 systemic red 15 min", ENDURANCE_45, { ...SYSTEMIC_RED, available_minutes_today: 15 });
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["MODIFY", { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 }]);
+      expect(d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT")?.detail).toBe("Temps disponible : 15 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : no_alternative.");
+      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_code: "final_prescription_adaptation_not_defined", final_prescription_status_detail: { reason: "modify_not_supported" } });
       expect(d.decision.finals).toEqual([]);
     });
 
@@ -184,7 +210,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
     });
   });
 
-  describe("manual sessions (SPORT-SAFE-01R): the reference is the document the manual session's KEEP gets", () => {
+  describe("manual sessions (SPORT-SAFE-01R / R.3): the reference is the KEEP document of a manual session at a V2 dose", () => {
     const MANUAL_45: TrainingIntervention = { kind: "AEROBIC_BASE", load_profile: "MODERATE", duration_min: 45 };
     const MANUAL_60: TrainingIntervention = { kind: "AEROBIC_BASE", load_profile: "MODERATE", duration_min: 60 };
 
@@ -211,17 +237,40 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
       expect(d.decision.finals).toEqual([]);
     });
 
-    it("manual endurance 45, systemic RED and 30 min available → refused before A10, time not evaluated", async () => {
+    it("option B — manual endurance 45, systemic RED, 30 min available → the refusal traced, active recovery as another session (manual origin)", async () => {
       const d = await manualDay("manual endurance 45 red 30 min", MANUAL_45, { ...SYSTEMIC_RED, available_minutes_today: 30 });
-      expect(d.plan.decision).toBe("MODIFY");
-      expect(d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT")?.detail).toBe("Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : not_evaluated.");
-      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "modify_not_supported" } });
+      expect([d.plan.decision, d.plan.final_session]).toEqual(["REPLACE", { kind: "RECOVERY_ACTIVE" }]);
+      expect(rules(d.plan)).toEqual(expect.arrayContaining(["A04_MODIFY_NOT_SUPPORTED", "V2_TODAY_TIME_CONSTRAINT"]));
+      expect(d.decision).toMatchObject({ final_prescription_status: "created" });
+      expect(d.decision.finals[0]).toMatchObject({ reconciliation_action: "replace", adaptation_rule_ids: ["v2.manual.session", "v2.replace.recovery_active", "v2.time.today_limit"] });
     });
 
-    it("manual DH HEAVY 120, systemic RED → M1 MODIFY MODERATE, the same 6 passes as its KEEP: refused", async () => {
+    it("R.3 — manual DH HEAVY 120, systemic RED → M1 MODIFY MODERATE: no reference (its KEEP is already the MODERATE document), created as in production", async () => {
       const d = await manualDay("manual DH heavy red", { kind: "DH_TECHNICAL", load_profile: "HEAVY", duration_min: 120 }, SYSTEMIC_RED);
       expect([d.plan.decision, d.plan.final_session]).toEqual(["MODIFY", { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 120 }]);
-      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "modify_not_supported", planned: "HEAVY", final: "MODERATE" } });
+      expect(d.decision).toMatchObject({ final_prescription_status: "created" });
+      expect(d.decision.finals[0]).toMatchObject({ reconciliation_action: "modify", adaptation_rule_ids: ["v2.manual.session", "v2.replace.dh"] });
+      expect(passesOf(d.decision.finals[0]!.structure as Structure)).toBe(6);
+    });
+
+    it("option B, only for this refusal — manual POWER (flags off: no builder), systemic RED, 30 min → its own refusal, not evaluated, no alternative", async () => {
+      const d = await manualDay("manual power red 30 min", { kind: "POWER", load_profile: "MODERATE" }, { ...SYSTEMIC_RED, available_minutes_today: 30 });
+      expect(d.plan.decision).not.toBe("REST");
+      expect(d.decision).toMatchObject({ final_prescription_status: "blocked", final_prescription_status_detail: { reason: "manual_kind_not_supported" } });
+      expect(d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT")?.detail).toMatch(/Action : not_evaluated\.$/);
+      expect(rules(d.plan)).not.toContain("A04_MODIFY_NOT_SUPPORTED");
+      expect(d.decision.finals).toEqual([]);
+    });
+
+    it("option B never on a rest decided by M1 — the rider's manual rest day, 30 min available → M1 keeps the REST session, no session, no alternative", async () => {
+      const d = await manualDay("manual rest 30 min", { kind: "REST" }, { available_minutes_today: 30 });
+      expect([d.plan.decision, d.plan.final_session.kind]).toEqual(["KEEP", "REST"]);
+      // Production behaviour, unchanged: a KEEP of the rider's rest day has no V2 document (its own refusal).
+      expect(d.decision.final_prescription_status).toBe("blocked");
+      expect((d.decision.final_prescription_status_detail as { reason?: string } | null)?.reason).not.toBe("modify_not_supported");
+      expect(d.plan.triggered_rules.find((t) => t.rule_id === "V2_TODAY_TIME_CONSTRAINT")?.detail).toMatch(/Action : not_evaluated\.$/);
+      expect(rules(d.plan)).not.toContain("A04_MODIFY_NOT_SUPPORTED");
+      expect(d.decision.finals).toEqual([]);
     });
 
     it("counter-proof: manual Force upper MODERATE, systemic RED → M1 MODIFY LIGHT, really lighter: created", async () => {
@@ -250,6 +299,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-01 — daily adaptations, real
       expect(passesOf(final!.structure as Structure)).toBe(4);
       expect(d.plan.protection.do_not_do.some((t) => t.startsWith("Éviter toute charge sollicitant fortement"))).toBe(true);
       expect(d.plan.monitoring.observe).toContain("Pendant la séance, arrête la partie DH si la douleur augmente clairement ou si ton contrôle se dégrade.");
+    });
+
+    it("option B never under a health protection — knee pain 6/10 (Safety A6) with 30 min available → REST, a health flag, no session, no alternative", async () => {
+      const d = await day("DH knee pain 6 30 min", DH_DAY, { ...KNEE_PAIN_6, available_minutes_today: 30 });
+      expect([d.plan.decision, d.plan.final_session.kind]).toEqual(["REST", "REST"]);
+      expect(rules(d.plan)).toContain("A6");
+      expect(rules(d.plan)).not.toContain("A04_MODIFY_NOT_SUPPORTED");
+      expect(d.decision.finals).toEqual([]);
     });
 
     it("knee pain 6/10 → Safety: REST, an open health flag, no final prescription", async () => {

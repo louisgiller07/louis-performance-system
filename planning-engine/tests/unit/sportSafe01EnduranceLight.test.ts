@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  admissibleAlternativeV2,
   buildFinalPrescriptionV2,
   buildFinalPrescriptionWithinTodayTimeV2,
   canonicalSportContent,
@@ -22,8 +23,9 @@ import type { PlanInputAvailabilityWindow } from "../../src/types/planInputSnaps
 // 45 min has no lighter content. The daily entry point (buildFinalPrescriptionWithinTodayTimeV2, the only production
 // caller) refuses it (`modify_not_supported`), never a "modified" copy of the planned dose announced to the rider as
 // lighter. A longer session is still really shortened to 45 min.
-// SPORT-SAFE-01R (HPM 2026-10-18) — the refusal is A04's outcome: A10 comes after it and does not evaluate a blocked
-// prescription (`docs/04`, A10 « Priorité »), whatever time the rider gave.
+// SPORT-SAFE-01R (HPM 2026-10-18) — the refusal is A04's outcome and comes before A10.
+// SPORT-SAFE-01R.3 (HPM option B, 2026-10-19) — when the refused session is longer than the rider's time, A10 may select
+// one alternative, the active recovery, kept apart from the refusal (`refusedModify`); otherwise the refusal stands.
 
 const ALL_DAY: PlanInputAvailabilityWindow[] = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d as PlanInputAvailabilityWindow["dayOfWeek"], startTime: "08:00", endTime: "20:00" }));
 const SNAPSHOT: PlanInputSnapshotV2 = {
@@ -99,7 +101,7 @@ describe("SPORT-SAFE-01 — endurance LIGHT: a real reduction, or an explicit re
     expect(today(input(endurance(0), "MODIFY", finalSession), availableMinutes)).toEqual(REFUSED);
   });
 
-  it.each([20, 30, 45, 60, 90])("planned MODERATE 45 + MODIFY LIGHT, %i min available → refused before A10, time not evaluated", (availableMinutes) => {
+  it.each([45, 60, 90])("planned MODERATE 45 + MODIFY LIGHT, %i min available (the refused session is not longer) → refused, time not evaluated", (availableMinutes) => {
     const r = today(input(endurance(0), "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }), availableMinutes);
     expect(r).toEqual({
       ...REFUSED,
@@ -107,10 +109,44 @@ describe("SPORT-SAFE-01 — endurance LIGHT: a real reduction, or an explicit re
     });
   });
 
-  it("planned MODERATE 60 + MODIFY LIGHT, 30 min available → A10 adapts the real reduction (45 min does not fit): active recovery within 30 min", () => {
+  it.each([20, 30])("option B: planned MODERATE 45 + MODIFY LIGHT, %i min available → the refusal kept, A10's alternative: another session, active recovery within the time", (availableMinutes) => {
+    const s = endurance(0);
+    const r = today(input(s, "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }), availableMinutes);
+    const f = created(r);
+    expect([f.reconciliationAction, f.structure.sessionKind, f.adaptationRuleIds]).toEqual(["replace", "RECOVERY_ACTIVE", [DAILY_ADAPTATION_RULES_V2.replaceRecovery, DAILY_ADAPTATION_RULES_V2.todayTimeLimit]]);
+    expect(r.refusedModify).toEqual({ code: "final_prescription_adaptation_not_defined", detail: REFUSED.detail });
+    expect(r.timeConstraint).toEqual({ availableMinutes, action: "adapted", before: { decision: "MODIFY", kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }, after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } });
+    expect(f.structure.blocks.reduce((n, b) => n + (b.durationMinutes?.max ?? 0), 0)).toBeLessThanOrEqual(availableMinutes);
+    expect(canonicalSportContent(f.structure)).not.toBe(canonicalSportContent(s.plannedPrescription.structure));
+  });
+
+  it("option B, no admissible alternative: 15 min (below the active recovery's 20-min minimum) → the refusal stands, no executable session, never a REST", () => {
+    const r = today(input(endurance(0), "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }), 15);
+    const session = { decision: "MODIFY", kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 };
+    expect(r).toEqual({ ...REFUSED, timeConstraint: { availableMinutes: 15, action: "no_alternative", before: session, after: session } });
+  });
+
+  it("option B, only for this refusal: the builder's own refusal (MODIFY without a lower load) with 20 min → not evaluated, no alternative (unchanged)", () => {
+    const r = today(input(endurance(0), "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "MODERATE", durationMin: 30 }), 20);
+    expect(r).toMatchObject({ status: "blocked", detail: { reason: "modify_not_supported" }, timeConstraint: { action: "not_evaluated" } });
+    expect(r).not.toHaveProperty("refusedModify");
+  });
+
+  it("option B, the identity guard: an alternative identical to the refused document, not created, or longer than the time is not admissible", () => {
+    const s = endurance(0);
+    const recovery = created(today(input(s, "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }), 30));
+    const ok = { status: "created" as const, finalPrescription: recovery };
+    expect(admissibleAlternativeV2(s.plannedPrescription.structure, ok, 30)).toBe(true);
+    expect(admissibleAlternativeV2(recovery.structure, ok, 30)).toBe(false);
+    expect(admissibleAlternativeV2(s.plannedPrescription.structure, ok, 15)).toBe(false);
+    expect(admissibleAlternativeV2(s.plannedPrescription.structure, { status: "blocked", code: "final_prescription_adaptation_not_defined", detail: {} }, 30)).toBe(false);
+  });
+
+  it("planned MODERATE 60 + MODIFY LIGHT, 30 min available → A10 adapts the real reduction (45 min does not fit): active recovery within 30 min, no refusal", () => {
     const r = today(input(endurance(1), "MODIFY", { kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 60 }), 30);
     expect(r.timeConstraint).toMatchObject({ action: "adapted", before: { decision: "MODIFY", kind: "AEROBIC_BASE", loadProfile: "LIGHT", durationMin: 45 }, after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } });
     expect(minutes(created(r).structure)).toBeLessThanOrEqual(30);
+    expect(r).not.toHaveProperty("refusedModify");
   });
 
   it.each([null, 60])("planned MODERATE 60 + MODIFY LIGHT (time %s) → created and really lighter: 45 min (main 30 instead of 45), same protocol and activities", (availableMinutes) => {
