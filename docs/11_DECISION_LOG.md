@@ -6725,3 +6725,14 @@ Canon : diffs `docs/03`, `docs/05` et `docs/10` (T67) révisés, toujours propos
 - **Sans protocole** : course enregistrable et visible, préparation spécifique annoncée comme non définie (formulaire, liste, Aujourd'hui). Aucun protocole générique, aucune dose modifiée.
 
 Canon : diffs `docs/03`, `docs/05` (§race_calendar) et `docs/10` (T67) en révision 01P.3, proposés, non appliqués. Rapport : `SPORT_RACE_01P3_FINAL_REPORT.md`.
+
+### Addendum SPORT-RACE-01P.4 (HPM 2026-10-19) : clôture canon et préparation de l'intégration
+
+> **Décision HPM** : SPORT-RACE-01P.3 APPROVED WITH CONDITIONS ; contrat des formats et séries APPROVED. GO pour finalisation locale ciblée. Aucun push, merge, déploiement, migration ni changement de flag.
+
+- **Canon** : les diffs approuvés (révision 01P.3) sont appliqués tels quels à `docs/03` §6, `docs/05` et `docs/10` (T67, inséré avant T66). Doses, M1, SQL et contrats de santé inchangés.
+- **Anciennes courses ambiguës** : le parcours existant permet déjà de les corriger (« Tes courses », champ « Compétition »). Aucune fonctionnalité de migration. Le message visible invite désormais à préciser la compétition (Aujourd'hui dès qu'elle est la prochaine course, liste, formulaire) au lieu de la phrase générique. Amendement de T67 et de `docs/05` correspondant proposé, non appliqué.
+- **Inventaire** : requêtes en lecture seule (`SPORT_RACE_01P3_LEGACY_RACES_COUNT.sql`, trois `SELECT`), validées localement en transaction `read only` ; exécution en production réservée à Louis.
+- **Périmètre de publication mesuré** : web ; `daily-run` (trois fichiers de l'adapter, actif pour V1 et V2) ; `generate-training-plan` (bundle ; snapshot V1 identique, changements V2 inactifs tant que la génération V2 est OFF) ; huit autres fonctions identiques à `79b4d19`. Ordre conseillé : web, puis `daily-run`, puis `generate-training-plan`.
+
+Rapport : `SPORT_RACE_01P4_INTEGRATION_GATE_REPORT.md`.

@@ -1,0 +1,35 @@
+SPORT-RACE-01P.4 — publication scope, measured locally (2026-10-19). Read-only comparisons; nothing deployed.
+A = production release checkout 79b4d19 (built, D:/nx/nalynt-rc-79b4d19); B = fix/sport-race-01 working tree after npm run build:release:all.
+
+1. Edge import graphs (same walker and graph hash as scripts/build-release-all.mjs, line endings normalized)
+abandon-training-plan: A 932d95a2c3e0 (3) | B 932d95a2c3e0 (3) | IDENTICAL
+accept-training-plan: A c1a807cafd6b (17) | B c1a807cafd6b (17) | IDENTICAL
+completed-session: A b1b067cf5e67 (5) | B b1b067cf5e67 (5) | IDENTICAL
+daily-run: A cc83c0597e99 (92) | B 01e3062c3584 (93) | CHANGED: head-coach-engine/dist/supabase/mapping/raceCalendarRow.js, head-coach-engine/dist/supabase/mapping/raceProtocolSelection.js (new), head-coach-engine/dist/supabase/repositories/raceCalendarRepo.js
+generate-training-plan: A de40112e085a (4) | B 3a0e6d90a179 (4) | CHANGED: head-coach-engine/dist/edge/generateTrainingPlan.bundle.js
+get-insights: A 8259c1b07401 (61) | B 8259c1b07401 (61) | IDENTICAL
+health-flag-resolution: A 147d5da9cbde (3) | B 147d5da9cbde (3) | IDENTICAL
+refresh-longitudinal: A 5bd6746adaaa (62) | B 5bd6746adaaa (62) | IDENTICAL
+session-execution: A aebd17b1adce (3) | B aebd17b1adce (3) | IDENTICAL
+submit-review: A 8519406f8287 (62) | B 8519406f8287 (62) | IDENTICAL
+
+2. V1 generation snapshot (buildPlanInputSnapshot), same 13 fictitious riders of the 01P.3 matrix, built by A and by B
+case 01: races=1 v1 snapshot prod 5dd9837a1327 | branch 5dd9837a1327 | IDENTICAL
+case 02: races=1 v1 snapshot prod 2cbcf32f9e68 | branch 2cbcf32f9e68 | IDENTICAL
+case 03: races=1 v1 snapshot prod 128d15628ec8 | branch 128d15628ec8 | IDENTICAL
+case 04: races=1 v1 snapshot prod 81507e31e278 | branch 81507e31e278 | IDENTICAL
+case 05: races=1 v1 snapshot prod b9e7c7c03546 | branch b9e7c7c03546 | IDENTICAL
+case 06: races=1 v1 snapshot prod 7d1395201632 | branch 7d1395201632 | IDENTICAL
+case 07: races=1 v1 snapshot prod 52ce4e349515 | branch 52ce4e349515 | IDENTICAL
+case 08: races=1 v1 snapshot prod 450383b4e66f | branch 450383b4e66f | IDENTICAL
+case 09: races=1 v1 snapshot prod ac1e65a8abed | branch ac1e65a8abed | IDENTICAL
+case 10: races=1 v1 snapshot prod 5962e1562919 | branch 5962e1562919 | IDENTICAL
+case 11: races=1 v1 snapshot prod 328e821401f5 | branch 328e821401f5 | IDENTICAL
+case 12: races=1 v1 snapshot prod 51f0e9bac99c | branch 51f0e9bac99c | IDENTICAL
+case 13: races=1 v1 snapshot prod d2f45f441fbe | branch d2f45f441fbe | IDENTICAL
+13/13 identical
+
+3. Inventory SQL (SPORT_RACE_01P3_LEGACY_RACES_COUNT.sql): 3 statements, each executed locally inside
+   'begin transaction read only; <statement>; rollback;' with ON_ERROR_STOP — all three succeeded.
+   Local data are test fixtures only (not production); counts are therefore not reported here.
+   Consistency check on local data: Q2 courses_perdant_le_protocole = sum of Q1 'perd_protocole' future coaching-relevant rows = Q3 line count.
