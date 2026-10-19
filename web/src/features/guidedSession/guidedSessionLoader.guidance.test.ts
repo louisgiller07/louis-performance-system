@@ -84,6 +84,14 @@ describe("loadGuidedSession — M1's guidance (SPORT-SAFE-01R)", () => {
     expect(s).toMatchObject({ kind: "execution", phase: "active", guidance: dayGuidanceOf(KNEE_4) });
   });
 
+  it("started from the day's latest decision (the usual case): its guidance, without reading that decision a second time", async () => {
+    loadDayExecutions.mockResolvedValue([execution(["started"], "d1")]);
+    loadLatestDecisionForDate.mockResolvedValue(decisionRow("d1", KNEE_4));
+    const s = await loadGuidedSession("a1", "2026-10-09");
+    expect(s).toMatchObject({ kind: "execution", phase: "active", guidance: dayGuidanceOf(KNEE_4) });
+    expect(loadDecisionById).not.toHaveBeenCalled();
+  });
+
   it("started then suspended (knee 6/10, A6 REST): the health block, no guidance, the decision not even read", async () => {
     loadDayExecutions.mockResolvedValue([execution(["started"], "d-exec")]);
     loadLatestDecisionForDate.mockResolvedValue(decisionRow("d-new", KNEE_6));

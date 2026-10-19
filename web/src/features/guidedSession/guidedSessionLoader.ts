@@ -76,16 +76,24 @@ function unavailableFor(state: FinalPrescriptionV2State | undefined): Unavailabl
   }
 }
 
-/** P0-3 — the persisted reasons an open execution of `date` cannot go on (see healthBlock.ts). */
-async function openExecutionHealthBlock(athleteId: string, date: string, prescription: FinalPrescriptionV2State): Promise<HealthBlock | null> {
+/**
+ * P0-3 — the persisted reasons an open execution of `date` cannot go on (see healthBlock.ts), with the day's latest
+ * decision it read (SPORT-SAFE-01R.4: reused for the execution's guidance when it is that same decision, no extra read).
+ */
+async function openExecutionHealthBlock(
+  athleteId: string,
+  date: string,
+  prescription: FinalPrescriptionV2State
+): Promise<{ healthBlock: HealthBlock | null; latestDecision: { id: string; dailyPlan: unknown } | null }> {
   const [flags, decision] = await Promise.all([loadOpenHealthFlags(athleteId), loadLatestDecisionForDate(athleteId, date)]);
   const isCurrent = decision === null ? true : (await loadDecisionCurrency(decision.id)).isCurrent;
-  return healthBlockOf({
+  const healthBlock = healthBlockOf({
     openFlagTypes: flags.map((flag) => flag.type),
     family: prescription.kind === "created" ? prescription.prescription.family : null,
     // loadLatestDecisionForDate only returns a row whose daily plan passed isValidDailyPlan.
     latestDecision: decision === null ? null : { dailyPlan: decision.dailyPlan as DailyPlan, isCurrent },
   });
+  return { healthBlock, latestDecision: decision === null ? null : { id: decision.id, dailyPlan: decision.dailyPlan } };
 }
 
 export async function loadGuidedSession(athleteId: string, date: string): Promise<GuidedSessionSnapshot> {
@@ -96,9 +104,9 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
     const prescription: FinalPrescriptionV2State = dayExecution.execution.final_prescription_id
       ? await loadExecutionPrescription(dayExecution.execution.final_prescription_id)
       : { kind: "final_prescription_missing" };
-    const healthBlock = await openExecutionHealthBlock(athleteId, date, prescription);
+    const { healthBlock, latestDecision } = await openExecutionHealthBlock(athleteId, date, prescription);
     if (healthBlock) return { kind: "execution", ...dayExecution, prescription, healthBlock };
-    const context = await executionDayContext(athleteId, dayExecution.execution);
+    const context = await executionDayContext(athleteId, dayExecution.execution, latestDecision);
     return { kind: "execution", ...dayExecution, prescription, ...context };
   }
 
@@ -154,10 +162,17 @@ function dayContextOf(dailyPlan: DailyPlan): { guidance?: DayGuidance; alternati
   return { ...(guidance ? { guidance } : {}), ...(alternativeNote ? { alternativeNote } : {}) };
 }
 
-/** SPORT-SAFE-01R — the context of the decision the open execution was started from; none without that decision. */
-async function executionDayContext(athleteId: string, execution: ExecutionRow): Promise<{ guidance?: DayGuidance; alternativeNote?: string }> {
+/**
+ * SPORT-SAFE-01R — the context of the decision the open execution was started from; none without that decision. The day's
+ * latest decision already read is reused when it is that decision (the usual case): the loader's reads stay constant.
+ */
+async function executionDayContext(
+  athleteId: string,
+  execution: ExecutionRow,
+  latestDecision: { id: string; dailyPlan: unknown } | null
+): Promise<{ guidance?: DayGuidance; alternativeNote?: string }> {
   if (typeof execution.decision_id !== "string") return {};
-  const decision = await loadDecisionById(athleteId, execution.decision_id);
+  const decision = latestDecision !== null && latestDecision.id === execution.decision_id ? latestDecision : await loadDecisionById(athleteId, execution.decision_id);
   // A row this screen cannot read as a daily plan gives nothing (never a text of the browser's own).
   return decision !== null && isValidDailyPlan(decision.dailyPlan) ? dayContextOf(decision.dailyPlan as DailyPlan) : {};
 }
