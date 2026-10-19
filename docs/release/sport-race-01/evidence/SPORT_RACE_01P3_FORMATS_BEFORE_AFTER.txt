@@ -1,0 +1,349 @@
+SPORT-RACE-01P.3 — real engine outputs, before / after (local isolated stack nalynt-gate01, fictitious riders, 2026-10-19)
+BEFORE = production runtime 79b4d19 (D:/nx/nalynt-rc-79b4d19, compiled head-coach-engine dist)
+AFTER  = fix/sport-race-01 working tree (SPORT-RACE-01P.3, compiled head-coach-engine dist)
+Same rider for every case: intermediate Force, advanced DH, full gym, four terrains, Mon-Fri "physical" evenings, Sat-Sun "riding".
+4-week V2 plan generated Sun 2026-11-01 (race in week 3), accepted; one daily run per day J-7..J-1 (neutral check-in), PHYS off.
+Each race_calendar row is written as stored (race_format, series), whatever the runtime reads.
+Columns per day: planned session (projected plan) | M1 decision | final prescription status | race rules.
+
+==================== BEFORE ====================
+
+== 01 legacy « 2 jours » (old default, no series) — race_calendar (race_format=HOT_TRAIL_2DAY, series=NULL) 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | RACE_PROTOCOL_TX
+  J-6  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-5  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-19 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-20 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 02 legacy « 3 jours » (no series) — race_calendar (race_format=IXS_3DAY, series=NULL) 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP STRENGTH_UPPER LIGHT - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | RACE_PROTOCOL_TX,PLANNED_LOAD_CAP
+  J-5  2026-11-15 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-18 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-19 planned=- | KEEP RACE_ACTIVITY - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 03 Hot Trail Series, explicit — race_calendar (race_format=HOT_TRAIL_2DAY, series="HOT_TRAIL_SERIES") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | RACE_PROTOCOL_TX
+  J-6  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-5  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-19 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-20 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 04 iXS, explicit — race_calendar (race_format=IXS_3DAY, series="IXS") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP STRENGTH_UPPER LIGHT - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | RACE_PROTOCOL_TX,PLANNED_LOAD_CAP
+  J-5  2026-11-15 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-18 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-19 planned=- | KEEP RACE_ACTIVITY - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 05 Swiss race 2 days (new form) — race_calendar (race_format=OTHER, series="SWISS_OTHER") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 06 UCI World Cup 3 days (new form) — race_calendar (race_format=OTHER, series="UCI_WORLD_CUP") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 07 Coupe de France DH 2 days (new form) — race_calendar (race_format=OTHER, series="FR_COUPE_DE_FRANCE_DH") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 08 Coupe de France DH 2 days stored HOT_TRAIL_2DAY — race_calendar (race_format=HOT_TRAIL_2DAY, series="FR_COUPE_DE_FRANCE_DH") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | RACE_PROTOCOL_TX
+  J-6  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-5  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-19 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-20 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 09 Championnats de France DH 3 days (new form) — race_calendar (race_format=OTHER, series="FR_CHAMPIONNAT_DE_FRANCE_DH") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 10 Championnats de France DH 3 days stored IXS_3DAY — race_calendar (race_format=IXS_3DAY, series="FR_CHAMPIONNAT_DE_FRANCE_DH") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP STRENGTH_UPPER LIGHT - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | RACE_PROTOCOL_TX,PLANNED_LOAD_CAP
+  J-5  2026-11-15 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-18 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-19 planned=- | KEEP RACE_ACTIVITY - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 11 French regional 1 day — race_calendar (race_format=OTHER, series="FR_REGIONAL_DH") 2026-11-22..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-21 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 12 legacy free-text series « Hot Trail Series (Swiss DH Cup) » — race_calendar (race_format=HOT_TRAIL_2DAY, series="Hot Trail Series (Swiss DH Cup)") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | RACE_PROTOCOL_TX
+  J-6  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-5  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - 20 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-2  2026-11-19 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-20 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 13 unknown competition — race_calendar (race_format=OTHER, series="OTHER") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: [null] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+==================== AFTER ====================
+
+== 01 legacy « 2 jours » (old default, no series) — race_calendar (race_format=HOT_TRAIL_2DAY, series=NULL) 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: has race_format = HOT_TRAIL_2DAY without the explicit series it was written for (series = null) — no pre-event protocol, mapped to "OTHER" (SPORT-RACE-01P.3: never a protocol from a duration or an unconfirmed format). See docs/05_DATA_MODEL.md §race_calendar.
+
+== 02 legacy « 3 jours » (no series) — race_calendar (race_format=IXS_3DAY, series=NULL) 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: has race_format = IXS_3DAY without the explicit series it was written for (series = null) — no pre-event protocol, mapped to "OTHER" (SPORT-RACE-01P.3: never a protocol from a duration or an unconfirmed format). See docs/05_DATA_MODEL.md §race_calendar.
+
+== 03 Hot Trail Series, explicit — race_calendar (race_format=HOT_TRAIL_2DAY, series="HOT_TRAIL_SERIES") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["HOT_TRAIL_2DAY"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-15 DH_TECHNICAL LIGHT 60
+  race week  race: 11-17 RECOVERY_ACTIVE - 20 / 11-18 RECOVERY_ACTIVE - 20
+  J-7  2026-11-14 planned=- | KEEP STRENGTH_UPPER LIGHT - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-6  2026-11-15 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | RACE_PROTOCOL_TX,PLANNED_LOAD_CAP
+  J-5  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-17 planned=RECOVERY_ACTIVE - 20 | KEEP RECOVERY_ACTIVE - 20 | created | RACE_PROTOCOL_TX
+  J-3  2026-11-18 planned=RECOVERY_ACTIVE - 20 | KEEP RECOVERY_ACTIVE - 20 | created | RACE_PROTOCOL_TX
+  J-2  2026-11-19 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-20 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 04 iXS, explicit — race_calendar (race_format=IXS_3DAY, series="IXS") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: ["IXS_3DAY"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-13 STRENGTH_UPPER LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: 11-16 RECOVERY_ACTIVE - 20 / 11-17 RECOVERY_ACTIVE - 20
+  J-7  2026-11-13 planned=STRENGTH_UPPER LIGHT 45 | KEEP STRENGTH_UPPER LIGHT 45 | created | RACE_PROTOCOL_TX
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | RACE_PROTOCOL_TX,PLANNED_LOAD_CAP
+  J-5  2026-11-15 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-4  2026-11-16 planned=RECOVERY_ACTIVE - 20 | KEEP RECOVERY_ACTIVE - 20 | created | RACE_PROTOCOL_TX
+  J-3  2026-11-17 planned=RECOVERY_ACTIVE - 20 | KEEP RECOVERY_ACTIVE - 20 | created | RACE_PROTOCOL_TX
+  J-2  2026-11-18 planned=- | KEEP REST - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  J-1  2026-11-19 planned=- | KEEP RACE_ACTIVITY - - | blocked/final_prescription_no_lineage | RACE_PROTOCOL_TX
+  adapter warnings: none
+
+== 05 Swiss race 2 days (new form) — race_calendar (race_format=OTHER, series="SWISS_OTHER") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 06 UCI World Cup 3 days (new form) — race_calendar (race_format=OTHER, series="UCI_WORLD_CUP") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 07 Coupe de France DH 2 days (new form) — race_calendar (race_format=OTHER, series="FR_COUPE_DE_FRANCE_DH") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 08 Coupe de France DH 2 days stored HOT_TRAIL_2DAY — race_calendar (race_format=HOT_TRAIL_2DAY, series="FR_COUPE_DE_FRANCE_DH") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: has race_format = HOT_TRAIL_2DAY without the explicit series it was written for (series = "FR_COUPE_DE_FRANCE_DH") — no pre-event protocol, mapped to "OTHER" (SPORT-RACE-01P.3: never a protocol from a duration or an unconfirmed format). See docs/05_DATA_MODEL.md §race_calendar.
+
+== 09 Championnats de France DH 3 days (new form) — race_calendar (race_format=OTHER, series="FR_CHAMPIONNAT_DE_FRANCE_DH") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 10 Championnats de France DH 3 days stored IXS_3DAY — race_calendar (race_format=IXS_3DAY, series="FR_CHAMPIONNAT_DE_FRANCE_DH") 2026-11-20..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: has race_format = IXS_3DAY without the explicit series it was written for (series = "FR_CHAMPIONNAT_DE_FRANCE_DH") — no pre-event protocol, mapped to "OTHER" (SPORT-RACE-01P.3: never a protocol from a duration or an unconfirmed format). See docs/05_DATA_MODEL.md §race_calendar.
+
+== 11 French regional 1 day — race_calendar (race_format=OTHER, series="FR_REGIONAL_DH") 2026-11-22..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-6  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-21 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none
+
+== 12 legacy free-text series « Hot Trail Series (Swiss DH Cup) » — race_calendar (race_format=HOT_TRAIL_2DAY, series="Hot Trail Series (Swiss DH Cup)") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: has race_format = HOT_TRAIL_2DAY without the explicit series it was written for (series = "Hot Trail Series (Swiss DH Cup)") — no pre-event protocol, mapped to "OTHER" (SPORT-RACE-01P.3: never a protocol from a duration or an unconfirmed format). See docs/05_DATA_MODEL.md §race_calendar.
+
+== 13 unknown competition — race_calendar (race_format=OTHER, series="OTHER") 2026-11-21..2026-11-22
+  V2 snapshot raceFormat: ["OTHER"] | protocol removals: 0
+  taper week taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race week  race: (aucune séance)
+  J-7  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-5  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-4  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-3  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-2  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  J-1  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE - - | blocked/final_prescription_no_lineage | INFERENCE_FALLBACK
+  adapter warnings: none

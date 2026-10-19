@@ -6712,3 +6712,16 @@ Rapport : `docs/release/sport-race-01/SPORT_RACE_01P_IMPLEMENTATION_REPORT.md`.
   - **Activation sportive non prête.** Correction minimale du contrat proposée, non appliquée : format d'événement et non durée, aucun format présélectionné, organisateur dans `series`.
 
 Canon : diffs `docs/03`, `docs/05` et `docs/10` (T67) révisés, toujours proposés et non appliqués, avec la proposition A (`docs/release/sport-race-01/SPORT_RACE_01P_CANON_DIFFS.md`). Rapport : `SPORT_RACE_01P2_DECISION_REPORT.md`.
+
+### Addendum SPORT-RACE-01P.3 (HPM 2026-10-19) : contrat des formats et séries de compétition
+
+> **Décision HPM** : SPORT-RACE-01P.2 APPROVED WITH CONDITIONS ; proposition A approuvée comme contrat fonctionnel cible. AR-A à AR-D conservés. Aucun push, merge, déploiement, migration ni activation.
+
+- **Contrat** : la compétition (`race_calendar.series`, un code d'une liste fermée), le format (`race_format`, dérivé de la compétition) et la durée (les dates) sont distincts. Aucune compétition présélectionnée. Séries françaises comprises : Coupe de France DH / DHI, Championnats de France DH / DHI, régionales, autres courses françaises.
+- **Sélection du protocole** : une seule règle d'adapter (`selectRaceProtocolFormat`), utilisée par le contexte quotidien de M1 (`mapRaceCalendarRow`) et par le snapshot v2 (`raceFormat`). Protocole seulement pour (`HOT_TRAIL_2DAY`, `HOT_TRAIL_SERIES`) et (`IXS_3DAY`, `IXS`). Un format à protocole sans sa série est ambigu : `OTHER`, avec avertissement. Les autres formats sont inchangés.
+- **Pourquoi l'adapter et pas M1** : M1 (frozen) reçoit déjà un `RaceFormat` ; il suffit de lui transmettre le format sélectionné. Aucune modification de M1, aucune ADR M1.
+- **Pourquoi `series` sans migration** : la colonne existe (baseline), n'est lue par aucun code et peut porter un code. Les anciennes lignes (`series` NULL ou texte libre) se distinguent donc des nouvelles sans changement de schéma.
+- **Compatibilité** : les courses existantes en `HOT_TRAIL_2DAY` / `IXS_3DAY` sans série perdent le protocole (quotidien et plans générés ensuite), V1 compris, jusqu'à ce que le rider choisisse la compétition. Rien n'est migré ni réécrit ; décisions, prescriptions, exécutions et versions de plan existantes inchangées. Comptage agrégé en lecture seule proposé à Louis (`SPORT_RACE_01P3_LEGACY_RACES_COUNT.sql`).
+- **Sans protocole** : course enregistrable et visible, préparation spécifique annoncée comme non définie (formulaire, liste, Aujourd'hui). Aucun protocole générique, aucune dose modifiée.
+
+Canon : diffs `docs/03`, `docs/05` (§race_calendar) et `docs/10` (T67) en révision 01P.3, proposés, non appliqués. Rapport : `SPORT_RACE_01P3_FINAL_REPORT.md`.
