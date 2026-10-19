@@ -6590,3 +6590,32 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 - la référence manuelle (point 2), en particulier le refus de la DH manuelle HEAVY, est une interprétation du §6 à confirmer ;
 - aucun document canonique (`docs/01` à `docs/10`) n'est modifié ; cet ADR n'a d'effet normatif qu'après approbation HPM du texte canon exact ;
 - ajout local : message rider `modify_not_supported` (`b36317f`, texte proposé à valider).
+
+## 2026-10-19 — ADR SPORT-SAFE-01R.3 : option B approuvée — alternative A10 limitée après un refus A04
+
+> **Option B approuvée par HPM (2026-10-19).** A04 refuse toute fausse adaptation et garde la trace de son refus. A10 peut ensuite proposer une récupération active distincte, pour ce seul motif de refus. Canon appliqué : `docs/04`, `docs/05`, `docs/10` (T66), commit `949c09c`.
+
+**Décision (implémentée, commit `c22a381`)** :
+- **Condition :** un MODIFY refusé « contenu identique » (`modify_not_supported`) dont la séance refusée dépasse le temps du rider.
+- **Alternative unique :** la récupération active (REPLACE), le candidat A10 existant, construite sous le temps du rider. Elle est admissible si elle est créée, tient dans le temps et diffère du document refusé (`admissibleAlternativeV2`).
+- **Le refus n'est jamais effacé ni requalifié :**
+  - le résultat porte `refusedModify` ;
+  - la décision est tracée `A04_MODIFY_NOT_SUPPORTED`, puis `V2_TODAY_TIME_CONSTRAINT` ;
+  - phrase rider : « la séance prévue n'est pas proposée […] Autre séance à la place : récupération active. »
+- **Aucune alternative admissible :** le refus demeure (action `no_alternative`), aucune séance exécutable, jamais un REST.
+- **Hors périmètre de l'exception :** REST de M1, REST Safety ou signal de santé, toute autre raison de blocage. Leur comportement est inchangé.
+- **Séance manuelle `HEAVY` :** aucune référence §6, car son KEEP est déjà construit à la dose `MODERATE`. Son MODIFY est créé comme en production. Arbitrage sportif ouvert.
+
+**Persistance** : aucune colonne, aucune migration.
+- Refus seul : statut `blocked`, avec son détail.
+- Alternative : statut `created`, ligne `replace` pour la récupération, refus conservé dans `daily_plan.triggered_rules`. Les contraintes CHECK interdisent le code et le détail hors `blocked`.
+- Une prescription refusée n'est jamais créditée comme exécutée. V2-L2 et ses seuils sont inchangés.
+
+**Web (commit `570ae34`)** : la séance guidée de l'alternative affiche la phrase du moteur au-dessus des consignes de M1, avant et pendant la séance. Rien en lecture seule. Quand il n'y a pas d'alternative, le message de refus approuvé (`b36317f`) reste affiché.
+
+**Différences flags OFF** (contre `863f3fb`, identique à `99d2add` flags OFF) :
+- **Planifié :** 192 cas. 128 refus (32 sans temps, 96 temps non évalué). 64 cas égaux à la récupération A10 de production, plus `refusedModify`.
+- **Manuel, séance avant M1 transmise :** endurance et récupération `MODERATE` seulement (66 + 66). Les 264 cas `HEAVY` sont égaux à la production.
+- **Hors différentiel** (temps < 20 min, vrai moteur) : la production donnait REST par A10 ; la branche garde le refus (`no_alternative`).
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/sport-safe-01`). Rapport : `docs/release/sport-safe-01/SPORT_SAFE_01R3_FINAL_REPORT.md`.
