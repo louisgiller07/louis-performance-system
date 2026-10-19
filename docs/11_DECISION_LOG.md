@@ -6583,3 +6583,10 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 **Canon** : diffs `docs/04`, `docs/05` et `docs/10` proposés dans le rapport, non appliqués.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/sport-safe-01`). Rapport `docs/release/sport-safe-01/SPORT_SAFE_01R_REPORT.md`.
+
+**Portée normative (SPORT-SAFE-01R.2, 2026-10-19)** :
+- approuvé avec conditions, HOLD court ;
+- point 1 (ordre A04 → A10) en arbitrage : option A, canon strict, état actuel de la branche ; option B, amendement contrôlé (`docs/release/sport-safe-01/SPORT_SAFE_01R2_DECISION_PACK.md`) ;
+- la référence manuelle (point 2), en particulier le refus de la DH manuelle HEAVY, est une interprétation du §6 à confirmer ;
+- aucun document canonique (`docs/01` à `docs/10`) n'est modifié ; cet ADR n'a d'effet normatif qu'après approbation HPM du texte canon exact ;
+- ajout local : message rider `modify_not_supported` (`b36317f`, texte proposé à valider).
