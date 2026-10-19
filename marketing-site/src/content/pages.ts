@@ -290,8 +290,13 @@ export const contactPage = {
  *   for transfers from the EEA, the UK and Switzerland (Schedule 3), Swiss
  *   Federal Act on Data Protection included (Schedule 4) (vercel.com/legal/dpa).
  * Confirmed by the operator (HPM decisions, ART-RELEASE-02): Vercel Pro,
- * Resend Free, contact messages kept 6 months at most after the last exchange
- * (monthly purge), controller details by link to the app notice (option C).
+ * Resend Free, controller details by link to the app notice (option C).
+ * Mailbox retention (HPM ART-02.3, operator 2026-10-19): manual review once a
+ * month of the Received and Sent folders; an exchange whose last message is
+ * more than 6 months old is deleted unless an obligation justifies keeping it;
+ * the trash is emptied in the same operation. In place: monthly reminder
+ * created and first review done. Provider backups are outside this procedure
+ * (no duration stated: none is known).
  * `TO_CONFIRM` marks a fact the operator must confirm before publication; the
  * release checks fail while one is left in the page. Never replace it with an
  * invented retention period or legal commitment.
@@ -346,8 +351,8 @@ export const privacyPage = {
       title: "Conservation",
       body: [
         "Le site ne conserve pas ton message. Resend conserve les données de l'e-mail (contenu, métadonnées et journaux d'envoi) pendant 30 jours.",
-        // The marker stays until the operator confirms the monthly purge is in place (HPM): never published as operational before.
-        `Dans la messagerie de NALYNT, ton message est conservé au plus 6 mois après notre dernier échange, puis supprimé, sauf si la loi impose de le garder plus longtemps. [${TO_CONFIRM} : purge mensuelle effectivement en place]`,
+        "Dans la messagerie de NALYNT, nous vérifions chaque mois les messages reçus et envoyés. Un échange est supprimé lors de cette vérification dès que son dernier message date de plus de 6 mois, sauf si une obligation, légale notamment, justifie de le conserver plus longtemps. Avec ce rythme mensuel, il peut donc rester jusqu'à environ 7 mois.",
+        "La corbeille de la messagerie est vidée lors de la même vérification. Des copies peuvent toutefois subsister dans les sauvegardes techniques de notre hébergeur, Infomaniak, selon ses propres règles de conservation.",
       ],
     },
     {
@@ -361,5 +366,5 @@ export const privacyPage = {
     href: "https://app.nalynt.ch/privacy",
   },
   // Set to the real publication day on the day of the GO (never a guessed date).
-  updated: `Mise à jour : [${TO_CONFIRM} : date réelle de publication]`,
+  updated: "Mise à jour : 19 octobre 2026",
 };
