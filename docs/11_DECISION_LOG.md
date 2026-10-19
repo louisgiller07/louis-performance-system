@@ -6656,3 +6656,38 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
   - Ordre de publication proposé : web, puis `daily-run`.
 
 **Statut** : READY TO DEPLOY (local) ; publication soumise au GO séparé de l'HPM et de Louis. Rapport : `docs/release/sport-safe-01/SPORT_SAFE_RELEASE_01_READINESS_REPORT.md`.
+
+## 2026-10-19 — ADR SPORT-RACE-01P : jours d'avant-course planifiés depuis le protocole de course (option P)
+
+> **Décision HPM (2026-10-19)** : diagnostic SPORT-RACE-01 accepté ; **option P approuvée comme contrat fonctionnel cible** ; GO pour un développement local ciblé. Aucun push, merge, déploiement, migration distante ni flag.
+
+**Contexte** : de J-6 à J-1, aucune séance exécutable (SPORT-RACE-01). La semaine de course V2 n'avait aucune séance (PROVISIONAL), et le quotidien n'invente jamais de séance un jour sans séance prévue (ADR UX-11A.5c.0). Seuls `HOT_TRAIL_2DAY` et `IXS_3DAY` ont un protocole T-X.
+
+**Décision (implémentée en local, `fix/sport-race-01`)** :
+- **Planificateur V2** (`placeRaceProtocolSessionsV2`, politique `race-protocol-plan-v1`, PROVISIONAL) : pour une course A+, A ou B dont le format a un protocole, les jours de T-7 à T-1 suivent la table T-X de M1. Celle-ci est reflétée côté planning (`RACE_PROTOCOL_TABLES_V2`), l'égalité étant verrouillée par test.
+  - **Placé**, seulement quand le type a un modèle V2 et une dose existante, sur un créneau de la bonne activité, une séance par jour :
+    - T-7 Force haut LIGHT 45 (dose d'affûtage) ;
+    - T-6 DH LIGHT 60 à 4 passages (dose d'affûtage ; la DH MODERATE du T-X est plafonnée par `PLANNED_LOAD_CAP`) ;
+    - T-4 et T-3 récupération `recovery_active_v1`, réservée à son minimum déclaré (20 min).
+  - **Non placé** : T-5 (aucune endurance V2 de 30 min), les jours REST, l'activité officielle de T-1 (IXS), les jours de course et les deux jours qui suivent une course.
+  - **DH d'affûtage** : tombée sur un jour du protocole d'un autre type, elle va au jour DH du protocole (T-6) si celui-ci est libre et a un créneau vélo. Une séance tombée sur un jour REST du protocole est retirée.
+  - **Format sans protocole** : rien ; la préparation spécifique n'est pas définie et aucun protocole générique n'est supposé.
+- **Snapshot V2** : chaque course porte `raceFormat` (JSON additif, aucune colonne).
+- **Quotidien** : `daily-run` est inchangé (même bundle que la v46). Les séances d'avant-course sont des séances générées ordinaires : KEEP copiable, fatigue, douleur, Safety et P0-SAFE prioritaires. Un jour sans séance planifiée reste une recommandation sans prescription.
+- **M1** : inchangé (gelé).
+- **Web** :
+  - un jour V2 sans séance prévue n'affiche plus la durée de M1 (par exemple la fenêtre V1 « 4 h ») ; il affiche une phrase de conseil, et la bande indique « Pas de séance guidée » ;
+  - bandeau « Préparation spécifique non définie » à 7 jours ou moins d'une course sans protocole ;
+  - traduction de l'explication du plan.
+- **Course ajoutée, déplacée ou annulée** : jamais de régénération silencieuse. La réévaluation passe par une nouvelle génération explicite et acceptée (chemin existant), qui laisse intacts les jours utilisés, les exécutions et les décisions. Le déclencheur côté rider (message après l'enregistrement d'une course) reste à décider.
+
+**Canon** : diffs `docs/03`, `docs/05` et `docs/10` (T67) **proposés, non appliqués** (`docs/release/sport-race-01/SPORT_RACE_01P_CANON_DIFFS.md`). Jusqu'à leur approbation, le code est en avance sur le canon.
+
+**Restent à arbitrer** :
+- DH de J-7 sur le seul créneau vélo (sans créneau à J-6, M1 la remplace encore par de la Force) : règle M1 gouvernée ou acceptation ;
+- dose de la DH de J-6, durée de T-5, récupération à T-4 et T-3 ;
+- données de programme officiel pour les formats sans protocole ;
+- déclencheur de réévaluation après l'ajout d'une course ;
+- validation sportive de tout le protocole.
+
+Rapport : `docs/release/sport-race-01/SPORT_RACE_01P_IMPLEMENTATION_REPORT.md`.
