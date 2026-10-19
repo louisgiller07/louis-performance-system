@@ -291,7 +291,8 @@ describe("TrainingPlanSessionCard — exercise and drill names (REV-015.3)", () 
     ["line_choice_rock_garden", "Choix de ligne dans le pierrier"],
     ["race_execution_full_run_sim", "Simulation de run complet"],
     ["race_execution_split_pace", "Run fractionné à allure course"],
-    ["roots_rocks_committed", "Racines et rochers engagés, à vitesse"],
+    // SPORT-COACH-SAFE-01.2 — renamed display label (same id; no speed in the name).
+    ["roots_rocks_committed", "Racines et rochers, ligne engagée"],
   ];
 
   it.each(STORED_EXERCISES)("existing plan exercise %s → %s", (exerciseId, label) => {

@@ -15,7 +15,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
   {
     "difficulty": "intermediate",
     "displayName": "Late Braking, Early Release",
-    "executionCue": "Delay brake release until just before the corner entry, then commit to the line without touching the brakes again.",
+    "executionCue": "Finish most of the braking before the corner entry, release progressively and commit to the line; brake again if speed or grip require it.",
     "id": "braking_late_entry",
     "progressesTo": "braking_marked_zone_at_speed",
     "regressesTo": "braking_progressive_control",
@@ -26,7 +26,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
   {
     "difficulty": "advanced",
     "displayName": "Braking Points at Race Speed",
-    "executionCue": "Mark one short braking zone before each technical feature — brake hard there only, then release fully and ride the feature off the brakes.",
+    "executionCue": "Mark one short braking zone before each technical feature and do most of the braking there; through the feature, hold the line and brake when needed.",
     "id": "braking_marked_zone_at_speed",
     "regressesTo": "braking_late_entry",
     "skillTarget": "braking",
@@ -119,7 +119,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
   {
     "difficulty": "advanced",
     "displayName": "Steep Chute Off the Brakes",
-    "executionCue": "Scrub speed before the chute, release the brakes through the steepest part and let the bike run out at the bottom — heels down, eyes on the exit.",
+    "executionCue": "Scrub speed before the steep chute, then modulate the brakes without locking the wheels through the steepest part — heels down, eyes on the exit.",
     "id": "steep_terrain_off_brake_chute",
     "regressesTo": "steep_terrain_body_position",
     "skillTarget": "steep_terrain",
@@ -150,7 +150,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
   {
     "difficulty": "advanced",
     "displayName": "Committed Roots & Rocks at Speed",
-    "executionCue": "Pick your line before entry and carry race-pace speed through — trust the bike to track over the roots.",
+    "executionCue": "Pick your line before entry and keep a speed you control to the end; approach race speed only if grip and your level allow.",
     "id": "roots_rocks_committed",
     "regressesTo": "roots_rocks_rolling",
     "skillTarget": "roots_rocks",

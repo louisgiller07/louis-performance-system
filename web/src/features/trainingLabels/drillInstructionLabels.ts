@@ -21,9 +21,14 @@
 // published); every plan already stored keeps the former English, listed
 // exactly in `legacySourceSuccessCriteria` and shown as the same corrected
 // French. The stored prescriptions are never changed.
+// SPORT-COACH-SAFE-01.2 — same treatment for four execution cues that said
+// not to touch the brakes again, to ride a feature or a chute off the brakes,
+// or to carry race-pace speed (`legacySourceExecutionCues`).
 
 interface DrillInstructionTranslation {
   sourceExecutionCue: string;
+  /** SPORT-COACH-SAFE-01.2 — earlier catalogue texts of the cue, still held by stored plans; exact match only. */
+  legacySourceExecutionCues?: readonly string[];
   executionCue: string;
   sourceSuccessCriterion: string;
   /** SPORT-COACH-SAFE-01 — earlier catalogue texts of the criterion, still held by stored plans; exact match only. */
@@ -38,19 +43,20 @@ export const DRILL_INSTRUCTION_LABELS: Readonly<Record<string, DrillInstructionT
     sourceSuccessCriterion: "Speed controlled smoothly into every marked braking zone, no skidding.",
     successCriterion: "Tu contrôles ta vitesse en douceur dans chaque zone de freinage marquée, sans déraper.",
   },
-  // TODO(REV-015.4a): coach DH validation recommended — "delay brake release" means keep braking, then release just before corner entry.
+  // SPORT-COACH-SAFE-01.2: the former cue ("delay brake release… without touching the brakes again") is replaced by a
+  // controlled wording, pending the physical trainer's written validation.
   braking_late_entry: {
-    sourceExecutionCue: "Delay brake release until just before the corner entry, then commit to the line without touching the brakes again.",
-    executionCue: "Garde les freins jusqu'à juste avant l'entrée du virage, puis engage-toi sur ta ligne sans retoucher aux freins.",
+    sourceExecutionCue: "Finish most of the braking before the corner entry, release progressively and commit to the line; brake again if speed or grip require it.",
+    legacySourceExecutionCues: ["Delay brake release until just before the corner entry, then commit to the line without touching the brakes again."],
+    executionCue: "Termine l'essentiel de ton freinage avant l'entrée du virage, relâche progressivement et engage-toi sur ta ligne ; refreine si ta vitesse ou l'adhérence l'exigent.",
     sourceSuccessCriterion: "Finishes most of the braking before the corner and holds the line to the exit, at a speed suited to grip and own level; brakes again whenever needed.",
     legacySourceSuccessCriteria: ["Maintains entry speed later into the corner without overshooting the line."],
     successCriterion: "Tu termines l'essentiel de ton freinage avant d'entrer dans le virage et tu tiens ta trajectoire jusqu'à la sortie, à une vitesse adaptée à l'adhérence et à ton niveau. Tu peux freiner de nouveau si c'est nécessaire.",
   },
   braking_marked_zone_at_speed: {
-    sourceExecutionCue:
-      "Mark one short braking zone before each technical feature — brake hard there only, then release fully and ride the feature off the brakes.",
-    executionCue:
-      "Marque une courte zone de freinage avant chaque passage technique — freine fort uniquement là, puis relâche complètement et passe l'obstacle sans freiner.",
+    sourceExecutionCue: "Mark one short braking zone before each technical feature and do most of the braking there; through the feature, hold the line and brake when needed.",
+    legacySourceExecutionCues: ["Mark one short braking zone before each technical feature — brake hard there only, then release fully and ride the feature off the brakes."],
+    executionCue: "Marque une courte zone de freinage avant chaque passage technique et fais-y l'essentiel de ton freinage ; dans le passage, garde ta trajectoire et freine si nécessaire.",
     sourceSuccessCriterion: "Does most of the braking in the marked zone and stays in control on the line through the technical feature, braking there when needed; approaches race speed only if grip, conditions and own level allow.",
     legacySourceSuccessCriteria: ["Brakes only in the marked zones and rides every technical feature off the brakes, at race speed, on 3/5 runs."],
     successCriterion: "Tu fais l'essentiel de ton freinage dans la zone marquée et tu restes en contrôle sur ta trajectoire dans le passage technique ; tu peux y freiner si c'est nécessaire. N'approche ta vitesse course que si l'adhérence, les conditions et ton niveau le permettent.",
@@ -118,10 +124,9 @@ export const DRILL_INSTRUCTION_LABELS: Readonly<Record<string, DrillInstructionT
   },
   // TODO(REV-015.4a): coach DH validation recommended (priority) — steep chute + releasing the brakes; the "before → during → bottom" order must stay intact.
   steep_terrain_off_brake_chute: {
-    sourceExecutionCue:
-      "Scrub speed before the chute, release the brakes through the steepest part and let the bike run out at the bottom — heels down, eyes on the exit.",
-    executionCue:
-      "Casse ta vitesse avant le couloir raide, lâche les freins dans la partie la plus raide et laisse filer le vélo en bas — talons bas, regard sur la sortie.",
+    sourceExecutionCue: "Scrub speed before the steep chute, then modulate the brakes without locking the wheels through the steepest part — heels down, eyes on the exit.",
+    legacySourceExecutionCues: ["Scrub speed before the chute, release the brakes through the steepest part and let the bike run out at the bottom — heels down, eyes on the exit."],
+    executionCue: "Casse ta vitesse avant le couloir raide, puis dose tes freins sans bloquer les roues dans la partie la plus raide — talons bas, regard sur la sortie.",
     sourceSuccessCriterion: "Rides the steepest part in control, with no locked wheel or front-wheel wash, modulating the brakes to the slope and grip.",
     legacySourceSuccessCriteria: ["Rides the steepest part of the chute off the brakes, with no front-wheel wash, on 3/5 runs."],
     successCriterion: "Tu descends la partie la plus raide en contrôle, sans blocage de roue ni perte de l'avant, en dosant ton freinage selon la pente et l'adhérence.",
@@ -141,8 +146,9 @@ export const DRILL_INSTRUCTION_LABELS: Readonly<Record<string, DrillInstructionT
     successCriterion: "Tu passes la section avec de l'élan, sans que l'avant dévie, sur 4 runs sur 5.",
   },
   roots_rocks_committed: {
-    sourceExecutionCue: "Pick your line before entry and carry race-pace speed through — trust the bike to track over the roots.",
-    executionCue: "Choisis ta ligne avant l'entrée et garde ta vitesse course jusqu'au bout — fais confiance au vélo pour passer les racines.",
+    sourceExecutionCue: "Pick your line before entry and keep a speed you control to the end; approach race speed only if grip and your level allow.",
+    legacySourceExecutionCues: ["Pick your line before entry and carry race-pace speed through — trust the bike to track over the roots."],
+    executionCue: "Choisis ta ligne avant l'entrée et garde une vitesse que tu contrôles jusqu'au bout ; n'approche ta vitesse course que si l'adhérence et ton niveau le permettent.",
     sourceSuccessCriterion: "Rides the section on the chosen line, stable and in control, at a speed managed for grip and conditions, braking when needed.",
     legacySourceSuccessCriteria: ["Clears the section at race-relevant speed on 3/5 runs."],
     successCriterion: "Tu passes la section sur la ligne choisie, stable et en contrôle, à une vitesse que tu maîtrises selon l'adhérence et les conditions, en freinant si nécessaire.",
@@ -209,7 +215,13 @@ function storedOrNull(stored: unknown): string | null {
  */
 export function translateDrillExecutionCue(drillId: unknown, storedExecutionCue: unknown): string | null {
   const translation = translationFor(drillId);
-  if (translation !== null && storedExecutionCue === translation.sourceExecutionCue) return translation.executionCue;
+  if (
+    translation !== null &&
+    typeof storedExecutionCue === "string" &&
+    (storedExecutionCue === translation.sourceExecutionCue || (translation.legacySourceExecutionCues ?? []).includes(storedExecutionCue))
+  ) {
+    return translation.executionCue;
+  }
   return storedOrNull(storedExecutionCue);
 }
 

@@ -58,7 +58,7 @@ const ENTRIES: DrillCatalogEntry[] = [
     terrainRequirement: "flow_trail",
     difficulty: "intermediate",
     successCriteria: "Finishes most of the braking before the corner and holds the line to the exit, at a speed suited to grip and own level; brakes again whenever needed.",
-    executionCue: "Delay brake release until just before the corner entry, then commit to the line without touching the brakes again.",
+    executionCue: "Finish most of the braking before the corner entry, release progressively and commit to the line; brake again if speed or grip require it.",
     progressesTo: "braking_marked_zone_at_speed",
     regressesTo: "braking_progressive_control",
   },
@@ -69,7 +69,7 @@ const ENTRIES: DrillCatalogEntry[] = [
     terrainRequirement: "technical_trail",
     difficulty: "advanced",
     successCriteria: "Does most of the braking in the marked zone and stays in control on the line through the technical feature, braking there when needed; approaches race speed only if grip, conditions and own level allow.",
-    executionCue: "Mark one short braking zone before each technical feature — brake hard there only, then release fully and ride the feature off the brakes.",
+    executionCue: "Mark one short braking zone before each technical feature and do most of the braking there; through the feature, hold the line and brake when needed.",
     regressesTo: "braking_late_entry",
   },
   {
@@ -162,7 +162,7 @@ const ENTRIES: DrillCatalogEntry[] = [
     terrainRequirement: "steep_technical_trail",
     difficulty: "advanced",
     successCriteria: "Rides the steepest part in control, with no locked wheel or front-wheel wash, modulating the brakes to the slope and grip.",
-    executionCue: "Scrub speed before the chute, release the brakes through the steepest part and let the bike run out at the bottom — heels down, eyes on the exit.",
+    executionCue: "Scrub speed before the steep chute, then modulate the brakes without locking the wheels through the steepest part — heels down, eyes on the exit.",
     regressesTo: "steep_terrain_body_position",
   },
   {
@@ -193,7 +193,7 @@ const ENTRIES: DrillCatalogEntry[] = [
     terrainRequirement: "root_rock_trail",
     difficulty: "advanced",
     successCriteria: "Rides the section on the chosen line, stable and in control, at a speed managed for grip and conditions, braking when needed.",
-    executionCue: "Pick your line before entry and carry race-pace speed through — trust the bike to track over the roots.",
+    executionCue: "Pick your line before entry and keep a speed you control to the end; approach race speed only if grip and your level allow.",
     regressesTo: "roots_rocks_rolling",
   },
   {

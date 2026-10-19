@@ -7,9 +7,9 @@ import { SESSION_EXERCISE_CATALOG_V2_ENTRIES } from "../../src/catalog/sessionEx
 // V2 content lives in a separate catalogue (sessionExerciseCatalogV2.ts) and
 // must never change what V1 plans are built from. These snapshots were
 // recorded BEFORE any V2 file existed; a diff here means V1 changed.
-// SPORT-COACH-SAFE-01 (HPM 2026-10-19) — the only intended V1 change since: the
-// `successCriteria` text of six drills (controlled wording); ids, selection,
-// terrains, cues and doses unchanged.
+// SPORT-COACH-SAFE-01 / 01.2 (HPM 2026-10-19) — the only intended V1 changes since:
+// the `successCriteria` text of six drills and the `executionCue` text of four
+// (controlled wording); ids, display names, selection, terrains and doses unchanged.
 describe("V1 catalogues — frozen by UX-11A.5a.1", () => {
   it("keeps the historical V1 catalogue versions", () => {
     expect(EXERCISE_CATALOG_VERSION).toBe("v3");
