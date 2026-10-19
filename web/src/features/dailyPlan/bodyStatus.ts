@@ -6,6 +6,9 @@
 //   signal — a health signal created or any Safety-layer rule (A1–A7) ruled the day;
 //   watch  — a pain was declared and adapted for (PAIN_NON_SAFETY), read "Douleur signalée", never "ready";
 //   ready  — nothing of the kind.
+// SPORT-SAFE-RELEASE-01 (HPM 2026-10-19) — « ready » means NO HEALTH SIGNAL (no Safety rule, no declared pain), never
+// fitness or readiness to train: fatigue is shown elsewhere (« Ce que ton coach a retenu », « Ton état du jour ») and a
+// fatigue day still reads « ready » here. Its label says exactly that, never « Prêt » (presentation only).
 import type { DailyPlan } from "./dailyPlanTypes";
 
 export type BodyStatus = "signal" | "watch" | "ready";
@@ -13,7 +16,7 @@ export type BodyStatus = "signal" | "watch" | "ready";
 export const BODY_STATUS_LABELS: Record<BodyStatus, string> = {
   signal: "Signal actif",
   watch: "Douleur signalée",
-  ready: "Prêt",
+  ready: "Aucun signal de santé",
 };
 
 export const BODY_STATUS_TONE: Record<BodyStatus, string> = {

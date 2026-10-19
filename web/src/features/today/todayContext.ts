@@ -104,6 +104,8 @@ export interface WeekDay {
   adapted?: boolean;
   /** CONSISTENCY-01 — the session shown is the rider's own modification (planned_sessions.source = 'manual'), not the coach's prescription. */
   modifiedByAthlete?: boolean;
+  /** SPORT-SAFE-RELEASE-01 — the day's session was refused (A04): the coach's decision, no guided session to start. */
+  noGuidedSession?: boolean;
   race: string | null;
 }
 
@@ -159,6 +161,7 @@ export function weekSummary(
         adapted: day?.adaptation !== null && day?.adaptation !== undefined,
         // CONSISTENCY-01 — the rider's own session, unless the coach replaced it or rested the day.
         modifiedByAthlete: hasSession && row?.source === "manual" && day?.adaptation !== "REPLACE" && day?.adaptation !== "REST",
+        ...(day?.noGuidedSession ? { noGuidedSession: true } : {}),
         race: race ? race.eventName : null,
       };
     });

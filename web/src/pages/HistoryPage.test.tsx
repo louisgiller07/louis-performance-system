@@ -178,7 +178,8 @@ describe("HistoryPage — the journey (UX-07)", () => {
 
     const card = within(await screen.findByRole("region", { name: "Aujourd'hui" })).getByRole("article");
     expect(within(card).getByRole("heading", { name: "Mardi 29 septembre" })).toBeInTheDocument();
-    expect(within(card).getByText("Prêt")).toBeInTheDocument();
+    // SPORT-SAFE-RELEASE-01 — the « ready » body status says what it means: no health signal.
+    expect(within(card).getByText("Aucun signal de santé")).toBeInTheDocument();
     expect(within(card).getByText("Mission du jour")).toBeInTheDocument();
     expect(within(card).getByText("Aucune séance prévue ce jour-là.")).toBeInTheDocument();
     expect(within(card).getByText("Pourquoi ?")).toBeInTheDocument();

@@ -132,6 +132,7 @@ export function programWeekDays(
         ...realisationOf(effective),
         adapted: effective.adaptation !== null,
         modifiedByAthlete: manualDates.includes(date) && effective.adaptation !== "REPLACE" && effective.adaptation !== "REST",
+        ...(effective.noGuidedSession ? { noGuidedSession: true } : {}),
         race: race ? race.eventName : null,
       };
     }

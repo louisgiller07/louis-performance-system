@@ -23,6 +23,8 @@ function symbol(day: WeekDay): string {
 function statusLabel(day: WeekDay): string {
   if (day.performed) return day.realisation === "partial" ? "Partiellement réalisée" : day.realisation === "complete" ? "Réalisée" : "Terminée";
   if (day.stopped) return "Arrêtée";
+  // SPORT-SAFE-RELEASE-01 — the coach's decision of a refused session: never presented as today's executable session.
+  if (day.noGuidedSession) return "Pas de séance guidée";
   if (day.isToday && day.planned) return "Aujourd'hui";
   if (day.planned) return day.isPast ? "Prévue, non enregistrée" : "Prévue";
   return "Aucune séance prévue";

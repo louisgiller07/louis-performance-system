@@ -101,15 +101,16 @@ describe("ReadinessCard (REV-015.1)", () => {
     expect(screen.queryByText("Confiance")).not.toBeInTheDocument();
     expect(screen.queryByText(formatConfidence(confidence)!)).not.toBeInTheDocument();
     expect(screen.getByText("État du corps")).toBeInTheDocument();
-    expect(screen.getByText("Prêt")).toBeInTheDocument();
+    // SPORT-SAFE-RELEASE-01 — the « ready » body status says what it means: no health signal.
+    expect(screen.getByText("Aucun signal de santé")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(ENGLISH_LABELS);
   });
 
-  it("health signal: 'Signal actif' instead of 'Prêt'", () => {
+  it("health signal: 'Signal actif' instead of the no-signal label", () => {
     render(<ReadinessCard dailyPlan={planFor(PAIN_REST)} hasHealthSignal />);
 
     expect(screen.getByText("Signal actif")).toBeInTheDocument();
-    expect(screen.queryByText("Prêt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aucun signal de santé")).not.toBeInTheDocument();
   });
 
   it("an unknown confidence value hides the row instead of showing the raw value", () => {

@@ -247,7 +247,7 @@ describe("CoachStateCard (UX-04, split in two cards by UX-05)", () => {
   it("no retained signal: says so factually; no check-in values: no tiles, the body state stays", () => {
     render(<CoachStateCard dailyPlan={{ ...PLAN, decision: "KEEP", decision_reasoning: [] }} hasHealthSignal={false} checkin={null} />);
     expect(screen.getByText("Aucun signal de ton check-in n'a demandé d'adapter ta séance.")).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Ton état du jour" })).toHaveTextContent("État du corpsPrêt");
+    expect(screen.getByRole("region", { name: "Ton état du jour" })).toHaveTextContent("État du corpsAucun signal de santé");
   });
 
   it("keeps the ReadinessCard safety semantics: server health signal in red, sanitized attention note", () => {

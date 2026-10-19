@@ -77,6 +77,12 @@ export interface EffectiveDay {
    * (endurance, recovery…) or read — shown neutrally (« Terminée »), never as fully done.
    */
   realisation?: SessionRealisation;
+  /**
+   * SPORT-SAFE-RELEASE-01 — the day's decision refused its adaptation (A04 `modify_not_supported`: no guided version
+   * lighter than the planned one) and has no executable session: the session above is the coach's decision, not a
+   * session the rider can start. From the stored decision's blocked status only.
+   */
+  noGuidedSession?: true;
 }
 
 const TERMINAL = ["completed", "abandoned"];
@@ -84,6 +90,12 @@ const TERMINAL = ["completed", "abandoned"];
 function latestValidDecision(date: string, decisions: readonly DecisionHistoryRow[]): (DecisionHistoryRow & { dailyPlan: DailyPlan }) | null {
   const valid = decisions.filter((d) => d.decisionDate === date && isValidDailyPlan(d.dailyPlan)).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
   return (valid[0] as (DecisionHistoryRow & { dailyPlan: DailyPlan }) | undefined) ?? null;
+}
+
+/** SPORT-SAFE-RELEASE-01 — the decision's own blocked status: A04 refused its adaptation, no executable session. */
+function refusedWithoutSession(decision: DecisionHistoryRow): boolean {
+  const detail = decision.finalPrescriptionStatusDetail;
+  return decision.finalPrescriptionStatus === "blocked" && typeof detail === "object" && detail !== null && (detail as { reason?: unknown }).reason === "modify_not_supported";
 }
 
 function adaptationOf(plan: DailyPlan): EffectiveDay["adaptation"] {
@@ -142,6 +154,7 @@ export function effectiveDay(date: string, sources: EffectiveSources): Effective
       executionId: executions[0]?.executionId ?? null,
       finalPrescriptionId: null,
       ...legacyRealisationOf(date, sources.legacy),
+      ...(refusedWithoutSession(latest) ? { noGuidedSession: true as const } : {}),
     };
   }
 
