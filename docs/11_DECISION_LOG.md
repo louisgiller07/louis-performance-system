@@ -6691,3 +6691,24 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 - validation sportive de tout le protocole.
 
 Rapport : `docs/release/sport-race-01/SPORT_RACE_01P_IMPLEMENTATION_REPORT.md`.
+
+### Addendum SPORT-RACE-01P.2 (HPM 2026-10-19) : arbitrages AR-A à AR-D, contrôle des formats
+
+> **Décision HPM** : SPORT-RACE-01P APPROVED WITH CONDITIONS. Aucun push, merge ni déploiement. Doses provisoires inchangées.
+
+- **AR-A** :
+  - M1 n'est pas contourné, et aucune séance n'est placée un jour incompatible.
+  - Une séance d'un autre type tombée sur un jour du protocole dont la séance n'est pas possible avec les créneaux du jour est retirée du plan : M1 la remplacerait par une séance que ce jour ne permet pas (Force sans créneau physique, DH sans créneau vélo). C'est le cas de la DH de J-7 d'un rider sans créneau vélo à J-6.
+  - Le retrait est identifiable : contrainte relâchée `placement_shortfall`, raison `race_protocol_incompatible_day`, avec domaine et date, affichée dans les points d'attention du programme.
+- **AR-B** : **bloqué, non implémenté.**
+  - En production, la génération V2 est OFF : un rider affecté V2 reçoit `503 v2_generation_disabled`.
+  - Le web ne peut lire ni le secret ni l'affectation (`training_plan_model_assignments`, aucun accès pour `authenticated`). Un bouton « Mettre à jour mon programme » serait donc inopérant, et le web ne pourrait pas le savoir.
+  - Contrat nécessaire : une capacité serveur en lecture seule, qui indique si une génération est possible pour ce rider et avec quel modèle. Aucune génération automatique.
+- **AR-C** : le repos de J-2 est préservé. La séance qui y tombe est retirée (`race_protocol_rest_day`), jamais déplacée. Le seul déplacement reste celui de la DH vers T-6, déjà approuvé. Le cas est documenté pour validation sportive.
+- **AR-D** : un jour sans séance prévue où M1 ne donne qu'un conseil n'est plus compté comme « séance prévue », ni marqué « ○ ». Aucune statistique d'exécution historique n'est modifiée.
+- **Formats (contrôle A)** :
+  - Le formulaire présente `HOT_TRAIL_2DAY` et `IXS_3DAY` comme des durées (« Course sur 2 / 3 jours »), et présélectionne « 2 jours ».
+  - Une Swiss Cup ou une UCI saisie ainsi reçoit le protocole Hot Trail ou iXS, non validé pour elle. C'était déjà le cas au quotidien (M1, production), et c'est désormais aussi le cas dans le plan.
+  - **Activation sportive non prête.** Correction minimale du contrat proposée, non appliquée : format d'événement et non durée, aucun format présélectionné, organisateur dans `series`.
+
+Canon : diffs `docs/03`, `docs/05` et `docs/10` (T67) révisés, toujours proposés et non appliqués, avec la proposition A (`docs/release/sport-race-01/SPORT_RACE_01P_CANON_DIFFS.md`). Rapport : `SPORT_RACE_01P2_DECISION_REPORT.md`.
