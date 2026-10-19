@@ -205,6 +205,9 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
     note(`daily planned: ${cases} cases ${JSON.stringify(Object.fromEntries(statuses))}; SPORT-SAFE-01 refusals ${JSON.stringify(Object.fromEntries(refused))} ${JSON.stringify(Object.fromEntries(refusedFrom))}`);
     // SPORT-SAFE-01 — the one intended difference: only the endurance session already at the LIGHT duration.
     expect([...refused.keys()].sort()).toEqual(["AEROBIC_BASE MODERATE→LIGHT 45 min"]);
+    // SPORT-SAFE-01R.2 — every intended difference counted: none can appear or vanish unnoticed.
+    expect(Object.fromEntries(refused)).toEqual({ "AEROBIC_BASE MODERATE→LIGHT 45 min": 192 });
+    expect(Object.fromEntries(refusedFrom)).toEqual({ "production no time": 32, "production fits": 96, "production adapted": 64 });
     // Coverage of the comparison itself: thousands of cases, every outcome kind represented.
     expect(cases).toBeGreaterThan(5000);
     expect(statuses.get("created") ?? 0).toBeGreaterThan(1000);
@@ -271,6 +274,8 @@ describe.skipIf(!production)("V2-PHYS-INTEGRATION-01 — every PHYS switch off =
       "RECOVERY_ACTIVE HEAVY→MODERATE",
       "RECOVERY_ACTIVE MODERATE→LIGHT",
     ]);
+    expect([...manualRefused.values()]).toEqual([66, 66, 66, 66, 66, 66]);
+    expect(manualWithSession).toBe(1848);
     expect(cases).toBeGreaterThan(3000);
   });
 
