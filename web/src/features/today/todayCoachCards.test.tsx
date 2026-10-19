@@ -20,6 +20,7 @@ const RACE: TodayRace = {
   priority: "A_PLUS",
   location: "Lenzerheide",
   raceFormat: "IXS_3DAY",
+  series: "IXS",
 };
 const TODAY = "2026-09-29";
 
@@ -40,11 +41,19 @@ describe("RaceBanner (UX-05)", () => {
     const banner = screen.getByRole("region", { name: "Prochaine course" });
     expect(within(banner).getByText("J-12")).toBeInTheDocument();
     expect(within(banner).getByText("iXS Lenzerheide")).toBeInTheDocument();
-    expect(banner).toHaveTextContent("Dim. 11 octobre · Lenzerheide · iXS, 3 jours · Priorité A+");
+    expect(banner).toHaveTextContent("Dim. 11 octobre · Lenzerheide · iXS · Priorité A+");
     expect(banner).toHaveTextContent("12 jours avant ta course. Chaque décision compte.");
     expect(banner.textContent).not.toMatch(/IXS_3DAY|A_PLUS/);
     // A race takes precedence over the declared objective.
     expect(banner).not.toHaveTextContent("Performance en course");
+  });
+
+  it("SPORT-RACE-01P.3 — a legacy 3-day race without its competition is never presented as iXS; a French championship shows its name", () => {
+    const { unmount } = render(<RaceBanner horizon={raceHorizon([{ ...RACE, series: null }], TODAY)} objective={null} />);
+    expect(screen.getByRole("region", { name: "Prochaine course" })).toHaveTextContent("Dim. 11 octobre · Lenzerheide · Course sur 3 jours — compétition à préciser · Priorité A+");
+    unmount();
+    render(<RaceBanner horizon={raceHorizon([{ ...RACE, eventName: "Championnats de France DH", raceFormat: "OTHER", series: "FR_CHAMPIONNAT_DE_FRANCE_DH" }], TODAY)} objective={null} />);
+    expect(screen.getByRole("region", { name: "Prochaine course" })).toHaveTextContent("Lenzerheide · Championnats de France DH / DHI · Priorité A+");
   });
 
   it("race in 200 days → OBJECTIF DE SAISON with the race name, no countdown", () => {
@@ -67,7 +76,7 @@ describe("RaceBanner (UX-05)", () => {
   });
 
   it("race missing optional columns → only what exists is shown", () => {
-    render(<RaceBanner horizon={raceHorizon([{ ...RACE, location: null, raceFormat: null, priority: "B" }], TODAY)} objective={null} />);
+    render(<RaceBanner horizon={raceHorizon([{ ...RACE, location: null, raceFormat: null, series: null, priority: "B" }], TODAY)} objective={null} />);
     expect(screen.getByRole("region", { name: "Prochaine course" })).toHaveTextContent("Dim. 11 octobre · Priorité B");
   });
 

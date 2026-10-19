@@ -79,18 +79,33 @@ describe("SPORT-RACE-01P — a day without a planned session is advice, never M1
   });
 });
 
-describe("SPORT-RACE-01P — a race format without a protocol: no specific preparation is defined", () => {
-  const race = (raceFormat: string | null, startDate: string): TodayRace => ({ eventName: "Swiss Cup DH", startDate, endDate: startDate, priority: "A", location: null, raceFormat });
-  it("within seven days, for any format without a protocol (or none)", () => {
-    for (const format of ["OTHER", "SWISS_CUP", "UCI_WC", null]) {
-      const { unmount } = render(<RaceBanner horizon={{ kind: "countdown", race: race(format, "2026-11-21"), days: 5 }} objective={null} />);
-      expect(screen.getByTestId("no-race-protocol").textContent).toBe(NO_RACE_PROTOCOL_SENTENCE);
+describe("SPORT-RACE-01P / 01P.3 — a race without a protocol: no specific preparation is defined", () => {
+  const race = (raceFormat: string | null, startDate: string, series: string | null = null): TodayRace => ({ eventName: "Swiss Cup DH", startDate, endDate: startDate, priority: "A", location: null, raceFormat, series });
+  it("within seven days, for any race without a protocol: no format, Swiss / UCI, French national or regional, and a legacy 2 / 3-day row without its competition (01P.3)", () => {
+    const cases: [string | null, string | null][] = [
+      ["OTHER", null],
+      ["SWISS_CUP", null],
+      ["UCI_WC", null],
+      [null, null],
+      ["HOT_TRAIL_2DAY", null],
+      ["IXS_3DAY", null],
+      ["HOT_TRAIL_2DAY", "Hot Trail Series (Swiss DH Cup)"],
+      ["OTHER", "FR_COUPE_DE_FRANCE_DH"],
+      ["OTHER", "FR_CHAMPIONNAT_DE_FRANCE_DH"],
+      ["OTHER", "FR_REGIONAL_DH"],
+      ["OTHER", "SWISS_OTHER"],
+    ];
+    for (const [format, series] of cases) {
+      const { unmount } = render(<RaceBanner horizon={{ kind: "countdown", race: race(format, "2026-11-21", series), days: 5 }} objective={null} />);
+      expect(screen.getByTestId("no-race-protocol").textContent, `${format} / ${series}`).toBe(NO_RACE_PROTOCOL_SENTENCE);
       unmount();
     }
   });
 
-  it("never for a format with a protocol, nor beyond seven days", () => {
-    render(<RaceBanner horizon={{ kind: "countdown", race: race("HOT_TRAIL_2DAY", "2026-11-21"), days: 5 }} objective={null} />);
+  it("never for a race explicitly identified as the Hot Trail Series or iXS, nor beyond seven days", () => {
+    render(<RaceBanner horizon={{ kind: "countdown", race: race("HOT_TRAIL_2DAY", "2026-11-21", "HOT_TRAIL_SERIES"), days: 5 }} objective={null} />);
+    expect(screen.queryByTestId("no-race-protocol")).toBeNull();
+    render(<RaceBanner horizon={{ kind: "countdown", race: race("IXS_3DAY", "2026-11-21", "IXS"), days: 5 }} objective={null} />);
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();
     render(<RaceBanner horizon={{ kind: "countdown", race: race("OTHER", "2026-11-30"), days: 10 }} objective={null} />);
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();

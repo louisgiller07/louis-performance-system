@@ -184,7 +184,7 @@ describe("TodayPage — UX-04 coach context", () => {
   it("a race within 120 days: PROCHAINE COURSE · J-12 · its name, and the next step builds towards it", () => {
     todayContextValue.current = {
       firstName: "Louis",
-      races: [{ eventName: "iXS Lenzerheide", startDate: addDays(todayLocal(), 12), endDate: addDays(todayLocal(), 13), priority: "A", location: "Lenzerheide", raceFormat: "IXS_3DAY" }],
+      races: [{ eventName: "iXS Lenzerheide", startDate: addDays(todayLocal(), 12), endDate: addDays(todayLocal(), 13), priority: "A", location: "Lenzerheide", raceFormat: "IXS_3DAY", series: "IXS" }],
       objective: "Performance en course",
       planned: [],
       completed: [],
@@ -196,7 +196,7 @@ describe("TodayPage — UX-04 coach context", () => {
     const banner = screen.getByRole("region", { name: "Prochaine course" });
     expect(within(banner).getByText("J-12")).toBeInTheDocument();
     expect(banner).toHaveTextContent("iXS Lenzerheide");
-    expect(banner).toHaveTextContent("Lenzerheide · iXS, 3 jours · Priorité A");
+    expect(banner).toHaveTextContent("Lenzerheide · iXS · Priorité A");
     expect(screen.getByRole("region", { name: "Prochaine étape" })).toHaveTextContent("Cap sur iXS Lenzerheide, dans 12 jours.");
   });
 

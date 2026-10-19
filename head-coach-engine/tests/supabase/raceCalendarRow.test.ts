@@ -2,13 +2,14 @@ import { describe, it, expect } from "vitest";
 import { mapRaceCalendarRow, InvalidRaceCalendarRowError } from "../../src/supabase/mapping/raceCalendarRow.js";
 
 describe("M2 read path — mapRaceCalendarRow", () => {
-  it("maps a valid race_format identically, with no warning", () => {
+  it("maps a valid race_format identically, with no warning (a protocol format with its explicit series — SPORT-RACE-01P.3)", () => {
     const { race, warnings } = mapRaceCalendarRow({
       event_name: "La Berra",
       start_date: "2026-08-16",
       end_date: "2026-08-16",
       priority: "A",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
     });
 
     expect(race).toEqual({
@@ -34,6 +35,24 @@ describe("M2 read path — mapRaceCalendarRow", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("Course locale");
     expect(warnings[0]).toContain("NULL");
+  });
+
+  it("SPORT-RACE-01P.3 — a legacy HOT_TRAIL_2DAY row without its series is ambiguous: OTHER (no T-X protocol), with an explicit warning", () => {
+    const { race, warnings } = mapRaceCalendarRow({
+      event_name: "Course sur 2 jours",
+      start_date: "2026-08-15",
+      end_date: "2026-08-16",
+      priority: "A",
+      race_format: "HOT_TRAIL_2DAY",
+      series: null,
+    });
+
+    expect(race.race_format).toBe("OTHER");
+    expect(warnings).toEqual([
+      'race_calendar row "Course sur 2 jours" has race_format = HOT_TRAIL_2DAY without the explicit series it was written for ' +
+        '(series = null) — no pre-event protocol, mapped to "OTHER" (SPORT-RACE-01P.3: never a protocol from a duration or ' +
+        "an unconfirmed format). See docs/05_DATA_MODEL.md §race_calendar.",
+    ]);
   });
 
   it("rejects a non-null race_format that is not a recognized RaceFormat, rather than folding it into OTHER", () => {

@@ -58,6 +58,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005A (NAL-001) — DB->engine wiring
       end_date: RACE_END,
       priority: "A_PLUS",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
     });
   });
 

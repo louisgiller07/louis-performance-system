@@ -13,6 +13,7 @@ import {
   isLoopbackSupabaseUrl,
   resolveTestSupabaseUrl,
   type TestAthlete,
+  explicitProtocolSeries,
 } from "./testDb.js";
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,6 +41,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2 read path — computeDailyFor equivale
         end_date: race.event_end,
         priority: race.priority,
         race_format: race.race_format,
+        series: explicitProtocolSeries(race.race_format),
       });
     }
   }

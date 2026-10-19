@@ -74,13 +74,14 @@ interface RaceRow {
   priority: RacePriority;
   location: string | null;
   race_format: string | null;
+  series: string | null;
 }
 
 /** Also used by Programme (UX-06). */
 export async function loadRaces(athleteId: string, fromDate: string, toDate: string): Promise<TodayRace[]> {
   const { data, error } = await supabase
     .from("race_calendar")
-    .select("event_name, start_date, end_date, priority, location, race_format")
+    .select("event_name, start_date, end_date, priority, location, race_format, series")
     .eq("athlete_id", athleteId)
     .in("status", ACTIVE_RACE_STATUSES)
     .lte("start_date", toDate)
@@ -93,6 +94,7 @@ export async function loadRaces(athleteId: string, fromDate: string, toDate: str
     priority: row.priority,
     location: row.location?.trim() || null,
     raceFormat: row.race_format,
+    series: row.series,
   }));
 }
 

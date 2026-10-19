@@ -43,7 +43,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("P0 — Hot Trail T-6: the planned taper D
     });
     for (const d of [1, 2, 3, 4]) await insertAvailabilityWindow(admin, rider, { day_of_week: d, start_time: "18:00:00", end_time: "19:30:00", activity: "physical" });
     await insertAvailabilityWindow(admin, rider, { day_of_week: 0, start_time: "08:00:00", end_time: "18:00:00", activity: "riding" });
-    await insertRace(admin, rider, { event_name: "Hot Trail", start_date: "2026-10-24", end_date: "2026-10-25", priority: "A", race_format: "HOT_TRAIL_2DAY" });
+    await insertRace(admin, rider, { event_name: "Hot Trail", start_date: "2026-10-24", end_date: "2026-10-25", priority: "A", race_format: "HOT_TRAIL_2DAY", series: "HOT_TRAIL_SERIES" });
     const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: rider, generationRequestId: randomUUID(), durationWeeks: 3, today: "2026-10-05" });
     if (p.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, rider, p.planVersionId, "2026-10-06", "2026-10-26");

@@ -18,6 +18,8 @@ export interface TodayRace extends RaceOverlayEvent {
   location: string | null;
   /** Raw race_format enum; translated at display time (trainingLabels/raceLabels.ts), never shown raw. */
   raceFormat: string | null;
+  /** SPORT-RACE-01P.3 — the competition code (races/raceProtocol.ts), or a value stored before; absent in old fixtures. */
+  series?: string | null;
 }
 
 /** "Louis Giller" → "Louis"; nothing usable → null (the caller shows the brand instead). */

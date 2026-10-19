@@ -201,7 +201,7 @@ describe.skipIf(!EDGE)("P0-3 — health suspension enforcement on guided session
     const r = await rider("ordinary-rest");
     const day = r.dhDays[0]!;
     const s = await running(r, day);
-    await insertRace(admin, r.athleteId, { event_name: "P0-3 race", start_date: addCalendarDays(day, 2), end_date: addCalendarDays(day, 3), priority: "A", race_format: "HOT_TRAIL_2DAY" });
+    await insertRace(admin, r.athleteId, { event_name: "P0-3 race", start_date: addCalendarDays(day, 2), end_date: addCalendarDays(day, 3), priority: "A", race_format: "HOT_TRAIL_2DAY", series: "HOT_TRAIL_SERIES" });
     await editCheckin(r, day, { ...NO_PAIN, sleep_quality: 2 });
     const d = await rerun(r, day);
     const out = { decision: d.decision, finalKind: d.finalKind, rules: d.rules, newPass: await attempt(r, { sets: [s.pass(2)] }), pause: await attempt(r, s.ev("paused")), resume: await attempt(r, s.ev("resumed")), completion: await attempt(r, s.ev("completed")) };

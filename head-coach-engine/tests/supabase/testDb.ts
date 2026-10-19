@@ -547,6 +547,8 @@ export async function insertRace(
     end_date: string;
     priority?: string;
     race_format?: string;
+    /** SPORT-RACE-01P.3 — the competition code (`race_calendar.series`); omitted = NULL, as a row written before it. */
+    series?: string;
     /** V0.3_005B (NAL-007A) — omitted means the DB's own `DEFAULT 'planned'` applies, never a value fabricated here. */
     status?: string;
   }
@@ -559,6 +561,17 @@ export async function insertRace(
     end_date: fields.end_date,
     priority: fields.priority ?? "B",
     race_format: fields.race_format ?? null,
+    ...(fields.series !== undefined ? { series: fields.series } : {}),
   });
   if (error) throw new Error(`insertRace failed: ${error.message}`);
+}
+
+/**
+ * SPORT-RACE-01P.3 — an M1 fixture race of a protocol format (`HOT_TRAIL_2DAY`, `IXS_3DAY`) stands for a race the
+ * rider explicitly identified as that series: its DB row carries the series code (the adapter never infers it).
+ */
+export function explicitProtocolSeries(raceFormat: string | null | undefined): string | undefined {
+  if (raceFormat === "HOT_TRAIL_2DAY") return "HOT_TRAIL_SERIES";
+  if (raceFormat === "IXS_3DAY") return "IXS";
+  return undefined;
 }

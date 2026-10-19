@@ -29,6 +29,7 @@
  */
 import type { RaceFormat, RacePriority, UpcomingRace } from "../../types/index.js";
 import type { RaceCalendarRawRow } from "../repositories/raceCalendarRepo.js";
+import { selectRaceProtocolFormat } from "./raceProtocolSelection.js";
 
 const RACE_PRIORITIES: ReadonlySet<string> = new Set(["A_PLUS", "A", "B", "C"]);
 const RACE_FORMATS: ReadonlySet<string> = new Set([
@@ -57,8 +58,12 @@ export interface RaceCalendarMapping {
  * Maps a `race_calendar` row to `{ race, warnings }`. Throws
  * {@link InvalidRaceCalendarRowError} for a missing/unrecognized required
  * field, including a non-null `race_format` that isn't a known
- * `RaceFormat`. A NULL `race_format` is the one case reconciled to
- * `"OTHER"`, with an explicit warning rather than a silent conversion.
+ * `RaceFormat`. A NULL `race_format` is reconciled to `"OTHER"`, with an
+ * explicit warning rather than a silent conversion. SPORT-RACE-01P.3: the
+ * format M1 receives is the one selectRaceProtocolFormat selects — a
+ * protocol format only for a race explicitly identified as its series
+ * (`series` code), otherwise `"OTHER"` with a warning (never a protocol
+ * from a duration or an unconfirmed format).
  */
 export function mapRaceCalendarRow(row: RaceCalendarRawRow): RaceCalendarMapping {
   if (typeof row.event_name !== "string") {
@@ -75,20 +80,18 @@ export function mapRaceCalendarRow(row: RaceCalendarRawRow): RaceCalendarMapping
   }
 
   const warnings: string[] = [];
-  let race_format: RaceFormat;
+  let stored: RaceFormat | null;
 
   if (row.race_format === null || row.race_format === undefined) {
-    race_format = "OTHER";
-    warnings.push(
-      `race_calendar row "${row.event_name}" has race_format = NULL — mapped to "OTHER" (no T-X table ` +
-        "triggered by this format either way). See docs/05_DATA_MODEL.md §race_calendar and " +
-        "docs/11_DECISION_LOG.md."
-    );
+    stored = null;
   } else if (typeof row.race_format === "string" && RACE_FORMATS.has(row.race_format)) {
-    race_format = row.race_format as RaceFormat;
+    stored = row.race_format as RaceFormat;
   } else {
     throw new InvalidRaceCalendarRowError("race_format is not a recognized RaceFormat", row);
   }
+  const selection = selectRaceProtocolFormat(row.event_name, stored, row.series);
+  if (selection.warning) warnings.push(selection.warning);
+  const race_format = selection.race_format;
 
   return {
     race: {

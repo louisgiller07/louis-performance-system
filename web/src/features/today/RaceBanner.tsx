@@ -1,4 +1,5 @@
-import { translateRaceFormat, translateRacePriority } from "../trainingLabels/raceLabels";
+import { translateRacePriority } from "../trainingLabels/raceLabels";
+import { competitionLabel, raceProtocolOf } from "../races/raceProtocol";
 import type { RaceHorizon, TodayRace } from "./todayContext";
 
 // UX-05 — Today's context banner: why this day counts. Validated order:
@@ -13,11 +14,11 @@ import type { RaceHorizon, TodayRace } from "./todayContext";
 const RACE_DATE = new Intl.DateTimeFormat("fr-CH", { weekday: "short", day: "numeric", month: "long" });
 
 /**
- * SPORT-RACE-01P — the formats with a pre-event protocol (docs/04 §3). In the seven days before any other format (or
- * none), Today says that no specific preparation is defined: NALYNT plans no pre-event session for it.
+ * SPORT-RACE-01P / 01P.3 — in the seven days before a race without a pre-event protocol (any competition but an
+ * explicitly identified Hot Trail Series or iXS race — the engine's rule, races/raceProtocol.ts), Today says that no
+ * specific preparation is defined: NALYNT plans no pre-event session for it.
  */
-const PROTOCOL_FORMATS: ReadonlySet<string> = new Set(["HOT_TRAIL_2DAY", "IXS_3DAY"]);
-export const NO_RACE_PROTOCOL_SENTENCE = "Préparation spécifique non définie pour ce format de course : NALYNT ne planifie pas de séance les jours qui la précèdent.";
+export const NO_RACE_PROTOCOL_SENTENCE = "Préparation spécifique non définie pour cette compétition : NALYNT ne planifie pas de séance les jours qui la précèdent.";
 
 function formatRaceDate(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
@@ -26,7 +27,9 @@ function formatRaceDate(date: string): string {
 }
 
 function raceDetails(race: TodayRace): string[] {
-  const format = translateRaceFormat(race.raceFormat);
+  // SPORT-RACE-01P.3 — the competition the rider named (never a duration standing for a protocol); nothing when the
+  // race has neither a format nor a competition.
+  const format = race.raceFormat === null && !race.series ? null : competitionLabel(race.raceFormat, race.series);
   const priority = translateRacePriority(race.priority);
   return [formatRaceDate(race.startDate), race.location, format, priority ? `Priorité ${priority}` : null].filter((part): part is string => Boolean(part));
 }
@@ -47,7 +50,7 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
     title = horizon.race.eventName;
     details = raceDetails(horizon.race);
     closing = horizon.days === 1 ? "La course, c'est demain. Chaque décision compte." : `${horizon.days} jours avant ta course. Chaque décision compte.`;
-    noProtocol = horizon.days <= 7 && !PROTOCOL_FORMATS.has(horizon.race.raceFormat ?? "");
+    noProtocol = horizon.days <= 7 && raceProtocolOf(horizon.race.raceFormat, horizon.race.series) === null;
   } else if (horizon?.kind === "ongoing") {
     kicker = "En course";
     big = `Jour ${horizon.day}`;

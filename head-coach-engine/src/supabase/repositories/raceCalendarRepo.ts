@@ -122,7 +122,7 @@ export async function getRacesInWindow(
 
   const { data, error } = await client
     .from("race_calendar")
-    .select("event_name, start_date, end_date, priority, race_format, status")
+    .select("event_name, start_date, end_date, priority, race_format, series, status")
     .eq("athlete_id", athleteId)
     .lte("start_date", windowEnd)
     .gte("end_date", windowStart)
@@ -166,7 +166,7 @@ export async function getRacesOverlappingRange(
 ): Promise<RaceCalendarRawRow[]> {
   const { data, error } = await client
     .from("race_calendar")
-    .select("event_name, start_date, end_date, priority, race_format, status")
+    .select("event_name, start_date, end_date, priority, race_format, series, status")
     .eq("athlete_id", athleteId)
     .lte("start_date", endDate)
     .gte("end_date", startDate)

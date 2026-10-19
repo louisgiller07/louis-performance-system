@@ -7,7 +7,11 @@ import { SecondaryButton } from "../../components/SecondaryButton";
 import { Select } from "../../components/Select";
 import { createRace, deleteRace, loadRaces, updateRace, type Race } from "./raceRepo";
 import { endDateFor, validateRaceDraft, type RaceDraft } from "./raceForm";
-import { FORMAT_OPTION_LABELS, NEW_RACE_FORMATS, NEW_RACE_PRIORITIES, PRIORITY_OPTION_LABELS, RACE_FORMAT_DAYS, RACES, formatLabel, type RacePriority } from "./racePresentation";
+import { NEW_RACE_PRIORITIES, PRIORITY_OPTION_LABELS, RACE_FORMAT_DAYS, RACES, type RacePriority } from "./racePresentation";
+import { RACE_SERIES, competitionLabel, preparationLabel, raceProtocolOf, seriesOption } from "./raceProtocol";
+
+/** SPORT-RACE-01P.3 — the select value of an existing race kept with its stored competition / format. */
+const STORED = "__stored__";
 
 // A09 — « Tes courses » (Affiner ton profil): the rider's upcoming races
 // (create / edit / delete) and the last 30 days (read-only, delete only).
@@ -62,14 +66,15 @@ export function RacesSection() {
     setNotice(null);
     setError(null);
     setConfirmDelete(null);
-    setEditing({ id: null, original: null, draft: { eventName: "", startDate: today, endDate: endDateFor("HOT_TRAIL_2DAY", today, today), priority: "B", raceFormat: "HOT_TRAIL_2DAY" } });
+    // SPORT-RACE-01P.3 — no competition preselected: the rider names it (never « 2 jours » by default).
+    setEditing({ id: null, original: null, draft: { eventName: "", startDate: today, endDate: today, priority: "B", raceFormat: null, series: null } });
   }
 
   function startEdit(race: Race) {
     setNotice(null);
     setError(null);
     setConfirmDelete(null);
-    setEditing({ id: race.id, original: race, draft: { eventName: race.eventName, startDate: race.startDate, endDate: race.endDate, priority: race.priority, raceFormat: race.raceFormat } });
+    setEditing({ id: race.id, original: race, draft: { eventName: race.eventName, startDate: race.startDate, endDate: race.endDate, priority: race.priority, raceFormat: race.raceFormat, series: race.series } });
   }
 
   function setDraft(next: Partial<RaceDraft>) {
@@ -82,7 +87,7 @@ export function RacesSection() {
 
   async function save() {
     if (!editing || !athleteId) return;
-    const problem = validateRaceDraft(editing.draft, today);
+    const problem = validateRaceDraft(editing.draft, today, editing.original ? { raceFormat: editing.original.raceFormat, series: editing.original.series } : undefined);
     if (problem) {
       setError(problem);
       return;
@@ -119,16 +124,23 @@ export function RacesSection() {
   const draft = editing?.draft;
   // An existing race keeps its A+ / its stored format readable and selectable: never silently converted.
   const priorityOptions: RacePriority[] = editing?.original?.priority === "A_PLUS" ? ["A_PLUS", ...NEW_RACE_PRIORITIES] : [...NEW_RACE_PRIORITIES];
-  const storedFormat = editing?.original?.raceFormat ?? null;
-  const keepsStoredFormat = editing?.original !== null && editing?.original !== undefined && !(NEW_RACE_FORMATS as readonly (string | null)[]).includes(storedFormat);
-  const fixedDays = draft?.raceFormat ? RACE_FORMAT_DAYS[draft.raceFormat] : undefined;
+  // SPORT-RACE-01P.3 — an existing race stored without a competition of the list keeps its stored pair selectable
+  // (« (existant) »), never silently converted; a protocol needs the competition chosen explicitly.
+  const original = editing?.original ?? null;
+  const storedIsListed = original !== null && seriesOption(original.series)?.raceFormat === original.raceFormat;
+  const canKeepStored = original !== null && !storedIsListed;
+  const competitionValue =
+    draft === undefined ? "" : seriesOption(draft.series)?.raceFormat === draft.raceFormat ? draft.series! : canKeepStored && draft.series === original!.series && draft.raceFormat === original!.raceFormat ? STORED : "";
+  const draftProtocol = draft ? raceProtocolOf(draft.raceFormat, draft.series) : null;
+  const fixedDays = draft?.raceFormat && competitionValue !== "" ? RACE_FORMAT_DAYS[draft.raceFormat] : undefined;
 
   function raceLine(race: Race, actions: ReactNode) {
     return (
       <li key={race.id} className="flex flex-col gap-1 border-t border-line pt-3 first:border-t-0 first:pt-0">
         <p className="font-medium text-ink">{race.eventName}</p>
         <p>{dates(race)}</p>
-        <p>{`${PRIORITY_OPTION_LABELS[race.priority]} · ${formatLabel(race.raceFormat)}`}</p>
+        <p>{`${PRIORITY_OPTION_LABELS[race.priority]} · ${competitionLabel(race.raceFormat, race.series)}`}</p>
+        <p className="text-muted">{preparationLabel(race.raceFormat, race.series)}</p>
         {confirmDelete === race.id ? (
           <div className="mt-1 flex flex-wrap items-center gap-3">
             <span>{RACES.confirmDelete(race.eventName)}</span>
@@ -176,12 +188,23 @@ export function RacesSection() {
           <Field label={RACES.name}>
             <input type="text" value={draft.eventName} maxLength={120} onChange={(e) => setDraft({ eventName: e.target.value })} className={INPUT} />
           </Field>
-          <Field label={RACES.format} hint={draft.raceFormat === "OTHER" ? RACES.otherFormatHint : undefined}>
-            <Select value={draft.raceFormat ?? ""} onChange={(e) => setDraft({ raceFormat: e.target.value === "" ? null : e.target.value })}>
-              {keepsStoredFormat && <option value={storedFormat ?? ""}>{`${formatLabel(storedFormat)} ${RACES.existing}`}</option>}
-              {NEW_RACE_FORMATS.map((f) => (
-                <option key={f} value={f}>
-                  {FORMAT_OPTION_LABELS[f]}
+          <Field label={RACES.competition} hint={competitionValue === "" ? undefined : draftProtocol ? RACES.protocolHint(draftProtocol) : RACES.noProtocolHint}>
+            <Select
+              value={competitionValue}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === STORED && original) setDraft({ series: original.series, raceFormat: original.raceFormat });
+                else {
+                  const option = seriesOption(value);
+                  setDraft(option ? { series: option.code, raceFormat: option.raceFormat } : { series: null, raceFormat: null });
+                }
+              }}
+            >
+              <option value="">{RACES.competitionPlaceholder}</option>
+              {canKeepStored && <option value={STORED}>{`${competitionLabel(original!.raceFormat, original!.series)} ${RACES.existing}`}</option>}
+              {RACE_SERIES.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.label}
                 </option>
               ))}
             </Select>

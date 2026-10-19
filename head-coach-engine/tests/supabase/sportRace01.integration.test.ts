@@ -7,6 +7,8 @@
  * Force and DH, recovery_active_v1); M1 (frozen) keeps them (same kind and load, the DH capped); the daily path still
  * never invents a session (a day without a planned session: blocked final_prescription_no_lineage / no_planned_session).
  * - A format without a protocol (OTHER, SWISS_CUP, UCI_WC, none) gets nothing new: race week without session;
+ * - SPORT-RACE-01P.3: a protocol only for a race explicitly identified as its series (`series` code HOT_TRAIL_SERIES /
+ *   IXS); a legacy HOT_TRAIL_2DAY / IXS_3DAY row without it is ambiguous — no protocol, in the plan as in M1's daily;
  * - Safety first; no duplicate session, prescription or execution; a late race changes the plan only through an
  *   explicit regeneration and acceptance (never silently), used days and executions untouched.
  * Nothing here is a validated sport choice.
@@ -33,7 +35,10 @@ const IXS_RACE = { start_date: "2026-11-20", end_date: "2026-11-22" }; // Fri–
 const CREATED = ["created", null, null];
 const FEVER: CheckinFixture = { fever_or_illness: true };
 
-type Race = { start_date: string; end_date: string; race_format?: string | null };
+type Race = { start_date: string; end_date: string; race_format?: string | null; series?: string | null };
+/** The race the rider explicitly identified (SPORT-RACE-01P.3): the competition and the format it writes. */
+const HOT_TRAIL = { race_format: "HOT_TRAIL_2DAY", series: "HOT_TRAIL_SERIES" };
+const IXS = { race_format: "IXS_3DAY", series: "IXS" };
 
 describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the real V2 paths (local Supabase)", () => {
   let admin: SupabaseClient;
@@ -115,12 +120,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
       summary: [plan.decision, plan.final_session.kind, plan.final_session.load_profile ?? null, plan.final_session.duration_min ?? null],
       status: [latest.final_prescription_status, latest.final_prescription_status_code, (latest.final_prescription_status_detail as { reason?: string } | null)?.reason ?? null],
       rules: plan.triggered_rules.map((t) => t.rule_id).filter((id) => id !== "C3.7"),
+      races: result.rawContext.upcoming_races.map((x) => x.race_format),
+      warnings: result.warnings,
     };
   }
   const NO_LINEAGE = ["blocked", "final_prescription_no_lineage", "no_planned_session"];
 
-  it("HOT_TRAIL_2DAY (Sat–Sun), weekend riding: the taper DH moves from J-7 to the protocol's DH day (J-6), active recovery at J-4 and J-3; nothing else in the race week; one session per day", async () => {
-    const r = await rider("plan", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" });
+  it("Hot Trail Series, HOT_TRAIL_2DAY (Sat–Sun), weekend riding: the taper DH moves from J-7 to the protocol's DH day (J-6), active recovery at J-4 and J-3; nothing else in the race week; one session per day", async () => {
+    const r = await rider("plan", { ...WEEKEND_RACE, ...HOT_TRAIL });
     const w = await weeks(r.planVersionId);
     expect(w.map((x) => x.role)).toEqual(["race_specific", "taper", "race", "introduction"]);
     expect(w[1]!.sessions).toEqual(["2026-11-09 STRENGTH_LOWER LIGHT 45", "2026-11-10 AEROBIC_BASE LIGHT 45", "2026-11-15 DH_TECHNICAL LIGHT 60"]);
@@ -131,8 +138,8 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
     expect(await plannedRow(r.athleteId, "2026-11-17")).toBe("RECOVERY_ACTIVE - 20");
   });
 
-  it("IXS_3DAY (Fri–Sun): the protocol days the plan placed are executable — J-7 upper-body Force, J-6 the taper DH (capped LIGHT), J-4 and J-3 active recovery; J-5 (no V2 30-min endurance), J-2 and J-1 stay recommendations without a daily prescription; T+1 replaces the planned Force", async () => {
-    const r = await rider("ixs", { ...IXS_RACE, race_format: "IXS_3DAY" });
+  it("iXS, IXS_3DAY (Fri–Sun): the protocol days the plan placed are executable — J-7 upper-body Force, J-6 the taper DH (capped LIGHT), J-4 and J-3 active recovery; J-5 (no V2 30-min endurance), J-2 and J-1 stay recommendations without a daily prescription; T+1 replaces the planned Force", async () => {
+    const r = await rider("ixs", { ...IXS_RACE, ...IXS });
     const planned: [string, unknown[], string[]][] = [
       ["2026-11-13", ["KEEP", "STRENGTH_UPPER", "LIGHT", 45], ["RACE_PROTOCOL_TX"]],
       ["2026-11-14", ["KEEP", "DH_TECHNICAL", "LIGHT", 60], ["RACE_PROTOCOL_TX", "PLANNED_LOAD_CAP"]],
@@ -169,28 +176,48 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
     expect(after.finals.map((f) => f.reconciliation_action)).toEqual(["replace"]);
   });
 
-  it("formats without a T-X table — a Swiss Cup over two days, a UCI race over three, OTHER, no format: never the Hot Trail or iXS protocol; race week without session; M1's default recovery (INFERENCE_FALLBACK), no daily prescription", async () => {
-    const cases: [string | null, Race][] = [
-      ["SWISS_CUP", { ...WEEKEND_RACE, race_format: "SWISS_CUP" }],
-      ["UCI_WC", { ...IXS_RACE, race_format: "UCI_WC" }],
-      ["OTHER", { ...WEEKEND_RACE, race_format: "OTHER" }],
-      [null, { ...WEEKEND_RACE, race_format: null }],
+  it("SPORT-RACE-01P.3 — a protocol only for a race explicitly identified as its series: legacy 2 / 3-day rows, free-text or mismatched series, Swiss, UCI, French national and regional races, unknown or no format all get no protocol — same selection in the V2 plan (snapshot format, race week without session) and in M1's daily decision (INFERENCE_FALLBACK, never RACE_PROTOCOL_TX); every race stays visible to M1", async () => {
+    const LEGACY = "without the explicit series it was written for";
+    const NULL_FORMAT = "has race_format = NULL";
+    const cases: [string, Race, string | null][] = [
+      ["legacy 2 days (the old preselected « 2 jours »)", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" }, LEGACY],
+      ["legacy 3 days", { ...IXS_RACE, race_format: "IXS_3DAY" }, LEGACY],
+      ["legacy free-text series", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY", series: "Hot Trail Series (Swiss DH Cup)" }, LEGACY],
+      ["label variant", { ...IXS_RACE, race_format: "IXS_3DAY", series: "ixs" }, LEGACY],
+      ["Swiss Cup over two days (legacy format)", { ...WEEKEND_RACE, race_format: "SWISS_CUP" }, null],
+      ["another Swiss race over two days", { ...WEEKEND_RACE, race_format: "OTHER", series: "SWISS_OTHER" }, null],
+      ["UCI over three days (legacy format)", { ...IXS_RACE, race_format: "UCI_WC" }, null],
+      ["UCI World Cup over three days", { ...IXS_RACE, race_format: "OTHER", series: "UCI_WORLD_CUP" }, null],
+      ["Coupe de France DH over two days", { ...WEEKEND_RACE, race_format: "OTHER", series: "FR_COUPE_DE_FRANCE_DH" }, null],
+      ["Coupe de France DH stored with the 2-day format", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY", series: "FR_COUPE_DE_FRANCE_DH" }, LEGACY],
+      ["Championnats de France DH over three days", { ...IXS_RACE, race_format: "OTHER", series: "FR_CHAMPIONNAT_DE_FRANCE_DH" }, null],
+      ["Championnats de France DH stored with the 3-day format", { ...IXS_RACE, race_format: "IXS_3DAY", series: "FR_CHAMPIONNAT_DE_FRANCE_DH" }, LEGACY],
+      ["French regional race over one day", { start_date: "2026-11-21", end_date: "2026-11-21", race_format: "OTHER", series: "FR_REGIONAL_DH" }, null],
+      ["French regional race over three days", { ...IXS_RACE, race_format: "OTHER", series: "FR_REGIONAL_DH" }, null],
+      ["unknown competition", { ...WEEKEND_RACE, race_format: "OTHER", series: "OTHER" }, null],
+      ["no format", { ...WEEKEND_RACE, race_format: null }, NULL_FORMAT],
     ];
-    for (const [race_format, raceRow] of cases) {
-      const r = await rider(`format ${race_format ?? "none"}`, raceRow);
+    for (const [label, raceRow, warning] of cases) {
+      const r = await rider(`p3 ${label}`, raceRow);
+      const { data: version } = await admin.from("training_plan_versions").select("input_snapshot").eq("id", r.planVersionId).single();
+      const snapshotRaces = (version!.input_snapshot as { races: { raceFormat?: string }[] }).races;
+      expect(snapshotRaces.map((x) => x.raceFormat ?? null), label).toEqual([raceRow.race_format === null ? null : raceRow.race_format === "SWISS_CUP" || raceRow.race_format === "UCI_WC" ? raceRow.race_format : "OTHER"]);
       const w = await weeks(r.planVersionId);
-      expect(w[2]!.sessions).toEqual([]);
-      expect(w.flatMap((x) => x.sessions).some((x) => x.includes("RECOVERY_ACTIVE"))).toBe(false);
+      expect(w[2]!.sessions, label).toEqual([]);
+      expect(w.flatMap((x) => x.sessions).some((x) => x.includes("RECOVERY_ACTIVE")), label).toBe(false);
       const d = await day(r.athleteId, "2026-11-18");
-      expect(d.summary).toEqual(["KEEP", "RECOVERY_ACTIVE", null, null]);
-      expect(d.rules).toContain("INFERENCE_FALLBACK");
-      expect(d.rules).not.toContain("RACE_PROTOCOL_TX");
-      expect(d.status).toEqual(NO_LINEAGE);
+      expect(d.summary, label).toEqual(["KEEP", "RECOVERY_ACTIVE", null, null]);
+      expect(d.rules, label).toContain("INFERENCE_FALLBACK");
+      expect(d.rules, label).not.toContain("RACE_PROTOCOL_TX");
+      expect(d.status, label).toEqual(NO_LINEAGE);
+      expect(d.races, label).toHaveLength(1);
+      const raceWarnings = d.warnings.filter((x) => x.startsWith("race_calendar row"));
+      expect(raceWarnings.map((x) => (warning !== null && x.includes(warning) ? warning : x)), label).toEqual(warning === null ? [] : [warning]);
     }
-  });
+  }, 600_000);
 
   it("HOT_TRAIL_2DAY on a weekend (SPORT-RACE-01P §2): the last DH is no longer replaced by upper-body Force — J-6 (its riding day) keeps it, LIGHT 60 and executable; J-7 is a recommendation without a planned session", async () => {
-    const r = await rider("hot trail", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" });
+    const r = await rider("hot trail", { ...WEEKEND_RACE, ...HOT_TRAIL });
     const t7 = await day(r.athleteId, "2026-11-14");
     expect(t7.summary).toEqual(["KEEP", "STRENGTH_UPPER", "LIGHT", null]);
     expect(t7.status).toEqual(NO_LINEAGE);
@@ -202,7 +229,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
   });
 
   it("fatigue and pain still adapt the planned protocol session: a systemic RED on the J-6 DH, a knee pain 4/10 on the J-4 recovery", async () => {
-    const r = await rider("tired", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" });
+    const r = await rider("tired", { ...WEEKEND_RACE, ...HOT_TRAIL });
     const tired = await day(r.athleteId, "2026-11-15", { sleep_hours: 4, sleep_quality: 2, sleep_wake_ups: 4, energy: 2 });
     expect(tired.summary.slice(0, 2)).toEqual(["KEEP", "DH_TECHNICAL"]);
     expect(tired.rules).toContain("C3.3");
@@ -213,7 +240,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
   });
 
   it("AR-A — one riding slot (Saturday), HOT_TRAIL_2DAY on Saturday: the taper DH on J-7 cannot move and M1 would replace it by Force on a riding-only day — it leaves the plan, identifiably (version relaxed constraints); J-7 is advice only, never a Force session on that day", async () => {
-    const r = await rider("one riding slot", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" }, false, true);
+    const r = await rider("one riding slot", { ...WEEKEND_RACE, ...HOT_TRAIL }, false, true);
     const w = await weeks(r.planVersionId);
     expect(w[1]!.sessions).toEqual(["2026-11-10 STRENGTH_LOWER LIGHT 45", "2026-11-12 AEROBIC_BASE LIGHT 45"]);
     expect(w[2]!.sessions).toEqual(["2026-11-17 RECOVERY_ACTIVE null 20"]);
@@ -228,7 +255,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
   });
 
   it("AR-C — a race on Monday: the protocol's rest at J-2 holds (the taper DH there leaves the plan, never moved), identifiably", async () => {
-    const r = await rider("monday race", { start_date: "2026-11-23", end_date: "2026-11-24", race_format: "HOT_TRAIL_2DAY" });
+    const r = await rider("monday race", { start_date: "2026-11-23", end_date: "2026-11-24", ...HOT_TRAIL });
     expect(await plannedRow(r.athleteId, "2026-11-21")).toBeNull();
     const { data: version } = await admin.from("training_plan_versions").select("relaxed_constraints").eq("id", r.planVersionId).single();
     expect((version!.relaxed_constraints as { reason: string; date?: string }[]).filter((c) => c.reason === "race_protocol_rest_day")).toEqual([
@@ -240,7 +267,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
   });
 
   it("health first in the race week: a fever at J-2 is a Safety REST (not_required), never a race-protocol decision", async () => {
-    const r = await rider("fever", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" });
+    const r = await rider("fever", { ...WEEKEND_RACE, ...HOT_TRAIL });
     const d = await day(r.athleteId, "2026-11-19", FEVER);
     expect(d.summary).toEqual(["REST", "REST", null, null]);
     expect(d.rules).toContain("A3");
@@ -276,7 +303,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
     });
     expect(recorded.error).toBeNull();
     expect((recorded.data as { status: string }).status).toBe("ok");
-    const { error } = await admin.from("race_calendar").insert({ athlete_id: r.athleteId, event_name: "SPORT-RACE-01P late", priority: "A", ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" });
+    const { error } = await admin.from("race_calendar").insert({ athlete_id: r.athleteId, event_name: "SPORT-RACE-01P late", priority: "A", ...WEEKEND_RACE, ...HOT_TRAIL });
     expect(error).toBeNull();
     // No silent change: the race week still holds the normal build_plus sessions.
     expect(await plannedRow(r.athleteId, "2026-11-16")).toBe("STRENGTH_LOWER MODERATE 60");
@@ -296,7 +323,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
   });
 
   it("a race cancelled after the plan: M1 ignores it, the protocol sessions already planned stay ordinary light sessions until the plan is regenerated", async () => {
-    const r = await rider("cancelled", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" });
+    const r = await rider("cancelled", { ...WEEKEND_RACE, ...HOT_TRAIL });
     const { error } = await admin.from("race_calendar").update({ status: "cancelled" }).eq("athlete_id", r.athleteId);
     expect(error).toBeNull();
     const dh = await day(r.athleteId, "2026-11-15");
@@ -309,7 +336,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
   });
 
   it("no duplicate: a completed session on a T-X day, then a second daily run the same day — one execution, still on its frozen prescription, one prescription per decision", async () => {
-    const r = await rider("rerun", { ...IXS_RACE, race_format: "IXS_3DAY" });
+    const r = await rider("rerun", { ...IXS_RACE, ...IXS });
     const first = await day(r.athleteId, "2026-11-14");
     expect(first.finals).toHaveLength(1);
     const prescription = first.finals[0]!;

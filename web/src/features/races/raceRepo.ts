@@ -14,6 +14,8 @@ export interface Race {
   endDate: string;
   priority: RacePriority;
   raceFormat: string | null;
+  /** SPORT-RACE-01P.3 — the competition code (or a value stored before, kept as is). */
+  series: string | null;
 }
 
 export class RaceRepoError extends Error {
@@ -23,7 +25,7 @@ export class RaceRepoError extends Error {
   }
 }
 
-const COLUMNS = "id, event_name, start_date, end_date, priority, race_format";
+const COLUMNS = "id, event_name, start_date, end_date, priority, race_format, series";
 /** Cancelled / skipped races are never shown as races to plan around (same rule as the engine). */
 const HIDDEN_STATUSES = "(cancelled,skipped)";
 
@@ -34,6 +36,7 @@ interface RaceRow {
   end_date: string;
   priority: RacePriority;
   race_format: string | null;
+  series: string | null;
 }
 
 const toRace = (row: RaceRow): Race => ({
@@ -43,9 +46,10 @@ const toRace = (row: RaceRow): Race => ({
   endDate: row.end_date,
   priority: row.priority,
   raceFormat: row.race_format,
+  series: row.series,
 });
 
-/** The columns a draft writes (event, dates, priority, format), exactly as the engine maps them (mapRaceCalendarRow). */
+/** The columns a draft writes (event, dates, priority, format, competition), exactly as the engine maps them (mapRaceCalendarRow). */
 export function raceColumnsFromDraft(draft: RaceDraft) {
   return {
     event_name: draft.eventName.trim(),
@@ -53,6 +57,7 @@ export function raceColumnsFromDraft(draft: RaceDraft) {
     end_date: draft.endDate,
     priority: draft.priority,
     race_format: draft.raceFormat,
+    series: draft.series,
   };
 }
 

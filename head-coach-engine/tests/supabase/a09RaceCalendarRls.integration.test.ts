@@ -31,7 +31,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("A09 — race_calendar written by the ride
     const rider = await getAthleteAuthClient(a.athleteId);
     const created = await rider
       .from("race_calendar")
-      .insert({ athlete_id: a.athleteId, status: "planned", event_name: "Hot Trail", start_date: "2026-10-17", end_date: "2026-10-18", priority: "A", race_format: "HOT_TRAIL_2DAY" })
+      .insert({ athlete_id: a.athleteId, status: "planned", event_name: "Hot Trail", start_date: "2026-10-17", end_date: "2026-10-18", priority: "A", race_format: "HOT_TRAIL_2DAY", series: "HOT_TRAIL_SERIES" })
       .select("id")
       .single();
     expect(created.error).toBeNull();

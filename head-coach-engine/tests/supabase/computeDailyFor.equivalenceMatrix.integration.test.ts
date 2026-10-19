@@ -54,6 +54,7 @@ import {
   isLoopbackSupabaseUrl,
   resolveTestSupabaseUrl,
   type TestAthlete,
+  explicitProtocolSeries,
 } from "./testDb.js";
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -343,6 +344,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2 closure pass — fixture ↔ Supabase 
           end_date: r.event_end,
           priority: r.priority,
           race_format: r.race_format,
+          series: explicitProtocolSeries(r.race_format),
         });
       }
     }

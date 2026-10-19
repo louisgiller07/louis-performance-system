@@ -254,6 +254,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_002B — widened race window (today+
       end_date: "2026-08-23",
       priority: "A",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
     });
 
     const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
@@ -273,6 +274,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_002B — widened race window (today+
       end_date: "2026-08-19",
       priority: "A",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
     });
 
     const { rawContext: onlyNear } = await buildRawContext(client, athlete.athleteId, TODAY);
@@ -302,6 +304,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_002B — widened race window (today+
       end_date: "2026-08-14",
       priority: "A",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
     });
 
     const { rawContext } = await buildRawContext(client, athlete.athleteId, TODAY);
@@ -461,6 +464,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
         end_date: "2026-08-21",
         priority: "A_PLUS",
         race_format: "HOT_TRAIL_2DAY",
+        series: "HOT_TRAIL_SERIES",
         status,
       });
 
@@ -483,6 +487,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
         end_date: "2026-08-21",
         priority: "A_PLUS",
         race_format: "HOT_TRAIL_2DAY",
+        series: "HOT_TRAIL_SERIES",
         status,
       });
 
@@ -562,6 +567,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
       end_date: "2026-08-15", // ended yesterday relative to TODAY=2026-08-16
       priority: "A",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
       status: "completed",
     });
 
@@ -582,6 +588,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
       end_date: "2026-08-15",
       priority: "A",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
       status: "planned",
     });
 
@@ -620,6 +627,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
       end_date: "2026-08-21",
       priority: "A_PLUS",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
       status: "confirmed",
     });
 
@@ -636,6 +644,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
       end_date: "2026-08-21",
       priority: "A_PLUS",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
       status: "confirmed",
     });
     await insertPlannedSession(athlete.athleteId, TODAY, {
@@ -664,6 +673,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("V0.3_005B (NAL-007A) — race status coac
       end_date: "2026-08-21",
       priority: "A_PLUS",
       race_format: "HOT_TRAIL_2DAY",
+      series: "HOT_TRAIL_SERIES",
       status: "cancelled",
     });
     await insertPlannedSession(athlete.athleteId, TODAY, {
