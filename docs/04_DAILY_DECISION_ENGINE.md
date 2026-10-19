@@ -39,7 +39,7 @@ Le `RawContext` contient au minimum :
 - `planned_intent` (optionnel : notes du planificateur sur pourquoi cette séance était prévue)
 - `active_mode` (TrainingMode courant)
 - `upcoming_races` (liste, incluant fenêtre post-event utile)
-- `recent_sessions` (7 derniers jours de sessions complétées)
+- `recent_sessions` (sessions complétées de la fenêtre [J − 7, J], 8 jours calendaires)
 - `recent_recovery_context` (V0.3_008A, CLOSED / PRODUCTION ROLLOUT COMPLETE — optionnel, `RecentRecoveryContext | undefined`, voir `07_GLOSSARY.md`) : contexte factuel J-1 uniquement, jamais consommé par `SignalTrace`, jamais un signal d'arbitrage — pur passthrough vers `DailyPlan.recent_recovery_context`, instantané immuable persisté tel quel
 - `recent_technical_context` (V0.3_008B, CLOSED / PRODUCTION ROLLOUT COMPLETE — optionnel, `RecentTechnicalContext | undefined`, voir `07_GLOSSARY.md`) : dernière tâche technique valide dans la fenêtre stricte inter-jours D-14..D-1, jamais consommé par `SignalTrace`, jamais un signal d'arbitrage — surfacé conditionnellement (session finale du jour DH-family uniquement) comme `DailyPlan.dh_or_technical.prior_task_reference`, instantané immuable
 - `active_experiments` (liste des ActiveExperiment en cours, cf. `03_COACHING_MODEL.md`)
@@ -386,11 +386,11 @@ Exemples :
 - Ajoute monitoring
 - Ajoute protection
 
-**`recent_load` HIGH ou VERY_HIGH :**
-- **Forte recommandation** de récupération (soft constraint, arbitrable)
-- Réduit la propension au développement
+**`recent_load` RED (règle C3.7) :**
+- Compte : séances complétées (réalisées, partielles ou remplacées, jamais `skipped`), de type à charge variable, avec la charge réellement réalisée MODERATE ou HEAVY, sur la fenêtre [J − 7, J] (8 jours calendaires) ; AMBER à 3, RED à 5 (seuils PROVISIONAL de M1 ; calcul audité par l'ADR UX-11B.2.4).
+- RED : règle informative C3.7 et ligne de suivi « Surveiller la charge cumulée sur 7 jours (très élevée) » ; aucun changement de la séance.
+- AMBER : aucun effet sur la décision.
 - N'impose **pas** RECOVERY (seule SAFETY peut réellement imposer une décision)
-- La décision finale reste au Head Coach en fonction des autres dimensions et du contexte
 
 ---
 

@@ -83,8 +83,10 @@ describe("DailyPlanView — 'Pourquoi cette décision ?' panel (V0.3.012)", () =
 
     // C3.7 must still be visible via monitoring ("À surveiller"), but the
     // decision-reasoning panel itself must not exist — nothing decision-affecting to show.
+    // SPORT-LOAD-01.1 — in the approved rider wording (sportLoad011Monitoring.test.tsx).
     expect(screen.getByText("À surveiller")).toBeInTheDocument();
-    expect(screen.getByText(/Surveiller la charge cumulée/)).toBeInTheDocument();
+    expect(screen.getByText(/^Charge d'entraînement élevée : au moins 5 séances/)).toBeInTheDocument();
+    expect(screen.queryByText(/Surveiller la charge cumulée/)).not.toBeInTheDocument();
     expect(screen.queryByText("Pourquoi cette décision ?")).not.toBeInTheDocument();
   });
 

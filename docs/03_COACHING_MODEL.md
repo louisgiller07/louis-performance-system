@@ -163,7 +163,7 @@ Chaque adaptation vient d'une **cause identifiée** dans une dimension précise.
 - `arms_grip` (fatigue avant-bras / grip)
 - `mental` (stress travail + motivation)
 - `health` (douleur, maladie)
-- `recent_load` (charge 7 jours)
+- `recent_load` (charge sur [J − 7, J], 8 jours)
 
 Plus un `ContextState` séparé (bloc, mode, planned session, availability, event context, life constraints).
 
@@ -699,7 +699,7 @@ Voir `docs/06_ARCHITECTURE.md` §V0.3_006C1 et `docs/11_DECISION_LOG.md` pour l'
 | C3.4 | 48h min entre 2 séances force lourdes bas du corps (PROVISIONAL) |
 | C3.5 | Grip fatigue élevée → pivot vers exercices sans grip |
 | C3.6 | Jambes fatigue élevée → pivot vers haut du corps ou DH léger |
-| C3.7 | Charge 7j VERY_HIGH → forte recommandation de récupération (soft, arbitrable — pas une force absolue) |
+| C3.7 | Charge RED (≥ 5 séances MODERATE ou HEAVY complétées sur [J − 7, J], 8 jours ; PROVISIONAL) → règle informative et ligne de suivi, sans changement de la séance |
 | C3.8 | En RACE_CLUSTER, développement possible si compatible avec récup + DH + proximité course |
 
 ### Domaine 4 — Sommeil et récupération

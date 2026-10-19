@@ -297,15 +297,32 @@ function replaceKnownPainLocationCodes(text: string): string {
 }
 
 /**
+ * SPORT-LOAD-01.1 (HPM 2026-10-19) — C3.7's monitoring line, emitted by
+ * buildDailyPlan.ts iff `recent_load` is RED, is a single static template
+ * that says "7 jours" while the count covers [J − 7, J] (8 calendar days),
+ * and "très élevée" under "Attention" beside the body status can read as an
+ * established physical danger. The approved rider wording states the exact
+ * count and window, that this marker alone does not change the session (never
+ * that the session is safe), and points to the check-in. Rendered copy only:
+ * the persisted line, the C3.7 rule, its threshold and window are unchanged and
+ * no load is recomputed here — an exact match of the engine's sentence, never
+ * a pattern, so every other monitoring line (pain, DH fatigue…) is untouched.
+ */
+const C3_7_RAW_MONITORING = "Surveiller la charge cumulée sur 7 jours (très élevée)";
+const C3_7_ATHLETE_SAFE_MONITORING =
+  "Charge d'entraînement élevée : au moins 5 séances de charge modérée ou élevée sur les 8 derniers jours. Ce repère ne modifie pas ta séance à lui seul. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in.";
+
+/**
  * Athlete-safe `monitoring.observe` — `PAIN_NON_SAFETY`'s monitoring entry
  * embeds the raw `pain_location_code` directly (e.g. "... (wrist_L,
  * intensité 4/10) ..."), never sanitized by `athleteSafeRuleDetail` (that
- * only covers `triggered_rules`/`reasoning`). The underlying
- * `dailyPlan.monitoring.observe` array is never mutated — only the
+ * only covers `triggered_rules`/`reasoning`); C3.7's line is reworded (see
+ * above). Order is kept, so a pain line the engine put first stays first. The
+ * underlying `dailyPlan.monitoring.observe` array is never mutated — only the
  * rendered copy.
  */
 export function athleteSafeMonitoring(dailyPlan: DailyPlan): string[] {
-  return dailyPlan.monitoring.observe.map(replaceKnownPainLocationCodes);
+  return dailyPlan.monitoring.observe.map((line) => (line === C3_7_RAW_MONITORING ? C3_7_ATHLETE_SAFE_MONITORING : replaceKnownPainLocationCodes(line)));
 }
 
 /** Athlete-safe `protection.do_not_do` — same raw-code leak as monitoring, same fix. */

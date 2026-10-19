@@ -6744,3 +6744,15 @@ Rapport : `SPORT_RACE_01P4_INTEGRATION_GATE_REPORT.md`.
 - Amendement appliqué tel quel (`docs/05` §race_calendar, T67 de `docs/10`).
 - Intégration locale : branche `integration/sport-race-01` créée depuis `79b4d19` (`origin/main`, vérifié), `fix/sport-race-01` fusionnée en avance rapide, sans conflit. Rien n'est poussé ni déployé.
 - Publication préparée : web, puis `daily-run` (actif pour V1 et V2) ; `generate-training-plan` sans effet tant que la génération V2 est OFF, publication reportable. Rapport : `SPORT_RACE_01_INTEGRATION_REPORT.md`.
+
+## 2026-10-19 — ADR SPORT-LOAD-01.1 : signal de charge C3.7, communication et canon
+
+> **Décision HPM** : diagnostic SPORT-LOAD-01 APPROVED. GO pour une correction locale limitée à la présentation de la ligne de suivi C3.7 et aux trois diffs factuels de `docs/03` et `docs/04`. Seuils, calcul M1, doses, Safety et P0-SAFE inchangés.
+
+- **Constat** : la ligne de suivi de M1 « Surveiller la charge cumulée sur 7 jours (très élevée) » annonce 7 jours alors que le compte couvre [J − 7, J] (8 jours calendaires). Affichée sous « Attention », à côté de « État du corps : Aucun signal de santé », elle peut se lire comme un danger physique établi. Un plan V2 suivi à la lettre à 5 séances MODERATE par semaine la déclenche chaque jour des semaines `build_plus`, sans aucun signal de santé.
+- **Correction (présentation seule)** : `athleteSafeMonitoring` (`safetyPresentation.ts`) remplace la seule phrase exacte du moteur par le texte approuvé : « Charge d'entraînement élevée : au moins 5 séances de charge modérée ou élevée sur les 8 derniers jours. Ce repère ne modifie pas ta séance à lui seul. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in. » Mêmes emplacements qu'avant : « Ton état du jour » et « À surveiller » sur Aujourd'hui, carte « État de préparation », historique, séance guidée. La ligne persistée, la règle C3.7, le seuil, la fenêtre et la décision sont inchangés ; le web ne calcule aucune charge. Ordre conservé : une douleur déclarée reste en premier ; un jour Safety n'a jamais cette ligne (plan Safety construit à part). Seuil et fenêtre inchangés depuis le premier commit M1 : le texte est exact aussi pour les décisions passées.
+- **Canon** : `docs/04` (§4 `recent_load`, entrée `recent_sessions`) et `docs/03` (dimension `recent_load`, règle C3.7) décrivent le comportement réel : fenêtre inclusive de 8 jours, C3.7 informative, AMBER sans effet, aucune réduction de la propension au développement. Référence des seuils précisée : « seuils PROVISIONAL de M1 ; calcul audité par l'ADR UX-11B.2.4 ».
+- **Hors périmètre (HOLD)** : textes de M1 (« 7 jours », détail de C3.7, motif de la dimension), gelés, ADR M1 requise ; libellé legacy « Charge récente très élevée » (décisions sans `decision_reasoning`) ; seuils, fenêtre et modèle de charge, à soumettre au préparateur physique.
+- **Tests** : `sportLoad011Monitoring.test.tsx`, plans M1 réels (contre-preuve : 6 tests échouent sans la correction).
+
+Rapport : `SPORT_LOAD_01_1_FINAL_REPORT.md`.
