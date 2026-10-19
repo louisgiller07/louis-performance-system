@@ -4,10 +4,16 @@
  *
  * 1. a DH session the week template put on a protocol day of another kind (e.g. T-7 « upper-body Force ») moves to the
  *    protocol's DH day (T-6) when that day is free and has a riding slot long enough — so M1's T-X keeps it instead of
- *    replacing it; otherwise it stays where it is (M1 decides that day, as before);
- * 2. a session on a protocol REST day (or IXS T-1, the official activity) is removed: the protocol rests that day;
- * 3. on a free protocol day the plan places the entry when it has a V2 model and an existing dose (T-7 Force upper
+ *    replacing it;
+ * 2. a session on a protocol REST day (or IXS T-1, the official activity) is removed: the protocol rests that day
+ *    (SPORT-RACE-01P.2 AR-C: the rest is kept, the session is never moved to another day without an approved rule);
+ * 3. a session of another kind on a protocol day whose own session that day's slots cannot host (T-7 Force on a
+ *    riding-only day, T-6 DH without a riding slot) is removed: M1 would replace it by a session the day cannot host
+ *    (AR-A: M1 is never bypassed, no session on an incompatible day); otherwise it stays (M1 decides that day);
+ * 4. on a free protocol day the plan places the entry when it has a V2 model and an existing dose (T-7 Force upper
  *    LIGHT 45, T-6 DH LIGHT 60 / 4 passes, T-4 and T-3 active recovery), on a slot of the right activity only.
+ * A removed session is identifiable: a `placement_shortfall` relaxed constraint of the plan version (its domain, its
+ * date, reason `race_protocol_rest_day` or `race_protocol_incompatible_day`), shown in the programme review.
  *
  * Only A+, A and B races with a format that has a protocol (A09: a C race never shapes the plan); a format without a
  * protocol (or none) gets nothing. Never on a race day or the two days after a race (M1: race activity, post-event
@@ -18,6 +24,7 @@ import type { OrchestratedSession, OrchestratedWeek } from "../../pipeline/plann
 import { availabilityByDate } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 import type { SessionDoseTarget } from "../../types/generatedSession.js";
+import type { RelaxedConstraint } from "../../types/planVersion.js";
 import { PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
 import {
   RACE_PROTOCOL_PLAN_POLICY_V2,
@@ -36,6 +43,9 @@ export interface RaceProtocolPlacementInputV2 {
 }
 
 type Domain = "strength" | "dh_technical" | "aerobic" | "recovery";
+
+/** SPORT-RACE-01P.2 — why a template session left the plan (the version's relaxed constraints). */
+export type RaceProtocolRemovalReasonV2 = "race_protocol_rest_day" | "race_protocol_incompatible_day";
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
@@ -62,6 +72,7 @@ export function placeRaceProtocolSessionsV2(weeks: readonly OrchestratedWeek[], 
 
   const sessions = weeks.map((week) => [...week.sessions]);
   const deltas = weeks.map(() => ({ changed: false, strength: 0, dh: 0, aerobic: 0, sessions: 0, minutes: 0, physicalMinutes: 0, ridingMinutes: 0 }));
+  const removals = weeks.map((): RelaxedConstraint[] => []);
   const weekIndexOf = (date: string) => weeks.findIndex((w) => w.startDate <= date && date <= w.endDate);
   const sessionOn = (date: string) => {
     const i = weekIndexOf(date);
@@ -84,10 +95,11 @@ export function placeRaceProtocolSessionsV2(weeks: readonly OrchestratedWeek[], 
       delta.physicalMinutes += sign * session.durationMin;
     }
   };
-  const remove = (session: OrchestratedSession) => {
+  const remove = (session: OrchestratedSession, reason?: RaceProtocolRemovalReasonV2) => {
     const i = weekIndexOf(session.date);
     sessions[i] = sessions[i]!.filter((s) => s !== session);
     count(i, session, -1);
+    if (reason !== undefined) removals[i]!.push({ constraintId: "placement_shortfall", reason, domain: session.domain, date: session.date });
   };
   const add = (session: OrchestratedSession) => {
     const i = weekIndexOf(session.date);
@@ -98,6 +110,13 @@ export function placeRaceProtocolSessionsV2(weeks: readonly OrchestratedWeek[], 
   // null = an exceptional availability without a window: the day is open.
   const fits = (minutes: number | null | undefined, needed: number) => minutes === null || (typeof minutes === "number" && minutes >= needed);
   const usable = (date: string) => date >= horizonStart && date <= horizonEnd && !blocked.has(date);
+  // The activity the protocol's own session needs that day (endurance and recovery fit any slot).
+  const hosts = (kind: string, date: string) => {
+    const slots = capacity(date);
+    if (kind === "DH_TECHNICAL") return fits(slots.riding, 1);
+    if (kind === "STRENGTH_UPPER" || kind === "STRENGTH_LOWER") return fits(slots.physical, 1);
+    return fits(slots.physical, 1) || fits(slots.riding, 1);
+  };
   const phrase = BLOCK_PROGRESSION_PHRASES_V2.race_protocol_sessions;
   const rationaleOf = (date: string) => `${weeks[weekIndexOf(date)]!.rationale} ${phrase}`;
 
@@ -111,7 +130,7 @@ export function placeRaceProtocolSessionsV2(weeks: readonly OrchestratedWeek[], 
     const dayBefore = (x: number) => addDays(race.startDate, -x);
     const dhDay = dayBefore(RACE_PROTOCOL_PLAN_POLICY_V2.dhDayBefore);
 
-    // 1–2. Template sessions on the protocol days.
+    // 1–3. Template sessions on the protocol days.
     for (let x = 7; x >= 1; x--) {
       const date = dayBefore(x);
       if (!usable(date)) continue;
@@ -123,10 +142,11 @@ export function placeRaceProtocolSessionsV2(weeks: readonly OrchestratedWeek[], 
         add({ ...session, date: dhDay, rationale: `${session.rationale} ${phrase}` });
         continue;
       }
-      if (entry.kind === "REST" || entry.kind === "RACE_ACTIVITY") remove(session);
+      if (entry.kind === "REST" || entry.kind === "RACE_ACTIVITY") remove(session, "race_protocol_rest_day");
+      else if (entry.kind !== session.kind && !hosts(entry.kind, date)) remove(session, "race_protocol_incompatible_day");
     }
 
-    // 3. The protocol's own sessions on free days.
+    // 4. The protocol's own sessions on free days.
     for (const x of RACE_PROTOCOL_PLAN_POLICY_V2.placedDaysBefore) {
       const date = dayBefore(x);
       const entry = table[x];
@@ -161,6 +181,7 @@ export function placeRaceProtocolSessionsV2(weeks: readonly OrchestratedWeek[], 
       ...week,
       rationale: week.rationale.includes(phrase) ? week.rationale : `${week.rationale} ${phrase}`,
       sessions: weekSessions,
+      relaxedConstraints: [...week.relaxedConstraints, ...removals[i]!],
       doseSummary: {
         ...week.doseSummary,
         plannedStrengthSessionCount: week.doseSummary.plannedStrengthSessionCount + delta.strength,

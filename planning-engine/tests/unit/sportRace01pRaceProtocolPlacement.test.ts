@@ -54,8 +54,9 @@ describe("SPORT-RACE-01P — pre-event days planned from the race protocol", () 
     }
   });
 
-  it("HOT_TRAIL_2DAY on Sat 21 – Sun 22, weekend riding: the taper DH moves from J-7 (the protocol's Force day) to J-6 (its DH day), same dose; active recovery at J-4 and J-3; nothing on J-5, J-2, J-1 or the race days", () => {
+  it("HOT_TRAIL_2DAY on Sat 21 – Sun 22, weekend riding: the taper DH moves from J-7 (the protocol's Force day) to J-6 (its DH day), same dose; active recovery at J-4 and J-3; nothing on J-5, J-2, J-1 or the race days; nothing removed", () => {
     const p = plan(snapshot({ races: [race("2026-11-21", "2026-11-22", "HOT_TRAIL_2DAY")] }));
+    expect(p.weeks.flatMap((x) => x.relaxedConstraints).filter((c) => c.reason.startsWith("race_protocol"))).toEqual([]);
     expect(roles(p)).toEqual(["race_specific", "taper", "race", "introduction"]);
     expect(sessionsOf(p, 1)).toEqual(["11-09 STRENGTH_LOWER LIGHT 45", "11-10 AEROBIC_BASE LIGHT 45", "11-15 DH_TECHNICAL LIGHT 60"]);
     expect(sessionsOf(p, 2)).toEqual([`11-17 RECOVERY_ACTIVE - ${RECOVERY}`, `11-18 RECOVERY_ACTIVE - ${RECOVERY}`]);
@@ -73,16 +74,22 @@ describe("SPORT-RACE-01P — pre-event days planned from the race protocol", () 
     expect(sessionsOf(p, 2)).toEqual([`11-16 RECOVERY_ACTIVE - ${RECOVERY}`, `11-17 RECOVERY_ACTIVE - ${RECOVERY}`]);
   });
 
-  it("three slots (Tue / Thu physical, Sat riding), HOT_TRAIL_2DAY on Saturday: the taper DH on J-7 has no riding slot to move to and stays; J-4 (Tuesday) recovery; J-3 has no slot", () => {
+  it("AR-A — three slots (Tue / Thu physical, Sat riding), HOT_TRAIL_2DAY on Saturday: the taper DH on J-7 cannot move (no riding slot at J-6) and M1 would replace it by Force on a riding-only day — it is removed, identifiably; J-4 (Tuesday) recovery; J-3 has no slot", () => {
     const p = plan(snapshot({ availability: { windows: THREE_SLOTS, exceptions: [] }, races: [race("2026-11-21", "2026-11-22", "HOT_TRAIL_2DAY")] }));
-    expect(sessionsOf(p, 1)).toEqual(["11-10 STRENGTH_LOWER LIGHT 45", "11-12 AEROBIC_BASE LIGHT 45", "11-14 DH_TECHNICAL LIGHT 60"]);
+    expect(sessionsOf(p, 1)).toEqual(["11-10 STRENGTH_LOWER LIGHT 45", "11-12 AEROBIC_BASE LIGHT 45"]);
+    expect(p.weeks[1]!.relaxedConstraints).toEqual([{ constraintId: "placement_shortfall", reason: "race_protocol_incompatible_day", domain: "dh_technical", date: "2026-11-14" }]);
+    expect(p.weeks[1]!.doseSummary).toMatchObject({ plannedDhTechnicalSessionCount: 0, totalPlannedMinutes: 90 });
     expect(sessionsOf(p, 2)).toEqual([`11-17 RECOVERY_ACTIVE - ${RECOVERY}`]);
   });
 
-  it("a race on Monday 23 (HOT_TRAIL_2DAY): the taper DH on the protocol's REST day (J-2) cannot move (J-6 is a physical evening) and is removed; recovery on J-4 and J-3; the other taper sessions stay", () => {
+  it("AR-C — a race on Monday 23 (HOT_TRAIL_2DAY): the protocol's REST at J-2 is kept — the taper DH there is removed, never moved to another day (J-6 is a physical evening); the endurance on J-6, which M1 would replace by a DH without a riding slot, is removed too; recovery on J-4 and J-3; both removals identifiable", () => {
     const p = plan(snapshot({ races: [race("2026-11-23", "2026-11-24", "HOT_TRAIL_2DAY")] }));
     expect(roles(p)).toEqual(["introduction", "race_specific", "taper", "race"]);
-    expect(sessionsOf(p, 2)).toEqual(["11-16 STRENGTH_LOWER LIGHT 45", "11-17 AEROBIC_BASE LIGHT 45", `11-19 RECOVERY_ACTIVE - ${RECOVERY}`, `11-20 RECOVERY_ACTIVE - ${RECOVERY}`]);
+    expect(sessionsOf(p, 2)).toEqual(["11-16 STRENGTH_LOWER LIGHT 45", `11-19 RECOVERY_ACTIVE - ${RECOVERY}`, `11-20 RECOVERY_ACTIVE - ${RECOVERY}`]);
+    expect(p.weeks[2]!.relaxedConstraints).toEqual([
+      { constraintId: "placement_shortfall", reason: "race_protocol_incompatible_day", domain: "aerobic", date: "2026-11-17" },
+      { constraintId: "placement_shortfall", reason: "race_protocol_rest_day", domain: "dh_technical", date: "2026-11-21" },
+    ]);
     expect(p.weeks[2]!.doseSummary.plannedDhTechnicalSessionCount).toBe(0);
   });
 

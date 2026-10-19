@@ -11,6 +11,7 @@ import { WeekStrip } from "./WeekStrip";
 import { weekSummary, type TodayRace } from "./todayContext";
 import { NO_RACE_PROTOCOL_SENTENCE, RaceBanner } from "./RaceBanner";
 import { translateExplanation } from "../trainingPlanReview/trainingPlanExplanationLabels";
+import { describeRelaxedConstraints } from "../trainingPlanReview/placementReasonLabels";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
 import type { DecisionHistoryRow } from "../history/historyTypes";
 
@@ -54,15 +55,27 @@ describe("SPORT-RACE-01P — a day without a planned session is advice, never M1
     expect(screen.queryByTestId("without-planned-session")).toBeNull();
   });
 
-  it("« Cette semaine »: the day reads « Pas de séance guidée », without M1's duration; counters unchanged", () => {
-    const row = { id: "d1", decisionDate: TODAY, createdAt: `${TODAY}T07:00:00Z`, finalSessionDb: "DH_TECHNICAL", activeModeDb: null, confidenceLevelDb: null, dailyPlan: { ...T6, date: TODAY }, finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_no_lineage", finalPrescriptionStatusDetail: { reason: "no_planned_session" } } as unknown as DecisionHistoryRow;
-    const dates = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", TODAY];
-    const effective = effectiveDays(dates, { decisions: [row], executions: [], legacy: [], planned: [] });
+  const advice = (date: string) =>
+    ({ id: `d-${date}`, decisionDate: date, createdAt: `${date}T07:00:00Z`, finalSessionDb: "DH_TECHNICAL", activeModeDb: null, confidenceLevelDb: null, dailyPlan: { ...T6, date }, finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_no_lineage", finalPrescriptionStatusDetail: { reason: "no_planned_session" } }) as unknown as DecisionHistoryRow;
+  const WEEK = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", TODAY];
+
+  it("« Cette semaine »: the day reads « Pas de séance guidée », without M1's duration", () => {
+    const effective = effectiveDays(WEEK, { decisions: [advice(TODAY)], executions: [], legacy: [], planned: [] });
     expect(effective.at(-1)).toMatchObject({ noGuidedSession: true, adviceOnly: true });
     const summary = weekSummary(TODAY, [], [], [], [], effective);
-    expect(summary.days.at(-1)).toMatchObject({ plannedLabel: "DH technique", plannedDurationMin: null, noGuidedSession: true });
+    expect(summary.days.at(-1)).toMatchObject({ plannedLabel: "DH technique", plannedDurationMin: null, noGuidedSession: true, adviceOnly: true });
     render(<MemoryRouter><WeekStrip week={summary} /></MemoryRouter>);
     expect(document.querySelector("[aria-live='polite']")!.textContent!.replace(/ /g, " ")).toBe("Aujourd'huiDH techniquePas de séance guidée");
+  });
+
+  it("AR-D — the counters: a planned session counts, M1's advice on a day without a planned session does not, and is never « ○ prévue »", () => {
+    // Saturday 14: advice only (past day); Sunday 15 (today): advice only; Wednesday 11: a real planned session.
+    const plannedRow = { planned_date: "2026-11-11", session_type: "STRENGTH_LOWER", intervention: { kind: "STRENGTH_LOWER", load_profile: "LIGHT", duration_min: 45 }, planned_intent: null, is_committed: false, source: "generated" };
+    const effective = effectiveDays(WEEK, { decisions: [advice("2026-11-14"), advice(TODAY)], executions: [], legacy: [], planned: [{ date: "2026-11-11", session: plannedRow.intervention as never }] });
+    const summary = weekSummary(TODAY, [plannedRow as never], [], [], [], effective);
+    expect([summary.plannedCount, summary.performedCount]).toEqual([1, 0]);
+    render(<MemoryRouter><WeekStrip week={summary} /></MemoryRouter>);
+    expect(screen.getAllByRole("button").slice(0, 7).map((b) => b.textContent)).toEqual(["L·", "M·", "M○", "J·", "V·", "S·", "D●"]);
   });
 });
 
@@ -81,6 +94,15 @@ describe("SPORT-RACE-01P — a race format without a protocol: no specific prepa
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();
     render(<RaceBanner horizon={{ kind: "countdown", race: race("OTHER", "2026-11-30"), days: 10 }} objective={null} />);
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();
+  });
+});
+
+describe("SPORT-RACE-01P.2 — a session the race protocol leaves out is identifiable in the programme review", () => {
+  it("the taper DH removed on J-7 (incompatible day) and on J-2 (protocol rest)", () => {
+    expect(describeRelaxedConstraints([{ constraintId: "placement_shortfall", reason: "race_protocol_incompatible_day", domain: "dh_technical", date: "2026-11-14" }])).toEqual([
+      "1 séance DH non placée : le protocole avant la course prévoit ce jour-là une autre séance que tes créneaux ne permettent pas.",
+    ]);
+    expect(describeRelaxedConstraints([{ constraintId: "placement_shortfall", reason: "race_protocol_rest_day", domain: "dh_technical", date: "2026-11-21" }])).toEqual(["1 séance DH non placée : jour de repos du protocole avant la course."]);
   });
 });
 

@@ -59,7 +59,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
     const i = data.intervention as { kind: string; load_profile?: string; duration_min?: number };
     return `${i.kind} ${i.load_profile ?? "-"} ${i.duration_min ?? "-"}`;
   }
-  async function rider(name: string, race: Race | null, raceAfterPlan = false) {
+  async function rider(name: string, race: Race | null, raceAfterPlan = false, threeSlots = false) {
     const { athleteId } = await createTestAthlete(admin, `SPORT-RACE-01 ${name}`);
     await setAthleteDiscipline(admin, athleteId, "Downhill");
     await upsertPerformanceProfileFor(admin, athleteId, {
@@ -70,8 +70,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
       technical_priorities: { strengths: [], weaknesses: ["braking"], priorityAreas: ["braking", "cornering"] },
       dh_technical_tier: "advanced",
     });
-    for (const d of [1, 2, 3, 4, 5]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "18:00:00", end_time: "20:00:00", activity: "physical" });
-    for (const d of [6, 0]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "09:00:00", end_time: "17:00:00", activity: "riding" });
+    if (threeSlots) {
+      // SPORT-VALIDATION-01's rider B: Tuesday and Thursday evenings "physical", Saturday morning "riding".
+      for (const d of [2, 4]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "18:30:00", end_time: "19:45:00", activity: "physical" });
+      await insertAvailabilityWindow(admin, athleteId, { day_of_week: 6, start_time: "09:00:00", end_time: "12:00:00", activity: "riding" });
+    } else {
+      for (const d of [1, 2, 3, 4, 5]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "18:00:00", end_time: "20:00:00", activity: "physical" });
+      for (const d of [6, 0]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "09:00:00", end_time: "17:00:00", activity: "riding" });
+    }
     const insertRace = async () => {
       const { error } = await admin.from("race_calendar").insert({ athlete_id: athleteId, event_name: `SPORT-RACE-01 ${name}`, priority: "A", ...race });
       expect(error).toBeNull();
@@ -163,9 +169,18 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
     expect(after.finals.map((f) => f.reconciliation_action)).toEqual(["replace"]);
   });
 
-  it("formats without a T-X table (OTHER, SWISS_CUP, UCI_WC, no format): no pre-event protocol, M1's default recovery (INFERENCE_FALLBACK), no daily prescription", async () => {
-    for (const race_format of ["OTHER", "SWISS_CUP", "UCI_WC", null]) {
-      const r = await rider(`format ${race_format ?? "none"}`, { ...WEEKEND_RACE, race_format });
+  it("formats without a T-X table — a Swiss Cup over two days, a UCI race over three, OTHER, no format: never the Hot Trail or iXS protocol; race week without session; M1's default recovery (INFERENCE_FALLBACK), no daily prescription", async () => {
+    const cases: [string | null, Race][] = [
+      ["SWISS_CUP", { ...WEEKEND_RACE, race_format: "SWISS_CUP" }],
+      ["UCI_WC", { ...IXS_RACE, race_format: "UCI_WC" }],
+      ["OTHER", { ...WEEKEND_RACE, race_format: "OTHER" }],
+      [null, { ...WEEKEND_RACE, race_format: null }],
+    ];
+    for (const [race_format, raceRow] of cases) {
+      const r = await rider(`format ${race_format ?? "none"}`, raceRow);
+      const w = await weeks(r.planVersionId);
+      expect(w[2]!.sessions).toEqual([]);
+      expect(w.flatMap((x) => x.sessions).some((x) => x.includes("RECOVERY_ACTIVE"))).toBe(false);
       const d = await day(r.athleteId, "2026-11-18");
       expect(d.summary).toEqual(["KEEP", "RECOVERY_ACTIVE", null, null]);
       expect(d.rules).toContain("INFERENCE_FALLBACK");
@@ -195,6 +210,33 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-RACE-01P — the race week on the r
     expect(knee.summary.slice(0, 2)).toEqual(["KEEP", "RECOVERY_ACTIVE"]);
     expect(knee.rules).toContain("PAIN_NON_SAFETY");
     expect(knee.status).toEqual(CREATED);
+  });
+
+  it("AR-A — one riding slot (Saturday), HOT_TRAIL_2DAY on Saturday: the taper DH on J-7 cannot move and M1 would replace it by Force on a riding-only day — it leaves the plan, identifiably (version relaxed constraints); J-7 is advice only, never a Force session on that day", async () => {
+    const r = await rider("one riding slot", { ...WEEKEND_RACE, race_format: "HOT_TRAIL_2DAY" }, false, true);
+    const w = await weeks(r.planVersionId);
+    expect(w[1]!.sessions).toEqual(["2026-11-10 STRENGTH_LOWER LIGHT 45", "2026-11-12 AEROBIC_BASE LIGHT 45"]);
+    expect(w[2]!.sessions).toEqual(["2026-11-17 RECOVERY_ACTIVE null 20"]);
+    const { data: version } = await admin.from("training_plan_versions").select("relaxed_constraints").eq("id", r.planVersionId).single();
+    expect((version!.relaxed_constraints as unknown[]).filter((c) => (c as { reason: string }).reason.startsWith("race_protocol"))).toEqual([
+      { constraintId: "placement_shortfall", reason: "race_protocol_incompatible_day", domain: "dh_technical", date: "2026-11-14" },
+    ]);
+    const t7 = await day(r.athleteId, "2026-11-14");
+    expect(t7.summary).toEqual(["KEEP", "STRENGTH_UPPER", "LIGHT", null]);
+    expect(t7.status).toEqual(NO_LINEAGE);
+    expect(t7.finals).toEqual([]);
+  });
+
+  it("AR-C — a race on Monday: the protocol's rest at J-2 holds (the taper DH there leaves the plan, never moved), identifiably", async () => {
+    const r = await rider("monday race", { start_date: "2026-11-23", end_date: "2026-11-24", race_format: "HOT_TRAIL_2DAY" });
+    expect(await plannedRow(r.athleteId, "2026-11-21")).toBeNull();
+    const { data: version } = await admin.from("training_plan_versions").select("relaxed_constraints").eq("id", r.planVersionId).single();
+    expect((version!.relaxed_constraints as { reason: string; date?: string }[]).filter((c) => c.reason === "race_protocol_rest_day")).toEqual([
+      { constraintId: "placement_shortfall", reason: "race_protocol_rest_day", domain: "dh_technical", date: "2026-11-21" },
+    ]);
+    const t2 = await day(r.athleteId, "2026-11-21");
+    expect(t2.summary).toEqual(["KEEP", "REST", null, null]);
+    expect(t2.rules).toContain("RACE_PROTOCOL_TX");
   });
 
   it("health first in the race week: a fever at J-2 is a Safety REST (not_required), never a race-protocol decision", async () => {

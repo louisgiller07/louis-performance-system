@@ -18,6 +18,9 @@ const SHORTFALL_REASON_TEXT: Record<string, string> = {
   insufficient_available_time: "pas assez de temps disponible dans tes créneaux",
   insufficient_available_dates: "pas assez de jours disponibles",
   terrain_incompatible: "aucun jour disponible compatible avec ton terrain",
+  // SPORT-RACE-01P.2 (AR-A / AR-C) — a session the race protocol leaves out of the days before the race.
+  race_protocol_rest_day: "jour de repos du protocole avant la course",
+  race_protocol_incompatible_day: "le protocole avant la course prévoit ce jour-là une autre séance que tes créneaux ne permettent pas",
 };
 
 const DOMAIN_TEXT: Record<string, string> = {

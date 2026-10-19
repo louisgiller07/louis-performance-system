@@ -16,7 +16,8 @@ function symbol(day: WeekDay): string {
   if (day.race) return "⚑";
   if (day.performed) return day.realisation === "partial" ? "◐" : "✓";
   if (day.isToday) return "●";
-  if (day.planned) return "○";
+  // SPORT-RACE-01P.2 (AR-D) — M1's advice on a day without a planned session is never « prévue ».
+  if (day.planned && !day.adviceOnly) return "○";
   return "·";
 }
 
@@ -53,7 +54,7 @@ export function WeekDaysPicker({ days, initialIndex }: { days: WeekDay[]; initia
             >
               <span className={`text-xs font-semibold uppercase ${entry.isToday ? "text-gold" : "text-muted"}`}>{DAY_LETTERS[index]}</span>
               <span
-                className={`text-lg leading-none ${entry.race || entry.isToday || entry.performed ? "text-gold" : entry.planned ? "text-ink/80" : "text-muted/50"}`}
+                className={`text-lg leading-none ${entry.race || entry.isToday || entry.performed ? "text-gold" : entry.planned && !entry.adviceOnly ? "text-ink/80" : "text-muted/50"}`}
                 aria-hidden="true"
               >
                 {symbol(entry)}

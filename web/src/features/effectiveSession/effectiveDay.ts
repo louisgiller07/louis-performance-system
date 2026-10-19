@@ -182,15 +182,19 @@ export function effectiveDays(dates: readonly string[], sources: EffectiveSource
   return dates.map((date) => effectiveDay(date, sources));
 }
 
-/** A day whose effective session is a training session (not a rest, not nothing). */
+/**
+ * A day whose effective session is a training session (not a rest, not nothing). SPORT-RACE-01P.2 (AR-D): M1's advice on
+ * a day without a planned session (`adviceOnly`) is not a planned session.
+ */
 export function isTrainingDay(day: EffectiveDay): boolean {
-  return day.session !== null && day.session.kind !== "REST";
+  return day.session !== null && day.session.kind !== "REST" && day.adviceOnly !== true;
 }
 
 /**
  * Week counters, one explicit rule: « prévues » = days whose EFFECTIVE session
  * is a training session (a REPLACE counts once, as its replacement; a REST
- * decision is not a planned session, so never a miss); « réalisées » = days
+ * decision is not a planned session, so never a miss; M1's advice on a day
+ * without a planned session neither — SPORT-RACE-01P.2); « réalisées » = days
  * completed (a V2 execution or a legacy debrief).
  */
 export function weekCounts(days: readonly EffectiveDay[]): { plannedCount: number; performedCount: number } {
