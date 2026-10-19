@@ -20,7 +20,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
     "progressesTo": "braking_marked_zone_at_speed",
     "regressesTo": "braking_progressive_control",
     "skillTarget": "braking",
-    "successCriteria": "Maintains entry speed later into the corner without overshooting the line.",
+    "successCriteria": "Finishes most of the braking before the corner and holds the line to the exit, at a speed suited to grip and own level; brakes again whenever needed.",
     "terrainRequirement": "flow_trail",
   },
   {
@@ -30,7 +30,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
     "id": "braking_marked_zone_at_speed",
     "regressesTo": "braking_late_entry",
     "skillTarget": "braking",
-    "successCriteria": "Brakes only in the marked zones and rides every technical feature off the brakes, at race speed, on 3/5 runs.",
+    "successCriteria": "Does most of the braking in the marked zone and stays in control on the line through the technical feature, braking there when needed; approaches race speed only if grip, conditions and own level allow.",
     "terrainRequirement": "technical_trail",
   },
   {
@@ -51,7 +51,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
     "progressesTo": "cornering_off_camber",
     "regressesTo": "cornering_flat_turn_precision",
     "skillTarget": "cornering",
-    "successCriteria": "Exits the berm faster than entry speed on 3/5 runs, no drift correction.",
+    "successCriteria": "Rides the berm on a smooth line and exits stable, with no drift to correct; speed stays suited to grip and own level, braking before the entry when needed.",
     "terrainRequirement": "bermed_trail",
   },
   {
@@ -123,7 +123,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
     "id": "steep_terrain_off_brake_chute",
     "regressesTo": "steep_terrain_body_position",
     "skillTarget": "steep_terrain",
-    "successCriteria": "Rides the steepest part of the chute off the brakes, with no front-wheel wash, on 3/5 runs.",
+    "successCriteria": "Rides the steepest part in control, with no locked wheel or front-wheel wash, modulating the brakes to the slope and grip.",
     "terrainRequirement": "steep_technical_trail",
   },
   {
@@ -154,7 +154,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
     "id": "roots_rocks_committed",
     "regressesTo": "roots_rocks_rolling",
     "skillTarget": "roots_rocks",
-    "successCriteria": "Clears the section at race-relevant speed on 3/5 runs.",
+    "successCriteria": "Rides the section on the chosen line, stable and in control, at a speed managed for grip and conditions, braking when needed.",
     "terrainRequirement": "root_rock_trail",
   },
   {
@@ -175,7 +175,7 @@ exports[`V1 catalogues — frozen by UX-11A.5a.1 > keeps every V1 drill entry by
     "progressesTo": "jumps_step_down",
     "regressesTo": "jumps_table_top_basic",
     "skillTarget": "jumps",
-    "successCriteria": "Clears two or three tables in a row with level landings and no speed-check braking on 3/5 runs.",
+    "successCriteria": "Links the tables with level, controlled landings, at a speed set before the series for the conditions and own level; if the speed does not allow control, brakes before the next jump or rolls it.",
     "terrainRequirement": "bike_park_jump_line",
   },
   {
