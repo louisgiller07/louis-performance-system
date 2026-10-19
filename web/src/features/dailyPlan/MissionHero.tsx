@@ -6,6 +6,7 @@ import { formatDuration } from "./durationLabels";
 import type { DailyPlan, TrainingIntervention } from "./dailyPlanTypes";
 import { COACHING_SUSPENDED_TITLE, isCoachingSuspended } from "./bodyStatus";
 import { NO_COMPATIBLE_SESSION_TITLE, noCompatibleSessionSentence, type NoCompatibleSession } from "./noCompatibleSession";
+import { WITHOUT_PLANNED_SESSION_SENTENCE } from "./withoutPlannedSession";
 
 // UX-03 — "Ta mission du jour", the dominant hero of Today. It merges what
 // used to be two stacked cards (MissionCard + DecisionHero) into one, and
@@ -86,7 +87,21 @@ function AdaptationCompare({ before, after, adaptedTitle }: { before: TrainingIn
  * shorter than the refused session — the title and the adapted side say no compatible session exists, with the
  * declared time and the refused duration; never the refused session as available, never a REST or a recovery.
  */
-export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false, noCompatibleSession = null }: { dailyPlan: DailyPlan; sessionModifiedByAthlete?: boolean; noCompatibleSession?: NoCompatibleSession | null }) {
+/**
+ * `withoutPlannedSession` (SPORT-RACE-01P): a V2 day the programme has no session for — M1's recommendation is advice,
+ * shown without M1's duration (never presented as a V2 prescription), with a sentence saying so.
+ */
+export function MissionHero({
+  dailyPlan,
+  sessionModifiedByAthlete = false,
+  noCompatibleSession = null,
+  withoutPlannedSession = false,
+}: {
+  dailyPlan: DailyPlan;
+  sessionModifiedByAthlete?: boolean;
+  noCompatibleSession?: NoCompatibleSession | null;
+  withoutPlannedSession?: boolean;
+}) {
   const final = dailyPlan.final_session;
   const before = dailyPlan.planned_session_before;
   const tone = DECISION_TONE[dailyPlan.decision] ?? DECISION_TONE.KEEP!;
@@ -98,7 +113,7 @@ export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false, noCom
   const riderSession = sessionModifiedByAthlete && !suspended && (dailyPlan.decision === "KEEP" || dailyPlan.decision === "MODIFY");
 
   const isDh = dailyPlan.dh_or_technical.active;
-  const durationMin = final.duration_min ?? dailyPlan.training.duration_min;
+  const durationMin = withoutPlannedSession ? undefined : (final.duration_min ?? dailyPlan.training.duration_min);
   const headline = isDh ? dailyPlan.dh_or_technical.focus : undefined;
   const rawBody = isDh
     ? dailyPlan.dh_or_technical.execution_task
@@ -150,6 +165,12 @@ export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false, noCom
       {noCompatibleSession && (
         <p className="ux-enter mt-4 text-sm leading-relaxed text-ink/90" data-testid="no-compatible-session" style={{ ["--d" as string]: "200ms" }}>
           {noCompatibleSessionSentence(noCompatibleSession)}
+        </p>
+      )}
+
+      {withoutPlannedSession && (
+        <p className="ux-enter mt-4 text-sm leading-relaxed text-ink/90" data-testid="without-planned-session" style={{ ["--d" as string]: "200ms" }}>
+          {WITHOUT_PLANNED_SESSION_SENTENCE}
         </p>
       )}
 

@@ -12,6 +12,13 @@ import type { RaceHorizon, TodayRace } from "./todayContext";
 // labels, never raw. The closing line is editorial, never a metric.
 const RACE_DATE = new Intl.DateTimeFormat("fr-CH", { weekday: "short", day: "numeric", month: "long" });
 
+/**
+ * SPORT-RACE-01P — the formats with a pre-event protocol (docs/04 §3). In the seven days before any other format (or
+ * none), Today says that no specific preparation is defined: NALYNT plans no pre-event session for it.
+ */
+const PROTOCOL_FORMATS: ReadonlySet<string> = new Set(["HOT_TRAIL_2DAY", "IXS_3DAY"]);
+export const NO_RACE_PROTOCOL_SENTENCE = "Préparation spécifique non définie pour ce format de course : NALYNT ne planifie pas de séance les jours qui la précèdent.";
+
 function formatRaceDate(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   const formatted = RACE_DATE.format(new Date(y!, m! - 1, d!));
@@ -32,6 +39,7 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
   let title: string;
   let details: string[] = [];
   let closing: string;
+  let noProtocol = false;
 
   if (horizon?.kind === "countdown") {
     kicker = "Prochaine course";
@@ -39,6 +47,7 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
     title = horizon.race.eventName;
     details = raceDetails(horizon.race);
     closing = horizon.days === 1 ? "La course, c'est demain. Chaque décision compte." : `${horizon.days} jours avant ta course. Chaque décision compte.`;
+    noProtocol = horizon.days <= 7 && !PROTOCOL_FORMATS.has(horizon.race.raceFormat ?? "");
   } else if (horizon?.kind === "ongoing") {
     kicker = "En course";
     big = `Jour ${horizon.day}`;
@@ -63,6 +72,11 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
       <p className={`font-display font-extrabold uppercase leading-[0.95] text-ink ${big ? "mt-2 text-3xl" : "mt-2 text-4xl"}`}>{title}</p>
       {details.length > 0 && <p className="mt-2 text-sm text-ink/75">{details.join(" · ")}</p>}
       <p className="mt-3 text-sm text-muted">{closing}</p>
+      {noProtocol && (
+        <p className="mt-2 text-sm text-ink/80" data-testid="no-race-protocol">
+          {NO_RACE_PROTOCOL_SENTENCE}
+        </p>
+      )}
     </section>
   );
 }

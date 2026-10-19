@@ -62,6 +62,13 @@ export function protocolSessionBlockV2(block: ProtocolBlockV2, protocolId: strin
   };
 }
 
+/** SPORT-RACE-01P — the protocol's declared total range (20–55 min): a planned recovery reserves its minimum. */
+export function recoveryActiveDurationRangeV2(): { min: number; max: number } {
+  const protocol = PROTOCOL_CATALOG_V2[RECOVERY_ACTIVE_PROTOCOL_ID];
+  if (!protocol) throw new SessionModelV2ContractError(`${RECOVERY_ACTIVE_PROTOCOL_ID} is missing from the protocol catalogue`);
+  return { ...protocol.totalDurationMinutes };
+}
+
 export function buildRecoveryActivePrescriptionV2Content(input: { catalog: SessionModelV2CatalogManifest }): PrescriptionV2Content {
   const protocol = PROTOCOL_CATALOG_V2[RECOVERY_ACTIVE_PROTOCOL_ID];
   if (!protocol || protocol.family !== "recovery" || protocol.scope !== "session" || protocol.intentId === null || !protocol.sessionKinds.includes("RECOVERY_ACTIVE")) {

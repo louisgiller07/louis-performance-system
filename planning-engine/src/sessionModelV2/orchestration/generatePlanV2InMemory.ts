@@ -4,7 +4,8 @@
  * PlanInputSnapshotV2 → shared planning pipeline with the V2 dose model
  * (BUG-V2-2: block progression — each week's role and dose, fitted to the
  * availability → final durations → placement) → generated
- * sessions → V2 builders (Force, DH, AEROBIC_BASE, PHYS-02 AEROBIC_INTERVALS) → assignPrescriptionIds
+ * sessions → SPORT-RACE-01P race-protocol days (pre-event sessions of a race format with a protocol) → V2 builders
+ * (Force, DH, AEROBIC_BASE, PHYS-02 AEROBIC_INTERVALS, active recovery) → assignPrescriptionIds
  * (injected mintId) → validatePrescriptionV2 → sport fingerprints.
  *
  * - Explicit only: nothing here is reached unless a caller asks for a V2
@@ -43,12 +44,14 @@ import { buildMobilityPrescriptionV2Content, mobilityDurationRangeV2 } from "../
 import { MOBILITY_PLAN_POLICY_V2, MOBILITY_PLAN_POLICY_V2_VERSION } from "../../catalog/mobilityPlanPolicyV2.js";
 import { availabilityByDate } from "../../pipeline/availabilityActivity.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
+import { buildRecoveryActivePrescriptionV2Content } from "../builders/recoveryActivePrescriptionV2.js";
+import { placeRaceProtocolSessionsV2 } from "./raceProtocolPlacementV2.js";
 import { PLAN_DOSE_MODEL_V2, planDoseModelV2 } from "./planDoseModelV2.js";
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { PlanInputAvailability, PlanInputLockedDate } from "../../types/planInputSnapshot.js";
 import type { StrengthDoseStepV2 } from "../../catalog/strengthDoseCatalogV2.js";
 
-export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS", "POWER", "MOBILITY"];
+export const V2_SUPPORTED_SESSION_KINDS: readonly SessionKind[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "AEROBIC_BASE", "AEROBIC_INTERVALS", "POWER", "MOBILITY", "RECOVERY_ACTIVE"];
 
 export interface GeneratePlanV2InMemoryInput {
   /** Block content only — id / planVersionId are minted here. */
@@ -147,7 +150,9 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   // PHYS-03 — with the power option only: the lower-body Force session of a build week becomes the power session.
   const powerWeeks = input.powerSessions === true ? placePowerSessionsV2(planning.weeks, modelInput.strengthExperienceTier, modelInput.equipment) : planning.weeks;
   // PHYS-04 — with the mobility option only: one mobility session on a free day of each consolidation week.
-  const plannedWeeks = input.mobilitySessions === true ? placeMobilitySessionsV2(powerWeeks, snapshot.availability, snapshot.lockedDates) : powerWeeks;
+  const mobilityWeeks = input.mobilitySessions === true ? placeMobilitySessionsV2(powerWeeks, snapshot.availability, snapshot.lockedDates) : powerWeeks;
+  // SPORT-RACE-01P — the pre-event days of an A+ / A / B race whose format has a protocol (none otherwise).
+  const plannedWeeks = placeRaceProtocolSessionsV2(mobilityWeeks, { races: snapshot.races, availability: snapshot.availability, lockedDates: snapshot.lockedDates });
   const flat = plannedWeeks.flatMap((week) => week.sessions.map((session) => ({ week, session })));
   for (const { session } of flat) {
     if (!V2_SUPPORTED_SESSION_KINDS.includes(session.kind)) throw new SessionModelV2ContractError(`no V2 builder for session kind ${session.kind}`);
@@ -280,6 +285,9 @@ function buildContent(
     case "MOBILITY":
       // PHYS-04 — the catalogue mobility protocol, unchanged (its full 22–30 min ranges).
       return buildMobilityPrescriptionV2Content({ catalog });
+    case "RECOVERY_ACTIVE":
+      // SPORT-RACE-01P — a race protocol's active recovery: the catalogue protocol, unchanged (A04's REPLACE content).
+      return buildRecoveryActivePrescriptionV2Content({ catalog });
     case "POWER":
       // PHYS-03 — the power session composed from the catalogue (tier, equipment); its slot keeps the Force duration and load.
       return buildPowerPrescriptionV2Content({ athleteTier: modelInput.strengthExperienceTier, equipment: modelInput.equipment, catalog });

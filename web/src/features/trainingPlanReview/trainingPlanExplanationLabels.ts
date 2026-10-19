@@ -51,6 +51,11 @@ const KNOWN_PHRASES: ReadonlyArray<readonly [english: string, french: string]> =
   ["This week's lower-body strength session is a power session.", "Cette semaine, la séance de renfo bas du corps est une séance de puissance."],
   // PHYS-04 — a consolidation week with a mobility session (plans generated with the mobility option).
   ["A mobility session is added on a free day this week.", "Une séance de mobilité est ajoutée sur un jour libre cette semaine."],
+  // SPORT-RACE-01P — pre-event days planned from the race's protocol (formats with a protocol only).
+  [
+    "Pre-race days follow the race's protocol: sessions placed where the format, the day and the availability allow.",
+    "Les jours avant la course suivent son protocole : séances placées quand le format, le jour et tes disponibilités le permettent.",
+  ],
   ["Consolidation week: reduced load to absorb the previous weeks.", "Semaine de consolidation : charge réduite pour assimiler les semaines précédentes."],
   [
     "Race-specific week, two weeks before the race: riding first, strength maintained without overload.",

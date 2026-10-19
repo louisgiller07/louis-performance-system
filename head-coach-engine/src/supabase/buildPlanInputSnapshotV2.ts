@@ -13,6 +13,11 @@
  * history (mapping/planHistoryV2.ts, canon docs/05); `recentSessionKinds` and
  * every other field stay the historical ones. Without it, the snapshot is
  * exactly the historical one.
+ *
+ * SPORT-RACE-01P — each race also carries the rider's declared format
+ * (`race_calendar.race_format`, the row the V1 builder already reads, captured
+ * here), absent when the rider gave none: the planner places the pre-event
+ * protocol of a format that has one, nothing otherwise.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlanInputSnapshotV2 } from "planning-engine/session-model-v2";
@@ -22,7 +27,7 @@ import { getPerformanceProfileFor, type AthletePerformanceProfileRawRow } from "
 import { getAvailabilityWindowsFor } from "./repositories/athleteAvailabilityWindowsRepo.js";
 import { getAvailabilityExceptionsFor } from "./repositories/athleteAvailabilityExceptionsRepo.js";
 import { getLockedDatesFor } from "./repositories/athleteLockedDatesRepo.js";
-import { getRacesOverlappingRange } from "./repositories/raceCalendarRepo.js";
+import { getRacesOverlappingRange, type RaceCalendarRawRow } from "./repositories/raceCalendarRepo.js";
 import { getRecentSessions } from "./repositories/completedSessionsRepo.js";
 import { readPlanHistoryFactsV2 } from "./repositories/planHistoryV2Repo.js";
 import { planHistoryV2 } from "./mapping/planHistoryV2.js";
@@ -62,11 +67,16 @@ export async function buildPlanInputSnapshotV2(
   options: BuildPlanInputSnapshotV2Options = {}
 ): Promise<PlanInputSnapshotV2> {
   let profile: AthletePerformanceProfileRawRow | null | undefined;
+  let raceRows: RaceCalendarRawRow[] = [];
   const capturing: BuildPlanInputSnapshotDeps = {
     ...deps,
     getPerformanceProfileFor: async (c, id) => {
       profile = await deps.getPerformanceProfileFor(c, id);
       return profile;
+    },
+    getRacesOverlappingRange: async (...args) => {
+      raceRows = await deps.getRacesOverlappingRange(...args);
+      return raceRows;
     },
   };
 
@@ -76,7 +86,13 @@ export async function buildPlanInputSnapshotV2(
   const raw = profile?.dh_technical_tier ?? null;
   if (raw !== null && !(DH_TECHNICAL_TIERS as readonly string[]).includes(raw)) throw new InvalidDhTechnicalTierError(raw);
 
-  const historical: PlanInputSnapshotV2 = { ...snapshot, dhTechnicalTier: raw as PlanInputSnapshotV2["dhTechnicalTier"] };
+  // The V1 builder maps the race rows one to one, in order: the format is the same row's.
+  if (raceRows.length !== snapshot.races.length) throw new Error("buildPlanInputSnapshotV2: race rows and snapshot races differ");
+  const races = snapshot.races.map((race, i) => {
+    const format = raceRows[i]!.race_format;
+    return typeof format === "string" ? { ...race, raceFormat: format } : race;
+  });
+  const historical: PlanInputSnapshotV2 = { ...snapshot, races, dhTechnicalTier: raw as PlanInputSnapshotV2["dhTechnicalTier"] };
   if (options.v2History !== true) return historical;
 
   // A failed or capped read throws: the generation is refused, never fed an empty history.

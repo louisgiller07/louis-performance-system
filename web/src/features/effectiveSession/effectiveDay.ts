@@ -19,6 +19,7 @@ import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import type { DecisionHistoryRow } from "../history/historyTypes";
 import type { SessionRealisation } from "../completion/guidedRealisation";
 import { legacyRealisation } from "../completion/dayCompletion";
+import { isWithoutPlannedSession } from "../dailyPlan/withoutPlannedSession";
 
 export interface EffectiveExecution {
   executionId: string;
@@ -83,6 +84,11 @@ export interface EffectiveDay {
    * session the rider can start. From the stored decision's blocked status only.
    */
   noGuidedSession?: true;
+  /**
+   * SPORT-RACE-01P — the day's V2 decision has no planned session (`no_planned_session`): its session is M1's
+   * recommendation, advice without a guided session; its duration is M1's, never shown as a prescribed one.
+   */
+  adviceOnly?: true;
 }
 
 const TERMINAL = ["completed", "abandoned"];
@@ -96,6 +102,12 @@ function latestValidDecision(date: string, decisions: readonly DecisionHistoryRo
 function refusedWithoutSession(decision: DecisionHistoryRow): boolean {
   const detail = decision.finalPrescriptionStatusDetail;
   return decision.finalPrescriptionStatus === "blocked" && typeof detail === "object" && detail !== null && (detail as { reason?: unknown }).reason === "modify_not_supported";
+}
+
+/** SPORT-RACE-01P — a V2 day without a planned session: M1's recommendation only (a REST or the race activity aside). */
+function adviceWithoutPlannedSession(decision: DecisionHistoryRow, plan: DailyPlan): boolean {
+  const kind = plan.final_session.kind;
+  return kind !== "REST" && kind !== "RACE_ACTIVITY" && isWithoutPlannedSession(decision.finalPrescriptionStatus, decision.finalPrescriptionStatusDetail);
 }
 
 function adaptationOf(plan: DailyPlan): EffectiveDay["adaptation"] {
@@ -155,6 +167,7 @@ export function effectiveDay(date: string, sources: EffectiveSources): Effective
       finalPrescriptionId: null,
       ...legacyRealisationOf(date, sources.legacy),
       ...(refusedWithoutSession(latest) ? { noGuidedSession: true as const } : {}),
+      ...(adviceWithoutPlannedSession(latest, plan) ? { noGuidedSession: true as const, adviceOnly: true as const } : {}),
     };
   }
 

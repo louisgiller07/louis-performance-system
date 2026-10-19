@@ -127,7 +127,7 @@ export function programWeekDays(
         isPast: date < today,
         planned: label,
         plannedLabel: label,
-        plannedDurationMin: effective.session.duration_min ?? null,
+        plannedDurationMin: effective.adviceOnly ? null : (effective.session.duration_min ?? null),
         performed: effective.status === "completed",
         ...realisationOf(effective),
         adapted: effective.adaptation !== null,

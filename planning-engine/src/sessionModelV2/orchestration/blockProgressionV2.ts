@@ -93,6 +93,7 @@ export const BLOCK_PROGRESSION_PHRASES_V2 = {
   endurance_intervals: "This week's endurance session is an intervals session.",
   power_session: "This week's lower-body strength session is a power session.",
   mobility_session: "A mobility session is added on a free day this week.",
+  race_protocol_sessions: "Pre-race days follow the race's protocol: sessions placed where the format, the day and the availability allow.",
 } as const;
 
 interface DomainOption {

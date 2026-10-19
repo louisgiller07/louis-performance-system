@@ -155,7 +155,8 @@ export function weekSummary(
         isPast: date < today,
         planned: hasSession ? (kind ? (SHORT_KIND_LABELS[kind] ?? "Séance") : "Séance") : null,
         plannedLabel: hasSession ? (kind ? (TRAINING_KIND_LABELS[kind] ?? "Séance prévue") : "Séance prévue") : null,
-        plannedDurationMin: (fromPlanOnly ? row?.intervention?.duration_min : day.session?.duration_min) ?? null,
+        // SPORT-RACE-01P — advice without a planned session: M1's duration is never shown as a prescribed one.
+        plannedDurationMin: (fromPlanOnly ? row?.intervention?.duration_min : day.adviceOnly ? null : day.session?.duration_min) ?? null,
         performed: day?.status === "completed",
         ...realisationOf(day),
         adapted: day?.adaptation !== null && day?.adaptation !== undefined,

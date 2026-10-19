@@ -9,11 +9,20 @@
  *
  * The generation pipeline is unchanged: nothing builds this snapshot yet.
  */
-import type { PlanInputSnapshot, StrengthExperienceTier } from "../types/planInputSnapshot.js";
+import type { PlanInputRace, PlanInputSnapshot, StrengthExperienceTier } from "../types/planInputSnapshot.js";
 import type { DhTechnicalTierV2 } from "../catalog/sessionDrillCatalogV2.js";
+
+/**
+ * SPORT-RACE-01P — a V2 snapshot race also carries the rider's declared race format (race_calendar.race_format), absent
+ * when the rider gave none: additive JSON, plans generated before have no format and place no pre-event session.
+ */
+export interface PlanInputRaceV2 extends PlanInputRace {
+  raceFormat?: string;
+}
 
 export interface PlanInputSnapshotV2 extends PlanInputSnapshot {
   dhTechnicalTier: DhTechnicalTierV2 | null;
+  races: PlanInputRaceV2[];
 }
 
 /**
