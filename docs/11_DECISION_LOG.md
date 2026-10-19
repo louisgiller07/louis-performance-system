@@ -6756,3 +6756,33 @@ Rapport : `SPORT_RACE_01P4_INTEGRATION_GATE_REPORT.md`.
 - **Tests** : `sportLoad011Monitoring.test.tsx`, plans M1 réels (contre-preuve : 6 tests échouent sans la correction).
 
 Rapport : `SPORT_LOAD_01_1_FINAL_REPORT.md`.
+
+## 2026-10-19 — ADR SPORT-COACH-SAFE-01 : critères de réussite DH maîtrisés, repère C3.7 reformulé, orientation SPORT-PLAN-03
+
+> **Décision HPM** : diagnostic SPORT-COACH-01 accepté (avis du préparateur physique, reçu le 2026-10-19, conservé tel quel ; identité, qualification et accord de citation non encore fournis). GO pour un correctif local ciblé sur les contenus visibles en production. Doses, exercices, seuils, règles M1, Safety et P0-SAFE inchangés.
+
+**Six critères de réussite DH** (`braking_late_entry`, `cornering_berm_speed`, `braking_marked_zone_at_speed`, `steep_terrain_off_brake_chute`, `roots_rocks_committed`, `jumps_linked_tables`). Ils demandaient de freiner plus tard, de sortir plus vite qu'on n'entre, de passer sans freiner, à vitesse de course ou sans coup de frein. Nouvelle formulation, la même pour V1 et V2 : trajectoire maîtrisée, vitesse adaptée à l'adhérence, aux conditions et au niveau, freinage explicitement permis, aucune incitation à accélérer, aucun objectif chiffré (« sur 3 runs sur 5 » retiré de ces six critères). Seule mention de la vitesse de course restante : une condition (« N'approche ta vitesse course que si l'adhérence, les conditions et ton niveau le permettent »), qui garde aussi le verrou T45 de cet exercice d'intensité course. Formulations à valider par le préparateur.
+
+- **Plans enregistrés** :
+  - V1 : la prescription stockée garde l'ancien anglais (copié à la génération par `prescription-engine`). `drillInstructionLabels.ts` reconnaît ce texte exact (`legacySourceSuccessCriteria`, une seule variante par critère dans tout l'historique du catalogue) et l'affiche dans le nouveau français. Surfaces : Aujourd'hui (`ExecutablePrescriptionCard`).
+  - V2 : la prescription stocke l'identifiant du critère ; le web le résout dans son miroir du catalogue. Surfaces : Aujourd'hui, historique, séance guidée.
+  - Aucune prescription ni exécution enregistrée n'est modifiée.
+- **Futurs plans** :
+  - V1 : nouveau texte anglais dans `drillCatalog.ts`. Le gel UX-11A.5a.1 du catalogue V1 est levé pour ces six seuls textes, par décision HPM : identifiants, sélection, terrains, consignes et doses inchangés, version `v3` conservée, instantané de non-régression mis à jour sur ces six lignes.
+  - V2 : nouveau texte dans `coachingTextCatalog.ts`, version `coaching-text-v1.0` conservée (même pratique que 49375e5 : l'identifiant garde son sens), miroir web régénéré.
+- **Publication** : le web seul protège immédiatement les anciens et les nouveaux plans. Il traduit l'ancien et le nouvel anglais V1 et résout les identifiants V2 avec le texte corrigé. `generate-training-plan` et `daily-run` (bundle V2 quotidien) changent seulement par ces textes de catalogue : à publier plus tard, sur GO spécifique.
+
+**C3.7** : la ligne de suivi affichée devient « Fréquence des séances — repère de suivi : au moins 5 séances terminées, classées de charge modérée ou élevée, sur les 8 derniers jours. Ce repère ne mesure pas à lui seul ta charge réelle et ne modifie pas ta séance. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in. » Même mécanisme que SPORT-LOAD-01.1 (correspondance exacte de la phrase du moteur, présentation seule) ; RED, sa priorité, son calcul et les autres messages sont inchangés.
+
+**Orientation SPORT-PLAN-03 (enregistrée, non implémentée)**, qui remplace les politiques A et B de SPORT-PLAN-02 :
+- profil B : Force corps entier, endurance, DH ;
+- profil W : endurance, Force corps entier, deux DH différenciés ;
+- profil A : deux Force à dominantes différentes, endurance, deux DH, deux jours libres.
+
+Ce sont des scénarios de référence, pas des règles universelles. Toute Force corps entier modérée ou modification de C3.1 / C3.6 exige une ADR M1 approuvée ; `STRENGTH_FULL_LIGHT` n'est jamais renommé pour simuler une séance modérée. La progression conditionnelle attend le contrat des résultats réels (PARTIAL-01-L2). Aucune dose ni aucun seuil ne change.
+
+**Hors périmètre, pour décision** : les consignes d'exécution de quatre de ces exercices disent encore « sans retoucher aux freins », « passe sans freiner », « lâche les freins » ou « garde ta vitesse course » ; les critères des exercices de comparaison de lignes et de simulation de course gardent « vitesse course » / « mode course ».
+
+**Tests** : `sportCoachSafe01Criteria.test.tsx` (plans V1 et V2 enregistrés et futurs, surfaces Aujourd'hui, historique et séance guidée, critères non concernés) et `sportLoad011Monitoring.test.tsx` mis à jour. Contre-preuve : 13 tests échouent sans la correction.
+
+Rapport : `SPORT_COACH_SAFE_01_RELEASE_GATE.md`.
