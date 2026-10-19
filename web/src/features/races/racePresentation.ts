@@ -38,6 +38,7 @@ export const RACES = {
   competitionPlaceholder: "Choisis la compétition",
   protocolHint: (protocol: string) => `Préparation spécifique : les 7 jours avant la course suivent le protocole ${protocol}.`,
   noProtocolHint: "Préparation spécifique non définie pour cette compétition : NALYNT ne planifie pas de séance les jours qui la précèdent.",
+  clarifyHint: "Compétition à préciser : choisis-la dans la liste. D'ici là, NALYNT ne planifie pas de préparation spécifique pour cette course.",
   existing: "(existant)",
   edit: "Modifier",
   delete: "Supprimer",

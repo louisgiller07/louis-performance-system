@@ -9,7 +9,7 @@ import { WITHOUT_PLANNED_SESSION_SENTENCE, withoutPlannedSessionOf } from "../da
 import { effectiveDays } from "../effectiveSession/effectiveDay";
 import { WeekStrip } from "./WeekStrip";
 import { weekSummary, type TodayRace } from "./todayContext";
-import { NO_RACE_PROTOCOL_SENTENCE, RaceBanner } from "./RaceBanner";
+import { CLARIFY_COMPETITION_SENTENCE, NO_RACE_PROTOCOL_SENTENCE, RaceBanner } from "./RaceBanner";
 import { translateExplanation } from "../trainingPlanReview/trainingPlanExplanationLabels";
 import { describeRelaxedConstraints } from "../trainingPlanReview/placementReasonLabels";
 import type { DailyPlan } from "../dailyPlan/dailyPlanTypes";
@@ -81,15 +81,12 @@ describe("SPORT-RACE-01P — a day without a planned session is advice, never M1
 
 describe("SPORT-RACE-01P / 01P.3 — a race without a protocol: no specific preparation is defined", () => {
   const race = (raceFormat: string | null, startDate: string, series: string | null = null): TodayRace => ({ eventName: "Swiss Cup DH", startDate, endDate: startDate, priority: "A", location: null, raceFormat, series });
-  it("within seven days, for any race without a protocol: no format, Swiss / UCI, French national or regional, and a legacy 2 / 3-day row without its competition (01P.3)", () => {
+  it("within seven days, for any race without a protocol: no format, Swiss / UCI, French national or regional (01P.3)", () => {
     const cases: [string | null, string | null][] = [
       ["OTHER", null],
       ["SWISS_CUP", null],
       ["UCI_WC", null],
       [null, null],
-      ["HOT_TRAIL_2DAY", null],
-      ["IXS_3DAY", null],
-      ["HOT_TRAIL_2DAY", "Hot Trail Series (Swiss DH Cup)"],
       ["OTHER", "FR_COUPE_DE_FRANCE_DH"],
       ["OTHER", "FR_CHAMPIONNAT_DE_FRANCE_DH"],
       ["OTHER", "FR_REGIONAL_DH"],
@@ -102,6 +99,21 @@ describe("SPORT-RACE-01P / 01P.3 — a race without a protocol: no specific prep
     }
   });
 
+  it("01P.4 — a legacy 2 / 3-day row without its competition (or with a free-text series): the rider is told to name it through the existing form, as soon as it is the next race; never the generic sentence", () => {
+    const cases: [string, string | null, number][] = [
+      ["HOT_TRAIL_2DAY", null, 5],
+      ["IXS_3DAY", null, 5],
+      ["HOT_TRAIL_2DAY", "Hot Trail Series (Swiss DH Cup)", 5],
+      ["HOT_TRAIL_2DAY", null, 30],
+    ];
+    for (const [format, series, days] of cases) {
+      const { unmount } = render(<RaceBanner horizon={{ kind: "countdown", race: race(format, "2026-11-21", series), days }} objective={null} />);
+      expect(screen.getByTestId("clarify-race-competition").textContent, `${format} / ${series} / J-${days}`).toBe(CLARIFY_COMPETITION_SENTENCE);
+      expect(screen.queryByTestId("no-race-protocol")).toBeNull();
+      unmount();
+    }
+  });
+
   it("never for a race explicitly identified as the Hot Trail Series or iXS, nor beyond seven days", () => {
     render(<RaceBanner horizon={{ kind: "countdown", race: race("HOT_TRAIL_2DAY", "2026-11-21", "HOT_TRAIL_SERIES"), days: 5 }} objective={null} />);
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();
@@ -109,6 +121,7 @@ describe("SPORT-RACE-01P / 01P.3 — a race without a protocol: no specific prep
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();
     render(<RaceBanner horizon={{ kind: "countdown", race: race("OTHER", "2026-11-30"), days: 10 }} objective={null} />);
     expect(screen.queryByTestId("no-race-protocol")).toBeNull();
+    expect(screen.queryByTestId("clarify-race-competition")).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 import { translateRacePriority } from "../trainingLabels/raceLabels";
-import { competitionLabel, raceProtocolOf } from "../races/raceProtocol";
+import { competitionLabel, needsCompetition, raceProtocolOf } from "../races/raceProtocol";
 import type { RaceHorizon, TodayRace } from "./todayContext";
 
 // UX-05 — Today's context banner: why this day counts. Validated order:
@@ -19,6 +19,13 @@ const RACE_DATE = new Intl.DateTimeFormat("fr-CH", { weekday: "short", day: "num
  * specific preparation is defined: NALYNT plans no pre-event session for it.
  */
 export const NO_RACE_PROTOCOL_SENTENCE = "Préparation spécifique non définie pour cette compétition : NALYNT ne planifie pas de séance les jours qui la précèdent.";
+
+/**
+ * SPORT-RACE-01P.4 — a race stored as « 2 / 3 jours » without its competition (ambiguous, no protocol): as soon as it
+ * is the next race, Today says how to name it, through the existing form (Profil › Affiner ton profil › Tes courses).
+ */
+export const CLARIFY_COMPETITION_SENTENCE =
+  "Compétition à préciser dans Profil › Affiner ton profil › Tes courses. D'ici là, NALYNT ne planifie pas de préparation spécifique pour cette course.";
 
 function formatRaceDate(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
@@ -43,6 +50,7 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
   let details: string[] = [];
   let closing: string;
   let noProtocol = false;
+  let clarify = false;
 
   if (horizon?.kind === "countdown") {
     kicker = "Prochaine course";
@@ -50,7 +58,8 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
     title = horizon.race.eventName;
     details = raceDetails(horizon.race);
     closing = horizon.days === 1 ? "La course, c'est demain. Chaque décision compte." : `${horizon.days} jours avant ta course. Chaque décision compte.`;
-    noProtocol = horizon.days <= 7 && raceProtocolOf(horizon.race.raceFormat, horizon.race.series) === null;
+    clarify = needsCompetition(horizon.race.raceFormat, horizon.race.series);
+    noProtocol = !clarify && horizon.days <= 7 && raceProtocolOf(horizon.race.raceFormat, horizon.race.series) === null;
   } else if (horizon?.kind === "ongoing") {
     kicker = "En course";
     big = `Jour ${horizon.day}`;
@@ -78,6 +87,11 @@ export function RaceBanner({ horizon, objective }: { horizon: RaceHorizon<TodayR
       {noProtocol && (
         <p className="mt-2 text-sm text-ink/80" data-testid="no-race-protocol">
           {NO_RACE_PROTOCOL_SENTENCE}
+        </p>
+      )}
+      {clarify && (
+        <p className="mt-2 text-sm text-ink/80" data-testid="clarify-race-competition">
+          {CLARIFY_COMPETITION_SENTENCE}
         </p>
       )}
     </section>

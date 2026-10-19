@@ -22,6 +22,7 @@ const RECENT = { id: "r0", eventName: "Course locale", startDate: "2026-09-27", 
 const SAVED =
   "Ta course est prise en compte dès maintenant dans ton coaching quotidien. Pendant la bêta, contacte-nous si tu veux que nous reconstruisions aussi ta préparation autour de cette course.";
 const NO_PROTOCOL_HINT = "Préparation spécifique non définie pour cette compétition : NALYNT ne planifie pas de séance les jours qui la précèdent.";
+const CLARIFY_HINT = "Compétition à préciser : choisis-la dans la liste. D'ici là, NALYNT ne planifie pas de préparation spécifique pour cette course.";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -40,7 +41,8 @@ describe("A09 — Tes courses", () => {
     expect(within(section()).getByText("A — objectif principal · Course sur 2 jours — compétition à préciser")).toBeInTheDocument();
     expect(within(section()).getByText("A — objectif principal · Hot Trail Series")).toBeInTheDocument();
     expect(within(section()).getByText("Préparation : protocole Hot Trail")).toBeInTheDocument();
-    expect(within(section()).getAllByText("Préparation spécifique non définie")).toHaveLength(3); // Swiss Cup, legacy 2 days, recent
+    expect(within(section()).getAllByText("Préparation spécifique non définie")).toHaveLength(2); // Swiss Cup, recent
+    expect(within(section()).getByText("Préparation spécifique non définie tant que la compétition n'est pas précisée")).toBeInTheDocument(); // legacy 2 days
     expect(within(section()).getByRole("button", { name: "Modifier Swiss Cup Leysin" })).toBeInTheDocument();
     expect(within(section()).getByText("Courses récentes")).toBeInTheDocument();
     expect(within(section()).getByText("C — course secondaire / entraînement · Autre format")).toBeInTheDocument();
@@ -137,6 +139,7 @@ describe("A09 — Tes courses", () => {
     await user.click(await within(section()).findByRole("button", { name: "Modifier Swiss Cup Leysin" }));
     expect(within(section()).getByLabelText("Importance")).toHaveValue("A_PLUS");
     expect(competition()).toHaveValue("__stored__");
+    expect(within(section()).getByText(NO_PROTOCOL_HINT)).toBeInTheDocument(); // not ambiguous: a Swiss Cup never had a protocol
     expect(within(competition()).getByRole("option", { name: "Swiss Cup (existant)" })).toBeInTheDocument();
     await user.click(within(section()).getByRole("button", { name: "Enregistrer" }));
     await waitFor(() =>
@@ -151,7 +154,8 @@ describe("A09 — Tes courses", () => {
     await user.click(await within(section()).findByRole("button", { name: "Modifier Course de Champéry" }));
     expect(competition()).toHaveValue("__stored__");
     expect(within(competition()).getByRole("option", { name: "Course sur 2 jours — compétition à préciser (existant)" })).toBeInTheDocument();
-    expect(within(section()).getByText(NO_PROTOCOL_HINT)).toBeInTheDocument();
+    expect(within(section()).getByText(CLARIFY_HINT)).toBeInTheDocument();
+    expect(within(section()).queryByText(NO_PROTOCOL_HINT)).toBeNull();
     await user.click(within(section()).getByRole("button", { name: "Enregistrer" }));
     await waitFor(() =>
       expect(repo.updateRace).toHaveBeenLastCalledWith("r2", { eventName: "Course de Champéry", startDate: "2026-10-31", endDate: "2026-11-01", priority: "A", raceFormat: "HOT_TRAIL_2DAY", series: null })

@@ -75,9 +75,19 @@ export function competitionLabel(raceFormat: string | null | undefined, series: 
 }
 
 export const SPECIFIC_PREPARATION_UNDEFINED = "Préparation spécifique non définie";
+export const SPECIFIC_PREPARATION_UNTIL_CLARIFIED = "Préparation spécifique non définie tant que la compétition n'est pas précisée";
 
-/** The line under a race: its protocol, or the honest absence of one. */
+/**
+ * SPORT-RACE-01P.4 — a race stored with a protocol format (« 2 / 3 jours ») but without the competition it was written
+ * for: ambiguous, so no protocol until the rider names the competition through the existing form (never rewritten).
+ */
+export function needsCompetition(raceFormat: string | null | undefined, series: string | null | undefined): boolean {
+  return (raceFormat === "HOT_TRAIL_2DAY" || raceFormat === "IXS_3DAY") && raceProtocolOf(raceFormat, series) === null;
+}
+
+/** The line under a race: its protocol, or the honest absence of one (and what to do when it is only unclear). */
 export function preparationLabel(raceFormat: string | null | undefined, series: string | null | undefined): string {
   const protocol = raceProtocolOf(raceFormat, series);
-  return protocol ? `Préparation : protocole ${protocol}` : SPECIFIC_PREPARATION_UNDEFINED;
+  if (protocol) return `Préparation : protocole ${protocol}`;
+  return needsCompetition(raceFormat, series) ? SPECIFIC_PREPARATION_UNTIL_CLARIFIED : SPECIFIC_PREPARATION_UNDEFINED;
 }

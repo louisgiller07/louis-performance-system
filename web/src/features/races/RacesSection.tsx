@@ -8,7 +8,7 @@ import { Select } from "../../components/Select";
 import { createRace, deleteRace, loadRaces, updateRace, type Race } from "./raceRepo";
 import { endDateFor, validateRaceDraft, type RaceDraft } from "./raceForm";
 import { NEW_RACE_PRIORITIES, PRIORITY_OPTION_LABELS, RACE_FORMAT_DAYS, RACES, type RacePriority } from "./racePresentation";
-import { RACE_SERIES, competitionLabel, preparationLabel, raceProtocolOf, seriesOption } from "./raceProtocol";
+import { RACE_SERIES, competitionLabel, needsCompetition, preparationLabel, raceProtocolOf, seriesOption } from "./raceProtocol";
 
 /** SPORT-RACE-01P.3 — the select value of an existing race kept with its stored competition / format. */
 const STORED = "__stored__";
@@ -132,6 +132,8 @@ export function RacesSection() {
   const competitionValue =
     draft === undefined ? "" : seriesOption(draft.series)?.raceFormat === draft.raceFormat ? draft.series! : canKeepStored && draft.series === original!.series && draft.raceFormat === original!.raceFormat ? STORED : "";
   const draftProtocol = draft ? raceProtocolOf(draft.raceFormat, draft.series) : null;
+  const competitionHint =
+    competitionValue === "" ? undefined : draftProtocol ? RACES.protocolHint(draftProtocol) : competitionValue === STORED && needsCompetition(draft!.raceFormat, draft!.series) ? RACES.clarifyHint : RACES.noProtocolHint;
   const fixedDays = draft?.raceFormat && competitionValue !== "" ? RACE_FORMAT_DAYS[draft.raceFormat] : undefined;
 
   function raceLine(race: Race, actions: ReactNode) {
@@ -188,7 +190,7 @@ export function RacesSection() {
           <Field label={RACES.name}>
             <input type="text" value={draft.eventName} maxLength={120} onChange={(e) => setDraft({ eventName: e.target.value })} className={INPUT} />
           </Field>
-          <Field label={RACES.competition} hint={competitionValue === "" ? undefined : draftProtocol ? RACES.protocolHint(draftProtocol) : RACES.noProtocolHint}>
+          <Field label={RACES.competition} hint={competitionHint}>
             <Select
               value={competitionValue}
               onChange={(e) => {
