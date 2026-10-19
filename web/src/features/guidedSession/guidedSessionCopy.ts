@@ -1,6 +1,7 @@
 // UX-11C.1 — athlete-facing copy of the guided-session shell (UI labels only).
 import type { ExecutionPhase } from "./executionState";
 import type { UnavailableReason } from "./guidedSessionLoader";
+import { MODIFY_NOT_SUPPORTED_MESSAGE } from "../finalPrescriptionV2/finalPrescriptionV2Copy";
 
 export const PHASE_LABELS: Readonly<Record<ExecutionPhase, string>> = {
   not_started: "pas encore commencée",
@@ -11,6 +12,11 @@ export const PHASE_LABELS: Readonly<Record<ExecutionPhase, string>> = {
 };
 
 export const UNSUPPORTED_SESSION_MESSAGE = "Cette séance n'est pas prise en charge par cette version de l'application.";
+
+/** SPORT-SAFE-01R.2 — the precise message of a blocked day, by detail.reason; any other reason keeps UNAVAILABLE_MESSAGES.blocked. */
+export const BLOCKED_REASON_MESSAGES: Readonly<Record<string, string>> = {
+  modify_not_supported: MODIFY_NOT_SUPPORTED_MESSAGE,
+};
 
 export const UNAVAILABLE_MESSAGES: Readonly<Record<UnavailableReason, string>> = {
   no_decision: "Prépare d'abord ta séance du jour sur Aujourd'hui.",

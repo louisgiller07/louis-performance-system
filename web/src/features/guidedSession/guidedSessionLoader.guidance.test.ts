@@ -121,3 +121,17 @@ describe("loadGuidedSession — M1's guidance (SPORT-SAFE-01R)", () => {
     await expect(loadGuidedSession("a1", "2026-10-09")).rejects.toThrow("network");
   });
 });
+
+describe("loadGuidedSession — a blocked day's reason (SPORT-SAFE-01R.2)", () => {
+  it("blocked modify_not_supported → unavailable `blocked` with its reason, for the precise message", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(decisionRow("d1", NEUTRAL));
+    loadFinalPrescriptionV2State.mockResolvedValue({ kind: "blocked", code: "final_prescription_adaptation_not_defined", detail: { reason: "modify_not_supported", planned: "MODERATE", final: "LIGHT", durationMin: 45 } });
+    expect(await loadGuidedSession("a1", "2026-10-09")).toEqual({ kind: "unavailable", reason: "blocked", blockedReason: "modify_not_supported" });
+  });
+
+  it("blocked without a detail reason → unavailable `blocked`, nothing more (unchanged)", async () => {
+    loadLatestDecisionForDate.mockResolvedValue(decisionRow("d1", NEUTRAL));
+    loadFinalPrescriptionV2State.mockResolvedValue({ kind: "blocked", code: "final_prescription_no_lineage", detail: null });
+    expect(await loadGuidedSession("a1", "2026-10-09")).toEqual({ kind: "unavailable", reason: "blocked" });
+  });
+});

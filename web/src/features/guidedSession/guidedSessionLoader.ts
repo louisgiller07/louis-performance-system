@@ -51,7 +51,12 @@ export type GuidedSessionSnapshot =
       guidance?: DayGuidance;
     }
   | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View; guidance?: DayGuidance }
-  | { kind: "unavailable"; reason: UnavailableReason };
+  | {
+      kind: "unavailable";
+      reason: UnavailableReason;
+      /** SPORT-SAFE-01R.2 — a blocked day's detail.reason, for a precise message where one exists. */
+      blockedReason?: string;
+    };
 
 function unavailableFor(state: FinalPrescriptionV2State | undefined): UnavailableReason {
   if (state === undefined) return "not_v2";
@@ -123,7 +128,8 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
         : { kind: "final_prescription_missing" };
       return { kind: "execution", ...dayExecution, prescription };
     }
-    return { kind: "unavailable", reason: unavailableFor(state) };
+    const blockedReason = state?.kind === "blocked" && typeof state.detail?.reason === "string" ? state.detail.reason : undefined;
+    return { kind: "unavailable", reason: unavailableFor(state), ...(blockedReason !== undefined ? { blockedReason } : {}) };
   }
 
   const current = state.prescription;

@@ -16,7 +16,7 @@ import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
 import { DayGuidanceSections } from "../dailyPlan/dayGuidance";
-import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, HEALTH_BLOCK_COPY, PHASE_LABELS } from "./guidedSessionCopy";
+import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, BLOCKED_REASON_MESSAGES, ACTION_ERROR_MESSAGES, HEALTH_BLOCK_COPY, PHASE_LABELS } from "./guidedSessionCopy";
 import { resolveSessionModule, type ModulePending, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
 import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -108,7 +108,9 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
       <div className="flex flex-col gap-3">
         <Header prescription={null} phase="not_started" />
         <p className="text-ink/80" data-reason={snapshot.reason}>
-          {UNAVAILABLE_MESSAGES[snapshot.reason]}
+          {(snapshot.reason === "blocked" && snapshot.blockedReason !== undefined && Object.prototype.hasOwnProperty.call(BLOCKED_REASON_MESSAGES, snapshot.blockedReason)
+            ? BLOCKED_REASON_MESSAGES[snapshot.blockedReason]
+            : undefined) ?? UNAVAILABLE_MESSAGES[snapshot.reason]}
         </p>
         {backToToday}
       </div>
