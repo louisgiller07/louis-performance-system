@@ -6736,3 +6736,11 @@ Canon : diffs `docs/03`, `docs/05` (§race_calendar) et `docs/10` (T67) en révi
 - **Périmètre de publication mesuré** : web ; `daily-run` (trois fichiers de l'adapter, actif pour V1 et V2) ; `generate-training-plan` (bundle ; snapshot V1 identique, changements V2 inactifs tant que la génération V2 est OFF) ; huit autres fonctions identiques à `79b4d19`. Ordre conseillé : web, puis `daily-run`, puis `generate-training-plan`.
 
 Rapport : `SPORT_RACE_01P4_INTEGRATION_GATE_REPORT.md`.
+
+### Addendum SPORT-RACE-01 — GO intégration locale (HPM 2026-10-19)
+
+> **Décision HPM** : diffs canoniques de `73fd4cc` approuvés ; amendement « Compétition à préciser » (§ 5.3 du rapport 01P.4) approuvé ; comportement prudent pour les anciens formats ambigus et contrat des séries (françaises, suisses, UCI, Hot Trail, iXS) approuvés. Les quatre anciennes courses futures relevées par l'inventaire (Q1/Q2/Q3, exécuté par Louis) sont fictives et appartiennent à ses comptes de test : leur changement de protocole est accepté, sans nettoyage, migration ni contact.
+
+- Amendement appliqué tel quel (`docs/05` §race_calendar, T67 de `docs/10`).
+- Intégration locale : branche `integration/sport-race-01` créée depuis `79b4d19` (`origin/main`, vérifié), `fix/sport-race-01` fusionnée en avance rapide, sans conflit. Rien n'est poussé ni déployé.
+- Publication préparée : web, puis `daily-run` (actif pour V1 et V2) ; `generate-training-plan` sans effet tant que la génération V2 est OFF, publication reportable. Rapport : `SPORT_RACE_01_INTEGRATION_REPORT.md`.
