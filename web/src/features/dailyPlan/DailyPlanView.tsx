@@ -548,7 +548,7 @@ export function DailyPlanView({
           <ul className="mt-2 flex flex-col gap-2">
             {decisionReasoningRules.map((rule, index) => (
               <li key={index} className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0">
-                <p>{athleteSafeRuleDetail(rule)}</p>
+                <p>{athleteSafeRuleDetail(rule, dailyPlan)}</p>
               </li>
             ))}
           </ul>

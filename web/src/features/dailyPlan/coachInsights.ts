@@ -87,6 +87,12 @@ function detected(signals: RetainedSignal[]): string {
   return signals.length > 1 ? `Signaux détectés : ${list}.` : `Signal détecté : ${list}.`;
 }
 
+/** SPORT-SAFE-01R.4 — the retained signals alone (« Signal(s) détecté(s) : … »), without what NALYNT does about them; null when none. */
+export function detectedSignalsSentence(dailyPlan: DailyPlan): string | null {
+  const signals = retainedSignals(dailyPlan);
+  return signals.length > 0 ? detected(signals) : null;
+}
+
 /**
  * "Pourquoi ?" — one rider-facing sentence for today's decision (validated
  * wording, UX-04):
