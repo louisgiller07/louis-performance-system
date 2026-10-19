@@ -129,6 +129,8 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
   const trainable = open && !healthBlock;
   // SPORT-SAFE-01R — M1's protection and monitoring before the start and while the session goes on; never read only.
   const guidance = snapshot.kind === "ready_to_start" ? snapshot.guidance : trainable ? snapshot.guidance : undefined;
+  // SPORT-SAFE-01R.3 — the planned session is not offered: this one replaces it (the engine's own sentence).
+  const alternativeNote = snapshot.kind === "ready_to_start" ? snapshot.alternativeNote : trainable ? snapshot.alternativeNote : undefined;
   const module = prescription ? resolveSessionModule(prescription) : null;
   const context = prescription ? { prescription, executionId, phase, setResults, activityResults, uiState: moduleState } : null;
   const completion = module && context ? module.completion(context, now) : null;
@@ -161,6 +163,12 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
             </SecondaryButton>
           )}
         </div>
+      )}
+
+      {alternativeNote && (
+        <p className="rounded-lg border border-line bg-card p-4 text-sm text-ink/90" data-testid="alternative-note">
+          {alternativeNote}
+        </p>
       )}
 
       {guidance && <DayGuidanceSections guidance={guidance} />}

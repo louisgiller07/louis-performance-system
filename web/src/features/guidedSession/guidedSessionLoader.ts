@@ -24,7 +24,7 @@
 // decision (`guidance`: protection and monitoring, see dayGuidance.tsx): the current decision before the start, the
 // execution's own decision (decision_id) while it is open. Read only or blocked: no guidance (nothing to train).
 import { loadDecisionById, loadLatestDecisionForDate } from "../history/historyRepo";
-import { dayGuidanceOf, type DayGuidance } from "../dailyPlan/dayGuidance";
+import { alternativeNoteOf, dayGuidanceOf, type DayGuidance } from "../dailyPlan/dayGuidance";
 import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import { loadDecisionCurrency } from "../dailyPlan/decisionCurrencyRepo";
 import { loadFinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2State";
@@ -49,8 +49,10 @@ export type GuidedSessionSnapshot =
       healthBlock?: HealthBlock;
       /** SPORT-SAFE-01R — set only on an OPEN execution that can go on: M1's guidance of the execution's own decision. */
       guidance?: DayGuidance;
+      /** SPORT-SAFE-01R.3 — same condition: the engine's sentence when this session is A10's alternative to a refused one. */
+      alternativeNote?: string;
     }
-  | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View; guidance?: DayGuidance }
+  | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View; guidance?: DayGuidance; alternativeNote?: string }
   | {
       kind: "unavailable";
       reason: UnavailableReason;
@@ -96,8 +98,8 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
       : { kind: "final_prescription_missing" };
     const healthBlock = await openExecutionHealthBlock(athleteId, date, prescription);
     if (healthBlock) return { kind: "execution", ...dayExecution, prescription, healthBlock };
-    const guidance = await executionGuidance(athleteId, dayExecution.execution);
-    return { kind: "execution", ...dayExecution, prescription, ...(guidance ? { guidance } : {}) };
+    const context = await executionDayContext(athleteId, dayExecution.execution);
+    return { kind: "execution", ...dayExecution, prescription, ...context };
   }
 
   // UX-11R.9 (R9-UI-01) — a COMPLETED execution of the day is the day's session (one main session per
@@ -142,14 +144,20 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
       : { kind: "execution", ...dayExecution, prescription: state };
   }
   // loadLatestDecisionForDate only returns a row whose daily plan passed isValidDailyPlan.
-  const guidance = dayGuidanceOf(decision.dailyPlan as DailyPlan);
-  return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current, ...(guidance ? { guidance } : {}) };
+  return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current, ...dayContextOf(decision.dailyPlan as DailyPlan) };
 }
 
-/** SPORT-SAFE-01R — M1's guidance of the decision the open execution was started from; none without that decision. */
-async function executionGuidance(athleteId: string, execution: ExecutionRow): Promise<DayGuidance | null> {
-  if (typeof execution.decision_id !== "string") return null;
+/** SPORT-SAFE-01R / R.3 — what a session the rider can train carries from its decision: M1's guidance, A10's alternative note. */
+function dayContextOf(dailyPlan: DailyPlan): { guidance?: DayGuidance; alternativeNote?: string } {
+  const guidance = dayGuidanceOf(dailyPlan);
+  const alternativeNote = alternativeNoteOf(dailyPlan);
+  return { ...(guidance ? { guidance } : {}), ...(alternativeNote ? { alternativeNote } : {}) };
+}
+
+/** SPORT-SAFE-01R — the context of the decision the open execution was started from; none without that decision. */
+async function executionDayContext(athleteId: string, execution: ExecutionRow): Promise<{ guidance?: DayGuidance; alternativeNote?: string }> {
+  if (typeof execution.decision_id !== "string") return {};
   const decision = await loadDecisionById(athleteId, execution.decision_id);
-  // A row this screen cannot read as a daily plan gives no guidance (never a text of the browser's own).
-  return decision !== null && isValidDailyPlan(decision.dailyPlan) ? dayGuidanceOf(decision.dailyPlan as DailyPlan) : null;
+  // A row this screen cannot read as a daily plan gives nothing (never a text of the browser's own).
+  return decision !== null && isValidDailyPlan(decision.dailyPlan) ? dayContextOf(decision.dailyPlan as DailyPlan) : {};
 }

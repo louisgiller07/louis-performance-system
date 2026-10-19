@@ -65,6 +65,8 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
     healthBlock: null as HealthBlock | null,
     /** SPORT-SAFE-01R — M1's guidance of the day's decision (null: none). */
     guidance: null as DayGuidance | null,
+    /** SPORT-SAFE-01R.3 — A10's alternative note of the day's decision (null: none). */
+    alternativeNote: null as string | null,
   };
   const prescriptions = new Map<string, FinalPrescriptionV2View>();
   for (const p of [initial.prescription, ...extra]) if (p) prescriptions.set(p.id, p);
@@ -239,7 +241,9 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
         kind: "execution",
         ...day,
         prescription: p ? { kind: "created", prescription: p } : { kind: "unsupported_schema_or_catalog", reason: "old catalogue" },
-        ...(state.healthBlock ? { healthBlock: state.healthBlock } : state.guidance ? { guidance: state.guidance } : {}),
+        ...(state.healthBlock
+          ? { healthBlock: state.healthBlock }
+          : { ...(state.guidance ? { guidance: state.guidance } : {}), ...(state.alternativeNote ? { alternativeNote: state.alternativeNote } : {}) }),
       };
     }
     if (state.current.unavailable) return state.current.unavailable;
@@ -251,7 +255,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
         ? { kind: "execution", ...day, prescription: { kind: "created", prescription: cur }, restartFinalPrescriptionId: cur.id }
         : { kind: "execution", ...day, prescription: { kind: "created", prescription: cur } };
     }
-    return { kind: "ready_to_start", finalPrescriptionId: cur.id, prescription: cur, ...(state.guidance ? { guidance: state.guidance } : {}) };
+    return { kind: "ready_to_start", finalPrescriptionId: cur.id, prescription: cur, ...(state.guidance ? { guidance: state.guidance } : {}), ...(state.alternativeNote ? { alternativeNote: state.alternativeNote } : {}) };
   });
 
   let n = 0;
