@@ -703,6 +703,35 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Intégration web, base locale** (`p0_4GuidedHistory.integration.test.tsx`) : vraie page de détail sous RLS avec une séance Force réellement enregistrée ; autre rider : décision introuvable, exécutions et prescription illisibles.
 - **Navigateur réel** (Chromium mobile, pile locale) : DH 5/5, Force 7/7 après changement de programme, DH arrêtée 2/2, V1 inchangée, séance en cours, décision plus récente du même jour (lien), arrêt puis REST A6, jour REST, rechargement et accès direct identiques, autre rider « Journée introuvable » sans fuite.
 
+### T67. SPORT-RACE-01P — jours d'avant-course planifiés depuis le protocole de course ; contrat des formats et séries (HPM 2026-10-19 ; arbitrages 01P.2 ; 01P.3)
+Règles : `docs/03` §6 (jours d'avant-course), `docs/05` (§race_calendar : compétition, format, durée, sélection du protocole, compatibilité ; snapshot v2 `raceFormat` ; contraintes relâchées ; invariants des séances d'avant-course), `docs/04` §3 (T-X, inchangé).
+- **Acceptation, unitaires** (`sportRace01pRaceProtocolPlacement.test.ts`, `sportRace01pProtocolMirror.test.ts`) :
+  - Hot Trail Series (HOT_TRAIL_2DAY) du samedi, créneaux vélo le week-end : la DH d'affûtage passe de J-7 à J-6, même dose ; récupération à J-4 et J-3 ; rien à J-5, J-2, J-1 ni les jours de course ; rien de retiré ;
+  - iXS (IXS_3DAY) du vendredi : Force haut LIGHT 45 à J-7 sur un créneau physique, DH d'affûtage à J-6, récupération à J-4 et J-3 ;
+  - AR-A, un seul créneau vélo (le samedi de J-7) : la DH n'est pas déplacée et ne reste pas (M1 la remplacerait par de la Force un jour sans créneau physique) ; elle est retirée, avec une contrainte relâchée `race_protocol_incompatible_day` (DH, date) ;
+  - AR-C, course du lundi : le repos de J-2 est préservé ; la DH qui y tombe est retirée, jamais déplacée (`race_protocol_rest_day`) ; à J-6 (jour DH du protocole sans créneau vélo), l'endurance prévue est retirée (`race_protocol_incompatible_day`) ;
+  - deux courses rapprochées : rien les jours de la première course ni les deux jours qui suivent ;
+  - jour indisponible, course C, format sans protocole : rien ; plan identique (empreinte) à celui d'une course sans format ;
+  - une séance par jour au plus ; contenus V2 existants (`recovery_active_v1`, gabarit Force haut LIGHT, DH à 4 passages) ;
+  - la table du planificateur est celle de M1, jour par jour (contre-preuve : les autres formats n'ont rien dans les deux).
+- **Sélection du protocole, unitaires** (`raceProtocolSelection.test.ts`, `raceCalendarRow.test.ts`) :
+  - (HOT_TRAIL_2DAY, HOT_TRAIL_SERIES) et (IXS_3DAY, IXS) gardent leur format, sans avertissement ;
+  - HOT_TRAIL_2DAY ou IXS_3DAY avec une série NULL, en texte libre (« Hot Trail Series (Swiss DH Cup) », « iXS European Cup »), une variante de libellé (minuscules, espace), un autre code (Suisse, UCI, Coupe ou Championnat de France, régionale) ou la série de l'autre protocole : `OTHER`, avec avertissement ;
+  - SWISS_CUP, UCI_WC, UCI_WORLDS, OTHER : inchangés, quelle que soit la série ; NULL : `OTHER` avec l'avertissement existant.
+- **Acceptation, intégration** (`sportRace01.integration.test.ts`, chemins réels ; même sélection dans le snapshot v2 et dans la décision quotidienne de M1) :
+  - Hot Trail Series et iXS explicites : les jours planifiés sont des KEEP `created` (Force à J-7, DH plafonnée LIGHT à J-6, récupération à J-4 et J-3) ; J-5, J-2 et J-1 restent des recommandations `no_planned_session` ;
+  - aucun protocole, ni dans le plan (snapshot `raceFormat`, semaine de course sans séance, aucune récupération) ni au quotidien (INFERENCE_FALLBACK, jamais RACE_PROTOCOL_TX), et la course reste vue par M1, pour : ancien événement « 2 jours » (HOT_TRAIL_2DAY sans série, avertissement) ; ancien « 3 jours » (IXS_3DAY sans série, avertissement) ; série en texte libre ; variante de libellé ; Swiss Cup de deux jours (SWISS_CUP) ; autre course en Suisse de deux jours ; UCI de trois jours (UCI_WC, puis UCI_WORLD_CUP) ; Coupe de France DH de deux jours (OTHER, puis enregistrée en HOT_TRAIL_2DAY : avertissement) ; Championnats de France DH de trois jours (OTHER, puis enregistrés en IXS_3DAY : avertissement) ; régionale française d'un et de trois jours ; compétition inconnue ; sans format ;
+  - AR-A et AR-C sur base réelle (contraintes relâchées persistées, aucune Force guidée un jour vélo) ;
+  - fatigue et douleur adaptent la séance planifiée ; Safety prioritaire ;
+  - course ajoutée : aucun changement avant une régénération explicite, puis séances d'avant-course placées, jour utilisé, exécution et décision intacts ; course annulée : séances déjà planifiées ordinaires ; aucun doublon.
+- **Fixtures existantes** : toute course de test à protocole déclare sa série explicite (`HOT_TRAIL_SERIES`, `IXS`) ; les équivalences DB → M1 (`computeDailyFor.*`) restent identiques.
+- **Génération V2 inaccessible** (`v2RolloutFlag.integration.test.ts`, `planningModelRollout.test.ts`) : flag OFF, un athlète affecté V2 est refusé (`v2_generation_disabled`), rien n'est écrit.
+- **Non-régression** : plans sans course ou sans format identiques à la production ; quotidien inchangé hors sélection du protocole (`daily-run` : même code M1 ; différentiel flags OFF `phys00FlagsOffEquivalence.test.ts` inchangé) ; V1 inchangé.
+- **Web** :
+  - « Tes courses » (`RacesSection.test.tsx`, `raceForm.test.ts`) : aucune compétition présélectionnée, enregistrement refusé sans compétition ; liste des compétitions (Hot Trail Series, iXS, Suisse, UCI, Coupe de France DH / DHI, Championnats de France DH / DHI, régionale, autre course DH en France, autre) ; Hot Trail Series : protocole affiché, fin fixée, `series` écrit ; Coupe de France de deux jours : enregistrée en `OTHER` avec son code, dates libres, « préparation spécifique non définie » ; course A+ / SWISS_CUP et ancien « 2 jours » conservés tels quels à l'enregistrement, protocole seulement après le choix explicite ; chaque compétition écrit une ligne acceptée sans avertissement par l'adapter ; règle web identique à celle de l'adapter (miroir) ;
+  - Aujourd'hui (`sportRace01p.test.tsx`, `todayCoachCards.test.tsx`) : un jour sans séance prévue n'affiche jamais la durée de M1 comme une prescription ; AR-D ; bandeau « Préparation spécifique non définie » à 7 jours ou moins d'une course sans protocole, ancien « 2 / 3 jours » et courses françaises compris, jamais pour une Hot Trail Series ou un iXS explicites ; un ancien « 3 jours » n'est jamais présenté comme iXS ;
+  - points d'attention des séances retirées ; explication du plan traduite.
+
 ### T66. SPORT-SAFE-01 — aucune séance identique présentée comme adaptée ; alternative A10 limitée (HPM 2026-10-19)
 Règles : `docs/04` (« Contenu identique » ; A10, exception limitée), `docs/05` (refus et alternative), ADR SPORT-SAFE-01, SPORT-SAFE-01R, SPORT-SAFE-01R.3.
 - **Acceptation** (unitaires `sportSafe01EnduranceLight.test.ts`, `sportSafe01RManualModify.test.ts`, `applyV2TodayTimeConstraint.test.ts` ; intégration `sportSafe01.integration.test.ts`, chemins réels) :

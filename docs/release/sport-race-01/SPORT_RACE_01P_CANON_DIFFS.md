@@ -1,6 +1,6 @@
 # SPORT-RACE-01P — diffs canoniques proposés (révision 01P.3, texte normatif final pour approbation avant merge)
 
-**Pour** : HPM et Louis · **Statut** : proposés, **non appliqués** à `docs/03`, `docs/05` et `docs/10` ; soumis à revue avant merge.
+**Pour** : HPM et Louis · **Statut** : approuvés (SPORT-RACE-01P.3, APPROVED WITH CONDITIONS) et **appliqués localement** à `docs/03`, `docs/05` et `docs/10` en SPORT-RACE-01P.4 (branche `fix/sport-race-01`, non mergée) ; validation HPM du diff normatif avant merge. T67 est inséré juste avant T66 (ordre décroissant local de `docs/10`).
 
 **Base**
 - option P, approuvée par l'HPM le 2026-10-19 ;

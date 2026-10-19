@@ -400,7 +400,20 @@ L'échauffement (3 à 4 exercices légers) et le retour au calme (mobilité, res
 - **Politique de dose du plan V2** — PROVISIONAL :
   - semaine de développement : Force modérée en 60 min, DH modérée en 90 min et 6 passages, endurance fondamentale modérée en 45 min ;
   - semaine d'affûtage : Force légère en 45 min, DH légère en 60 min et 4 passages, endurance fondamentale légère en 45 min ;
-  - semaine de course : aucune séance normale.
+  - jours d'avant-course (SPORT-RACE-01P, option P, HPM 2026-10-19 ; arbitrages SPORT-RACE-01P.2 ; contrat des formats SPORT-RACE-01P.3) : pour une course A+, A ou B explicitement identifiée comme une compétition dont le protocole T-X existe (Hot Trail Series → `HOT_TRAIL_2DAY`, iXS → `IXS_3DAY`, `docs/04` §3 ; sélection `docs/05` §race_calendar), le plan applique ce protocole aux jours de T-7 à T-1 :
+    - un jour sans autre séance, il place la séance du protocole seulement quand elle a un modèle V2 et une dose existante, sur un créneau de la bonne activité, une séance par jour au plus :
+      - T-7 Force haut du corps légère : dose d'affûtage, 45 min ;
+      - T-6 DH technique : dose d'affûtage (légère, 60 min, 4 passages), jamais relevée ;
+      - T-4 et T-3 récupération active : `recovery_active_v1`, réservée à son minimum déclaré (20 min) ;
+    - il ne place rien à T-5 (« endurance courte » de 30 min : aucune endurance V2 sous 45 min), aux jours REST, à l'activité officielle de T-1 (IXS), aux jours de course ni aux deux jours qui suivent une course ;
+    - une DH de la semaine d'affûtage tombée sur un jour du protocole d'un autre type va au jour DH du protocole (T-6), si ce jour est libre et a un créneau vélo assez long ; c'est le seul déplacement autorisé ;
+    - une séance tombée sur un jour REST du protocole est retirée : le repos est préservé, la séance n'est jamais déplacée vers un autre jour ;
+    - une séance d'un autre type, tombée sur un jour du protocole dont la séance n'est pas possible avec les créneaux de ce jour (Force sans créneau physique, DH sans créneau vélo), est retirée : M1 la remplacerait par une séance que ce jour ne permet pas. M1 n'est jamais contourné et aucune séance n'est placée sur un jour incompatible ;
+    - toute séance retirée reste identifiable dans la version du plan : contrainte relâchée `placement_shortfall` (domaine, date, raison `race_protocol_rest_day` ou `race_protocol_incompatible_day`), affichée dans les points d'attention du programme ;
+    - toute autre course n'a aucune séance d'avant-course : Swiss Cup ou autre course en Suisse, Coupe ou Championnats du monde UCI, Coupe de France DH / DHI, Championnats de France DH / DHI, coupes et championnats régionaux, autre compétition, course enregistrée avant ce contrat en « 2 jours » ou « 3 jours » sans compétition identifiée, format absent. Sa préparation spécifique n'est pas définie et le rider le voit ; aucun protocole générique n'est supposé et aucun protocole n'est déduit d'une durée, d'un nom ou d'une série en texte libre ;
+    - valeurs PROVISIONAL (politique `race-protocol-plan-v1`), à valider par un préparateur ;
+  - semaine de course : en dehors des jours d'avant-course ci-dessus, aucune séance normale ;
+  - le moteur quotidien (`daily-run`) n'invente jamais de séance d'avant-course : il garde, adapte ou remplace la séance que le plan a prévue (T-X de M1, `PLANNED_LOAD_CAP`, Safety, P0-SAFE) ; un jour du protocole sans séance prévue reste une recommandation sans prescription du jour (`no_planned_session`).
   - **Courses et macro-plan V2** (A09, HPM 2026-10-07) : une course A+, A ou B structure le plan (semaine spécifique deux semaines avant, affûtage la semaine d'avant, semaine de course) ; une course **C** ne crée ni semaine de course, ni affûtage, ni semaine spécifique. Elle reste connue du moteur quotidien (jour de course, récupération).
 
   Les réductions génériques liées à l'historique (V1) et les durées d'affûtage V1 ne sont pas reprises en V2. Depuis `plan-dose-policy-v2.3`, la charge (`load_profile`) de chaque type de séance V2 vient de cette politique uniquement.
