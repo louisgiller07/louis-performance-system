@@ -6640,4 +6640,6 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 
 **DH manuelle HEAVY** : le comportement de production est conservé. Le risque reste ouvert et bloque la validation du parcours manuel concerné pour une bêta payante.
 
+**Correctif d'intégration** (commit séparé) : la lecture de la décision d'une exécution ouverte, ajoutée par A1 (`ab6b3a3`), cassait le nombre constant de lectures du loader de la séance guidée (test d'intégration UX-11C.5). La décision du jour déjà lue pour la garde santé est réutilisée quand c'est celle de l'exécution. Les 13 fichiers de tests d'intégration web passent sur la pile locale.
+
 **Statut** : READY LOCAL ; intégration locale, rapport `docs/release/sport-safe-01/SPORT_SAFE_01_INTEGRATION_REPORT.md`.
