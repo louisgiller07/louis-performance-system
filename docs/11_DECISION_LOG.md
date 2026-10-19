@@ -6619,3 +6619,25 @@ Les contrats du moteur gelé et les règles de progression sont inchangés.
 - **Hors différentiel** (temps < 20 min, vrai moteur) : la production donnait REST par A10 ; la branche garde le refus (`no_alternative`).
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/sport-safe-01`). Rapport : `docs/release/sport-safe-01/SPORT_SAFE_01R3_FINAL_REPORT.md`.
+
+## 2026-10-19 — ADR SPORT-SAFE-01R.4 : finition de la présentation (Aujourd'hui, historique)
+
+> **Décisions HPM (2026-10-19), présentation seulement.** Les décisions enregistrées ne sont jamais réécrites. Moteur, base, doses et canon `docs/04` / `05` / `10` inchangés (commit web `572b575`).
+
+**Moins de temps que la séance refusée, aucune alternative admissible** (`modify_not_supported`, A10 `no_alternative`) :
+- la mission du jour affiche « Aucune séance compatible », avec le temps déclaré par le rider, la durée de la séance refusée et l'absence de séance guidée compatible ;
+- « Pourquoi ? » ne garde que les signaux détectés ;
+- la séance refusée n'est jamais présentée comme disponible, et jamais transformée en repos ou en récupération ;
+- sources : le détail du statut bloqué de la décision et le check-in du jour.
+
+**Libellé C3.3 « nature de la séance préservée »** :
+- jamais affiché quand le type de séance a réellement changé (séance prévue ≠ séance finale) : « Sommeil insuffisant — adaptation d'intensité. », le remplacement étant expliqué par la phrase A10 ;
+- type inchangé : la mention, vraie, reste.
+
+**« Prêt à performer »** :
+- remplacé par la ligne neutre de la décision (« Séance maintenue », « Séance ajustée », « Séance remplacée ») dès que la décision porte un signal d'état retenu (fatigue, douleur…), une douleur déclarée ou une protection de M1 ;
+- le temps déclaré seul n'est pas un signal d'état.
+
+**DH manuelle HEAVY** : le comportement de production est conservé. Le risque reste ouvert et bloque la validation du parcours manuel concerné pour une bêta payante.
+
+**Statut** : READY LOCAL ; intégration locale, rapport `docs/release/sport-safe-01/SPORT_SAFE_01_INTEGRATION_REPORT.md`.
