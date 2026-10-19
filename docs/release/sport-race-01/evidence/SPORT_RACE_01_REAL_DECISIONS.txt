@@ -1,0 +1,272 @@
+SPORT-RACE-01 — décisions réelles autour d'une course (production 79b4d19 : runtime compilé de nalynt-rc-79b4d19, pile locale SQL 76, flags OFF).
+Riders fictifs ; plan généré le dimanche 2026-11-01 (sauf E2) ; semaines avant la course réalisées en entier ; un daily-run par jour, check-in neutre sauf scénario.
+Format : date planned=<séance prévue> | décision M1 + séance finale | statut de la prescription du jour (raison) | règles (C3.7 masquée).
+
+######## A. Six formats (rider C : Force intermédiaire, DH avancé, salle complète, 4 terrains ; lundi–vendredi « physical », samedi–dimanche « riding »)
+
+== SWISS_CUP (2026-11-21..2026-11-22)
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  J-7    2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6    2026-11-15 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-5    2026-11-16 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-4    2026-11-17 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-3    2026-11-18 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-2    2026-11-19 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-1    2026-11-20 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J0     2026-11-21 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+1    2026-11-22 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  fin+1  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+  fin+2  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+
+== UCI_WC (2026-11-20..2026-11-22)
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  J-7    2026-11-13 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-6    2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-5    2026-11-15 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-4    2026-11-16 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-3    2026-11-17 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-2    2026-11-18 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-1    2026-11-19 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J0     2026-11-20 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+1    2026-11-21 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+2    2026-11-22 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  fin+1  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+  fin+2  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+
+== OTHER (2026-11-21..2026-11-22)
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  J-7    2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6    2026-11-15 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-5    2026-11-16 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-4    2026-11-17 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-3    2026-11-18 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-2    2026-11-19 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-1    2026-11-20 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J0     2026-11-21 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+1    2026-11-22 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  fin+1  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+  fin+2  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+
+== NO_FORMAT (2026-11-21..2026-11-22)
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  J-7    2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  J-6    2026-11-15 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-5    2026-11-16 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-4    2026-11-17 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-3    2026-11-18 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-2    2026-11-19 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J-1    2026-11-20 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | C:INFERENCE_FALLBACK
+  J0     2026-11-21 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+1    2026-11-22 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  fin+1  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+  fin+2  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+
+== HOT_TRAIL_2DAY (2026-11-21..2026-11-22)
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  J-7    2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | B:RACE_PROTOCOL_TX,ARBITRATION:V2_EFFECTIVE_SESSION
+  J-6    2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-5    2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-4    2026-11-17 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-3    2026-11-18 planned=- | KEEP RECOVERY_ACTIVE  20 | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-2    2026-11-19 planned=- | KEEP REST   | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-1    2026-11-20 planned=- | KEEP REST   | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J0     2026-11-21 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+1    2026-11-22 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  fin+1  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+  fin+2  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+
+== IXS_3DAY (2026-11-20..2026-11-22)
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  J-7    2026-11-13 planned=- | KEEP STRENGTH_UPPER LIGHT  | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-6    2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | B:RACE_PROTOCOL_TX,ARBITRATION:PLANNED_LOAD_CAP
+  J-5    2026-11-15 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-4    2026-11-16 planned=- | KEEP RECOVERY_ACTIVE   | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-3    2026-11-17 planned=- | KEEP RECOVERY_ACTIVE  20 | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-2    2026-11-18 planned=- | KEEP REST   | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J-1    2026-11-19 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_PROTOCOL_TX
+  J0     2026-11-20 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+1    2026-11-21 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  J+2    2026-11-22 planned=- | KEEP RACE_ACTIVITY   | blocked/final_prescription_no_lineage | B:RACE_DAY_ACTIVE
+  fin+1  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+  fin+2  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE   | created | B:POST_EVENT
+
+
+######## D et E. Scénarios complémentaires (D1 avancé, D2 trois créneaux, D3 fatigue/douleur/fièvre, D4 reconnaissance, E1 course ajoutée après le plan, E2 course proche, E6 séance terminée puis nouveau daily-run)
+
+== D1_ADVANCED
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | B:RACE_PROTOCOL_TX,ARBITRATION:V2_EFFECTIVE_SESSION
+  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE 20 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-20 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-21 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  duplicates: {"plannedRowsPerDateMax":1,"finalPrescriptionsPerDecisionMax":1,"decisions":17,"finalPrescriptions":9}
+
+== D2_THREE_SLOTS
+  race_specific: 11-03 STRENGTH_LOWER MODERATE 60 / 11-05 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90
+  taper: 11-10 STRENGTH_LOWER LIGHT 45 / 11-12 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-24 STRENGTH_LOWER LIGHT 45 / 11-26 STRENGTH_UPPER LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75
+  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | B:RACE_PROTOCOL_TX,ARBITRATION:V2_EFFECTIVE_SESSION
+  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE 20 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-20 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-21 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:POST_EVENT
+  2026-11-24 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  duplicates: {"plannedRowsPerDateMax":1,"finalPrescriptionsPerDecisionMax":1,"decisions":16,"finalPrescriptions":7}
+
+== D3_FATIGUED
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  taper: 2026-11-09 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | C:C3.3,ARBITRATION:V2_SYSTEMIC_FLOOR | fatigue systémique | réalisée
+  taper: 2026-11-10 planned=AEROBIC_BASE LIGHT 45 | KEEP AEROBIC_BASE LIGHT 45 | created |  |  | réalisée
+  taper: 2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | B:RACE_PROTOCOL_TX,C:C3.6,ARBITRATION:V2_EFFECTIVE_SESSION | jambes lourdes | réalisée
+  2026-11-15 planned=- | KEEP DH_TECHNICAL MODERATE 240 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX,C:PAIN_NON_SAFETY
+  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE 20 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | REST REST | not_required | A:A3
+  2026-11-20 planned=- | REST REST | not_required | A:A7
+  2026-11-21 planned=- | REST REST | not_required | A:A7
+  2026-11-22 planned=- | REST REST | not_required | A:A7
+  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REST REST | not_required | A:A7
+  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REST REST | not_required | A:A7
+  duplicates: {"plannedRowsPerDateMax":1,"finalPrescriptionsPerDecisionMax":1,"decisions":17,"finalPrescriptions":7}
+
+== D4A_IXS
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  2026-11-13 planned=- | KEEP STRENGTH_UPPER LIGHT | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | B:RACE_PROTOCOL_TX,ARBITRATION:PLANNED_LOAD_CAP
+  2026-11-15 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE 20 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-18 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-20 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-21 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+
+== D4B_FROM_FIRST_OFFICIAL_DAY
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  2026-11-12 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-13 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | 
+  2026-11-15 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-16 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-19 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-20 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-21 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  2026-11-24 planned=STRENGTH_UPPER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+
+== D4C_MANUAL_RECON
+  race_specific: 11-02 STRENGTH_LOWER MODERATE 60 / 11-03 AEROBIC_BASE MODERATE 45 / 11-07 DH_TECHNICAL MODERATE 90 / 11-08 DH_TECHNICAL MODERATE 90
+  taper: 11-09 STRENGTH_LOWER LIGHT 45 / 11-10 AEROBIC_BASE LIGHT 45 / 11-14 DH_TECHNICAL LIGHT 60
+  race: (aucune séance)
+  introduction: 11-23 STRENGTH_LOWER LIGHT 45 / 11-24 STRENGTH_UPPER LIGHT 45 / 11-25 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  2026-11-14 planned=DH_TECHNICAL LIGHT 60 | REPLACE STRENGTH_UPPER LIGHT 45 | created | B:RACE_PROTOCOL_TX,ARBITRATION:V2_EFFECTIVE_SESSION
+  2026-11-15 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | B:RACE_PROTOCOL_TX,ARBITRATION:PLANNED_LOAD_CAP
+  2026-11-16 planned=- | KEEP AEROBIC_BASE LIGHT 30 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-17 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE 20 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-20 planned=DH_TECHNICAL LIGHT 60 | REPLACE REST | blocked/final_prescription_adaptation_not_defined (manual_kind_not_supported) | B:RACE_PROTOCOL_TX
+  2026-11-21 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+
+== E1_ADDED_LATE_OTHER
+  introduction: 11-02 STRENGTH_LOWER LIGHT 45 / 11-03 STRENGTH_UPPER LIGHT 45 / 11-04 AEROBIC_BASE LIGHT 45 / 11-07 DH_TECHNICAL LIGHT 75 / 11-08 DH_TECHNICAL LIGHT 75
+  build: 11-09 STRENGTH_LOWER MODERATE 60 / 11-10 STRENGTH_UPPER MODERATE 60 / 11-11 AEROBIC_BASE MODERATE 45 / 11-14 DH_TECHNICAL MODERATE 90 / 11-15 DH_TECHNICAL MODERATE 90
+  build_plus: 11-16 STRENGTH_LOWER MODERATE 60 / 11-17 STRENGTH_UPPER MODERATE 60 / 11-18 AEROBIC_BASE MODERATE 60 / 11-21 DH_TECHNICAL MODERATE 90 / 11-22 DH_TECHNICAL MODERATE 90
+  consolidation: 11-23 STRENGTH_LOWER LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 60
+  2026-11-14 planned=DH_TECHNICAL MODERATE 90 | KEEP DH_TECHNICAL MODERATE 90 | created | 
+  2026-11-15 planned=DH_TECHNICAL MODERATE 90 | KEEP DH_TECHNICAL MODERATE 90 | created | 
+  2026-11-16 planned=STRENGTH_LOWER MODERATE 60 | KEEP STRENGTH_LOWER MODERATE 60 | created | 
+  2026-11-17 planned=STRENGTH_UPPER MODERATE 60 | KEEP STRENGTH_UPPER MODERATE 60 | created | 
+  2026-11-18 planned=AEROBIC_BASE MODERATE 60 | KEEP AEROBIC_BASE MODERATE 60 | created | 
+  2026-11-19 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-20 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | C:INFERENCE_FALLBACK
+  2026-11-21 planned=DH_TECHNICAL MODERATE 90 | REPLACE RACE_ACTIVITY | blocked/final_prescription_adaptation_not_defined (replace_target_not_supported) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=DH_TECHNICAL MODERATE 90 | REPLACE RACE_ACTIVITY | blocked/final_prescription_adaptation_not_defined (replace_target_not_supported) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  2026-11-24 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:POST_EVENT
+
+== E1_ADDED_LATE_HOT
+  introduction: 11-02 STRENGTH_LOWER LIGHT 45 / 11-03 STRENGTH_UPPER LIGHT 45 / 11-04 AEROBIC_BASE LIGHT 45 / 11-07 DH_TECHNICAL LIGHT 75 / 11-08 DH_TECHNICAL LIGHT 75
+  build: 11-09 STRENGTH_LOWER MODERATE 60 / 11-10 STRENGTH_UPPER MODERATE 60 / 11-11 AEROBIC_BASE MODERATE 45 / 11-14 DH_TECHNICAL MODERATE 90 / 11-15 DH_TECHNICAL MODERATE 90
+  build_plus: 11-16 STRENGTH_LOWER MODERATE 60 / 11-17 STRENGTH_UPPER MODERATE 60 / 11-18 AEROBIC_BASE MODERATE 60 / 11-21 DH_TECHNICAL MODERATE 90 / 11-22 DH_TECHNICAL MODERATE 90
+  consolidation: 11-23 STRENGTH_LOWER LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 60
+  2026-11-14 planned=DH_TECHNICAL MODERATE 90 | REPLACE STRENGTH_UPPER LIGHT 45 | created | B:RACE_PROTOCOL_TX,ARBITRATION:V2_EFFECTIVE_SESSION
+  2026-11-15 planned=DH_TECHNICAL MODERATE 90 | KEEP DH_TECHNICAL MODERATE 90 | created | B:RACE_PROTOCOL_TX
+  2026-11-16 planned=STRENGTH_LOWER MODERATE 60 | REPLACE AEROBIC_BASE LIGHT 45 | created | B:RACE_PROTOCOL_TX,ARBITRATION:V2_EFFECTIVE_SESSION
+  2026-11-17 planned=STRENGTH_UPPER MODERATE 60 | REPLACE RECOVERY_ACTIVE | created | B:RACE_PROTOCOL_TX
+  2026-11-18 planned=AEROBIC_BASE MODERATE 60 | REPLACE RECOVERY_ACTIVE 20 | created | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-20 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-21 planned=DH_TECHNICAL MODERATE 90 | REPLACE RACE_ACTIVITY | blocked/final_prescription_adaptation_not_defined (replace_target_not_supported) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=DH_TECHNICAL MODERATE 90 | REPLACE RACE_ACTIVITY | blocked/final_prescription_adaptation_not_defined (replace_target_not_supported) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=STRENGTH_LOWER LIGHT 45 | REPLACE RECOVERY_ACTIVE | created | B:POST_EVENT
+  2026-11-24 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:POST_EVENT
+
+== E2_RACE_CLOSE
+  race: (aucune séance)
+  introduction: 11-25 STRENGTH_LOWER LIGHT 45 / 11-26 STRENGTH_UPPER LIGHT 45 / 11-27 AEROBIC_BASE LIGHT 45 / 11-28 DH_TECHNICAL LIGHT 75 / 11-29 DH_TECHNICAL LIGHT 75
+  build: 12-02 STRENGTH_LOWER MODERATE 60 / 12-03 STRENGTH_UPPER MODERATE 60 / 12-04 AEROBIC_BASE MODERATE 45 / 12-05 DH_TECHNICAL MODERATE 90 / 12-06 DH_TECHNICAL MODERATE 90
+  2026-11-18 planned=- | KEEP RECOVERY_ACTIVE 20 | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-19 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-20 planned=- | KEEP REST | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_PROTOCOL_TX
+  2026-11-21 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-22 planned=- | KEEP RACE_ACTIVITY | blocked/final_prescription_no_lineage (no_planned_session) | B:RACE_DAY_ACTIVE
+  2026-11-23 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:POST_EVENT
+  2026-11-24 planned=- | KEEP RECOVERY_ACTIVE | blocked/final_prescription_no_lineage (no_planned_session) | B:POST_EVENT
+  2026-11-25 planned=STRENGTH_LOWER LIGHT 45 | KEEP STRENGTH_LOWER LIGHT 45 | created | 
+
+== E6_COMPLETED_RERUN
+  first: 2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | B:RACE_PROTOCOL_TX,ARBITRATION:PLANNED_LOAD_CAP | perform {"performed":true,"mode":"complete","sets":4,"activities":0,"status":"ok","code":null}
+  second: 2026-11-14 planned=DH_TECHNICAL LIGHT 60 | KEEP DH_TECHNICAL LIGHT 60 | created | B:RACE_PROTOCOL_TX,ARBITRATION:PLANNED_LOAD_CAP | executions that day 1, still on first prescription true
+  duplicates: {"plannedRowsPerDateMax":1,"finalPrescriptionsPerDecisionMax":1,"decisions":8,"finalPrescriptions":8}
