@@ -53,7 +53,7 @@ async (page) => {
         tag: document.querySelector(".console-tag").textContent.trim(),
       };
     });
-  const EXPECT = { fresh: ["4 h", ["30 min", "2 h 50", "40 min"]], tired: ["2 h 30", ["20 min", "1 h 50", "20 min"]], busy: ["1 h 30", ["15 min", "1 h", "15 min"]] };
+  const EXPECT = { fresh: ["4 h", ["30 min", "2 h 50", "40 min"]], tired: ["2 h 30", ["20 min", "1 h 50", "20 min"]], busy: ["4 h", ["40 min", "2 h 40", "40 min"]] };
 
   // ============ Demo: six transitions both ways, desktop and mobile ============
   for (const [w, h] of [[1440, 900], [390, 844]]) {
@@ -91,7 +91,7 @@ async (page) => {
     for (const id of ["busy", "fresh", "tired", "busy", "tired", "fresh", "busy"]) await p.locator(`[data-scenario="${id}"]`).click({ delay: 0 });
     await p.waitForTimeout(1400);
     const r = await demoState(p);
-    check(`${w}px demo: rapid clicks settle on the last choice`, r.duration === "1 h 30" && r.times.join("|") === EXPECT.busy[1].join("|"), r.duration);
+    check(`${w}px demo: rapid clicks settle on the last choice`, r.duration === EXPECT.busy[0] && r.times.join("|") === EXPECT.busy[1].join("|"), r.duration);
     check(`${w}px demo: no wording suggesting a live engine call`, !/ajustement…|calcul en cours|connexion/i.test(await p.locator("[data-console]").innerText()));
     await ctx.close();
   }
@@ -211,7 +211,7 @@ async (page) => {
     await p.locator('[data-scenario="busy"]').focus();
     await p.keyboard.press("Enter");
     await p.waitForTimeout(1200);
-    check("keyboard demo: Enter on a scenario", (await p.locator("[data-duration]").innerText()) === "1 h 30");
+    check("keyboard demo: Enter on a scenario", (await p.locator("[data-duration]").innerText()) === EXPECT.busy[0] && (await p.locator("[data-console]").innerText()).includes("Nuit courte"));
     await p.goto(BASE + "/comment-ca-marche");
     await p.locator('[data-decision="replace"]').focus();
     check("keyboard decisions: focus selects the decision", (await p.locator('[data-decision="replace"]').getAttribute("aria-pressed")) === "true");
@@ -282,7 +282,7 @@ async (page) => {
     check("reduced: week complete", (await p.locator(".board").evaluate((e) => e.classList.contains("is-done"))) && (await p.locator(".board .session").first().evaluate((e) => getComputedStyle(e).opacity)) === "1");
     await goTo(p, "[data-console]", 110);
     await p.locator('[data-scenario="busy"]').click();
-    check("reduced: demo instant", (await p.locator("[data-duration]").innerText()) === "1 h 30");
+    check("reduced: demo instant", (await p.locator("[data-duration]").innerText()) === EXPECT.busy[0] && (await p.locator("[data-console]").innerText()).includes("Nuit courte"));
     check("reduced: convergence complete", (await p.locator("#courses .cv-ring").evaluate((e) => getComputedStyle(e).opacity)) === "1");
     await p.goto(BASE + "/comment-ca-marche");
     await goTo(p, "#boucle", 80);

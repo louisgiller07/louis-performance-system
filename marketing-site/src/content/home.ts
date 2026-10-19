@@ -49,12 +49,12 @@ export const home = {
   meta: {
     title: "NALYNT — Le coach d'entraînement des pilotes de descente",
     description:
-      "NALYNT adapte chaque jour ton entraînement de VTT de descente (DH) à ton état, à ton temps disponible et à tes courses. Ton objectif reste. Le plan s'adapte.",
+      "NALYNT adapte chaque jour ton entraînement de VTT de descente (DH) à ton état, à tes disponibilités et à tes courses. Ton objectif reste. Le plan s'adapte.",
   },
 
   hero: {
     titleLines: ["Ton objectif reste.", "Le plan s'adapte."],
-    lead: "Le coach d'entraînement des pilotes de descente. Ta séance suit ton état, ton temps disponible et tes courses, avec la raison de chaque ajustement.",
+    lead: "Le coach d'entraînement des pilotes de descente. Ta séance suit ton état, tes disponibilités et tes courses, avec la raison de chaque ajustement.",
     primary: "Découvrir mon plan",
     secondary: "Essayer l'exemple",
     credit: "Louis Giller, pilote Elite DH",
@@ -131,11 +131,11 @@ export const home = {
       {
         id: "fresh",
         label: "En forme",
-        hint: "Bonne nuit, journée libre",
+        hint: "Bonne nuit, jambes fraîches",
         checkin: "Check-in · Bonne forme",
         status: "Séance conservée",
-        summary: "Tu es en forme et disponible : la séance prévue est conservée.",
-        reason: ["", "État du jour favorable", " et temps disponible : la séance prévue est conservée."],
+        summary: "Tu es en forme : la séance prévue est conservée.",
+        reason: ["", "État du jour favorable", " : la séance prévue est conservée."],
         steps: [
           { label: "Échauffement et reconnaissance", minutes: 30 },
           { label: "Travail des lignes sur une section", minutes: 170 },
@@ -160,18 +160,18 @@ export const home = {
       },
       {
         id: "busy",
-        label: "Moins de temps",
-        hint: "1 h 30 devant toi",
-        checkin: "Check-in · 1 h 30 disponible",
-        status: "Séance ciblée",
-        summary: "Moins de temps : la séance tient dans ton créneau, centrée sur une section.",
-        reason: ["", "Temps disponible réduit", " : travail ciblé sur les lignes, avec échauffement et retour au calme."],
+        label: "Nuit courte",
+        hint: "Sommeil court et haché",
+        checkin: "Check-in · Nuit courte",
+        status: "Séance allégée",
+        summary: "Nuit courte : la séance garde sa durée, à intensité réduite.",
+        reason: ["Intensité réduite pour tenir compte de ", "ton manque de sommeil", ". La durée et l'objectif technique sont conservés."],
         steps: [
-          { label: "Échauffement et reconnaissance", minutes: 15 },
-          { label: "Travail ciblé sur une section", minutes: 60 },
-          { label: "Retour au calme", minutes: 15 },
+          { label: "Échauffement et reconnaissance", minutes: 40 },
+          { label: "Travail des lignes, intensité réduite", minutes: 160 },
+          { label: "Retour au calme", minutes: 40 },
         ],
-        route: "M 8 40 C 90 40, 120 12, 230 12 S 470 30, 612 40",
+        route: "M 8 40 C 110 40, 170 56, 300 56 S 500 44, 612 40",
       },
     ] satisfies Scenario[],
     week: [
@@ -222,8 +222,8 @@ export const home = {
         a: "Ton check-in, tes disponibilités, tes courses et ton historique servent de contexte. La séance du jour est conservée, ajustée ou remplacée, avec une raison claire.",
       },
       {
-        q: "Et si j'ai moins de temps aujourd'hui ?",
-        a: "Indique ton temps disponible au check-in. La séance est ajustée pour tenir dans ce créneau.",
+        q: "Et si je suis fatigué ce jour-là ?",
+        a: "Dis-le au check-in. Sommeil, énergie, fatigue et stress servent à ajuster la séance du jour, avec la raison du choix.",
       },
       {
         q: "Il y a aussi de la préparation physique ?",

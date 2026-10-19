@@ -71,8 +71,8 @@ export const domains: CoachingDomain[] = [
     id: "vie",
     name: "Vie hors vélo",
     title: "Un plan qui tient dans ta vie.",
-    intro: "Ton travail et ton temps disponible ont leur place dans la séance.",
-    field: "Tu as moins de temps aujourd'hui ? Indique-le au check-in : la séance s'ajuste au temps que tu as vraiment.",
+    intro: "Ton travail et tes créneaux d'entraînement ont leur place dans le plan.",
+    field: "Grosse journée de travail ? Ton stress du jour entre dans le check-in, et la séance en tient compte quand c'est nécessaire.",
   },
   {
     id: "progression",

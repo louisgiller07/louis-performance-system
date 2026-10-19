@@ -55,7 +55,7 @@ export const howPage = {
       { label: "Énergie", value: "Moyenne", level: 0.5 },
       { label: "Fatigue jambes", value: "Élevée", level: 0.84, key: true },
       { label: "Douleur", value: "Aucune", level: 0.04 },
-      { label: "Temps disponible", value: "2 h 30", level: 0.45 },
+      { label: "Stress travail", value: "Modéré", level: 0.45 },
     ],
     decision: {
       options: ["Garder", "Ajuster", "Remplacer"],
@@ -71,7 +71,7 @@ export const howPage = {
     ],
     steps: [
       { title: "Planifier", body: "Tes objectifs, tes courses et tes créneaux d'entraînement posent le cadre de ta semaine." },
-      { title: "Faire ton check-in", body: "Sommeil, énergie, fatigue, douleur, temps disponible. Quelques secondes le matin, comme tu le dirais à ton coach." },
+      { title: "Faire ton check-in", body: "Sommeil, énergie, fatigue, douleur, stress. Quelques secondes le matin, comme tu le dirais à ton coach." },
       { title: "Décider", body: "NALYNT confronte ta séance prévue à ton état du jour et tranche. Toujours avec la raison, en une phrase." },
       { title: "Retenir", body: "Tu notes ce que tu as vraiment fait. Tout reste dans ton historique, et les séances suivantes partent de là." },
     ] satisfies Step[],
@@ -84,7 +84,7 @@ export const howPage = {
       {
         id: "adjust",
         word: "Ajuster",
-        when: "Jambes lourdes, deux heures devant toi.",
+        when: "Jambes lourdes au réveil.",
         result: "Même objectif, volume réduit : des runs propres plutôt que des runs de trop.",
       },
       {
@@ -126,8 +126,8 @@ export const coachingPage = {
 
   arbitration: {
     title: ["Quand tout tire dans des sens différents,", "NALYNT tranche."],
-    body: "Une nuit courte, des jambes lourdes, une course dans dix jours et deux heures devant toi : chaque domaine pousse dans sa direction. NALYNT les met en balance pour te donner une seule séance claire. Et il te dit pourquoi.",
-    inputs: ["Sommeil", "Jambes", "Course dans dix jours", "2 h disponibles"],
+    body: "Une nuit courte, des jambes lourdes, une course dans dix jours et une grosse journée de travail : chaque domaine pousse dans sa direction. NALYNT les met en balance pour te donner une seule séance claire. Et il te dit pourquoi.",
+    inputs: ["Sommeil", "Jambes", "Course dans dix jours", "Stress travail"],
     outcome: "Une seule séance, expliquée",
   },
 
