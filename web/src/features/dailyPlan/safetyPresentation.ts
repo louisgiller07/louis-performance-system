@@ -307,10 +307,13 @@ function replaceKnownPainLocationCodes(text: string): string {
  * the persisted line, the C3.7 rule, its threshold and window are unchanged and
  * no load is recomputed here — an exact match of the engine's sentence, never
  * a pattern, so every other monitoring line (pain, DH fatigue…) is untouched.
+ * SPORT-COACH-SAFE-01 (HPM 2026-10-19) — the count of sessions is a follow-up
+ * marker, not a measure of the real load (physical-trainer review): the line
+ * no longer says « Charge d'entraînement élevée ». Same mapping, same rule.
  */
 const C3_7_RAW_MONITORING = "Surveiller la charge cumulée sur 7 jours (très élevée)";
 const C3_7_ATHLETE_SAFE_MONITORING =
-  "Charge d'entraînement élevée : au moins 5 séances de charge modérée ou élevée sur les 8 derniers jours. Ce repère ne modifie pas ta séance à lui seul. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in.";
+  "Fréquence des séances — repère de suivi : au moins 5 séances terminées, classées de charge modérée ou élevée, sur les 8 derniers jours. Ce repère ne mesure pas à lui seul ta charge réelle et ne modifie pas ta séance. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in.";
 
 /**
  * Athlete-safe `monitoring.observe` — `PAIN_NON_SAFETY`'s monitoring entry

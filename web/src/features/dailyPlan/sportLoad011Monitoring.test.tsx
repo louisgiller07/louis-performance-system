@@ -20,11 +20,13 @@ import type { DailyPlan, DailyRunResponse } from "./dailyPlanTypes";
 // shows it (Today's « Ton état du jour » and « À surveiller », the « État de préparation » card, the guided session),
 // and only that line does. Real M1 plans: the RED threshold (5) and the inclusive [J − 7, J] window stay the engine's
 // own, the session is untouched, and a declared pain or a Safety day keeps its priority.
+// SPORT-COACH-SAFE-01 (HPM 2026-10-19) — the approved wording is now a session-frequency marker; the SPORT-LOAD-01.1
+// wording (« Charge d'entraînement élevée ») is gone from every surface too.
 
 const RAW = "Surveiller la charge cumulée sur 7 jours (très élevée)";
 const APPROVED =
-  "Charge d'entraînement élevée : au moins 5 séances de charge modérée ou élevée sur les 8 derniers jours. Ce repère ne modifie pas ta séance à lui seul. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in.";
-const OLD_WORDING = /Surveiller la charge cumulée|7 jours|très élevée/;
+  "Fréquence des séances — repère de suivi : au moins 5 séances terminées, classées de charge modérée ou élevée, sur les 8 derniers jours. Ce repère ne mesure pas à lui seul ta charge réelle et ne modifie pas ta séance. Si tu ressens une fatigue inhabituelle ou une douleur, indique-le dans ton check-in.";
+const OLD_WORDING = /Surveiller la charge cumulée|7 jours|très élevée|Charge d'entraînement élevée/;
 const TODAY = "2026-08-24";
 const DH = { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 } as const;
 const KINDS = ["STRENGTH_LOWER", "STRENGTH_UPPER", "AEROBIC_BASE", "DH_TECHNICAL", "DH_TECHNICAL"] as const;
