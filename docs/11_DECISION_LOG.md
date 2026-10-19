@@ -6786,3 +6786,30 @@ Ce sont des scénarios de référence, pas des règles universelles. Toute Force
 **Tests** : `sportCoachSafe01Criteria.test.tsx` (plans V1 et V2 enregistrés et futurs, surfaces Aujourd'hui, historique et séance guidée, critères non concernés) et `sportLoad011Monitoring.test.tsx` mis à jour. Contre-preuve : 13 tests échouent sans la correction.
 
 Rapport : `SPORT_COACH_SAFE_01_RELEASE_GATE.md`.
+
+### Addendum SPORT-COACH-SAFE-01.2 (HPM 2026-10-19) : consignes et noms des exercices DH
+
+> **Décision HPM** : six critères et texte C3.7 APPROVED ; publication en HOLD tant que les consignes et les noms contradictoires ne sont pas corrigés. GO pour une extension locale limitée aux problèmes identifiés.
+
+- **Quatre consignes d'exécution** (V1 et V2, même texte français), reprises des propositions du gate SPORT-COACH-SAFE-01 :
+  - `braking_late_entry` : « Termine l'essentiel de ton freinage avant l'entrée du virage, relâche progressivement et engage-toi sur ta ligne ; refreine si ta vitesse ou l'adhérence l'exigent. »
+  - `braking_marked_zone_at_speed` : « Marque une courte zone de freinage avant chaque passage technique et fais-y l'essentiel de ton freinage ; dans le passage, garde ta trajectoire et freine si nécessaire. »
+  - `steep_terrain_off_brake_chute` : « Casse ta vitesse avant le couloir raide, puis dose tes freins sans bloquer les roues dans la partie la plus raide — talons bas, regard sur la sortie. »
+  - `roots_rocks_committed` : « Choisis ta ligne avant l'entrée et garde une vitesse que tu contrôles jusqu'au bout ; n'approche ta vitesse course que si l'adhérence et ton niveau le permettent. » La mention conditionnelle garde le verrou T45.
+- **Trois noms affichés** (libellés web par identifiant, V1 et V2) :
+  - « Points de freinage à vitesse de course » → « Points de freinage marqués » ;
+  - « Couloir raide sans freiner » → « Couloir raide, freinage dosé » ;
+  - « Racines et rochers engagés, à vitesse » → « Racines et rochers, ligne engagée ».
+
+  Identifiants, noms anglais du catalogue (jamais affichés), sélection, passages et doses inchangés.
+- **Mécanisme** : identique à celui des critères.
+  - Consigne V1 : l'ancien anglais stocké est reconnu exactement (`legacySourceExecutionCues`), le nouvel anglais est dans le catalogue V1 ; le gel UX-11A.5a.1 est levé pour ces quatre textes.
+  - Consigne V2 : identifiant résolu par le miroir régénéré (`coaching-text-v1.0`).
+  - Noms : par identifiant, aucun texte stocké.
+  - Le web seul corrige tous les plans ; `daily-run` et `generate-training-plan` ne changent que par des textes de catalogue.
+- **Cohérence** : pour les six exercices, le nom, la consigne et le critère ne demandent plus ni de ne pas freiner ni d'aller plus vite ; la vitesse de course n'apparaît plus que sous condition. Test `sportCoachSafe012Cues.test.tsx`, contre-preuve : 11 tests échouent sans la correction.
+- **Restent hors périmètre, pour décision** :
+  - l'objectif V2 de la compétence virages (`intent.dh_corner_exit_speed`, « Sortir des virages avec plus de vitesse. ») ;
+  - les exercices d'intensité course (comparaison de lignes, simulations de course : « vitesse course », « mode course », « allure course »), réservés aux avancés en charge modérée et jamais affichés en séance légère (T46).
+
+Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
