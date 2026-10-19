@@ -1,0 +1,163 @@
+SPORT-SAFE-01R.3 — traces du vrai moteur (runDailyFor, pile locale, riders fictifs), production puis branche.
+
+######## PRODUCTION 99d2add (runtime compilé)
+## 01 planned endurance 45, C3.3, 30 min
+M1: REPLACE {"kind":"RECOVERY_ACTIVE"} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : adapted → REPLACE RECOVERY_ACTIVE.
+  objective: Tu as 30 min aujourd'hui : la séance prévue ne tient pas dans ce temps, récupération active à la place.
+V2: created
+  final generated replace ["v2.replace.recovery_active","v2.time.today_limit"] | main 20 min RPE 2–3 / complementary 5–10 min cat_cow hip_90_90 thoracic_rotation_mobility
+## 02 planned endurance 45, C3.3, 60 min
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 60 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : fits.
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final generated modify ["v2.modify.endurance_light_duration"] | warm_up 10 min RPE 2–3 / main 30 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 03 planned endurance 60, C3.3
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":60})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final generated modify ["v2.modify.endurance_light_duration"] | warm_up 10 min RPE 2–3 / main 30 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 04a manual endurance 45, C3.3
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final manual_override_new_kind modify ["v2.manual.session","v2.replace.endurance"] | warm_up 10 min RPE 2–3 / main 30 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 04b manual endurance 60, C3.3
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":60} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":60})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final manual_override_new_kind modify ["v2.manual.session","v2.replace.endurance"] | warm_up 10 min RPE 2–3 / main 45 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 04c manual endurance 45, C3.3, 30 min
+M1: REPLACE {"kind":"RECOVERY_ACTIVE"} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : adapted → REPLACE RECOVERY_ACTIVE.
+  objective: Tu as 30 min aujourd'hui : la séance prévue ne tient pas dans ce temps, récupération active à la place.
+V2: created
+  final manual_override_new_kind replace ["v2.manual.session","v2.replace.recovery_active","v2.time.today_limit"] | main 20 min RPE 2–3 / complementary 5–10 min cat_cow hip_90_90 thoracic_rotation_mobility
+## 05 rest of M1 (manual rest day), 30 min
+M1: KEEP {"kind":"REST"} (before {"kind":"REST"})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : KEEP REST. Action : not_evaluated.
+  objective: null
+V2: blocked / final_prescription_adaptation_not_defined {"reason":"manual_kind_not_supported","target":"REST"}
+## 06 health protection: knee 6/10 (A6), 30 min
+M1: REST {"kind":"REST"} (before {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : REST REST. Action : fits.
+  objective: Repos complet — SAFETY
+V2: not_required
+## 07 refusal not admissible: manual POWER (no builder, flags off), C3.3, 30 min
+M1: MODIFY {"kind":"POWER","load_profile":"LIGHT"} (before {"kind":"POWER","load_profile":"MODERATE"})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : MODIFY POWER LIGHT. Action : not_evaluated.
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: blocked / final_prescription_adaptation_not_defined {"reason":"manual_kind_not_supported","target":"POWER"}
+## 09 no alternative: planned endurance 45, C3.3, 15 min
+M1: REST {"kind":"REST"} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 15 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : rest → REST REST.
+  objective: Tu as 15 min aujourd'hui : aucune séance ne tient honnêtement dans ce temps, repos aujourd'hui.
+V2: not_required
+## 10a manual DH HEAVY 120, neutral (KEEP)
+M1: KEEP {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120} (before {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120})
+  objective: null
+V2: created
+  final manual_override_new_kind keep [] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+## 10b manual DH HEAVY 120, C3.3 (MODIFY)
+M1: MODIFY {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":120} (before {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final manual_override_new_kind modify ["v2.manual.session","v2.replace.dh"] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+## 10c manual DH HEAVY 120, C3.3, 90 min
+M1: REPLACE {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90} (before {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 90 min. Avant : MODIFY DH_TECHNICAL MODERATE 120 min. Action : adapted → REPLACE DH_TECHNICAL MODERATE 90 min.
+  objective: Tu as 90 min aujourd'hui : la séance a été raccourcie pour tenir dans ce temps.
+V2: created
+  final manual_override_new_kind replace ["v2.manual.session","v2.replace.dh","v2.time.today_limit"] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+## 11a no pain, no fatigue: planned endurance 45
+M1: KEEP {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  objective: null
+V2: created
+  final generated keep [] | warm_up 10 min RPE 2–3 / main 30 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 11b no pain, no fatigue: planned DH 90
+M1: KEEP {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90} (before {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90})
+  objective: null
+V2: created
+  final generated keep [] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+######## BRANCHE fix/sport-safe-01 (c22a381)
+## 01 planned endurance 45, C3.3, 30 min
+M1: REPLACE {"kind":"RECOVERY_ACTIVE"} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:A04_MODIFY_NOT_SUPPORTED — Séance décidée refusée : MODIFY AEROBIC_BASE LIGHT 45 min. Aucune version guidée plus légère que la séance de référence (modify_not_supported).
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : adapted → REPLACE RECOVERY_ACTIVE.
+  objective: Tu as 30 min aujourd'hui : la séance prévue n'est pas proposée (NALYNT n'en a pas de version guidée plus légère, et elle ne tient pas dans ce temps). Autre séance à la place : récupération active.
+  rule ARBITRATION:A04_MODIFY_NOT_SUPPORTED — Séance décidée refusée : MODIFY AEROBIC_BASE LIGHT 45 min. Aucune version guidée plus légère que la séance de référence (modify_not_supported).
+V2: created
+  final generated replace ["v2.replace.recovery_active","v2.time.today_limit"] | main 20 min RPE 2–3 / complementary 5–10 min cat_cow hip_90_90 thoracic_rotation_mobility
+## 02 planned endurance 45, C3.3, 60 min
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 60 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : not_evaluated.
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: blocked / final_prescription_adaptation_not_defined {"final":"LIGHT","reason":"modify_not_supported","planned":"MODERATE","durationMin":45}
+## 03 planned endurance 60, C3.3
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":60})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final generated modify ["v2.modify.endurance_light_duration"] | warm_up 10 min RPE 2–3 / main 30 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 04a manual endurance 45, C3.3
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: blocked / final_prescription_adaptation_not_defined {"final":"LIGHT","reason":"modify_not_supported","planned":"MODERATE","durationMin":45}
+## 04b manual endurance 60, C3.3
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":60} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":60})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: blocked / final_prescription_adaptation_not_defined {"final":"LIGHT","reason":"modify_not_supported","planned":"MODERATE","durationMin":60}
+## 04c manual endurance 45, C3.3, 30 min
+M1: REPLACE {"kind":"RECOVERY_ACTIVE"} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:A04_MODIFY_NOT_SUPPORTED — Séance décidée refusée : MODIFY AEROBIC_BASE LIGHT 45 min. Aucune version guidée plus légère que la séance de référence (modify_not_supported).
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : adapted → REPLACE RECOVERY_ACTIVE.
+  objective: Tu as 30 min aujourd'hui : la séance prévue n'est pas proposée (NALYNT n'en a pas de version guidée plus légère, et elle ne tient pas dans ce temps). Autre séance à la place : récupération active.
+  rule ARBITRATION:A04_MODIFY_NOT_SUPPORTED — Séance décidée refusée : MODIFY AEROBIC_BASE LIGHT 45 min. Aucune version guidée plus légère que la séance de référence (modify_not_supported).
+V2: created
+  final manual_override_new_kind replace ["v2.manual.session","v2.replace.recovery_active","v2.time.today_limit"] | main 20 min RPE 2–3 / complementary 5–10 min cat_cow hip_90_90 thoracic_rotation_mobility
+## 05 rest of M1 (manual rest day), 30 min
+M1: KEEP {"kind":"REST"} (before {"kind":"REST"})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : KEEP REST. Action : not_evaluated.
+  objective: null
+V2: blocked / final_prescription_adaptation_not_defined {"reason":"manual_kind_not_supported","target":"REST"}
+## 06 health protection: knee 6/10 (A6), 30 min
+M1: REST {"kind":"REST"} (before {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : REST REST. Action : fits.
+  objective: Repos complet — SAFETY
+V2: not_required
+## 07 refusal not admissible: manual POWER (no builder, flags off), C3.3, 30 min
+M1: MODIFY {"kind":"POWER","load_profile":"LIGHT"} (before {"kind":"POWER","load_profile":"MODERATE"})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 30 min. Avant : MODIFY POWER LIGHT. Action : not_evaluated.
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: blocked / final_prescription_adaptation_not_defined {"reason":"manual_kind_not_supported","target":"POWER"}
+## 09 no alternative: planned endurance 45, C3.3, 15 min
+M1: MODIFY {"kind":"AEROBIC_BASE","load_profile":"LIGHT","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 15 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : no_alternative.
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: blocked / final_prescription_adaptation_not_defined {"final":"LIGHT","reason":"modify_not_supported","planned":"MODERATE","durationMin":45}
+## 10a manual DH HEAVY 120, neutral (KEEP)
+M1: KEEP {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120} (before {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120})
+  objective: null
+V2: created
+  final manual_override_new_kind keep [] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+## 10b manual DH HEAVY 120, C3.3 (MODIFY)
+M1: MODIFY {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":120} (before {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120})
+  objective: Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée
+V2: created
+  final manual_override_new_kind modify ["v2.manual.session","v2.replace.dh"] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+## 10c manual DH HEAVY 120, C3.3, 90 min
+M1: REPLACE {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90} (before {"kind":"DH_TECHNICAL","load_profile":"HEAVY","duration_min":120})
+  rule ARBITRATION:V2_TODAY_TIME_CONSTRAINT — Temps disponible : 90 min. Avant : MODIFY DH_TECHNICAL MODERATE 120 min. Action : adapted → REPLACE DH_TECHNICAL MODERATE 90 min.
+  objective: Tu as 90 min aujourd'hui : la séance a été raccourcie pour tenir dans ce temps.
+V2: created
+  final manual_override_new_kind replace ["v2.manual.session","v2.replace.dh","v2.time.today_limit"] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down
+## 11a no pain, no fatigue: planned endurance 45
+M1: KEEP {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45} (before {"kind":"AEROBIC_BASE","load_profile":"MODERATE","duration_min":45})
+  objective: null
+V2: created
+  final generated keep [] | warm_up 10 min RPE 2–3 / main 30 min RPE 3–4 / cool_down 5 min RPE 2–2
+## 11b no pain, no fatigue: planned DH 90
+M1: KEEP {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90} (before {"kind":"DH_TECHNICAL","load_profile":"MODERATE","duration_min":90})
+  objective: null
+V2: created
+  final generated keep [] | brief / warm_up / main cornering_berm_speed ×6 / application / cool_down

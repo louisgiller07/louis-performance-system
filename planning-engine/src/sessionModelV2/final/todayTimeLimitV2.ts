@@ -36,6 +36,7 @@ import { buildFinalPrescriptionV2, type BuildFinalPrescriptionV2Input } from "./
 import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
 import type { FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
 import { PHYS_SWITCHES_OFF_V2, type PhysSwitchesV2 } from "./physSwitchesV2.js";
+import { canonicalSportContent } from "../sportFingerprint.js";
 
 type Decision = BuildFinalPrescriptionV2Input["decision"]["decision"];
 type FinalSession = BuildFinalPrescriptionV2Input["decision"]["finalSession"];
@@ -52,16 +53,28 @@ export interface TodayTimeConstraintV2 {
   /**
    * fits: the session already fits; adapted: another session, built and
    * checked; rest: nothing valid fits; not_evaluated: no executable
-   * prescription to check (blocked).
+   * prescription to check (blocked); no_alternative (SPORT-SAFE-01R.3): an
+   * A04 `modify_not_supported` refusal longer than the rider's time, and no
+   * admissible active-recovery alternative: the refusal stands.
    */
-  action: "fits" | "adapted" | "rest" | "not_evaluated";
+  action: "fits" | "adapted" | "rest" | "not_evaluated" | "no_alternative";
   /** The session decided before the constraint (its effective duration when known). */
   before: TodayTimeSessionV2;
   /** The session after the constraint (= before unless adapted / rest). */
   after: TodayTimeSessionV2;
 }
 
-export type FinalPrescriptionWithinTodayTimeV2Result = FinalPrescriptionV2Result & { timeConstraint?: TodayTimeConstraintV2 };
+/** SPORT-SAFE-01R.3 — A04's refusal of a MODIFY with no lighter content, kept when A10 selects an alternative to it. */
+export interface RefusedModifyV2 {
+  code: "final_prescription_adaptation_not_defined";
+  detail: Readonly<Record<string, unknown>>;
+}
+
+export type FinalPrescriptionWithinTodayTimeV2Result = FinalPrescriptionV2Result & {
+  timeConstraint?: TodayTimeConstraintV2;
+  /** SPORT-SAFE-01R.3 — set only with A10's active-recovery alternative: the refused MODIFY it replaces (never erased). */
+  refusedModify?: RefusedModifyV2;
+};
 
 /** The longest a prescription may ask for: its effective duration, else the sum of its blocks' upper bounds. */
 export function prescriptionMaxMinutes(result: Extract<FinalPrescriptionV2Result, { status: "created" }>): number | null {
@@ -155,21 +168,88 @@ function candidates(structure: PrescriptionV2, decision: Decision, final: FinalS
   return out;
 }
 
+/**
+ * SPORT-SAFE-01 (HPM 2026-10-18) — ADR A04 §6 on the day's outcome: a MODIFY whose sport content is exactly the planned
+ * prescription's is refused (`modify_not_supported`), never shown to the rider as a lighter session. Reached when M1
+ * lowers an endurance session already at the policy's LIGHT duration (45 min): its protocol RPE is fixed, the duration is
+ * the only endurance lever.
+ * SPORT-SAFE-01R (HPM 2026-10-18) — the refusal is A04's outcome, so it comes before A10: a blocked prescription stays
+ * blocked and the rider's time is not evaluated (`docs/04`, A10 « Priorité »).
+ * A manual session (P0-3) has no planned prescription: its reference is the document its KEEP would get, built by the
+ * same builders from the rider's session before M1 (its endurance builder has no load lever either).
+ * SPORT-SAFE-01R.3 — only for a manual load the V2 doses honour (LIGHT, MODERATE): a HEAVY manual session's KEEP is
+ * already built lighter than declared, a reference HPM has not validated (sport arbitration open), so no refusal.
+ */
+function refuseUnchangedModifyV2(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  if (result.status !== "created" || input.decision.decision !== "MODIFY") return result;
+  const reference = referenceStructure(input);
+  if (reference === null || canonicalSportContent(result.finalPrescription.structure) !== canonicalSportContent(reference.structure)) return result;
+  return {
+    status: "blocked",
+    code: "final_prescription_adaptation_not_defined",
+    detail: { reason: "modify_not_supported", planned: reference.loadProfile, final: input.decision.finalSession.loadProfile ?? null, durationMin: result.effectiveDurationMin ?? null },
+  };
+}
+
+/** The dose a MODIFY must really lighten: the planned prescription, or a manual session's KEEP document. */
+function referenceStructure(input: BuildFinalPrescriptionV2Input): { structure: unknown; loadProfile: LoadProfile | null } | null {
+  if (input.plannedPrescription !== null) return { structure: input.plannedPrescription.structure, loadProfile: input.lineage?.generatedSession?.loadProfile ?? null };
+  const manual = input.lineage?.plannedSessionSource === "manual" ? input.lineage.manualSession : undefined;
+  if (manual === undefined || input.adaptation === null) return null;
+  if (manual.loadProfile !== "LIGHT" && manual.loadProfile !== "MODERATE") return null;
+  // Never persisted, only compared without its ids: its own ids, none taken from the day's generators.
+  let n = 0;
+  const mintId = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
+  const keep = buildFinalPrescriptionV2({
+    ...input,
+    decision: { ...input.decision, decision: "KEEP", finalSession: manual },
+    adaptation: { ...input.adaptation, mintId },
+    ...(input.dailyMintId !== undefined ? { dailyMintId: mintId } : {}),
+  });
+  return keep.status === "created" ? { structure: keep.finalPrescription.structure, loadProfile: manual.loadProfile ?? null } : null;
+}
+
+/**
+ * SPORT-SAFE-01R.3 (HPM option B, 2026-10-19) — the only alternative A10 may select after an A04 `modify_not_supported`
+ * refusal: the existing active-recovery candidate (REPLACE RECOVERY_ACTIVE, built under the rider's time), admissible
+ * only if it was created, fits the rider's time and differs from the refused document.
+ */
+export function admissibleAlternativeV2(refused: unknown, alternative: FinalPrescriptionV2Result, availableMinutes: number): alternative is Extract<FinalPrescriptionV2Result, { status: "created" }> {
+  return alternative.status === "created" && fits(alternative, availableMinutes) && canonicalSportContent(alternative.finalPrescription.structure) !== canonicalSportContent(refused);
+}
+
 export function buildFinalPrescriptionWithinTodayTimeV2(input: BuildFinalPrescriptionV2Input & { availableMinutes: number | null }): FinalPrescriptionWithinTodayTimeV2Result {
   const { availableMinutes, ...base } = input;
-  if (availableMinutes === null) return buildFinalPrescriptionV2(base);
+  if (availableMinutes === null) return refuseUnchangedModifyV2(buildFinalPrescriptionV2(base), base);
   // V2-PHYS-INTEGRATION-01 — PHYS daily off: a Force duration stays the decided one, as before PHYS.
   const phys = base.phys ?? PHYS_SWITCHES_OFF_V2;
   const estimate = <R extends FinalPrescriptionV2Result>(r: R): R => (phys.daily === true ? withStrengthEstimate(r) : r);
-  const result = estimate(buildFinalPrescriptionV2(base));
+  const built = estimate(buildFinalPrescriptionV2(base));
   if (!Number.isInteger(availableMinutes) || availableMinutes <= 0) throw new RangeError(`availableMinutes must be a positive integer, got ${availableMinutes}`);
 
   const { decision: decisionValue, finalSession } = base.decision;
-  const current = result.status === "created" ? prescriptionMaxMinutes(result) : null;
+  const current = built.status === "created" ? prescriptionMaxMinutes(built) : null;
   const before = sessionOf(decisionValue, finalSession, current ?? finalSession.durationMin);
   const outcome = (action: TodayTimeConstraintV2["action"], after: TodayTimeSessionV2): TodayTimeConstraintV2 => ({ availableMinutes, action, before, after });
 
+  const result = refuseUnchangedModifyV2(built, base);
   if (result.status === "none") return { ...result, timeConstraint: outcome("fits", before) };
+  // SPORT-SAFE-01R.3 — option B: A04 refused a MODIFY that was only the reference dose (`built` created, `result` its
+  // refusal) and it does not fit the rider's time: A10 may select one alternative, the active recovery. The refusal is
+  // kept (`refusedModify`), never requalified; no admissible alternative → no executable session, never a REST.
+  if (result.status === "blocked" && built.status === "created" && current !== null && current > availableMinutes) {
+    const alternative = estimate(
+      buildFinalPrescriptionV2({ ...base, decision: { ...base.decision, decision: "REPLACE", finalSession: { kind: "RECOVERY_ACTIVE" } }, timeLimitMin: availableMinutes })
+    );
+    if (admissibleAlternativeV2(built.finalPrescription.structure, alternative, availableMinutes)) {
+      return {
+        ...alternative,
+        refusedModify: { code: "final_prescription_adaptation_not_defined", detail: result.detail },
+        timeConstraint: outcome("adapted", sessionOf("REPLACE", { kind: "RECOVERY_ACTIVE" }, alternative.effectiveDurationMin)),
+      };
+    }
+    return { ...result, timeConstraint: outcome("no_alternative", before) };
+  }
   if (result.status === "blocked") return { ...result, timeConstraint: outcome("not_evaluated", before) };
   if (fits(result, availableMinutes)) return { ...result, timeConstraint: outcome("fits", before) };
 

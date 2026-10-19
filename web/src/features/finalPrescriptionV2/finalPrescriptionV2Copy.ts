@@ -23,11 +23,19 @@ export const MANUAL_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   riding_not_available: "Ton profil n'a pas de créneau vélo ce jour-là : NALYNT ne construit pas de séance de vélo pour ce jour.",
 };
 /**
+ * SPORT-SAFE-01R.2 (proposed copy, to be validated by HPM) — M1 asked for an adaptation and NALYNT has no guided version
+ * lighter than the planned one (ADR A04 §6, `modify_not_supported`): facts only, no dose and no advice of its own.
+ */
+export const MODIFY_NOT_SUPPORTED_MESSAGE =
+  "Ton état du jour demande d'adapter cette séance, mais NALYNT n'en a pas de version guidée plus légère que celle prévue : pas de séance guidée aujourd'hui.";
+
+/**
  * PHYS-02 — why an intervals session has no daily document (detail.reason of the blocked decision): the
  * intervals session exists in one version only (6 × 3 min at RPE 8), never shorter; on a LIGHT day it is
  * replaced by light base endurance (PHYS-02.1), so these are the remaining, rare cases.
  */
 export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
+  modify_not_supported: MODIFY_NOT_SUPPORTED_MESSAGE,
   intervals_load_not_supported: "Le fractionné n'existe qu'en une seule version (6 × 3 min à RPE 8) : NALYNT ne construit pas cette adaptation.",
   intervals_not_shortened: "Le fractionné n'est jamais raccourci : il ne tient pas dans le temps que tu as aujourd'hui.",
   // PHYS-02.1 — the light base endurance fallback is withheld for today's pain.

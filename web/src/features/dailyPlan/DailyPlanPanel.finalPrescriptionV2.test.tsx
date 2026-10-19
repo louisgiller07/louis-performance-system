@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { keepFinalPrescription } from "../../test/fixtures/finalPrescriptionV2Fixtures";
-import { REST_MESSAGE } from "../finalPrescriptionV2/finalPrescriptionV2Copy";
+import { MODIFY_NOT_SUPPORTED_MESSAGE, REST_MESSAGE } from "../finalPrescriptionV2/finalPrescriptionV2Copy";
 import { PRESCRIPTION_UNAVAILABLE_MESSAGE } from "../prescriptions/prescriptionRead";
 
 // UX-11A.5c.4 — Today shows a V2 daily decision's final prescription live,
@@ -102,7 +102,8 @@ describe("Today — V2 final prescription", () => {
       restoredRow("d-mod", "MODIFY", { finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_adaptation_not_defined", finalPrescriptionStatusDetail: { reason: "modify_not_supported" }, isLatestOfDay: true })
     );
     const { container } = renderPanel();
-    expect(await screen.findByText("L'adaptation détaillée n'est pas disponible pour cette recommandation.")).toBeInTheDocument();
+    // SPORT-SAFE-01R.2 — `modify_not_supported` has its own message (no guided version lighter than the planned one).
+    expect(await screen.findByText(MODIFY_NOT_SUPPORTED_MESSAGE)).toBeInTheDocument();
     expect(container.textContent).not.toContain("final_prescription_adaptation_not_defined");
   });
 
@@ -157,7 +158,7 @@ describe("Today — guided session entry", () => {
 
   it.each([
     ["REST", restoredRow("d-rest", "REST", { finalPrescriptionStatus: "not_required", isLatestOfDay: true }), REST_MESSAGE],
-    ["blocked", restoredRow("d-mod", "MODIFY", { finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_adaptation_not_defined", finalPrescriptionStatusDetail: { reason: "modify_not_supported" }, isLatestOfDay: true }), "L'adaptation détaillée n'est pas disponible pour cette recommandation."],
+    ["blocked", restoredRow("d-mod", "MODIFY", { finalPrescriptionStatus: "blocked", finalPrescriptionStatusCode: "final_prescription_adaptation_not_defined", finalPrescriptionStatusDetail: { reason: "modify_not_supported" }, isLatestOfDay: true }), MODIFY_NOT_SUPPORTED_MESSAGE],
   ])("%s → no entry", async (_label, row, text) => {
     loadLatestDecisionForDate.mockResolvedValue(row);
     renderPanel();

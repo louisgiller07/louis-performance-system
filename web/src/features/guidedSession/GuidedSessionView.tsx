@@ -15,7 +15,8 @@ import { Link } from "react-router-dom";
 import { PrimaryButton } from "../../components/PrimaryButton";
 import { SecondaryButton } from "../../components/SecondaryButton";
 import { TRAINING_KIND_LABELS } from "../dailyPlan/dailyPlanLabels";
-import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, ACTION_ERROR_MESSAGES, HEALTH_BLOCK_COPY, PHASE_LABELS } from "./guidedSessionCopy";
+import { DayGuidanceSections } from "../dailyPlan/dayGuidance";
+import { UNSUPPORTED_SESSION_MESSAGE, UNAVAILABLE_MESSAGES, BLOCKED_REASON_MESSAGES, ACTION_ERROR_MESSAGES, HEALTH_BLOCK_COPY, PHASE_LABELS } from "./guidedSessionCopy";
 import { resolveSessionModule, type ModulePending, type SubmitOutcome } from "./sessionModules";
 import type { GuidedActionError, GuidedLoadState } from "./useGuidedSession";
 import type { FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -107,7 +108,9 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
       <div className="flex flex-col gap-3">
         <Header prescription={null} phase="not_started" />
         <p className="text-ink/80" data-reason={snapshot.reason}>
-          {UNAVAILABLE_MESSAGES[snapshot.reason]}
+          {(snapshot.reason === "blocked" && snapshot.blockedReason !== undefined && Object.prototype.hasOwnProperty.call(BLOCKED_REASON_MESSAGES, snapshot.blockedReason)
+            ? BLOCKED_REASON_MESSAGES[snapshot.blockedReason]
+            : undefined) ?? UNAVAILABLE_MESSAGES[snapshot.reason]}
         </p>
         {backToToday}
       </div>
@@ -124,6 +127,10 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
   const healthBlock = open && snapshot.kind === "execution" ? snapshot.healthBlock : undefined;
   // P0-3 — training actions (results, pause / resume, completion) only when nothing blocks them.
   const trainable = open && !healthBlock;
+  // SPORT-SAFE-01R — M1's protection and monitoring before the start and while the session goes on; never read only.
+  const guidance = snapshot.kind === "ready_to_start" ? snapshot.guidance : trainable ? snapshot.guidance : undefined;
+  // SPORT-SAFE-01R.3 — the planned session is not offered: this one replaces it (the engine's own sentence).
+  const alternativeNote = snapshot.kind === "ready_to_start" ? snapshot.alternativeNote : trainable ? snapshot.alternativeNote : undefined;
   const module = prescription ? resolveSessionModule(prescription) : null;
   const context = prescription ? { prescription, executionId, phase, setResults, activityResults, uiState: moduleState } : null;
   const completion = module && context ? module.completion(context, now) : null;
@@ -157,6 +164,14 @@ export function GuidedSessionView({ load, busy, actionError, onStart, onPause, o
           )}
         </div>
       )}
+
+      {alternativeNote && (
+        <p className="rounded-lg border border-line bg-card p-4 text-sm text-ink/90" data-testid="alternative-note">
+          {alternativeNote}
+        </p>
+      )}
+
+      {guidance && <DayGuidanceSections guidance={guidance} />}
 
       {module && context ? (
         <module.Content {...context} editable={trainable} busy={busy} setUiState={setModuleState} submit={onSubmit} newId={newId} now={now} />

@@ -182,7 +182,26 @@ function sanitizeOverrideFallback(text: string): string | undefined {
 // Only the RACE_WEEK / INJURY_RECOVERY modes emit them and no production decision has
 // ever contained them — see safetyPresentation.test.ts's REV-016b guard test.
 
-function resolveOverrideFor(rule: TriggeredRule): string | undefined {
+/**
+ * SPORT-SAFE-01R.4 (HPM 2026-10-19) — C3.3 (`domains/training.ts`, frozen M1) says « nature de la séance préservée »:
+ * true of M1's own decision, false once the day's session kind has really changed (A10's active recovery, a pivot).
+ * Then only the claim goes; the session change itself is explained by the rule that made it. Presentation only: the
+ * stored decision (and history) is never rewritten.
+ */
+const C33_RAW_DETAIL = "Sommeil insuffisant — adaptation d'intensité, nature de la séance préservée";
+const C33_KIND_CHANGED_DETAIL = "Sommeil insuffisant — adaptation d'intensité.";
+
+type SessionKinds = Partial<Pick<DailyPlan, "planned_session_before" | "final_session">>;
+
+/** Whether the day's session kind really changed from the planned one (no planned session: nothing to compare). */
+export function sessionKindChanged(plan: SessionKinds): boolean {
+  const before = plan.planned_session_before;
+  const final = plan.final_session;
+  return before !== null && before !== undefined && final !== undefined && before.kind !== final.kind;
+}
+
+function resolveOverrideFor(rule: TriggeredRule, plan?: SessionKinds): string | undefined {
+  if (rule.rule_id === "C3.3" && rule.detail === C33_RAW_DETAIL && plan !== undefined && sessionKindChanged(plan)) return C33_KIND_CHANGED_DETAIL;
   if (rule.rule_id === "PAIN_NON_SAFETY") return sanitizePainNonSafetyDetail(rule.detail);
   if (rule.rule_id === "INFERENCE_FALLBACK") return sanitizeInferenceFallbackDetail(rule.detail);
   if (rule.rule_id === "RACE_PROTOCOL_TX") return sanitizeRaceProtocolDetail(rule.detail);
@@ -195,8 +214,8 @@ function resolveOverrideFor(rule: TriggeredRule): string | undefined {
 }
 
 /** The athlete-safe text for one triggered rule — `rule.detail` unchanged unless this specific rule_id is known to need sanitization. */
-export function athleteSafeRuleDetail(rule: TriggeredRule): string {
-  return resolveOverrideFor(rule) ?? rule.detail;
+export function athleteSafeRuleDetail(rule: TriggeredRule, plan?: SessionKinds): string {
+  return resolveOverrideFor(rule, plan) ?? rule.detail;
 }
 
 /**
@@ -212,7 +231,7 @@ export function athleteSafeRuleDetail(rule: TriggeredRule): string {
 export function athleteSafeReasoning(dailyPlan: DailyPlan): string {
   let reasoning = dailyPlan.reasoning;
   for (const rule of dailyPlan.triggered_rules) {
-    const safe = resolveOverrideFor(rule);
+    const safe = resolveOverrideFor(rule, dailyPlan);
     if (safe) reasoning = reasoning.split(rule.detail).join(safe);
   }
   return reasoning;
@@ -233,7 +252,7 @@ export function athleteSafeOverrideReason(dailyPlan: DailyPlan): string | undefi
   if (fallback !== undefined) return fallback;
   let text = overrideReason;
   for (const rule of dailyPlan.triggered_rules) {
-    const safe = resolveOverrideFor(rule);
+    const safe = resolveOverrideFor(rule, dailyPlan);
     if (safe) text = text.split(rule.detail).join(safe);
   }
   return text;
@@ -256,7 +275,7 @@ export function athleteSafeTrainingObjective(dailyPlan: DailyPlan): string | und
   const objective = dailyPlan.training.objective;
   if (objective === undefined) return undefined;
   for (const rule of dailyPlan.triggered_rules) {
-    const safe = resolveOverrideFor(rule);
+    const safe = resolveOverrideFor(rule, dailyPlan);
     if (safe && objective === rule.detail) return safe;
   }
   return objective;

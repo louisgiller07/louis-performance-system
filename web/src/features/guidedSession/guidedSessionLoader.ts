@@ -20,7 +20,12 @@
 // the check-in), read from the persisted signals and decision: the screen then
 // offers no resume and no new result, only a safe stop. The server refuses those
 // actions anyway (record_session_execution, migration 20261013160000).
-import { loadLatestDecisionForDate } from "../history/historyRepo";
+// SPORT-SAFE-01R (HPM 2026-10-18, A1) — a session the rider can start or go on with carries M1's guidance of ITS
+// decision (`guidance`: protection and monitoring, see dayGuidance.tsx): the current decision before the start, the
+// execution's own decision (decision_id) while it is open. Read only or blocked: no guidance (nothing to train).
+import { loadDecisionById, loadLatestDecisionForDate } from "../history/historyRepo";
+import { alternativeNoteOf, dayGuidanceOf, type DayGuidance } from "../dailyPlan/dayGuidance";
+import { isValidDailyPlan } from "../dailyPlan/dailyPlanValidation";
 import { loadDecisionCurrency } from "../dailyPlan/decisionCurrencyRepo";
 import { loadFinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2State";
 import type { FinalPrescriptionV2State, FinalPrescriptionV2View } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -42,9 +47,18 @@ export type GuidedSessionSnapshot =
       restartFinalPrescriptionId?: string;
       /** P0-3 — set only on an OPEN execution that cannot go on (no resume, no new result; a safe stop stays possible). */
       healthBlock?: HealthBlock;
+      /** SPORT-SAFE-01R — set only on an OPEN execution that can go on: M1's guidance of the execution's own decision. */
+      guidance?: DayGuidance;
+      /** SPORT-SAFE-01R.3 — same condition: the engine's sentence when this session is A10's alternative to a refused one. */
+      alternativeNote?: string;
     }
-  | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View }
-  | { kind: "unavailable"; reason: UnavailableReason };
+  | { kind: "ready_to_start"; finalPrescriptionId: string; prescription: FinalPrescriptionV2View; guidance?: DayGuidance; alternativeNote?: string }
+  | {
+      kind: "unavailable";
+      reason: UnavailableReason;
+      /** SPORT-SAFE-01R.2 — a blocked day's detail.reason, for a precise message where one exists. */
+      blockedReason?: string;
+    };
 
 function unavailableFor(state: FinalPrescriptionV2State | undefined): UnavailableReason {
   if (state === undefined) return "not_v2";
@@ -62,16 +76,24 @@ function unavailableFor(state: FinalPrescriptionV2State | undefined): Unavailabl
   }
 }
 
-/** P0-3 — the persisted reasons an open execution of `date` cannot go on (see healthBlock.ts). */
-async function openExecutionHealthBlock(athleteId: string, date: string, prescription: FinalPrescriptionV2State): Promise<HealthBlock | null> {
+/**
+ * P0-3 — the persisted reasons an open execution of `date` cannot go on (see healthBlock.ts), with the day's latest
+ * decision it read (SPORT-SAFE-01R.4: reused for the execution's guidance when it is that same decision, no extra read).
+ */
+async function openExecutionHealthBlock(
+  athleteId: string,
+  date: string,
+  prescription: FinalPrescriptionV2State
+): Promise<{ healthBlock: HealthBlock | null; latestDecision: { id: string; dailyPlan: unknown } | null }> {
   const [flags, decision] = await Promise.all([loadOpenHealthFlags(athleteId), loadLatestDecisionForDate(athleteId, date)]);
   const isCurrent = decision === null ? true : (await loadDecisionCurrency(decision.id)).isCurrent;
-  return healthBlockOf({
+  const healthBlock = healthBlockOf({
     openFlagTypes: flags.map((flag) => flag.type),
     family: prescription.kind === "created" ? prescription.prescription.family : null,
     // loadLatestDecisionForDate only returns a row whose daily plan passed isValidDailyPlan.
     latestDecision: decision === null ? null : { dailyPlan: decision.dailyPlan as DailyPlan, isCurrent },
   });
+  return { healthBlock, latestDecision: decision === null ? null : { id: decision.id, dailyPlan: decision.dailyPlan } };
 }
 
 export async function loadGuidedSession(athleteId: string, date: string): Promise<GuidedSessionSnapshot> {
@@ -82,8 +104,10 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
     const prescription: FinalPrescriptionV2State = dayExecution.execution.final_prescription_id
       ? await loadExecutionPrescription(dayExecution.execution.final_prescription_id)
       : { kind: "final_prescription_missing" };
-    const healthBlock = await openExecutionHealthBlock(athleteId, date, prescription);
-    return { kind: "execution", ...dayExecution, prescription, ...(healthBlock ? { healthBlock } : {}) };
+    const { healthBlock, latestDecision } = await openExecutionHealthBlock(athleteId, date, prescription);
+    if (healthBlock) return { kind: "execution", ...dayExecution, prescription, healthBlock };
+    const context = await executionDayContext(athleteId, dayExecution.execution, latestDecision);
+    return { kind: "execution", ...dayExecution, prescription, ...context };
   }
 
   // UX-11R.9 (R9-UI-01) — a COMPLETED execution of the day is the day's session (one main session per
@@ -114,7 +138,8 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
         : { kind: "final_prescription_missing" };
       return { kind: "execution", ...dayExecution, prescription };
     }
-    return { kind: "unavailable", reason: unavailableFor(state) };
+    const blockedReason = state?.kind === "blocked" && typeof state.detail?.reason === "string" ? state.detail.reason : undefined;
+    return { kind: "unavailable", reason: unavailableFor(state), ...(blockedReason !== undefined ? { blockedReason } : {}) };
   }
 
   const current = state.prescription;
@@ -126,5 +151,28 @@ export async function loadGuidedSession(athleteId: string, date: string): Promis
       ? { kind: "execution", ...dayExecution, prescription: state, restartFinalPrescriptionId: current.id }
       : { kind: "execution", ...dayExecution, prescription: state };
   }
-  return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current };
+  // loadLatestDecisionForDate only returns a row whose daily plan passed isValidDailyPlan.
+  return { kind: "ready_to_start", finalPrescriptionId: current.id, prescription: current, ...dayContextOf(decision.dailyPlan as DailyPlan) };
+}
+
+/** SPORT-SAFE-01R / R.3 — what a session the rider can train carries from its decision: M1's guidance, A10's alternative note. */
+function dayContextOf(dailyPlan: DailyPlan): { guidance?: DayGuidance; alternativeNote?: string } {
+  const guidance = dayGuidanceOf(dailyPlan);
+  const alternativeNote = alternativeNoteOf(dailyPlan);
+  return { ...(guidance ? { guidance } : {}), ...(alternativeNote ? { alternativeNote } : {}) };
+}
+
+/**
+ * SPORT-SAFE-01R — the context of the decision the open execution was started from; none without that decision. The day's
+ * latest decision already read is reused when it is that decision (the usual case): the loader's reads stay constant.
+ */
+async function executionDayContext(
+  athleteId: string,
+  execution: ExecutionRow,
+  latestDecision: { id: string; dailyPlan: unknown } | null
+): Promise<{ guidance?: DayGuidance; alternativeNote?: string }> {
+  if (typeof execution.decision_id !== "string") return {};
+  const decision = latestDecision !== null && latestDecision.id === execution.decision_id ? latestDecision : await loadDecisionById(athleteId, execution.decision_id);
+  // A row this screen cannot read as a daily plan gives nothing (never a text of the browser's own).
+  return decision !== null && isValidDailyPlan(decision.dailyPlan) ? dayContextOf(decision.dailyPlan as DailyPlan) : {};
 }

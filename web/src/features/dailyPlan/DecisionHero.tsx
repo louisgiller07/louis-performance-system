@@ -2,6 +2,19 @@ import { TRAINING_MODE_LABELS } from "./dailyPlanLabels";
 import { missionStatus } from "./missionStatus";
 import { athleteSafeReasoning } from "./safetyPresentation";
 import type { DailyPlan } from "./dailyPlanTypes";
+import { bodyStatusOf } from "./bodyStatus";
+import { retainedSignals } from "./coachInsights";
+import { athleteSafeProtection } from "./safetyPresentation";
+
+/**
+ * SPORT-SAFE-01R.4 (HPM 2026-10-19) — the neutral, factual line of the stored decision, instead of « prêt à performer »
+ * when the decision carries a retained state signal (fatigue, pain…), a declared pain or an M1 protection.
+ */
+const NEUTRAL_TAGLINE: Record<string, string> = {
+  KEEP: "Séance maintenue",
+  MODIFY: "Séance ajustée",
+  REPLACE: "Séance remplacée",
+};
 
 // V0.3 UX PREMIUM REDESIGN — presentation-only accent per decision. REST
 // is SAFETY-driven (rules/safety.ts A1-A4) and deliberately stays on the
@@ -48,6 +61,12 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
   // triggered_rule.detail); see safetyPresentation.ts.
   const reasoning = athleteSafeReasoning(dailyPlan);
   const accent = DECISION_ACCENT[dailyPlan.decision] ?? DECISION_ACCENT.KEEP;
+  // SPORT-SAFE-01R / R.4 — « prêt à performer » would play down what the decision asks for: a retained state signal
+  // (fatigue, pain…), a declared pain (« Douleur signalée ») or an M1 protection. Then the decision's neutral line.
+  // The rider's declared time (A10) is not a state signal: it never asks for caution by itself.
+  const stateSignals = retainedSignals(dailyPlan).filter((entry) => entry.signal !== "available_minutes_today");
+  const cautious = bodyStatusOf(dailyPlan) !== "ready" || stateSignals.length > 0 || athleteSafeProtection(dailyPlan).length > 0;
+  const tagline = accent.tagline === undefined ? undefined : cautious ? (NEUTRAL_TAGLINE[dailyPlan.decision] ?? undefined) : accent.tagline;
 
   return (
     <div className={`rounded-xl border bg-card p-5 ${accent.border} ${accent.ring}`}>
@@ -57,9 +76,7 @@ export function DecisionHero({ dailyPlan }: { dailyPlan: DailyPlan }) {
       </div>
       <p className={`mt-2 font-display text-3xl font-extrabold uppercase leading-tight ${accent.text}`}>{status}</p>
       <p className="mt-4 text-sm leading-relaxed text-ink/90">{reasoning}</p>
-      {accent.tagline && (
-        <p className={`mt-4 text-xs font-semibold uppercase tracking-wide ${accent.text}`}>✓ {accent.tagline}</p>
-      )}
+      {tagline && <p className={`mt-4 text-xs font-semibold uppercase tracking-wide ${accent.text}`}>✓ {tagline}</p>}
     </div>
   );
 }

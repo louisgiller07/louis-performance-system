@@ -3,6 +3,7 @@ import { DailyPlanView } from "./DailyPlanView";
 import { ReadinessCard } from "./ReadinessCard";
 import { MissionHero } from "./MissionHero";
 import { CoachStateCard } from "./CoachStateCard";
+import { noCompatibleSessionOf } from "./noCompatibleSession";
 import type { CheckinRow } from "../checkin/checkinTypes";
 import type { DailyRunResponse } from "./dailyPlanTypes";
 import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
@@ -56,7 +57,13 @@ export function DailyPlanResult({
           <ReadinessCard dailyPlan={dailyPlan} hasHealthSignal={hasHealthSignal} bodyStatus={bodyStatus} />
         )
       }
-      missionSlot={<MissionHero dailyPlan={dailyPlan} sessionModifiedByAthlete={today?.sessionModifiedByAthlete ?? false} />}
+      missionSlot={
+        <MissionHero
+          dailyPlan={dailyPlan}
+          sessionModifiedByAthlete={today?.sessionModifiedByAthlete ?? false}
+          noCompatibleSession={today ? noCompatibleSessionOf(finalPrescriptionV2, today.checkin?.available_minutes_today) : null}
+        />
+      }
       heroInMission
       detailsTarget={today ? (today.detailsTarget ?? null) : undefined}
       executablePrescription={executablePrescription}

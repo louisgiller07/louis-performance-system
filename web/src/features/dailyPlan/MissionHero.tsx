@@ -1,10 +1,11 @@
 import { LOAD_PROFILE_LABELS, PRIOR_TECHNICAL_OUTCOME_COPY, TRAINING_KIND_LABELS, TRAINING_MODE_LABELS } from "./dailyPlanLabels";
 import { athleteSafeReasoning, athleteSafeTrainingObjective } from "./safetyPresentation";
-import { coachWhy } from "./coachInsights";
+import { coachWhy, detectedSignalsSentence } from "./coachInsights";
 import { missionStatus } from "./missionStatus";
 import { formatDuration } from "./durationLabels";
 import type { DailyPlan, TrainingIntervention } from "./dailyPlanTypes";
 import { COACHING_SUSPENDED_TITLE, isCoachingSuspended } from "./bodyStatus";
+import { NO_COMPATIBLE_SESSION_TITLE, noCompatibleSessionSentence, type NoCompatibleSession } from "./noCompatibleSession";
 
 // UX-03 — "Ta mission du jour", the dominant hero of Today. It merges what
 // used to be two stacked cards (MissionCard + DecisionHero) into one, and
@@ -39,7 +40,8 @@ function describe(intervention: TrainingIntervention, showKind: boolean): { prim
 }
 
 function AdaptationCompare({ before, after, adaptedTitle }: { before: TrainingIntervention; after: TrainingIntervention; adaptedTitle?: string }) {
-  const kindChanged = before.kind !== after.kind;
+  // A title instead of the adapted session (suspension, no compatible session): the planned side names its kind.
+  const kindChanged = before.kind !== after.kind || adaptedTitle !== undefined;
   const planned = describe(before, kindChanged);
   const adapted = adaptedTitle ? { primary: adaptedTitle, secondary: undefined } : describe(after, kindChanged);
 
@@ -79,7 +81,12 @@ function AdaptationCompare({ before, after, adaptedTitle }: { before: TrainingIn
  * (planned_sessions.source = 'manual'); while the mission still is that session (KEEP / MODIFY, never a suspension or a
  * coach REPLACE / REST), it says so with the V06-02 fact « Modifiée par toi », not as the coach's prescription.
  */
-export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false }: { dailyPlan: DailyPlan; sessionModifiedByAthlete?: boolean }) {
+/**
+ * `noCompatibleSession` (SPORT-SAFE-01R.4, Today only): A04 refused the adaptation and the rider's declared time is
+ * shorter than the refused session — the title and the adapted side say no compatible session exists, with the
+ * declared time and the refused duration; never the refused session as available, never a REST or a recovery.
+ */
+export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false, noCompatibleSession = null }: { dailyPlan: DailyPlan; sessionModifiedByAthlete?: boolean; noCompatibleSession?: NoCompatibleSession | null }) {
   const final = dailyPlan.final_session;
   const before = dailyPlan.planned_session_before;
   const tone = DECISION_TONE[dailyPlan.decision] ?? DECISION_TONE.KEEP!;
@@ -101,7 +108,8 @@ export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false }: { d
   const spotHint = isDh ? dailyPlan.dh_or_technical.spot_hint : undefined;
   const priorTask = isDh ? dailyPlan.dh_or_technical.prior_task_reference : undefined;
   // UX-04 — "Pourquoi ?": the retained engine signals worded for a rider, or the engine's own sanitized reasoning (safety, race, REST).
-  const why = coachWhy(dailyPlan);
+  // SPORT-SAFE-01R.4 — no compatible session: the signals that asked for the adaptation, never « la charge est ajustée ».
+  const why = (noCompatibleSession ? detectedSignalsSentence(dailyPlan) : null) ?? coachWhy(dailyPlan);
   // No repetition: an objective sentence the coach's reasoning already says verbatim is not shown twice.
   const body = rawBody && !why.includes(rawBody.trim()) && !athleteSafeReasoning(dailyPlan).includes(rawBody.trim()) ? rawBody : undefined;
   const loadLabel = final.load_profile ? LOAD_PROFILE_LABELS[final.load_profile] : undefined;
@@ -124,12 +132,12 @@ export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false }: { d
         {modeLabel && <p className="shrink-0 text-right text-xs font-medium uppercase tracking-[0.16em] text-muted">{modeLabel}</p>}
       </div>
       <h2 id="mission-title" className="ux-enter mt-4 font-display text-[clamp(2.75rem,13vw,3.75rem)] font-extrabold uppercase leading-[0.9] text-ink" style={{ ["--d" as string]: "80ms" }}>
-        {suspended ? COACHING_SUSPENDED_TITLE : kindLabel(final)}
+        {suspended ? COACHING_SUSPENDED_TITLE : noCompatibleSession ? NO_COMPATIBLE_SESSION_TITLE : kindLabel(final)}
       </h2>
 
       {adapted && before ? (
         <div className="ux-enter" style={{ ["--d" as string]: "160ms" }}>
-          <AdaptationCompare before={before} after={final} adaptedTitle={suspended ? COACHING_SUSPENDED_TITLE : undefined} />
+          <AdaptationCompare before={before} after={final} adaptedTitle={suspended ? COACHING_SUSPENDED_TITLE : noCompatibleSession ? NO_COMPATIBLE_SESSION_TITLE : undefined} />
         </div>
       ) : (
         sessionLine && (
@@ -137,6 +145,12 @@ export function MissionHero({ dailyPlan, sessionModifiedByAthlete = false }: { d
             {sessionLine}
           </p>
         )
+      )}
+
+      {noCompatibleSession && (
+        <p className="ux-enter mt-4 text-sm leading-relaxed text-ink/90" data-testid="no-compatible-session" style={{ ["--d" as string]: "200ms" }}>
+          {noCompatibleSessionSentence(noCompatibleSession)}
+        </p>
       )}
 
       <div className="ux-enter mt-5 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ ["--d" as string]: "240ms" }}>

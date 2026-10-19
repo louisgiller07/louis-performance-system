@@ -133,6 +133,7 @@ export async function reconcileFinalPrescriptionV2(
       : null;
 
   const final = dailyPlan.final_session;
+  const before = dailyPlan.planned_session_before;
   // V2-PHYS-INTEGRATION-01 — every switch off: no daily addition, no guidance, no new family (the production behaviour).
   const phys = input.phys ?? {};
   const result = buildFinalPrescriptionWithinTodayTimeV2({
@@ -164,6 +165,16 @@ export async function reconcileFinalPrescriptionV2(
             sourceGeneratedSessionId: observation.sourceGeneratedSessionId,
             currentPlanVersionId,
             ...(manual ? { currentPlanCoversDate: coversDate } : {}),
+            // SPORT-SAFE-01R — the rider's manual session before M1: the dose a MODIFY must really lighten (ADR A04 §6).
+            ...(manual && before !== null
+              ? {
+                  manualSession: {
+                    kind: before.kind,
+                    ...(before.load_profile !== undefined ? { loadProfile: before.load_profile } : {}),
+                    ...(before.duration_min !== undefined ? { durationMin: before.duration_min } : {}),
+                  },
+                }
+              : {}),
             generatedSession:
               generated === null
                 ? null

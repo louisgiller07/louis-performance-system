@@ -703,6 +703,23 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Intégration web, base locale** (`p0_4GuidedHistory.integration.test.tsx`) : vraie page de détail sous RLS avec une séance Force réellement enregistrée ; autre rider : décision introuvable, exécutions et prescription illisibles.
 - **Navigateur réel** (Chromium mobile, pile locale) : DH 5/5, Force 7/7 après changement de programme, DH arrêtée 2/2, V1 inchangée, séance en cours, décision plus récente du même jour (lien), arrêt puis REST A6, jour REST, rechargement et accès direct identiques, autre rider « Journée introuvable » sans fuite.
 
+### T66. SPORT-SAFE-01 — aucune séance identique présentée comme adaptée ; alternative A10 limitée (HPM 2026-10-19)
+Règles : `docs/04` (« Contenu identique » ; A10, exception limitée), `docs/05` (refus et alternative), ADR SPORT-SAFE-01, SPORT-SAFE-01R, SPORT-SAFE-01R.3.
+- **Acceptation** (unitaires `sportSafe01EnduranceLight.test.ts`, `sportSafe01RManualModify.test.ts`, `applyV2TodayTimeConstraint.test.ts` ; intégration `sportSafe01.integration.test.ts`, chemins réels) :
+  - endurance prévue 45 + LIGHT de M1, sans temps ou X ≥ 45 → `blocked` / `modify_not_supported`, aucune prescription ;
+  - même cas, X = 20 ou 30 → récupération active ≤ X (REPLACE), refus conservé (`refusedModify` ; `A04_MODIFY_NOT_SUPPORTED` puis `V2_TODAY_TIME_CONSTRAINT`), phrase « la séance prévue n'est pas proposée […] Autre séance à la place : récupération active. » ;
+  - même cas, X = 15 → aucune alternative admissible : refus, action `no_alternative`, aucune séance, jamais REST ;
+  - endurance prévue 60 + LIGHT → 45 min réelles ; avec X = 30 → récupération active A10 ordinaire, sans refus ;
+  - endurance manuelle `MODERATE` 45 / 60 + LIGHT → refus ; avec X = 30 → récupération active, refus conservé ;
+  - garde d'identité (`admissibleAlternativeV2`) : alternative identique au document refusé, non créée ou plus longue que X → non admissible.
+- **Non-régression** :
+  - REST de M1, REST Safety (A6, signal ouvert), autre raison de blocage (séance manuelle sans builder, MODIFY sans baisse de charge) avec X → aucune alternative, comportement inchangé ;
+  - séance manuelle `HEAVY` (DH, endurance) : aucune référence, MODIFY créé comme en production ;
+  - KEEP, REPLACE, Force et DH réellement allégées : inchangés ;
+  - différentiel flags OFF contre la production (`phys00FlagsOffEquivalence.test.ts`) : 192 cas planifiés (32 refus sans temps, 96 temps non évalué, 64 = la récupération A10 de production plus `refusedModify`) ; séance manuelle avec la séance avant M1 : endurance et récupération `MODERATE` seulement, 264 cas `HEAVY` égaux à la production ; tous les comptes épinglés.
+- **Web** (`sportSafe01RGuidance`, `sportSafe01R3Alternative`, `sportSafe01R2Message`, `guidedSessionLoader.guidance`, `sportSafe01RTagline`) : consignes de M1 avant et pendant la séance guidée, rechargement compris, jamais en lecture seule ; phrase de l'alternative ; message de refus approuvé quand aucune alternative n'existe ; pas de « prêt à performer » sur une douleur déclarée.
+- **Navigateur réel** (Chromium mobile, pile locale) : captures et textes visibles du rapport SPORT-SAFE-01R.3.
+
 ### T65. Release V2-PHYS — isolation par interrupteurs, POWER-GUARD-01, historique V2 de la génération (HPM 2026-10-18)
 Règles : ADR V2-PHYS-INTEGRATION-01, POWER-GUARD-01, V2-L2-01a, V2-PHYS-RELEASE-GATE-01 (`docs/11`) ; interrupteurs `docs/05`.
 - **Tous les interrupteurs OFF = production `863f3fb`** :
@@ -1034,7 +1051,7 @@ Règle : ADR PARTIAL-01 (`docs/11`). Présentation web seulement ; serveur, Edge
   - KEEP verbatim ; REST sans document ;
   - MODIFY Force LIGHT (mêmes exercices, séries / répétitions / RPE / repos LIGHT, `derivedFromItemId`) ;
   - MODIFY DH (même drill, 4 passages) ;
-  - MODIFY endurance (45 min) ;
+  - MODIFY endurance : 60 → 45 min ; prévue 45 → `modify_not_supported` (T66) ;
   - MODIFY vers le haut : séance prévue LIGHT et demande MODERATE ou HEAVY (Force, DH, endurance) → `upward_modify_not_supported` ; MODIFY sans baisse de charge → `modify_not_supported` ;
   - manifeste ancien → `catalog_mismatch` ;
   - REPLACE : DH → Force, bas → haut, DH → DH léger, → endurance (vélo et hors vélo), → récupération active ;

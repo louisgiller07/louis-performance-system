@@ -199,8 +199,11 @@ describe.skipIf(!INTEGRATION_ENABLED)("A04 — MODIFY / REPLACE executable presc
   });
 
   it("I — reload: the stored document is exactly the one the run returned (Today and Guided read that row)", async () => {
-    const day = "2026-10-16"; // AEROBIC_BASE MODERATE
-    await insertCheckin(admin, athleteId, day, SYSTEMIC_RED);
+    const day = "2026-10-16"; // AEROBIC_BASE MODERATE 45
+    // SPORT-SAFE-01 / 01R (ADR A04 §6) — M1's LIGHT has no lighter content for this 45-min endurance: refused, and A10
+    // does not evaluate a refusal (sportSafe01.integration.test.ts). With 30 min and no fatigue, A10 builds a real
+    // adapted document (active recovery), stored and reloaded.
+    await insertCheckin(admin, athleteId, day, { available_minutes_today: 30 });
     const r = await runDailyFor(admin, athleteId, day);
     const [f] = await finalOf((await decisionOn(day)).id);
     expect(f!.id).toBe(r.finalPrescription!.id);

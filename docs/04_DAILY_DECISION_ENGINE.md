@@ -469,7 +469,7 @@ Sur le **chemin V2 uniquement**, après la réconciliation de la prescription du
 
 Sur le **chemin V2 uniquement**, quand le rider a indiqué un temps disponible aujourd'hui (`daily_checkins.available_minutes_today` = X), la prescription du jour exécutable ne demande jamais plus de X minutes. M1 reste inchangé.
 
-- **Condition :** X renseigné, et une prescription du jour V2 créée qui demande plus de X minutes (sa durée effective, ou la somme des bornes hautes de ses blocs).
+- **Condition :** X renseigné, et une prescription du jour V2 créée qui demande plus de X minutes (sa durée effective, ou la somme des bornes hautes de ses blocs) ; ou un refus A04 « contenu identique » (`modify_not_supported`, section suivante) dont la séance refusée demande plus de X minutes.
 - **Effet :** la première séance candidate qui tient en X, construite par les vrais builders et vérifiée. La charge ne monte jamais. Ordre des candidats :
   1. **Force** → dose LIGHT 45 min (mêmes exercices). Aucune Force plus courte.
   2. **DH** → fenêtres du planificateur 90 / 75 / 60 min (passages plafonnés à 8 / 6 / 5), même drill.
@@ -478,9 +478,18 @@ Sur le **chemin V2 uniquement**, quand le rider a indiqué un temps disponible a
   5. Puis **REST**.
 - **Priorité :** la contrainte s'applique après M1, `V2_SYSTEMIC_FLOOR` et la prescription A04. Elle part de la séance déjà décidée et ne fait que descendre.
   - Un REST de M1 reste REST.
-  - Une prescription bloquée reste bloquée (`not_evaluated`).
+  - Une prescription bloquée reste bloquée (`not_evaluated`), sauf l'exception limitée suivante.
+  - **Exception limitée — refus A04 « contenu identique » (SPORT-SAFE-01R.3, approuvée HPM 2026-10-19)** :
+    - seulement pour ce motif : une séance qu'A04 refuse parce que son contenu serait celui de la séance de référence (`modify_not_supported`, section suivante) et qui demande plus de X minutes ;
+    - le refus n'est jamais effacé ni requalifié : il reste le résultat d'A04 et il est tracé ;
+    - une seule alternative peut être évaluée : la **récupération active** (REPLACE, candidat 4 ci-dessus), construite sous X par les vrais builders et vérifiée ; jamais une version plus courte de la séance refusée, jamais une autre famille ;
+    - elle n'est admissible que si elle tient en X et diffère du document refusé ; sinon aucune séance exécutable : le refus demeure, sans REST de remplacement ;
+    - jamais sur un REST de M1, sous une règle Safety ou un signal de santé (ils précèdent A04), ni pour une autre raison de blocage ;
+    - aucune dose nouvelle : la récupération active garde ses plages et son minimum de 20 min ;
+    - le rider voit que la séance prévue n'est pas proposée et qu'une autre séance la remplace ; jamais une « endurance légère ».
 - **Traçabilité :**
-  - règle `V2_TODAY_TIME_CONSTRAINT` (couche `ARBITRATION`) dans `triggered_rules` dès que X est renseigné : minutes, séance avant, action (`fits` / `adapted` / `rest` / `not_evaluated`), séance après ;
+  - règle `V2_TODAY_TIME_CONSTRAINT` (couche `ARBITRATION`) dans `triggered_rules` dès que X est renseigné : minutes, séance avant, action (`fits` / `adapted` / `rest` / `not_evaluated` / `no_alternative` — refus A04 sans alternative admissible), séance après ;
+  - exception limitée retenue : la règle `A04_MODIFY_NOT_SUPPORTED` (couche `ARBITRATION` : séance refusée, raison) précède `V2_TODAY_TIME_CONSTRAINT` ; la prescription du jour est celle de la récupération active ;
   - si la séance change : `decision`, `final_session` et `training` prennent la séance retenue ;
   - la règle s'ajoute à `decision_reasoning`, avec une phrase pour le rider reprise dans `training.objective` ;
   - les documents adaptés portent `v2.time.today_limit`.
@@ -499,6 +508,12 @@ Un `MODIFY` qui demande une charge **supérieure** à la séance prévue ne prod
 - raison : `upward_modify_not_supported`.
 
 Aucune augmentation automatique, et jamais la dose prévue rebaptisée « modifiée ».
+
+**Contenu identique (ADR SPORT-SAFE-01, SPORT-SAFE-01R.3)** : un `MODIFY` dont le contenu sportif serait exactement celui de la séance de référence ne produit pas non plus de prescription du jour V2.
+- Statut : `blocked` / `final_prescription_adaptation_not_defined` ; raison : `modify_not_supported` (détail : charge de référence, charge demandée, durée).
+- Séance de référence : la prescription prévue ; pour une séance manuelle (P0-3), le document que son KEEP recevrait (séance avant M1), seulement quand sa charge est une dose V2 (`LIGHT`, `MODERATE`). Une séance manuelle `HEAVY` n'a pas de référence : son KEEP est déjà construit plus léger que déclaré (arbitrage sportif ouvert).
+- Cas atteints : endurance prévue à la durée LIGHT de la politique (45 min, RPE du protocole fixe) ; endurance manuelle `MODERATE`.
+- Le refus est le résultat d'A04 et précède A10 ; seule l'exception limitée d'A10 (section précédente) peut lui adjoindre une récupération active.
 
 Depuis l'ADR P0 (2026-10-07), le chemin M1 normal n'atteint plus ce cas : M1 plafonne la charge d'une séance planifiée (`PLANNED_LOAD_CAP`, ci-dessous). Par exemple, le protocole T-X à T-6 (`DH_TECHNICAL MODERATE`) sur une DH d'affûtage V2 `LIGHT` donne KEEP de la DH `LIGHT`. `upward_modify_not_supported` reste dans A04 comme **garde défensive** : il bloque toute hausse qu'une régression future réintroduirait.
 

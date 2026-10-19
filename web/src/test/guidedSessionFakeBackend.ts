@@ -11,6 +11,8 @@
 // P0-3: under `state.healthBlock` (health suspension / stale day decision) a new
 // execution, `resumed`, `completed` and new results are refused with that code;
 // pause, abandon and identical replays pass; the open execution carries it.
+// SPORT-SAFE-01R: `state.guidance` (M1's guidance of the day's decision) is carried, like the loader, by the
+// session before its start and by an open execution nothing blocks; never by a terminal one.
 // The real rules are covered against the real database by the integration
 // tests; this double only keeps the UI tests fast and deterministic.
 import { vi } from "vitest";
@@ -18,6 +20,7 @@ import type { GuidedSessionDeps } from "../features/guidedSession/useGuidedSessi
 import { isTerminal, phaseOf, selectDayExecution, type ActivityResultRow, type ExecutionRow, type SetResultRow } from "../features/guidedSession/executionState";
 import type { GuidedSessionSnapshot } from "../features/guidedSession/guidedSessionLoader";
 import type { HealthBlock } from "../features/guidedSession/healthBlock";
+import type { DayGuidance } from "../features/dailyPlan/dayGuidance";
 import type { SessionExecutionBatch, SessionExecutionResult } from "../features/guidedSession/sessionExecutionClient";
 import type { DrillItemView, ExerciseItemView, FinalPrescriptionV2View } from "../features/finalPrescriptionV2/finalPrescriptionV2Types";
 import { decodeFinalPrescriptionV2 } from "../features/finalPrescriptionV2/decodeFinalPrescriptionV2";
@@ -60,6 +63,10 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
     posts: [] as SessionExecutionBatch[],
     /** P0-3 — the server's execution_health_block for the day (null: nothing blocks). */
     healthBlock: null as HealthBlock | null,
+    /** SPORT-SAFE-01R — M1's guidance of the day's decision (null: none). */
+    guidance: null as DayGuidance | null,
+    /** SPORT-SAFE-01R.3 — A10's alternative note of the day's decision (null: none). */
+    alternativeNote: null as string | null,
   };
   const prescriptions = new Map<string, FinalPrescriptionV2View>();
   for (const p of [initial.prescription, ...extra]) if (p) prescriptions.set(p.id, p);
@@ -234,7 +241,9 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
         kind: "execution",
         ...day,
         prescription: p ? { kind: "created", prescription: p } : { kind: "unsupported_schema_or_catalog", reason: "old catalogue" },
-        ...(state.healthBlock ? { healthBlock: state.healthBlock } : {}),
+        ...(state.healthBlock
+          ? { healthBlock: state.healthBlock }
+          : { ...(state.guidance ? { guidance: state.guidance } : {}), ...(state.alternativeNote ? { alternativeNote: state.alternativeNote } : {}) }),
       };
     }
     if (state.current.unavailable) return state.current.unavailable;
@@ -246,7 +255,7 @@ export function fakeBackend(initial: FakeCurrent, extra: FinalPrescriptionV2View
         ? { kind: "execution", ...day, prescription: { kind: "created", prescription: cur }, restartFinalPrescriptionId: cur.id }
         : { kind: "execution", ...day, prescription: { kind: "created", prescription: cur } };
     }
-    return { kind: "ready_to_start", finalPrescriptionId: cur.id, prescription: cur };
+    return { kind: "ready_to_start", finalPrescriptionId: cur.id, prescription: cur, ...(state.guidance ? { guidance: state.guidance } : {}), ...(state.alternativeNote ? { alternativeNote: state.alternativeNote } : {}) };
   });
 
   let n = 0;

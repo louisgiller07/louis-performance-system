@@ -54,8 +54,9 @@ describe("formatConfidence (REV-015.1)", () => {
 describe("DecisionHero (REV-015.1)", () => {
   it.each([
     ["KEEP", DH_KEEP, "✓ Prêt à performer"],
-    ["MODIFY", DH_MODIFY, "✓ Ajusté — prêt à performer"],
-    ["REPLACE", DH_REPLACE, "✓ Nouveau plan — prêt à performer"],
+    // SPORT-SAFE-01R.4 — these adaptations come from fatigue: the decision's neutral line, never « prêt à performer ».
+    ["MODIFY", DH_MODIFY, "✓ Séance ajustée"],
+    ["REPLACE", DH_REPLACE, "✓ Séance remplacée"],
   ] as const)("%s: 'Ta mission', the decision in a coach's words and the tagline — never the confidence (UX-10A)", (decision, overrides, tagline) => {
     const plan = planFor(overrides);
     expect(plan.decision).toBe(decision);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DailyPlan, TrainingIntervention } from "../../src/types/index.js";
 import type { FinalPrescriptionV2Result, TodayTimeConstraintV2 } from "../../src/supabase/dailyV2/reconcileFinalPrescriptionV2.js";
-import { applyV2TodayTimeConstraint, V2_TODAY_TIME_CONSTRAINT_RULE_ID } from "../../src/supabase/dailyV2/applyV2TodayTimeConstraint.js";
+import { A04_MODIFY_NOT_SUPPORTED_RULE_ID, applyV2TodayTimeConstraint, V2_TODAY_TIME_CONSTRAINT_RULE_ID } from "../../src/supabase/dailyV2/applyV2TodayTimeConstraint.js";
 
 // A10 — the decision says the session that fits in the rider's time, traced.
 
@@ -75,5 +75,37 @@ describe("A10 — applyV2TodayTimeConstraint", () => {
     const after = applyV2TodayTimeConstraint(plan(DH_90), result({ availableMinutes: 15, action: "rest", before, after: { decision: "REST", kind: "REST" } }, "none"));
     expect([after.decision, after.final_session, after.training.active, after.dh_or_technical.active]).toEqual(["REST", { kind: "REST" }, false, false]);
     expect(after.training.objective).toBe("Tu as 15 min aujourd'hui : aucune séance ne tient honnêtement dans ce temps, repos aujourd'hui.");
+  });
+});
+
+// SPORT-SAFE-01R.3 (HPM option B) — A04's refusal kept beside A10's active-recovery alternative.
+describe("SPORT-SAFE-01R.3 — A10 after an A04 modify_not_supported refusal", () => {
+  const ENDURANCE_LIGHT_45: TrainingIntervention = { kind: "AEROBIC_BASE", load_profile: "LIGHT", duration_min: 45 };
+  const refusedBefore = { decision: "MODIFY" as const, kind: "AEROBIC_BASE", loadProfile: "LIGHT" as const, durationMin: 45 };
+  const refusal = { code: "final_prescription_adaptation_not_defined" as const, detail: { reason: "modify_not_supported", planned: "MODERATE", final: "LIGHT", durationMin: 45 } };
+
+  it("alternative selected: REPLACE active recovery; the refusal traced first (A04_MODIFY_NOT_SUPPORTED), then A10; the sentence says the planned session is not offered", () => {
+    const r = { ...result({ availableMinutes: 30, action: "adapted", before: refusedBefore, after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } }), refusedModify: refusal } as FinalPrescriptionV2Result;
+    const after = applyV2TodayTimeConstraint(plan(ENDURANCE_LIGHT_45, "MODIFY"), r);
+    expect([after.decision, after.final_session, after.training.active]).toEqual(["REPLACE", { kind: "RECOVERY_ACTIVE" }, true]);
+    const sentence = "Tu as 30 min aujourd'hui : la séance prévue n'est pas proposée (NALYNT n'en a pas de version guidée plus légère, et elle ne tient pas dans ce temps). Autre séance à la place : récupération active.";
+    expect(after.triggered_rules.slice(-2)).toEqual([
+      { layer: "ARBITRATION", rule_id: A04_MODIFY_NOT_SUPPORTED_RULE_ID, detail: "Séance décidée refusée : MODIFY AEROBIC_BASE LIGHT 45 min. Aucune version guidée plus légère que la séance de référence (modify_not_supported).", signals_used: [] },
+      { layer: "ARBITRATION", rule_id: V2_TODAY_TIME_CONSTRAINT_RULE_ID, detail: "Temps disponible : 30 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : adapted → REPLACE RECOVERY_ACTIVE.", signals_used: ["available_minutes_today"] },
+    ]);
+    expect([after.training.objective, after.decision_reasoning!.map((x) => x.detail)]).toEqual([sentence, ["Fatigue générale.", sentence]]);
+  });
+
+  it("no admissible alternative: the refusal stands, a trace only (« no_alternative »), nothing athlete-facing changes", () => {
+    const p = plan(ENDURANCE_LIGHT_45, "MODIFY");
+    const after = applyV2TodayTimeConstraint(p, result({ availableMinutes: 15, action: "no_alternative", before: refusedBefore, after: refusedBefore }));
+    expect(after.triggered_rules.at(-1)!.detail).toBe("Temps disponible : 15 min. Avant : MODIFY AEROBIC_BASE LIGHT 45 min. Action : no_alternative.");
+    expect({ ...after, triggered_rules: p.triggered_rules }).toEqual(p);
+  });
+
+  it("an ordinary A10 recovery (no refusal): the existing sentence, no A04 trace (unchanged)", () => {
+    const after = applyV2TodayTimeConstraint(plan(ENDURANCE_LIGHT_45, "MODIFY"), result({ availableMinutes: 30, action: "adapted", before: refusedBefore, after: { decision: "REPLACE", kind: "RECOVERY_ACTIVE" } }));
+    expect(after.training.objective).toBe("Tu as 30 min aujourd'hui : la séance prévue ne tient pas dans ce temps, récupération active à la place.");
+    expect(after.triggered_rules.some((t) => t.rule_id === A04_MODIFY_NOT_SUPPORTED_RULE_ID)).toBe(false);
   });
 });

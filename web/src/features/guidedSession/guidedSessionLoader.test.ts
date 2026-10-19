@@ -38,7 +38,8 @@ const execution = (id: string, fp: string | null, events: string[], recorded = "
 beforeEach(() => {
   vi.resetAllMocks();
   loadDayExecutions.mockResolvedValue([]);
-  loadLatestDecisionForDate.mockResolvedValue({ id: "d1", finalPrescriptionStatus: "created", isLatestOfDay: true, dailyPlan: { decision: "KEEP", triggered_rules: [] } });
+  // A valid daily plan's lists (loadLatestDecisionForDate only returns rows that pass isValidDailyPlan).
+  loadLatestDecisionForDate.mockResolvedValue({ id: "d1", finalPrescriptionStatus: "created", isLatestOfDay: true, dailyPlan: { decision: "KEEP", triggered_rules: [], protection: { do_not_do: [] }, monitoring: { observe: [] } } });
   loadDecisionCurrency.mockResolvedValue({ isCurrent: true, staleReason: null });
   loadOpenHealthFlags.mockResolvedValue([]);
 });
