@@ -65,6 +65,17 @@ export const EDITOR = {
   manualV2HeavyHint: "NALYNT ne construit pas encore le contenu d'un renfo en charge lourde : choisis une charge modérée ou légère pour obtenir le détail de la séance.",
 } as const;
 
+/**
+ * V1-WARN-01 — HPM-approved wording (2026-10-20) for a heavy lower-body Force planned by hand one or two days before
+ * a known DH day or race. Says the rider added it and that the coach did not validate this sequence; it says nothing
+ * about any other session.
+ */
+export const HEAVY_LOWER_BEFORE_DH = {
+  title: "Force lourde avant une journée DH",
+  body: "Tu as ajouté une séance de Force lourde du bas du corps un ou deux jours avant une journée DH prévue.",
+  advice: "Cet enchaînement n'a pas été validé par le coach NALYNT. Vérifie que ta récupération est suffisante et adapte ton entraînement si nécessaire.",
+} as const;
+
 /** P0-3 — the kinds (and loads) for which the V2 daily engine builds a manual session's content (mirror of planning-engine's REPLACE builders). */
 export const MANUAL_V2_BUILT_KINDS: readonly string[] = ["STRENGTH_LOWER", "STRENGTH_UPPER", "DH_TECHNICAL", "DH_LIGHT", "AEROBIC_BASE", "RECOVERY_ACTIVE", "REST"];
 

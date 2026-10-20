@@ -15,7 +15,8 @@ import { isPlannableFixedLoadKind, isPlannableLoadVariableKind, PLANNABLE_KINDS 
 import type { LoadProfile, PlannedSessionRow, TrainingInterventionKind } from "./planningTypes";
 import type { RaceOverlayEvent, RacePriority } from "./raceOverlayRepo";
 import { getPlannedDurationHelper, isDhFamilyPlannableKind, PLANNED_DURATION_PRESETS_MIN } from "./plannedDurationPolicy";
-import { DAY, dayBadge, dayState, EDITOR, formatDuration, kindLabel, loadLabel, manualSessionHint } from "./weekPresentation";
+import { DAY, dayBadge, dayState, EDITOR, formatDuration, HEAVY_LOWER_BEFORE_DH, kindLabel, loadLabel, manualSessionHint } from "./weekPresentation";
+import { isHeavyLowerBodyForce, isManualHeavyLowerBodyForce, type UpcomingDh } from "./heavyLowerBeforeDh";
 import type { PlanDaySession } from "./weekPresentation";
 
 // NAL-007 — compact, only for the two priorities worth flagging at a glance
@@ -73,6 +74,8 @@ interface PlanningDayCardProps {
   races: RaceOverlayEvent[];
   /** P0-3 — the active plan's prescription model (v1 / v2), null when unknown: decides the honest manual-session note. */
   planModel?: "v1" | "v2" | null;
+  /** V1-WARN-01 — the known DH day or race at J+1 / J+2 of this date (computed by PlanPage from loaded data), null when none is known. */
+  upcomingDh?: UpcomingDh | null;
   isToday: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -98,6 +101,7 @@ export function PlanningDayCard({
   notice = null,
   races,
   planModel = null,
+  upcomingDh = null,
   isToday,
   isExpanded,
   onToggleExpand,
@@ -212,6 +216,9 @@ export function PlanningDayCard({
   const duration = formatDuration(shown?.duration);
   const isCommitted = row?.is_committed === true;
   const planIsRest = (row?.intervention?.kind ?? planSession?.kind) === "REST";
+  // V1-WARN-01 — warns, never blocks: on the saved manual row, and on the draft being edited (it will be manual once saved).
+  const savedHeavyBeforeDh = upcomingDh !== null && isManualHeavyLowerBodyForce(row) ? upcomingDh : null;
+  const draftHeavyBeforeDh = upcomingDh !== null && isHeavyLowerBodyForce(draftKind, isVariableKind ? draftLoad : null) ? upcomingDh : null;
 
   const remove = async () => {
     await deletePlannedSession(athleteId, date);
@@ -273,6 +280,13 @@ export function PlanningDayCard({
         )}
         {!shown && state === "free" && !isExpanded && <p className="mt-1 text-sm font-medium text-gold">{DAY.addSession}</p>}
         {notice && !isExpanded && <p className="mt-2 text-xs text-ink/70">{notice}</p>}
+        {savedHeavyBeforeDh && !isExpanded && (
+          <span role="note" data-testid="heavy-lower-before-dh" className="mt-2 block rounded border border-amber-300/40 px-3 py-2 text-xs">
+            <span className="block font-semibold text-amber-300">{HEAVY_LOWER_BEFORE_DH.title}</span>
+            <span className="mt-1 block text-ink/80">{HEAVY_LOWER_BEFORE_DH.body}</span>
+            <span className="mt-1 block text-ink/80">{HEAVY_LOWER_BEFORE_DH.advice}</span>
+          </span>
+        )}
       </button>
 
       {isExpanded && (
@@ -383,6 +397,13 @@ export function PlanningDayCard({
             </p>
           )}
 
+          {draftHeavyBeforeDh && (
+            <div role="note" data-testid="heavy-lower-before-dh" className="rounded border border-amber-300/40 px-3 py-2 text-xs">
+              <p className="font-semibold text-amber-300">{HEAVY_LOWER_BEFORE_DH.title}</p>
+              <p className="mt-1 text-ink/80">{HEAVY_LOWER_BEFORE_DH.body}</p>
+              <p className="mt-1 text-ink/80">{HEAVY_LOWER_BEFORE_DH.advice}</p>
+            </div>
+          )}
           {manualSessionHint(planModel, draftKind, isVariableKind ? draftLoad : null) && (
             <p className="text-xs text-muted" data-testid="manual-session-hint">
               {manualSessionHint(planModel, draftKind, isVariableKind ? draftLoad : null)}

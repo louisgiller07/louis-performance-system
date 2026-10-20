@@ -95,7 +95,8 @@ describe("PlanPage — B, D", () => {
       expect(await screen.findByText(new RegExp(formatCalendarDate(date)))).toBeInTheDocument();
     }
     expect(screen.getAllByText("Libre")).toHaveLength(7);
-    expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
+    // V1-WARN-01 — the same read covers 2 lookahead days (J+1 / J+2 of the last displayed day); 7 days are still displayed.
+    expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], addDays(dates[6]!, 2));
   });
 });
 
@@ -111,7 +112,7 @@ describe("PlanPage — V0.3.010 (SIM-001)", () => {
     const expectedDates = Array.from({ length: 7 }, (_, i) => addDays("2026-09-23", i));
     // V0.3 UX PREMIUM — the simulated "today" card shows "Aujourd'hui" (REV-015.2), not its calendar date.
     await screen.findByRole("button", { name: /Aujourd'hui/ });
-    expect(loadPlannedSessions).toHaveBeenCalledWith("sim-athlete", expectedDates[0], expectedDates[6]);
+    expect(loadPlannedSessions).toHaveBeenCalledWith("sim-athlete", expectedDates[0], addDays(expectedDates[6]!, 2)); // V1-WARN-01 lookahead
     // Never a window anchored on the real device date instead — whatever
     // that happens to be when the suite runs, it is not 2026-09-23.
     expect(loadPlannedSessions).not.toHaveBeenCalledWith("sim-athlete", todayLocal(), addDays(todayLocal(), 6));
@@ -126,7 +127,8 @@ describe("PlanPage — V0.3.010 (SIM-001)", () => {
 
     const dates = horizonDates();
     await screen.findByRole("button", { name: /Aujourd'hui/ });
-    expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
+    // V1-WARN-01 — the same read covers 2 lookahead days (J+1 / J+2 of the last displayed day); 7 days are still displayed.
+    expect(loadPlannedSessions).toHaveBeenCalledWith("athlete-1", dates[0], addDays(dates[6]!, 2));
   });
 });
 
@@ -258,7 +260,7 @@ describe("PlanPage — NAL-007 race calendar overlay", () => {
     renderPage();
 
     expect(await screen.findAllByText("EDC Verbier")).toHaveLength(3);
-    expect(loadRacesInRange).toHaveBeenCalledWith("athlete-1", dates[0], dates[6]);
+    expect(loadRacesInRange).toHaveBeenCalledWith("athlete-1", dates[0], addDays(dates[6]!, 2)); // V1-WARN-01 lookahead
   });
 
   it("B: a race outside the horizon is not displayed", async () => {

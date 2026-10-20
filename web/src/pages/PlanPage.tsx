@@ -14,6 +14,7 @@ import type { RaceOverlayEvent } from "../features/planning/raceOverlayRepo";
 import { getActivePlanVersionId, getPlanPrescriptionSchemaVersion, getTrainingPlanReview } from "../features/trainingPlanReview/trainingPlanReviewRepo";
 import { PAGE, planSessionsByDate } from "../features/planning/weekPresentation";
 import type { PlanDaySession } from "../features/planning/weekPresentation";
+import { upcomingDhFor, type UpcomingDh } from "../features/planning/heavyLowerBeforeDh";
 
 type LoadState = "loading" | "loaded" | "error";
 // NAL-007 — entirely separate from LoadState above: a race-read failure
@@ -28,6 +29,8 @@ type RaceLoadState = "loading" | "loaded" | "error";
 type PlanLoadState = "loading" | "loaded" | "error";
 
 const HORIZON_DAYS = 7;
+/** V1-WARN-01 — J+1 / J+2 of the last displayed day. */
+const LOOKAHEAD_DAYS = 2;
 
 /**
  * /plan — "Modifier ma semaine" (UX-10B-2B), the athlete's rolling 7-day
@@ -51,15 +54,21 @@ export function PlanPage() {
   const dates = useMemo(() => {
     return Array.from({ length: HORIZON_DAYS }, (_, i) => addDays(effectiveToday, i));
   }, [effectiveToday]);
+  // V1-WARN-01 — the two days after the horizon, read with the SAME queries (planned sessions, races) so a DH day at
+  // J+1 / J+2 of the last displayed days is known, even in the following week. Never displayed, never editable.
+  const lookaheadDates = useMemo(() => Array.from({ length: LOOKAHEAD_DAYS }, (_, i) => addDays(dates[dates.length - 1]!, i + 1)), [dates]);
+  const detectionDates = useMemo(() => [...dates, ...lookaheadDates], [dates, lookaheadDates]);
 
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [rows, setRows] = useState<Record<string, PlannedSessionRow | null>>({});
+  const [lookaheadRows, setLookaheadRows] = useState<Record<string, PlannedSessionRow | null>>({});
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
 
   // NAL-007 — race/event overlay state, loaded and errored independently of
   // planned_sessions above. Read-only: race_calendar is never written here.
   const [raceLoadState, setRaceLoadState] = useState<RaceLoadState>("loading");
   const [racesByDate, setRacesByDate] = useState<Record<string, RaceOverlayEvent[]>>({});
+  const [lookaheadRacesByDate, setLookaheadRacesByDate] = useState<Record<string, RaceOverlayEvent[]>>({});
 
   const [planLoadState, setPlanLoadState] = useState<PlanLoadState>("loading");
   const [planByDate, setPlanByDate] = useState<Record<string, PlanDaySession>>({});
@@ -71,13 +80,14 @@ export function PlanPage() {
     if (!athleteId) return;
     setLoadState("loading");
     try {
-      const loaded = await loadPlannedSessions(athleteId, dates[0], dates[dates.length - 1]);
+      const loaded = await loadPlannedSessions(athleteId, dates[0], lookaheadDates[lookaheadDates.length - 1]!);
       const byDate = new Map(loaded.map((row) => [row.planned_date, row]));
       const next: Record<string, PlannedSessionRow | null> = {};
       for (const date of dates) {
         next[date] = byDate.get(date) ?? null;
       }
       setRows(next);
+      setLookaheadRows(Object.fromEntries(lookaheadDates.map((date) => [date, byDate.get(date) ?? null])));
       setLoadState("loaded");
     } catch {
       setLoadState("error");
@@ -95,8 +105,9 @@ export function PlanPage() {
     if (!athleteId) return;
     setRaceLoadState("loading");
     try {
-      const races = await loadRacesInRange(athleteId, dates[0], dates[dates.length - 1]);
+      const races = await loadRacesInRange(athleteId, dates[0], lookaheadDates[lookaheadDates.length - 1]!);
       setRacesByDate(groupRacesByDate(races, dates));
+      setLookaheadRacesByDate(groupRacesByDate(races, lookaheadDates));
       setRaceLoadState("loaded");
     } catch {
       // Deliberately no rows cleared/kept from a prior successful load —
@@ -117,7 +128,7 @@ export function PlanPage() {
       } else {
         const review = await getTrainingPlanReview(planVersionId);
         const sessions = review.blocks.flatMap((block) => block.weeks.flatMap((week) => week.sessions));
-        setPlanByDate(planSessionsByDate(sessions, dates));
+        setPlanByDate(planSessionsByDate(sessions, detectionDates));
         // Best-effort and asynchronous: never able to break the plan display above.
         Promise.resolve()
           .then(() => getPlanPrescriptionSchemaVersion(planVersionId))
@@ -142,6 +153,19 @@ export function PlanPage() {
   useEffect(() => {
     void loadRaces();
   }, [loadRaces]);
+
+  // V1-WARN-01 — the known DH day or race at J+1 / J+2 of each loaded date, from what this page already loaded (no new read).
+  const upcomingDhByDate = useMemo(() => {
+    const input = {
+      dates: detectionDates,
+      rows: { ...rows, ...lookaheadRows },
+      planByDate,
+      planKnown: planLoadState === "loaded",
+      racesByDate: { ...racesByDate, ...lookaheadRacesByDate },
+      racesKnown: raceLoadState === "loaded",
+    };
+    return Object.fromEntries(dates.map((date) => [date, upcomingDhFor(date, input)])) as Record<string, UpcomingDh | null>;
+  }, [dates, detectionDates, rows, lookaheadRows, planByDate, planLoadState, racesByDate, lookaheadRacesByDate, raceLoadState]);
 
   function handleToggleExpand(date: string) {
     setExpandedDate((current) => (current === date ? null : date));
@@ -203,6 +227,7 @@ export function PlanPage() {
               notice={notices[date] ?? null}
               races={racesByDate[date] ?? []}
               planModel={planModel}
+              upcomingDh={upcomingDhByDate[date] ?? null}
               isToday={index === 0}
               isExpanded={expandedDate === date}
               onToggleExpand={() => handleToggleExpand(date)}
