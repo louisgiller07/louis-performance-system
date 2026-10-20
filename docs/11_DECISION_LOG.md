@@ -6821,3 +6821,20 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - `docs/03` (tableau « Domaine 3 — Préparation physique ») reçoit une colonne de couverture : C3.3, C3.6 et C3.7 directes (C3.3 plus large que son énoncé) ; C3.5 directe mais partielle ; C3.2 indirecte et partielle (contrainte de mode `no_grip_heavy`) ; C3.8 partielle ; C3.1 et C3.4 absentes, avec leurs protections indirectes, explicitement non équivalentes.
 - Vérification : seules C3.3, C3.5, C3.6 et C3.7 sont émises par M1 ; le pipeline V1 réel, exécuté localement, place une Force bas du corps modérée à J-1 ou J-2 d'une DH selon les créneaux et ne produit jamais de charge lourde.
 - Le risque d'une Force lourde planifiée à la main avant une DH (V1) est qualifié dans `SPORT_PLAN_03_FINAL_ADR_GATE.md` ; toute correction relève d'une ADR V1 distincte.
+
+## 2026-10-20 — ADR V1-WARN-01 : avertissement « Force lourde avant une journée DH » (planning web V1)
+
+> **Décision HPM** : ACCEPTED (2026-10-20). Avertissement non bloquant dans le planning web uniquement. M1, Safety, P0-SAFE, doses, prescriptions, calcul des charges et règles de génération inchangés. Les trois ADR SPORT-PLAN-03 (M1, Composition, Endurance légère) restent PROPOSED.
+
+- **Constat** : C3.1 est absente du code (`docs/03`, couverture vérifiée au commit `0eed6d4`). En V1, une Force bas du corps lourde planifiée à la main (`source = 'manual'`, lignée effacée) n'a aucune prescription exécutable, et M1 ne voit que la séance du jour, jamais le DH de J+1 ou J+2. En V2, la Force lourde manuelle est déjà refusée ; aucun générateur ne produit de charge lourde.
+- **Décision** : `/plan` affiche une note non bloquante sur la carte du jour (repliée et dans l'éditeur) quand les deux conditions sont réunies :
+  - la séance est manuelle, avec une intervention explicite `STRENGTH_LOWER` en charge `HEAVY` (pendant l'édition : le brouillon équivalent) ;
+  - un jour de DH connu tombe à J+1, sinon à J+2 : une course connue ; sinon la ligne planifiée explicite `DH_TECHNICAL`, `DH_PERFORMANCE` ou `DH_LIGHT` ; sinon, sans ligne, la séance DH du plan actif connu. La ligne du rider prime sur le plan.
+  - Jamais : séance générée, ligne sans source, ligne ancienne sans intervention (types coarse ambigus), PUMPTRACK, entretien vélo, DH absent des données, plan ou courses non chargés.
+- **Texte approuvé** : « Force lourde avant une journée DH » ; « Tu as ajouté une séance de Force lourde du bas du corps un ou deux jours avant une journée DH prévue. » ; « Cet enchaînement n'a pas été validé par le coach NALYNT. Vérifie que ta récupération est suffisante et adapte ton entraînement si nécessaire. »
+- **Effet** : la séance n'est ni bloquée, ni modifiée, ni supprimée, et l'enregistrement reste possible. Aucune autre séance n'est présentée comme validée. Aucune surface Aujourd'hui.
+- **Limite de semaine** : `/plan` lit `planned_sessions` et `race_calendar` sur les 7 jours affichés plus 2 jours, avec les mêmes requêtes, les mêmes colonnes et la même RLS. Ces 2 jours servent uniquement à la détection : ils ne sont ni affichés ni modifiables.
+- **Ce que ce n'est pas** : ni une implémentation de C3.1 dans M1 ou dans les générateurs (C3.1 reste absente du moteur ; toute règle moteur exige une ADR M1), ni une règle sportive validée par le préparateur physique.
+- **Non couvert** : `STRENGTH_FULL_LIGHT` ou `POWER` lourdes, Force corps entier future, surface Aujourd'hui, lignes anciennes sans intervention.
+- **Tests** : `heavyLowerBeforeDh.test.ts`, `PlanningDayCard.heavyBeforeDh.test.tsx` et `PlanPage.heavyBeforeDh.test.tsx` (24 tests, dont le passage d'une semaine à la suivante) ; `PlanPage.test.tsx` adapté à la plage de lecture. Contre-preuve : sans la lecture élargie, 5 des 7 tests de page échouent.
+- **Publication** : web seul ; aucune migration, aucune fonction Edge, aucun flag. Retour arrière : Instant Rollback Vercel ou `git revert`.
