@@ -222,7 +222,7 @@ const ENTRIES: CoachingTextEntry[] = [
   intent("intent.strength_maintenance_light", "Entretenir ta force sans ajouter de fatigue."),
   intent("intent.corner_exit_power", "Développer la capacité à accélérer après les sorties de virage."),
   intent("intent.dh_braking_control", "Freiner au bon endroit pour garder ta vitesse."),
-  intent("intent.dh_corner_exit_speed", "Sortir des virages avec plus de vitesse."),
+  intent("intent.dh_corner_exit_speed", "Sortir des virages sur une trajectoire stable et maîtrisée."),
   // P0-2 — the intent of cornering_advanced_line_exit: no imposed speed increase (draft, not yet sport-approved).
   intent("intent.dh_corner_line_control", "Choisir et répéter une trajectoire propre, avec une sortie stable."),
   intent("intent.dh_line_reading", "Lire le terrain plus tôt et choisir ta ligne."),

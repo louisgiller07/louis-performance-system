@@ -37,7 +37,7 @@ describe("P0-2 — V2 prescriptions after the catalogue change", () => {
       cue: "Engage ton poids côté aval du vélo et continue dans la section en dévers, sans lâcher en plein virage.",
       successCriterion: "Section en dévers passée sur ta ligne, sans pied posé.",
     });
-    expect(r.ok && r.view.intent).toBe("Sortir des virages avec plus de vitesse.");
+    expect(r.ok && r.view.intent).toBe("Sortir des virages sur une trajectoire stable et maîtrisée."); // SPORT-COACH-SAFE-01: corrected objective, same intent id
   });
 
   it("the new general advanced cornering drill renders with its draft texts and its own intent (no imposed speed increase)", () => {

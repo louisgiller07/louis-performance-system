@@ -6808,8 +6808,8 @@ Rapport : `SPORT_COACH_SAFE_01_RELEASE_GATE.md`.
   - Noms : par identifiant, aucun texte stocké.
   - Le web seul corrige tous les plans ; `daily-run` et `generate-training-plan` ne changent que par des textes de catalogue.
 - **Cohérence** : pour les six exercices, le nom, la consigne et le critère ne demandent plus ni de ne pas freiner ni d'aller plus vite ; la vitesse de course n'apparaît plus que sous condition. Test `sportCoachSafe012Cues.test.tsx`, contre-preuve : 11 tests échouent sans la correction.
-- **Restent hors périmètre, pour décision** :
-  - l'objectif V2 de la compétence virages (`intent.dh_corner_exit_speed`, « Sortir des virages avec plus de vitesse. ») ;
+- **Objectif V2 de la compétence virages** (décision HPM, finalisation) : `intent.dh_corner_exit_speed` devient « Sortir des virages sur une trajectoire stable et maîtrisée. » (affiché en tête des séances DH V2 orientées virages ; identifiant inchangé, texte résolu par le miroir pour les plans existants et futurs).
+- **Reste hors périmètre, pour décision** :
   - les exercices d'intensité course (comparaison de lignes, simulations de course : « vitesse course », « mode course », « allure course »), réservés aux avancés en charge modérée et jamais affichés en séance légère (T46).
 
 Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.

@@ -123,7 +123,7 @@ export const COACHING_TEXTS_V1_0: Readonly<Record<string, { kind: CoachingTextKi
   "intent.aerobic_repeat_efforts": { kind: "intent", text: "Répéter les efforts intenses sans t'éteindre." },
   "intent.corner_exit_power": { kind: "intent", text: "Développer la capacité à accélérer après les sorties de virage." },
   "intent.dh_braking_control": { kind: "intent", text: "Freiner au bon endroit pour garder ta vitesse." },
-  "intent.dh_corner_exit_speed": { kind: "intent", text: "Sortir des virages avec plus de vitesse." },
+  "intent.dh_corner_exit_speed": { kind: "intent", text: "Sortir des virages sur une trajectoire stable et maîtrisée." },
   "intent.dh_corner_line_control": { kind: "intent", text: "Choisir et répéter une trajectoire propre, avec une sortie stable." },
   "intent.dh_jump_control": { kind: "intent", text: "Contrôler tes sauts de l'appel à la réception." },
   "intent.dh_line_reading": { kind: "intent", text: "Lire le terrain plus tôt et choisir ta ligne." },
