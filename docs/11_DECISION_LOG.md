@@ -6813,3 +6813,11 @@ Rapport : `SPORT_COACH_SAFE_01_RELEASE_GATE.md`.
   - les exercices d'intensité course (comparaison de lignes, simulations de course : « vitesse course », « mode course », « allure course »), réservés aux avancés en charge modérée et jamais affichés en séance légère (T46).
 
 Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
+
+## 2026-10-20 — SPORT-PLAN-03.2 : état réel des heuristiques C3.1 à C3.8 (amendement factuel de `docs/03`)
+
+> **Décision HPM** : appliquer l'amendement documentaire strictement factuel préparé en SPORT-PLAN-03.1. Aucune règle n'est activée ni modifiée.
+
+- `docs/03` (tableau « Domaine 3 — Préparation physique ») reçoit une colonne de couverture : C3.3, C3.6 et C3.7 directes (C3.3 plus large que son énoncé) ; C3.5 directe mais partielle ; C3.2 indirecte et partielle (contrainte de mode `no_grip_heavy`) ; C3.8 partielle ; C3.1 et C3.4 absentes, avec leurs protections indirectes, explicitement non équivalentes.
+- Vérification : seules C3.3, C3.5, C3.6 et C3.7 sont émises par M1 ; le pipeline V1 réel, exécuté localement, place une Force bas du corps modérée à J-1 ou J-2 d'une DH selon les créneaux et ne produit jamais de charge lourde.
+- Le risque d'une Force lourde planifiée à la main avant une DH (V1) est qualifié dans `SPORT_PLAN_03_FINAL_ADR_GATE.md` ; toute correction relève d'une ADR V1 distincte.

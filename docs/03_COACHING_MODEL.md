@@ -691,16 +691,18 @@ Voir `docs/06_ARCHITECTURE.md` §V0.3_006C1 et `docs/11_DECISION_LOG.md` pour l'
 
 ### Domaine 3 — Préparation physique
 
-| ID | Heuristique |
-|---|---|
-| C3.1 | Pas de force lourde bas du corps à J-1 ou J-2 d'une DH importante |
-| C3.2 | Pas de travail grip lourd en race week |
-| C3.3 | Sommeil < 6h + force bas du corps prévue → adaptation d'intensité (pas downgrade automatique) |
-| C3.4 | 48h min entre 2 séances force lourdes bas du corps (PROVISIONAL) |
-| C3.5 | Grip fatigue élevée → pivot vers exercices sans grip |
-| C3.6 | Jambes fatigue élevée → pivot vers haut du corps ou DH léger |
-| C3.7 | Charge RED (≥ 5 séances MODERATE ou HEAVY complétées sur [J − 7, J], 8 jours ; PROVISIONAL) → règle informative et ligne de suivi, sans changement de la séance |
-| C3.8 | En RACE_CLUSTER, développement possible si compatible avec récup + DH + proximité course |
+| ID | Heuristique | Couverture dans le code (`0eed6d4`) |
+|---|---|---|
+| C3.1 | Pas de force lourde bas du corps à J-1 ou J-2 d'une DH importante | **Absente.** Protections indirectes partielles, non équivalentes : aucun générateur (V1, V2) ne produit de charge lourde ; protocole de course (J-2 et J-1 repos) pour les seuls formats Hot Trail et iXS identifiés. Une Force lourde planifiée à la main (V1) n'est pas contrôlée, et le générateur V1 peut placer une Force bas du corps modérée à J-1 ou J-2 d'une DH. |
+| C3.2 | Pas de travail grip lourd en race week | **Indirecte, partielle** : contrainte de mode `no_grip_heavy` (RACE_WEEK forte, RACE_CLUSTER modérée), GRIP_WORK remplacé par une Force bas du corps modérée. Aucun générateur ne produit GRIP_WORK. |
+| C3.3 | Sommeil < 6h + force bas du corps prévue → adaptation d'intensité (pas downgrade automatique) | **Directe, plus large que l'énoncé** : sommeil < 6 h (systémique RED) baisse d'un cran la charge de toute séance à charge variable, nature conservée. |
+| C3.4 | 48h min entre 2 séances force lourdes bas du corps (PROVISIONAL) | **Absente de M1.** Le planificateur V1 réduit la seconde de deux Force lourdes consécutives, mais aucun générateur ne produit de charge lourde : sans effet. |
+| C3.5 | Grip fatigue élevée → pivot vers exercices sans grip | **Directe, partielle** : GRIP_WORK remplacé (Force bas du corps modérée, ou récupération active si jambes RED), DH intense remplacé par DH léger, Force haut du corps allégée d'un cran. Les exercices du haut du corps ne sont pas remplacés par des exercices sans grip. |
+| C3.6 | Jambes fatigue élevée → pivot vers haut du corps ou DH léger | **Directe** : Force bas du corps remplacée par une Force haut du corps modérée (récupération active si grip RED), DH intense remplacé par DH léger ; l'endurance est en plus allégée d'un cran. |
+| C3.7 | Charge RED (≥ 5 séances MODERATE ou HEAVY complétées sur [J − 7, J], 8 jours ; PROVISIONAL) → règle informative et ligne de suivi, sans changement de la séance | **Directe** (règle informative et repère de suivi). |
+| C3.8 | En RACE_CLUSTER, développement possible si compatible avec récup + DH + proximité course | **Partielle** : RACE_CLUSTER n'interdit pas le développement ; la compatibilité avec la récupération, la DH et la proximité de course n'est pas évaluée. |
+
+*Couverture vérifiée dans le code au commit `0eed6d4` (SPORT-PLAN-03.2, HPM 2026-10-20). « Indirecte » ou « partielle » ne signifie pas une protection équivalente à l'heuristique. Cette colonne décrit l'existant et n'active aucune règle.*
 
 ### Domaine 4 — Sommeil et récupération
 
