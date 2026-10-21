@@ -282,6 +282,10 @@ export function DailyPlanView({
       )}
     </>
   );
+  // SPORT-SAFE-02 — the grip / braking stop rule stays VISIBLE on Today (UX-05: Safety-relevant elements never go
+  // into the collapsed plan details), once, next to the DH session it concerns.
+  const gripNotice = dhSafetyNotice && isDhPrescription ? <DhGripSafetyNotice /> : null;
+
   const dhSections = (
     <>
       {/*
@@ -387,7 +391,6 @@ export function DailyPlanView({
                 <p className="text-xs text-muted">{DH_SESSION_WINDOW_CAPTION}</p>
               </>
             )}
-            {dhSafetyNotice && <DhGripSafetyNotice className="mt-3" />}
           </PlanSection>
         </>
       )}
@@ -590,6 +593,7 @@ export function DailyPlanView({
       {sessionCard}
       {trainingSection}
       {dhSections}
+      {gripNotice}
       {prescriptionSection}
       {mentalSection}
 
@@ -648,6 +652,7 @@ export function DailyPlanView({
         {healthSection}
         {sessionCard}
         {trainingSection}
+        {gripNotice}
         {protectionSection}
         {monitoringSection}
       </div>

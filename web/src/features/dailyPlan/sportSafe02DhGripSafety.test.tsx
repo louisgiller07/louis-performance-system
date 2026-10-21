@@ -54,6 +54,17 @@ describe("SPORT-SAFE-02 — DH grip / braking stop rule", () => {
     expect(notices[0]!.textContent).not.toMatch(/\d|détect|NALYNT a /);
   });
 
+  it("Today with the collapsed plan details (UX-05): the stop rule stays visible, never inside « Voir les détails du plan »", () => {
+    const target = document.createElement("div");
+    document.body.appendChild(target);
+    render(<DailyPlanResult result={result()} today={{ checkin: null, revealed: false, detailsTarget: target }} />);
+    const notices = screen.getAllByTestId("dh-grip-safety");
+    expect(notices).toHaveLength(1);
+    expect(notices[0]!.closest("details")).toBeNull();
+    expect(target.querySelector('[data-testid="dh-grip-safety"]')).toBeNull();
+    target.remove();
+  });
+
   it("Today, a non-DH session: never shown", () => {
     render(<DailyPlanResult result={result(NON_DH)} />);
     expect(screen.queryByTestId("dh-grip-safety")).toBeNull();
