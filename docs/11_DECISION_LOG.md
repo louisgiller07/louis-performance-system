@@ -6864,3 +6864,12 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Tests** : `sessionResultHistory.test.ts` (16), `sessionResultHistoryRepo.test.ts` (5), `sessionResultHistory.integration.test.ts` (7 : stack locale, chemins d'écriture réels, deux riders, client du rider sous RLS, lecture sans effet sur les tables).
 
 **Statut** : READY FOR HPM REVIEW (branche `feat/partial-01-l2-history`, depuis `db97acb`). Aucun push, aucune migration, aucun déploiement.
+
+### Addendum PARTIAL-01-L2 (HPM 2026-10-21) : LOCAL PASS, contrat `docs/05` appliqué
+
+> **Décision HPM** : PARTIAL-01-L2 LOCAL PASS ; architecture en lecture seule approuvée ; aucun GO de publication.
+
+- `docs/05` reçoit la section « Historique réel des séances » : les cinq natures de donnée (enregistrée par événement, déclarée, estimée ou calculée, prévue, absente), les limites V1 et V2, et cinq assimilations interdites : terminée / réussie, absence de résultat / séance sautée, RPE de série / RPE de séance, durée planifiée / réalisée, `session_load` / charge physiologique mesurée. Aucun seuil.
+- Les règles de progression futures restent PROPOSED (SPORT-PLAN-03), hors de ce ticket.
+- Intégration locale : branche `integration/partial-01-l2` depuis `db97acb`, avec le candidat `5dd5a45` + `3eb1405` (avance rapide) et la clôture V1-WARN-01 (`afce2a1`, reprise à l'identique).
+- L'adaptateur reste non importé par le code de production ; il n'est branché ni sur la génération, ni sur M1.

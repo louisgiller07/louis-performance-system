@@ -592,6 +592,56 @@ Absence de résultat, séance arrêtée, séance partielle, repos, remplacement 
 
 **Lecture** : une lecture groupée par table (débriefs V1, exécutions, événements, décisions, prescriptions finales, séries, activités, check-ins, signaux de santé), sous le client service role de la génération. Une lecture en échec, ou un résultat atteignant le plafond de lignes, **refuse la génération** ; jamais un historique silencieusement vide.
 
+### Historique réel des séances (PARTIAL-01-L2, HPM 2026-10-21 — lecture seule, non branché)
+
+Ce que le futur moteur V2 pourra savoir des séances réellement faites. Lectures : `head-coach-engine/src/supabase/repositories/sessionResultHistoryRepo.ts` ; normalisation pure : `head-coach-engine/src/supabase/mapping/sessionResultHistory.ts`. **Aucun consommateur** : ni la génération, ni M1, ni les décisions ne le lisent. Ce contrat ne définit aucun seuil (progression, RPE, fatigue, récupération) ; les règles de progression futures restent PROPOSED (SPORT-PLAN-03), hors de ce contrat.
+
+**Entrées** : une par débrief V1 (`completed_sessions`) et une par exécution guidée V2 (`session_executions`), dans la fenêtre `[from, to]` fournie par l'appelant.
+- Ordre : date, puis tentatives guidées par `started_at` et `id`, puis débrief.
+- Jamais de fusion ni de dédoublonnage : deux tentatives du même jour (arrêt puis reprise) restent deux entrées. Un débrief V1 ne coexiste qu'avec une tentative arrêtée avant tout résultat (F-5, INT-01).
+- Un jour sans enregistrement n'a aucune entrée.
+
+**Nature de chaque valeur**. Chaque valeur porte sa source (`table.colonne`).
+
+| Nature | Sens | Exemples |
+|---|---|---|
+| Enregistrée par événement (`real`, `recorded`) | saisie dans l'app pendant la séance, par un événement ou un résultat | `execution_events`, séries (`exercise_set_results`), activité (`session_activity_results`) |
+| Déclarée par le rider (`real`, `declared`) | déclarée après la séance | débrief V1 : issue, activité faite, durée, RPE de séance, fatigues, douleur, motif, réussite technique |
+| Estimée ou calculée (`estimated`) | dérivée d'autres valeurs | `session_load` = `actual_duration_min × rpe / 10` (trigger) |
+| Prévue (`planned`) | décision ou prescription, jamais le travail fait | `decisions.daily_plan.final_session` de la décision liée ; `decision_final_prescriptions.structure` |
+| Absente (`absent`, avec motif) | jamais complétée, convertie ni recopiée depuis le prévu | `not_collected`, `not_entered`, `not_specified`, `not_applicable`, `not_linked`, `not_readable` |
+
+**Issues**
+- V1, telles que déclarées : `done` → terminée, `partial` → partielle, `replaced` → remplacée, `skipped` → non réalisée.
+- V2, avec un événement `completed` : règle PARTIAL-01 sur la prescription figée et les résultats actifs. Chaque série de travail ou chaque passage prévu réalisé → complète ; moins → partielle.
+- V2, fin `completed` sans réalisation prouvable (endurance, puissance, mobilité, récupération, prescription illisible, résultats ambigus) → « terminée, non qualifiée », jamais complète.
+- V2, `abandoned` → arrêtée : les résultats déjà enregistrés restent lisibles. Sans événement terminal → ouverte.
+- Comparaison prévu / réalisé : comptes factuels des créneaux prescrits (avec résultat réalisé, sans résultat, ambigus), quelle que soit l'issue.
+
+**Ne jamais assimiler**
+- **Séance terminée et séance réussie** : une issue terminée (déclarée en V1, non qualifiée en V2) ne dit rien de la réussite. La réussite d'un passage DH est l'évaluation du rider ; elle ne qualifie pas la séance.
+- **Absence de résultat et séance sautée** : un créneau prévu sans ligne n'a pas de résultat. « Non réalisée » n'existe que déclarée, en V1 ; V2 n'a aucune représentation de `skipped`.
+- **RPE de série et RPE de séance** : `exercise_set_results.rpe_actual` (série, 1–10) et `session_activity_results.rpe_actual` (activité d'endurance, 1–10) ne sont pas `completed_sessions.rpe` (séance V1, 0–10). Aucun RPE de séance n'est collecté en V2.
+- **Durée planifiée et durée réalisée** : la durée décidée reste prévue. La seule durée réalisée V2 est celle d'une activité d'endurance. L'écart entre deux horodatages d'événements inclut les pauses : ce n'est pas une durée d'entraînement.
+- **`session_load` calculée et charge physiologique mesurée** : `session_load` est une estimation dérivée de la durée et du RPE déclarés. Aucune charge physiologique n'est mesurée.
+
+**Limites V1**
+- Un débrief par jour, remplacé en entier à chaque modification : il reflète la dernière déclaration.
+- Lignes anciennes sans `intervention` ni champs de débrief : valeurs absentes, jamais déduites de `session_type` ni de `main_content`.
+- Lien de décision facultatif : sans lien, le côté prévu est absent (`not_linked`).
+
+**Limites V2**
+- Non collectés : durée effectuée (Force, DH, puissance, mobilité, récupération), RPE de séance, retour post-séance (fatigue, douleur, motif, réussite technique), réussite d'une série Force, `skipped` et `replaced`.
+- Charge (`load_kg`) et RPE de série facultatifs : absents quand ils ne sont pas saisis.
+- L'endurance n'est jamais comparée à sa durée prescrite (PARTIAL-01).
+- « Autre exercice » (`other_exercise_name`) : travail réel hors prescription ; le nom libre est transmis tel quel et n'est jamais interprété. L'app ne le saisit pas aujourd'hui.
+
+**Lecture**
+- Filtre `athlete_id` explicite sur chaque lecture : correct sous le client service role comme sous le client du rider (RLS, ses lignes seulement).
+- Résultats de toutes les tentatives, corrections appliquées (ligne active = ligne non remplacée).
+- Textes libres jamais lus : `free_notes`, `new_pain_note`, `change_reason_note`, `main_content`, `comment`. Les check-ins ne sont jamais rattachés à une séance.
+- Une lecture en échec, ou un résultat atteignant le plafond de lignes (1000, égal au `max_rows` de PostgREST), refuse l'historique : jamais un historique tronqué présenté comme complet.
+
 ### `athlete_onboarding_profiles` — consentement données de santé (PILOT_012, additif)
 
 Deux colonnes ajoutées par `20260924100000_pilot_002_health_data_consent.sql` :
