@@ -5,6 +5,7 @@ import {
   createTestClient,
   createTestAthlete,
   deleteTestAthlete,
+  getAthleteAuthClient,
   insertCheckin,
   insertTrainingBlock,
   isLoopbackSupabaseUrl,
@@ -89,14 +90,16 @@ describe.skipIf(!INTEGRATION_ENABLED)("T21 — concussion signal survives multip
       expect(await countOpenConcussionFlags()).toBe(1);
     }
 
-    // --- Explicit external validation (privileged DB write — the same
-    // action a real "medical clearance recorded" workflow would perform;
-    // never triggered by any ordinary check-in) ---
-    const { error: resolveError } = await client
-      .from("health_flags")
-      .update({ status: "resolved", resolved_at: dayN3 })
-      .eq("id", flagId);
+    // --- Explicit external validation. SPORT-SAFE-02 A5-P0: a concussion signal is closed ONLY by the rider's
+    // declarative attestation (record_health_flag_attestation) — a privileged direct write is now refused. ---
+    const { error: directError } = await client.from("health_flags").update({ status: "resolved", resolved_at: dayN3 }).eq("id", flagId);
+    expect(directError?.message).toBe("concussion_resolution_requires_attestation");
+    const rider = await getAthleteAuthClient(athlete.athleteId);
+    const { data: attested, error: resolveError } = await rider.rpc("record_health_flag_attestation", {
+      p_attestation: { id: crypto.randomUUID(), flag_id: flagId, outcome: "full_return_authorised", assessed_on: dayN3 },
+    });
     expect(resolveError).toBeNull();
+    expect(attested).toMatchObject({ status: "recorded", flag_status: "resolved" });
     expect(await countOpenConcussionFlags()).toBe(0);
 
     // --- Day N+4: normal prescription returns — A5 no longer fires ---

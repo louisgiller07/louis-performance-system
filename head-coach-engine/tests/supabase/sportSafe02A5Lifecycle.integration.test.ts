@@ -128,7 +128,10 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 — A5 concussion follow-up around state c
     openConcussion(r, day);
     await insertCheckin(admin, r.athleteId, day);
     const suspended = await dailyRun(r, day);
-    resolve(r, "concussion_suspect", day);
+    // A5-P0: a concussion signal is closed only through the rider's declarative attestation.
+    const flagId = execLocalSql(`select id from public.health_flags where athlete_id = ${lit(r.athleteId)} and flag_type = 'concussion_suspect' and status <> 'resolved';`).trim();
+    const { data: closed } = await r.client.rpc("record_health_flag_attestation", { p_attestation: { id: randomUUID(), flag_id: flagId, outcome: "ruled_out", assessed_on: day } });
+    expect((closed as { status: string }).status).toBe("recorded");
     const after = await dailyRun(r, day);
     const out = { suspended: [suspended.decision, suspended.rules, suspended.prescription === undefined], after: [after.decision, `${after.kind} ${after.load ?? "-"}`] , planned };
     report.closure = out;
@@ -136,12 +139,9 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 — A5 concussion follow-up around state c
     expect(out.after).toEqual(["KEEP", planned]);
   });
 
-  // KNOWN GAP — the candidate contract: an open concussion signal suspends every family, whatever the timing. The
-  // server guard (execution_health_block) blocks only a DH session on the signal itself, and otherwise relies on the
-  // day's latest decision being a Safety REST; the decision currency follows the check-in and the planned session,
-  // not the signals. A signal written without a new daily-run (an operator write, a future closure / reopening
-  // workflow) leaves an older Force prescription startable.
-  it.fails("KNOWN GAP — a Force prescription produced before the signal opened (no new daily-run) cannot be started", async () => {
+  // Formerly a KNOWN GAP (it.fails): closed by A5-P0 — execution_health_block reads the open concussion signal itself,
+  // for every family, whatever the day's decision.
+  it("a Force prescription produced before the signal opened (no new daily-run) cannot be started", async () => {
     const r = await rider("stale-ready");
     const day = r.forceDays[0]!;
     await insertCheckin(admin, r.athleteId, day);

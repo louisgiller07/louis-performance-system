@@ -5,6 +5,7 @@ import {
   createTestClient,
   createTestAthlete,
   deleteTestAthlete,
+  getAthleteAuthClient,
   insertCheckin,
   insertTrainingBlock,
   isLoopbackSupabaseUrl,
@@ -81,12 +82,13 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2 write path — longitudinal A1 → A5 
     expect(await countOpenConcussionFlags()).toBe(1);
     expect(await countDecisions()).toBe(2);
 
-    // --- Resolve the flag (explicit fixture/test DB action, not an applicative repository) ---
-    const { error: resolveError } = await client
-      .from("health_flags")
-      .update({ status: "resolved", resolved_at: dayN1 })
-      .eq("id", runN.persistence.health_flag_id!);
+    // --- Resolve the flag. SPORT-SAFE-02 A5-P0: only the rider's declarative attestation closes a concussion signal. ---
+    const rider = await getAthleteAuthClient(athlete.athleteId);
+    const { data: attested, error: resolveError } = await rider.rpc("record_health_flag_attestation", {
+      p_attestation: { id: crypto.randomUUID(), flag_id: runN.persistence.health_flag_id!, outcome: "ruled_out", assessed_on: dayN1 },
+    });
     expect(resolveError).toBeNull();
+    expect(attested).toMatchObject({ status: "recorded", flag_status: "resolved" });
     expect(await countOpenConcussionFlags()).toBe(0);
 
     // --- Day N+2: neutral checkin again — A5 must no longer trigger from the resolved flag ---
