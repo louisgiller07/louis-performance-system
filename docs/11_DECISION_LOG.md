@@ -6838,3 +6838,29 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Non couvert** : `STRENGTH_FULL_LIGHT` ou `POWER` lourdes, Force corps entier future, surface Aujourd'hui, lignes anciennes sans intervention.
 - **Tests** : `heavyLowerBeforeDh.test.ts`, `PlanningDayCard.heavyBeforeDh.test.tsx` et `PlanPage.heavyBeforeDh.test.tsx` (24 tests, dont le passage d'une semaine à la suivante) ; `PlanPage.test.tsx` adapté à la plage de lecture. Contre-preuve : sans la lecture élargie, 5 des 7 tests de page échouent.
 - **Publication** : web seul ; aucune migration, aucune fonction Edge, aucun flag. Retour arrière : Instant Rollback Vercel ou `git revert`.
+
+## 2026-10-21 — PARTIAL-01-L2 : adaptateur de lecture de l'historique réel des séances (lecture seule, non branché)
+
+> **Décision HPM** : GO pour un développement technique local ciblé : donner au futur moteur V2 un accès fiable aux résultats réellement enregistrés, sans aucune règle de progression nouvelle. M1, Safety, P0-SAFE, prescriptions et doses inchangés ; aucune migration ; aucun branchement sur la génération ni sur les décisions.
+
+- **Sources lues** (lecture seule ; filtre `athlete_id` explicite sur chaque lecture ; fenêtre `[from, to]` fournie par l'appelant) :
+  - `completed_sessions` : débrief V1, sans les textes libres (`free_notes`, `new_pain_note`, `change_reason_note`, `main_content`) ;
+  - `session_executions` et `execution_events` ;
+  - `exercise_set_results` et `session_activity_results`, sans `comment`, pour toutes les tentatives (une tentative arrêtée peut contenir du travail réel) ;
+  - `decision_final_prescriptions.structure` (prescription figée) et `decisions.daily_plan->final_session` (séance décidée).
+  - Une lecture en échec ou au plafond (1000 lignes) refuse l'historique : jamais un historique vide ou tronqué.
+- **Normalisation** (`head-coach-engine/src/supabase/mapping/sessionResultHistory.ts`, pur) : une entrée par débrief V1 et une par exécution guidée V2, sans fusion ni dédoublonnage. Chaque valeur porte sa source et son statut :
+  - réelle : enregistrée pendant la séance, ou déclarée après par le rider ;
+  - estimée : `session_load` seulement (`actual_duration_min × rpe / 10`) ;
+  - prévue : séance décidée, prescription figée ;
+  - absente, avec son motif : `not_collected`, `not_entered`, `not_specified`, `not_applicable`, `not_linked`, `not_readable`.
+- **Issues** :
+  - V1, telles que déclarées : `done` → completed, `partial` → partial, `replaced` → replaced, `skipped` → not_done.
+  - V2, règle PARTIAL-01 réutilisée telle quelle (`realisationV2`) : completed ou partial. Une fin `completed` sans réalisation prouvable (endurance, mobilité, récupération, puissance, prescription illisible, résultats ambigus) → `completed_unqualified`, jamais completed. `abandoned` → abandoned, le travail réel restant lisible. Sans événement terminal → open.
+  - Un jour sans enregistrement n'a aucune entrée : ni séance manquée, ni séance sautée.
+- **Jamais** : durée décidée recopiée comme durée effectuée ; séance partielle convertie en complète ; valeur absente complétée ; check-in attribué à une séance ; texte libre lu.
+- **Non branché** : aucun import hors tests ; bundles Edge `daily-run` et `generate-training-plan` identiques au bit près avec et sans l'adaptateur ; `planHistoryV2` (V2-L2-01a) inchangé.
+- **Contrat de données** : section `docs/05` proposée, soumise à décision HPM, non appliquée.
+- **Tests** : `sessionResultHistory.test.ts` (16), `sessionResultHistoryRepo.test.ts` (5), `sessionResultHistory.integration.test.ts` (7 : stack locale, chemins d'écriture réels, deux riders, client du rider sous RLS, lecture sans effet sur les tables).
+
+**Statut** : READY FOR HPM REVIEW (branche `feat/partial-01-l2-history`, depuis `db97acb`). Aucun push, aucune migration, aucun déploiement.
