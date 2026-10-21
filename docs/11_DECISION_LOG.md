@@ -6873,3 +6873,27 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - Les règles de progression futures restent PROPOSED (SPORT-PLAN-03), hors de ce ticket.
 - Intégration locale : branche `integration/partial-01-l2` depuis `db97acb`, avec le candidat `5dd5a45` + `3eb1405` (avance rapide) et la clôture V1-WARN-01 (`afce2a1`, reprise à l'identique).
 - L'adaptateur reste non importé par le code de production ; il n'est branché ni sur la génération, ni sur M1.
+
+## 2026-10-21 — ADR HISTORY-READ-01 : lecture exhaustive de l'historique réel des séances (réserve `HISTORY_READ_MAX_ROWS_UNVERIFIED`)
+
+> **Décision HPM** : PARTIAL-01-L2 PRODUCTION PASS — CLOSED ; réserve `HISTORY_READ_MAX_ROWS_UNVERIFIED` ouverte. GO pour une correction technique locale de l'adaptateur dormant : aucun historique incomplet présenté comme complet, même sous un plafond de lignes inférieur à 1000.
+
+- **Cause** : PostgREST tronque silencieusement une réponse au-delà de son plafond (`max_rows`), sans erreur. Le lecteur publié ne refusait une lecture qu'à 1000 lignes reçues : sous un plafond plus bas, il acceptait une lecture tronquée comme complète. Contre-preuve (serveur simulé, plafond 2) : 2 débriefs sur 3 et 2 séries sur 14, sans erreur.
+- **Correction** (`sessionResultHistoryRepo.ts` seulement ; mappeur inchangé) : protocole d'exhaustivité par table, décrit dans `docs/05` (« Historique réel des séances », Lecture) :
+  - total exact avant et après la lecture ;
+  - pagination par clé primaire, indépendante de la taille de page reçue ;
+  - lignes contrôlées une à une : ordre strict, rider, filtres ;
+  - seconde passe des versions sur les tables modifiables en place ;
+  - refus explicite de l'historique entier, avec un code (`read_failed`, `count_unavailable`, `inconsistent_page`, `foreign_row`, `changed_during_read`, `incomplete`, `too_large`).
+  - Le lecteur renvoie aussi la preuve par table (total, lignes lues, pages, versions vérifiées).
+  - Les événements d'exécution sont lus comme une table à part entière : plus d'embarquement, dont le plafond éventuel n'est pas supposé.
+- **Tests** :
+  - `sessionResultHistoryRepo.test.ts` (16), contre un PostgREST simulé en mémoire : plafonds de 1 et 2, pages de 1 à 500, historique vide, inférieur à une page, égal, sur plusieurs pages, exactement divisible ; erreur en cours de pagination ; total absent ; ligne ajoutée, modifiée ou supprimée pendant la lecture ; lignes répétées, désordonnées, en trop, hors filtre ou d'un autre rider ; lecture trop grande.
+  - `sessionResultHistory.integration.test.ts` (13, stack locale) : plafond simulé de 1 à 3 lignes sur le vrai PostgREST, service role et client du rider sous RLS ; écriture réelle (`persist_completed_session`) entre deux pages, ajout et redéclaration, refusée.
+  - Correction du typage de trois assertions de tests PARTIAL-01-L2 (sans effet sur leur résultat).
+- **Inchangés** :
+  - `planHistoryV2` (V2-L2-01a) : sa réserve commune est documentée dans `docs/05` et reste bloquante pour l'activation de son flag ;
+  - la génération, M1, les prescriptions et les doses ;
+  - aucun import de l'adaptateur ; bundles Edge identiques au bit près.
+
+**Statut** : READY FOR HPM REVIEW (branche `fix/history-read-01`, depuis `9cb2454`). Aucun push, aucune migration, aucun déploiement.

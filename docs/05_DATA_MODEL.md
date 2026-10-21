@@ -592,6 +592,8 @@ Absence de résultat, séance arrêtée, séance partielle, repos, remplacement 
 
 **Lecture** : une lecture groupée par table (débriefs V1, exécutions, événements, décisions, prescriptions finales, séries, activités, check-ins, signaux de santé), sous le client service role de la génération. Une lecture en échec, ou un résultat atteignant le plafond de lignes, **refuse la génération** ; jamais un historique silencieusement vide.
 
+**Réserve `HISTORY_READ_MAX_ROWS_UNVERIFIED` (HISTORY-READ-01, 2026-10-21)** : ce lecteur ne détecte une troncature que si une lecture atteint 1000 lignes. Si le plafond effectif du serveur (`max_rows`) en production était inférieur, une lecture tronquée passerait inaperçue. Le lecteur n'est pas modifié par HISTORY-READ-01 ; la réserve reste **bloquante pour toute activation** de `NALYNT_V2_L2_HISTORY_ENABLED`, jusqu'à une preuve adaptée (par exemple le protocole d'exhaustivité de l'historique réel des séances).
+
 ### Historique réel des séances (PARTIAL-01-L2, HPM 2026-10-21 — lecture seule, non branché)
 
 Ce que le futur moteur V2 pourra savoir des séances réellement faites. Lectures : `head-coach-engine/src/supabase/repositories/sessionResultHistoryRepo.ts` ; normalisation pure : `head-coach-engine/src/supabase/mapping/sessionResultHistory.ts`. **Aucun consommateur** : ni la génération, ni M1, ni les décisions ne le lisent. Ce contrat ne définit aucun seuil (progression, RPE, fatigue, récupération) ; les règles de progression futures restent PROPOSED (SPORT-PLAN-03), hors de ce contrat.
@@ -640,7 +642,13 @@ Ce que le futur moteur V2 pourra savoir des séances réellement faites. Lecture
 - Filtre `athlete_id` explicite sur chaque lecture : correct sous le client service role comme sous le client du rider (RLS, ses lignes seulement).
 - Résultats de toutes les tentatives, corrections appliquées (ligne active = ligne non remplacée).
 - Textes libres jamais lus : `free_notes`, `new_pain_note`, `change_reason_note`, `main_content`, `comment`. Les check-ins ne sont jamais rattachés à une séance.
-- Une lecture en échec, ou un résultat atteignant le plafond de lignes (1000, égal au `max_rows` de PostgREST), refuse l'historique : jamais un historique tronqué présenté comme complet.
+- **Exhaustivité** (HISTORY-READ-01), pour chaque table lue, sans jamais supposer le plafond du serveur (`max_rows`) ni que la taille de page demandée est celle reçue :
+  1. total exact de la lecture (`count: exact`, requête HEAD), qu'aucun plafond de lignes ne raccourcit ;
+  2. pagination par clé primaire (`id` croissant, puis `id > dernier`) : une page peut contenir moins de lignes que demandé ; chaque ligne doit venir strictement après la précédente (ni doublon, ni retour en arrière), appartenir au rider et respecter les filtres de la lecture ; une page vide termine la lecture ;
+  3. tables modifiables en place (`completed_sessions`, `decisions`) : une seconde passe (`id`, `updated_at`) doit retrouver exactement les mêmes lignes et versions. Les autres tables sont append-only (triggers) ;
+  4. total exact à nouveau : il doit être égal au premier et au nombre de lignes lues.
+- Une erreur, un total absent, une page incohérente, une ligne d'un autre rider, une modification pendant la lecture, ou une lecture de plus de 10 000 lignes par table **refusent l'historique entier** : jamais un historique partiel présenté comme complet.
+- Limite : chaque requête est cohérente, la lecture entière n'est pas une transaction. Une modification postérieure à la vérification d'une ligne appartient à la lecture suivante.
 
 ### `athlete_onboarding_profiles` — consentement données de santé (PILOT_012, additif)
 
