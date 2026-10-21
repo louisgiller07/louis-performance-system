@@ -9,15 +9,15 @@
  */
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline } from "./testDb.js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, setAthleteDiscipline } from "./testDb.js";
 import { localIntegrationRequested } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
-import { readSessionResultHistoryFacts } from "../../src/supabase/repositories/sessionResultHistoryRepo.js";
+import { SessionResultHistoryReadError, readSessionResultHistoryFacts } from "../../src/supabase/repositories/sessionResultHistoryRepo.js";
 import { sessionResultHistory, type SessionResultHistory, type V1DebriefEntry, type V2ExecutionEntry } from "../../src/supabase/mapping/sessionResultHistory.js";
 
 const ENABLED = localIntegrationRequested({ requirePublishableKey: true });
@@ -186,7 +186,7 @@ describe.skipIf(!ENABLED)("PARTIAL-01-L2 — real session history, real paths (l
   it("DH: the passes and their evaluation as recorded; the partial session counts its missing passes, never fills them", async () => {
     const [full, partial] = (await read(admin, riderA, "2026-10-12", "2026-10-13")).entries as V2ExecutionEntry[];
     const passes = full!.performed.items[0]!.sets;
-    expect(passes.map((p) => (p.success.status === "real" ? p.success.value : p.success.reason))).toEqual([true, false, "not_entered", ...passes.slice(3).map((_, i) => (i + 3) % 2 === 0)]);
+    expect(passes.map((p) => (p.success.status === "real" ? p.success.value : p.success.status === "absent" ? p.success.reason : p.success.status))).toEqual([true, false, "not_entered", ...passes.slice(3).map((_, i) => (i + 3) % 2 === 0)]);
     expect(full!.slots).toEqual({ prescribed: passes.length, withDoneResult: passes.length, withoutResult: 0, ambiguous: 0 });
     expect(partial!.slots).toEqual({ prescribed: full!.slots!.prescribed, withDoneResult: 1, withoutResult: full!.slots!.prescribed - 1, ambiguous: 0 });
     expect(partial!.performed.items[0]!.sets.map((p) => p.setNumber)).toEqual([1]);
@@ -195,7 +195,7 @@ describe.skipIf(!ENABLED)("PARTIAL-01-L2 — real session history, real paths (l
   it("Force: the stopped attempt keeps its real work; the corrected set reads its correction; load and RPE only where entered", async () => {
     const [stopped, done] = (await read(admin, riderA, "2026-10-14", "2026-10-14")).entries as V2ExecutionEntry[];
     const firstItem = (e: V2ExecutionEntry) => e.performed.items[0]!;
-    expect(firstItem(stopped!).sets.map((s) => [s.setNumber, s.loadKg.status === "real" && s.loadKg.value, s.rpe.status === "real" ? s.rpe.value : s.rpe.reason])).toEqual([
+    expect(firstItem(stopped!).sets.map((s) => [s.setNumber, s.loadKg.status === "real" && s.loadKg.value, s.rpe.status === "real" ? s.rpe.value : s.rpe.status === "absent" ? s.rpe.reason : s.rpe.status])).toEqual([
       [1, 20, 7],
       [2, 20, "not_entered"],
     ]);
@@ -244,5 +244,135 @@ describe.skipIf(!ENABLED)("PARTIAL-01-L2 — real session history, real paths (l
     await read(admin, riderA);
     await read(await getAthleteAuthClient(riderA), riderA);
     expect(await snapshot(riderA)).toBe(before);
+  });
+
+  // -----------------------------------------------------------------------------------------------------------------
+  // HISTORY-READ-01 — exhaustiveness whatever the server's row cap. `cappedClient` cuts every row answer of the local
+  // PostgREST to `cap` rows and rewrites Content-Range, exactly what a server `max_rows` of `cap` does; HEAD (exact
+  // totals) pass through. `onRequest` runs before a request reaches the server (real writes between pages).
+  // -----------------------------------------------------------------------------------------------------------------
+  type Hook = (url: string, method: string) => Promise<void>;
+  function cappedClient(key: string, cap: number, options: { token?: string; onRequest?: Hook; dropTotals?: boolean } = {}): SupabaseClient {
+    const url = resolveTestSupabaseUrl();
+    if (!isLoopbackSupabaseUrl(url)) throw new Error("cappedClient: local stack only");
+    const capped: typeof fetch = async (input, init) => {
+      const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      const method = (init?.method ?? "GET").toUpperCase();
+      await options.onRequest?.(target, method);
+      const res = await fetch(input, init);
+      if (!target.includes("/rest/v1/") || !res.ok) return res;
+      const headers = new Headers(res.headers);
+      headers.delete("content-length");
+      headers.delete("content-encoding");
+      if (method === "HEAD") {
+        if (options.dropTotals) headers.delete("content-range");
+        return new Response(null, { status: res.status, statusText: res.statusText, headers });
+      }
+      const body = await res.text();
+      const rows: unknown = body === "" ? null : JSON.parse(body);
+      if (method !== "GET" || !Array.isArray(rows) || rows.length <= cap) return new Response(body, { status: res.status, statusText: res.statusText, headers });
+      const range = headers.get("content-range");
+      if (range) {
+        const [span, total] = range.split("/");
+        const start = Number(span!.split("-")[0]);
+        headers.set("content-range", `${start}-${start + cap - 1}/${total}`);
+      }
+      return new Response(JSON.stringify(rows.slice(0, cap)), { status: res.status, statusText: res.statusText, headers });
+    };
+    return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: capped, headers: options.token ? { Authorization: `Bearer ${options.token}` } : {} } });
+  }
+  const serviceKey = () => process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const publishableKey = () => process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
+  async function tokenOf(athleteId: string): Promise<string> {
+    const { data } = await (await getAthleteAuthClient(athleteId)).auth.getSession();
+    if (!data.session) throw new Error("no rider session");
+    return data.session.access_token;
+  }
+  async function refusal(promise: Promise<unknown>): Promise<SessionResultHistoryReadError> {
+    const error = await promise.then(
+      () => null,
+      (e: unknown) => e
+    );
+    expect(error).toBeInstanceOf(SessionResultHistoryReadError);
+    return error as SessionResultHistoryReadError;
+  }
+  /** A rider with three V1 debriefs (10-11, 10-12, 10-13), through persist_completed_session. */
+  async function riderWithDebriefs(name: string): Promise<string> {
+    const id = (await createTestAthlete(admin, `HISTORY-READ-01 ${name} ${randomUUID().slice(0, 6)}`)).athleteId;
+    for (const [date, minutes] of [
+      ["2026-10-11", 30],
+      ["2026-10-12", 40],
+      ["2026-10-13", 50],
+    ] as const)
+      await debrief(id, { session_date: date, session_type: "AEROBIC_BASE", completion_status: "done", actual_duration_min: minutes, rpe: 5, intervention: { kind: "AEROBIC_BASE", load_profile: "LIGHT" }, post_leg_fatigue: 2, post_grip_fatigue: 1 });
+    return id;
+  }
+
+  it("the simulated cap is real: a plain read through it returns at most `cap` rows", async () => {
+    const { data } = await cappedClient(serviceKey(), 2).from("exercise_set_results").select("id").eq("athlete_id", riderA);
+    expect((data ?? []).length).toBe(2);
+    const { count } = await admin.from("exercise_set_results").select("id", { count: "exact", head: true }).eq("athlete_id", riderA);
+    expect(count).toBeGreaterThan(10);
+  });
+
+  it("server caps of 1, 2 and 3 rows, pages of 2 and 5: exactly the unrestricted history, every table read in full", async () => {
+    const reference = await read(admin, riderA);
+    for (const [cap, pageSize] of [
+      [1, 2],
+      [2, 5],
+      [3, 2],
+    ] as const) {
+      const facts = await readSessionResultHistoryFacts(cappedClient(serviceKey(), cap), riderA, FROM, TO, { pageSize });
+      expect(sessionResultHistory(facts, FROM, TO), `cap ${cap}, page ${pageSize}`).toEqual(reference);
+      for (const p of facts.proof) expect(p.read, `${p.context}, cap ${cap}`).toBe(p.total);
+      // Pages of min(cap, page asked) rows, then the final empty page: the page size asked was never assumed.
+      expect(facts.proof.find((p) => p.context === "exercise_set_results")!.pages, `cap ${cap}`).toBe(Math.ceil(facts.sets.length / Math.min(cap, pageSize)) + 1);
+    }
+  });
+
+  it("under RLS with a cap of 1: the rider's own client reads the same full history; another rider's client reads nothing of it", async () => {
+    const reference = await read(admin, riderA);
+    const own = await readSessionResultHistoryFacts(cappedClient(publishableKey(), 1, { token: await tokenOf(riderA) }), riderA, FROM, TO, { pageSize: 3 });
+    expect(sessionResultHistory(own, FROM, TO)).toEqual(reference);
+    const other = await readSessionResultHistoryFacts(cappedClient(publishableKey(), 1, { token: await tokenOf(riderB) }), riderA, FROM, TO, { pageSize: 3 });
+    expect(sessionResultHistory(other, FROM, TO).entries).toEqual([]);
+    expect(other.proof.map((p) => [p.context, p.total])).toEqual([
+      ["completed_sessions", 0],
+      ["session_executions", 0],
+    ]);
+  });
+
+  it("no exact total from the server: exhaustiveness cannot be proven → refused", async () => {
+    expect((await refusal(readSessionResultHistoryFacts(cappedClient(serviceKey(), 2, { dropTotals: true }), riderA, FROM, TO))).code).toBe("count_unavailable");
+  });
+
+  it("a session declared while the history is read (real write between two pages) → refused, then read in full once stable", async () => {
+    const rider = await riderWithDebriefs("added");
+    let added = false;
+    const onRequest: Hook = async (url, method) => {
+      if (!added && method === "GET" && url.includes("/rest/v1/completed_sessions?") && url.includes("id=gt.")) {
+        added = true;
+        await debrief(rider, { session_date: "2026-10-14", session_type: "AEROBIC_BASE", completion_status: "done", actual_duration_min: 20, rpe: 4, intervention: { kind: "AEROBIC_BASE", load_profile: "LIGHT" }, post_leg_fatigue: 1, post_grip_fatigue: 1 });
+      }
+    };
+    const e = await refusal(readSessionResultHistoryFacts(cappedClient(serviceKey(), 1, { onRequest }), rider, FROM, TO, { pageSize: 1 }));
+    expect([added, e.code, e.context]).toEqual([true, "changed_during_read", "completed_sessions"]);
+    expect((await read(cappedClient(serviceKey(), 1), rider)).entries.map((x) => x.date)).toEqual(["2026-10-11", "2026-10-12", "2026-10-13", "2026-10-14"]);
+  });
+
+  it("a session re-declared while the history is read (same rows, new versions) → refused by the second pass", async () => {
+    const rider = await riderWithDebriefs("replaced");
+    let replaced = false;
+    const onRequest: Hook = async (url, method) => {
+      if (!replaced && method === "GET" && url.includes("/rest/v1/completed_sessions?") && url.includes("id=gt.")) {
+        replaced = true;
+        // The rider corrects every day already declared (full replacement, same rows): one of them was already read.
+        for (const date of ["2026-10-11", "2026-10-12", "2026-10-13"])
+          await debrief(rider, { session_date: date, session_type: "AEROBIC_BASE", completion_status: "partial", actual_duration_min: 15, rpe: 6, intervention: { kind: "AEROBIC_BASE", load_profile: "LIGHT" }, post_leg_fatigue: 3, post_grip_fatigue: 1, change_reason: "fatigue_control" });
+      }
+    };
+    const e = await refusal(readSessionResultHistoryFacts(cappedClient(serviceKey(), 1, { onRequest }), rider, FROM, TO, { pageSize: 1 }));
+    expect([replaced, e.code, e.context]).toEqual([true, "changed_during_read", "completed_sessions"]);
+    expect((await read(admin, rider)).entries.map((x) => x.outcome)).toEqual(["partial", "partial", "partial"]);
   });
 });

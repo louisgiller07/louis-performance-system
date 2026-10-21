@@ -212,7 +212,7 @@ describe("sessionResultHistory — V2 guided executions", () => {
     );
     expect(entry.outcome).toBe("completed");
     const passes = entry.performed.items[0]!.sets;
-    expect(passes.map((p) => (p.success.status === "real" ? p.success.value : p.success.reason))).toEqual([true, false, "not_entered", true]);
+    expect(passes.map((p) => (p.success.status === "real" ? p.success.value : p.success.status === "absent" ? p.success.reason : p.success.status))).toEqual([true, false, "not_entered", true]);
     expect([passes[0]!.measureValue, passes[0]!.loadKg, passes[0]!.rpe]).toEqual([
       { status: "absent", reason: "not_applicable", source: "exercise_set_results.measure_value" },
       { status: "absent", reason: "not_collected", source: "exercise_set_results.load_kg" },
