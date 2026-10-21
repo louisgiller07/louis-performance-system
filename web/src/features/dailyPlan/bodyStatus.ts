@@ -33,10 +33,11 @@ export function bodyStatusOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "hea
 }
 
 /**
- * Safety rules whose REST reads as a suspension of NALYNT's proposals: A6, A7 (P0-SAFE) and A5, an open concussion
- * follow-up (SPORT-SAFE-02, candidate). A historical A5 (before SPORT-SAFE-02) was never a REST: never matched here.
+ * Safety rules whose REST reads as a suspension of NALYNT's proposals: A6, A7 (P0-SAFE), A5 (open concussion
+ * follow-up) and A1 (concussion suspicion declared today) — SPORT-SAFE-02 A5-P0, candidate. A historical A5 (before
+ * SPORT-SAFE-02) was never a REST: never matched here.
  */
-const SUSPENSION_RULE_IDS: ReadonlySet<string> = new Set(["A5", "A6", "A7"]);
+const SUSPENSION_RULE_IDS: ReadonlySet<string> = new Set(["A1", "A5", "A6", "A7"]);
 
 /** The sentence under "Attention santé": the signal created today, else the Safety rule that ruled the day. */
 export function healthSignalReasonOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "health_flag_to_create"> & Partial<Pick<DailyPlan, "decision">>): string | undefined {
@@ -49,7 +50,8 @@ export function healthSignalReasonOf(dailyPlan: Pick<DailyPlan, "triggered_rules
 /**
  * P0-SAFE (HPM 2026-10-12) — a day ruled by A6 (severe pain) or A7 (open health signal) reads as a
  * suspension of NALYNT's training proposals, never as a medical statement imposing absolute rest.
- * SPORT-SAFE-02 (candidate): A5 (open concussion follow-up) too. A1–A4 keep their own "Repos" wording.
+ * SPORT-SAFE-02 (candidate): A5 (open concussion follow-up) and A1 (suspicion declared today) too. A2–A4 keep their
+ * own "Repos" wording.
  */
 export const COACHING_SUSPENDED_TITLE = "Coaching suspendu";
 export const COACHING_SUSPENDED_STATUS = "NALYNT suspend ses propositions d'entraînement";

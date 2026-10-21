@@ -246,12 +246,12 @@ describe("loadGuidedSession — P0-3 health block of an open execution", () => {
     expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ healthBlock: "health_suspended" });
   });
 
-  it("an open concussion signal blocks a DH session (A5), not a Force session", async () => {
+  it("an open concussion signal blocks a DH session and a Force session alike (SPORT-SAFE-02 A5-P0)", async () => {
     loadOpenHealthFlags.mockResolvedValue([{ id: "f", type: "concussion_suspect", flagDate: "2026-10-08", description: "x" }]);
     open(dh);
     expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ healthBlock: "health_suspended" });
     open(force);
-    expect(await loadGuidedSession("a", "2026-10-09")).not.toHaveProperty("healthBlock");
+    expect(await loadGuidedSession("a", "2026-10-09")).toMatchObject({ healthBlock: "health_suspended" });
   });
 
   it("the day's decision no longer matches the check-in → daily_decision_not_current", async () => {
