@@ -165,7 +165,10 @@ export const REASON = {
   noteRequired: "Précise en quelques mots (obligatoire pour « Autre »)",
   noteOptional: "Un mot de plus ? (facultatif)",
   newPainQuestion: "Est-ce une nouvelle douleur ?",
-  painReminder: "Signale-la aussi dans ton prochain check-in : NALYNT adaptera la suite.",
+  // SPORT-SAFE-02 (HPM 2026-10-21) — a debrief pain is stored, never read by the daily engine: no promise that it
+  // adapts the next sessions. Only the next check-in's pain answers reach Safety.
+  painReminder:
+    "Si tu signales une nouvelle douleur, cette déclaration ne modifie pas automatiquement tes prochaines séances. Évite de poursuivre un exercice qui provoque une douleur et demande un avis médical si nécessaire. Signale-la aussi dans ton prochain check-in.",
 } as const;
 
 // A11 — effort with words: the ends and the middle under the scale, the chosen value named.
@@ -199,6 +202,9 @@ export const SIGNAL = { no: "Non", yes: "Oui", describe: "Décris ce qui t'a gê
 export const SUMMARY = {
   title: "Séance enregistrée",
   keeps: "NALYNT garde cette information pour adapter la suite.",
+  // SPORT-SAFE-02 (HPM 2026-10-21) — replaces `keeps` (and the « plan s'adapte » promise) when the record carries a pain.
+  painKeeps:
+    "Ton retour est enregistré. Si tu signales une nouvelle douleur, cette déclaration ne modifie pas automatiquement tes prochaines séances. Évite de poursuivre un exercice qui provoque une douleur et demande un avis médical si nécessaire.",
   today: "Aujourd'hui",
   planned: "Prévu",
   done: "Réalisé",

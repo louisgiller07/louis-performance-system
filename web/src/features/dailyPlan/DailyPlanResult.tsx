@@ -67,6 +67,7 @@ export function DailyPlanResult({
         />
       }
       heroInMission
+      dhSafetyNotice
       detailsTarget={today ? (today.detailsTarget ?? null) : undefined}
       executablePrescription={executablePrescription}
       executablePrescriptionStatus={executablePrescriptionStatus}

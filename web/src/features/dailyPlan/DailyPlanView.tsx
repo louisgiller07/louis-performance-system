@@ -22,6 +22,7 @@ import {
 import { formatDhSessionWindow, formatDhSessionWindowCompact, DH_SESSION_WINDOW_CAPTION } from "./dhPrescriptionLabels";
 import { ExecutablePrescriptionCard, UnavailablePrescriptionCard } from "./ExecutablePrescriptionCard";
 import { FinalPrescriptionV2Card } from "../finalPrescriptionV2/FinalPrescriptionV2Card";
+import { DhGripSafetyNotice } from "./DhGripSafetyNotice";
 import type { FinalPrescriptionV2State } from "../finalPrescriptionV2/finalPrescriptionV2Types";
 import { sanitizeHealthSignalReason } from "./healthZoneLabels";
 import type { DailyPlan, ExecutablePrescription, ExecutablePrescriptionStatus, RecentRecoveryContext } from "./dailyPlanTypes";
@@ -145,6 +146,11 @@ export interface DailyPlanViewProps {
    * other caller, e.g. History) keeps the single inline rendering.
    */
   detailsTarget?: HTMLElement | null;
+  /**
+   * SPORT-SAFE-02 — today's live DH session shows the rider's grip / braking stop rule (DhGripSafetyNotice).
+   * Absent (History, a past day): never added to a persisted plan that did not carry it.
+   */
+  dhSafetyNotice?: boolean;
 }
 
 // Rendering-only: production display of a real, already-computed
@@ -164,6 +170,7 @@ export function DailyPlanView({
   finalPrescriptionV2,
   heroInMission = false,
   detailsTarget,
+  dhSafetyNotice = false,
 }: DailyPlanViewProps) {
   const showInlineMission = missionSlot === undefined;
   // Only worth comparing when there was an actual prior planned session —
@@ -380,6 +387,7 @@ export function DailyPlanView({
                 <p className="text-xs text-muted">{DH_SESSION_WINDOW_CAPTION}</p>
               </>
             )}
+            {dhSafetyNotice && <DhGripSafetyNotice className="mt-3" />}
           </PlanSection>
         </>
       )}

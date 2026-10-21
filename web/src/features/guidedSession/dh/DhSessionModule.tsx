@@ -9,6 +9,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { PrimaryButton } from "../../../components/PrimaryButton";
 import { SecondaryButton } from "../../../components/SecondaryButton";
+import { DhGripSafetyNotice } from "../../dailyPlan/DhGripSafetyNotice";
 import type { BlockView, DrillItemView } from "../../finalPrescriptionV2/finalPrescriptionV2Types";
 import type { GuidedSessionModuleProps } from "../sessionModules";
 import { isCorrectable, slotKey } from "../results/activeResults";
@@ -151,6 +152,9 @@ export function DhSessionModule({ prescription, executionId, setResults, editabl
 
   return (
     <div className="flex flex-col gap-5">
+      {/* SPORT-SAFE-02 — the rider's grip / braking stop rule, before the session and while it can go on (never on a
+          finished, stopped or suspended attempt shown read-only). */}
+      {(editable || executionId === null) && <DhGripSafetyNotice />}
       {prescription.blocks.map((block) =>
         block.role === "main" ? (
           <section key={block.blockId} className="flex flex-col gap-3" data-block-role="main">

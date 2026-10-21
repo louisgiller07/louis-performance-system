@@ -186,6 +186,10 @@ describe("A11 — short paths and a stable progress", () => {
     await user.click(await within(sheet()).findByRole("button", { name: "Douleur" }));
     const pain = within(sheet()).getByTestId("after-session-pain");
     expect(pain).toHaveTextContent("Signale-la aussi dans ton prochain check-in");
+    // SPORT-SAFE-02 — no promise that the declaration adapts the next sessions.
+    expect(pain).toHaveTextContent("Si tu signales une nouvelle douleur, cette déclaration ne modifie pas automatiquement tes prochaines séances.");
+    expect(pain).toHaveTextContent("Évite de poursuivre un exercice qui provoque une douleur et demande un avis médical si nécessaire.");
+    expect(pain.textContent).not.toMatch(/adaptera|adapter la suite/);
     const save = within(sheet()).getByRole("button", { name: "Enregistrer ma séance" });
     expect(save).toBeDisabled();
     await user.click(within(pain).getByRole("button", { name: "Oui" }));

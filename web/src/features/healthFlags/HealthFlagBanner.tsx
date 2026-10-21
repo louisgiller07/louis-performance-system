@@ -41,6 +41,10 @@ function ConcussionNotice({ flag }: { flag: OpenHealthFlag }) {
       </p>
       <p className="mt-1.5 text-xs text-amber-100/80">Ce signal reste actif même si tu réponds « Non » aujourd'hui.</p>
       <p className="mt-1.5 text-xs text-amber-100/80">NALYNT ne permet pas encore de clôturer ce suivi depuis l'application.</p>
+      {/* SPORT-SAFE-02 (HPM 2026-10-21) — orientation only: never a medical assessment, never a return protocol. */}
+      <p className="mt-1.5 text-xs text-amber-100/80" data-testid="concussion-orientation">
+        Consulte un professionnel de santé : lui seul peut évaluer ta reprise. NALYNT ne propose aucun protocole de reprise après une commotion.
+      </p>
     </div>
   );
 }

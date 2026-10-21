@@ -290,6 +290,25 @@ describe("AfterSessionEntry — what NALYNT keeps", () => {
     expect(box.className).not.toMatch(/red/);
   });
 
+  it("SPORT-SAFE-02 — a declared new pain: the approved text, never a promise that it adapts the next sessions, no « Ton plan s'adapte »", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record({ new_pain: true, new_pain_note: "Genou" }) });
+    render(<AfterSessionEntry date={DATE} athleteId="athlete-1" />);
+    const summary = await screen.findByRole("region", { name: /Séance enregistrée/ });
+    expect(within(summary).getByTestId("after-session-keeps").textContent).toBe(
+      "Ton retour est enregistré. Si tu signales une nouvelle douleur, cette déclaration ne modifie pas automatiquement tes prochaines séances. Évite de poursuivre un exercice qui provoque une douleur et demande un avis médical si nécessaire."
+    );
+    expect(within(summary).getByText("Pense à le mentionner dans ton prochain check-in.")).toBeInTheDocument();
+    expect(summary.textContent).not.toMatch(/adapter la suite|adaptera|plan s'adapte/);
+  });
+
+  it("SPORT-SAFE-02 — a session skipped for pain without a new pain: the same text, never « adapter la suite »", async () => {
+    mockedGet.mockResolvedValue({ ok: true, data: record({ completion_status: "skipped", intervention: null, actual_duration_min: null, rpe: null, change_reason: "pain", new_pain: false }) });
+    render(<AfterSessionEntry date={DATE} athleteId="athlete-1" />);
+    const summary = await screen.findByRole("region", { name: /Séance enregistrée/ });
+    expect(within(summary).getByTestId("after-session-keeps")).toHaveTextContent("cette déclaration ne modifie pas automatiquement tes prochaines séances");
+    expect(summary.textContent).not.toMatch(/adapter la suite|adaptera|plan s'adapte/);
+  });
+
   it("'Modifier' reopens the steps with the recorded answers", async () => {
     mockedGet.mockResolvedValue({ ok: true, data: record() });
     const user = userEvent.setup();

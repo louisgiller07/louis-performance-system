@@ -46,6 +46,21 @@ describe("HealthFlagBanner — concussion (V0.3_006A1, unchanged)", () => {
     expect(inspectMock).not.toHaveBeenCalled();
     expect(screen.queryByText(/concussion_suspect/)).not.toBeInTheDocument();
   });
+
+  it("SPORT-SAFE-02 — orientation to a health professional, never a return protocol, never a closure offered as a clearance", async () => {
+    render(<HealthFlagBanner flags={[concussion]} />);
+    expect(screen.getByTestId("concussion-orientation")).toHaveTextContent(
+      "Consulte un professionnel de santé : lui seul peut évaluer ta reprise. NALYNT ne propose aucun protocole de reprise après une commotion."
+    );
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/autoris|reprise progressive|étape \d/i);
+  });
+
+  it("SPORT-SAFE-02 — the orientation is the concussion's own: a followed injury signal does not carry it", async () => {
+    render(<HealthFlagBanner flags={[injury]} />);
+    await screen.findByText(/Suspicion de blessure/);
+    expect(screen.queryByTestId("concussion-orientation")).toBeNull();
+  });
 });
 
 describe("HealthFlagBanner — followed signals (P0-SAFE)", () => {

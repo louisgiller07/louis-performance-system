@@ -34,6 +34,9 @@ export function AfterSessionSummary({
     record.post_grip_fatigue !== null ? `${BODY.forearms.label} ${record.post_grip_fatigue}/10` : null,
   ].filter(Boolean);
   const reason = record.change_reason ? [CHANGE_REASON_LABELS[record.change_reason], record.change_reason_note].filter(Boolean).join(" — ") : null;
+  // SPORT-SAFE-02 — a declared pain (new pain, or a session changed / skipped for pain) is never read by the daily
+  // engine: no « adapter la suite » and no « Ton plan s'adapte » under it.
+  const painDeclared = record.new_pain === true || record.change_reason === "pain";
 
   return (
     <section aria-labelledby="after-session-title" className="ux-enter rounded-2xl border border-gold/40 bg-card p-5">
@@ -44,7 +47,9 @@ export function AfterSessionSummary({
       <h2 id="after-session-title" className="mt-3 font-display text-3xl font-extrabold uppercase leading-none text-ink">
         {SUMMARY.title} <span className={`text-gold ${fresh ? "ux-pop inline-block" : ""}`}>✓</span>
       </h2>
-      <p className="mt-2 text-sm text-ink/80">{SUMMARY.keeps}</p>
+      <p className="mt-2 text-sm text-ink/80" data-testid="after-session-keeps">
+        {painDeclared ? SUMMARY.painKeeps : SUMMARY.keeps}
+      </p>
 
       <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-gold">{SUMMARY.today}</p>
       <dl className="mt-1">
@@ -64,11 +69,13 @@ export function AfterSessionSummary({
         </div>
       )}
 
-      <p className="mt-5 border-t border-line pt-4 font-display text-xl font-extrabold uppercase leading-tight text-ink">
-        {SUMMARY.promise[0]}
-        <br />
-        <span className="text-gold">{SUMMARY.promise[1]}</span>
-      </p>
+      {!painDeclared && (
+        <p className="mt-5 border-t border-line pt-4 font-display text-xl font-extrabold uppercase leading-tight text-ink">
+          {SUMMARY.promise[0]}
+          <br />
+          <span className="text-gold">{SUMMARY.promise[1]}</span>
+        </p>
+      )}
       {onEdit && (
         <SecondaryButton onClick={onEdit} className="mt-4 self-start">
           {BUTTONS.edit}
