@@ -6921,3 +6921,24 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 
 **Statut** : PRODUCTION PASS (lot 1).
 
+## 2026-10-21 — SPORT-SAFE-02 A5-P0 (PROPOSÉE, locale) : suivi post-commotion — suspension, garde serveur sur l'état courant, cycle de vie attesté
+
+> **Décision HPM** : GO développement et tests LOCAUX ; A5 production HOLD. Aucune migration en production, aucun déploiement.
+
+- **Prescription (M1, candidat)** :
+  - A5 (`concussion_suspect` ouvert) devient un REST Safety qui suspend toutes les familles ; aucune séance de remplacement ;
+  - A1 remplace « Repos complet immédiat » par une suspension du coaching sportif normal et une orientation vers un professionnel de santé ;
+  - `ENGINE_VERSION` `head-coach-engine@0.2.0-m1-sport-safe-02`.
+- **Exécution (migration locale `20261021200000`, rollback `supabase/rollbacks/sport_safe_02/`)** :
+  - `execution_health_block` (démarrage, reprise, résultats, clôture, débrief V1) : un signal de commotion ouvert suspend **toute** famille, lu sur le signal lui-même ;
+  - une décision antérieure au dernier changement d'un signal de commotion (déclaré ce jour-là ou avant) n'est plus courante : une ancienne prescription n'est jamais réactivée après une clôture ;
+  - un trigger prend le verrou par rider de `record_session_execution` à chaque écriture de signal : ouverture ou clôture d'un signal et enregistrement d'une séance ne s'entrelacent jamais.
+- **Cycle de vie** :
+  - `health_flag_attestations`, en ajout seul ;
+  - `record_health_flag_attestation` : attestation **déclarative** du rider, jamais vérifiée par NALYNT, sans document médical. Issues : évaluation en cours, commotion confirmée, suspicion écartée, retour complet autorisé, erreur de saisie ;
+  - une commotion n'est close que par une attestation de clôture ; jamais par un rôle de service, un opérateur, une écriture directe ou une suppression (hors suppression du compte) ;
+  - règle « erreur de saisie le jour même, avant toute évaluation et tout entraînement » : **PROPOSÉE**, non validée.
+- **Reprise** : après clôture, nouvelle analyse quotidienne obligatoire ; aucun protocole progressif inventé ; les autres signaux ne sont pas concernés.
+
+**Statut** : PROPOSÉE (branche locale `fix/a5-p0-hardening`). Canon `docs/04`, `docs/05` et `docs/10` : diff proposé dans `SPORT_SAFE_02_A5_IMPLEMENTATION_GATE`, non appliqué.
+
