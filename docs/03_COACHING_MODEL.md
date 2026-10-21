@@ -691,9 +691,9 @@ Voir `docs/06_ARCHITECTURE.md` §V0.3_006C1 et `docs/11_DECISION_LOG.md` pour l'
 
 ### Domaine 3 — Préparation physique
 
-| ID | Heuristique | Couverture dans le code (`0eed6d4`) |
+| ID | Heuristique | Couverture dans le code (`0eed6d4` ; C3.1 : `db97acb`) |
 |---|---|---|
-| C3.1 | Pas de force lourde bas du corps à J-1 ou J-2 d'une DH importante | **Absente.** Protections indirectes partielles, non équivalentes : aucun générateur (V1, V2) ne produit de charge lourde ; protocole de course (J-2 et J-1 repos) pour les seuls formats Hot Trail et iXS identifiés. Une Force lourde planifiée à la main (V1) n'est pas contrôlée, et le générateur V1 peut placer une Force bas du corps modérée à J-1 ou J-2 d'une DH. |
+| C3.1 | Pas de force lourde bas du corps à J-1 ou J-2 d'une DH importante | **Absente comme règle de M1.** Couverture partielle, web seulement (V1-WARN-01) : le planning web affiche un avertissement non bloquant quand une Force lourde bas du corps est ajoutée à la main à J-1 ou J-2 d'une journée DH connue (séance DH ou course) ; la détection dépend des données disponibles dans le planning (séances planifiées, courses, plan actif). Cet avertissement ne supprime, n'adapte ni ne valide sportivement aucune séance. Protections indirectes partielles, non équivalentes : aucun générateur (V1, V2) ne produit de charge lourde ; protocole de course (J-2 et J-1 repos) pour les seuls formats Hot Trail et iXS identifiés. Le générateur V1 peut placer une Force bas du corps modérée à J-1 ou J-2 d'une DH. |
 | C3.2 | Pas de travail grip lourd en race week | **Indirecte, partielle** : contrainte de mode `no_grip_heavy` (RACE_WEEK forte, RACE_CLUSTER modérée), GRIP_WORK remplacé par une Force bas du corps modérée. Aucun générateur ne produit GRIP_WORK. |
 | C3.3 | Sommeil < 6h + force bas du corps prévue → adaptation d'intensité (pas downgrade automatique) | **Directe, plus large que l'énoncé** : sommeil < 6 h (systémique RED) baisse d'un cran la charge de toute séance à charge variable, nature conservée. |
 | C3.4 | 48h min entre 2 séances force lourdes bas du corps (PROVISIONAL) | **Absente de M1.** Le planificateur V1 réduit la seconde de deux Force lourdes consécutives, mais aucun générateur ne produit de charge lourde : sans effet. |
@@ -702,7 +702,7 @@ Voir `docs/06_ARCHITECTURE.md` §V0.3_006C1 et `docs/11_DECISION_LOG.md` pour l'
 | C3.7 | Charge RED (≥ 5 séances MODERATE ou HEAVY complétées sur [J − 7, J], 8 jours ; PROVISIONAL) → règle informative et ligne de suivi, sans changement de la séance | **Directe** (règle informative et repère de suivi). |
 | C3.8 | En RACE_CLUSTER, développement possible si compatible avec récup + DH + proximité course | **Partielle** : RACE_CLUSTER n'interdit pas le développement ; la compatibilité avec la récupération, la DH et la proximité de course n'est pas évaluée. |
 
-*Couverture vérifiée dans le code au commit `0eed6d4` (SPORT-PLAN-03.2, HPM 2026-10-20). « Indirecte » ou « partielle » ne signifie pas une protection équivalente à l'heuristique. Cette colonne décrit l'existant et n'active aucune règle.*
+*Couverture vérifiée dans le code au commit `0eed6d4` (SPORT-PLAN-03.2, HPM 2026-10-20) ; ligne C3.1 actualisée au commit `db97acb` (V1-WARN-01, HPM 2026-10-21). « Indirecte » ou « partielle » ne signifie pas une protection équivalente à l'heuristique. Cette colonne décrit l'existant et n'active aucune règle.*
 
 ### Domaine 4 — Sommeil et récupération
 
