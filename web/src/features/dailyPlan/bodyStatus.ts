@@ -32,21 +32,30 @@ export function bodyStatusOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "hea
   return "ready";
 }
 
+/**
+ * Safety rules whose REST reads as a suspension of NALYNT's proposals: A6, A7 (P0-SAFE) and A5, an open concussion
+ * follow-up (SPORT-SAFE-02, candidate). A historical A5 (before SPORT-SAFE-02) was never a REST: never matched here.
+ */
+const SUSPENSION_RULE_IDS: ReadonlySet<string> = new Set(["A5", "A6", "A7"]);
+
 /** The sentence under "Attention santé": the signal created today, else the Safety rule that ruled the day. */
-export function healthSignalReasonOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "health_flag_to_create">): string | undefined {
-  return dailyPlan.health_flag_to_create?.reason ?? dailyPlan.triggered_rules.find((rule) => rule.layer === "A" && (rule.rule_id === "A6" || rule.rule_id === "A7"))?.detail;
+export function healthSignalReasonOf(dailyPlan: Pick<DailyPlan, "triggered_rules" | "health_flag_to_create"> & Partial<Pick<DailyPlan, "decision">>): string | undefined {
+  return (
+    dailyPlan.health_flag_to_create?.reason ??
+    dailyPlan.triggered_rules.find((rule) => rule.layer === "A" && (rule.rule_id === "A6" || rule.rule_id === "A7" || (rule.rule_id === "A5" && dailyPlan.decision === "REST")))?.detail
+  );
 }
 
 /**
  * P0-SAFE (HPM 2026-10-12) — a day ruled by A6 (severe pain) or A7 (open health signal) reads as a
  * suspension of NALYNT's training proposals, never as a medical statement imposing absolute rest.
- * A1–A5 keep their own "Repos" wording.
+ * SPORT-SAFE-02 (candidate): A5 (open concussion follow-up) too. A1–A4 keep their own "Repos" wording.
  */
 export const COACHING_SUSPENDED_TITLE = "Coaching suspendu";
 export const COACHING_SUSPENDED_STATUS = "NALYNT suspend ses propositions d'entraînement";
 
 export function isCoachingSuspended(dailyPlan: Pick<DailyPlan, "decision"> & Partial<Pick<DailyPlan, "triggered_rules">>): boolean {
-  return dailyPlan.decision === "REST" && (dailyPlan.triggered_rules ?? []).some((rule) => rule.layer === "A" && (rule.rule_id === "A6" || rule.rule_id === "A7"));
+  return dailyPlan.decision === "REST" && (dailyPlan.triggered_rules ?? []).some((rule) => rule.layer === "A" && SUSPENSION_RULE_IDS.has(rule.rule_id));
 }
 
 /**

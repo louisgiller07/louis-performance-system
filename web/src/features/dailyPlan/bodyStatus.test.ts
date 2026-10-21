@@ -49,3 +49,22 @@ describe("P0-SAFE — coaching suspension wording (A6 / A7 only)", () => {
     expect(isCoachingSuspended({ decision: "KEEP", triggered_rules: [rule("A", "A5")] } as never)).toBe(false);
   });
 });
+
+describe("SPORT-SAFE-02 (candidate) — an open concussion follow-up (A5) suspends the coaching", () => {
+  const A5_DETAIL = "Suivi post-commotion ouvert — propositions d'entraînement suspendues jusqu'à l'évaluation d'un professionnel de santé";
+  it("A5 REST reads as « Coaching suspendu », with its sentence under « Attention santé »", async () => {
+    const { isCoachingSuspended } = await import("./bodyStatus");
+    const { missionStatus } = await import("./missionStatus");
+    const plan = { decision: "REST", planned_session_before: null, triggered_rules: [rule("A", "A5", A5_DETAIL)] } as never;
+    expect(isCoachingSuspended(plan)).toBe(true);
+    expect(missionStatus(plan)).toBe("NALYNT suspend ses propositions d'entraînement");
+    expect(healthSignalReasonOf(plan)).toBe(A5_DETAIL);
+  });
+
+  it("a historical A5 (before SPORT-SAFE-02: DH swapped, never a REST) keeps its reading: no suspension, no raw detail", async () => {
+    const { isCoachingSuspended } = await import("./bodyStatus");
+    const legacy = { decision: "MODIFY", triggered_rules: [rule("A", "A5", "Flag concussion_suspect actif non résolu — DH interdit tant que non validé médicalement")] } as never;
+    expect(isCoachingSuspended(legacy)).toBe(false);
+    expect(healthSignalReasonOf(legacy)).toBeUndefined();
+  });
+});

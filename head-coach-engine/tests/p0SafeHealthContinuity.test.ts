@@ -74,13 +74,13 @@ describe("P0-SAFE — A7 open health signal from a previous day", () => {
     expect(plan.reasoning).toContain("(maladie / fièvre)");
   });
 
-  it("today's declarations come first (A1–A4, A6 create or reuse the signal); A7 is more conservative than A5 when both apply; A5 alone unchanged", () => {
+  it("today's declarations come first (A1–A4, A6 create or reuse the signal); A7 before A5 when both apply; A5 alone suspends (SPORT-SAFE-02)", () => {
     expect(evaluateSafety(baseCheckin(knee(8, { pain_new: true })), [injury])?.rule_id).toBe("A2");
     expect(evaluateSafety(baseCheckin(knee(7)), [injury])?.rule_id).toBe("A6");
     expect(evaluateSafety(baseCheckin({ suspected_concussion: true }), [injury])?.rule_id).toBe("A1");
     expect(evaluateSafety(baseCheckin(), [concussion, injury])?.rule_id).toBe("A7");
     const a5 = evaluateSafety(baseCheckin(), [concussion]);
-    expect([a5?.rule_id, a5?.action]).toEqual(["A5", "ZERO_DH"]);
+    expect([a5?.rule_id, a5?.action]).toEqual(["A5", "REST"]);
   });
 
   it("other Safety REST plans keep their original copy byte for byte (only A7 has its own)", () => {

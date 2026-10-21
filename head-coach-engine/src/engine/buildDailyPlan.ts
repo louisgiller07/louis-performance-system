@@ -34,7 +34,7 @@ import {
 import { PROVISIONAL_THRESHOLDS } from "./provisionalThresholds.js";
 import { selectDecisionReasoningRules, joinDecisionReasoning } from "./reasoningBuilder.js";
 
-export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-p0-safe";
+export const ENGINE_VERSION = "head-coach-engine@0.2.0-m1-sport-safe-02";
 
 /**
  * "Même nature" pour l'étiquetage MODIFY vs REPLACE — voir
@@ -251,19 +251,6 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     }
   }
 
-  // A5 (SAFETY, ZERO_DH) — toujours tracée, même si la séance finale n'est pas
-  // du DH. Seule une séance DH est effectivement remplacée. SAFETY reste la
-  // seule couche réellement hard : elle a le dernier mot après l'arbitrage
-  // des soft constraints ci-dessus.
-  const DH_KINDS = new Set(["DH_TECHNICAL", "DH_PERFORMANCE", "DH_LIGHT", "PUMPTRACK", "RACE_ACTIVITY"]);
-  if (safety && safety.action === "ZERO_DH") {
-    triggeredRules.push(safety.triggered_rule);
-    protection.push("Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue");
-    if (DH_KINDS.has(session.kind)) {
-      session = { kind: "RECOVERY_ACTIVE" };
-    }
-  }
-
   // P0 (HPM 2026-10-07) — a planned session's load is never raised automatically (same activity family
   // only, load_profile only). Last arbitration step, so no rule above can raise it — see rules/plannedLoadCap.ts.
   const capped = capToPlannedLoad(session, ctx.planned_session);
@@ -336,8 +323,7 @@ export function buildDailyPlan(ctx: RawContext): DailyPlan {
     isSameNature,
   });
 
-  const confidence: Confidence =
-    safety && safety.action === "ZERO_DH" ? "HIGH" : contradictionDetected ? "LOW" : "MEDIUM";
+  const confidence: Confidence = contradictionDetected ? "LOW" : "MEDIUM";
 
   const sleepActive = modeConstraints.some((c) => c.type === "protect_sleep") || dimensions.systemic.level === "RED";
 

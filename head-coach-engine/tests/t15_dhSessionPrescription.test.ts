@@ -253,7 +253,8 @@ describe("T15 — corrected precedence, proved end-to-end via real buildDailyPla
     expect(plan.final_session).toEqual({ kind: "REST" });
   });
 
-  it("Safety A5: an explicit planned duration never survives as a stale DH value on RECOVERY_ACTIVE", () => {
+  // SPORT-SAFE-02 (candidate) — A5 is a Safety REST now: the stale-DH guarantee holds on REST.
+  it("Safety A5: an explicit planned duration never survives as a stale DH value (REST)", () => {
     const ctx = baseRawContext({
       today: "2026-01-01",
       upcoming_races: [],
@@ -261,7 +262,7 @@ describe("T15 — corrected precedence, proved end-to-end via real buildDailyPla
       active_health_flags: [{ type: "concussion_suspect", status: "monitoring" }],
     });
     const plan = buildDailyPlan(ctx);
-    expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+    expect(plan.final_session).toEqual({ kind: "REST" });
   });
 });
 
@@ -546,7 +547,7 @@ describe("T15 — Acceptance P6: Safety precedence — no stale DH prescription"
     expect(plan.mental.action_hint ?? "").not.toContain("rappelle-toi ta priorité");
   });
 
-  it("A5 (unresolved concussion flag, DH baseline forced to RECOVERY_ACTIVE): duration/focus/terrain/mental priority all absent", () => {
+  it("A5 (unresolved concussion flag, SPORT-SAFE-02: REST): duration/focus/terrain/mental priority all absent", () => {
     const ctx = baseRawContext({
       today: "2026-01-01",
       upcoming_races: [],
@@ -555,7 +556,7 @@ describe("T15 — Acceptance P6: Safety precedence — no stale DH prescription"
     });
     const plan = buildDailyPlan(ctx);
 
-    expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
+    expect(plan.final_session).toEqual({ kind: "REST" });
     expect((plan.final_session as { duration_min?: number }).duration_min).toBeUndefined();
     expect(plan.dh_or_technical).toEqual({ active: false });
     // V0.3_006C1 (final correction) — explicit: no stale HEAVY load_guidance

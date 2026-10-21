@@ -49,6 +49,7 @@ describe("HealthFlagBanner — concussion (V0.3_006A1, unchanged)", () => {
 
   it("SPORT-SAFE-02 — orientation to a health professional, never a return protocol, never a closure offered as a clearance", async () => {
     render(<HealthFlagBanner flags={[concussion]} />);
+    expect(screen.getByTestId("concussion-suspension")).toHaveTextContent("Tant que ce suivi est ouvert, NALYNT suspend ses propositions d'entraînement.");
     expect(screen.getByTestId("concussion-orientation")).toHaveTextContent(
       "Consulte un professionnel de santé : lui seul peut évaluer ta reprise. NALYNT ne propose aucun protocole de reprise après une commotion."
     );

@@ -71,8 +71,9 @@ describe.skipIf(!INTEGRATION_ENABLED)("M2 write path — longitudinal A1 → A5 
 
     const a5Rule = runN1.dailyPlan.triggered_rules.find((r) => r.rule_id === "A5");
     expect(a5Rule).toBeDefined();
+    expect(runN1.dailyPlan.decision).toBe("REST"); // SPORT-SAFE-02: every family suspended
     expect(runN1.dailyPlan.protection.do_not_do).toContain(
-      "Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue"
+      "Pas d'entraînement proposé par NALYNT tant que le suivi post-commotion est ouvert"
     );
 
     // No duplicate flag — A5 is read-only continuity, not a new health_flag_to_create.

@@ -72,15 +72,16 @@ describe.skipIf(!INTEGRATION_ENABLED)("T21 — concussion signal survives multip
 
     // --- Days N+1, N+2, N+3: three CONSECUTIVE ordinary/neutral check-ins.
     // Never "check-in OK -> suppression automatique": the flag must remain
-    // active and A5 (ZERO_DH) must fire EVERY single one of these days,
+    // active and A5 (SPORT-SAFE-02: a Safety REST, every family suspended) must fire EVERY single one of these days,
     // never just the first, proving there is no time-based decay. ---
     for (const day of [dayN1, dayN2, dayN3]) {
       await insertCheckin(client, athlete.athleteId, day);
       const run = await runDailyFor(client, athlete.athleteId, day);
 
       expect(run.dailyPlan.triggered_rules.some((r) => r.rule_id === "A5")).toBe(true);
+      expect([run.dailyPlan.decision, run.dailyPlan.final_session.kind]).toEqual(["REST", "REST"]);
       expect(run.dailyPlan.protection.do_not_do).toContain(
-        "Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue",
+        "Pas d'entraînement proposé par NALYNT tant que le suivi post-commotion est ouvert",
       );
       // No new flag is ever (re)created by an ordinary neutral day — A5 is
       // read-only continuity of the SAME still-open flag.
@@ -103,7 +104,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("T21 — concussion signal survives multip
     const runN4 = await runDailyFor(client, athlete.athleteId, dayN4);
     expect(runN4.dailyPlan.triggered_rules.some((r) => r.rule_id === "A5")).toBe(false);
     expect(runN4.dailyPlan.protection.do_not_do).not.toContain(
-      "Aucune activité DH tant que la validation médicale post-commotion n'est pas obtenue",
+      "Pas d'entraînement proposé par NALYNT tant que le suivi post-commotion est ouvert",
     );
   });
 });

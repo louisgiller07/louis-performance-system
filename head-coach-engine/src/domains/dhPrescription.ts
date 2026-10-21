@@ -15,7 +15,7 @@ import {
  * (`final_session`, `dh_or_technical`, `mental`, `monitoring`) — no new
  * `DailyPlan` field, no duplicate source of truth. Must always be applied
  * to the FULLY arbitrated final session (after training-domain rules, pain,
- * soft constraints, and the A5 ZERO_DH swap) — never a baseline/planned/
+ * soft constraints; a Safety REST — A1 to A7 — never reaches it) — never a baseline/planned/
  * pre-adaptation intervention, so a Safety override or a fatigue/pain
  * downgrade is always reflected, never a stale prescription.
  */

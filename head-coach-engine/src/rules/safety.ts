@@ -7,17 +7,16 @@ import type { TriggeredRule } from "../types/triggeredRule.js";
  * couches. Voir docs/04_DAILY_DECISION_ENGINE.md §2 et
  * docs/03_COACHING_MODEL.md §6 (SAFETY limitée aux vraies règles médicales).
  *
- * `action`:
- *  - REST : arrêt complet, orientation médicale.
- *  - ZERO_DH : DH interdit tant que non validé médicalement, le reste du
- *    plan (physique hors DH, récupération) reste possible (A5 uniquement).
+ * `action` : REST — aucune séance proposée, orientation vers un professionnel de santé.
+ * SPORT-SAFE-02 (HPM 2026-10-21, CANDIDAT — publication soumise à une décision HPM distincte) : l'ancienne action
+ * ZERO_DH d'A5 (DH seul retiré, Force et endurance gardées à leur dose) est supprimée ; A5 suspend toutes les familles.
  *
  * Ordre (P0-SAFE, HPM 2026-10-12) : déclarations du jour d'abord (A1 commotion, A2 douleur nouvelle
  * sévère, A3 fièvre, A4 critère de gravité, A6 douleur sévère non nouvelle), puis les signaux des jours
- * précédents encore ouverts (A7 blessure / maladie / douleur persistante → REST, plus conservateur),
- * puis A5 (commotion non résolue → ZERO_DH).
+ * précédents encore ouverts (A7 blessure / maladie / douleur persistante → REST),
+ * puis A5 (suivi post-commotion ouvert → REST, suspension).
  */
-export type SafetyAction = "REST" | "ZERO_DH";
+export type SafetyAction = "REST";
 
 export interface SafetyResult {
   rule_id: "A1" | "A2" | "A3" | "A4" | "A5" | "A6" | "A7";
@@ -185,22 +184,30 @@ export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthF
     };
   }
 
-  // A5 — Retour post-commotion sans validation médicale
+  // A5 — Suivi post-commotion ouvert (SPORT-SAFE-02, HPM 2026-10-21, CANDIDAT) : NALYNT suspend ses propositions
+  // d'entraînement pour toutes les familles — jamais la poursuite automatique du programme habituel (Force,
+  // endurance) sans évaluation. Orientation vers un professionnel de santé ; aucun protocole de reprise ; le signal
+  // reste clos hors de la portée du rider (inchangé).
   const unresolvedConcussion = activeHealthFlags.find(
     (f) => f.type === "concussion_suspect" && f.status !== "resolved",
   );
   if (unresolvedConcussion) {
     return {
       rule_id: "A5",
-      action: "ZERO_DH",
+      action: "REST",
       triggered_rule: {
         layer: "A",
         rule_id: "A5",
-        detail: "Flag concussion_suspect actif non résolu — DH interdit tant que non validé médicalement",
+        detail: "Suivi post-commotion ouvert — propositions d'entraînement suspendues jusqu'à l'évaluation d'un professionnel de santé",
         signals_used: ["unresolved_concussion_flag"],
       },
       reasoning:
-        "Un suivi post-commotion est en cours et n'a pas été validé médicalement. Aucune activité DH tant que la validation n'est pas obtenue ; le reste du plan (hors DH) reste possible.",
+        "Un suivi post-commotion est en cours. Par prudence, NALYNT suspend ses propositions d'entraînement tant que ce suivi est ouvert. Consulte un professionnel de santé : lui seul peut évaluer ta reprise et les activités possibles en attendant. NALYNT ne propose aucun protocole de reprise.",
+      rest_plan_copy: {
+        do_not_do: ["Pas d'entraînement proposé par NALYNT tant que le suivi post-commotion est ouvert"],
+        observe: ["Évolution des symptômes déclarés"],
+        recovery_actions: ["Propositions d'entraînement suspendues", "Consulter un professionnel de santé pour évaluer la reprise"],
+      },
     };
   }
 

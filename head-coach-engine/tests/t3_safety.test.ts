@@ -44,8 +44,10 @@ describe("T3 — SAFETY strictement limitée", () => {
     expect(plan.reasoning).toContain("professionnel de santé");
   });
 
-  describe("A5 — ZERO_DH toujours tracée", () => {
-    it("Séance DH planifiée → remplacée, A5 tracée, protection explicite", () => {
+  // SPORT-SAFE-02 (HPM 2026-10-21, candidat) — A5 n'est plus un ZERO_DH : toutes les familles sont suspendues
+  // (détail : sportSafe02ConcussionA5.test.ts).
+  describe("A5 — suivi post-commotion ouvert : suspension, toujours tracée", () => {
+    it("Séance DH planifiée → REST, A5 tracée, suspension explicite", () => {
       const ctx = baseRawContext({
         planned_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" },
         active_health_flags: [{ type: "concussion_suspect", status: "monitoring" }],
@@ -53,13 +55,12 @@ describe("T3 — SAFETY strictement limitée", () => {
 
       const plan = buildDailyPlan(ctx);
 
-      expect(plan.final_session).toEqual({ kind: "RECOVERY_ACTIVE" });
-      expect(plan.confidence).toBe("HIGH");
+      expect(plan.final_session).toEqual({ kind: "REST" });
       expect(plan.triggered_rules.some((r) => r.rule_id === "A5")).toBe(true);
-      expect(plan.protection.do_not_do.some((p) => p.toLowerCase().includes("dh"))).toBe(true);
+      expect(plan.protection.do_not_do).toEqual(["Pas d'entraînement proposé par NALYNT tant que le suivi post-commotion est ouvert"]);
     });
 
-    it("Séance non-DH planifiée → maintenue, mais A5 reste tracée et visible", () => {
+    it("Séance non-DH planifiée → REST aussi (jamais maintenue à sa dose), A5 tracée", () => {
       const ctx = baseRawContext({
         planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" },
         active_health_flags: [{ type: "concussion_suspect", status: "monitoring" }],
@@ -67,11 +68,9 @@ describe("T3 — SAFETY strictement limitée", () => {
 
       const plan = buildDailyPlan(ctx);
 
-      expect(plan.final_session).toEqual({ kind: "STRENGTH_UPPER", load_profile: "MODERATE" });
-      expect(plan.decision).toBe("KEEP");
-      expect(plan.confidence).toBe("HIGH");
+      expect(plan.final_session).toEqual({ kind: "REST" });
+      expect(plan.decision).toBe("REST");
       expect(plan.triggered_rules.some((r) => r.rule_id === "A5")).toBe(true);
-      expect(plan.protection.do_not_do.some((p) => p.toLowerCase().includes("dh"))).toBe(true);
     });
   });
 
@@ -82,10 +81,10 @@ describe("T3 — SAFETY strictement limitée", () => {
       expect(result?.action).toBe("REST");
     });
 
-    it("A5 — flag concussion_suspect non résolu déclenche ZERO_DH", () => {
+    it("A5 — flag concussion_suspect non résolu déclenche REST (SPORT-SAFE-02)", () => {
       const result = evaluateSafety(baseCheckin(), [{ type: "concussion_suspect", status: "monitoring" }]);
       expect(result?.rule_id).toBe("A5");
-      expect(result?.action).toBe("ZERO_DH");
+      expect(result?.action).toBe("REST");
     });
 
     it("Aucune SAFETY sur un checkin neutre", () => {
