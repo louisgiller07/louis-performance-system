@@ -197,6 +197,29 @@ describe.skipIf(!EDGE)("P0-3 — health suspension enforcement on guided session
     report.safetyRest = out;
   });
 
+  // SPORT-SAFE-02 (HPM 2026-10-21, candidate A5) — on 582558b A5 kept a Force session at its dose and only a DH session
+  // was blocked by an open concussion signal: this case fails there (decision KEEP, new set accepted).
+  it("SPORT-SAFE-02 — A5: a concussion follow-up opened on a previous day suspends a running Force session; the next Force day has nothing to start", async () => {
+    const r = await rider("A5");
+    const { data } = await admin.from("planned_sessions").select("planned_date, intervention").eq("athlete_id", r.athleteId).order("planned_date");
+    const forceDays = (data as { planned_date: string; intervention: { kind: string } | null }[]).filter((x) => x.intervention?.kind.startsWith("STRENGTH")).map((x) => x.planned_date);
+    const [day, next] = forceDays as [string, string];
+    const s = await running(r, day);
+    execLocalSql(
+      `insert into public.health_flags (athlete_id, flag_date, flag_type, status, description) values (${lit(r.athleteId)}, ${lit(addCalendarDays(day, -1))}, 'concussion_suspect', 'active', 'Suspicion de commotion déclarée au checkin');`
+    );
+    const d = await rerun(r, day);
+    const runningForce = { decision: d.decision, ruled: d.rules.includes("A:A5"), newSet: await attempt(r, { sets: [s.pass(2)] }), completion: await attempt(r, s.ev("completed")), abandon: await attempt(r, s.ev("abandoned")), results: persisted(s).results };
+    expect(runningForce).toEqual({ decision: "REST", ruled: true, newSet: "409 health_suspended", completion: "409 health_suspended", abandon: "ok", results: 1 });
+
+    await insertCheckin(admin, r.athleteId, next);
+    const run = await invoke(r.client, "daily-run", { date: next });
+    const plan = run.body.dailyPlan as { decision: string; final_session: { kind: string }; triggered_rules: { rule_id: string }[] };
+    const nextForceDay = { status: run.status, decision: plan.decision, finalKind: plan.final_session.kind, a5: plan.triggered_rules.some((x) => x.rule_id === "A5"), created: run.body.finalPrescriptionStatus === "created" };
+    expect(nextForceDay).toEqual({ status: 200, decision: "REST", finalKind: "REST", a5: true, created: false });
+    report.sportSafe02A5 = { runningForce, nextForceDay };
+  });
+
   it("5 — no false block: an ordinary REST (race protocol T-2, layer B) and a non-health check-in change keep the session going to completion", async () => {
     const r = await rider("ordinary-rest");
     const day = r.dhDays[0]!;
