@@ -296,10 +296,10 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
       expect(plan.mental).toEqual({ active: false });
       expect(plan.nutrition).toEqual({ active: false });
 
-      // Safety's own fixed literals (buildSafetyPlan) — not computeRecoveryDomain.
+      // Safety's own literals (A1's coaching-suspension copy, SPORT-SAFE-02 A5-P0) — not computeRecoveryDomain.
       expect(plan.recovery).toEqual({
         active: true,
-        actions: ["Repos complet", "Suivre les consignes du professionnel de santé"],
+        actions: ["Propositions d'entraînement suspendues", "Consulter un professionnel de santé"],
       });
       expect(plan.sleep).toEqual({ active: true, notes: "Prioriser le sommeil pendant la période de repos" });
 
@@ -308,7 +308,7 @@ describe("T14 — Cross-domain integration (V0.3_002E)", () => {
         {
           layer: "A",
           rule_id: "A1",
-          detail: "Suspicion de commotion déclarée — REST et orientation médicale immédiate",
+          detail: "Suspicion de commotion déclarée — propositions d'entraînement suspendues, orientation vers un professionnel de santé",
           signals_used: ["suspected_concussion"],
         },
       ]);

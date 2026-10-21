@@ -71,6 +71,17 @@ describe("SPORT-SAFE-02 — A5: an open concussion follow-up suspends every fami
     expect(plan.final_session).toEqual({ kind: "STRENGTH_UPPER", load_profile: "MODERATE" });
   });
 
+  it("A1 (suspicion declared today, A5-P0 candidate): a coaching suspension with an orientation, never « Repos complet », a signal created", () => {
+    const plan = buildDailyPlan(baseRawContext({ planned_session: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" }, checkin: { suspected_concussion: true } }));
+    expect([plan.decision, plan.final_session.kind, plan.health_flag_to_create?.type]).toEqual(["REST", "REST", "concussion_suspect"]);
+    expect(plan.reasoning).toBe(
+      "Suspicion de commotion déclarée. Par prudence, NALYNT suspend ses propositions d'entraînement. Consulte un professionnel de santé : lui seul peut évaluer la situation, te dire quelles activités sont possibles et quand reprendre. NALYNT ne propose aucun protocole de reprise."
+    );
+    expect(plan.recovery.actions).toEqual(["Propositions d'entraînement suspendues", "Consulter un professionnel de santé"]);
+    expect(plan.protection.do_not_do).toEqual(["Pas d'entraînement proposé par NALYNT tant que la suspicion de commotion n'a pas été évaluée"]);
+    expect(riderText(plan)).not.toMatch(/Repos complet|REST|concussion_suspect|reprise progressive|étape/i);
+  });
+
   it("the decisions carry the new provenance", () => {
     expect(ENGINE_VERSION).toBe("head-coach-engine@0.2.0-m1-sport-safe-02");
   });

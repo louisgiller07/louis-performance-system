@@ -54,7 +54,9 @@ function describeOpenFlag(flag: HealthFlag): string {
 }
 
 export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthFlag[]): SafetyResult | null {
-  // A1 — Suspicion de commotion
+  // A1 — Suspicion de commotion. SPORT-SAFE-02 A5-P0 (HPM 2026-10-21, CANDIDAT) : suspension du coaching sportif
+  // normal et orientation vers un professionnel de santé, au lieu de « Repos complet immédiat » (le consensus actuel ne
+  // recommande pas le repos strict ; NALYNT ne prescrit ni repos ni activité de reprise).
   if (checkin.suspected_concussion) {
     return {
       rule_id: "A1",
@@ -63,11 +65,16 @@ export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthF
       triggered_rule: {
         layer: "A",
         rule_id: "A1",
-        detail: "Suspicion de commotion déclarée — REST et orientation médicale immédiate",
+        detail: "Suspicion de commotion déclarée — propositions d'entraînement suspendues, orientation vers un professionnel de santé",
         signals_used: ["suspected_concussion"],
       },
       reasoning:
-        "Suspicion de commotion cérébrale déclarée. Repos complet immédiat et consultation d'un professionnel de santé obligatoire avant tout retour à l'activité.",
+        "Suspicion de commotion déclarée. Par prudence, NALYNT suspend ses propositions d'entraînement. Consulte un professionnel de santé : lui seul peut évaluer la situation, te dire quelles activités sont possibles et quand reprendre. NALYNT ne propose aucun protocole de reprise.",
+      rest_plan_copy: {
+        do_not_do: ["Pas d'entraînement proposé par NALYNT tant que la suspicion de commotion n'a pas été évaluée"],
+        observe: ["Évolution des symptômes déclarés"],
+        recovery_actions: ["Propositions d'entraînement suspendues", "Consulter un professionnel de santé"],
+      },
     };
   }
 
