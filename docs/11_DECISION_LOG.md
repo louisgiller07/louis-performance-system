@@ -6942,3 +6942,16 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 
 **Statut** : PROPOSÉE (branche locale `fix/a5-p0-hardening`). Canon `docs/04`, `docs/05` et `docs/10` : diff proposé dans `SPORT_SAFE_02_A5_IMPLEMENTATION_GATE`, non appliqué.
 
+
+## 2026-10-22 — SPORT-SAFE-02 A5 : finalisation avant release (GO CONDITIONNEL)
+
+> **Décision HPM** : GO CONDITIONNEL ; publication interdite tant que la gate de finalisation n'est pas franchie. Principe sportif approuvé : un signal de commotion ouvert suspend toutes les prescriptions sportives normales (Force, endurance, DH, course), sans remplacement automatique ; l'interface oriente vers une évaluation médicale sans protocole de reprise ; le serveur refuse les démarrages, reprises et écritures d'exécution dangereux même si une ancienne décision était prête ; suspension ≠ immobilité physique totale. La règle « erreur de saisie le jour même » n'est pas approuvée.
+
+- **Erreur de saisie** (remplace la règle PROPOSÉE du 2026-10-21) : confirmation explicite, aucune attestation antérieure, aucune séance enregistrée depuis le signal (horodatages serveur), sans limite de jour. « Retour complet autorisé » (daté) reste possible depuis tout état ouvert : aucun verrouillage définitif.
+- **Clôture et check-in du jour** (choix d'implémentation, trouvé en navigateur réel, à valider par le HPM) : toute clôture est refusée tant que le check-in du jour déclare encore une suspicion de commotion (`checkin_still_declares_concussion`) ; sinon la nouvelle analyse rouvrait aussitôt un signal (A1). Le check-in reste modifiable.
+- **Interface d'attestation** : « Déclarer l'issue de mon évaluation » ; transitions du serveur seulement ; mention déclarative ; aucun document ; relecture de l'état serveur avant envoi ; même identifiant au réessai ; aucun bouton de clôture libre.
+- **Rollback** : les déclarations sont copiées dans une archive (propriétaire seul, supprimée avec le compte) avant la suppression de la table. Un rollback de la base ou vers un moteur ZERO_DH n'est pas un rollback sûr par défaut ; roll forward préféré.
+- **Déploiement** : base → `daily-run` (seule fonction qui charge M1) → web, dans une seule fenêtre.
+- **Canon** : `docs/04` (§2 A1, A5, clôture d'une commotion, reprise), `docs/05` (garde, cycle de vie), `docs/10` (M2.C, T68). `docs/03` (l. 646) mentionne encore l'ancien A5 : hors périmètre, signalé.
+
+**Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/a5-p0-hardening`). Gate : `SPORT_SAFE_02_A5_FINAL_GATE`.
