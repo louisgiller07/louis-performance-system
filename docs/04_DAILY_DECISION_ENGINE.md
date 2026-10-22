@@ -124,6 +124,7 @@ Non-contournables. Écrasent toutes les autres couches. Produisent un `DailyPlan
     - « suspicion écartée » et « retour complet autorisé » (datées, entre la déclaration du signal et aujourd'hui) clôturent le signal ; une commotion confirmée ne se clôt que par « retour complet autorisé » ;
     - « erreur de saisie » clôture le signal seulement avec une confirmation explicite, avant toute attestation d'évaluation et sans séance enregistrée depuis le signal ;
     - « retour complet autorisé » reste toujours possible depuis un signal ouvert : aucun signal n'est verrouillé définitivement ;
+    - une clôture est refusée tant que le check-in du jour déclare encore une suspicion de commotion : le rider corrige d'abord son check-in, sinon la nouvelle analyse rouvrirait aussitôt un signal (A1) ;
   - aucun protocole ni calendrier de reprise : la décision suivante reprend le plan. Pour une commotion close, aucune prescription calculée avant la clôture n'est réactivée : une nouvelle analyse quotidienne (check-in, Safety et protections quotidiennes comprises) est exigée avant toute séance. Les autres signaux de santé ne suivent pas ces règles de commotion.
 - Les limites de validation clinique restent ouvertes (seuil, conditions de clôture, reprise).
 
