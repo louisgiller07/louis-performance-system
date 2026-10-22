@@ -103,24 +103,28 @@ Non-contournables. Écrasent toutes les autres couches. Produisent un `DailyPlan
 
 | ID | Trigger | Action | Confidence |
 |---|---|---|---|
-| A1 | `suspected_concussion = true` | REST + health_flag + orientation médicale | HIGH |
+| A1 | `suspected_concussion = true` | REST + health_flag `concussion_suspect` + suspension du coaching sportif normal et orientation vers un professionnel de santé (SPORT-SAFE-02 A5) | HIGH |
 | A2 | `pain = true` ET `pain_intensity ≥ 6` ET `pain_new = true` | REST + health_flag + orientation médicale | HIGH |
 | A3 | `fever_or_illness = true` | REST + health_flag | HIGH |
 | A4 | `pain = true` ET critère objectif de gravité (traumatique, perte de fonction, aggravation nette) | REST + health_flag + orientation | HIGH |
-| A5 | Retour post-commotion sans health_flag résolu | Zéro DH tant que non validé | HIGH |
+| A5 | health_flag `concussion_suspect` encore ouvert (actif / suivi, y compris après une attestation « évaluation en cours » ou « commotion confirmée ») | Suspension des propositions d'entraînement pour **toutes** les familles, course comprise (REST) + orientation vers un professionnel de santé ; aucune séance de remplacement ; aucun protocole de reprise (SPORT-SAFE-02 A5) | HIGH |
 | A6 | `pain = true` ET `pain_intensity ≥ 6`, sans critère A2 / A4 (douleur forte non déclarée nouvelle) | Suspension des propositions d'entraînement + health_flag `injury_suspect` + avis d'un professionnel de santé recommandé | HIGH |
 | A7 | health_flag `injury_suspect`, `illness` ou `pain_persistent` encore ouvert (actif / suivi), déclaré un jour précédent | Suspension des propositions d'entraînement + rappel du signal, aucun nouveau signal ; levée seulement par une clôture explicite (ci-dessous) | HIGH |
 
 **P0-SAFE (HPM 2026-10-12)** :
-- **Ordre d'évaluation** : A1, A2, A3, A4, A6 (déclarations du jour), puis A7 (signaux ouverts des jours précédents), puis A5. A7 l'emporte sur A5 quand les deux s'appliquent.
+- **Ordre d'évaluation** : A1, A2, A3, A4, A6 (déclarations du jour), puis A7 (signaux ouverts des jours précédents), puis A5. A7 l'emporte sur A5 quand les deux s'appliquent ; les deux suspendent.
 - **Seuil 6/10 d'A6** : déclencheur conservateur **provisoire** repris d'A2, **pas un seuil clinique validé**.
-- **Formulation** : A6 et A7 suspendent les propositions d'entraînement de NALYNT (« coaching suspendu ») ; ce n'est jamais une affirmation médicale imposant un repos physique absolu. Le moteur reste sur une séance finale `REST` (aucune séance prescrite).
+- **Formulation** : A1, A5 (SPORT-SAFE-02 A5), A6 et A7 suspendent les propositions d'entraînement de NALYNT (« coaching suspendu ») ; ce n'est jamais une affirmation médicale imposant une immobilité physique totale. Le moteur reste sur une séance finale `REST` (aucune séance prescrite).
 - **Clôture d'un signal (A7)**, uniquement explicite, par le rider, persistée sur le signal (`status = resolved`, `resolved_at`, `resolution_note`, `professional_consulted`), jamais automatique dans le temps :
   - signal simple (maladie A3, douleur forte A6) : déclaration que la douleur ou les symptômes ont entièrement disparu ;
   - signal portant un critère de gravité défini par les règles Safety (A2 douleur nouvelle sévère, A4 traumatisme / perte de fonction / aggravation) : la disparition déclarée ne suffit pas ; attestation du rider qu'un professionnel de santé a autorisé la reprise de l'entraînement (NALYNT ne la vérifie pas). Une consultation déclarée n'est pas une autorisation ;
   - signal regroupant plusieurs zones (une seule ligne ouverte par type) : clôture seulement si chaque zone est confirmée ; jamais une plainte qui en clôt d'autres implicitement ;
-  - commotion : jamais clôturée par le rider (A5 inchangée) ;
-  - aucun protocole ni calendrier de reprise : la décision suivante reprend le plan.
+  - commotion (SPORT-SAFE-02 A5, HPM 2026-10-22) : jamais clôturée par une écriture directe, un opérateur technique ou un rôle de service ; seulement par l'**attestation déclarative** du rider, jamais vérifiée par NALYNT, sans document médical (`docs/05`, `health_flag_attestations`) :
+    - « évaluation en cours » et « commotion confirmée » maintiennent la suspension ; elles ne valent jamais autorisation de reprise ;
+    - « suspicion écartée » et « retour complet autorisé » (datées, entre la déclaration du signal et aujourd'hui) clôturent le signal ; une commotion confirmée ne se clôt que par « retour complet autorisé » ;
+    - « erreur de saisie » clôture le signal seulement avec une confirmation explicite, avant toute attestation d'évaluation et sans séance enregistrée depuis le signal ;
+    - « retour complet autorisé » reste toujours possible depuis un signal ouvert : aucun signal n'est verrouillé définitivement ;
+  - aucun protocole ni calendrier de reprise : la décision suivante reprend le plan. Pour une commotion close, aucune prescription calculée avant la clôture n'est réactivée : une nouvelle analyse quotidienne (check-in, Safety et protections quotidiennes comprises) est exigée avant toute séance. Les autres signaux de santé ne suivent pas ces règles de commotion.
 - Les limites de validation clinique restent ouvertes (seuil, conditions de clôture, reprise).
 
 **Ce qui n'est PAS SAFETY** (déplacé en couche C) :
@@ -331,7 +335,7 @@ L'engagement reste subordonné aux branches **hard** : Safety, événement réel
 
 ### Session Prescription V1 — DH-first (V0.3_006B, PROVISIONAL)
 
-Appliquée à la session finale **entièrement arbitrée** (après Training/douleur non-SAFETY/contraintes soft/A5 — jamais une baseline/planifiée/pré-adaptation), pour les kinds DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`, jamais `RACE_ACTIVITY`) : `duration_min` (fenêtre totale de session, PROVISIONAL, voir `docs/03_COACHING_MODEL.md` §Session Prescription V1 et `docs/07_GLOSSARY.md`) et le focus technique résolu (personnel ou repli générique) sont ajoutés aux champs déjà existants `final_session`/`dh_or_technical` — aucun nouveau champ `DailyPlan`. Un A1 (REST) ou un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse jamais subsister de prescription DH périmée. Voir `head-coach-engine/src/domains/dhPrescription.ts` et `docs/11_DECISION_LOG.md`.
+Appliquée à la session finale **entièrement arbitrée** (après Training/douleur non-SAFETY/contraintes soft — un REST Safety, A5 compris, ne l'atteint jamais ; jamais une baseline/planifiée/pré-adaptation), pour les kinds DH-family (`DH_PERFORMANCE`/`DH_TECHNICAL`/`DH_LIGHT`/`PUMPTRACK`, jamais `RACE_ACTIVITY`) : `duration_min` (fenêtre totale de session, PROVISIONAL, voir `docs/03_COACHING_MODEL.md` §Session Prescription V1 et `docs/07_GLOSSARY.md`) et le focus technique résolu (personnel ou repli générique) sont ajoutés aux champs déjà existants `final_session`/`dh_or_technical` — aucun nouveau champ `DailyPlan`. Un REST Safety (A1, A5 depuis SPORT-SAFE-02 A5) ne laisse jamais subsister de prescription DH périmée. Voir `head-coach-engine/src/domains/dhPrescription.ts` et `docs/11_DECISION_LOG.md`.
 
 **DH Execution Guidance (V0.3_006C1, corrigé V0.3_008B0)** : `dh_or_technical` gagne un champ optionnel `execution_task` — repli générique fixe par kind, présent dès que la session finale est DH-family, indépendamment de la présence d'un focus personnel (V0.3_008B0 corrige le comportement initial qui le rendait absent dès qu'un focus personnel existait ; jamais dérivé du texte libre personnel dans un cas comme dans l'autre). Le terrain (`spot_hint`, `domains/technique.ts#selectSpotHint`) devient précédence-déterministe : douleur non-SAFETY constrainante > fatigue significative > Mental RED > proximité course > frais/défaut, une seule recommandation gagnante, jamais concaténée. `mental.action_hint` (couche C) intègre désormais une action pré-run concrète + le focus déjà résolu comme priorité attentionnelle, quand la session finale reste DH-family. `monitoring.observe` gagne, pour la douleur non-SAFETY, un critère d'interruption immédiat additif au suivi 24–48h existant (jamais un remplacement, jamais une déclaration de sécurité). Aucun de ces ajouts ne touche `rules/safety.ts` ni la classification SAFETY/non-SAFETY de la douleur. Voir `docs/03_COACHING_MODEL.md` §DH Execution Guidance et `docs/11_DECISION_LOG.md`.
 

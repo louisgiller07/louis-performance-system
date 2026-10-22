@@ -312,8 +312,8 @@ Ces tests s'ajoutent à la couverture M1 sans jamais la modifier. Les 75 tests M
 ### M2.C — Cycle A1/A2/A3/A4 → A5 (critique)
 
 - **M2.C.1** — Jour N : checkin `suspected_concussion=true` → `runDailyFor`. Vérifier atomiquement : row `health_flags` insérée (`type='concussion_suspect'`, statut non résolu) **ET** row `decisions` insérée avec `final_session=REST`. Si l'une échoue, aucune n'est persistée.
-- **M2.C.2** — Jour N+1 : même DB, checkin neutre → `runDailyFor`. Vérifier : **aucun nouveau** `health_flags` inséré (idempotence PostgreSQL prouvée) + row `decisions` avec règle `A5` dans `triggered_rules` et `do_not_do` mentionnant DH.
-- **M2.C.3** — Flag manuellement marqué `resolved` en SQL → `runDailyFor`. Vérifier : `A5` **n'apparaît plus** dans la nouvelle décision. Un futur checkin `suspected_concussion=true` peut créer un nouveau flag actif (idempotence sémantique respectée).
+- **M2.C.2** — Jour N+1 : même DB, checkin neutre → `runDailyFor`. Vérifier : **aucun nouveau** `health_flags` inséré (idempotence PostgreSQL prouvée) + row `decisions` `REST` avec règle `A5` dans `triggered_rules` (SPORT-SAFE-02 A5 : suspension de toutes les familles, aucune séance de remplacement).
+- **M2.C.3** — Flag clôturé par l'attestation déclarative du rider (`record_health_flag_attestation` : « retour complet autorisé », « suspicion écartée » ou erreur de saisie ; une clôture SQL directe est refusée depuis SPORT-SAFE-02 A5) → `runDailyFor`. Vérifier : `A5` **n'apparaît plus** dans la nouvelle décision. Un futur checkin `suspected_concussion=true` peut créer un nouveau flag actif (idempotence sémantique respectée).
 - **M2.C.4** — Idempotence sous appels concurrents ou multiples : deux `runDailyFor` consécutifs sur le même checkin A1 → **un seul** health flag actif au total (garanti par la contrainte / index unique partiel PostgreSQL, pas par le code applicatif).
 
 ### M2.D — Équivalence fixture ↔ Supabase
@@ -468,7 +468,7 @@ Toute divergence = régression bloquante de l'adapter M2 (le moteur M1 étant fr
 
 ### T11. Technique DH (V0.3_002B — CLOSED LOCALLY, 2026-08-28)
 
-Activation : source unique = `final_session.kind` (séance déjà entièrement arbitrée — après règles de domaine, douleur non-SAFETY, soft constraints et A5). Actif exactement pour `DH_TECHNICAL`/`DH_PERFORMANCE`/`DH_LIGHT`/`PUMPTRACK` ; inactif pour tout autre kind courant (y compris `RACE_ACTIVITY`) — aucun gating direct sur jour de semaine/weekend, aucun gating sur `active_mode`.
+Activation : source unique = `final_session.kind` (séance déjà entièrement arbitrée — après règles de domaine, douleur non-SAFETY et soft constraints ; un REST Safety, A5 compris, ne l'atteint jamais). Actif exactement pour `DH_TECHNICAL`/`DH_PERFORMANCE`/`DH_LIGHT`/`PUMPTRACK` ; inactif pour tout autre kind courant (y compris `RACE_ACTIVITY`) — aucun gating direct sur jour de semaine/weekend, aucun gating sur `active_mode`.
 
 - Séance finale hors des 4 kinds actifs → `dh_or_technical.active = false`
 - Séance finale dans les 4 kinds actifs → `active = true`, `focus` = une seule chaîne de cue technique actionnable ("Fixe ta ligne, dose le freinage, laisse rouler."), `spot_hint` catégoriel peuplé
@@ -702,6 +702,26 @@ Tests existants adaptés au nouveau contrat : `sessionExecution.integration.test
 - **Web unitaires** : détail de l'historique (`HistoryDetailPage.test.tsx`) — Force terminée (statut, prescription figée, correction appliquée, créneau vide « Aucun résultat enregistré », aucune saisie), DH arrêtée (passages et critère), séance en cours, séance d'une autre décision du jour (explication et lien), priorité V1, ancien catalogue (valeurs lisibles, note neutre), lecture échouée → erreur de page (jamais « Pas de séance enregistrée ») ; liste et bilan (`historyDays.test.ts`, `HistoryPage.test.tsx`) — séance arrêtée (y compris sous un REST santé, P0-3 O1), séance ouverte un jour passé, distinction enregistrées / arrêtées (partielles) / non enregistrées ; modules guidés en lecture seule (Force, DH).
 - **Intégration web, base locale** (`p0_4GuidedHistory.integration.test.tsx`) : vraie page de détail sous RLS avec une séance Force réellement enregistrée ; autre rider : décision introuvable, exécutions et prescription illisibles.
 - **Navigateur réel** (Chromium mobile, pile locale) : DH 5/5, Force 7/7 après changement de programme, DH arrêtée 2/2, V1 inchangée, séance en cours, décision plus récente du même jour (lien), arrêt puis REST A6, jour REST, rechargement et accès direct identiques, autre rider « Journée introuvable » sans fuite.
+
+### T68. SPORT-SAFE-02 A5 — suivi post-commotion : suspension, garde serveur sur l'état courant, attestation déclarative (HPM 2026-10-22, migration `20261021200000`)
+Règles : `docs/04` (§2, A1, A5, clôture d'une commotion, reprise), `docs/05` (`health_flags`, cycle de vie d'une commotion ; suspension santé d'une séance guidée).
+- **Unitaires M1** (`sportSafe02ConcussionA5.test.ts`, `t3_safety`, `p0SafeHealthContinuity`, `t14`, `t15`) :
+  - A5 = REST Safety pour DH, Force haut et bas, endurance, récupération, journée sans séance et `RACE_ACTIVITY` ; aucune nouvelle ligne `health_flags` ;
+  - A1 : suspension du coaching et orientation, jamais « Repos complet » ;
+  - ordre A1 → … → A7 → A5 ; signal clos : le plan reprend sans protocole ; `ENGINE_VERSION` `head-coach-engine@0.2.0-m1-sport-safe-02`.
+- **Intégration** (`a5P0Hardening.integration.test.ts`, `sportSafe02A5Lifecycle.integration.test.ts`, `p0_3HealthSuspendedExecution.integration.test.ts`, Edge local, JWT du rider) :
+  - prescription prête **avant** le signal, sans nouvelle analyse : démarrage refusé (`health_suspended`) pour Force, DH et endurance ;
+  - tentative commencée : résultat, correction, reprise et clôture refusés ; pause et arrêt acceptés ; résultats conservés ;
+  - signal créé pendant une séance (check-in modifié, A1) : actions suivantes refusées ;
+  - sérialisation : un démarrage envoyé pendant l'ouverture du signal attend le verrou, puis est refusé ;
+  - clôture entre deux appels : ancienne prescription refusée (`daily_decision_not_current`), nouvelle analyse, nouvelle prescription acceptée ;
+  - jour de course sous signal : REST A5 ;
+  - attestations : transitions autorisées et refusées, dates bornées, « évaluation en cours » et « commotion confirmée » maintiennent la suspension, « retour complet autorisé » possible depuis tout état ouvert, erreur de saisie (confirmation, avant toute évaluation, sans séance depuis le signal) ;
+  - refus : rôle de service, autre rider, opérateur (mise à jour ou suppression directe), écriture directe dans `health_flag_attestations` ; Edge `health-flag-resolution` toujours refusé pour une commotion ; débrief V1 « Terminée » refusé sous commotion ;
+  - idempotence (rejeu `unchanged`, `id_conflict`), isolation RLS, purge du compte.
+- **Web** (`ConcussionFollowUpForm.test.tsx`, `HealthFlagBanner.test.tsx`, `healthBlock`, `bodyStatus`) : choix limités aux transitions du serveur, mention déclarative, relecture de l'état serveur avant envoi, même identifiant au réessai, messages lisibles, cibles tactiles de 44 px, aucun champ de document ; aucun bouton « Clôturer ce signal » pour une commotion.
+- **Contre-preuve** : rollback `supabase/rollbacks/sport_safe_02/` → la garde d'origine est restaurée au bit près ; démarrage d'une ancienne prescription sous commotion accepté ; clôture par attestation impossible.
+- **Non-régression** : suites `head-coach-engine` (unitaires, intégration, Edge ; génération avec `NALYNT_V2_PLAN_GENERATION_ENABLED=true` pour les fichiers qui l'exigent), `web` (unitaires, intégration), `npm run build`.
 
 ### T67. SPORT-RACE-01P — jours d'avant-course planifiés depuis le protocole de course ; contrat des formats et séries (HPM 2026-10-19 ; arbitrages 01P.2 ; 01P.3)
 Règles : `docs/03` §6 (jours d'avant-course), `docs/05` (§race_calendar : compétition, format, durée, sélection du protocole, compatibilité ; snapshot v2 `raceFormat` ; contraintes relâchées ; invariants des séances d'avant-course), `docs/04` §3 (T-X, inchangé).
