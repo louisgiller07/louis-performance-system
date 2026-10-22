@@ -194,7 +194,7 @@ export function evaluateSafety(checkin: DailyCheckin, activeHealthFlags: HealthF
   // A5 — Suivi post-commotion ouvert (SPORT-SAFE-02, HPM 2026-10-21, CANDIDAT) : NALYNT suspend ses propositions
   // d'entraînement pour toutes les familles — jamais la poursuite automatique du programme habituel (Force,
   // endurance) sans évaluation. Orientation vers un professionnel de santé ; aucun protocole de reprise ; le signal
-  // reste clos hors de la portée du rider (inchangé).
+  // ne se clôt que par l'attestation déclarative du rider (HPM 2026-10-22, docs/04 §2, docs/05 health_flags).
   const unresolvedConcussion = activeHealthFlags.find(
     (f) => f.type === "concussion_suspect" && f.status !== "resolved",
   );
