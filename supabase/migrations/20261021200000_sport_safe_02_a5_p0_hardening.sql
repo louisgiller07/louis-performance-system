@@ -326,6 +326,13 @@ begin
         raise exception using errcode = 'NX001', message = 'invalid_transition';
       end if;
     end if;
+    -- A closure while today's check-in still declares a suspected concussion would be undone by the next daily
+    -- analysis (A1 opens a new signal): the rider corrects the check-in first. Never a lock: the check-in stays
+    -- editable, and the next day's check-in is a new declaration.
+    if v_outcome = any (c_resolving)
+       and exists (select 1 from public.daily_checkins c where c.athlete_id = v_athlete and c.checkin_date = v_today and c.suspected_concussion) then
+      raise exception using errcode = 'NX001', message = 'checkin_still_declares_concussion';
+    end if;
 
     insert into public.health_flag_attestations (id, flag_id, athlete_id, outcome, assessed_on, professional_category, attested_by)
     values (v_id, v_flag_id, v_athlete, v_outcome, v_assessed_on, v_category, auth.uid());

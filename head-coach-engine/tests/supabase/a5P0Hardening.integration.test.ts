@@ -432,6 +432,39 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 A5-P0 — concussion hardening (local stac
     expect(out).toEqual({ resolution: "409 medical_validation_required", debrief: "409 health_suspended", flag: "active|-", written: "0" });
   });
 
+  it("today's check-in still declares a suspected concussion: every closure is refused (the next analysis would reopen a signal); corrected check-in → closure accepted, no new signal", async () => {
+    const r = await plainRider("checkin-first");
+    await insertCheckin(admin, r.athleteId, TODAY, { suspected_concussion: true });
+    const a1 = await rerun(r, TODAY);
+    const flagId = execLocalSql(`select id from public.health_flags where athlete_id = ${lit(r.athleteId)} and flag_type = 'concussion_suspect';`).trim();
+    const out: Record<string, unknown> = { a1: [a1.decision, a1.rules] };
+    out.error = (await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome: "entered_in_error", entered_in_error_confirmation: true })).code;
+    out.ruledOut = (await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome: "ruled_out", assessed_on: TODAY })).code;
+    out.fullReturn = (await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome: "full_return_authorised", assessed_on: TODAY })).code;
+    out.stillOpen = flagRow(flagId);
+    const corrected = await admin.from("daily_checkins").update({ suspected_concussion: false }).eq("athlete_id", r.athleteId).eq("checkin_date", TODAY);
+    if (corrected.error) throw new Error(corrected.error.message);
+    const a5 = await rerun(r, TODAY);
+    out.a5 = [a5.decision, a5.rules];
+    out.errorAfterCorrection = (await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome: "entered_in_error", entered_in_error_confirmation: true })).flag_status;
+    const after = await rerun(r, TODAY);
+    out.afterRules = after.rules;
+    out.flags = execLocalSql(`select string_agg(status::text, ',' order by created_at) from public.health_flags where athlete_id = ${lit(r.athleteId)};`).trim();
+    report.checkinFirst = out;
+    expect(out).toEqual({
+      a1: ["REST", ["A1"]],
+      error: "checkin_still_declares_concussion",
+      ruledOut: "checkin_still_declares_concussion",
+      fullReturn: "checkin_still_declares_concussion",
+      stillOpen: "active|-",
+      a5: ["REST", ["A5"]],
+      errorAfterCorrection: "resolved",
+      afterRules: [],
+      flags: "resolved",
+    });
+    expect(after.decision).not.toBe("REST");
+  });
+
   it("idempotence and errors: an attestation replayed is unchanged, the same id with another content conflicts, malformed input refused, a refused start replayed stays refused", async () => {
     const a = await plainRider("idempotence");
     const flagId = openConcussion(a.athleteId, TODAY);
