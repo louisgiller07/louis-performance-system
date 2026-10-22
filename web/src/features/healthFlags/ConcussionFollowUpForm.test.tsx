@@ -15,7 +15,7 @@ vi.mock("./concussionFollowUpRepo", async (original) => ({
 }));
 vi.mock("../../lib/date", () => ({ todayLocal: () => "2026-10-22" }));
 
-const OPEN: ConcussionFollowUp = { open: true, flagDate: "2026-10-20", lastOutcome: null };
+const OPEN: ConcussionFollowUp = { open: true, flagDate: "2026-10-20", lastOutcome: null, checkinDeclaresConcussion: false };
 const radios = () => screen.getAllByRole("radio").map((r) => (r.closest("label") as HTMLElement).textContent);
 const submitButton = () => screen.getByRole("button", { name: "Enregistrer ma déclaration" });
 async function openForm(onResolved = vi.fn()) {
@@ -143,6 +143,24 @@ describe("ConcussionFollowUpForm — sending", () => {
     await userEvent.click(submitButton());
     await waitFor(() => expect(record).toHaveBeenCalledTimes(3));
     expect(record.mock.calls[2]![0].id).not.toBe(record.mock.calls[0]![0].id);
+  });
+
+  it("today's check-in still declares a suspected concussion: a closure says to correct it first and is never sent; once corrected, it is sent", async () => {
+    load.mockResolvedValue({ ...OPEN, checkinDeclaresConcussion: true });
+    record.mockResolvedValue({ ok: true, closed: true });
+    const onResolved = await openForm();
+    await userEvent.click(screen.getByLabelText(OUTCOME_LABELS.assessment_in_progress));
+    expect(screen.queryByTestId("concussion-follow-up-checkin-first")).toBeNull();
+    await userEvent.click(screen.getByLabelText(OUTCOME_LABELS.entered_in_error));
+    expect(screen.getByTestId("concussion-follow-up-checkin-first")).toHaveTextContent("Ton check-in du jour indique encore une suspicion de commotion : corrige-le d'abord");
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(submitButton());
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ton check-in du jour indique toujours une suspicion de commotion.");
+    expect(record).not.toHaveBeenCalled();
+    load.mockResolvedValue(OPEN);
+    await userEvent.click(submitButton());
+    await waitFor(() => expect(onResolved).toHaveBeenCalledTimes(1));
+    expect(record).toHaveBeenCalledTimes(1);
   });
 
   it("a refused declaration reads as a sentence, never a code", async () => {

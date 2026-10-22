@@ -2,6 +2,7 @@
 // concussion signal. Reads the CURRENT server state (signal status + attestations, RLS: own rows only) and records a
 // DECLARATIVE attestation through record_health_flag_attestation (security definer: the athlete comes from the JWT,
 // never from here; a service role or an operator cannot call it). Never a medical validation, never a document.
+import { todayLocal } from "../../lib/date";
 import { supabase } from "../../lib/supabase";
 
 export const CONCUSSION_OUTCOMES = ["assessment_in_progress", "concussion_confirmed", "ruled_out", "full_return_authorised", "entered_in_error"] as const;
@@ -19,6 +20,8 @@ export interface ConcussionFollowUp {
   flagDate: string;
   /** The rider's last attestation on this signal, null when none (a signal from before the attestations). */
   lastOutcome: ConcussionOutcome | null;
+  /** Today's check-in still declares a suspected concussion: a closure would be undone by the next analysis (A1). */
+  checkinDeclaresConcussion: boolean;
 }
 
 /**
@@ -44,19 +47,25 @@ export class ConcussionFollowUpLoadError extends Error {
 /** The signal's current state, read from the server (never a cached client state). */
 export async function loadConcussionFollowUp(flagId: string): Promise<ConcussionFollowUp> {
   const [flag, attestations] = await Promise.all([
-    supabase.from("health_flags").select("status, flag_date").eq("id", flagId).maybeSingle(),
+    supabase.from("health_flags").select("status, flag_date, athlete_id").eq("id", flagId).maybeSingle(),
     supabase.from("health_flag_attestations").select("outcome, recorded_at").eq("flag_id", flagId).order("recorded_at", { ascending: false }).limit(1),
   ]);
   if (flag.error || attestations.error || !flag.data) {
     console.error("concussionFollowUpRepo.load failed", flag.error?.code ?? attestations.error?.code ?? "not_found");
     throw new ConcussionFollowUpLoadError();
   }
-  const row = flag.data as { status: string; flag_date: string };
+  const row = flag.data as { status: string; flag_date: string; athlete_id: string };
+  const checkin = await supabase.from("daily_checkins").select("suspected_concussion").eq("athlete_id", row.athlete_id).eq("checkin_date", todayLocal()).maybeSingle();
+  if (checkin.error) {
+    console.error("concussionFollowUpRepo.load failed", checkin.error.code);
+    throw new ConcussionFollowUpLoadError();
+  }
   const last = ((attestations.data ?? []) as { outcome: string }[])[0]?.outcome;
   return {
     open: row.status === "active" || row.status === "monitoring",
     flagDate: row.flag_date,
     lastOutcome: (CONCUSSION_OUTCOMES as readonly string[]).includes(last ?? "") ? (last as ConcussionOutcome) : null,
+    checkinDeclaresConcussion: (checkin.data as { suspected_concussion: boolean | null } | null)?.suspected_concussion === true,
   };
 }
 

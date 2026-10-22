@@ -35,6 +35,9 @@ export const DECLARATIVE_NOTICE =
 const KEEPS_SUSPENSION = "NALYNT continue de suspendre ses propositions d'entraînement.";
 const CLOSES =
   "Après ta déclaration, NALYNT refait l'analyse de ta journée avant de te proposer une séance. Ton check-in quotidien reste pris en compte.";
+const CHECKIN_FIRST =
+  "Ton check-in du jour indique encore une suspicion de commotion : corrige-le d'abord (« Modifier » dans ta régularité), sinon NALYNT rouvrira ce suivi à la prochaine analyse.";
+const CHECKIN_STILL = "Ton check-in du jour indique toujours une suspicion de commotion.";
 const ERROR_CONFIRMATION = "Je confirme n'avoir eu ni choc à la tête ni symptôme : j'ai répondu « Oui » par erreur.";
 
 const MESSAGES: Record<string, string> = {
@@ -44,6 +47,7 @@ const MESSAGES: Record<string, string> = {
   entered_in_error_after_assessment: "Une évaluation a déjà été déclarée : ce suivi se clôt par la décision d'un professionnel de santé.",
   entered_in_error_after_training: "Une séance a été enregistrée depuis ce signal : ce suivi se clôt par la décision d'un professionnel de santé.",
   entered_in_error_confirmation_required: "Confirme que tu as déclaré cette suspicion par erreur.",
+  checkin_still_declares_concussion: CHECKIN_FIRST,
   flag_not_open: "Ce suivi est déjà clôturé.",
   flag_not_found: "Ce suivi n'existe plus.",
   rider_attestation_required: "Reconnecte-toi pour enregistrer ta déclaration.",
@@ -95,6 +99,7 @@ export function ConcussionFollowUpForm({ flagId, onResolved }: { flagId: string;
 
   const choices = state ? allowedOutcomes(state.lastOutcome) : [];
   const dated = outcome !== null && DATED_OUTCOMES.has(outcome);
+  const checkinFirst = outcome !== null && CLOSING_OUTCOMES.has(outcome) && state?.checkinDeclaresConcussion === true;
   const ready =
     outcome !== null &&
     choices.includes(outcome) &&
@@ -115,6 +120,12 @@ export function ConcussionFollowUpForm({ flagId, onResolved }: { flagId: string;
       setSending(false);
       setMessage(MESSAGES.flag_not_open);
       onResolved?.();
+      return;
+    }
+    // Re-read too: the rider may have corrected the check-in since the form was opened.
+    if (CLOSING_OUTCOMES.has(outcome) && current.checkinDeclaresConcussion) {
+      setSending(false);
+      setMessage(CHECKIN_STILL);
       return;
     }
     if (current.lastOutcome !== state.lastOutcome || !allowedOutcomes(current.lastOutcome).includes(outcome)) {
@@ -222,6 +233,11 @@ export function ConcussionFollowUpForm({ flagId, onResolved }: { flagId: string;
           <p className="text-xs text-amber-100/80" data-testid="concussion-follow-up-effect">
             {CLOSING_OUTCOMES.has(outcome) ? CLOSES : KEEPS_SUSPENSION}
           </p>
+          {checkinFirst && (
+            <p className="text-sm font-semibold text-amber-200" data-testid="concussion-follow-up-checkin-first">
+              {CHECKIN_FIRST}
+            </p>
+          )}
         </div>
       )}
       {message && (

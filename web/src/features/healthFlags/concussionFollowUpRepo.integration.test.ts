@@ -73,14 +73,14 @@ describe.skipIf(!INTEGRATION_ENABLED)("SPORT-SAFE-02 A5 — concussion follow-up
     steps.fullReturn = await repo.recordConcussionAttestation({ id: randomUUID(), flagId, outcome: "full_return_authorised", assessedOn: TODAY, professionalCategory: "sports_physician", enteredInErrorConfirmation: false });
     steps.final = await repo.loadConcussionFollowUp(flagId);
     expect(steps).toEqual({
-      initial: { open: true, flagDate: TODAY, lastOutcome: null },
+      initial: { open: true, flagDate: TODAY, lastOutcome: null, checkinDeclaresConcussion: false },
       inProgress: { ok: true, closed: false },
       replay: { ok: true, closed: false },
       conflict: { ok: false, code: "id_conflict", retryable: false },
-      afterInProgress: { open: true, flagDate: TODAY, lastOutcome: "assessment_in_progress" },
+      afterInProgress: { open: true, flagDate: TODAY, lastOutcome: "assessment_in_progress", checkinDeclaresConcussion: false },
       error: { ok: false, code: "entered_in_error_after_assessment", retryable: false },
       fullReturn: { ok: true, closed: true },
-      final: { open: false, flagDate: TODAY, lastOutcome: "full_return_authorised" },
+      final: { open: false, flagDate: TODAY, lastOutcome: "full_return_authorised", checkinDeclaresConcussion: false },
     });
   });
 
