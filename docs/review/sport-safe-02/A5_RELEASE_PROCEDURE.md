@@ -1,6 +1,6 @@
 # SPORT-SAFE-02 A5 — procédure de publication et de rollback
 
-Écrit pour : HPM et Louis. Statut : **préparée, non exécutée**. Aucune étape de ce document ne s'exécute sans GO HPM sur le candidat final et confirmation de Louis.
+Statut : **préparée, non exécutée**. Aucune étape de ce document ne s'exécute sans GO HPM sur le candidat final et confirmation de Louis.
 
 ## 1. Inventaire production (avant toute migration)
 
