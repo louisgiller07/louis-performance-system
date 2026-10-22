@@ -3,6 +3,7 @@ import { HEALTH_FLAG_TYPE_LABELS, formatFlagDate } from "./healthFlagLabels";
 import type { OpenHealthFlag } from "./openHealthFlagsRepo";
 import { inspectOpenHealthFlag, resolveOpenHealthFlag, type HealthFlagRequirements } from "./healthFlagResolutionClient";
 import { PAIN_LOCATION_LABELS, type PainLocationCode } from "../checkin/checkinTypes";
+import { ConcussionFollowUpForm } from "./ConcussionFollowUpForm";
 
 /**
  * Safety transparency banner for every open health signal.
@@ -15,20 +16,21 @@ import { PAIN_LOCATION_LABELS, type PainLocationCode } from "../checkin/checkinT
  * - a grave signal (Safety gravity criterion) also needs the rider's attestation that a health professional
  *   authorised the return to training — a consultation alone is not a clearance;
  * - a signal grouping several zones is closed only once every zone is confirmed, never one for all.
- * A concussion signal keeps the original wording and is never closable here (A5, V0.3_006A2 deferred).
+ * A concussion signal (SPORT-SAFE-02 A5, HPM 2026-10-22) is closed only by the rider's declarative attestation of the
+ * assessment's outcome (ConcussionFollowUpForm → record_health_flag_attestation), never by the closure above.
  */
 export function HealthFlagBanner({ flags, onResolved }: { flags: OpenHealthFlag[]; onResolved?: () => void }) {
   if (flags.length === 0) return null;
   return (
     <div className="flex flex-col gap-3">
       {flags.map((flag) =>
-        flag.type === "concussion_suspect" ? <ConcussionNotice key={flag.id} flag={flag} /> : <FollowUpSignal key={flag.id} flag={flag} onResolved={onResolved} />
+        flag.type === "concussion_suspect" ? <ConcussionNotice key={flag.id} flag={flag} onResolved={onResolved} /> : <FollowUpSignal key={flag.id} flag={flag} onResolved={onResolved} />
       )}
     </div>
   );
 }
 
-function ConcussionNotice({ flag }: { flag: OpenHealthFlag }) {
+function ConcussionNotice({ flag, onResolved }: { flag: OpenHealthFlag; onResolved?: () => void }) {
   return (
     // UX-01 — same safety amber, same wording, on the dark palette (was a light amber-50 block).
     <div role="status" className="ux-enter rounded-lg border border-amber-400/60 bg-amber-950/40 p-4">
@@ -44,11 +46,12 @@ function ConcussionNotice({ flag }: { flag: OpenHealthFlag }) {
       <p className="mt-1.5 text-xs text-amber-100/80" data-testid="concussion-suspension">
         Tant que ce suivi est ouvert, NALYNT suspend ses propositions d'entraînement.
       </p>
-      <p className="mt-1.5 text-xs text-amber-100/80">NALYNT ne permet pas encore de clôturer ce suivi depuis l'application.</p>
       {/* SPORT-SAFE-02 (HPM 2026-10-21) — orientation only: never a medical assessment, never a return protocol. */}
       <p className="mt-1.5 text-xs text-amber-100/80" data-testid="concussion-orientation">
         Consulte un professionnel de santé : lui seul peut évaluer ta reprise. NALYNT ne propose aucun protocole de reprise après une commotion.
       </p>
+      {/* SPORT-SAFE-02 A5 (HPM 2026-10-22) — the rider's declarative attestation of the assessment's outcome. */}
+      <ConcussionFollowUpForm flagId={flag.id} onResolved={onResolved} />
     </div>
   );
 }

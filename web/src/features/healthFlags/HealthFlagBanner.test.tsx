@@ -37,12 +37,12 @@ describe("HealthFlagBanner — concussion (V0.3_006A1, unchanged)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("the friendly label and date; today's 'Non' does not clear it; never closable from the app (no button, no inspection)", () => {
+  it("the friendly label and date; today's 'Non' does not clear it; never the free closure — only the declaration of the assessment (SPORT-SAFE-02 A5)", () => {
     render(<HealthFlagBanner flags={[concussion]} />);
     expect(screen.getByText(/Suspicion de commotion signalée le 5 septembre\./)).toBeInTheDocument();
     expect(screen.getByText(/Ce signal reste actif même si tu réponds « Non » aujourd'hui\./)).toBeInTheDocument();
-    expect(screen.getByText(/NALYNT ne permet pas encore de clôturer ce suivi depuis l'application\./)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clôturer ce signal" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Déclarer l'issue de mon évaluation"]);
     expect(inspectMock).not.toHaveBeenCalled();
     expect(screen.queryByText(/concussion_suspect/)).not.toBeInTheDocument();
   });
@@ -53,7 +53,7 @@ describe("HealthFlagBanner — concussion (V0.3_006A1, unchanged)", () => {
     expect(screen.getByTestId("concussion-orientation")).toHaveTextContent(
       "Consulte un professionnel de santé : lui seul peut évaluer ta reprise. NALYNT ne propose aucun protocole de reprise après une commotion."
     );
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clôturer ce signal" })).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/autoris|reprise progressive|étape \d/i);
   });
 
