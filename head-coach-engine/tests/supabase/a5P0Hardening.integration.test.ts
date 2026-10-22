@@ -16,7 +16,7 @@ import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
-import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline } from "./testDb.js";
+import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, insertRace, setAthleteDiscipline } from "./testDb.js";
 import { assertLocalDbReady, execLocalSql, localDbContainer, localIntegrationRequested, sqlLiteral as lit } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
@@ -43,8 +43,8 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 A5-P0 — concussion hardening (local stac
     if (process.env.A5P0_REPORT) writeFileSync(process.env.A5P0_REPORT, JSON.stringify(report, null, 2));
   });
 
-  async function invoke(client: SupabaseClient, fn: string, body: unknown): Promise<{ status: number; body: Body }> {
-    const { data, error } = await client.functions.invoke(fn, { body });
+  async function invoke(client: SupabaseClient, fn: string, body: unknown, method?: "PUT" | "POST"): Promise<{ status: number; body: Body }> {
+    const { data, error } = await client.functions.invoke(fn, { body: body as Body, ...(method ? { method } : {}) });
     if (!error) return { status: 200, body: data as Body };
     if (error instanceof FunctionsHttpError) {
       const res = error.context as Response;
@@ -85,8 +85,8 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 A5-P0 — concussion hardening (local stac
   }
   async function rerun(r: Rider, day: string) {
     const run = await invoke(r.client, "daily-run", { date: day });
-    const plan = run.body.dailyPlan as { decision: string; triggered_rules: { rule_id: string; layer: string }[] };
-    return { decision: plan.decision, rules: plan.triggered_rules.filter((x) => x.layer === "A").map((x) => x.rule_id), prescription: run.body.finalPrescription as Prescription | undefined };
+    const plan = run.body.dailyPlan as { decision: string; triggered_rules: { rule_id: string; layer: string }[]; final_session: { kind: string } };
+    return { decision: plan.decision, rules: plan.triggered_rules.filter((x) => x.layer === "A").map((x) => x.rule_id), kind: plan.final_session.kind, prescription: run.body.finalPrescription as Prescription | undefined };
   }
   function session(r: Rider, day: string, fp: Prescription) {
     const id = randomUUID();
@@ -312,7 +312,7 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 A5-P0 — concussion hardening (local stac
     });
   });
 
-  it("entry error (PROPOSED rule): only the day of the declaration, with an explicit confirmation, before any assessment or training", async () => {
+  it("entry error (HPM 2026-10-22, no « same day » limit): an explicit confirmation, before any assessment, no session recorded since the signal (server timestamps)", async () => {
     const out: Record<string, unknown> = {};
     const a = await plainRider("error-ok");
     const fa = openConcussion(a.athleteId, TODAY);
@@ -320,23 +320,116 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 A5-P0 — concussion hardening (local stac
     out.withProfessional = (await attest(a.client, { id: randomUUID(), flag_id: fa, outcome: "entered_in_error", entered_in_error_confirmation: true, professional_category: "physician" })).code;
     out.sameDay = (await attest(a.client, { id: randomUUID(), flag_id: fa, outcome: "entered_in_error", entered_in_error_confirmation: true })).flag_status;
     out.note = flagRow(fa);
-    const b = await plainRider("error-late");
-    const fb = openConcussion(b.athleteId, addCalendarDays(TODAY, -1));
-    out.nextDay = (await attest(b.client, { id: randomUUID(), flag_id: fb, outcome: "entered_in_error", entered_in_error_confirmation: true })).code;
+    const b = await plainRider("error-later");
+    const fb = openConcussion(b.athleteId, addCalendarDays(TODAY, -3));
+    out.daysLater = (await attest(b.client, { id: randomUUID(), flag_id: fb, outcome: "entered_in_error", entered_in_error_confirmation: true })).flag_status;
     const c = await plainRider("error-trained");
     const fc = openConcussion(c.athleteId, TODAY);
-    // A session recorded after the declaration (written directly: the server guard refuses it through the RPC).
-    execLocalSql(`insert into public.completed_sessions (athlete_id, session_date, session_type, completion_status, actual_duration_min) values (${lit(c.athleteId)}, ${lit(TODAY)}, 'STRENGTH_A', 'done', 45);`);
+    // A session recorded after the declaration (written directly: the server guard refuses it through the RPC),
+    // dated the day before: the server timestamp decides, never the session date.
+    execLocalSql(`insert into public.completed_sessions (athlete_id, session_date, session_type, completion_status, actual_duration_min) values (${lit(c.athleteId)}, ${lit(addCalendarDays(TODAY, -1))}, 'STRENGTH_A', 'done', 45);`);
     out.afterTraining = (await attest(c.client, { id: randomUUID(), flag_id: fc, outcome: "entered_in_error", entered_in_error_confirmation: true })).code;
+    out.afterTrainingStillOpen = flagRow(fc);
+    const d = await plainRider("error-trained-before");
+    // A session recorded BEFORE the signal never blocks the correction.
+    execLocalSql(`insert into public.completed_sessions (athlete_id, session_date, session_type, completion_status, actual_duration_min) values (${lit(d.athleteId)}, ${lit(TODAY)}, 'STRENGTH_A', 'done', 45);`);
+    const fd = openConcussion(d.athleteId, TODAY);
+    out.trainingBefore = (await attest(d.client, { id: randomUUID(), flag_id: fd, outcome: "entered_in_error", entered_in_error_confirmation: true })).flag_status;
+    const e = await plainRider("error-in-progress");
+    const fe = openConcussion(e.athleteId, TODAY);
+    await attest(e.client, { id: randomUUID(), flag_id: fe, outcome: "assessment_in_progress" });
+    out.afterInProgress = (await attest(e.client, { id: randomUUID(), flag_id: fe, outcome: "entered_in_error", entered_in_error_confirmation: true })).code;
     report.entryError = out;
     expect(out).toEqual({
       noConfirmation: "entered_in_error_confirmation_required",
       withProfessional: "invalid_payload",
       sameDay: "resolved",
       note: "resolved|attestation:entered_in_error (déclaratif, non vérifié par NALYNT)",
-      nextDay: "entered_in_error_window_closed",
+      daysLater: "resolved",
       afterTraining: "entered_in_error_after_training",
+      afterTrainingStillOpen: "active|-",
+      trainingBefore: "resolved",
+      afterInProgress: "entered_in_error_after_assessment",
     });
+  });
+
+  it("no rider is ever locked: from every open state (no attestation, legacy « monitoring », in progress, confirmed) a dated full return closes the signal; the other closures follow the transitions", async () => {
+    const states = ["none", "legacy_monitoring", "assessment_in_progress", "concussion_confirmed"] as const;
+    const matrix: Record<string, Record<string, string>> = {};
+    for (const state of states) {
+      matrix[state] = {};
+      for (const outcome of ["ruled_out", "entered_in_error", "full_return_authorised"] as const) {
+        const r = await plainRider(`matrix ${state}`);
+        const flagId = openConcussion(r.athleteId, addCalendarDays(TODAY, -1));
+        if (state === "legacy_monitoring") execLocalSql(`update public.health_flags set status = 'monitoring' where id = ${lit(flagId)};`);
+        if (state === "assessment_in_progress") await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome: state });
+        if (state === "concussion_confirmed") await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome: state, assessed_on: TODAY });
+        const res = await attest(r.client, { id: randomUUID(), flag_id: flagId, outcome, ...(outcome === "entered_in_error" ? { entered_in_error_confirmation: true } : { assessed_on: TODAY }) });
+        matrix[state]![outcome] = res.status === "recorded" ? res.flag_status! : res.code!;
+      }
+    }
+    report.resolutionMatrix = matrix;
+    expect(matrix).toEqual({
+      none: { ruled_out: "resolved", entered_in_error: "resolved", full_return_authorised: "resolved" },
+      legacy_monitoring: { ruled_out: "resolved", entered_in_error: "resolved", full_return_authorised: "resolved" },
+      assessment_in_progress: { ruled_out: "resolved", entered_in_error: "entered_in_error_after_assessment", full_return_authorised: "resolved" },
+      concussion_confirmed: { ruled_out: "invalid_transition", entered_in_error: "entered_in_error_after_assessment", full_return_authorised: "resolved" },
+    });
+  });
+
+  it("a signal declared DURING a guided Force session (check-in edited, A1): the next result, the resume and the completion are refused; pause and abandon accepted", async () => {
+    const r = await planRider("during");
+    const day = r.force[0]!;
+    const s = session(r, day, await ready(r, day));
+    expect(await s.start()).toBe("ok");
+    expect(code(await s.result(1))).toBe("ok");
+    const edited = await admin.from("daily_checkins").update({ suspected_concussion: true }).eq("athlete_id", r.athleteId).eq("checkin_date", day);
+    if (edited.error) throw new Error(edited.error.message);
+    const d = await rerun(r, day);
+    const out = {
+      decision: [d.decision, d.rules, d.prescription === undefined],
+      flag: execLocalSql(`select string_agg(flag_type || ':' || status, ',') from public.health_flags where athlete_id = ${lit(r.athleteId)};`).trim(),
+      result: code(await s.result(2)),
+      pause: await s.ev("paused"),
+      resume: await s.ev("resumed"),
+      completion: await s.ev("completed"),
+      abandon: await s.ev("abandoned"),
+      kept: execLocalSql(`select count(*) from public.exercise_set_results where execution_id = ${lit(s.id)};`).trim(),
+    };
+    report.during = out;
+    expect(out).toEqual({ decision: ["REST", ["A1"], true], flag: "concussion_suspect:active", result: "409 health_suspended", pause: "ok", resume: "409 health_suspended", completion: "409 health_suspended", abandon: "ok", kept: "1" });
+  });
+
+  it("a race day under an open signal: the race decision becomes REST A5, no prescription", async () => {
+    const r = await plainRider("race");
+    const day = addCalendarDays(TODAY, 2);
+    await insertRace(admin, r.athleteId, { event_name: "A5 race", start_date: day, end_date: day, priority: "A" });
+    await insertCheckin(admin, r.athleteId, day);
+    const before = await rerun(r, day);
+    openConcussion(r.athleteId, TODAY);
+    const after = await rerun(r, day);
+    const out = { before: [before.decision, before.kind, before.rules], after: [after.decision, after.kind, after.rules, after.prescription === undefined] };
+    report.raceDay = out;
+    expect(out).toEqual({ before: ["KEEP", "RACE_ACTIVITY", []], after: ["REST", "REST", ["A5"], true] });
+  });
+
+  it("no bypass through the Edge functions: health-flag-resolution refuses a concussion; the V1 debrief « Terminée » is refused; nothing written", async () => {
+    const r = await plainRider("edge");
+    const flagId = openConcussion(r.athleteId, TODAY);
+    await insertCheckin(admin, r.athleteId, TODAY);
+    const resolution = await invoke(r.client, "health-flag-resolution", { flagId, professionalClearance: true }, "POST");
+    const debrief = await invoke(r.client, "completed-session", {
+      session_date: TODAY, decision_id: null, new_pain: false, new_pain_note: null, post_leg_fatigue: null, post_grip_fatigue: null, main_content: null,
+      session_type: "STRENGTH_B", completion_status: "done", actual_duration_min: 45, rpe: 6, intervention: { kind: "STRENGTH_UPPER", load_profile: "MODERATE" },
+    }, "PUT");
+    const out = {
+      resolution: code(resolution),
+      debrief: code(debrief),
+      flag: flagRow(flagId),
+      written: execLocalSql(`select count(*) from public.completed_sessions where athlete_id = ${lit(r.athleteId)};`).trim(),
+    };
+    report.edge = out;
+    expect(out).toEqual({ resolution: "409 medical_validation_required", debrief: "409 health_suspended", flag: "active|-", written: "0" });
   });
 
   it("idempotence and errors: an attestation replayed is unchanged, the same id with another content conflicts, malformed input refused, a refused start replayed stays refused", async () => {

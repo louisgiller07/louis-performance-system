@@ -291,8 +291,11 @@ begin
      where a.flag_id = v_flag_id order by a.recorded_at desc, a.id desc limit 1;
 
     if v_outcome = 'entered_in_error' then
-      -- PROPOSAL (not an HPM decision): an entry error is corrected the day it was declared, before any professional
-      -- attestation and before any session was recorded since; otherwise only an assessment closes the signal.
+      -- Entry error (HPM 2026-10-22: no « same day » limit): an explicit confirmation, and only while the signal has no
+      -- attestation at all — once an assessment was declared (in progress, confirmed), the signal ends only with a dated
+      -- professional outcome (ruled out, full return authorised), never through « error ». Never after a session was
+      -- recorded since the signal (server timestamps). Every open state keeps a rider-accessible exit:
+      -- full_return_authorised (dated) is always allowed, so the signal is never locked for good.
       if not v_confirmed then
         raise exception using errcode = 'NX001', message = 'entered_in_error_confirmation_required';
       end if;
@@ -302,11 +305,8 @@ begin
       if v_last is not null then
         raise exception using errcode = 'NX001', message = 'entered_in_error_after_assessment';
       end if;
-      if v_flag.flag_date <> v_today then
-        raise exception using errcode = 'NX001', message = 'entered_in_error_window_closed';
-      end if;
       if exists (select 1 from public.session_executions e where e.athlete_id = v_athlete and e.recorded_at >= v_flag.created_at)
-         or exists (select 1 from public.completed_sessions cs where cs.athlete_id = v_athlete and cs.session_date >= v_flag.flag_date and cs.completion_status <> 'skipped') then
+         or exists (select 1 from public.completed_sessions cs where cs.athlete_id = v_athlete and cs.submitted_at >= v_flag.created_at and cs.completion_status <> 'skipped') then
         raise exception using errcode = 'NX001', message = 'entered_in_error_after_training';
       end if;
     else
