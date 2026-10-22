@@ -6897,3 +6897,27 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
   - aucun import de l'adaptateur ; bundles Edge identiques au bit près.
 
 **Statut** : READY FOR HPM REVIEW (branche `fix/history-read-01`, depuis `9cb2454`). Aucun push, aucune migration, aucun déploiement.
+
+## 2026-10-21 — SPORT-SAFE-02 lot 1 : publication de la communication de sécurité V1 (avec exception de périmètre)
+
+> **Décision HPM** : lot 1 `b837b36` APPROVED, publication conditionnée à l'autorisation explicite de Louis. Exception de périmètre `1b55825` confirmée a posteriori par Louis (HPM 2026-10-22).
+
+- **Publié** : `main` `582558b` → `1b55825` (avance rapide, sans force), web Vercel `dpl_EMvsH6v6uXkLUQ3nMfNAoezTxW79`. Web seulement : aucune migration (SQL 76, dernière `20261018120000`), aucune Edge (versions inchangées).
+- **Contenu** :
+  - débrief V1 : une douleur déclarée (nouvelle, ou séance modifiée / non réalisée pour douleur) ne promet plus d'adapter la suite ; le texte approuvé par le HPM est affiché ; le rappel « check-in » est conservé ;
+  - consigne DH grip / freinage approuvée, sur la séance DH du jour (Aujourd'hui, séance guidée DH avant et pendant la séance), jamais sur un jour passé (invariant d'historique, `docs/03`) ;
+  - bannière de suivi commotion : orientation vers un professionnel de santé, aucun protocole de reprise.
+- **Exception de périmètre** : le HPM avait approuvé `b837b36`. Le contrôle en navigateur réel a montré que la consigne grip était rangée, sur Aujourd'hui, dans « Voir les détails du plan » replié par défaut (UX-05). Le commit `1b55825` la place dans la colonne visible :
+  - même texte, même composant, même condition ;
+  - test ajouté, qui échoue sur `b837b36` ;
+  - diff `b837b36..1b55825` : `DailyPlanView.tsx` et un test ; au niveau du code servi, 4 instructions d'emplacement, aucun texte.
+  - Ce commit a été ajouté **après** l'approbation HPM et n'était pas couvert par elle. Il a été présenté à Louis au moment de la question de publication, publié sur sa réponse, puis confirmé a posteriori par Louis.
+- **Preuves** :
+  - avant publication : tests web (2444) et build ; navigateur réel local (Aujourd'hui, débrief douleur, Historique, bannière, pages sans compte, aucune erreur JS) ;
+  - après publication : le diff du bundle servi, insensible au renommage des identifiants, est identique au build de contrôle (12 retraits, 28 ajouts) ; marqueurs P0-SAFE présents ; pages publiques 200 ; Edge et SQL inchangés.
+- **Réserves** :
+  - aucune consigne grip le jour de course (`RACE_ACTIVITY` n'a pas de section DH) ;
+  - la douleur du débrief reste non lue par le moteur (c'est maintenant dit).
+
+**Statut** : PRODUCTION PASS (lot 1).
+
