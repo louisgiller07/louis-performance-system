@@ -1,10 +1,39 @@
 -- SPORT-SAFE-02 A5-P0 rollback of 20261021200000_sport_safe_02_a5_p0_hardening.sql (replay as a NEW migration if it
 -- ever reached a shared database; LOCAL ONLY today). Restores exactly the execution_health_block body and grants of
 -- 20261013160000 (P0-3), then drops the attestation contract and both triggers.
--- Data: health_flag_attestations is dropped with its rows (declarations only; the health_flags rows keep the status,
--- resolution date and note the attestations wrote). A rollback re-opens the gaps closed by A5-P0: a non-DH session
--- startable under an open concussion signal, a prescription computed before a closure startable again, a concussion
--- signal closable by a direct write.
+-- Data: the riders' declarations are never lost. Before health_flag_attestations is dropped, its rows are copied into
+-- health_flag_attestations_rollback_archive (owner only: no API role can read it; account deletion still removes them
+-- through the cascades from health_flags and athletes); the health_flags rows keep the status, resolution date and
+-- note the attestations wrote. The table name is left free for a later re-application. A rollback re-opens the gaps
+-- closed by A5-P0 (a non-DH session startable under an open concussion signal, a prescription computed before a
+-- closure startable again, a concussion signal closable by a direct write) and removes the riders' closure path: it is
+-- never a safe rollback by default (docs/review/sport-safe-02/A5_RELEASE_PROCEDURE.md).
+
+create table if not exists public.health_flag_attestations_rollback_archive (
+  id uuid primary key,
+  flag_id uuid not null references public.health_flags (id) on delete cascade,
+  athlete_id uuid not null references public.athletes (id) on delete cascade,
+  outcome text not null,
+  assessed_on date null,
+  professional_category text null,
+  declarative boolean not null,
+  verified_by_nalynt boolean not null,
+  attested_by uuid not null,
+  recorded_at timestamptz not null,
+  archived_at timestamptz not null default now()
+);
+alter table public.health_flag_attestations_rollback_archive enable row level security;
+revoke all on public.health_flag_attestations_rollback_archive from public, anon, authenticated, service_role;
+do $$
+begin
+  if to_regclass('public.health_flag_attestations') is not null then
+    insert into public.health_flag_attestations_rollback_archive
+      (id, flag_id, athlete_id, outcome, assessed_on, professional_category, declarative, verified_by_nalynt, attested_by, recorded_at)
+    select id, flag_id, athlete_id, outcome, assessed_on, professional_category, declarative, verified_by_nalynt, attested_by, recorded_at
+      from public.health_flag_attestations
+    on conflict (id) do nothing;
+  end if;
+end $$;
 
 drop function if exists public.record_health_flag_attestation(jsonb);
 drop trigger if exists trg_health_flags_guard_concussion on public.health_flags;
