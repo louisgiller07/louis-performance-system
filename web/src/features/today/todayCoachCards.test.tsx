@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { TodayGreeting } from "./TodayGreeting";
 import { RaceBanner } from "./RaceBanner";
-import { NextStepCard } from "./NextStepCard";
+import { NEXT_STEP_SUSPENDED, NextStepCard } from "./NextStepCard";
 import { WeekStrip } from "./WeekStrip";
 import { RegularityCard } from "./RegularityCard";
 import { CoachStateCard } from "../dailyPlan/CoachStateCard";
@@ -126,6 +126,19 @@ describe("NextStepCard", () => {
       </MemoryRouter>
     );
     expect(screen.getByRole("region", { name: "Prochaine étape" })).toHaveTextContent("Aucune séance prévue dans les deux prochaines semaines.");
+  });
+
+  it("A5-UI-FIX-01 — suspended: no session, no duration or load, no race push, no « Modifiée par toi »; the programme link stays", () => {
+    render(
+      <MemoryRouter>
+        <NextStepCard next={{ ...row("2026-09-30", "STRENGTH_LOWER", 60), source: "manual" }} today={TODAY} horizon={raceHorizon([RACE], TODAY)} objective="Régularité" suspended />
+      </MemoryRouter>
+    );
+    const card = screen.getByRole("region", { name: "Prochaine étape" });
+    expect(card).toHaveTextContent(NEXT_STEP_SUSPENDED.text);
+    expect(card).toHaveTextContent(NEXT_STEP_SUSPENDED.after);
+    expect(card).not.toHaveTextContent(/Demain|Renfo bas du corps|charge modérée|Cap sur|Modifiée par toi|Ton objectif reste/);
+    expect(within(card).getAllByRole("link").map((l) => l.textContent)).toEqual(["Programme →"]);
   });
 });
 

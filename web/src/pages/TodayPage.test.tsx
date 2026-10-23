@@ -605,6 +605,81 @@ describe("TodayPage — INT-01 R1 the after-session block knows the health suspe
   });
 });
 
+// A5-UI-FIX-01 (HPM 2026-10-23) — « Prochaine étape » reads the SAME health suspension: no future session is put
+// forward while it lasts (production smoke: « Demain DH TECHNIQUE · 1 h 30 · charge modérée » under an open
+// concussion follow-up). The programme and the week stay reachable; an ordinary REST keeps the normal card.
+describe("TodayPage — A5-UI-FIX-01 the next step during a health suspension", () => {
+  const rule = (layer: string, rule_id: string) => ({ layer, rule_id, detail: "", signals_used: [] });
+  const concussion = [{ id: "c", type: "concussion_suspect", flagDate: todayLocal(), description: "Suspicion de commotion déclarée au checkin" }];
+  const tomorrowDh = { planned_date: addDays(todayLocal(), 1), session_type: "DH_TECHNICAL", intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 }, planned_intent: null, is_committed: false, source: "generated" };
+  const nextStep = () => screen.getByRole("region", { name: "Prochaine étape" });
+  function setUp(dailyPlan: Record<string, unknown> | null, flags: unknown[], planned: unknown[] = [tomorrowDh], finalPrescriptionCreated = false) {
+    loadOpenHealthFlags.mockResolvedValue(flags);
+    entryContext.current = { dailyPlan, finalPrescriptionCreated };
+    todayContextValue.current = { ...todayContextValue.current!, planned, races: [{ eventName: "iXS Lenzerheide", startDate: addDays(todayLocal(), 2), endDate: addDays(todayLocal(), 2), priority: "A", location: null, raceFormat: null, series: null }] };
+    renderTodayPage();
+  }
+  async function expectSuspended() {
+    await waitFor(() => expect(nextStep()).toHaveTextContent("Tant que ton suivi santé est ouvert, NALYNT ne propose pas de prochaine séance."));
+    expect(nextStep()).toHaveTextContent("Ensuite, NALYNT refait l'analyse de ta journée avant de te proposer une séance.");
+    // No future session, no duration or load, no race push, no start; the programme and the week stay reachable.
+    expect(nextStep()).not.toHaveTextContent(/Demain|DH technique|charge modérée|1 h 30|Cap sur|Aucune séance prévue/);
+    expect(within(nextStep()).getByRole("link", { name: "Programme →" })).toHaveAttribute("href", "/training-plan");
+    expect(screen.queryByRole("link", { name: /Ouvrir la séance guidée|Reprendre la séance guidée/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /Cette semaine/i })).toBeInTheDocument();
+  }
+  async function expectNormal() {
+    await waitFor(() => expect(loadOpenHealthFlags).toHaveBeenCalled());
+    await waitFor(() => expect(nextStep()).toHaveTextContent("Demain"));
+    expect(nextStep()).toHaveTextContent("DH technique");
+    expect(nextStep()).toHaveTextContent("1 h 30 · charge modérée");
+    expect(nextStep()).toHaveTextContent("Cap sur iXS Lenzerheide, dans 2 jours.");
+    expect(nextStep()).not.toHaveTextContent("Tant que ton suivi santé est ouvert");
+  }
+
+  it("concussion follow-up open, a future session planned, the day's REST A5 on screen → neutralised", async () => {
+    setUp({ decision: "REST", triggered_rules: [rule("A", "A5")] }, concussion);
+    await expectSuspended();
+  });
+
+  it("concussion follow-up open, an OLD ready session on screen (KEEP, prescription created before the signal) → neutralised, no start", async () => {
+    setUp({ decision: "KEEP", triggered_rules: [] }, concussion, [tomorrowDh], true);
+    await expectSuspended();
+  });
+
+  it("concussion follow-up open, no future session at all → the suspension message, never « Aucune séance prévue »", async () => {
+    setUp({ decision: "REST", triggered_rules: [rule("A", "A1")] }, concussion, []);
+    await expectSuspended();
+  });
+
+  it("closed without a new analysis (no open signal, the old REST A5 still the day's decision) → still neutralised", async () => {
+    setUp({ decision: "REST", triggered_rules: [rule("A", "A5")] }, []);
+    await expectSuspended();
+  });
+
+  it("closed, then a new analysis without any Safety rule → the normal card comes back", async () => {
+    setUp({ decision: "KEEP", triggered_rules: [] }, []);
+    await expectNormal();
+  });
+
+  it.each([
+    ["an open injury follow-up (A7)", { decision: "REST", triggered_rules: [rule("A", "A7")] }, [{ id: "f", type: "injury_suspect", flagDate: todayLocal(), description: "x" }]],
+    ["a Safety REST on screen (A6)", { decision: "REST", triggered_rules: [rule("A", "A6")] }, []],
+  ])("the other health suspensions use the same state: %s → neutralised", async (_label, dailyPlan, flags) => {
+    setUp(dailyPlan, flags);
+    await expectSuspended();
+  });
+
+  it.each([
+    ["an ordinary REST (race protocol, layer B)", { decision: "REST", triggered_rules: [rule("B", "RACE_PROTOCOL_TX")] }],
+    ["a REST without any rule (planned rest day)", { decision: "REST", triggered_rules: [] }],
+    ["no decision yet today", null],
+  ])("no regression outside a suspension: %s → the normal card", async (_label, dailyPlan) => {
+    setUp(dailyPlan, []);
+    await expectNormal();
+  });
+});
+
 // CONSISTENCY-02 (HPM 2026-10-16, O-32) — Today when the calendar day changes while the page stays open.
 describe("TodayPage — CONSISTENCY-02, a new day on an open page", () => {
   it("real calendar, tab left open past midnight: back on the tab, Today is the new day — yesterday's check-in, executions and decision are not carried over", async () => {

@@ -26,6 +26,14 @@ function sessionLabel(row: PlannedSessionRow): { title: string; detail: string |
   return { title: TRAINING_KIND_LABELS[kind] ?? "Séance prévue", detail: parts.length > 0 ? parts.join(" · ") : null };
 }
 
+// A5-UI-FIX-01 (HPM 2026-10-23) — while Today is health-suspended (the same state as the guided entry and the
+// after-session block: an open follow-up or concussion signal, or a Safety REST on screen), no future session is
+// put forward as the next activity. The programme stays reachable; nothing here starts a session.
+export const NEXT_STEP_SUSPENDED = {
+  text: "Tant que ton suivi santé est ouvert, NALYNT ne propose pas de prochaine séance.",
+  after: "Ensuite, NALYNT refait l'analyse de ta journée avant de te proposer une séance.",
+} as const;
+
 function contextLine(horizon: RaceHorizon | null, objective: string | null): string | null {
   if (horizon?.kind === "ongoing") return `Tu es en pleine course : ${horizon.race.eventName}.`;
   if (horizon?.kind === "countdown") return `Cap sur ${horizon.race.eventName}, dans ${horizon.days} jour${horizon.days > 1 ? "s" : ""}.`;
@@ -39,14 +47,34 @@ export function NextStepCard({
   today,
   horizon,
   objective,
+  suspended = false,
 }: {
   next: PlannedSessionRow | null;
   today: string;
   horizon: RaceHorizon | null;
   objective: string | null;
+  suspended?: boolean;
 }) {
   const context = contextLine(horizon, objective);
   const session = next ? sessionLabel(next) : null;
+
+  if (suspended) {
+    return (
+      <section aria-labelledby="next-step-title" className="ux-enter rounded-xl border border-line bg-card p-5" data-suspended="true">
+        <h2 id="next-step-title" className="flex items-center gap-2.5 text-xs font-semibold uppercase tracking-[0.22em] text-gold">
+          <span className="h-px w-5 bg-gold" aria-hidden="true" />
+          Prochaine étape
+        </h2>
+        <p className="mt-3 text-sm text-ink/80">{NEXT_STEP_SUSPENDED.text}</p>
+        <p className="mt-2 text-sm text-ink/70">{NEXT_STEP_SUSPENDED.after}</p>
+        <div className="mt-4 flex items-center justify-end border-t border-line pt-3">
+          <Link to="/training-plan" className="ux-press shrink-0 text-sm text-ink/80 underline-offset-4 hover:text-ink hover:underline">
+            Programme →
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="next-step-title" className="ux-enter rounded-xl border border-line bg-card p-5">

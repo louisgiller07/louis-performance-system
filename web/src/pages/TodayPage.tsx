@@ -298,7 +298,14 @@ export function TodayPage() {
       {/* UX-04/05 — where today leads: next step, the week, and plain regularity. */}
       {todayContext && (
         <>
-          <NextStepCard next={nextPlannedSession(todayContext.planned, canonicalDate)} today={canonicalDate} horizon={horizon} objective={todayContext.objective} />
+          {/* A5-UI-FIX-01 — the same health suspension: no future session put forward while it lasts. */}
+          <NextStepCard
+            next={nextPlannedSession(todayContext.planned, canonicalDate)}
+            today={canonicalDate}
+            horizon={horizon}
+            objective={todayContext.objective}
+            suspended={healthSuspendedBy(displayedPlan)}
+          />
           <WeekStrip week={weekSummary(canonicalDate, todayContext.planned, todayContext.completed, todayContext.races, todayContext.guided, todayContext.effective)} />
           <RegularityCard
             checkedInToday={hasCheckin}
