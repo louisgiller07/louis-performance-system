@@ -6976,3 +6976,16 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **V2 de production** : NON VÉRIFIÉE. Génération V2 OFF : un compte affecté V2 est refusé (`assigned_v2_disabled`), sans repli V1. Le scénario guidé reste prouvé en local ; il est à rejouer avant toute activation V2.
 
 **Statut** : READY FOR HPM REVIEW (branche locale `fix/a5-ui-fix-01`). Aucun push, déploiement, SQL, migration, flag ni changement Edge.
+
+## 2026-10-23 — A5-UI-FIX-01 : clôture (RELEASE TECHNIQUE PASS — CLOSED)
+
+> **Décision HPM** : A5-UI-FIX-01 RELEASE TECHNIQUE PASS — CLOSED, référence `919111e`.
+
+- **Publié** : `main` `1d7d219..919111e` (avance rapide, sans force, autorisation de Louis), web seul. Bundle de production construit depuis `919111e`, diff servi limité à la carte « Prochaine étape », son branchement dans Aujourd'hui et une classe CSS. Site vitrine inchangé.
+- **Inchangés** : SQL 77, `daily-run` v48 et les autres fonctions Edge, aucune règle sportive ou médicale, aucun flag.
+- **Tests** : 2 482 tests web réussis, build OK. Contre-preuve locale : 6 cas de suspension en échec sur `1d7d219`.
+- **Non vérifié en production** :
+  - la carte sous suspension (validée localement ; la réouverture d'un signal sur le compte jetable n'a pas été autorisée) ;
+  - le statut Vercel Ready/Current (preuve par le bundle servi) ;
+  - les séances guidées V2, bloquantes avant toute activation V2.
+- **Compte jetable** : conservé ; procédure de purge préparée, non exécutée (`docs/review/sport-safe-02/A5_SMOKE_ACCOUNT_PURGE_PROCEDURE.md`).
