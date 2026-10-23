@@ -4,6 +4,8 @@ Statut : **préparée, non exécutée**. Aucune étape de ce document ne s'exéc
 
 ## 1. Inventaire production (avant toute migration)
 
+> **Retiré comme précondition** (HPM 2026-10-23) : la production ne contient que des comptes de test. La requête reste disponible pour un usage ultérieur ; elle n'est pas exécutée pour cette release.
+
 Lecture seule, une seule requête `SELECT`, agrégats sans identité ni date :
 
 ```
@@ -30,7 +32,9 @@ npx supabase db query --linked -f docs/review/sport-safe-02/A5_PRODUCTION_INVENT
 
 Candidat : la branche `fix/a5-p0-hardening` (SHA noté dans la gate), publiée en avance rapide sur `main` après GO.
 
-1. **Base** — `npx supabase db push --linked --dry-run` doit lister **uniquement** `20261021200000_sport_safe_02_a5_p0_hardening.sql` ; puis `npx supabase db push --linked`. Jamais `--include-all`, jamais `migration repair`.
+Le push de `main` déclenche le déploiement Vercel de production : la base et `daily-run` partent donc d'un checkout de release propre du SHA final (`npm ci`, `build:release`), **avant** le push de `main`.
+
+1. **Base** — depuis le checkout de release : `npx supabase db push --project-ref uvolpldwwyvadlamulvr --dry-run` doit lister **uniquement** `20261021200000_sport_safe_02_a5_p0_hardening.sql` ; puis `npx supabase db push --project-ref uvolpldwwyvadlamulvr`. Jamais `--include-all`, jamais `migration repair`.
    Contrôle (lecture seule) : `migration list --linked` → 77, dernière `20261021200000` ; l'inventaire relancé donne les lignes 16–19 à `false`.
 2. **Edge** — `head-coach-engine npm run build:release`, puis `npx supabase functions deploy daily-run --project-ref uvolpldwwyvadlamulvr` (une seule fonction ; jamais `--prune`, `--no-verify-jwt`, `--use-api`). Seule `daily-run` charge le code M1 modifié ; les bundles `generateTrainingPlan` et `dailyRunV2` sont identiques au bit près à la production. Contrôle : `functions list` → `daily-run` v48, les autres versions inchangées.
 3. **Web** — publication de `main` → déploiement Vercel de production. Contrôle : diff des bundles servis (`load011-bundle-diff.mjs`) limité au suivi santé.
@@ -59,6 +63,17 @@ Rollback de la base, s'il est décidé :
 - une réapplication passe par une nouvelle migration.
 
 Vérifié localement : migration → déclarations → rollback → archive (2 lignes), empreinte exacte, contre-preuve (Force autorisée, clôture directe acceptée), purge avec archive, réapplication, second rollback idempotent.
+
+### Correction en avant (préférée)
+
+| Incident | Correction |
+|---|---|
+| Garde, RPC ou trigger défectueux | nouvelle migration corrective (`create or replace` de la fonction concernée, jamais une modification de `20261021200000`), testée sur la pile locale à 77 migrations, puis `db push` ; la garde reste active pendant toute la correction |
+| Défaut du moteur (`daily-run`) | correctif M1 gouverné (ADR, tests, contre-preuve), puis redéploiement de `daily-run` seule ; en attendant, la garde serveur refuse toute exécution sous commotion |
+| Défaut de l'interface | correctif web publié en avance rapide ; ou remise du déploiement Vercel précédent (sûr : la garde serveur ne dépend pas du web) |
+| Rider sans issue | jamais de clôture par un opérateur ; diagnostic (check-in du jour, date du signal, connexion) et correction du chemin rider par une nouvelle migration ou un correctif web |
+
+Jamais de désactivation des gardes serveur, y compris pour des comptes de test.
 
 ## 4. Aucun rider sans procédure de résolution
 

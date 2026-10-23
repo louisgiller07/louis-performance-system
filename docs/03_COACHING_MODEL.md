@@ -224,7 +224,7 @@ Elle ne doit pas être ignorée simplement parce qu'elle n'atteint pas les crit�
 - Douleur nouvelle ≥ 6/10 avec caractère sévère
 - Fièvre / maladie déclarée
 - Douleur avec critère objectif de gravité (traumatique, perte de fonction, aggravation nette sur zone à risque)
-- Retour post-commotion sans validation médicale
+- Suivi post-commotion encore ouvert (A5) : suspension des propositions d'entraînement pour toutes les familles (Force, endurance, DH, course) jusqu'à l'attestation déclarative du rider, sans protocole de reprise (SPORT-SAFE-02 A5, HPM 2026-10-22 ; règles : `docs/04` §2)
 
 Les seuils comme "sommeil <4h + stress ≥8" sont des **heuristiques fortes de récupération** (couche C), pas SAFETY.
 
@@ -643,7 +643,7 @@ Ne jamais interpréter la table provisoire comme une autorisation d'étendre une
 
 **Monitoring fatigue DH** : quand une adaptation fatigue (C3.3/C3.5/C3.6) s'applique et que la session finale reste DH-family, une instruction opérationnelle concise est ajoutée à `monitoring.observe` ("Réduis encore la séance ou arrête la partie DH si ta précision se dégrade nettement ou si la fatigue jambes/grip augmente pendant la session.") — aucun seuil numérique non validé.
 
-**Précédence Safety absolue** : la prescription est calculée sur la session finale entièrement arbitrée (après Training/douleur/contraintes soft/A5) — un A1 (REST) ne produit jamais de durée/focus/terrain DH ; un A5 (DH forcé en `RECOVERY_ACTIVE`) ne laisse subsister aucune prescription DH périmée.
+**Précédence Safety absolue** : la prescription est calculée sur la session finale entièrement arbitrée (après Training/douleur/contraintes soft ; un REST Safety, A1 comme A5 depuis SPORT-SAFE-02 A5, ne l'atteint jamais) — un REST Safety ne produit jamais de durée/focus/terrain DH ni ne laisse subsister de prescription DH périmée.
 
 **Wiring Planning (V0.3_006C2, implémentation locale)** : l'UNIQUE source de vérité pour la durée prévue par l'athlète est `planned_sessions.intervention.duration_min` — `planned_sessions.planned_duration_min` (colonne relationnelle séparée) reste délibérément dormante, aucune duplication. Champ athlète-facing "Durée prévue" (`web/src/features/planning/PlanningDayCard.tsx`), sélecteur fermé de 15 valeurs (1h à 8h par pas de 30 min, jamais de saisie numérique libre ; sélecteur − / + depuis UX-10B-2B), exposé **uniquement** pour les 4 kinds DH-family — l'arbitrage moteur pour tout autre kind reste aujourd'hui non défini/accidentel, hors périmètre de ce jalon (voir `docs/06_ARCHITECTURE.md` §V0.3_006C2). Sémantique athlète explicite, jamais présentée comme une pure contrainte de disponibilité : "Temps que tu prévois de consacrer à cette séance. Pour la DH, remontées et pauses comprises. NALYNT peut la réduire si ton état demande une adaptation." (libellé mis à jour en UX-10B-2B) — exacte sur un vrai KEEP, borne supérieure après adaptation (précédence ci-dessus, inchangée). Aucun changement moteur : `resolveDhDuration` consommait déjà ce champ depuis V0.3_006B.
 

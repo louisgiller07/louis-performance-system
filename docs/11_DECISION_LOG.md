@@ -6955,3 +6955,13 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Canon** : `docs/04` (§2 A1, A5, clôture d'une commotion, reprise), `docs/05` (garde, cycle de vie), `docs/10` (M2.C, T68). `docs/03` (l. 646) mentionne encore l'ancien A5 : hors périmètre, signalé.
 
 **Statut** : READY LOCAL / NOT DEPLOYED (branche `fix/a5-p0-hardening`). Gate : `SPORT_SAFE_02_A5_FINAL_GATE`.
+
+## 2026-10-23 — SPORT-SAFE-02 A5 : simplification de la release (GO RELEASE CONDITIONNEL)
+
+> **Décision HPM** : la production ne contient que des comptes de test (confirmé par Louis) ; l'inventaire des anciens signaux n'est plus une précondition et n'est pas exécuté. A5-P0 : GO RELEASE CONDITIONNEL sur le candidat `2865184` après les derniers contrôles. Les choix « clôture refusée tant que le check-in du jour déclare la suspicion » et « archive des déclarations au rollback » sont **approuvés**. Les gardes serveur restent pleinement actives, y compris pour des comptes de test.
+
+- **Derniers contrôles** :
+  - régression complète à 4 workers : aucun échec ni délai dépassé ; les tests interrompus par un arrêt de worker Vitest (assertion libuv sous Windows) passent isolément ;
+  - état intermédiaire « nouvelle base + `daily-run` de production » : toutes les protections d'exécution tiennent ; seules les décisions de l'ancien moteur diffèrent (ZERO_DH), sans séance démarrable.
+- **Canon** : `docs/03` §6 et §Session Prescription V1 synchronisés avec A5 (suspension de toutes les familles). Signalé, non modifié : `docs/06` l. 872 décrit encore le « swap A5 » vers `RECOVERY_ACTIVE`.
+- **Procédure** : correction en avant détaillée ; base et `daily-run` depuis un checkout de release, avant le push de `main` (qui déclenche Vercel).
