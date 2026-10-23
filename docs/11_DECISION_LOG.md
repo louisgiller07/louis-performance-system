@@ -6965,3 +6965,14 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
   - état intermédiaire « nouvelle base + `daily-run` de production » : toutes les protections d'exécution tiennent ; seules les décisions de l'ancien moteur diffèrent (ZERO_DH), sans séance démarrable.
 - **Canon** : `docs/03` §6 et §Session Prescription V1 synchronisés avec A5 (suspension de toutes les familles). Signalé, non modifié : `docs/06` l. 872 décrit encore le « swap A5 » vers `RECOVERY_ACTIVE`.
 - **Procédure** : correction en avant détaillée ; base et `daily-run` depuis un checkout de release, avant le push de `main` (qui déclenche Vercel).
+
+## 2026-10-23 — A5-UI-FIX-01 : « Prochaine étape » pendant une suspension santé (LOCAL)
+
+> **Décision HPM** : smoke de production A5 PARTIAL PASS (protections V1 acceptées) ; GO correction locale ciblée de la carte « Prochaine étape » ; V2 de production à classer.
+
+- **Cause** : `NextStepCard` affichait la prochaine séance planifiée sans condition. L'état de suspension unique d'Aujourd'hui (INT-01 R1 : signal de suivi ou de commotion ouvert, ou REST Safety affiché ; miroir de la garde serveur) n'était transmis qu'à l'entrée de séance guidée et à « Après ta séance ».
+- **Correction (web seul)** : la carte lit le même état. Pendant la suspension : un message, aucune séance, aucune durée ni charge, aucun contexte de course, lien Programme conservé. La carte normale revient seulement quand les données courantes le permettent (clôture puis nouvelle analyse sans REST Safety). Un REST ordinaire la garde.
+- **Portée** : les autres suspensions santé (A6, A7) utilisent le même état, conformément à INT-01 R1. Aucun changement Safety, M1, SQL, Edge ni contrat sportif.
+- **V2 de production** : NON VÉRIFIÉE. Génération V2 OFF : un compte affecté V2 est refusé (`assigned_v2_disabled`), sans repli V1. Le scénario guidé reste prouvé en local ; il est à rejouer avant toute activation V2.
+
+**Statut** : READY FOR HPM REVIEW (branche locale `fix/a5-ui-fix-01`). Aucun push, déploiement, SQL, migration, flag ni changement Edge.
