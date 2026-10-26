@@ -52,10 +52,13 @@ jobs:
           node-version: "24"
       - name: Install (each package has its own lockfile)
         run: for p in planning-engine prescription-engine longitudinal-engine head-coach-engine web; do npm ci --prefix "$p"; done
-      - name: Build the engines head-coach-engine depends on (build:release order)
+      # Suites import these engines' dist: head-coach-engine (planning, prescription) and longitudinal-engine's own Edge
+      # tests (its dist). A clean checkout has none.
+      - name: Build the engines the suites import from dist (build:release order)
         run: |
           npm --prefix planning-engine run build
           npm --prefix prescription-engine run build
+          npm --prefix longitudinal-engine run build
       - run: npm --prefix planning-engine test
       - run: npm --prefix prescription-engine test
       # Its integration files are not gated on a stack (no skip): without a database their hooks fail. Unit tests only.
