@@ -9,7 +9,8 @@ import { IncompleteCheckinPainCriteriaError } from "../../dist/supabase/mapping/
 import { PersistDailyRunRpcError, InvalidPersistDailyRunResultError } from "../../dist/supabase/persistDailyRun.js";
 import { DailyPlanDateMismatchError } from "../../dist/supabase/runDailyFor.js";
 import { UnsupportedPlanPrescriptionSchemaError } from "../../dist/supabase/dailyV2/dailyPrescriptionModel.js";
-import { PersistDailyRunV2RpcError, InvalidPersistDailyRunV2ResultError } from "../../dist/supabase/dailyV2/persistDailyRunV2.js";
+import { PersistDailyRunV2RpcError, InvalidPersistDailyRunV2ResultError, DhDrillRevokedError } from "../../dist/supabase/dailyV2/persistDailyRunV2.js";
+import { DhSportValidationNotCurrentError, SessionModelV2ContractError } from "../../../planning-engine/dist/sessionModelV2/generationErrors.js";
 
 describe("mapDailyRunError", () => {
   it("maps NoCurrentCheckinError to 422 no_checkin_for_date", () => {
@@ -56,6 +57,23 @@ describe("mapDailyRunError", () => {
   it("UX-11A.5c.3 — maps the V2 persistence errors like the V1 ones", () => {
     expect(mapDailyRunError(new PersistDailyRunV2RpcError("boom"))).toMatchObject({ status: 500, code: "persistence_failed" });
     expect(mapDailyRunError(new InvalidPersistDailyRunV2ResultError("bad", {}))).toMatchObject({ status: 500, code: "internal_error" });
+  });
+
+  it("V2-DH-SPORT-GATE-01C — maps DhSportValidationNotCurrentError (by name: thrown inside the V2 bundle) to 409 dh_validation_not_current, without any validation detail; any other contract error stays 500", () => {
+    const error = new DhSportValidationNotCurrentError("planned-1", ["race_execution_split_pace"], "planned prescription planned-1 is invalid: $.blocks[2].items[0].measure.unit dh_unit_not_attributed");
+    const mapped = mapDailyRunError(error);
+    expect(mapped).toEqual({ status: 409, code: "dh_validation_not_current", message: mapped.message });
+    for (const detail of ["race_execution_split_pace", "planned-1", "dh_unit_not_attributed", "sign"]) expect(mapped.message).not.toContain(detail);
+    const bundled = Object.assign(new Error("from another module instance"), { name: "DhSportValidationNotCurrentError" });
+    expect(mapDailyRunError(bundled).code).toBe("dh_validation_not_current");
+    expect(mapDailyRunError(new SessionModelV2ContractError("corrupt"))).toMatchObject({ status: 500, code: "internal_error" });
+  });
+
+  it("V2-DH-REVOCATION (candidate) — maps DhDrillRevokedError (persist_daily_run_v2 NX302) to the same 409 dh_validation_not_current, without the drill ids; another V2 RPC failure stays 500", () => {
+    const mapped = mapDailyRunError(new DhDrillRevokedError(["cornering_berm_speed"]));
+    expect(mapped).toEqual({ status: 409, code: "dh_validation_not_current", message: mapDailyRunError(new DhSportValidationNotCurrentError("p", [], "x")).message });
+    expect(mapped.message).not.toContain("cornering_berm_speed");
+    expect(mapDailyRunError(new PersistDailyRunV2RpcError("dh_revocation_requires_read_committed"))).toMatchObject({ status: 500, code: "persistence_failed" });
   });
 
   it("maps a generic/unforeseen Error to 500 internal_error", () => {

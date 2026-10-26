@@ -49,6 +49,12 @@ export const REASON_BLOCKED_MESSAGES: Readonly<Record<string, string>> = {
   mobility_duration_not_supported: "La séance de mobilité dure au moins 22 minutes : elle ne tient pas dans le temps que tu as aujourd'hui.",
   intervals_fallback_pain_not_cleared:
     "Tu as signalé une douleur que l'endurance solliciterait. NALYNT ne sait pas encore quelle activité la ménage : aucune séance n'est proposée aujourd'hui à la place du fractionné.",
+  // V2-DH-ATTRIBUTION-01 — a DH count without a validated unit is never shown as a number of passages.
+  dh_repetition_unit_unknown:
+    "L'unité des répétitions de cet exercice technique (section ou descente complète) n'est pas encore validée : NALYNT n'affiche pas de nombre de passages sans elle.",
+  dh_full_run_needs_track_data:
+    "Cet exercice se répète en descentes complètes, et NALYNT ne connaît pas encore la durée de descente de ta piste : aucun nombre de descentes n'est proposé.",
+  kept_prescription_contract_violation: "La séance enregistrée dans ton programme n'est plus conforme : NALYNT ne la propose pas telle quelle aujourd'hui et ne la modifie pas.",
 };
 /** PHYS-02.1 — a manual intervals session at another load than moderate (detail.target = AEROBIC_INTERVALS). */
 export const MANUAL_INTERVALS_LOAD_MESSAGE =

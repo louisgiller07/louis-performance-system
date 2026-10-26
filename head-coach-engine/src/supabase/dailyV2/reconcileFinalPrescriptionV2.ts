@@ -81,6 +81,8 @@ export interface ReconcileFinalPrescriptionV2Input {
   powerFatigue?: PowerFatigueGate;
   /** V2-PHYS-INTEGRATION-01 — the server's PHYS switches (physDailySwitches.ts); absent = all off, the production behaviour. */
   phys?: PhysSwitchesV2;
+  /** V2-DH-UNIT-01 — "required" while V2 is on (dhUnitRequirement.ts): no executable DH count without a reliable unit. Absent = as before. */
+  dhUnit?: "required";
 }
 
 export interface ReconcileFinalPrescriptionV2Deps {
@@ -146,6 +148,7 @@ export async function reconcileFinalPrescriptionV2(
     ...(input.enduranceFallbackPain !== undefined ? { enduranceFallbackPain: input.enduranceFallbackPain } : {}),
     // PHYS-03 — no power session on a day M1 flags legs / grip fatigue without adapting it.
     ...(input.powerFatigue !== undefined ? { powerFatigue: input.powerFatigue } : {}),
+    ...(input.dhUnit !== undefined ? { dhUnit: input.dhUnit } : {}),
     finalPrescriptionId: input.finalPrescriptionId,
     decision: {
       decisionId: input.decisionId,

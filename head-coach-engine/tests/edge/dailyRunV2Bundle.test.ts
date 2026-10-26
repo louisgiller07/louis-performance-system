@@ -129,3 +129,14 @@ describe("daily-run V2 bundle — parity with the Node source", () => {
     }
   });
 });
+
+describe("V2-DH-RELEASE-GATES-01 — the Edge bundles never carry a TEST sign-off", () => {
+  it("a bundle left by the local test harness (buildTestSignedEdgeBundle.mjs) fails here; `npm run build:edge` restores the real one", () => {
+    for (const name of ["dailyRunV2.bundle.js", "generateTrainingPlan.bundle.js"]) {
+      const text = readFileSync(new URL(`../../dist/edge/${name}`, import.meta.url), "utf8");
+      expect(text, name).not.toContain("not a sports decision");
+      expect(text, name).not.toContain("TEST fixture");
+    }
+  });
+});
+

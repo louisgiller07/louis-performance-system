@@ -12,6 +12,10 @@
  *      recent training, or the week after a race), then the build cycle
  *      build → build+ → consolidation, repeated with cycle + 1.
  *
+ * V2-DH-ATTRIBUTION-01 — `recentVolume: "not_evidence"` (the V2 production path): the recent volume
+ * is a declared or decided number of minutes, not evidence that a dose was performed and tolerated; it
+ * never skips the introduction week. Absent: as before (≥ PLAN_RECENT_TRAINING_MINUTES_V2 skips it).
+ *
  * Holds (never a mechanical increase): ≥ PLAN_MISSED_SESSIONS_HOLD_V2 recent
  * missed / replaced sessions hold the first build+ at build; a week with a
  * fixed (locked) date stays at build, cycle-0 dose; a beginner's Force never
@@ -56,6 +60,8 @@ import { aerobicIntervalsDurationMinV2 } from "../builders/aerobicIntervalsPresc
 export interface BlockProgressionOptionsV2 {
   /** Overload weeks place the intervals session (server switch; off = the previous plans exactly). */
   enduranceIntervals?: boolean;
+  /** V2-DH-ATTRIBUTION-01 — "not_evidence": the recent volume never raises the block's start. Absent = as before. */
+  recentVolume?: "not_evidence";
 }
 
 /** Week type and template of each role (a role is never a new week type). */
@@ -143,10 +149,10 @@ interface PlannedRole {
 }
 
 /** Step 1 — the role of every week (races, cycle position, holds); no availability yet. */
-function planRoles(input: BlockShapingInput): PlannedRole[] {
+function planRoles(input: BlockShapingInput, options: BlockProgressionOptionsV2): PlannedRole[] {
   const { weeks, races } = input;
   const raceIn = (i: number) => i < weeks.length && races.some((r) => overlaps(weeks[i]!.startDate, weeks[i]!.endDate, r));
-  const recentlyTrained = input.recentHistory.trailingVolumeMinutes >= PLAN_RECENT_TRAINING_MINUTES_V2;
+  const recentlyTrained = options.recentVolume !== "not_evidence" && input.recentHistory.trailingVolumeMinutes >= PLAN_RECENT_TRAINING_MINUTES_V2;
   const missedHold = input.recentHistory.recentMissedOrReplacedCount >= PLAN_MISSED_SESSIONS_HOLD_V2;
 
   let introductionDue = !recentlyTrained;
@@ -309,7 +315,7 @@ function fitToAvailability(
 }
 
 export function shapeBlockWeeksV2(input: BlockShapingInput, options: BlockProgressionOptionsV2 = {}): WeekShape[] {
-  const roles = planRoles(input);
+  const roles = planRoles(input, options);
   const beginner = input.strengthExperienceTier === "beginner";
 
   return input.weeks.map((week, i): WeekShape => {

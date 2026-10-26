@@ -8,6 +8,7 @@ import { runDailyFor, type RunDailyForDeps } from "../../src/supabase/runDailyFo
 import type { PlannedSessionObservation } from "../../src/supabase/buildRawContext.js";
 import { resolveDailyPrescriptionModel, UnsupportedPlanPrescriptionSchemaError } from "../../src/supabase/dailyV2/dailyPrescriptionModel.js";
 import type { FinalPrescriptionV2Result } from "../../src/supabase/dailyV2/reconcileFinalPrescriptionV2.js";
+import { DH_DRILL_REVOKED_SQLSTATE, DhDrillRevokedError, persistDailyRunV2, PersistDailyRunV2RpcError } from "../../src/supabase/dailyV2/persistDailyRunV2.js";
 
 // UX-11A.5c.3 — V2 daily path orchestration (mocked deps, no live DB). The
 // real DB behaviour is in tests/supabase/v2DailyIntegration.integration.test.ts.
@@ -173,6 +174,51 @@ describe("runDailyFor — V2 daily path", () => {
     expect(d.computeDailyFor).not.toHaveBeenCalled();
     expect(d.persistDailyRunV2).not.toHaveBeenCalled();
     expect(d.persistDailyRun).not.toHaveBeenCalled();
+  });
+});
+
+// V2-DH-REVOCATION (candidate, RELEASE-PREP-FINAL-01) — the database refusal of a revoked DH drill
+// (persist_daily_run_v2, SQLSTATE NX302) on the V2 path. The real DB behaviour (KEEP, MODIFY, REPLACE, manual,
+// concurrency) is in tests/supabase/v2DhRevocationDailyRun.integration.test.ts.
+describe("V2-DH-REVOCATION — a DH drill revoked in the database refuses the whole V2 run", () => {
+  const rpcError = (error: { code: string; message: string; details: string | null }) => ({ rpc: vi.fn(async () => ({ data: null, error })) }) as unknown as SupabaseClient;
+  const ROW = { id: "id-1" } as never;
+  const OUTCOME = { status: "created" } as never;
+
+  it("persistDailyRunV2 maps NX302 to DhDrillRevokedError with the revoked drill ids; any other RPC error stays PersistDailyRunV2RpcError", async () => {
+    const revoked = await persistDailyRunV2(rpcError({ code: DH_DRILL_REVOKED_SQLSTATE, message: "dh_validation_not_current", details: "braking_late_entry,cornering_berm_speed" }), ATHLETE_ID, null, ROW, OUTCOME).catch((e: unknown) => e);
+    expect(revoked).toBeInstanceOf(DhDrillRevokedError);
+    expect(revoked).toMatchObject({ name: "DhDrillRevokedError", drillIds: ["braking_late_entry", "cornering_berm_speed"] });
+    for (const code of ["NX301", "P0001", "NX001"]) {
+      const other = await persistDailyRunV2(rpcError({ code, message: "dh_validation_not_current", details: "cornering_berm_speed" }), ATHLETE_ID, null, ROW, OUTCOME).catch((e: unknown) => e);
+      expect(other, code).toBeInstanceOf(PersistDailyRunV2RpcError);
+    }
+  });
+
+  const drillStructure = { schemaVersion: "v2", family: "dh_technical", sessionKind: "DH_TECHNICAL", catalog: { aggregate: "session-model-v2.5" }, blocks: [{ blockId: "main", role: "main", items: [{ kind: "drill", prescriptionItemId: "item-1", drillId: "cornering_berm_speed", measure: { type: "pass", count: 4 } }] }] };
+  it.each<[string, DailyPlan["decision"], "keep" | "modify" | "replace", string]>([
+    ["KEEP", "KEEP", "keep", "generated"],
+    ["MODIFY", "MODIFY", "modify", "generated"],
+    ["REPLACE", "REPLACE", "replace", "generated"],
+    ["manual KEEP", "KEEP", "keep", "manual_override_new_kind"],
+  ])("%s: the reconciled DH document goes to persist_daily_run_v2 as is, once; its refusal propagates — no REST, no retry, no V1 write", async (_label, decision, action, origin) => {
+    const reconciliation = { status: "created", finalPrescription: { ...(CREATED as { finalPrescription: object }).finalPrescription, reconciliationAction: action, activeSessionOrigin: origin, structure: drillStructure } } as unknown as FinalPrescriptionV2Result;
+    const { d } = deps(dailyPlan({ decision, final_session: { kind: "DH_TECHNICAL", load_profile: "MODERATE" } }), reconciliation);
+    vi.mocked(d.persistDailyRunV2).mockRejectedValue(new DhDrillRevokedError(["cornering_berm_speed"]));
+    await expect(runDailyFor(CLIENT, ATHLETE_ID, TODAY, d)).rejects.toMatchObject({ name: "DhDrillRevokedError", drillIds: ["cornering_berm_speed"] });
+    expect(d.persistDailyRunV2).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(d.persistDailyRunV2).mock.calls[0]![4]).toMatchObject({ status: "created", final_prescription: { reconciliation_action: action, active_session_origin: origin, structure: drillStructure } });
+    expect(d.persistDailyRun).not.toHaveBeenCalled();
+  });
+
+  it("the V1 path never reaches persist_daily_run_v2 (nor the revocation table): unchanged", async () => {
+    const { d } = deps(dailyPlan(), CREATED, { model: "v1", planVersionId: null });
+    vi.mocked(d.persistDailyRun).mockResolvedValue({ decision_id: "v1-decision", health_flag_id: null });
+    const result = await runDailyFor(CLIENT, ATHLETE_ID, TODAY, d);
+    expect(result.persistence).toEqual({ decision_id: "v1-decision", health_flag_id: null });
+    expect(d.persistDailyRunV2).not.toHaveBeenCalled();
+    expect(d.reconcileFinalPrescriptionV2).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("finalPrescriptionStatus");
   });
 });
 

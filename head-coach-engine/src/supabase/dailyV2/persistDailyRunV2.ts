@@ -26,6 +26,23 @@ export class PersistDailyRunV2RpcError extends Error {
   }
 }
 
+/**
+ * V2-DH-REVOCATION (candidate, RELEASE-PREP-FINAL-01) — SQLSTATE raised by persist_daily_run_v2 when the final
+ * prescription contains a DH drill revoked for safety (dh_drill_revocations, read under the SHARE lock in the same
+ * transaction): nothing was written. Never derived from the message text.
+ */
+export const DH_DRILL_REVOKED_SQLSTATE = "NX302";
+
+/** The day's final prescription contains a DH drill revoked for safety: refused, nothing written, never a REST. */
+export class DhDrillRevokedError extends Error {
+  readonly drillIds: readonly string[];
+  constructor(drillIds: readonly string[]) {
+    super(`persist_daily_run_v2 refused the final prescription: DH drill(s) revoked for safety: ${drillIds.join(", ")}`);
+    this.name = "DhDrillRevokedError";
+    this.drillIds = drillIds;
+  }
+}
+
 export class InvalidPersistDailyRunV2ResultError extends Error {
   constructor(reason: string, value: unknown) {
     super(`persist_daily_run_v2 returned an invalid result: ${reason} (${JSON.stringify(value)})`);
@@ -65,6 +82,9 @@ export async function persistDailyRunV2(
     p_decision_row: decisionRow,
     p_final_prescription_outcome: outcome,
   });
-  if (error) throw new PersistDailyRunV2RpcError(error.message);
+  if (error) {
+    if (error.code === DH_DRILL_REVOKED_SQLSTATE) throw new DhDrillRevokedError((error.details ?? "").split(",").filter((id) => id.length > 0));
+    throw new PersistDailyRunV2RpcError(error.message);
+  }
   return parsePersistDailyRunV2Result(data);
 }

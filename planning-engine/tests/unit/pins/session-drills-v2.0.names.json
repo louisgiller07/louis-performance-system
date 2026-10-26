@@ -1,0 +1,28 @@
+{
+  "version": "session-drills-v2.0",
+  "hash": "sha256(fr-CH name), 16 hex",
+  "entries": {
+    "braking_late_entry": "a2dc3a68bfcef051",
+    "braking_marked_zone_at_speed": "dd2bc853fe10611f",
+    "braking_progressive_control": "15ce7f5f6028b054",
+    "cornering_advanced_line_exit": "d4e6203288117cd4",
+    "cornering_berm_speed": "7cc3376ea1f0c637",
+    "cornering_flat_turn_precision": "8ccf2e9ee5d8e1ea",
+    "cornering_off_camber": "7284dd541529c6c3",
+    "jumps_linked_tables": "b470a5c75d92047e",
+    "jumps_step_down": "952cf4a737183bab",
+    "jumps_table_top_basic": "c0c3ab0a8326a404",
+    "line_choice_fast_line_compare": "a3265bab216465bd",
+    "line_choice_rock_garden": "b8f7cabfe1ceaa14",
+    "line_choice_two_line_scan": "25c5dd71266eedd8",
+    "race_execution_full_run_sim": "5ae1cb6106146760",
+    "race_execution_section_consistency": "2c362b76c9746558",
+    "race_execution_split_pace": "5bf81424eca5472f",
+    "roots_rocks_committed": "fecf622a9235bfb6",
+    "roots_rocks_rolling": "2e9ff2c3a81f4881",
+    "roots_rocks_unweighted_line": "832e0030a596c2d6",
+    "steep_terrain_body_position": "90118f582b1b8c72",
+    "steep_terrain_controlled_roll_in": "6a0888d07a26c35b",
+    "steep_terrain_off_brake_chute": "426e2af6b67acbc4"
+  }
+}

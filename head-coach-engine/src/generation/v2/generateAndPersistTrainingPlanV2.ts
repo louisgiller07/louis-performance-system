@@ -46,6 +46,10 @@ export interface GenerateAndPersistTrainingPlanV2Input {
   mobilitySessions?: boolean;
   /** V2-L2-01a — recent history from the V2 facts (server switch); absent = the previous snapshots exactly. */
   v2History?: boolean;
+  /** V2-DH-UNIT-01 — "required": a DH count needs its drill's signed unit, otherwise the plan is blocked. Absent = as before. */
+  dhUnit?: "required";
+  /** V2-DH-ATTRIBUTION-01 — "not_evidence": the recent volume never raises the block's start. Absent = as before. */
+  recentVolume?: "not_evidence";
 }
 
 export type GenerateAndPersistTrainingPlanV2Result =
@@ -107,6 +111,8 @@ export async function generateAndPersistTrainingPlanV2(
     ...(input.enduranceIntervals === true ? { enduranceIntervals: true } : {}),
     ...(input.powerSessions === true ? { powerSessions: true } : {}),
     ...(input.mobilitySessions === true ? { mobilitySessions: true } : {}),
+    ...(input.dhUnit !== undefined ? { dhUnit: input.dhUnit } : {}),
+    ...(input.recentVolume !== undefined ? { recentVolume: input.recentVolume } : {}),
   });
   if (generated.status === "blocked") return generated;
 

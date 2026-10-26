@@ -38,3 +38,4 @@ export * from "./enduranceGuidanceV2.js";
 export * from "./bodyweightRepsGuidanceV2.js";
 export * from "./orchestration/raceProtocolPlacementV2.js";
 export * from "../catalog/raceProtocolPlanPolicyV2.js";
+export * from "./contracts/index.js";

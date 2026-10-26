@@ -42,6 +42,14 @@ function mapHttpBody(status: number, code: string | undefined): DailyRunError {
         retryable: false,
         action: "config_issue",
       };
+    // V2-DH-SPORT-GATE-01C — fail-closed: the day's technical session is no longer validated, nothing was recorded.
+    case "dh_validation_not_current":
+      return {
+        code,
+        message: "La séance technique prévue aujourd'hui n'est plus validée : aucune séance n'est proposée pour aujourd'hui.",
+        retryable: false,
+        action: "generic",
+      };
     case "persistence_failed":
       return { code, message: "Erreur d'enregistrement côté serveur. Réessaie.", retryable: true, action: "retry" };
     case "internal_error":

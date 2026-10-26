@@ -532,6 +532,9 @@ describe("Generation block codes (defined, not wired)", () => {
       "unsupported_protocol_duration",
       "dh_passes_out_of_range",
       "no_compatible_strength_exercise",
+      // V2-DH-UNIT-01
+      "dh_repetition_unit_unknown",
+      "dh_full_run_needs_track_data",
     ]);
   });
 });

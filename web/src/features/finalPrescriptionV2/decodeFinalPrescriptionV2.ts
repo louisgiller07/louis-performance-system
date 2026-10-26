@@ -208,12 +208,25 @@ function item(v: unknown, path: string): ExerciseItemView | DrillItemView {
       drillId: v.drillId as string,
       name,
       passes: v.measure.count,
+      ...passUnit(v.measure, `${path}.measure`),
       cue: text(v.cueId, "cue", `${path}.cueId`),
       successCriterion: text(v.successCriterionId, "success_criterion", `${path}.successCriterionId`),
       vigilances: texts(v.vigilanceIds, "vigilance", `${path}.vigilanceIds`),
     };
   }
   return fail(`${path}: unknown item kind`);
+}
+
+/**
+ * V2-DH-UNIT-01 — the stated unit of a pass: none (a historical count), SECTION, or FULL_RUN with the track's
+ * descent time. Any other key or value makes the document invalid: a unit is never dropped or guessed.
+ */
+function passUnit(m: Record<string, unknown>, path: string): Pick<DrillItemView, "repetitionUnit" | "descentMinutes"> {
+  if (Object.keys(m).some((k) => !["type", "count", "unit", "descentMinutes"].includes(k))) fail(`${path}: unexpected pass measure field`);
+  if (m.unit === undefined) return m.descentMinutes === undefined ? {} : fail(`${path}: descent time without a full-run unit`);
+  if (m.unit === "SECTION" && m.descentMinutes === undefined) return { repetitionUnit: "SECTION" };
+  if (m.unit === "FULL_RUN" && isCount(m.descentMinutes)) return { repetitionUnit: "FULL_RUN", descentMinutes: m.descentMinutes };
+  return fail(`${path}: invalid pass unit`);
 }
 
 function block(v: unknown, path: string): BlockView {

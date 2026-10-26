@@ -15,7 +15,7 @@ import type { GuidedSessionModuleProps } from "../sessionModules";
 import { isCorrectable, slotKey } from "../results/activeResults";
 import { choiceOf, dhProgress, type PassSlot, type SuccessChoice } from "./dhPasses";
 import { dhDraftSet, liveDhForm, type DhOpenForm } from "./dhDraft";
-import { DH_COPY, passesLabel, SUCCESS_LABELS } from "./dhCopy";
+import { DH_COPY, passesLabel, SUCCESS_LABELS, dhRecordedCountLabel } from "./dhCopy";
 
 const CHOICES: SuccessChoice[] = ["yes", "no", "unrated"];
 
@@ -95,7 +95,7 @@ function DrillCard({ drill, children, progress }: { drill: DrillItemView; childr
       <h3 className="text-base font-semibold text-ink">{drill.name}</h3>
       <p className="text-sm text-ink/80">
         <span className="font-medium">Prévu : </span>
-        {passesLabel(drill.passes)}
+        {passesLabel(drill.passes, drill.repetitionUnit)}
       </p>
       <p className="text-sm text-ink/80">Consigne : {drill.cue}</p>
       <p className="text-sm text-ink/80" data-testid="success-criterion">
@@ -169,7 +169,7 @@ export function DhSessionModule({ prescription, executionId, setResults, editabl
               progress={
                 showPasses && (
                   <p className="text-sm font-medium text-ink" aria-live="polite" data-testid="dh-progress">
-                    {progress.recorded} / {drill.passes} passages enregistrés
+                    {dhRecordedCountLabel(progress.recorded, drill.passes, drill.repetitionUnit)}
                   </p>
                 )
               }

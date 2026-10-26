@@ -6,7 +6,7 @@ import { IncompleteCheckinPainCriteriaError } from "../../../head-coach-engine/d
 import { PersistDailyRunRpcError, InvalidPersistDailyRunResultError } from "../../../head-coach-engine/dist/supabase/persistDailyRun.js";
 import { DailyPlanDateMismatchError } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
 import { UnsupportedPlanPrescriptionSchemaError } from "../../../head-coach-engine/dist/supabase/dailyV2/dailyPrescriptionModel.js";
-import { PersistDailyRunV2RpcError, InvalidPersistDailyRunV2ResultError } from "../../../head-coach-engine/dist/supabase/dailyV2/persistDailyRunV2.js";
+import { PersistDailyRunV2RpcError, InvalidPersistDailyRunV2ResultError, DhDrillRevokedError } from "../../../head-coach-engine/dist/supabase/dailyV2/persistDailyRunV2.js";
 
 export interface MappedDailyRunError {
   status: number;
@@ -48,6 +48,17 @@ export function mapDailyRunError(error: unknown): MappedDailyRunError {
   }
   if (error instanceof InvalidPersistDailyRunV2ResultError) {
     return { status: 500, code: "internal_error", message: "An unexpected error occurred while persisting the daily run." };
+  }
+  // V2-DH-SPORT-GATE-01C — the day's DH session is no longer validated (DhSportValidationNotCurrentError, thrown
+  // inside the V2 bundle: matched by name). Fail-closed, nothing written, never REST: an explicit business code,
+  // no validation detail.
+  if (error instanceof Error && error.name === "DhSportValidationNotCurrentError") {
+    return { status: 409, code: "dh_validation_not_current", message: "Today's technical session is no longer validated: no session is served for today." };
+  }
+  // V2-DH-REVOCATION (candidate) — a DH drill revoked for safety in the database (persist_daily_run_v2, NX302): the
+  // same refusal for the rider, nothing written, never REST; no drill id in the response.
+  if (error instanceof DhDrillRevokedError) {
+    return { status: 409, code: "dh_validation_not_current", message: "Today's technical session is no longer validated: no session is served for today." };
   }
   if (error instanceof DailyPlanDateMismatchError) {
     return { status: 500, code: "internal_error", message: "An unexpected error occurred while computing the daily plan." };

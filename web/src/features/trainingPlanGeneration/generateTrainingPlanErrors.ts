@@ -68,6 +68,20 @@ export function unavailableTerrainMessage(detail: { skill?: unknown; requiredTer
   return "Aucun exercice technique de ton niveau ne correspond à ta priorité sur tes terrains. Ajoute un terrain seulement si tu y as réellement accès ; sinon, choisis une autre priorité pour ce plan.";
 }
 
+/**
+ * V2-DH-ATTRIBUTION-01 — the V2 refusal for a DH drill whose repetition unit (section or full descent) is not validated
+ * yet, or a full descent without the track's descent time: NALYNT's own gap. The rider has nothing to change.
+ */
+export function dhUnitRefusalMessage(code: "dh_repetition_unit_unknown" | "dh_full_run_needs_track_data", detail: { skill?: unknown } | undefined): string {
+  const skill = typeof detail?.skill === "string" ? TECHNICAL_PRIORITY_LABELS[detail.skill as TechnicalPriority] : undefined;
+  const drill = skill ? `L'exercice technique prévu pour « ${skill} » à ton niveau` : "Un exercice technique de ton programme";
+  const why =
+    code === "dh_full_run_needs_track_data"
+      ? "se répète en descentes complètes, et NALYNT ne connaît pas encore la durée de descente de ta piste"
+      : "n'a pas encore d'unité validée (section ou descente complète) : NALYNT ne fixe pas de nombre de passages sans elle";
+  return `Ton programme ne peut pas encore être créé. ${drill} ${why}. Ton profil n'est pas en cause : tu n'as rien à modifier.`;
+}
+
 function mapHttpBody(status: number, code: string | undefined, detail?: { skill?: unknown; requiredTerrain?: unknown; compatibleTerrains?: unknown }): GenerateTrainingPlanError {
   if (status === 401) {
     return { code: code ?? "unauthenticated", message: "Ta session a expiré. Reconnecte-toi.", retryable: false, action: "session_issue" };
@@ -82,6 +96,9 @@ function mapHttpBody(status: number, code: string | undefined, detail?: { skill?
   }
   if (status === 422 && code === "unavailable_dh_drill_terrain") {
     return { code, message: unavailableTerrainMessage(detail), retryable: false, action: "user_fixable" };
+  }
+  if (status === 422 && (code === "dh_repetition_unit_unknown" || code === "dh_full_run_needs_track_data")) {
+    return { code, message: dhUnitRefusalMessage(code, detail), retryable: false, action: "config_issue" };
   }
   if (status === 422) {
     // GenerationBlockedError — data validly absent, always user-fixable.

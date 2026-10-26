@@ -24,4 +24,5 @@ export const SUCCESS_LABELS: Readonly<Record<SuccessChoice, string>> = {
   unrated: "Non évalué",
 };
 
-export const passesLabel = (n: number) => `${n} ${n > 1 ? "passages" : "passage"}`;
+// V2-DH-UNIT-01 — the count in its stated unit (a historical count keeps « passages »).
+export { dhCountLabel as passesLabel, dhRecordedCountLabel } from "../../finalPrescriptionV2/dhRepetitionUnitLabels";

@@ -24,11 +24,13 @@
  * `DailyPlan.decision` / `final_session` and the DB lineage onto them.
  * A malformed planned prescription under the runtime's own aggregate is a
  * contract error (thrown), never a block: it is a bug or corrupt data, not a
- * decision by design.
+ * decision by design. V2-DH-SPORT-GATE-01B — one whose only issues are its DH
+ * sports validation (dh_unit_not_attributed, dh_content_not_signed) throws the
+ * same way, as DhSportValidationNotCurrentError (identifiable motive).
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { SESSION_MODEL_V2_AGGREGATE_VERSION } from "../catalogManifest.js";
-import { SessionModelV2ContractError } from "../generationErrors.js";
+import { DhSportValidationNotCurrentError, SessionModelV2ContractError } from "../generationErrors.js";
 import type { PrescriptionV2 } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import type { FinalPrescriptionV2, FinalPrescriptionV2BlockCode, FinalPrescriptionV2Result } from "./finalPrescriptionV2.js";
@@ -111,6 +113,14 @@ function declaredAggregate(structure: unknown): string | undefined {
   return typeof aggregate === "string" ? aggregate : undefined;
 }
 
+/** V2-DH-SPORT-GATE-01B — the validator issues that only say a DH sports validation is not current. */
+const DH_SPORT_VALIDATION_ISSUES: readonly string[] = ["dh_unit_not_attributed", "dh_content_not_signed"];
+
+const dhDrillIdsOf = (structure: unknown): string[] => {
+  const blocks = (structure as { blocks?: { items?: { kind?: unknown; drillId?: unknown }[] }[] }).blocks ?? [];
+  return blocks.flatMap((b) => b.items ?? []).flatMap((i) => (i.kind === "drill" && typeof i.drillId === "string" ? [i.drillId] : []));
+};
+
 /**
  * Parses the stored planned prescription. A structure from another Session
  * Model aggregate that the runtime can no longer validate is an expected
@@ -127,7 +137,12 @@ export function trustedPlannedStructure(planned: PlannedPrescriptionRecordV2, ge
     if (aggregate !== undefined && aggregate !== SESSION_MODEL_V2_AGGREGATE_VERSION) {
       return { catalogMismatch: { plannedAggregate: aggregate, runtimeAggregate: SESSION_MODEL_V2_AGGREGATE_VERSION } };
     }
-    throw new SessionModelV2ContractError(`planned prescription ${planned.id} is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
+    const message = `planned prescription ${planned.id} is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`;
+    if (validation.issues.every((i) => DH_SPORT_VALIDATION_ISSUES.includes(i.code))) {
+      const drillIds = dhDrillIdsOf(planned.structure);
+      throw new DhSportValidationNotCurrentError(planned.id, drillIds, `${message} (DH sports validation not current: ${drillIds.join(", ")})`);
+    }
+    throw new SessionModelV2ContractError(message);
   }
   const structure = validation.prescription;
   if (planned.catalogVersion !== structure.catalog.aggregate) {

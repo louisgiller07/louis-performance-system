@@ -10,6 +10,7 @@ import { enduranceRpeHint, intervalsSummary, intervalsSummaryLine, type Interval
 import { EnduranceGuidanceNote } from "./EnduranceGuidanceNote";
 import { POWER_QUALITY_GUIDANCE, strengthExtrasLine, strengthSummary, strengthSummaryLine, WORK_BLOCK_ROLES, WORK_ROLE_LABELS } from "./strengthSummary";
 import { LoadGuidanceNote } from "./LoadGuidanceNote";
+import { dhCountLabel } from "./dhRepetitionUnitLabels";
 
 function Vigilances({ items }: { items: string[] }) {
   if (items.length === 0) return null;
@@ -52,7 +53,7 @@ function DrillItem({ item }: { item: DrillItemView }) {
     <li className="border-t border-white/10 pt-2 first:border-t-0 first:pt-0" data-item-id={item.prescriptionItemId}>
       <p className="font-medium text-ink">{item.name}</p>
       {/* Passages of this drill only — never a total number of runs for the day. */}
-      <p className="text-ink/80">{item.passes} passages</p>
+      <p className="text-ink/80">{dhCountLabel(item.passes, item.repetitionUnit)}</p>
       <p className="text-sm text-ink/80">Consigne : {item.cue}</p>
       <p className="text-sm text-ink/80">Réussite : {item.successCriterion}</p>
       <Vigilances items={item.vigilances} />

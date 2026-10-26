@@ -298,7 +298,8 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
         const legacyDone = (await legacyStatus(day)) === "done";
         expect(done && legacyDone).toBe(false);
       }
-    });
+      // Six real concurrent rounds: the 5 s default is too short under a full parallel suite (a time-out, never an assertion).
+    }, 60_000);
 
     it("F-5b — V2 start and legacy debrief sent together, repeatedly: exactly one wins; never an active execution plus a non-skipped legacy row", async () => {
       const winners = { start: 0, legacy: 0 };
@@ -336,7 +337,7 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
       const sessionsOfDay = rawContext.recent_sessions.filter((s) => s.date === day);
       expect(sessionsOfDay).toEqual([{ date: day, intervention: expect.objectContaining({ kind: "DH_TECHNICAL" }), completion_status: "done" }]);
       expect(JSON.stringify(rawContext.recent_recovery_context ?? null)).not.toContain("skipped");
-    });
+    }, 60_000);
   });
 
   describe("T31 — F-4: a draft not more recent than the current plan cannot be accepted", () => {
