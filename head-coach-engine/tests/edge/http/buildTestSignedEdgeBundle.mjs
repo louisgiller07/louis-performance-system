@@ -2,11 +2,13 @@
 //
 // The V2 ON generation path needs signed DH units (V2-DH-UNIT-01, V2-DH-SPORT-GATE-01), and the production sign-off
 // tables are empty: no sports decision exists yet. To replay the HTTP generation tests on the real Edge runtime with
-// V2 ON, this script rebuilds dist/edge/generateTrainingPlan.bundle.js IN PLACE with TEST sign-offs of the content
-// served now (every drill SECTION, one common validation), each reference marked TEST_SIGNOFF_MARK. The source tree and
-// the production tables are not touched; the fixture lives in a temporary directory.
+// V2 ON, this script rebuilds IN PLACE the two Edge bundles that read the sign-off tables — generateTrainingPlan.bundle.js
+// (the plan) and dailyRunV2.bundle.js (the daily document and the session-execution check; PR1-PRECHECK-01: a plan
+// signed for the test is otherwise refused by the real daily bundle, dh_repetition_unit_unknown) — with TEST sign-offs
+// of the content served now (every drill SECTION, one common validation), each reference marked TEST_SIGNOFF_MARK. The
+// source tree and the production tables are not touched; the fixture lives in a temporary directory.
 //
-// Restore with `npm run build:edge` (the real bundle, byte for byte). tests/edge/dailyRunV2Bundle.test.ts fails while a
+// Restore with `npm run build:edge` (the real bundles, byte for byte). tests/edge/dailyRunV2Bundle.test.ts fails while a
 // test bundle is in dist/edge, so it can never pass a release check unnoticed.
 //
 // Usage (head-coach-engine, after `npm run build`): node tests/edge/http/buildTestSignedEdgeBundle.mjs
@@ -52,25 +54,30 @@ writeFileSync(
 );
 
 try {
-  await build({
-    entryPoints: [join(ROOT, "dist", "edge", "generateTrainingPlanEdgeEntry.js")],
-    bundle: true,
-    format: "esm",
-    platform: "neutral",
-    external: ["node:*"],
-    outfile: join(ROOT, "dist", "edge", "generateTrainingPlan.bundle.js"),
-    logLevel: "warning",
-    plugins: [
-      {
-        name: "test-signoffs",
-        setup(b) {
-          // Every import of the sign-off catalogue gets the fixture, except the fixture's own re-export of the real one.
-          b.onResolve({ filter: /dhRepetitionUnitCatalogV2\.js$/ }, (args) => (args.importer === fixture ? undefined : { path: fixture }));
+  for (const [entry, bundle] of [
+    ["generateTrainingPlanEdgeEntry.js", "generateTrainingPlan.bundle.js"],
+    ["dailyRunV2EdgeEntry.js", "dailyRunV2.bundle.js"],
+  ]) {
+    await build({
+      entryPoints: [join(ROOT, "dist", "edge", entry)],
+      bundle: true,
+      format: "esm",
+      platform: "neutral",
+      external: ["node:*"],
+      outfile: join(ROOT, "dist", "edge", bundle),
+      logLevel: "warning",
+      plugins: [
+        {
+          name: "test-signoffs",
+          setup(b) {
+            // Every import of the sign-off catalogue gets the fixture, except the fixture's own re-export of the real one.
+            b.onResolve({ filter: /dhRepetitionUnitCatalogV2\.js$/ }, (args) => (args.importer === fixture ? undefined : { path: fixture }));
+          },
         },
-      },
-    ],
-  });
-  console.log(`dist/edge/generateTrainingPlan.bundle.js rebuilt with ${Object.keys(signoffs).length} TEST sign-offs — restore with \`npm run build:edge\``);
+      ],
+    });
+  }
+  console.log(`dist/edge/generateTrainingPlan.bundle.js and dailyRunV2.bundle.js rebuilt with ${Object.keys(signoffs).length} TEST sign-offs — restore with \`npm run build:edge\``);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
