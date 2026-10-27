@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, insertHealthFlag, resolveTestSupabaseUrl, setAthleteDiscipline } from "./testDb.js";
-import { execLocalSql, localIntegrationRequested } from "./localDb.js";
+import { execLocalSql, localIntegrationRequested, sqlLiteral } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { buildPlanInputSnapshotV2 } from "../../src/supabase/buildPlanInputSnapshotV2.js";
@@ -296,20 +296,119 @@ describe.skipIf(!ENABLED)(`POWER-GUARD-01 — power completion guard over HTTP (
 
 // Fingerprint: the installed function is the migration's body, the rollback script restores 20261013160000's body
 // exactly, and the two differ only by the power condition (and its comment).
+// V2-DH-REVOCATION (PR2-DH-REVOCATION-PREP, HPM 2026-10-27) — migration 20261027120000 redefines this function (and
+// persist_daily_run_v2): the installed body is now that migration's. Not a mere new fingerprint: what it must keep
+// (POWER-GUARD-01's body, verbatim) and add (exactly the revocation guard) is asserted on the files everywhere (no
+// database), then its installed body and its behaviour on the local stack.
+
+const sqlBody = (path: string, fn: string, tag: string) => {
+  const text = readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+  const start = text.indexOf(`as ${tag}`, text.indexOf(`create or replace function public.${fn}`)) + `as ${tag}`.length;
+  return text.slice(start, text.indexOf(`${tag};`, start));
+};
+const norm = (s: string) => s.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "").split("\n").map((l) => l.trimEnd()).join("\n");
+const MIGRATION = "../../../supabase/migrations/20261018120000_power_guard_01_power_set_required.sql";
+const REVOCATION = "../../../supabase/migrations/20261027120000_v2_dh_drill_revocation.sql";
+
+// The revocation insertions of migration 20261027120000, verbatim.
+const RC_GUARD = [
+  "  -- V2-DH-REVOCATION — READ COMMITTED only: the SHARE lock below orders this call after a revocation",
+  "  -- being written, and only a fresh snapshot per statement then sees it (a snapshot taken when the call began, as",
+  "  -- in REPEATABLE READ or SERIALIZABLE, would miss it). Checked first, before any lock or write.",
+  "  if current_setting('transaction_isolation') <> 'read committed' then",
+  "    raise exception using errcode = 'NX301', message = 'dh_revocation_requires_read_committed';",
+  "  end if;",
+  "",
+].join("\n");
+const REVOCATION_LOCK = [
+  "  -- V2-DH-REVOCATION — serialised with a safety revocation: a revocation being written is waited for,",
+  "  -- then seen by every check below; a revocation written after this point waits until this batch is committed.",
+  "  lock table public.dh_drill_revocations in share mode;",
+  "",
+].join("\n");
+const revocationCheck = (indent: number, finalPrescription: string) =>
+  [
+    "-- V2-DH-REVOCATION — a DH drill revoked for safety: no new training action on it.",
+    `if public.execution_dh_revocation_block(${finalPrescription}) is not null then`,
+    "  raise exception using errcode = 'NX001', message = 'dh_validation_not_current', detail = v_target;",
+    "end if;",
+  ]
+    .map((l) => " ".repeat(indent) + l)
+    .join("\n") + "\n";
+const CHECK_START = revocationCheck(8, "v_exec_fp_id");
+const CHECK_EVENT = revocationCheck(8, "(select e.final_prescription_id from public.session_executions e where e.id = v_ev_exec_id)");
+const CHECK_RESULT = revocationCheck(6, "v_exec_row.final_prescription_id"); // sets, then activities
+
+describe("V2-DH-REVOCATION (migration 20261027120000) — record_session_execution keeps every POWER-GUARD-01 protection and adds exactly the revocation guard (files)", () => {
+  const migration = sqlBody(MIGRATION, "record_session_execution", "$$");
+  const revocation = sqlBody(REVOCATION, "record_session_execution", "$$");
+  const at = (needle: string, from = 0) => {
+    const i = revocation.indexOf(needle, from);
+    if (i < 0) throw new Error(`not in migration 20261027120000: ${needle.slice(0, 80)}`);
+    return i;
+  };
+
+  it("conservation: the migration without its six revocation insertions is the migration's body verbatim (nothing removed or altered)", () => {
+    let stripped = revocation;
+    for (const [insertion, times] of [[RC_GUARD, 1], [REVOCATION_LOCK, 1], [CHECK_START, 1], [CHECK_EVENT, 1], [CHECK_RESULT, 2]] as const) {
+      expect(stripped.split(insertion).length - 1, insertion.slice(0, 60)).toBe(times);
+      stripped = stripped.split(insertion).join("");
+    }
+    expect(norm(stripped)).toBe(norm(migration));
+  });
+
+  it("READ COMMITTED guard first, then the revocation lock right after the per-athlete lock, both before the batch is read or written", () => {
+    const outerBegin = at("\nbegin\n") + "\nbegin\n".length;
+    expect(revocation.slice(outerBegin).startsWith(RC_GUARD)).toBe(true);
+    const batch = at("\n  begin\n    if p_payload is null");
+    expect(at(REVOCATION_LOCK)).toBeGreaterThan(at("perform pg_advisory_xact_lock("));
+    expect(at(REVOCATION_LOCK) + REVOCATION_LOCK.length).toBeLessThanOrEqual(batch + 1);
+  });
+
+  it("refusal before write, transactional: the four writes of a batch are each preceded by their revocation check, all inside the NX001 block (a refusal rolls the whole batch back)", () => {
+    const batch = at("\n  begin\n    if p_payload is null");
+    const handler = at("  exception\n    when sqlstate 'NX001' then");
+    expect(revocation.split("insert into public.").length - 1).toBe(4);
+    const sections: [string, string, string][] = [
+      ["if v_exec is not null then", CHECK_START, "insert into public.session_executions"],
+      ["if v_ev_type in ('resumed', 'completed') then", CHECK_EVENT, "insert into public.execution_events"],
+      ["from jsonb_array_elements(v_sets) with ordinality loop", CHECK_RESULT, "insert into public.exercise_set_results"],
+      ["from jsonb_array_elements(v_activities) with ordinality loop", CHECK_RESULT, "insert into public.session_activity_results"],
+    ];
+    for (const [section, check, write] of sections) {
+      const from = at(section);
+      const checkAt = at(check, from);
+      const writeAt = at(write, from);
+      expect([batch < from, from < checkAt, checkAt < writeAt, writeAt < handler], write).toEqual([true, true, true, true]);
+    }
+  });
+
+  it("persist_daily_run_v2 likewise: migration 20261027120000 is 20261013180100's body plus the same guard first and the revoked-drill refusal before its first write", () => {
+    const current = sqlBody("../../../supabase/migrations/20261013180100_p0_3_manual_keep_persist_daily_run_v2.sql", "persist_daily_run_v2", "$function$");
+    const proposed = sqlBody(REVOCATION, "persist_daily_run_v2", "$function$");
+    const refusalStart = proposed.indexOf("  -- -------------------------------------------------------------------------\n  -- V2-DH-REVOCATION — a final prescription");
+    const refusalEnd = proposed.indexOf("  -- -------------------------------------------------------------------------\n  -- Health flag (same behaviour as persist_daily_run).");
+    expect([refusalStart > 0, refusalEnd > refusalStart]).toEqual([true, true]);
+    const refusal = proposed.slice(refusalStart, refusalEnd);
+    expect(refusal).toContain("lock table public.dh_drill_revocations in share mode;");
+    expect(refusal).toContain("raise exception using errcode = 'NX302', message = 'dh_validation_not_current', detail = v_revoked_drills;");
+    expect(refusalEnd).toBeLessThan(proposed.indexOf("insert into public."));
+    const outerBegin = proposed.indexOf("\nbegin\n") + "\nbegin\n".length;
+    expect(proposed.slice(outerBegin).startsWith(RC_GUARD)).toBe(true);
+    const stripped = proposed.replace(refusal, "").replace(RC_GUARD, "").replace("\n  -- V2-DH-REVOCATION\n  v_revoked_drills text;\n", "");
+    expect(norm(stripped)).toBe(norm(current));
+  });
+});
 
 describe.skipIf(!localIntegrationRequested() || !INSTALLED)("POWER-GUARD-01 — function fingerprint (local Supabase)", () => {
-  const body = (path: string) => {
-    const text = readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
-    const start = text.indexOf("as $$", text.indexOf("create or replace function public.record_session_execution")) + "as $$".length;
-    return text.slice(start, text.indexOf("$$;", start));
-  };
-  const norm = (s: string) => s.replace(/\r\n/g, "\n").replace(/^\n+|\n+$/g, "").split("\n").map((l) => l.trimEnd()).join("\n");
-  const migration = body("../../../supabase/migrations/20261018120000_power_guard_01_power_set_required.sql");
-  const previous = body("../../../supabase/migrations/20261013160000_p0_3_health_suspension_execution_guard.sql");
-  const rollback = body("../../../supabase/rollbacks/power-guard-01/20261018120000_rollback_power_guard_01.sql");
+  const migration = sqlBody(MIGRATION, "record_session_execution", "$$");
+  const previous = sqlBody("../../../supabase/migrations/20261013160000_p0_3_health_suspension_execution_guard.sql", "record_session_execution", "$$");
+  const rollback = sqlBody("../../../supabase/rollbacks/power-guard-01/20261018120000_rollback_power_guard_01.sql", "record_session_execution", "$$");
+  const revocation = sqlBody(REVOCATION, "record_session_execution", "$$");
 
-  it("the installed record_session_execution is the migration's body, verbatim", () => {
-    expect(norm(execLocalSql("select prosrc from pg_proc where proname = 'record_session_execution';"))).toBe(norm(migration));
+  it("the installed record_session_execution is migration 20261027120000's body, verbatim (proven above to be POWER-GUARD-01's body plus exactly the revocation guard)", () => {
+    const installed = norm(execLocalSql("select prosrc from pg_proc where proname = 'record_session_execution';"));
+    expect(installed).toBe(norm(revocation));
   });
 
   it("the rollback restores 20261013160000 exactly; migration vs previous: only the power condition and its comment", () => {
@@ -329,5 +428,47 @@ describe.skipIf(!localIntegrationRequested() || !INSTALLED)("POWER-GUARD-01 — 
         "from pg_proc p where p.proname = 'record_session_execution';"
     ).trim();
     expect(row).toBe("true|search_path=public|postgres|postgres:EXECUTE,service_role:EXECUTE");
+  });
+
+  it("revocation installed: a refused action rolls its whole batch back (the event written before it in the same batch does not survive); any isolation but READ COMMITTED is refused first", async () => {
+    const admin = createTestClient();
+    const { athleteId } = await createTestAthlete(admin, `POWER-GUARD-01 revocation ${randomUUID().slice(0, 6)}`);
+    const day = "2026-12-20";
+    await insertCheckin(admin, athleteId, day);
+    const [decision, fp, item, execution] = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const drill = `pg01_probe_${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+    const structure = { schemaVersion: "v2", family: "dh_technical", sessionKind: "DH_TECHNICAL", blocks: [{ blockId: "main", role: "main", items: [{ kind: "drill", prescriptionItemId: item, drillId: drill, measure: { type: "pass", count: 4, unit: "SECTION" } }] }] };
+    execLocalSql(`insert into public.decisions (id, athlete_id, decision_date, final_session, reason, engine_version, final_prescription_status, source_checkin_id, source_checkin_updated_at)
+  select ${sqlLiteral(decision)}, ${sqlLiteral(athleteId)}, ${sqlLiteral(day)}, 'DH_TECHNICAL', 'test fixture', 'test', 'created', c.id, c.updated_at
+    from public.daily_checkins c where c.athlete_id = ${sqlLiteral(athleteId)} and c.checkin_date = ${sqlLiteral(day)};
+insert into public.decision_final_prescriptions (id, decision_id, athlete_id, active_session_origin, reconciliation_action, adaptation_rule_ids, schema_version, catalog_version, structure)
+  values (${sqlLiteral(fp)}, ${sqlLiteral(decision)}, ${sqlLiteral(athleteId)}, 'no_canonical_plan', 'keep', '[]'::jsonb, 'v2', 'test', ${sqlLiteral(JSON.stringify(structure))}::jsonb);`);
+    const at = (minute: number) => `${day}T17:${String(minute).padStart(2, "0")}:00Z`;
+    const call = (payload: unknown) => `public.record_session_execution(${sqlLiteral(athleteId)}::uuid, ${sqlLiteral(JSON.stringify(payload))}::jsonb)`;
+    const outcome = (payload: unknown) => `select 'batch:' || (r ->> 'status') || coalesce('/' || (r ->> 'code') || '/' || (r ->> 'target'), '') from (select ${call(payload)} as r) s;`;
+    expect(execLocalSql(outcome({ execution: { id: execution, session_date: day, started_at: at(0), final_prescription_id: fp }, events: [{ id: randomUUID(), execution_id: execution, event_type: "started", occurred_at: at(0) }] })).trim()).toBe("batch:ok");
+
+    // One batch: a `paused` event (allowed, written first), then a pass result (a new training action).
+    const batch = {
+      events: [{ id: randomUUID(), execution_id: execution, event_type: "paused", occurred_at: at(10) }],
+      sets: [{ id: randomUUID(), execution_id: execution, prescription_item_id: item, set_number: 1, done: true, measure_type: "pass", measure_value: null, success: true, occurred_at: at(11) }],
+    };
+    const probe = (revoked: boolean) =>
+      execLocalSql(`begin;
+${revoked ? `insert into public.dh_drill_revocations (drill_id, reason, decided_by) values (${sqlLiteral(drill)}, 'TEST fixture: safety revocation (not a sports decision)', 'TEST operator');` : ""}
+${outcome(batch)}
+select 'events:' || count(*) from public.execution_events where execution_id = ${sqlLiteral(execution)};
+select 'sets:' || count(*) from public.exercise_set_results where execution_id = ${sqlLiteral(execution)};
+rollback;`)
+        .split("\n")
+        .filter((l) => /^(batch|events|sets):/.test(l));
+    // Control (no revocation): the batch is written. Revoked: refused at the result, and the event before it is gone too.
+    expect(probe(false)).toEqual(["batch:ok", "events:2", "sets:1"]);
+    expect(probe(true)).toEqual(["batch:rejected/dh_validation_not_current/sets[0]", "events:1", "sets:0"]);
+    for (const level of ["repeatable read", "serializable"]) {
+      expect(() => execLocalSql(`\\set VERBOSITY verbose\nbegin isolation level ${level};\nselect ${call(batch)};\nrollback;`), level).toThrow(/NX301: dh_revocation_requires_read_committed/);
+    }
+    // Nothing left behind: no revocation, the execution only started.
+    expect(execLocalSql(`select (select count(*) from public.dh_drill_revocations where drill_id = ${sqlLiteral(drill)}) || '|' || (select count(*) from public.execution_events where execution_id = ${sqlLiteral(execution)});`).trim()).toBe("0|1");
   });
 });
