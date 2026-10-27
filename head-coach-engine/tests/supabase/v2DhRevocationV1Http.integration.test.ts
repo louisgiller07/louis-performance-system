@@ -6,6 +6,7 @@
  * neither read for a refusal nor written. Opt-in: RUN_LOCAL_P0_EDGE=1, the runtime served (`supabase start` with the
  * edge runtime, or `supabase functions serve`), V2 generation off (the stack's default).
  */
+import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline } from "./testDb.js";
@@ -56,7 +57,7 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — V1 end to end over HTTP with the
   }, 120_000);
 
   it("generate-training-plan: a V1 plan (V2 generation off), persisted for the rider", async () => {
-    const r = await call(rider, "generate-training-plan", {});
+    const r = await call(rider, "generate-training-plan", { generationRequestId: randomUUID(), durationWeeks: 2 });
     expect(r.status, JSON.stringify(r.body).slice(0, 300)).toBe(200);
     planVersionId = r.body.planVersionId;
     expect(planVersionId).toEqual(expect.any(String));
@@ -76,8 +77,9 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — V1 end to end over HTTP with the
     const r = await call(rider, "daily-run", { date: day });
     expect(r.status, JSON.stringify(r.body).slice(0, 300)).toBe(200);
     expect(r.body).not.toHaveProperty("finalPrescriptionStatus");
-    decisionId = r.body.persistence.decision_id;
+    decisionId = r.body.decisionId;
     expect(decisionId).toEqual(expect.any(String));
+    expect(count(`select athlete_id || '|' || decision_date || '|' || (final_prescription_status is null) from public.decisions where id = ${sqlLiteral(decisionId)};`)).toBe(`${athleteId}|${day}|true`);
     expect(own("decisions", ` and decision_date = ${sqlLiteral(day)}`)).toBe("1");
     expect(own("decision_final_prescriptions")).toBe("0");
   });
