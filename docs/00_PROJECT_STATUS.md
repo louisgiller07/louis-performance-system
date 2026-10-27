@@ -1,8 +1,20 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 2 octobre 2026
+**Dernière mise à jour :** 27 octobre 2026
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
+
+**PR2-DH-REVOCATION-PREP — révocation transactionnelle DH : READY FOR HPM REVIEW, locale (HPM 2026-10-27)** : branche `release/v2-dh-revocation` depuis `main` `a0a8921`.
+- Contenu : migration additive `20261027120000` (SQL 78) et son rollback ; `session-execution` relaie le refus de la RPC (409) ; tests de révocation, de concurrence, V1 et V2 OFF.
+- Preuves : sur une base peuplée, aucune ligne existante ne change, ni à la migration ni au rollback ; l'ancien code Edge fonctionne sur la base migrée.
+- Rien n'est poussé, appliqué ni déployé. V2 OFF.
+- Plan de déploiement : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`. Rapport : `docs/review/pr2-dh-revocation/PR2_DH_REVOCATION_PREP_REPORT.md`.
+
+**PR1 — protections techniques V2 OFF : POST-MERGE PASS — CLOSED (HPM 2026-10-27)** : PR #1 fusionnée, `main` `a0a8921`.
+- Web en production : Vercel `nalynt` `dpl_B34vzvXTcGjUpZgjrQDSDNfK1QAC` et `nalynt-marketing` `dpl_CdCGiBttJnPkcSaG86N7HqEj4FQZ`.
+- Inchangés : fonctions Edge (`daily-run` v48, `session-execution` v19, `generate-training-plan` v29) et migrations (77).
+- V2 OFF (`NALYNT_V2_PLAN_GENERATION_ENABLED` = `"false"`).
+- Inventaire de production en lecture seule avant merge : 1 programme V2 courant (cohérent avec le compte interne de simulation documenté, non prouvé), 0 document portant une unité DH, 0 document hors contrats.
 
 **SPORT-SAFE-02 lot 1 — communication de sécurité V1 : PRODUCTION PASS (HPM 2026-10-21)** : `main` `1b55825` (avance rapide depuis `582558b`), web Vercel `dpl_EMvsH6v6uXkLUQ3nMfNAoezTxW79` ; aucune migration (SQL 76), aucune Edge (`daily-run` v47, `generate-training-plan` v29). Texte du débrief V1 sur la douleur (aucune promesse d'adaptation), consigne DH grip / freinage sur la séance DH du jour, orientation de la bannière de suivi commotion. **Exception de release** : le périmètre approuvé par le HPM était `b837b36` ; le commit `1b55825` (visibilité de la consigne grip sur Aujourd'hui, défaut trouvé en navigateur réel) a été ajouté après l'approbation, présenté à Louis au moment de la publication et publié sur sa réponse ; il n'était pas couvert par l'approbation HPM initiale et a été confirmé a posteriori par Louis (HPM 2026-10-22, voir `docs/11`). Réserve : aucune consigne grip le jour de course (`RACE_ACTIVITY`).
 

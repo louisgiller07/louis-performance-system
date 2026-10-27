@@ -7209,3 +7209,40 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **CI** : statuts requis liés à GitHub Actions ; intégration de longitudinal-engine exclue du job `tests`.
 
 **Statut** : READY FOR HPM REVIEW (code `d7370ae`). Migration non appliquée ; aucun push, merge, déploiement ni activation V2.
+
+## 2026-10-27 — PR1 : protections techniques V2 OFF publiées (POST-MERGE PASS — CLOSED)
+
+> **Décision HPM** : PR1 POST-MERGE PASS — CLOSED ; production web confirmée sur `a0a8921`.
+
+- **Publication** : PR #1 (`release/v2-dh-protections-off`, `b3c71f8`), poussée puis fusionnée par Louis. `main` `a0a8921`.
+- **Contrôles avant ouverture de la PR** : aucun déploiement Vercel pour la branche, grâce à `git.deploymentEnabled`.
+- **CI GitHub Actions** : `verify:sport-approvals` et `tests` en succès, compteurs identiques au rejeu local.
+- **Inventaire de production** (lecture seule, exécuté par Louis avant le merge) :
+  - 1 programme V2 courant, 26 prescriptions du jour V2, 1 exécution V2 ouverte, 13 prescriptions prévues à venir ;
+  - 0 document portant une unité DH, 0 document hors contrats.
+  - Analyse ciblée : avec V2 OFF, la PR1 ne change le comportement d'aucune de ces données.
+- **Production** :
+  - web `nalynt` et `nalynt-marketing` READY sur `a0a8921`, code PR1 servi ;
+  - fonctions Edge inchangées (`daily-run` v48, `session-execution` v19, `generate-training-plan` v29) ;
+  - 77 migrations ; flags V2 OFF.
+
+**Statut** : CLOSED. Le code Edge de la PR1 n'est pas déployé ; il le sera avec la PR2.
+
+## 2026-10-27 — PR2-DH-REVOCATION-PREP : révocation transactionnelle DH (LOCAL)
+
+> **Décision HPM** : GO LOCAL pour une deuxième PR dédiée à la révocation transactionnelle DH, depuis `main` `a0a8921`, en réutilisant les éléments revus de `feat/sport-plan-03-v2-contracts`.
+
+- **Migration** `20261027120000_v2_dh_drill_revocation.sql` (SQL 78) : le candidat revu, sans changement de SQL.
+  - Table en ajout seul réservée aux opérateurs.
+  - `record_session_execution` et `persist_daily_run_v2` redéfinies depuis leurs corps actuels, avec le garde READ COMMITTED (`NX301`), le verrou `SHARE` et les refus.
+  - Aucune migration postérieure à `power_guard_01` ne redéfinit ces deux fonctions : rien n'est écrasé.
+- **Rollback** : `supabase/rollbacks/v2_dh_revocation/`, refusé tant qu'une révocation existe.
+- **`session-execution`** : `REJECTION_STATUS` relaie le `dh_validation_not_current` de la RPC (409). Le mapping `NX302` → 409 du daily-run est déjà dans `main` (PR1).
+- **Tests** : `powerGuard01` épingle le nouveau corps ; suites de révocation (stack fraîche, opt-in) dont un rider V2 OFF fidèle à la production ; V1 de bout en bout en HTTP.
+- **Preuves** :
+  - Code Edge de production sur base de production, migrée puis remise en arrière : aucune ligne existante modifiée (40 tables, empreintes identiques).
+  - Ancien code Edge sur la base migrée : une seule différence, l'empreinte de fonction attendue.
+- **Déploiement** : sans suspension des écritures. Ordre : migration, puis `session-execution`, puis `daily-run`. Toutes les fenêtres intermédiaires sont prouvées. `generate-training-plan` n'est pas redéployée.
+- **Canon** : diffs proposés pour `docs/05`, `docs/04` et `docs/07`, non appliqués (`docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md`).
+
+**Statut** : READY FOR HPM REVIEW (branche locale `release/v2-dh-revocation`). Aucun push, merge, migration ni déploiement ; aucune activation V2.
