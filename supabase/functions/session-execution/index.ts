@@ -16,6 +16,7 @@
 import { withSupabase } from "@supabase/server";
 import { executionLogLine, REJECTION_STATUS, validateSessionExecutionBody } from "./validation.ts";
 import { isWritesSuspended, writesSuspendedResponse, WRITES_SUSPENDED_ENV } from "../_shared/writesSuspended.ts";
+import { DH_VALIDATION_NOT_CURRENT, DH_VALIDATION_NOT_CURRENT_STATUS, dhValidationRefusal, type DhValidationGuardReader, type ExecutionTable } from "./dhValidationGuard.ts";
 
 function errorResponse(status: number, code: string, message: string, target?: string): Response {
   return Response.json({ error: { code, message, ...(target ? { target } : {}) } }, { status });
@@ -47,7 +48,13 @@ const REJECTION_MESSAGES: Readonly<Record<string, string>> = {
   session_already_completed: "A session was already completed for this day: a new session cannot be started.",
   health_suspended: "Training is suspended for health reasons: the session can only be paused or abandoned; its recorded results are kept.",
   daily_decision_not_current: "Today's check-in changed: today's analysis must run again before the session continues.",
+  // V2-DH-SPORT-GATE-01C — no validation detail is exposed.
+  [DH_VALIDATION_NOT_CURRENT]: "This technical session is no longer validated: it cannot be started or continued; its recorded results are kept.",
 };
+
+// V2-DH-SPORT-GATE-01C — the engine's check comes from the daily-run V2 bundle (same build, same sports validation),
+// loaded only when a document of the batch states a DH unit.
+const loadDhValidationCheck = async () => (await import("../../../head-coach-engine/dist/edge/dailyRunV2.bundle.js")).dhSportValidationCurrentV2;
 
 export default {
   fetch: withSupabase({ auth: "user" }, async (req, ctx) => {
@@ -91,6 +98,29 @@ export default {
       return errorResponse(500, "internal_error", "Ambiguous athlete resolution for the authenticated user.");
     }
     const athleteId = athletes[0].id as string;
+
+    // V2-DH-SPORT-GATE-01C — same-day revocation guard (dhValidationGuard.ts): reads the rider's own rows through RLS.
+    const ownIds = async <T extends { id: string }>(table: ExecutionTable | "decision_final_prescriptions", columns: string, ids: readonly string[]): Promise<T[]> => {
+      const { data, error } = await ctx.supabase.from(table).select(columns).in("id", [...ids]);
+      if (error) throw new Error(`${table} [${error.code}]`);
+      return (data ?? []) as unknown as T[];
+    };
+    const reader: DhValidationGuardReader = {
+      recorded: async (table, ids) => new Set((await ownIds(table, "id", ids)).map((r) => r.id)),
+      executionPrescriptions: async (ids) => new Map((await ownIds<{ id: string; final_prescription_id: string | null }>("session_executions", "id, final_prescription_id", ids)).map((r) => [r.id, r.final_prescription_id])),
+      structures: async (ids) => new Map((await ownIds<{ id: string; structure: unknown }>("decision_final_prescriptions", "id, structure", ids)).map((r) => [r.id, r.structure])),
+    };
+    let dhRefused: boolean;
+    try {
+      dhRefused = await dhValidationRefusal(validation.value, reader, loadDhValidationCheck);
+    } catch (err) {
+      console.error(`session-execution: DH validation guard failed [${err instanceof Error ? err.message : typeof err}]`);
+      return errorResponse(500, "internal_error", "An unexpected error occurred while recording the session execution.");
+    }
+    if (dhRefused) {
+      console.warn(JSON.stringify({ ...executionLogLine(validation.value, { status: "rejected", code: DH_VALIDATION_NOT_CURRENT }), status: DH_VALIDATION_NOT_CURRENT_STATUS }));
+      return errorResponse(DH_VALIDATION_NOT_CURRENT_STATUS, DH_VALIDATION_NOT_CURRENT, REJECTION_MESSAGES[DH_VALIDATION_NOT_CURRENT]);
+    }
 
     const { data: result, error: rpcError } = await ctx.supabaseAdmin.rpc("record_session_execution", {
       p_athlete_id: athleteId,

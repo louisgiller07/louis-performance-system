@@ -76,6 +76,10 @@ export async function generateTrainingPlanForAthlete(
       ...(input.powerSessions === true ? { powerSessions: true } : {}),
       ...(input.mobilitySessions === true ? { mobilitySessions: true } : {}),
       ...(input.v2History === true ? { v2History: true } : {}),
+      // V2-DH-UNIT-01 — a V2 plan (switch on) never carries a DH count without its drill's signed unit.
+      dhUnit: "required",
+      // V2-DH-ATTRIBUTION-01 — and never starts above its introduction week because of a declared recent volume.
+      recentVolume: "not_evidence",
     });
     if (v2.status === "blocked") return { ...resolution, status: "blocked", code: v2.code, detail: v2.detail };
     return { ...resolution, status: "persisted", planVersionId: v2.planVersionId, idempotentReplay: v2.idempotentReplay };

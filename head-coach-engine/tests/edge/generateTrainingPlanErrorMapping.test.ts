@@ -2,7 +2,7 @@
 // Pure, deterministic, no DB/network. The error classes come from the same Edge
 // bundle errorMapping imports, exactly like the deployed function (`instanceof`).
 import { describe, expect, it } from "vitest";
-import { mapGenerateTrainingPlanError } from "../../../supabase/functions/generate-training-plan/errorMapping.js";
+import { dhUnitRefusalDetail, mapGenerateTrainingPlanError } from "../../../supabase/functions/generate-training-plan/errorMapping.js";
 import {
   GenerationBlockedError,
   NoCompatibleDrillError,
@@ -41,5 +41,12 @@ describe("mapGenerateTrainingPlanError", () => {
   it("keeps an unknown error a 500 internal_error", () => {
     const mapped = mapGenerateTrainingPlanError(new Error("boom"));
     expect(mapped).toEqual({ status: 500, code: "internal_error", message: mapped.message });
+  });
+});
+
+describe("V2-DH-ATTRIBUTION-01 — dhUnitRefusalDetail", () => {
+  it("keeps the skill, level and drill (strings only), drops anything else", () => {
+    expect(dhUnitRefusalDetail({ skill: "braking", dhTechnicalTier: "intermediate", drillId: "braking_late_entry", athleteId: "x", extra: 1 })).toEqual({ skill: "braking", dhTechnicalTier: "intermediate", drillId: "braking_late_entry" });
+    expect(dhUnitRefusalDetail({ skill: 3 })).toEqual({ skill: null, dhTechnicalTier: null, drillId: null });
   });
 });

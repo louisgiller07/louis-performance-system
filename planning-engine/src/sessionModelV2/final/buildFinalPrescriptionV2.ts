@@ -105,6 +105,17 @@
  * rider's time (A10) every block at its protocol minimum (22 min,
  * `v2.time.mobility_minimum`), never below; REPLACE / a manual session of
  * that kind gets the protocol session (`v2.replace.mobility`).
+ *
+ * V2-CONTRACTS-INTEGRATION-01 — every document built here (MODIFY, REPLACE, manual) honours the RPE semantics and
+ * has at most one end (assertSessionContentContractsV2); the Force cool-down addition leaves exactly one end. A
+ * violation is a contract error.
+ *
+ * V2-DH-UNIT-01 — a KEEP copy is checked the same way and never changed: a frozen prescription that breaks the RPE
+ * semantics or the single end gets no document (`kept_prescription_contract_violation`), never a corrected copy. A DH
+ * count keeps its stated unit through every adaptation (fewer passages, same unit); a LIGHT regression to a drill
+ * without that unit gets no document (never converted). `dhUnit: "required"`: a document whose DH count has no
+ * reliable unit — historical, copied or new — is never executable (`dh_repetition_unit_unknown`); new counts follow
+ * passMeasureForDrillV2. Absent: as before.
  */
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
 import { PLAN_DH_DURATION_STEPS_V2, PLAN_ROLE_DOSES_V2 } from "../../catalog/planDosePolicyV2.js";
@@ -116,6 +127,10 @@ import { toSessionModelV2Input, type PlanInputSnapshotV2, type SessionModelV2Inp
 import { isActivityAvailableOn } from "../../pipeline/availabilityActivity.js";
 import type { BlockV2, DrillItemV2Content, ExerciseItemV2Content, PrescriptionItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
+import { assertSessionContentContractsV2, unreliableDhQuotaDrillsV2 } from "../contracts/sessionContractChecksV2.js";
+import { readPassMeasureV2 } from "../contracts/dhRepetitionUnitV2.js";
+import { dhRepetitionUnitAttributionV2 } from "../dhSportGateV2.js";
+import { countEndBlocksV2 } from "../contracts/sessionDurationContractV2.js";
 import { buildStrengthPrescriptionV2Content } from "../builders/strengthPrescriptionV2.js";
 import { estimateStrengthDurationMinutesV2 } from "../strengthDurationV2.js";
 import { appendStrengthCoolDownV2, shortenStrengthContentV2 } from "../strengthDailyV2.js";
@@ -178,6 +193,8 @@ export interface BuildFinalPrescriptionV2Input extends BuildKeepFinalPrescriptio
    * REPLACE of the intervals / power / mobility kind is refused exactly as before PHYS.
    */
   phys?: PhysSwitchesV2;
+  /** V2-DH-UNIT-01 — "required": no executable DH count without a reliable unit. Absent = as before. */
+  dhUnit?: "required";
 }
 
 /** Stable rule ids of a modify / replace document (`adaptation_rule_ids`, never empty for those actions). */
@@ -299,6 +316,11 @@ function drillsForLoad(content: PrescriptionV2Content, load: LoadProfile | undef
         return item;
       }
       if (drill.drillId === item.drillId) return item;
+      // V2-DH-UNIT-01 — a stated unit belongs to the drill: the regression must state the same one, never a conversion.
+      const stated = readPassMeasureV2(item.measure, item.drillId).unit;
+      if (stated !== "UNKNOWN" && dhRepetitionUnitAttributionV2(drill.drillId)?.unit !== stated) {
+        throw new SessionModelV2GenerationBlockedError("dh_repetition_unit_unknown", { drillId: drill.drillId, regressedFrom: item.drillId, statedUnit: stated });
+      }
       intentId = dhIntentForDrillV2(drill);
       return { ...item, drillId: drill.drillId, cueId: drill.cueId, successCriterionId: drill.criterionId, vigilanceIds: [...drill.vigilanceIds] } as DrillItemV2Content;
     }),
@@ -315,7 +337,8 @@ const withPasses = (content: PrescriptionV2Content, passes: (count: number) => n
   ...content,
   blocks: content.blocks.map((b) => ({
     ...b,
-    items: b.items.map((i) => (i.kind === "drill" ? ({ ...i, measure: { type: "pass" as const, count: passes(i.measure.count) } } as DrillItemV2Content) : i)),
+    // V2-DH-UNIT-01 — fewer passages of the same unit: the stated unit (and a full run's descent time) are kept.
+    items: b.items.map((i) => (i.kind === "drill" ? ({ ...i, measure: { ...i.measure, count: passes(i.measure.count) } } as DrillItemV2Content) : i)),
   })),
 });
 
@@ -483,6 +506,8 @@ function replacementContent(
   strengthWorkSlots: number | undefined,
   /** V2-PHYS-INTEGRATION-01 — the families a manual session or a REPLACE may open (absent = none, as before PHYS). */
   phys: PhysSwitchesV2 | undefined,
+  /** V2-DH-UNIT-01 — "required": a new DH count needs its drill's signed unit. */
+  dhUnit: "required" | undefined,
   /** PHYS-02.1 — M1 MODIFIED a manual intervals session down to LIGHT: the base endurance fallback is allowed. */
   intervalsLightModify = false
 ): Built {
@@ -519,6 +544,7 @@ function replacementContent(
               focusedRunsCount: passes,
               catalog,
               loadProfile: load,
+              ...(dhUnit !== undefined ? { dhUnit } : {}),
             })
           : null;
     if (source === null) return { blocked: { reason: "riding_not_available", target: final.kind } };
@@ -645,7 +671,7 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
 
   let built: Built;
   try {
-    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, input.phys, decision.decision === "MODIFY");
+    built = replacementContent(null, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, input.phys, input.dhUnit, decision.decision === "MODIFY");
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
     throw error;
@@ -661,6 +687,7 @@ function buildManualFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): F
   if (!validation.ok) {
     throw new SessionModelV2ContractError(`manual final prescription is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
   }
+  assertSessionContentContractsV2(built.content, "manual final prescription");
   const finalPrescription: FinalPrescriptionV2 = {
     id: input.finalPrescriptionId,
     decisionId: decision.decisionId,
@@ -687,11 +714,35 @@ function withDailyStrengthAdditions(result: FinalPrescriptionV2Result, input: Bu
   const structure = appendStrengthCoolDownV2(result.finalPrescription.structure, input.dailyMintId, input.strengthWorkSlots !== undefined ? "mobility" : "full");
   const validation = validatePrescriptionV2(structure, { stage: "final" });
   if (!validation.ok) throw new SessionModelV2ContractError(`Force cool-down addition is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
+  // C1 — the addition gives the session its one end, never a second one.
+  if (structure !== result.finalPrescription.structure && countEndBlocksV2(structure) !== 1) throw new SessionModelV2ContractError(`Force cool-down addition left ${countEndBlocksV2(structure)} end blocks`);
   return { ...result, finalPrescription: { ...result.finalPrescription, structure } };
 }
 
+/**
+ * V2-DH-UNIT-01 — a KEEP copy is checked like any document (RPE semantics, one end) and never changed: a violation
+ * gets no document. A frozen prescription is never corrected to look compliant.
+ */
+function withKeptContractCheck(result: FinalPrescriptionV2Result): FinalPrescriptionV2Result {
+  if (result.status !== "created" || result.finalPrescription.reconciliationAction !== "keep" || result.finalPrescription.activeSessionOrigin !== "generated") return result;
+  try {
+    assertSessionContentContractsV2(result.finalPrescription.structure, "KEEP final prescription");
+  } catch (error) {
+    if (!(error instanceof SessionModelV2ContractError)) throw error;
+    return blocked("final_prescription_adaptation_not_defined", { reason: "kept_prescription_contract_violation", message: error.message });
+  }
+  return result;
+}
+
+/** V2-DH-UNIT-01 — "required": a document whose DH count has no reliable unit is never executable, whatever its origin. */
+function withDhUnitRequirement(result: FinalPrescriptionV2Result, input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
+  if (input.dhUnit !== "required" || result.status !== "created") return result;
+  const drillIds = unreliableDhQuotaDrillsV2(result.finalPrescription.structure);
+  return drillIds.length === 0 ? result : blocked("final_prescription_adaptation_not_defined", { reason: "dh_repetition_unit_unknown", drillIds });
+}
+
 export function buildFinalPrescriptionV2(input: BuildFinalPrescriptionV2Input): FinalPrescriptionV2Result {
-  const result = withPowerRules(buildFinalPrescriptionV2Content(input), input);
+  const result = withDhUnitRequirement(withKeptContractCheck(withPowerRules(buildFinalPrescriptionV2Content(input), input)), input);
   // PHYS-02.1 — no activity is proposed for a pain the existing rule does not clear for endurance.
   const pain = input.enduranceFallbackPain;
   if (result.status === "created" && pain !== undefined && !pain.cleared && result.finalPrescription.adaptationRuleIds.includes(DAILY_ADAPTATION_RULES_V2.intervalsLightToBase)) {
@@ -732,7 +783,7 @@ function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): 
       ? intervalsToBaseContent(trusted, final)
       : isModify
         ? modifiedContent(trusted, generated.loadProfile, final, adaptation, input.timeLimitMin, input.strengthWorkSlots)
-        : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, input.phys);
+        : replacementContent(trusted, final, adaptation, input.timeLimitMin, input.strengthWorkSlots, input.phys, input.dhUnit);
   } catch (error) {
     // A V2 locked block (no compatible exercise for the declared equipment, DH data missing…) is an explicit refusal, never a fallback.
     if (error instanceof SessionModelV2GenerationBlockedError) return blocked("final_prescription_adaptation_not_defined", { reason: error.code, ...error.detail });
@@ -753,6 +804,7 @@ function buildFinalPrescriptionV2Content(input: BuildFinalPrescriptionV2Input): 
   if (!validation.ok) {
     throw new SessionModelV2ContractError(`${decision.decision} final prescription is invalid: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
   }
+  assertSessionContentContractsV2(built.content, `${decision.decision} final prescription`);
 
   const finalPrescription: FinalPrescriptionV2 = {
     id: input.finalPrescriptionId,

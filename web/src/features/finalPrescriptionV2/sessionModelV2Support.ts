@@ -109,7 +109,8 @@ const DRILL_LABELS_V2_ONLY: Readonly<Record<string, string>> = {
   cornering_advanced_line_exit: "Trajectoire et sortie de virage",
 };
 
-/** session-drills-v2.0 uses the V1 drill ids, already labelled (REV-015.3), plus the V2-only ones above. */
+/** session-drills-v2.0 uses the V1 drill ids, already labelled (REV-015.3), plus the V2-only ones above.
+ * V2-DH-SPORT-GATE-01B — each name must stay the engine's (SESSION_DRILL_NAMES_V2), signed in C: pinned by test. */
 export function drillNameV2(drillId: unknown): string | null {
   if (typeof drillId !== "string") return null;
   if (Object.prototype.hasOwnProperty.call(DRILL_LABELS_V2_ONLY, drillId)) return DRILL_LABELS_V2_ONLY[drillId]!;

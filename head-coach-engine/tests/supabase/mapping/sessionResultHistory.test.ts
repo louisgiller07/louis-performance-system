@@ -446,3 +446,28 @@ describe("sessionResultHistory — several sessions, window, contract", () => {
     }
   });
 });
+
+describe("sessionResultHistory — V2-DH-UNIT-01: the unit of a DH count is read as prescribed, never added", () => {
+  const prescribed = (structure: unknown) => {
+    const e = "E-UNIT";
+    const entry = only<V2ExecutionEntry>(
+      sessionResultHistory(
+        facts({
+          executions: [execution(e, "2026-11-03", "FP-U", "DEC1", completedEvents("2026-11-03"))],
+          decisions: [decision("DEC1", "2026-11-03", "DH_TECHNICAL", "MODERATE", 90)],
+          prescriptions: [{ id: "FP-U", structure }],
+          sets: [1, 2, 3, 4].map((n) => set(e, "I-DRILL", n, { success: true })),
+        }),
+        FROM,
+        TO
+      ).entries
+    );
+    return entry.prescription.status === "planned" ? entry.prescription.value.items[0]!.measure : null;
+  };
+
+  it("a historical count keeps exactly { type, count } (unit unknown, never assumed); a stated SECTION is kept as stated", () => {
+    expect(prescribed(dh)).toEqual({ type: "pass", count: 4 });
+    const section = { ...dh, blocks: [{ role: "main", items: [{ ...dh.blocks[0]!.items[0]!, measure: { type: "pass", count: 4, unit: "SECTION" } }] }] };
+    expect(prescribed(section)).toEqual({ type: "pass", count: 4, unit: "SECTION" });
+  });
+});

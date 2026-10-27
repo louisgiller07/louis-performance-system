@@ -7,7 +7,7 @@
  * Both have V2-ready profiles: the profile never triggers V2.
  */
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline, type TestAthlete } from "./testDb.js";
 import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral } from "./localDb.js";
@@ -21,6 +21,15 @@ import { purgeAthleteAccount } from "../../src/supabase/purgeAthleteAccount.js";
 
 const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 const TODAY = "2026-10-05";
+
+// V2-DH-UNIT-01 — a V2 plan needs every DH count's signed unit, and no drill has one yet. The rollout mechanics below
+// run with a TEST attribution (every drill SECTION — a fixture, not a sports decision); the gate itself runs without it.
+const unitFixture = vi.hoisted(() => ({ signed: true }));
+// V2-DH-SPORT-GATE-01 — a drill's unit is read through the Session Model V2 gate module.
+vi.mock("../../../planning-engine/dist/sessionModelV2/dhSportGateV2.js", async (importOriginal) => {
+  const real = await importOriginal<{ dhRepetitionUnitAttributionV2: (drillId: string) => unknown }>();
+  return { ...real, dhRepetitionUnitAttributionV2: (drillId: string) => (unitFixture.signed ? { unit: "SECTION", provenance: "TEST fixture V2-DH-UNIT-01 (not a sports decision)" } : real.dhRepetitionUnitAttributionV2(drillId)) };
+});
 
 describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag (local Supabase)", () => {
   let admin: SupabaseClient;
@@ -72,6 +81,17 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
     const r = await generate(b.athleteId, false);
     expect(r).toMatchObject({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted" });
     if (r.status === "persisted") expect(await schemaOf(r.planVersionId)).toBe("v1");
+  }, 120_000);
+
+  it("V2-DH-UNIT-01 — global ON without a signed DH unit: A's V2 plan is refused before any write (dh_repetition_unit_unknown), never V1", async () => {
+    unitFixture.signed = false;
+    try {
+      const before = versionsSnapshot(a.athleteId);
+      expect(await generate(a.athleteId, true)).toMatchObject({ planningModel: "v2", reason: "assigned_v2", status: "blocked", code: "dh_repetition_unit_unknown" });
+      expect(versionsSnapshot(a.athleteId)).toBe(before);
+    } finally {
+      unitFixture.signed = true;
+    }
   }, 120_000);
 
   it("global ON: A → V2 (persisted V2 plan), B → V1 (V2-ready profile never triggers V2)", async () => {

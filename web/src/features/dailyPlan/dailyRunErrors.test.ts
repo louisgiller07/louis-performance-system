@@ -37,6 +37,13 @@ describe("mapDailyRunError", () => {
     expect(mapped.action).toBe("config_issue");
   });
 
+  it("V2-DH-SPORT-GATE-01C — maps dh_validation_not_current to a non-retryable message without any validation detail", async () => {
+    const mapped = await mapDailyRunError(httpError(409, { error: { code: "dh_validation_not_current", message: "Today's technical session is no longer validated." } }));
+    expect(mapped).toMatchObject({ code: "dh_validation_not_current", retryable: false, action: "generic" });
+    expect(mapped.message).toBe("La séance technique prévue aujourd'hui n'est plus validée : aucune séance n'est proposée pour aujourd'hui.");
+    expect(mapped.message).not.toMatch(/sign|unit|drill|race_execution/i);
+  });
+
   it("maps persistence_failed to a retryable error", async () => {
     const mapped = await mapDailyRunError(httpError(500, { error: { code: "persistence_failed" } }));
     expect(mapped.retryable).toBe(true);

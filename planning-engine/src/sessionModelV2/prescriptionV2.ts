@@ -57,11 +57,16 @@ export type ExerciseMeasureV2 =
   | { type: "duration"; minSeconds: number; maxSeconds: number; perSide: boolean }
   | { type: "distance"; minMeters: number; maxMeters: number };
 
-/** Number of passages of the DH technical drill (4–8 in the current DH V2 content). */
-export interface PassMeasureV2 {
-  type: "pass";
-  count: number;
-}
+/**
+ * Number of passages of the DH technical drill (4–8 in the current DH V2 content).
+ * V2-DH-UNIT-01 — the unit of one passage, stated only from the drill's signed attribution (dhRepetitionUnitCatalogV2):
+ * no `unit` = a historical count, read UNKNOWN (never stored as such); `SECTION`; `FULL_RUN` with the descent time of
+ * the rider's track (track data), without which no full-run count exists.
+ */
+export type PassMeasureV2 =
+  | { type: "pass"; count: number }
+  | { type: "pass"; count: number; unit: "SECTION" }
+  | { type: "pass"; count: number; unit: "FULL_RUN"; descentMinutes: number };
 
 /** Preparation of the main movement: never its own item, never recorded set by set in UX-11C V1. */
 export interface RampUpV2 {

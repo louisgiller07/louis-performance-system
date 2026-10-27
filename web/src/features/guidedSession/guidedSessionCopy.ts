@@ -48,6 +48,9 @@ export const ACTION_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   // P0-3 — server refusals under a health suspension / a stale day decision (migration 20261013160000).
   health_suspended: "Un signal de santé suspend l'entraînement : cette action n'a pas été enregistrée. Tes résultats déjà enregistrés sont conservés.",
   daily_decision_not_current: "Ton check-in a changé : relance l'analyse du jour sur Aujourd'hui avant de continuer la séance.",
+  // V2-DH-SPORT-GATE-01C — Edge refusal: the technical session is no longer validated (no validation detail shown).
+  dh_validation_not_current:
+    "Cette séance technique n'est plus validée : elle ne peut pas être commencée ni reprise, et aucun nouveau résultat n'est enregistré. Tes résultats déjà enregistrés sont conservés. Tu peux arrêter la séance.",
 };
 
 /** P0-3 — an open session that cannot go on: state label and explanation (no resume, no new result, a safe stop). */

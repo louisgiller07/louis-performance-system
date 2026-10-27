@@ -6989,3 +6989,223 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
   - le statut Vercel Ready/Current (preuve par le bundle servi) ;
   - les séances guidées V2, bloquantes avant toute activation V2.
 - **Compte jetable** : conservé ; procédure de purge préparée, non exécutée (`docs/review/sport-safe-02/A5_SMOKE_ACCOUNT_PURGE_PROCEDURE.md`).
+
+## 2026-10-25 — SPORT-PLAN-03 : contrats V2 non prescriptifs (LOCAL)
+
+> **Décision HPM** : reprise après la migration du PC ; GO pour l'implémentation technique locale des contrats V2 non prescriptifs. V2 OFF ; aucune nouvelle dose ; A11 non activée ; V1 et Safety inchangés ; aucun push, aucune migration, aucun déploiement.
+
+- **Code** : `planning-engine/src/sessionModelV2/contracts/`, cinq modules purs :
+  - unité DH `SECTION` / `FULL_RUN` / `UNKNOWN` : un nouveau nombre exige une unité connue, un `pass` existant se lit `UNKNOWN`, les unités ne s'additionnent jamais, le budget de séance a un verdict ;
+  - référence tolérée / progression candidate / prescription effective : aucune baisse automatique, une marche par résultat fiable, revue humaine sur un résultat défavorable ;
+  - durée min–max avec une seule fin (C1), et fiches à blocs contre les minutes réservées ;
+  - registre d'exposition course prévue / réalisée sans double compte ;
+  - sémantique des trois RPE (`docs/05`).
+- **Non prescriptif, prouvé** :
+  - aucun module de `src/` ne les importe, hors du barrel `sessionModelV2` (test de frontière) ;
+  - bundles Edge `generate-training-plan` et `daily-run` identiques à l'octet avec et sans eux ;
+  - échelles existantes seulement (`STRENGTH_DOSE_STEPS_V2`, `PLAN_PROGRESSION_CAPS_V2`, `PLAN_ROLE_DOSES_V2`).
+- **Provisoire** : `PROGRESSION_GATE_POLICY_V2` (une marche ; M+ soumis à décision écrite), en attente de la signature sportive.
+- **Canon** : les termes nouveaux ne sont pas dans `docs/07`. Diffs proposés pour `docs/05` et `docs/07`, non appliqués : `docs/review/sport-plan-03/SPORT_PLAN_03_V2_CONTRACTS_CANON_PROPOSAL.md`.
+- **Tests** : 16 nouveaux ; `planning-engine` : 1 172 réussis, 4 ignorés ; TypeScript et build OK.
+
+**Statut** : READY FOR HPM REVIEW (branche locale `feat/sport-plan-03-v2-contracts`, depuis `proto/sport-plan-03-phase2` avec `main` `1e0de28` fusionné).
+
+## 2026-10-25 — SPORT-PLAN-03 : V2-CONTRACTS-REVIEW-01, correction du contrat de progression (LOCAL)
+
+> **Décision HPM** : cinq contrats APPROVED WITH CONDITIONS ; DH, durée, course et RPE acceptés pour leur périmètre technique dormant. Correction ciblée de la progression : une référence historique tolérée ne doit jamais imposer un plancher à la prescription effective.
+
+- **Correction** (`644ecef`) :
+  - `assessProgressionCandidateV2` rend une borne haute admissible seulement ;
+  - la prescription effective reste celle du moteur quotidien ; `checkEffectivePrescriptionV2` accepte toute dose inférieure, un remplacement ou une suspension ;
+  - la référence historique n'est jamais abaissée ni effacée automatiquement (`nextToleratedReferenceV2`) ;
+  - absence de résultat ≠ échec ; un résultat défavorable signale une revue sans imposer de re-prescription.
+- **Mécanisme et politique séparés** : défaut `NO_PROGRESSION_POLICY_V2`, aucune hausse. La politique « une marche par résultat fiable » (`CANDIDATE_ONE_STEP_POLICY_V2`) est `CANDIDATE_NOT_VALIDATED`, explicite seulement. Ni M+, ni hausse de séries, de charge ou de répétitions DH ; `autonomous: false`.
+- **Tests** : cas 1 à 6 de la revue, contre-preuves, compatibilité des contenus DH existants. 20 tests de contrats ; `planning-engine` : 1 176 réussis, 4 ignorés. Bundles Edge identiques à l'octet avec et sans les contrats.
+- **Canon** : diffs exacts pour `docs/05` et `docs/07` et classement (technique compatible, clarification, règle sportive à valider, dépendance de migration ou d'A11) dans `docs/review/sport-plan-03/SPORT_PLAN_03_V2_CONTRACTS_CANON_PROPOSAL.md`. Non appliqués.
+
+**Statut** : READY FOR HPM REVIEW (branche locale `feat/sport-plan-03-v2-contracts`). Aucun push, merge, migration, déploiement ni branchement.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-CONTRACTS-INTEGRATION-01, contrats V2 branchés en contrôle (LOCAL)
+
+> **Décision HPM** : V2-CONTRACTS-REVIEW-01 APPROVED, CLOSED pour le périmètre local. GO pour une intégration locale ciblée dans les chemins V2 existants, sans changement de V1 ni de production, sans nouvelle prescription sportive.
+
+- **Génération V2** (`generatePlanV2InMemory`) : chaque séance reçoit `contractChecks` (`sessionContractChecksV2`), en mémoire seulement : jamais persisté, hors de toute empreinte.
+  - RPE et fin unique sont imposés (erreur de contrat).
+  - Durée contre le créneau (C1) : CONFORME / NON CONFORME À LA BORNE HAUTE / NON CONFORME / NON VÉRIFIABLE.
+  - Quota DH lu `UNKNOWN`, compte bloqué (`unit_unknown`).
+- **Prescription finale quotidienne V2** (`buildFinalPrescriptionV2`) : RPE et fin unique imposés sur tout document construit (MODIFY, REPLACE, séance manuelle). L'ajout du retour au calme Force laisse exactement une fin. Une copie KEEP n'est ni vérifiée ni modifiée. A10 reste la seule adaptation au temps.
+- **Dormants** : progression (`NO_PROGRESSION_POLICY_V2` par défaut, politique candidate non branchée, attend ADR A11) et exposition course (aucun lecteur, aucune déclaration stockée).
+- **BLOCKED** : unité explicite des nouveaux quotas DH. Le catalogue des exercices DH ne porte aucune unité et `pass` n'a pas de champ unité ; aucune unité n'est inventée. Masquer le nombre persisté changerait le contrat de production. Point bloquant avant toute activation V2.
+- **R46** : signalé NON CONFORME (20 min réservées, fiche de 28 à 55 min), aucun bloc retiré ; décision sportive ouverte.
+- **Preuves** :
+  - sorties identiques à `7e318ff` : 38 plans (658 séances) hors `contractChecks`, 300 048 combinaisons quotidiennes ; empreintes figées en test ; charge utile RPC inchangée ;
+  - lecteurs RPE vérifiés contre `RPE_SEMANTICS_V2` ;
+  - `planning-engine` : 1 189 réussis, 4 ignorés ; `head-coach-engine` : 1 092 réussis ; Edge 57/57 ;
+  - bundles modifiés dans les seuls modules V2.
+- **Canon** : diff exact pour `docs/05` et `docs/07` au § 8 du rapport (`docs/review/sport-plan-03/V2_CONTRACTS_INTEGRATION_01_GATE.md`), clarifications techniques séparées des règles sportives à valider. Non appliqué.
+
+**Statut** : READY FOR HPM REVIEW (branche locale `feat/sport-plan-03-v2-contracts`, candidat `c7edd03`). Aucun push, merge, migration, déploiement ni activation V2.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-DH-UNIT-01, unité DH de bout en bout (LOCAL)
+
+> **Décision HPM** : V2-CONTRACTS-INTEGRATION-01 APPROVED WITH CONDITIONS. GO pour résoudre localement le blocage des unités DH et compléter les protections d'intégration ; aucune migration distante, aucune activation V2.
+
+- **Contrat, sans migration** :
+  - mesure `pass` = `{ type, count }` (historique, lu UNKNOWN) ; ou + `unit: "SECTION"` ; ou + `unit: "FULL_RUN"` et `descentMinutes` ;
+  - UNKNOWN jamais stocké ; l'unité ne vient que d'une attribution signée `{ unit, provenance }` (`dh-repetition-units-v2.0`, vide) ;
+  - un passage exécuté prend l'unité de l'élément figé (SQL inchangé).
+- **Mode `required`** (aucun compte DH exécutable sans unité fiable, quelle que soit l'origine) :
+  - génération V2 : toujours ;
+  - `daily-run` : exactement quand `NALYNT_V2_PLAN_GENERATION_ENABLED` vaut `"true"` ;
+  - V2 OFF : comportement identique (différentiel : 38 plans, 300 048 combinaisons quotidiennes).
+- **Protections** :
+  - KEEP vérifié (RPE, fin unique), jamais corrigé ;
+  - unité conservée par MODIFY / REPLACE / A10 (bug `withPasses` corrigé) ;
+  - régression LIGHT vers un exercice sans la même unité → aucun document ;
+  - validateur et décodeur web stricts (aucune clé tolérée en trop).
+- **Agrégats de progression** (caractérisés, inchangés) :
+  - volume ≥ 180 min → bloc au palier build (une marche) ;
+  - séances manquées ≥ 2 → maintien seulement ;
+  - hors `NO_PROGRESSION_POLICY_V2`.
+- **Preuves** :
+  - planning-engine 1 208, head-coach-engine 1 098, web 2 498 réussis ;
+  - intégration Supabase locale (pile jetable, Edge) : 1 211 réussis, plus 1 test de concurrence qui passe relancé seul ;
+  - bundles modifiés dans les seuls modules V2.
+- **Bloqué (sport)** : unité signée de chaque exercice ; données de piste FULL_RUN ; manifeste (agrégat v2.7) à la première attribution ; textes d'interface.
+- **À arbitrer** : KEEP historique exécutable en V2 OFF (C3).
+
+**Statut** : READY FOR HPM REVIEW (candidat `9fbeaf6`). Aucun push, merge, migration, déploiement ni activation V2. Canon (`docs/04`, `docs/05`, `docs/07`) proposé, non appliqué.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-DH-ATTRIBUTION-01, unités DH candidates et progression sans volume déclaré (LOCAL)
+
+> **Décision HPM** : V2-DH-UNIT-01 APPROVED WITH CONDITIONS. GO local : préparer l'attribution sportive réelle des unités DH ; neutraliser, avant l'activation de V2, la hausse de dose tirée de l'historique ; conserver le KEEP historique en V2 OFF.
+
+- **Unités DH** :
+  - inventaire des 22 exercices ; la règle retient l'unité qu'un exercice définit pour un passage dans sa consigne ou son critère, jamais d'après une technique ou une vigilance commune ;
+  - résultat : 11 SECTION, 1 FULL_RUN (`race_execution_full_run_sim`), 10 indéterminables ;
+  - contenu candidat du futur `dh-repetition-units-v2.1` / `session-model-v2.7` dans `planning-engine/prototypes`, **non signé** ; la table signée reste vide et devient gelée ;
+  - avec ce candidat, 10 couples priorité × niveau sur 21 obtiendraient un plan ; les autres sont refusés explicitement, sans plan partiel.
+- **Refus compréhensibles** : le détail nomme exercice, compétence et niveau. L'Edge `generate-training-plan` le renvoie ; le web l'impute à NALYNT et non au profil du rider (`config_issue`) ; la carte du jour affiche un motif propre.
+- **Progression** :
+  - option `recentVolume: "not_evidence"` (`blockProgressionV2`), passée seulement par le chemin de production V2 ;
+  - un volume déclaré ne saute plus l'introduction : avant, un volume ≥ 180 min avançait tout le cycle d'une semaine (S1 build au lieu d'introduction) ;
+  - maintien après séances manquées inchangé ; V1 et V2 OFF inchangés ;
+  - la politique « une marche », A11 et HISTORY-READ-01 restent non branchés.
+- **KEEP historique (`cd5cde79`)** : inchangé en V2 OFF. En V2 ON, aucune exécution quantitative, même quand son exercice recevra une unité : pas de rétroconversion.
+- **Preuves** :
+  - OFF identique à `9fbeaf6` (38 plans, 300 048 combinaisons) ; en ON, seul le détail du refus change ;
+  - planning-engine 1 220, head-coach-engine 1 100, Edge 58 et web 2 501 réussis ;
+  - intégration locale : tests du lot 16/16 ; 4 passes complètes avec résultats bruts (1 interblocage de test `athletePurge` ; arrêts de worker aussi présents sur la base) ; test de verrou 24/24.
+
+**Statut** : READY FOR HPM REVIEW (candidat `3def3d8`). Aucune attribution signée, aucun push, merge, migration, déploiement ni activation V2. Canon proposé, non appliqué.
+
+## 2026-10-26 — SPORT-PLAN-03 : DH CATALOG FINALIZATION (LOCAL)
+
+> **Décision HPM** : V2-DH-ATTRIBUTION-01 APPROVED pour le code technique local. GO local : finaliser les propositions d'exercices DH soumises à validation sportive et vérifier les progressions restantes.
+
+- **Exercices** :
+  - 11 SECTION confirmées, dont `cornering_advanced_line_exit` avec une précision (choisir le virage répété) ;
+  - 10 consignes candidates pour les indéterminables : instruction d'origine gardée mot pour mot, passage défini, original conservé comme référence ;
+  - renommage proposé : « Section fractionnée à allure course » ;
+  - prérequis FULL_RUN : piste identifiée et ouverte à l'allure course, durées de descente et de remontée, plage de dose propre, stockage de la donnée (migration).
+  - Rien n'est signé.
+- **Couverture** : 12 candidats → 10/21, et aucun des riders de référence B, W, A. Avec 3 réécritures prioritaires (`braking_late_entry`, `braking_marked_zone_at_speed`, `cornering_berm_speed`) → 13/21, avec B, W et A complets. Avec les 10 → 20/21. La descente complète reste refusée sans données de piste.
+- **Cycle** :
+  - aucune hausse n'est individualisée sur une réalisation ;
+  - le volume déclaré reste sans effet en V2 ON ;
+  - deux hausses calendaires sans preuve sont à arbitrer : le 2e cycle (+1 passage DH, +15 min d'endurance) et la semaine `race_specific` (DH 8 passages après une introduction à 5) ;
+  - aucune ne contourne la neutralisation, et aucune dose n'est modifiée.
+- **Tests** :
+  - correction isolée de `athletePurge` (DDL toujours victime d'un interblocage, avec reprise) et délai de 60 s pour deux tests de concurrence `ux11r9Hardening` ;
+  - un élargissement à 10 s du test de verrou a été essayé, puis annulé : il dégradait la suite ;
+  - les échecs restants sont des dépassements de délai ou de fenêtre ; les arrêts de worker existent aussi sur la base.
+- **Canon** : extraits exacts pour `docs/04`, `docs/05` et `docs/07`, rangés en quatre catégories. Non appliqué.
+
+**Statut** : READY FOR HPM REVIEW (candidat `35d0f42`). Aucune attribution signée, aucun push, merge, migration ou déploiement ; V2 OFF.
+
+## 2026-10-26 — SPORT-PLAN-03 : DH-SPORT-SIGNOFF-01, document de validation sportive (LOCAL)
+
+> **Décision HPM** : DH CATALOG FINALIZATION accepté sous conditions. Préparer les 14 exercices DH prioritaires pour une validation humaine.
+
+- **Livrable** : `docs/review/sport-plan-03/DH_SPORT_SIGNOFF_01.md`, une fiche par exercice. Elle contient :
+  - la consigne actuelle et la consigne à signer ;
+  - le critère de réussite, les vigilances, les terrains et ce que couvre un passage ;
+  - l'allure de course et la régression en semaine légère ;
+  - les doses existantes et les décisions à cocher (ACCEPTER, MODIFIER, REFUSER).
+- **Le document porte aussi** :
+  - une question transversale : la plage de 4 à 8 passages, comptée en sections ;
+  - la couverture des 21 configurations (13/21, riders B, W, A complets) ;
+  - les deux hausses calendaires à arbitrer (2e cycle, semaine `race_specific`) ;
+  - un bloc de signature.
+- **Exactitude** : les textes sont générés depuis le code et contrôlés automatiquement contre leur source (0 écart ; le contrôle détecte une altération).
+- **Note** : le cahier des charges détaillé auquel renvoie la demande n'était pas disponible dans la session ; le document suit le périmètre de la demande.
+
+**Statut** : livré, à signer. Aucune unité signée, aucune dose modifiée, aucune activation V2, aucun push, merge, migration ni déploiement.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-DH-SPORT-GATE-01, verrou des quatre validations sportives (LOCAL)
+
+> **Décision HPM** : `0c79b5d` approuvé pour son périmètre documentaire. Implémenter le verrou U/C/D/S dans les chemins V2, garantir l'identité du contenu signé et du contenu servi, prouver qu'une validation partielle ne débloque aucune prescription quantitative DH.
+
+- **Signature** : la table `DH_SPORT_SIGNOFFS_V2` (vide, gelée) remplace `DH_REPETITION_UNIT_ATTRIBUTIONS_V2`. Par exercice, quatre décisions séparées, chacune avec sa référence et le contenu exact signé : unité ; texte de la consigne et du critère ; termes de dose ; vigilances, régression de semaine légère et terrains.
+- **Verrou** : `planning-engine/src/sessionModelV2/dhSportGateV2.ts`, seul lecteur de l'unité (génération, quotidien, validateur, lecture des mesures stockées). Il s'ouvre seulement si les quatre décisions sont signées et si chaque contenu signé est identique au contenu servi.
+- **Placement** : à la racine de `sessionModelV2`, car seul ce module peut lire les catalogues V2 et la liste des importeurs de `contracts/` est figée. Aucun test de frontière modifié.
+- **Refus** : inchangé (`dh_repetition_unit_unknown`, même message au rider).
+- **Point ouvert** : une prescription stockée dont la signature devient partielle ou périmée lève l'erreur de contrat de V2-DH-UNIT-01 ; le run quotidien de ce jour échoue entièrement. Proposition, non implémentée : refus propre pour une unité bien formée qui n'est plus attribuée.
+
+**Statut** : READY FOR HPM REVIEW (candidat `ce1a330`). Aucune signature en production, aucune dose modifiée, V2 OFF, aucun push, merge, migration ni déploiement.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-DH-SPORT-GATE-01B, le verrou sur le contenu réellement présenté (LOCAL)
+
+> **Décision HPM** : V2-DH-SPORT-GATE-01 APPROVED WITH CONDITIONS (`ce1a330`, `403f1ad`). Lier le nom affiché à C, contrôler les textes communs DH, caractériser et protéger les prescriptions figées, conserver provisoirement le fail-closed du run quotidien, documenter la provenance des signatures.
+
+- **C** signe aussi le nom affiché (`SESSION_DRILL_NAMES_V2`, les noms que le web affiche aujourd'hui ; `drillNameV2` est figé dessus par test).
+- **Validation commune** (`DH_SPORT_COMMON_SIGNOFF_V2`, absente) : le déroulé DH et les 9 objectifs de séance, signés une seule fois ; chaque exercice l'exige. Pas de signature redondante par exercice.
+- **Contenu stocké** : un document qui affiche une unité doit servir exactement le contenu courant de l'exercice (textes, objectif, déroulé) ; sinon `dh_content_not_signed`.
+- **Run quotidien** : fail-closed conservé (aucune décision écrite, jamais REST, transaction inchangée) ; motif identifiable `DhSportValidationNotCurrentError` (sous-classe de l'erreur de contrat) ; une journée indépendante reste servie.
+- **Limites signalées** : la RPC d'exécution (SQL) ne voit pas la signature ; une prescription finale figée avant une révocation reste exécutable le jour même. Péremption et révocation ne se distinguent pas sans état en base (GO distinct). Le web résout les textes figés dans le catalogue courant. Aucun mécanisme ne vérifie l'auteur d'une signature : limite à fermer avant toute signature réelle.
+
+**Statut** : READY FOR HPM REVIEW (candidat `3af20a2`). Tables de production vides, aucune dose ni consigne modifiée, V2 OFF, aucun push, merge, migration ni déploiement.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-DH-SPORT-GATE-01C, révocation le jour même et versions historiques (LOCAL)
+
+> **Décision HPM** : V2-DH-SPORT-GATE-01B APPROVED PARTIAL, HOLD sur la sécurité. Fermer la révocation le jour même (P0), garantir la cohérence historique, proposer une provenance vérifiable, rendre l'erreur visible, inscrire l'objectif proposé de la fiche 14.
+
+- **Garde d'exécution** : `session-execution` refuse, avant `record_session_execution`, toute action d'entraînement (nouvelle exécution, reprise, fin, résultat) sur un document dont la validation DH n'est plus courante : `dh_validation_not_current` (409). Pause, arrêt, rejeux et lecture restent permis, comme sous le garde santé P0-3. La RPC est réservée à `service_role` et `session-execution` est sa seule appelante : aucun chemin client ne contourne le garde. Le contrôle est livré dans le bundle quotidien V2 existant.
+- **Erreur visible** : `DhSportValidationNotCurrentError` répond 409 `dh_validation_not_current` (fail-closed, aucune décision écrite, aucun détail).
+- **Versions** : le contenu d'une version publiée est immuable (empreintes de `coaching-text-v1.0` et des noms de `session-drills-v2.0`) ; une correction prend un nouvel identifiant ou une nouvelle version.
+- **BLOCKED** : révocation transactionnelle indépendante du déploiement (brouillon SQL non exécuté, `docs/review/sport-plan-03/V2_DH_SPORT_GATE_01C_REVOCATION_DRAFT.sql`) ; signature sportive tant que la provenance n'est pas vérifiable (pas de CI, pas de CODEOWNERS, commits non signés).
+
+**Statut** : READY FOR HPM REVIEW (candidat `6ef62c0`). Aucune migration, signature ni dose ; V2 OFF ; aucun push, merge ni déploiement.
+
+## 2026-10-26 — SPORT-PLAN-03 : V2-DH-RELEASE-GATES-01, portes de release DH (LOCAL)
+
+> **Décision HPM** : V2-DH-SPORT-GATE-01C APPROVED WITH CONDITIONS. Fermer les cinq échecs HTTP, préparer la révocation transactionnelle et une provenance de signature vérifiable, sans prolonger les prototypes.
+
+- **Tests HTTP V2** : l'échec venait de la configuration du runtime (V2 OFF). Un test de contrat est ajouté par configuration (V2 OFF : 503 ; V2 ON sans signature : 422 `dh_repetition_unit_unknown`, rien d'écrit ; V2 ON avec signatures de test : plan SECTION). Les cinq cas passent avec les signatures de test, construites dans un bundle local que le test du bundle Edge refuse s'il reste dans `dist`.
+- **Révocation transactionnelle** : migration candidate (hors `supabase/migrations`, non appliquée). Table en ajout seulement réservée aux opérateurs, verrou `SHARE` et quatre contrôles dans `record_session_execution`, rollback refusé tant qu'une révocation existe. Prouvée sur base jetable : droits, rider, actions, concurrence dans les deux sens. Le brouillon 01C est retiré.
+- **Provenance** : enregistrements d'approbation signés (Ed25519) par décision, registre des valideurs (vide), vérification dans la suite, `verify:sport-approvals` et `build:release`.
+- **BLOCKED** : migration (GO distinct) ; signature sportive tant que la protection de `main`, les CODEOWNERS, la CI et les valideurs ne sont pas en place (actions de Louis, paramètres GitHub non modifiés).
+
+**Statut** : READY FOR HPM REVIEW (candidat `7cb3348`). Aucune signature, aucun valideur, aucune dose ; V2 OFF ; aucun push, merge ni déploiement.
+
+## 2026-10-26 — SPORT-PLAN-03 : RELEASE-DECISION-PACK-01, dossier de décision de release (LOCAL)
+
+> **Décision HPM** : V2-DH-RELEASE-GATES-01 APPROVED WITH CONDITIONS ; la migration transactionnelle et la provenance sont des candidats acceptés pour examen final, non autorisés pour la production.
+
+- **Révocation** : le SQL candidat est inchangé (5/5 sur base jetable). Il ne diffère de la RPC actuelle que par cinq insertions (le verrou `SHARE` et quatre contrôles). Réserve : la garantie suppose l'isolation READ COMMITTED (celle des appels RPC de PostgREST) ; un garde d'isolation est proposé en amendement, non appliqué.
+- **GitHub, localement** : `.github/CODEOWNERS` avec des comptes en placeholders explicites ; `.github/workflows/ci.yml`, avec les statuts `verify:sport-approvals` et `tests` ; ruleset de `main` proposé (`docs/review/sport-plan-03/release-gates/github-ruleset-main.json`). Aucun réglage distant n'est modifié.
+- **Release** : `verify:sport-approvals` tourne aussi en `build:release:all --verify-only`, et refuse toute clé privée dans `sport-approvals/`.
+- **daily-run** : correctif minimal décrit, non implémenté.
+
+**Statut** : STOP pour décisions HPM et Louis. Aucun push, merge, migration, déploiement ni activation V2.
+
+## 2026-10-26 — SPORT-PLAN-03 : RELEASE-PREP-FINAL-01, corrections locales avant release (LOCAL)
+
+> **Décision HPM** : RELEASE-DECISION-PACK-01 clos ; implémenter localement le garde d'isolation, la révocation dans le daily-run V2 et la sûreté du rollback.
+
+- **Isolation** : les deux RPC refusent tout niveau autre que READ COMMITTED (`NX301`) ; sous un instantané figé, le verrou attendrait une révocation sans la voir (contre-preuve testée).
+- **daily-run V2** : la révocation est lue par `persist_daily_run_v2`, dans la transaction d'écriture et sous le verrou `SHARE` : une prescription finale contenant un exercice révoqué n'est jamais écrite (`NX302` → 409 `dh_validation_not_current`), sans REST ni décision partielle. Pas de lecture séparée avant : elle ouvrirait une fenêtre entre lecture et écriture.
+- **Rollback** : transaction explicite, table verrouillée avant le contrôle ; INSERT retiré ensuite.
+- **CI** : statuts requis liés à GitHub Actions ; intégration de longitudinal-engine exclue du job `tests`.
+
+**Statut** : READY FOR HPM REVIEW (code `d7370ae`). Migration non appliquée ; aucun push, merge, déploiement ni activation V2.

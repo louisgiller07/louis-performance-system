@@ -27,6 +27,27 @@ import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlan
 import { runDailyFor } from "../../src/supabase/runDailyFor.js";
 import { purgeAthleteAccount } from "../../src/supabase/purgeAthleteAccount.js";
 
+/**
+ * Test-only DDL on the shared, hot `athletes` table while other test files write to it: this session is always the
+ * deadlock victim (shortest deadlock_timeout) and retries — never another test file. DDL is transactional, so a
+ * retried attempt starts from nothing. Retries only on a deadlock or a lock timeout; any other error is thrown.
+ */
+async function sharedTableDdl(sql: string): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      execLocalSql(`begin;
+set local deadlock_timeout = '10ms';
+set local lock_timeout = '10s';
+${sql}
+commit;`);
+      return;
+    } catch (error) {
+      if (attempt >= 5 || !/deadlock detected|lock timeout/.test(error instanceof Error ? error.message : String(error))) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+    }
+  }
+}
+
 const INTEGRATION_ENABLED = localIntegrationRequested({ requirePublishableKey: true });
 const TODAY = "2026-10-05";
 const DAYS = ["2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12"];
@@ -232,11 +253,11 @@ insert into public.pilot_observability_events (event_type, severity, athlete_id,
   it("a failure at the last step rolls the whole purge back (nothing of the athlete is deleted)", async () => {
     c = await richAthlete("C");
     const before = athleteFootprint(c.athleteId);
-    execLocalSql(`create function public.r1_purge_test_fail() returns trigger language plpgsql as $$ begin raise exception 'r1 provoked failure'; end $$;
+    await sharedTableDdl(`create function public.r1_purge_test_fail() returns trigger language plpgsql as $$ begin raise exception 'r1 provoked failure'; end $$;
 create trigger r1_purge_test_fail before delete on public.athletes for each row when (old.id = ${sqlLiteral(c.athleteId)}) execute function public.r1_purge_test_fail();`);
     const { error } = await admin.rpc("purge_athlete_account", { p_athlete_id: c.athleteId });
     expect(error?.message).toMatch(/r1 provoked failure/);
-    execLocalSql("drop trigger r1_purge_test_fail on public.athletes; drop function public.r1_purge_test_fail();");
+    await sharedTableDdl("drop trigger r1_purge_test_fail on public.athletes; drop function public.r1_purge_test_fail();");
     expect(athleteFootprint(c.athleteId)).toEqual(before);
     // The athlete can then be purged normally.
     await purgeAthleteAccount(admin, c.athleteId);

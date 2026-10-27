@@ -9,19 +9,26 @@
  *
  * Returns every issue found (never throws), each with a JSON path and a
  * stable code.
+ *
+ * V2-DH-SPORT-GATE-01B — a stated DH unit is signed for the drill's CURRENT
+ * content (dhSportGateV2): a document stating one must serve exactly that
+ * content — the drill's cue, criterion and vigilances, its session objective
+ * and the DH frame — otherwise `dh_content_not_signed`.
  */
 import { SESSION_EXERCISE_CATALOG_V2, SESSION_EXERCISE_ROLES_V2 } from "../catalog/sessionExerciseCatalogV2.js";
 import { SESSION_DRILL_CATALOG_V2, DH_DRILL_PASSES_RANGE_V2 } from "../catalog/sessionDrillCatalogV2.js";
 import { INTENT_CATALOG_V2, INTENT_SESSION_KINDS_V2, SESSION_FAMILIES_V2 } from "../catalog/intentCatalogV2.js";
 import { PROTOCOL_CATALOG_V2, ENDURANCE_ACTIVITIES_V2, PROTOCOL_BLOCK_FOCUS_V2 } from "../catalog/protocolCatalogV2.js";
 import { COACHING_TEXT_CATALOG, type CoachingTextKind } from "../catalog/coachingTextCatalog.js";
-import { SESSION_BLOCK_ROLES_V2 } from "../catalog/sessionFrameV2.js";
+import { DH_SESSION_FRAME_V2, SESSION_BLOCK_ROLES_V2 } from "../catalog/sessionFrameV2.js";
 import { STRENGTH_TEMPLATE_CATALOG_V2 } from "../catalog/strengthTemplateCatalogV2.js";
 import { SESSION_MODEL_V2_MANIFEST_KEYS } from "./catalogManifest.js";
 import { PRESCRIPTION_V2_ITEM_KINDS, PRESCRIPTION_V2_SCHEMA_VERSION, type PrescriptionV2 } from "./prescriptionV2.js";
 import { STRENGTH_LOAD_GUIDANCE_RULES_VERSION } from "../catalog/strengthLoadGuidancePolicyV2.js";
 import { ENDURANCE_GUIDANCE_RULES_VERSION } from "../catalog/enduranceGuidancePolicyV2.js";
 import { BODYWEIGHT_REPS_GUIDANCE_RULES_VERSION } from "../catalog/bodyweightRepsGuidancePolicyV2.js";
+import { dhRepetitionUnitAttributionV2 } from "./dhSportGateV2.js";
+import { dhIntentForDrillV2 } from "./builders/dhPrescriptionV2.js";
 
 export type PrescriptionV2IssueCode =
   | "not_an_object"
@@ -64,7 +71,11 @@ export type PrescriptionV2IssueCode =
   | "endurance_guidance_not_allowed"
   | "invalid_endurance_guidance"
   | "reps_guidance_not_allowed"
-  | "invalid_reps_guidance";
+  | "invalid_reps_guidance"
+  | "invalid_dh_unit"
+  | "dh_unit_not_attributed"
+  | "dh_full_run_without_track_data"
+  | "dh_content_not_signed";
 
 export interface PrescriptionV2Issue {
   path: string;
@@ -155,6 +166,7 @@ export function validatePrescriptionV2(value: unknown, options: ValidatePrescrip
       if (!Array.isArray(block.items)) return add(`${path}.items`, "invalid_block");
       block.items.forEach((item, i) => validateItem(item, `${path}.items[${i}]`, value.family, stage, itemIds, add, block.role));
     });
+    checkSignedDhContent(value, value.blocks, add);
   }
 
   return issues.length === 0 ? { ok: true, prescription: value as unknown as PrescriptionV2 } : { ok: false, issues };
@@ -256,13 +268,57 @@ function validateItem(
       const m = item.measure;
       if (!isObj(m)) add(`${path}.measure`, "invalid_measure");
       else if (m.type !== "pass") add(`${path}.measure.type`, "invalid_measure_type");
-      else if (!isInt(m.count) || m.count < DH_DRILL_PASSES_RANGE_V2.min || m.count > DH_DRILL_PASSES_RANGE_V2.max) add(`${path}.measure.count`, "pass_count_out_of_range");
+      else {
+        if (!isInt(m.count) || m.count < DH_DRILL_PASSES_RANGE_V2.min || m.count > DH_DRILL_PASSES_RANGE_V2.max) add(`${path}.measure.count`, "pass_count_out_of_range");
+        checkPassUnit(m, item.drillId, `${path}.measure`, add);
+      }
       checkText(item.cueId, "cue", `${path}.cueId`, add);
       checkText(item.successCriterionId, "success_criterion", `${path}.successCriterionId`, add);
       if (!Array.isArray(item.vigilanceIds)) add(`${path}.vigilanceIds`, "unknown_text");
       return;
     }
   }
+}
+
+/**
+ * V2-DH-UNIT-01 — a pass measure is exactly { type, count } (a historical count, read UNKNOWN), or with `unit:
+ * "SECTION"`, or with `unit: "FULL_RUN"` and the track's `descentMinutes`. A stated unit must be the drill's signed
+ * attribution; UNKNOWN is never stored; any other key is refused (never tolerated as a contract).
+ */
+function checkPassUnit(m: Obj, drillId: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  if (Object.keys(m).some((k) => !["type", "count", "unit", "descentMinutes"].includes(k))) add(path, "invalid_measure");
+  if (m.unit === undefined) {
+    if (m.descentMinutes !== undefined) add(`${path}.descentMinutes`, "invalid_measure");
+    return;
+  }
+  if (m.unit !== "SECTION" && m.unit !== "FULL_RUN") return add(`${path}.unit`, "invalid_dh_unit");
+  if (m.unit === "FULL_RUN" && (!isInt(m.descentMinutes) || m.descentMinutes < 1)) add(`${path}.descentMinutes`, "dh_full_run_without_track_data");
+  if (m.unit === "SECTION" && m.descentMinutes !== undefined) add(`${path}.descentMinutes`, "invalid_measure");
+  if ((typeof drillId === "string" ? dhRepetitionUnitAttributionV2(drillId)?.unit : undefined) !== m.unit) add(`${path}.unit`, "dh_unit_not_attributed");
+}
+
+const sameIds = (a: unknown, b: readonly string[]) => Array.isArray(a) && a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * V2-DH-SPORT-GATE-01B — a drill item stating a unit must serve its drill's current content (the content its sign-off
+ * binds): the drill's cue, criterion and vigilances, the drill's session objective (dhIntentForDrillV2) and the DH
+ * frame. An older text, objective or frame is not the signed content, whatever the drill's sign-off says.
+ */
+function checkSignedDhContent(value: Obj, blocks: unknown[], add: (path: string, code: PrescriptionV2IssueCode) => void) {
+  const stating = blocks.flatMap((block, b) =>
+    isObj(block) && Array.isArray(block.items) ? block.items.map((item, i) => ({ item, path: `$.blocks[${b}].items[${i}]` })) : []
+  ).filter((x): x is { item: Obj; path: string } => isObj(x.item) && x.item.kind === "drill" && isObj(x.item.measure) && x.item.measure.unit !== undefined);
+  if (stating.length === 0) return;
+  for (const { item, path } of stating) {
+    const drill = typeof item.drillId === "string" && Object.prototype.hasOwnProperty.call(SESSION_DRILL_CATALOG_V2, item.drillId) ? SESSION_DRILL_CATALOG_V2[item.drillId]! : undefined;
+    if (drill === undefined) continue;
+    if (item.cueId !== drill.cueId) add(`${path}.cueId`, "dh_content_not_signed");
+    if (item.successCriterionId !== drill.criterionId) add(`${path}.successCriterionId`, "dh_content_not_signed");
+    if (!sameIds(item.vigilanceIds, drill.vigilanceIds)) add(`${path}.vigilanceIds`, "dh_content_not_signed");
+    if (value.intentId !== dhIntentForDrillV2(drill)) add("$.intentId", "dh_content_not_signed");
+  }
+  const frame = blocks.length === DH_SESSION_FRAME_V2.length && DH_SESSION_FRAME_V2.every((f, b) => isObj(blocks[b]) && blocks[b].role === f.role && sameIds(blocks[b].instructionIds, f.instructionIds));
+  if (!frame) add("$.blocks", "dh_content_not_signed");
 }
 
 function checkActivitySelection(sel: unknown, path: string, add: (path: string, code: PrescriptionV2IssueCode) => void) {

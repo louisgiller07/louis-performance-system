@@ -11,6 +11,7 @@
 // deploys nothing.
 //
 // Order (each step fails the whole build):
+//   0. (every mode) planning-engine `verify:sport-approvals`, after step 1 when building.
 //   1. head-coach-engine `build:release`: planning-engine, then
 //      prescription-engine (depends on it), then head-coach-engine dist and
 //      the two Edge bundles.
@@ -60,6 +61,9 @@ if (!process.argv.includes("--verify-only")) {
   run(join(ROOT, "longitudinal-engine"), "build");
   run(join(ROOT, "web"), "build");
 }
+// RELEASE-DECISION-PACK-01 — before any deploy, --verify-only included: every DH sports sign-off must carry its signed,
+// authorised approval of the content served (planning-engine tools/sportApprovals.ts). Fails the release otherwise.
+run(join(ROOT, "planning-engine"), "verify:sport-approvals");
 
 const IMPORT_RE = /(?:import|export)\s[^"']*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^\s*import\s*["']([^"']+)["']/gm;
 const sha256 = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");

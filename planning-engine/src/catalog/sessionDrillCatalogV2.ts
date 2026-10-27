@@ -177,3 +177,34 @@ const ENTRIES: SessionDrillV2[] = [
 export const SESSION_DRILL_CATALOG_V2_ENTRIES: readonly SessionDrillV2[] = ENTRIES;
 
 export const SESSION_DRILL_CATALOG_V2: Readonly<Record<string, SessionDrillV2>> = Object.fromEntries(ENTRIES.map((d) => [d.drillId, d]));
+
+/**
+ * V2-DH-SPORT-GATE-01B (HPM 2026-10-26) — the name displayed for each drill (fr-CH), exactly as the web serves it today
+ * (trainingLabels DRILL_LABELS, and the V2-only name). It is part of the content signed in C (dhSportGateV2): a name
+ * changed after signing closes the drill's gate. The web's V2 drill name (drillNameV2) is pinned to it by test.
+ * PROVISIONAL — product wording, same status as the web labels.
+ */
+export const SESSION_DRILL_NAMES_V2: Readonly<Record<string, string>> = Object.freeze({
+  braking_progressive_control: "Freinage progressif",
+  braking_late_entry: "Freinage tardif, relâchement précoce",
+  braking_marked_zone_at_speed: "Points de freinage marqués",
+  cornering_flat_turn_precision: "Précision de trajectoire en virage plat",
+  cornering_berm_speed: "Garder la vitesse dans les virages relevés",
+  cornering_off_camber: "Engagement en virage en dévers",
+  cornering_advanced_line_exit: "Trajectoire et sortie de virage",
+  line_choice_two_line_scan: "Repérer deux lignes et s'engager",
+  line_choice_rock_garden: "Choix de ligne dans le pierrier",
+  line_choice_fast_line_compare: "Comparaison chronométrée des lignes",
+  steep_terrain_controlled_roll_in: "Entrée contrôlée en pente raide",
+  steep_terrain_body_position: "Position du corps en pente raide",
+  steep_terrain_off_brake_chute: "Couloir raide, freinage dosé",
+  roots_rocks_rolling: "Rouler sur racines et rochers",
+  roots_rocks_unweighted_line: "Ligne délestée sur racines et rochers",
+  roots_rocks_committed: "Racines et rochers, ligne engagée",
+  jumps_table_top_basic: "Bases des table-tops",
+  jumps_linked_tables: "Enchaîner les table-tops",
+  jumps_step_down: "Confiance sur les step-downs",
+  race_execution_section_consistency: "Régularité chronométrée par section",
+  race_execution_split_pace: "Run fractionné à allure course",
+  race_execution_full_run_sim: "Simulation de run complet",
+});

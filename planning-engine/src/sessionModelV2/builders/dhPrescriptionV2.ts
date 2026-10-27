@@ -29,10 +29,17 @@
  * reached — never an invented drill. The same rule serves the planner and
  * the daily adaptations (dhDrillForLoad).
  *
+ * V2-DH-UNIT-01 — the unit of a passage comes only from the drill's signed
+ * attribution (passMeasureForDrillV2): SECTION, or FULL_RUN with the descent
+ * time of the rider's track. Without it, `dhUnit: "required"` blocks the
+ * count (dh_repetition_unit_unknown, dh_full_run_needs_track_data); absent,
+ * the count is the historical unit-less `pass`, exactly as before.
+ *
  * Blocks (locked codes): missing_dh_technical_tier,
  * missing_dh_priority_areas, too_many_dh_priority_areas,
  * duplicate_dh_priority_areas, dh_passes_out_of_range,
- * unavailable_dh_drill_terrain. No automatic correction.
+ * unavailable_dh_drill_terrain, dh_repetition_unit_unknown,
+ * dh_full_run_needs_track_data. No automatic correction.
  */
 import { DH_SKILLS_V2, DH_DRILL_PASSES_RANGE_V2, SESSION_DRILL_CATALOG_V2, SESSION_DRILL_CATALOG_V2_ENTRIES, type DhSkillV2, type DhTechnicalTierV2, type SessionDrillV2 } from "../../catalog/sessionDrillCatalogV2.js";
 import type { LoadProfile } from "../../types/sharedVocabulary.js";
@@ -40,7 +47,8 @@ import { DH_DRILL_INTENT_V2, DH_SKILL_NON_RACE_INTENT_V2, DH_SKILL_TO_INTENT_V2,
 import { DH_SESSION_FRAME_V2 } from "../../catalog/sessionFrameV2.js";
 import type { SessionKind } from "../../types/sharedVocabulary.js";
 import type { SessionModelV2CatalogManifest } from "../catalogManifest.js";
-import type { BlockV2Content, PrescriptionV2Content } from "../prescriptionV2.js";
+import type { BlockV2Content, PassMeasureV2, PrescriptionV2Content } from "../prescriptionV2.js";
+import { dhRepetitionUnitAttributionV2 } from "../dhSportGateV2.js";
 import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError } from "../generationErrors.js";
 
 /** The only DH session kind the current Planning Engine produces. */
@@ -66,6 +74,37 @@ export interface DhPrescriptionV2Input {
   catalog: SessionModelV2CatalogManifest;
   /** P0 — the session's load: a LIGHT dose never carries a race-intensity drill (dhDrillForLoad). Absent = as before. */
   loadProfile?: LoadProfile;
+  /** V2-DH-UNIT-01 — "required": a count without a reliable unit blocks the session. Absent = as before. */
+  dhUnit?: "required";
+  /** V2-DH-UNIT-01 — track data: minutes of one full descent of the rider's track (no source yet). */
+  fullRunDescentMin?: number;
+}
+
+/** V2-DH-UNIT-01 — how a new count of a drill gets its unit (passMeasureForDrillV2). */
+export interface DhUnitOptionsV2 {
+  dhUnit?: "required";
+  fullRunDescentMin?: number;
+}
+
+/**
+ * V2-DH-UNIT-01 — the measure of a NEW count of a drill. The unit is the drill's signed attribution only, never read
+ * from its id, name or texts: SECTION; FULL_RUN with the track's descent time. Without an attribution (or without the
+ * descent time of a FULL_RUN), "required" blocks the count; otherwise the historical unit-less `pass`, as before.
+ */
+export function passMeasureForDrillV2(drillId: string, count: number, options: DhUnitOptionsV2 = {}): PassMeasureV2 {
+  const attribution = dhRepetitionUnitAttributionV2(drillId);
+  if (attribution?.unit === "SECTION") return { type: "pass", count, unit: "SECTION" };
+  const descent = options.fullRunDescentMin;
+  if (attribution?.unit === "FULL_RUN" && descent !== undefined && Number.isInteger(descent) && descent > 0) return { type: "pass", count, unit: "FULL_RUN", descentMinutes: descent };
+  if (options.dhUnit === "required") {
+    // V2-DH-ATTRIBUTION-01 — the refusal names the drill's skill and level (closed vocabularies) for an explicit message.
+    const drill = SESSION_DRILL_CATALOG_V2[drillId];
+    throw new SessionModelV2GenerationBlockedError(attribution === null ? "dh_repetition_unit_unknown" : "dh_full_run_needs_track_data", {
+      drillId,
+      ...(drill !== undefined ? { skill: drill.skill, dhTechnicalTier: drill.technicalTier } : {}),
+    });
+  }
+  return { type: "pass", count };
 }
 
 /**
@@ -207,6 +246,7 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
   // P0 — the selected drill's terrain is declared, so its LIGHT regression always exists.
   const drill = dhDrillForLoad(canonical, input.loadProfile, input.terrainAccess);
   if (drill === null) throw new SessionModelV2ContractError(`no LIGHT regression for ${canonical.drillId}`);
+  const measure = passMeasureForDrillV2(drill.drillId, passes, input);
   const intentId = dhIntentForDrillV2(drill);
   const intent = INTENT_CATALOG_V2[intentId];
   if (!intent || intent.family !== "dh_technical" || !intent.sessionKinds.includes("DH_TECHNICAL")) {
@@ -221,7 +261,7 @@ export function buildDhPrescriptionV2Content(input: DhPrescriptionV2Input): Pres
           {
             kind: "drill" as const,
             drillId: drill.drillId,
-            measure: { type: "pass" as const, count: passes },
+            measure,
             cueId: drill.cueId,
             successCriterionId: drill.criterionId,
             vigilanceIds: [...drill.vigilanceIds],

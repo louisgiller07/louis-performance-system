@@ -23,7 +23,7 @@
 import { withSupabase } from "@supabase/server";
 import { generateTrainingPlanForAthlete, parseV2PlanGenerationFlag, planningResolutionOf, productToday, V2_ENDURANCE_INTERVALS_FLAG, V2_L2_HISTORY_FLAG, V2_MOBILITY_SESSIONS_FLAG, V2_PLAN_GENERATION_FLAG, V2_POWER_SESSIONS_FLAG } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
-import { mapGenerateTrainingPlanError } from "./errorMapping.ts";
+import { dhUnitRefusalDetail, mapGenerateTrainingPlanError } from "./errorMapping.ts";
 
 /** Structural minimum this handler actually uses from withSupabase's real context — not the full, unavailable @supabase/server type (not installed as an npm package in this repo, only resolved via deno.json's npm: specifier at Deno runtime). */
 interface GenerateTrainingPlanRequestContext {
@@ -205,6 +205,10 @@ export async function handleGenerateTrainingPlan(
         const requiredTerrain = typeof result.detail.requiredTerrain === "string" ? result.detail.requiredTerrain : null;
         const compatibleTerrains = Array.isArray(result.detail.compatibleTerrains) ? result.detail.compatibleTerrains.filter((t): t is string => typeof t === "string") : [];
         return Response.json({ error: { code: result.code, message: "No DH drill of the declared level for this priority fits the declared terrains.", detail: { skill, requiredTerrain, compatibleTerrains } } }, { status: 422 });
+      }
+      // V2-DH-ATTRIBUTION-01 — a DH drill without a signed repetition unit: NALYNT's gap, never the rider's profile.
+      if (result.code === "dh_repetition_unit_unknown" || result.code === "dh_full_run_needs_track_data") {
+        return Response.json({ error: { code: result.code, message: "No validated repetition unit for this DH drill yet.", detail: dhUnitRefusalDetail(result.detail) } }, { status: 422 });
       }
       return errorResponse(422, result.code, "Configuration incomplete for training plan generation.");
     }

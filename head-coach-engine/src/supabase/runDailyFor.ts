@@ -186,6 +186,8 @@ export interface RunDailyForDeps {
    * Absent = all off: the production daily behaviour before PHYS.
    */
   physSwitches?: ReconcileFinalPrescriptionV2Input["phys"];
+  /** V2-DH-UNIT-01 — "required" while V2 is on (dailyV2/dhUnitRequirement.ts); absent = the production daily behaviour. */
+  dhUnit?: ReconcileFinalPrescriptionV2Input["dhUnit"];
 }
 
 /**
@@ -409,6 +411,8 @@ export async function runDailyFor(
       powerFatigue: powerFatigueGate(dailyPlanV2),
       // V2-PHYS-INTEGRATION-01 — the server's PHYS switches (absent = all off).
       phys: deps.physSwitches ?? {},
+      // V2-DH-UNIT-01 — while V2 is on, no executable DH count without a reliable unit (absent = as before).
+      ...(deps.dhUnit !== undefined ? { dhUnit: deps.dhUnit } : {}),
     });
 
     // A10 — the decision says the session that fits in the rider's time (traced); A07 — and its effective duration.

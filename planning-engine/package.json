@@ -31,7 +31,8 @@
     "build": "tsc -p tsconfig.build.json",
     "build:clean": "npm run clean && npm run build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "verify:sport-approvals": "node tools/sportApprovalsCli.ts verify"
   },
   "devDependencies": {
     "@types/node": "latest",

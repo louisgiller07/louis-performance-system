@@ -6,7 +6,7 @@
  * availability → final durations → placement) → generated
  * sessions → SPORT-RACE-01P race-protocol days (pre-event sessions of a race format with a protocol) → V2 builders
  * (Force, DH, AEROBIC_BASE, PHYS-02 AEROBIC_INTERVALS, active recovery) → assignPrescriptionIds
- * (injected mintId) → validatePrescriptionV2 → sport fingerprints.
+ * (injected mintId) → validatePrescriptionV2 → V2 contract checks → sport fingerprints.
  *
  * - Explicit only: nothing here is reached unless a caller asks for a V2
  *   plan; V1 generation is untouched.
@@ -30,6 +30,7 @@ import { buildSessionModelV2CatalogManifest, type SessionModelV2CatalogManifest 
 import { assignPrescriptionIds } from "../assignPrescriptionIds.js";
 import { validatePrescriptionV2 } from "../validatePrescriptionV2.js";
 import { sportFingerprint } from "../sportFingerprint.js";
+import { checkSessionContractsV2, type SessionContractChecksV2 } from "../contracts/sessionContractChecksV2.js";
 import { toSessionModelV2Input, type PlanInputSnapshotV2, type SessionModelV2Input } from "../planInputSnapshotV2.js";
 import { SessionModelV2ContractError, SessionModelV2GenerationBlockedError, type SessionModelV2GenerationBlockCode } from "../generationErrors.js";
 import type { ExerciseItemV2Content, PrescriptionV2, PrescriptionV2Content } from "../prescriptionV2.js";
@@ -65,6 +66,16 @@ export interface GeneratePlanV2InMemoryInput {
   powerSessions?: boolean;
   /** PHYS-04 — add a mobility session in consolidation weeks (server switch; absent / false = the previous plans exactly). */
   mobilitySessions?: boolean;
+  /**
+   * V2-DH-UNIT-01 — "required": a DH count needs its drill's signed unit, otherwise the plan is blocked
+   * (dh_repetition_unit_unknown). Absent = the previous plans exactly (historical unit-less `pass`).
+   */
+  dhUnit?: "required";
+  /**
+   * V2-DH-ATTRIBUTION-01 — "not_evidence": the snapshot's recent volume never skips the introduction week (no dose
+   * rise from a declared volume); missed-session holds unchanged. Absent = the previous plans exactly.
+   */
+  recentVolume?: "not_evidence";
 }
 
 export interface PlannedPrescriptionV2InMemory {
@@ -86,6 +97,11 @@ export interface PlanSessionV2InMemory {
   plannedPrescription: PlannedPrescriptionV2InMemory;
   /** Fingerprint of the session's sport content (date, kind, duration, prescription without ids). */
   sportFingerprint: string;
+  /**
+   * V2-CONTRACTS-INTEGRATION-01 — the session's contract checks (RPE, one end, duration against `durationMin`, DH
+   * quota unit). In memory only: never persisted (planV2PersistencePayload), never part of a fingerprint.
+   */
+  contractChecks: SessionContractChecksV2;
 }
 
 export interface PlanWeekV2InMemory {
@@ -141,10 +157,13 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
     terrainAccess: snapshot.terrainAccess,
     lockedDates: snapshot.lockedDates,
     strengthExperienceTier: snapshot.strengthExperienceTier,
-    // Kept only because the pipeline input requires it: with the V2 dose model
-    // HistoryAdjuster (its only reader) is never applied.
+    // With the V2 dose model HistoryAdjuster is never applied; the block progression (blockProgressionV2) reads two
+    // aggregates: the recent volume (introduction skipped unless recentVolume is "not_evidence") and the missed count (hold).
     recentHistory: snapshot.recentHistory,
-    sessionDoseModel: input.enduranceIntervals === true ? planDoseModelV2({ enduranceIntervals: true }) : PLAN_DOSE_MODEL_V2,
+    sessionDoseModel:
+      input.enduranceIntervals === true || input.recentVolume !== undefined
+        ? planDoseModelV2({ ...(input.enduranceIntervals === true ? { enduranceIntervals: true } : {}), ...(input.recentVolume !== undefined ? { recentVolume: input.recentVolume } : {}) })
+        : PLAN_DOSE_MODEL_V2,
   });
 
   // PHYS-03 — with the power option only: the lower-body Force session of a build week becomes the power session.
@@ -163,7 +182,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
   let contents: PrescriptionV2Content[];
   try {
     contents = flat.map(({ week, session }) =>
-      buildContent(session, modelInput, dhOrdinals, catalog, snapshot.availability, snapshot.lockedDates, week.doseSummary.progression?.targets.forceDoseStep ?? undefined)
+      buildContent(session, modelInput, dhOrdinals, catalog, snapshot.availability, snapshot.lockedDates, week.doseSummary.progression?.targets.forceDoseStep ?? undefined, input.dhUnit)
     );
   } catch (error) {
     if (error instanceof SessionModelV2GenerationBlockedError) return { status: "blocked", code: error.code, detail: error.detail };
@@ -183,6 +202,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
       if (!validation.ok) {
         throw new SessionModelV2ContractError(`invalid V2 prescription for ${session.kind} on ${session.date}: ${validation.issues.map((i) => `${i.path} ${i.code}`).join(", ")}`);
       }
+      const contractChecks = checkSessionContractsV2(content, session.durationMin, `V2 prescription for ${session.kind} on ${session.date}`);
       return {
         generatedPlanSessionId: mintId(),
         date: session.date,
@@ -193,6 +213,7 @@ export function generatePlanV2InMemory(input: GeneratePlanV2InMemoryInput): Gene
         rationale: session.rationale,
         plannedPrescription: { id: mintId(), schemaVersion: "v2", catalogVersion: catalog.aggregate, structure },
         sportFingerprint: sportFingerprint({ date: session.date, kind: session.kind, durationMin: session.durationMin, prescription: content }),
+        contractChecks,
       };
     });
     weeks.push({
@@ -241,7 +262,9 @@ function buildContent(
   availability: PlanInputAvailability,
   lockedDates: readonly PlanInputLockedDate[],
   /** BUG-V2-2 — the week's Force dose step (absent = the load profile's own step). */
-  forceDoseStep: StrengthDoseStepV2 | undefined
+  forceDoseStep: StrengthDoseStepV2 | undefined,
+  /** V2-DH-UNIT-01 — "required": no DH count without a reliable unit. */
+  dhUnit: "required" | undefined
 ): PrescriptionV2Content {
   switch (session.kind) {
     case "STRENGTH_LOWER":
@@ -272,6 +295,7 @@ function buildContent(
         catalog,
         // P0 — a LIGHT DH week never carries a race-intensity drill.
         ...(session.loadProfile !== undefined ? { loadProfile: session.loadProfile } : {}),
+        ...(dhUnit !== undefined ? { dhUnit } : {}),
       });
     }
     case "AEROBIC_BASE":

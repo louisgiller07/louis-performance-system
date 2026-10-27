@@ -81,12 +81,19 @@ export interface ExerciseItemView {
   repsGuidance?: RepsGuidanceView;
 }
 
+/** V2-DH-UNIT-01 — the stated unit of one DH passage (absent on a historical count: unit unknown). */
+export type DhRepetitionUnitView = "SECTION" | "FULL_RUN";
+
 export interface DrillItemView {
   kind: "drill";
   prescriptionItemId: string;
   drillId: string;
   name: string;
   passes: number;
+  /** V2-DH-UNIT-01 — absent: a historical count, unit unknown (never assumed). */
+  repetitionUnit?: DhRepetitionUnitView;
+  /** V2-DH-UNIT-01 — FULL_RUN only: minutes of one full descent of the track. */
+  descentMinutes?: number;
   cue: string;
   successCriterion: string;
   vigilances: string[];

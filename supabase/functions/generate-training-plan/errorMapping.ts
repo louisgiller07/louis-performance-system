@@ -69,3 +69,13 @@ export function mapGenerateTrainingPlanError(error: unknown): MappedGenerateTrai
   }
   return { status: 500, code: "internal_error", message: "An unexpected error occurred while generating the training plan." };
 }
+
+/**
+ * V2-DH-ATTRIBUTION-01 — a V2 plan refused because a DH drill has no signed repetition unit (or a full run has no track
+ * descent time): NALYNT's own gap, never the rider's profile. The detail names the skill, level and drill (closed
+ * vocabularies, nothing personal) so the app can say so; anything else in the detail is dropped.
+ */
+export function dhUnitRefusalDetail(detail: Readonly<Record<string, unknown>>): { skill: string | null; dhTechnicalTier: string | null; drillId: string | null } {
+  const text = (v: unknown) => (typeof v === "string" ? v : null);
+  return { skill: text(detail.skill), dhTechnicalTier: text(detail.dhTechnicalTier), drillId: text(detail.drillId) };
+}
