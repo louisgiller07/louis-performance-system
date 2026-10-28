@@ -20,7 +20,8 @@ export async function assignV2(admin: SupabaseClient, athleteId: string): Promis
   if (error) throw new Error(`assignV2: ${error.message}`);
 }
 
-const ENABLED = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
+// BETA-V2-TECH-01 T1 — V2 generations need the V2 ON runtime with TEST sign-offs (V2-DH-UNIT-01): the V2 ON partition only.
+const ENABLED = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && process.env.NALYNT_TEST_EDGE_V2_MODE === "on_test_signed";
 
 describe.skipIf(!ENABLED)("P0 first generation — generate-training-plan over HTTP (local runtime)", { timeout: 120_000 }, () => {
   let admin: SupabaseClient;

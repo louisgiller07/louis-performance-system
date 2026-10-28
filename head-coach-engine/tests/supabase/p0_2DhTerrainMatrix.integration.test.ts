@@ -20,8 +20,8 @@ import { contentViolations, type MatrixProfile } from "./p0FirstGenerationMatrix
 import { assignV2 } from "./p0FirstGenerationEdge.integration.test.js";
 
 const INTEGRATION_ENABLED = localIntegrationRequested();
-/** Opt-in, like the P0 Edge suite: RUN_LOCAL_P0_EDGE=1 with the runtime served (NALYNT_V2_PLAN_GENERATION_ENABLED=true). */
-const EDGE_ENABLED = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
+/** Opt-in, like the P0 Edge suite: RUN_LOCAL_P0_EDGE=1 with the runtime served V2 ON with TEST sign-offs (BETA-V2-TECH-01 T1). */
+const EDGE_ENABLED = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && process.env.NALYNT_TEST_EDGE_V2_MODE === "on_test_signed";
 const TODAY = "2026-10-12";
 const w = (day: number, start: string, end: string, activity: "physical" | "riding"): AthleteAvailabilityWindowInsert => ({ day_of_week: day, start_time: start, end_time: end, activity });
 const FULL_GYM = ["barbell", "squat_rack", "dumbbells", "bench", "pull_up_bar", "resistance_bands", "cable_machine"];
