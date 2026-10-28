@@ -7209,3 +7209,15 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **CI** : statuts requis liés à GitHub Actions ; intégration de longitudinal-engine exclue du job `tests`.
 
 **Statut** : READY FOR HPM REVIEW (code `d7370ae`). Migration non appliquée ; aucun push, merge, déploiement ni activation V2.
+
+## 2026-10-28 — BETA-V2-TECH-01 : prérequis techniques de la bêta V2 (LOCAL, ADR PROPOSÉE)
+
+> **Mandat HPM** : GO pour un développement local ciblé : T1 (tests V2 ON), T2 (coupure d'urgence sans lever de protection), B (autorisation bêta), T4 (conception seulement). Le garde-fou Docker/Supabase est accepté pour les campagnes contrôlées.
+
+- **T1** : `p0_3KeptDayRerun` génère son premier programme avec le bundle signé « test » du runtime ; les suites qui exigent V2 ON ne tournent plus que dans cette partition. Aucune signature inventée, moteur inchangé.
+- **T2 (candidate)** : `daily-run` exige toujours l'unité DH signée d'un document V2 (`DAILY_DH_UNIT_REQUIREMENT`), quel que soit `NALYNT_V2_PLAN_GENERATION_ENABLED`. Contre-preuve sur l'ancien code. Cinq suites passent par la génération signée.
+- **B (candidate)** : l'affectation serveur est l'autorisation de générer. Sans affectation : 403 `beta_access_not_granted`, jamais V1 ; `v1` : exemption explicite ; `v2` hors interrupteur : 503 (A09) ; affectation illisible : 503 `beta_access_check_unavailable`. Testé sur la fonction Edge dans trois runtimes.
+- **ADR** : `docs/review/beta-v2-tech-01/ADR_BETA_V2_TECH_01.md`, extraits `docs/05` proposés, non appliqués.
+- **T4** : conception d'une suspension par famille, jamais déguisée en REST ; non développée.
+
+**Statut** : STOP pour revue HPM et Louis. Aucun push, merge, migration, déploiement, écriture de production ni activation V2.
