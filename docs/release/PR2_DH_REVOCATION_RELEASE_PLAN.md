@@ -120,7 +120,7 @@ Aucune ligne de données n'est à restaurer : ni la migration ni son rollback ne
 |---|---|---|
 | 6.1 | Problème Edge | Redéployer la version précédente depuis son checkout : `session-execution` depuis `C:\Users\Louis\nalynt-rc-<1e0de28>` (source de v19), `daily-run` depuis `C:\Users\Louis\nalynt-rc-1d7d219` (v48). Vérifier les `ezbr_sha256` notés en 0.2. Une ancienne fonction sur la nouvelle base est supportée (S1) |
 | 6.2 | Problème base, aucune révocation enregistrée | **De préférence** : migration corrective additive. **Sinon** : rollback `supabase/rollbacks/v2_dh_revocation/20261027120000_rollback_v2_dh_drill_revocation.sql`, avec `psql` sur la connexion directe de production (une transaction explicite ; refusé si une révocation existe), puis `npx supabase migration repair --status reverted 20261027120000 --linked`. Effet : fonctions restaurées à l'identique, aide supprimée, table conservée (historique) et fermée aux nouvelles révocations |
-| 6.3 | Problème base, révocation déjà enregistrée | Correction en avant seulement. Le rollback est refusé à dessein : il réautoriserait un exercice révoqué |
+| 6.3 | Problème base, révocation déjà enregistrée | Correction en avant seulement : migration corrective additive ou redéploiement Edge, sans jamais réautoriser l'exercice. Le rollback est refusé à dessein, et définitivement : il réautoriserait un exercice révoqué. L'effet d'une révocation sur les programmes enregistrés (suspension des entraînements concernés) ne se lève pas par un retrait de signature : réserve R1, `docs/review/pr2-dh-revocation/PR2_FORWARD_FIX_ANALYSIS.md` |
 
 **Ordre.** Toutes les combinaisons de versions sont supportées. On peut donc revenir sur Edge d'abord, puis sur la base seulement si c'est nécessaire.
 

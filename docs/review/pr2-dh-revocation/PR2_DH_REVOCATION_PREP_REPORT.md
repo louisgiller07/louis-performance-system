@@ -145,10 +145,13 @@ Tests rejoués, chacun sur une stack fraîche, sans arrêt de worker :
 - Production, lecture seule (contrôle post-merge PR1) : `NALYNT_V2_PLAN_GENERATION_ENABLED` vaut `"false"`, les autres interrupteurs V2 sont absents.
 - Les campagnes tournent avec V2 OFF. La révocation s'applique au chemin quotidien V2 (rider dont le programme courant est V2), comme en production pour le compte de simulation. Le chemin V1 ne l'atteint jamais.
 
-## Dépendances restantes (revue HPM 2026-10-28 : APPROVED WITH CONDITIONS)
+## Dépendances restantes (HPM 2026-10-28 : premier push fait, canon accepté sur le principe avec la réserve R1)
 
-1. **Push** : GO explicite de Louis.
-2. **Merge** : approbation canonique définitive des diffs `docs/05`, `docs/04` et `docs/07` (`PR2_CANON_PROPOSED_DIFFS.md`) par l'architecte et Louis.
-3. **Déploiement** : GO séparé (procédure : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`).
-4. **Smoke V1 de production** : après le déploiement, sur un compte de test dédié, avec un accord distinct de Louis. Non requis avant la publication de la PR.
-5. **Première révocation** : décision HPM distincte, après le déploiement complet, jamais comme test. En même temps, l'exercice est retiré des signatures côté code.
+1. **Canon** : approbation formelle de l'architecte et de Louis du commit canonique (diffs `docs/05`, `docs/04`, `docs/07`, `PR2_CANON_PROPOSED_DIFFS.md`), avant son push et avant le merge.
+2. **Push** des commits locaux : GO explicite de Louis.
+3. **Merge** : décision HPM.
+4. **Déploiement** : GO séparé (procédure : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`).
+5. **Smoke V1 de production** : après le déploiement, sur un compte de test dédié, avec un accord distinct de Louis.
+6. **Première révocation** : décision HPM distincte, après le déploiement complet, jamais comme test.
+   - Elle exige une décision sur la suspension contrôlée et l'information des riders concernés, ainsi que sur les programmes V1 qui prescrivent le même exercice (réserve R1, `PR2_FORWARD_FIX_ANALYSIS.md`).
+   - Le retrait des signatures côté code ne rétablit pas le service, et le basculement V2 → V1 n'est pas une procédure sûre.

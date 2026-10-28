@@ -7279,3 +7279,24 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Invariant REST / Safety** : `health_flag_to_create` n'existe que dans la branche Safety de `buildDailyPlan`, qui renvoie une séance finale et une décision REST, sans exercice. Une révocation ne peut donc pas faire perdre un signal de santé.
 
 **Statut** : corrections intégrées localement. Push sur autorisation explicite de Louis seulement.
+
+## 2026-10-28 — PR2-DH-REVOCATION : premier push, canon et réserve R1
+
+> **Décision HPM** : PR2 FIRST PUSH APPROVED & CLOSED. Les six diffs canoniques sont acceptés sur le principe, avec la réserve R1. Les approbations formelles de l'architecte et de Louis restent obligatoires.
+
+- **Publication** :
+  - `release/v2-dh-revocation` `0c9f332` poussée seule, sans force ;
+  - Draft PR #2 vers `main` `a0a8921` (19 fichiers, DO NOT MERGE) ;
+  - CI `verify:sport-approvals` et `tests` SUCCESS ;
+  - aucun déploiement Vercel de la branche ni du SHA.
+- **Correction en avant** (démontrée par le code et par S4) : retirer un exercice révoqué des signatures côté code ne rétablit pas le service.
+  - Les signatures ne gouvernent que l'unité DH, et les tables sont vides en production.
+  - Les programmes V2 enregistrés gardent l'exercice : KEEP le copie, et REPLACE ou une séance manuelle le resélectionnent de façon déterministe.
+- **Réserve R1** :
+  - le basculement V2 → V1 n'est pas une procédure sûre : le catalogue V1 partage les 21 identifiants de ses exercices avec V2, la sélection V1 est déterministe, et le chemin V1 ne lit pas la révocation ;
+  - d'ici une démonstration contraire, la procédure est la suspension contrôlée des entraînements concernés (le refus livré), avec information du rider ;
+  - V2-DH-WITHDRAWAL (P0 avant l'activation de V2, non développé) devra neutraliser les anciennes prescriptions. `blocked` est une protection, pas une restauration : il faut un remplacement ou une replanification sûre, et la couverture de V1 et de l'affichage.
+- **Canon** : les six diffs (`docs/05` n° 1 à 4, `docs/04` n° 5, `docs/07` n° 6) sont appliqués mot pour mot dans un commit dédié, local. Ils ne promettent aucun rétablissement et précisent le périmètre V2. Le commit sera retiré si l'approbation est refusée.
+- **Rollback** : message corrigé (« a revocation is permanent: fix forward only ») ; l'ancien laissait croire à un retour possible. Assertion S3 sur le message complet ; S3 rejoué sur stack fraîche. Commentaires d'en-tête de la migration et du rollback alignés, aucun corps de fonction changé.
+
+**Statut** : commits locaux, non poussés. En attente de l'approbation formelle du commit canonique par l'architecte et Louis, puis du GO de Louis pour le push. Aucun merge, migration, déploiement ni révocation. V2 OFF.

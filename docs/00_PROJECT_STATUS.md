@@ -4,12 +4,22 @@
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
-**PR2-DH-REVOCATION — révocation transactionnelle DH : APPROVED WITH CONDITIONS, locale (HPM 2026-10-28)** : branche `release/v2-dh-revocation` depuis `main` `a0a8921`.
+**PR2-DH-REVOCATION — révocation transactionnelle DH : Draft PR #2 publiée ; canon accepté sur le principe avec la réserve R1, en attente d'approbation formelle (HPM 2026-10-28)** : branche `release/v2-dh-revocation` depuis `main` `a0a8921`.
 - Contenu : migration additive `20261027120000` (SQL 78) et son rollback ; `session-execution` relaie le refus de la RPC (409) ; tests de révocation, de concurrence, V1 et V2 OFF.
 - Preuves : sur une base locale jetable peuplée par les tests (données fictives), aucune ligne existante ne change, ni à la migration ni au rollback ; l'ancien code Edge fonctionne sur la base migrée.
-- Rien n'est poussé, appliqué ni déployé. V2 OFF.
-- Corrections avant push (HPM 2026-10-28) : branche exclue des déploiements Git automatiques de Vercel (`web/`, `marketing-site/`) ; fonction d'aide de la révocation réservée à son propriétaire (`service_role` retiré), S3, S4 et parcours d'exécution rejoués.
-- Restent : GO de Louis pour le push ; approbation des diffs canon avant le merge ; GO de déploiement ; smoke V1 de production après le déploiement.
+- Publication : `0c9f332` poussée le 2026-10-28, Draft PR #2 (DO NOT MERGE). CI `verify:sport-approvals` et `tests` SUCCESS. Aucun déploiement Vercel de la branche (exclue dans `web/` et `marketing-site/`). Fonction d'aide réservée à son propriétaire.
+- Commits locaux non poussés : revue finale du canon, réserve R1, commit canonique dédié (`docs/04`, `05`, `07`), message du rollback corrigé (S3 rejoué).
+- Réserve R1 :
+  - retirer un exercice révoqué des signatures ne le retire pas des programmes enregistrés ;
+  - le basculement V2 → V1 n'est pas sûr (catalogue V1 aux mêmes identifiants) ;
+  - suspension contrôlée jusqu'à V2-DH-WITHDRAWAL (`docs/review/pr2-dh-revocation/PR2_FORWARD_FIX_ANALYSIS.md`).
+- Rien n'est fusionné, migré ni déployé. V2 OFF.
+- Restent :
+  - approbation formelle du commit canonique par l'architecte et Louis ;
+  - GO de Louis pour pousser les commits locaux ;
+  - décision HPM de merge ;
+  - GO de déploiement ;
+  - smoke V1 de production après le déploiement.
 - Plan de déploiement : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`. Rapport : `docs/review/pr2-dh-revocation/PR2_DH_REVOCATION_PREP_REPORT.md`.
 
 **PR1 — protections techniques V2 OFF : POST-MERGE PASS — CLOSED (HPM 2026-10-27)** : PR #1 fusionnée, `main` `a0a8921`.
