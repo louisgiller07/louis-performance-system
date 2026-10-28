@@ -7262,3 +7262,20 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Canon** : approbation définitive des diffs `docs/05`, `docs/04` et `docs/07` exigée avant le merge, pas avant le premier push. Classement et points à arbitrer : `docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md`.
 
 **Statut** : APPROVED WITH CONDITIONS — LOCAL. Push sur GO explicite de Louis seulement ; aucun merge, migration, déploiement ni révocation.
+
+## 2026-10-28 — PR2-DH-REVOCATION : dernières corrections avant push (LOCAL)
+
+> **Décision HPM** : préparation approuvée sur le fond ; HOLD sur le push jusqu'à la protection Vercel de la branche et la revue des droits de la fonction d'aide. Décisions produit de principe : refus fail-closed et absence de décision du jour acceptables pour une révocation de sécurité ; correction en avant obligatoire. Approbations formelles du canon avant le merge.
+
+- **Vercel** :
+  - `release/v2-dh-revocation` est ajoutée à `git.deploymentEnabled` (`false`) dans `web/vercel.json` et `marketing-site/vercel.json`, à côté de `release/v2-dh-protections-off` ;
+  - les deux fichiers sont valides selon le schéma officiel ;
+  - `main` et les autres branches sont inchangées ; aucune règle `true` ne peut annuler l'exclusion.
+- **Moindre privilège** : `execution_dh_revocation_block` gardait l'`EXECUTE` que les privilèges par défaut de Supabase donnent à `service_role`. La fonction était donc appelable en `/rpc` (200), alors que `execution_health_block` renvoie 403.
+  - La migration le retire, dans sa transaction : c'est la seule ligne SQL changée ; corps et empreintes md5 inchangés.
+  - Aucun appel légitime n'en dépend : seule `record_session_execution` l'appelle (SECURITY DEFINER, même propriétaire).
+  - Le contrôle post-migration vérifie maintenant `PUBLIC`, `anon`, `authenticated`, `service_role`, le propriétaire et SECURITY DEFINER / INVOKER.
+  - Tests rejoués, chacun sur une stack fraîche : S3 12/12 ; S4 4/4 ; parcours d'exécution (8 fichiers) 57/57 ; contrôle post-migration entièrement vrai.
+- **Invariant REST / Safety** : `health_flag_to_create` n'existe que dans la branche Safety de `buildDailyPlan`, qui renvoie une séance finale et une décision REST, sans exercice. Une révocation ne peut donc pas faire perdre un signal de santé.
+
+**Statut** : corrections intégrées localement. Push sur autorisation explicite de Louis seulement.

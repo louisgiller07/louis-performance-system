@@ -8,6 +8,7 @@
 - Contenu : migration additive `20261027120000` (SQL 78) et son rollback ; `session-execution` relaie le refus de la RPC (409) ; tests de révocation, de concurrence, V1 et V2 OFF.
 - Preuves : sur une base locale jetable peuplée par les tests (données fictives), aucune ligne existante ne change, ni à la migration ni au rollback ; l'ancien code Edge fonctionne sur la base migrée.
 - Rien n'est poussé, appliqué ni déployé. V2 OFF.
+- Corrections avant push (HPM 2026-10-28) : branche exclue des déploiements Git automatiques de Vercel (`web/`, `marketing-site/`) ; fonction d'aide de la révocation réservée à son propriétaire (`service_role` retiré), S3, S4 et parcours d'exécution rejoués.
 - Restent : GO de Louis pour le push ; approbation des diffs canon avant le merge ; GO de déploiement ; smoke V1 de production après le déploiement.
 - Plan de déploiement : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`. Rapport : `docs/review/pr2-dh-revocation/PR2_DH_REVOCATION_PREP_REPORT.md`.
 

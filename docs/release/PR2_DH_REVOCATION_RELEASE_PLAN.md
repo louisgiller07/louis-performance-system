@@ -30,7 +30,7 @@ Ces fonctions embarquent le code de PR1 déjà publié côté web. Avec V2 OFF, 
 - Elle n'appelle aucune des deux RPC et ne lit pas la table : elle est compatible par construction, et la campagne S1 le vérifie.
 - Ses changements de PR1 ne concernent que V2 ON : ils attendent l'activation de V2.
 
-**Web.** Aucun changement. Le merge redéclenche Vercel (`nalynt`, `nalynt-marketing`) avec un contenu identique.
+**Web.** Aucun changement de l'application. Seul `git.deploymentEnabled` change, dans `web/vercel.json` et `marketing-site/vercel.json` : `release/v2-dh-revocation` est exclue des déploiements Git automatiques, comme `release/v2-dh-protections-off`. `main` et les autres branches gardent leur comportement. Le merge redéclenche Vercel (`nalynt`, `nalynt-marketing`) avec une application identique.
 
 ## Pourquoi sans suspension des écritures
 
@@ -70,7 +70,7 @@ Tout écart est un STOP.
 |---|---|---|
 | 2.1 | `npx supabase db push --linked --dry-run` | exactement `20261027120000_v2_dh_drill_revocation.sql`. Autre chose : STOP |
 | 2.2 | `npx supabase db push --linked` | succès. **Erreur** : la transaction est annulée ; vérifier 77 / 77 et la table absente (0.5) ; STOP |
-| 2.3 | `docs/release/pr2-dh-revocation/PR2_POSTCHECK_READONLY.sql` | `on`, 78, `20261027120000`, 0, puis `true` partout (RLS sans policy, droits opérateurs seuls, triggers d'ajout seul, aide fermée aux clients, corps des 3 fonctions identiques au fichier, droits des RPC inchangés). Écart : STOP (§6) |
+| 2.3 | `docs/release/pr2-dh-revocation/PR2_POSTCHECK_READONLY.sql` | `on`, 78, `20261027120000`, 0, puis `true` partout (RLS sans policy, droits opérateurs seuls, triggers d'ajout seul, aide réservée à son propriétaire (`PUBLIC`, `anon`, `authenticated`, `service_role` sans `EXECUTE` ; appelée par `record_session_execution`, SECURITY DEFINER, même propriétaire), corps des 3 fonctions identiques au fichier, droits des RPC inchangés). Écart : STOP (§6) |
 
 **État après 2** : nouvelle base avec les fonctions Edge v48 / v19. Supporté (S1). Aucune urgence pour l'étape 3.
 

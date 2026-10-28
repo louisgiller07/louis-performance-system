@@ -6,7 +6,7 @@
 
 | Fichier | Rôle | Origine |
 |---|---|---|
-| `supabase/migrations/20261027120000_v2_dh_drill_revocation.sql` | table en ajout seul, aide en lecture, `record_session_execution` et `persist_daily_run_v2` avec garde READ COMMITTED (`NX301`), verrou `SHARE` et refus (`dh_validation_not_current`, `NX302`) | candidat revu (RELEASE-PREP-FINAL-01, RELEASE-CANDIDATE-CLOSE-01) : seuls l'en-tête et les marqueurs de commentaire changent, SQL identique (vérifié en retirant les commentaires) |
+| `supabase/migrations/20261027120000_v2_dh_drill_revocation.sql` | table en ajout seul, aide en lecture, `record_session_execution` et `persist_daily_run_v2` avec garde READ COMMITTED (`NX301`), verrou `SHARE` et refus (`dh_validation_not_current`, `NX302`) | candidat revu (RELEASE-PREP-FINAL-01, RELEASE-CANDIDATE-CLOSE-01) : seuls l'en-tête et les marqueurs de commentaire changent, SQL identique (vérifié en retirant les commentaires). Un seul écart, demandé par le HPM le 2026-10-28 : `service_role` ajouté au `revoke` de la fonction d'aide (moindre privilège) ; corps des fonctions inchangés |
 | `supabase/rollbacks/v2_dh_revocation/20261027120000_rollback_v2_dh_drill_revocation.sql` | rollback refusé tant qu'une révocation existe, table verrouillée avant le contrôle, table fermée aux nouvelles révocations | candidat revu : en-tête et deux messages seulement |
 | `supabase/functions/session-execution/validation.ts`, `dhValidationGuard.ts` | `REJECTION_STATUS.dh_validation_not_current = 409` (code renvoyé par la RPC) | prévu par le candidat (« with the GO ») |
 | `head-coach-engine/tests/supabase/powerGuard01.integration.test.ts` | empreinte = corps de la migration ; propriétés conservées et ajoutées ; comportement transactionnel | RELEASE-CANDIDATE-CLOSE-01, pointé sur la migration |
@@ -14,6 +14,7 @@
 | `head-coach-engine/tests/supabase/v2DhRevocationDailyRun.integration.test.ts` | daily-run réel : KEEP / MODIFY / REPLACE / manuel servis puis refusés, concurrence, Force / REST / V1 inchangés ; **rider V2 OFF fidèle à la production** | suite candidate + rider V2 OFF |
 | `head-coach-engine/tests/supabase/v2DhRevocationV1Http.integration.test.ts` | V1 de bout en bout en HTTP avec le JWT du rider | nouveau |
 | `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`, `docs/release/pr2-dh-revocation/*.sql` | procédure de déploiement, préalables et contrôle post-migration (lecture seule) | nouveau |
+| `web/vercel.json`, `marketing-site/vercel.json` | `git.deploymentEnabled` : `release/v2-dh-revocation` exclue des déploiements Git automatiques, à côté de `release/v2-dh-protections-off` | HPM 2026-10-28 |
 
 **Déjà dans `main` depuis la PR1, non réintroduit** : `DhDrillRevokedError` et le mapping `NX302` → 409 (`persistDailyRunV2.ts`, `daily-run/errorMapping.ts`), le garde Edge de validation côté code (`session-execution`), leurs tests.
 
@@ -89,7 +90,7 @@ Ensuite :
 
 | Suite | Résultat | Écart avec `main` |
 |---|---|---|
-| head-coach-engine | 1 110 réussis, 724 ignorés (intégration sans stack) | +4 : assertions de fichier sur la migration |
+| head-coach-engine | 1 110 réussis, 729 ignorés (intégration sans stack ; recompté le 2026-10-28, l'ancien « 724 » était faux) | +4 : assertions de fichier sur la migration |
 | Edge | 66 / 66 | — |
 | planning-engine | 1 163 réussis, 4 ignorés | — |
 | `verify:sport-approvals` | PASS : 0 exercice signé, aucun valideur | — |
@@ -97,6 +98,46 @@ Ensuite :
 | `build:release` | OK | — |
 
 Typecheck : 28 erreurs, déjà présentes sur `main` (ensemble identique) ; aucune dans un fichier de la PR2.
+
+### Corrections ciblées (HPM 2026-10-28)
+
+**Vercel.** `git.deploymentEnabled` exclut `release/v2-dh-revocation` dans `web/vercel.json` et `marketing-site/vercel.json`, à côté de `release/v2-dh-protections-off`.
+- Les deux fichiers sont valides selon le schéma officiel `openapi.vercel.sh/vercel.json` ; deux contre-exemples sont bien rejetés.
+- Hors `git`, les clés sont identiques à `main`.
+- Règle Vercel simulée (minimatch ; une branche est déployée si aucune règle ne la vise ou si au moins une règle vaut `true`) :
+  - `release/v2-dh-revocation` n'est plus déployée ;
+  - `main`, `release/v2-dh-protections-off` et les autres branches, y compris `release/v2-dh-revocation-2`, se comportent comme sur `main`.
+- Aucune règle `true` ne peut annuler l'exclusion.
+
+**Droits de `execution_dh_revocation_block`.** Avant la correction, mesuré sur une stack fraîche :
+- la fonction est en SECURITY INVOKER et appartient à `postgres` ;
+- `PUBLIC`, `anon` et `authenticated` n'ont pas `EXECUTE` ;
+- **`service_role` a `EXECUTE`**, accordé par les privilèges par défaut de Supabase : `POST /rest/v1/rpc/execution_dh_revocation_block` répond 200 avec la clé `service_role`.
+
+Il n'y avait aucune élévation de droits, car la fonction est en lecture seule et `service_role` lit déjà ces données. Mais elle était exposée en RPC, contrairement à `execution_health_block`, qui renvoie 403.
+
+Aucun appel légitime n'en dépend :
+- seule `record_session_execution` l'appelle ;
+- `record_session_execution` est en SECURITY DEFINER et a le même propriétaire, `postgres`, qui exécute donc la fonction ;
+- aucun code Edge, web ou moteur ne l'appelle directement.
+
+Correction : `service_role` est ajouté au `revoke` de la migration, dans sa transaction. C'est la seule ligne SQL modifiée ; les corps de fonction et leurs empreintes md5 ne changent pas.
+
+Après la correction, sur une stack fraîche :
+- `PUBLIC`, `anon`, `authenticated` et `service_role` n'ont plus `EXECUTE` ; le propriétaire le garde ;
+- en RPC, `anon` reçoit 401 et `service_role` 403, avec le code `42501` ;
+- le contrôle post-migration, colonne 7 renforcée, donne `on|78|20261027120000|0|t|t|t|t|t|t|t|t`.
+
+Tests rejoués, chacun sur une stack fraîche, sans arrêt de worker :
+
+| Campagne | Résultat |
+|---|---|
+| S3 `v2DhRevocation`, avec l'assertion de droits étendue (`service_role`, `PUBLIC`, propriétaire, SECURITY DEFINER / INVOKER) et l'appel RPC `service_role` refusé | 12 / 12 |
+| S4 `v2DhRevocationDailyRun`, dont un démarrage refusé par la RPC via `session-execution` | 4 / 4 |
+| Parcours d'exécution via `service_role` et l'Edge : `sessionExecution`, `executionResultIntegrity`, `sessionActivityResults`, `powerGuard01`, `p0_3HealthSuspendedExecution`, `v2DhSportGate01b`, `v2DhSportGate01c`, `v2DhUnit01` | 57 / 57 |
+| head-coach-engine (unitaires) | 1 110 réussis, 729 ignorés, comme avant la correction |
+
+**Invariant REST / Safety.** `health_flag_to_create` n'est renseigné qu'à un seul endroit de M1, la branche Safety de `buildDailyPlan` : la séance finale et la décision y sont REST. Une prescription REST (`not_required`) ne contient aucun exercice. Un refus pour révocation ne peut donc pas faire perdre un signal de santé. S4 le confirme : un REST n'est pas touché.
 
 ## V2 OFF
 

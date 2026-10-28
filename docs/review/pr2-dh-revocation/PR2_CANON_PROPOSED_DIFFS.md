@@ -22,9 +22,11 @@ Aucune simple mise à jour documentaire : les six touchent des documents protég
 Points à arbitrer explicitement :
 - **Jour sans décision** : si le premier daily-run du jour est refusé, le rider n'a aucune décision ce jour-là. Cela dure jusqu'au retrait de l'exercice des signatures côté code, puis au redéploiement.
 - **Signal de santé** : le refus n'écrit pas non plus le signal de santé du jour. Ce cas est inatteignable aujourd'hui, car les cinq chemins Safety qui créent un signal imposent un REST (`rules/safety.ts`), et une prescription REST ne contient aucun exercice. Il faudra le revoir si une règle future crée un signal sans REST.
-- **Droits de la fonction d'aide** : `execution_dh_revocation_block` est fermée à `anon` et `authenticated`. `service_role` garde `EXECUTE` par les privilèges par défaut de Supabase (vérifié en local), alors que `execution_health_block` le lui retire. Le risque est nul : la fonction est en lecture seule et `service_role` lit déjà ces données. Deux options :
-  - documenter l'écart, comme dans le texte ci-dessous ;
-  - aligner la migration (une ligne `revoke`), ce qui change le SQL revu et exige de relancer S3 et le contrôle post-migration.
+- **Droits de la fonction d'aide : réglé (HPM 2026-10-28, moindre privilège)**. La migration retire aussi `EXECUTE` à `service_role`, comme pour `execution_health_block`. La fonction est réservée à son propriétaire, et `record_session_execution` (SECURITY DEFINER, même propriétaire) l'appelle.
+
+**Décisions produit de principe (HPM 2026-10-28)**, en attente des approbations formelles :
+- le refus fail-closed et l'absence de décision du jour sont acceptables pour une révocation de sécurité ;
+- la correction en avant (retrait de l'exercice côté code) est obligatoire.
 
 ## `docs/05_DATA_MODEL.md`
 
@@ -37,7 +39,7 @@ Révocation de sécurité d'un exercice DH : effective immédiatement, dans la m
 - Colonnes : `id` (uuid), `drill_id` (texte, `^[a-z][a-z0-9_]*$`), `revoked_at` (défaut `now()`), `reason` (1 à 500 caractères), `decided_by` (1 à 200 caractères).
 - Accès : RLS activée sans policy ; aucun droit pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`. Ajout seul, propriétaire compris (triggers `reject_append_only_mutation`). Une révocation ne peut qu'interdire ; sa levée est hors périmètre.
 - Lue par `record_session_execution` et `persist_daily_run_v2` sous verrou `SHARE` (verrou de table) : une révocation en cours d'écriture et une écriture d'exécution ou de daily-run sont strictement ordonnées, table vide comprise. Les deux RPC refusent toute isolation autre que READ COMMITTED (`NX301`).
-- Fonction de lecture `execution_dh_revocation_block(final_prescription_id)` : `dh_validation_not_current` si la prescription du jour contient un exercice révoqué, sinon NULL ; fermée à `anon` et `authenticated` (`service_role` garde `EXECUTE` par les privilèges par défaut).
+- Fonction de lecture `execution_dh_revocation_block(final_prescription_id)` : `dh_validation_not_current` si la prescription du jour contient un exercice révoqué, sinon NULL ; aucun rôle de l'API (comme `execution_health_block`) : seule `record_session_execution` l'appelle.
 - Rollback : `supabase/rollbacks/v2_dh_revocation/` — refusé tant qu'une révocation existe ; conserve la table (historique) et la ferme aux nouvelles révocations.
 ```
 
