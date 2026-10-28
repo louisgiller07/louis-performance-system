@@ -10,15 +10,16 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { createClient, FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, resolveTestSupabaseUrl, setAthleteDiscipline } from "./testDb.js";
+import { generateSignedV2Plan, signedRuntimeRequested } from "./signedRuntimeV2.js";
 import { assertLocalDbReady, localIntegrationRequested } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
-import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { addCalendarDays, productToday } from "../../src/supabase/productCalendar.js";
 import { buildRawContext } from "../../src/supabase/buildRawContext.js";
 
-const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
+const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && signedRuntimeRequested();
+// BETA-V2-TECH-01 T2 — DH sessions need signed units: these Edge scenarios run on the TEST-signed V2 ON runtime only.
 
 type Body = Record<string, unknown>;
 type Item = { kind: string; prescriptionItemId: string; sets?: number; measure: { type: string; count?: number } };
@@ -61,7 +62,7 @@ describe.skipIf(!EDGE)("INT-01 — V1 debrief under a health suspension (local E
     const assigned = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v2", note: "INT-01 debrief guard" });
     if (assigned.error) throw new Error(assigned.error.message);
     const generatedOn = addCalendarDays(today, -10);
-    const plan = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: generatedOn });
+    const plan = await generateSignedV2Plan(admin, athleteId, generatedOn);
     if (plan.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, plan.planVersionId, addCalendarDays(generatedOn, 1), addCalendarDays(generatedOn, 14));
     const { data } = await admin.from("planned_sessions").select("planned_date, intervention").eq("athlete_id", athleteId).lt("planned_date", today).order("planned_date");

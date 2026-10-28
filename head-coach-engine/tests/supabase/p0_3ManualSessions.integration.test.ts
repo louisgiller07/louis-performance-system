@@ -16,6 +16,7 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, isLoopbackSupabaseUrl, resolveTestSupabaseUrl, setAthleteDiscipline } from "./testDb.js";
+import { generateSignedV2Plan, signedRuntimeRequested } from "./signedRuntimeV2.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
 import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
@@ -26,7 +27,8 @@ import { SESSION_EXERCISE_CATALOG_V2 } from "planning-engine";
 
 const SERVER_KEY = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 const ENABLED = process.env.RUN_LOCAL_SUPABASE_INTEGRATION === "1" && !!SERVER_KEY && isLoopbackSupabaseUrl(resolveTestSupabaseUrl());
-const EDGE = ENABLED && process.env.RUN_LOCAL_P0_EDGE === "1";
+const EDGE = ENABLED && process.env.RUN_LOCAL_P0_EDGE === "1" && signedRuntimeRequested();
+// BETA-V2-TECH-01 T2 — DH sessions need signed units: these Edge scenarios run on the TEST-signed V2 ON runtime only.
 const EQUIPMENT = ["dumbbells", "bench", "barbell", "squat_rack"];
 
 type Item = { kind: string; prescriptionItemId: string; exerciseId?: string; measure: { type: string } };
@@ -186,7 +188,7 @@ describe.skipIf(!EDGE)("P0-3 — over the local Edge runtime with the rider's JW
       dh_technical_tier: "intermediate",
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
-    const persisted = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: "2026-10-04" });
+    const persisted = await generateSignedV2Plan(admin, athleteId, "2026-10-04");
     if (persisted.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, persisted.planVersionId, "2026-10-05", "2026-10-18");
     const client = await getAthleteAuthClient(athleteId);

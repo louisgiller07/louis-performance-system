@@ -10,14 +10,15 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, insertCompletedSession, setAthleteDiscipline } from "./testDb.js";
+import { generateSignedV2Plan, signedRuntimeRequested } from "./signedRuntimeV2.js";
 import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral as lit } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
-import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { addCalendarDays, productToday } from "../../src/supabase/productCalendar.js";
 
-const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
+const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && signedRuntimeRequested();
+// BETA-V2-TECH-01 T2 — DH sessions need signed units: these Edge scenarios run on the TEST-signed V2 ON runtime only.
 
 type Item = { kind: string; prescriptionItemId: string; name?: string; exerciseId?: string; drillId?: string; sets?: number; measure: { type: string; count?: number } };
 type Structure = { family: string; sessionKind: string; blocks: { role: string; items: Item[] }[] };
@@ -80,7 +81,7 @@ describe.skipIf(!EDGE)("P0-4 — guided session history: reproduction on the pro
     const { error: assignError } = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v2", note: "P0-4 diagnostic" });
     if (assignError) throw new Error(assignError.message);
     const generatedOn = addCalendarDays(today, -10);
-    const plan = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: generatedOn });
+    const plan = await generateSignedV2Plan(admin, athleteId, generatedOn);
     if (plan.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, plan.planVersionId, addCalendarDays(generatedOn, 1), addCalendarDays(generatedOn, 14));
     const rider = await getAthleteAuthClient(athleteId);
@@ -160,7 +161,7 @@ describe.skipIf(!EDGE)("P0-4 — guided session history: reproduction on the pro
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
     const generatedOn = addCalendarDays(today, -10);
-    const plan = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: generatedOn });
+    const plan = await generateSignedV2Plan(admin, athleteId, generatedOn);
     if (plan.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, plan.planVersionId, addCalendarDays(generatedOn, 1), addCalendarDays(generatedOn, 14));
     const rider = await getAthleteAuthClient(athleteId);

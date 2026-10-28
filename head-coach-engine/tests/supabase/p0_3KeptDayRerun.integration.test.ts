@@ -15,31 +15,19 @@
  * must carry the TEST mark: never a plan without units, never production sign-offs invented by the test.
  */
 import { randomUUID } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline } from "./testDb.js";
 import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral as lit } from "./localDb.js";
+import { runtimeGeneration, signedRuntimeRequested } from "./signedRuntimeV2.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
-import type { generateTrainingPlanForAthlete } from "../../src/generation/generateTrainingPlanForAthlete.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { addCalendarDays, productToday } from "../../src/supabase/productCalendar.js";
 
-const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && process.env.NALYNT_TEST_EDGE_V2_MODE === "on_test_signed";
+const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && signedRuntimeRequested();
 const EXECUTABLE = ["DH_TECHNICAL", "STRENGTH_UPPER", "STRENGTH_LOWER"];
-const GENERATION_BUNDLE = fileURLToPath(new URL("../../dist/edge/generateTrainingPlan.bundle.js", import.meta.url));
-/** The mark tests/edge/http/buildTestSignedEdgeBundle.mjs puts on every TEST sign-off of the bundles it rebuilds. */
-const TEST_SIGNOFF_MARK = "TEST fixture V2-DH-RELEASE-GATES-01 (not a sports decision)";
-
-/** The served runtime's own generation entry; refuses a bundle without the TEST sign-off mark. */
-async function runtimeGeneration(): Promise<typeof generateTrainingPlanForAthlete> {
-  if (!readFileSync(GENERATION_BUNDLE, "utf8").includes(TEST_SIGNOFF_MARK)) {
-    throw new Error("dist/edge/generateTrainingPlan.bundle.js is not the TEST-signed bundle the V2 ON runtime serves (run buildTestSignedEdgeBundle.mjs)");
-  }
-  return ((await import(pathToFileURL(GENERATION_BUNDLE).href)) as { generateTrainingPlanForAthlete: typeof generateTrainingPlanForAthlete }).generateTrainingPlanForAthlete;
-}
 
 type Item = { kind: string; prescriptionItemId: string; measure: { type: string } };
 type Structure = { family: string; blocks: { role: string; items: Item[] }[] };
