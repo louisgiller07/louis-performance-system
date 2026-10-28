@@ -1,20 +1,20 @@
-# PR2-DH-REVOCATION — diffs canoniques proposés (NON appliqués)
+# PR2-DH-REVOCATION — diffs canoniques (approbation formelle requise)
 
 CLAUDE.md impose deux règles :
 - une évolution du schéma est documentée dans `docs/05_DATA_MODEL.md` et `docs/11_DECISION_LOG.md` ;
 - les documents `04`, `05` et `07` ne changent qu'après accord de l'architecte et de Louis.
 
-Leur approbation définitive est **un prérequis au merge de la PR2**, pas au premier push (HPM 2026-10-28). Seul le diff 4 modifie un texte existant ; les autres sont des ajouts.
+Le HPM a accepté les six diffs **sur le principe**, avec la réserve R1 (2026-10-28). Ils sont **appliqués localement dans un commit dédié**, non poussé. Si l'approbation n'est pas donnée, ce commit est retiré avant tout push. L'approbation formelle de l'architecte et de Louis est un prérequis au push de ce commit et au merge. Seul le diff 4 modifie un texte existant ; les autres sont des ajouts.
 
 ## Décision demandée (architecte et Louis)
 
 | # | Diff | Nature |
 |---|---|---|
-| 1 | `docs/05` : table `dh_drill_revocations` | Documente un ajout de schéma, exigé par CLAUDE.md. Position produit : une révocation ne se lève jamais. |
+| 1 | `docs/05` : table `dh_drill_revocations` | Documente un ajout de schéma, exigé par CLAUDE.md. Positions produit : une révocation est définitive ; elle ne couvre que V2. |
 | 2 | `docs/05` : garde de `record_session_execution` | Contrat : nouveau refus sur une RPC existante, sur le modèle de la suspension santé |
 | 3 | `docs/05` : `persist_daily_run_v2` | Contrat : nouveau refus, hors des statuts `created` / `not_required` / `blocked`, qui annule tout le daily-run |
 | 4 | `docs/05`, ligne « Tout ou rien » : renvoi | Modifie un texte existant, sinon « la validation sportive reste en TypeScript » devient incomplet |
-| 5 | `docs/04` : daily-run refusé | Règle du moteur : refus sans REST ni nouvelle décision, répété tant que l'exercice reste prescrit |
+| 5 | `docs/04` : daily-run refusé | Règle du moteur : refus sans REST ni nouvelle décision, répété tant que l'exercice reste prescrit ; aucun rétablissement promis |
 | 6 | `docs/07` : « Révocation de sécurité » | Nouveau terme canonique |
 
 **Acceptables**, décidés par le HPM (`docs/11` : SPORT-PLAN-03 01C, RELEASE-DECISION-PACK-01, revue du 2026-10-28) et implémentés par la migration :
@@ -25,18 +25,26 @@ Leur approbation définitive est **un prérequis au merge de la PR2**, pas au pr
 
 Aucune contradiction avec le canon actuel.
 
-**Réserve R1, sur la correction en avant.** Retirer l'exercice des signatures côté code ne rétablit pas le service : en production, les tables sont vides et les programmes déjà enregistrés gardent l'exercice. Démonstration et mécanismes : `PR2_FORWARD_FIX_ANALYSIS.md`. Les diffs 1, 5 et 6 ont été corrigés pour ne rien promettre de plus. R1 demande :
-- **avant la première révocation réelle** : un plan de rétablissement prêt. Aujourd'hui, c'est le remplacement du programme du rider affecté (affectation passée à `v1`, puis programme V1 accepté). Il faut un accord distinct pour l'écriture en production et une décision produit sur la sortie de la bêta V2 ;
-- **avant l'activation de V2** : un mécanisme de neutralisation côté code, qui donne `blocked` sans réautoriser l'exercice, avec ADR et item P0 « V2-DH-WITHDRAWAL ».
+**Réserve R1 (HPM 2026-10-28)** — démonstration : `PR2_FORWARD_FIX_ANALYSIS.md`.
+1. Retirer l'exercice des signatures côté code ne le retire pas des programmes V2 enregistrés, et ne rétablit pas le service. En production, les tables de signatures sont vides.
+2. **Le basculement V2 → V1 n'est pas une procédure sûre.**
+   - Le catalogue V1 partage les identifiants d'exercices de V2, la sélection V1 est déterministe, et le chemin V1 ne lit pas la révocation. Un programme V1 peut donc réintroduire l'exercice révoqué.
+   - Ce basculement ne pourra être qualifié de sûr qu'après démonstration du contraire.
+   - D'ici là, la procédure est la **suspension contrôlée** des entraînements concernés (le refus livré par la PR2), avec information du rider.
+3. **V2-DH-WITHDRAWAL** (item P0, à ne pas développer maintenant, prérequis à l'activation de V2) :
+   - neutraliser les anciennes prescriptions contenant l'exercice. `blocked` est une protection, pas une restauration du service ;
+   - prévoir un **remplacement ou une replanification sûre** des séances neutralisées ;
+   - couvrir V1 et l'affichage.
+4. **Avant la première révocation réelle**, une décision HPM sur la suspension contrôlée, l'information des riders concernés, et le traitement des programmes V1 qui prescrivent le même exercice.
 
-R1 ne bloque pas le merge de la PR2 : le comportement livré est sûr.
+R1 ne bloque pas le merge de la PR2 : le comportement livré est sûr, et le canon ne promet aucun rétablissement.
 
-**Libellés d'approbation** :
-> **Architecte — APPROUVÉ** : diffs canoniques PR2 n° 1 à 6 (`docs/05` n° 1 à 4, `docs/04` n° 5, `docs/07` n° 6), tels que rédigés dans `docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md` au commit `<SHA>`, avec la réserve R1.
+**Libellés d'approbation** (le SHA est celui du commit canonique, communiqué avec la demande) :
+> **Architecte — APPROUVÉ** : diffs canoniques PR2 n° 1 à 6 (`docs/05` n° 1 à 4, `docs/04` n° 5, `docs/07` n° 6), tels qu'appliqués par le commit `<SHA>` de `release/v2-dh-revocation`, avec la réserve R1.
 
-> **Louis — APPROUVÉ** : diffs canoniques PR2 n° 1 à 6, tels que rédigés dans `docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md` au commit `<SHA>`, avec la réserve R1.
+> **Louis — APPROUVÉ** : diffs canoniques PR2 n° 1 à 6, tels qu'appliqués par le commit `<SHA>` de `release/v2-dh-revocation`, avec la réserve R1.
 
-Toute autre réponse (refus, approbation partielle, changement de rédaction) laisse le merge en HOLD.
+Toute autre réponse (refus, approbation partielle, changement de rédaction) laisse le push du commit canonique et le merge en HOLD.
 
 ## `docs/05_DATA_MODEL.md`
 
@@ -50,7 +58,7 @@ Révocation de sécurité d'un exercice DH : effective immédiatement, dans la m
 - Accès : RLS activée sans policy ; aucun droit pour `anon` / `authenticated` ; `service_role` = `SELECT`, `INSERT`. Ajout seul, propriétaire compris (triggers `reject_append_only_mutation`). Une révocation ne peut qu'interdire ; elle est définitive (aucune levée).
 - Lue par `record_session_execution` et `persist_daily_run_v2` sous verrou `SHARE` (verrou de table) : une révocation en cours d'écriture et une écriture d'exécution ou de daily-run sont strictement ordonnées, table vide comprise. Les deux RPC refusent toute isolation autre que READ COMMITTED (`NX301`).
 - Fonction de lecture `execution_dh_revocation_block(final_prescription_id)` : `dh_validation_not_current` si la prescription du jour contient un exercice révoqué, sinon NULL ; aucun rôle de l'API (comme `execution_health_block`) : seule `record_session_execution` l'appelle.
-- Effet durable : la révocation ne modifie aucune ligne ; les prescriptions prévues déjà enregistrées gardent l'exercice et restent refusées à chaque écriture (voir `docs/04`). Seul un remplacement ou une neutralisation de ces prescriptions rétablit le service, jamais un retrait de signature seul.
+- Effet durable et périmètre : la révocation ne modifie aucune ligne ; les prescriptions prévues déjà enregistrées gardent l'exercice, restent visibles dans le programme et sont refusées à chaque écriture (voir `docs/04`). Elle ne couvre que les prescriptions V2 : le chemin V1 ne la lit pas, et le catalogue V1 partage les identifiants d'exercices. Retirer l'exercice des signatures ne rétablit pas le service (réserve R1, `docs/11`).
 - Rollback : `supabase/rollbacks/v2_dh_revocation/` — refusé dès qu'une révocation existe, donc définitivement après la première ; conserve la table (historique) et la ferme aux nouvelles révocations.
 ```
 
@@ -60,7 +68,7 @@ Révocation de sécurité d'un exercice DH : effective immédiatement, dans la m
 - **Révocation de sécurité d'un exercice DH (V2-DH-REVOCATION, migration `20261027120000`)** : sur toute prescription du jour v2 contenant un exercice révoqué (prescriptions figées comprises, quelle que soit leur mesure), `record_session_execution` refuse toute action d'entraînement — nouvelle exécution, événement `resumed` ou `completed`, résultat de série / passage / activité (correction comprise) — avec `dh_validation_not_current`. Toujours acceptés : `paused`, `abandoned`, les rejeux identiques, la lecture. Le refus annule tout le lot. L'Edge `session-execution` relaie le code (409), comme son garde de validation côté code.
 ```
 
-**3. Paragraphe `persist_daily_run_v2`, ajout :**
+**3. Paragraphe `persist_daily_run_v2`, ajout après la ligne « Tout ou rien » :**
 
 ```markdown
 - **Révocation de sécurité (migration `20261027120000`)** : une prescription du jour contenant un exercice révoqué (keep, modify, replace ; générée ou manuelle) n'est jamais écrite : tout le daily-run est refusé (SQLSTATE `NX302`, détail : les exercices révoqués), rien n'est écrit (ni décision, ni prescription, ni signal de santé), jamais un REST à la place. Le chemin V1 ne l'appelle jamais.
@@ -78,15 +86,17 @@ Révocation de sécurité d'un exercice DH : effective immédiatement, dans la m
 **5. À la fin de la section « Prescription du jour V2 et MODIFY vers le haut » :**
 
 ```markdown
-**Exercice DH révoqué pour sécurité (V2-DH-REVOCATION, PR2)** : si la prescription du jour contiendrait un exercice révoqué en base (`dh_drill_revocations`), le daily-run est refusé en entier (`daily-run` : 409 `dh_validation_not_current`), sans décision ni prescription écrites, et jamais remplacé par un REST. La décision déjà enregistrée ce jour-là reste la décision courante ; son exécution est refusée par `record_session_execution`. S'applique au chemin quotidien V2, génération V2 active ou non ; le chemin V1 n'est pas concerné.
+**Exercice DH révoqué pour sécurité (V2-DH-REVOCATION, PR2)** : si la prescription du jour contiendrait un exercice révoqué en base (`dh_drill_revocations`), le daily-run est refusé en entier (`daily-run` : 409 `dh_validation_not_current`), sans décision ni prescription écrites, et jamais remplacé par un REST. La décision déjà enregistrée ce jour-là reste la décision courante ; son exécution est refusée par `record_session_execution`. S'applique au chemin quotidien V2, génération V2 active ou non.
 - **Persistance du refus** : il se répète chaque jour où la prescription du jour contiendrait l'exercice. C'est le cas d'une prescription prévue déjà enregistrée (le KEEP la copie telle quelle), d'un MODIFY qui en reprend les exercices, et d'un REPLACE ou d'une séance manuelle DH, dont la sélection d'exercice est déterministe. Les autres jours sont servis normalement.
-- **Rétablissement** : retirer l'exercice des signatures sportives côté code ne lève pas le refus (les signatures ne gouvernent que l'unité DH). Seule une neutralisation explicite rétablit la décision du jour : remplacement du programme du rider, ou mécanisme de retrait à décider par ADR. Jamais une réautorisation de l'exercice.
+- **Aucun rétablissement automatique** : retirer l'exercice des signatures sportives côté code ne lève pas le refus (les signatures ne gouvernent que l'unité DH). Les entraînements concernés restent suspendus jusqu'à une neutralisation explicite des prescriptions concernées, suivie d'un remplacement ou d'une replanification sûre, à décider par ADR. Jamais une réautorisation de l'exercice.
+- **Périmètre** : V2 seulement. Le chemin V1 ne lit pas la révocation ; un programme V1 peut prescrire le même exercice (catalogue V1, mêmes identifiants).
 ```
 
 ## `docs/07_GLOSSARY.md`
 
-**6.**
+**6. À la fin de la section « Sessions » :**
 
 ```markdown
-- **Révocation de sécurité (exercice DH)** : retrait immédiat et définitif, en base, de l'autorisation d'exécuter un exercice DH (`dh_drill_revocations`), effectif dans la transaction de chaque écriture. À distinguer de la péremption d'une validation sportive (signature côté code), qui ne change qu'avec un déploiement. Ni l'une ni l'autre ne retire l'exercice des programmes déjà enregistrés.
+**Révocation de sécurité (exercice DH)** (V2-DH-REVOCATION)
+Retrait immédiat et définitif, en base, de l'autorisation d'écrire et d'exécuter un exercice DH dans une prescription V2 (`dh_drill_revocations`), effectif dans la transaction de chaque écriture. À distinguer de la péremption d'une validation sportive (signature côté code), qui ne change qu'avec un déploiement. Ni l'une ni l'autre ne retire l'exercice des programmes déjà enregistrés ; la révocation ne couvre pas V1.
 ```
