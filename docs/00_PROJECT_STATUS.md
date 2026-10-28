@@ -1,13 +1,14 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 27 octobre 2026
+**Dernière mise à jour :** 28 octobre 2026
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
-**PR2-DH-REVOCATION-PREP — révocation transactionnelle DH : READY FOR HPM REVIEW, locale (HPM 2026-10-27)** : branche `release/v2-dh-revocation` depuis `main` `a0a8921`.
+**PR2-DH-REVOCATION — révocation transactionnelle DH : APPROVED WITH CONDITIONS, locale (HPM 2026-10-28)** : branche `release/v2-dh-revocation` depuis `main` `a0a8921`.
 - Contenu : migration additive `20261027120000` (SQL 78) et son rollback ; `session-execution` relaie le refus de la RPC (409) ; tests de révocation, de concurrence, V1 et V2 OFF.
-- Preuves : sur une base peuplée, aucune ligne existante ne change, ni à la migration ni au rollback ; l'ancien code Edge fonctionne sur la base migrée.
+- Preuves : sur une base locale jetable peuplée par les tests (données fictives), aucune ligne existante ne change, ni à la migration ni au rollback ; l'ancien code Edge fonctionne sur la base migrée.
 - Rien n'est poussé, appliqué ni déployé. V2 OFF.
+- Restent : GO de Louis pour le push ; approbation des diffs canon avant le merge ; GO de déploiement ; smoke V1 de production après le déploiement.
 - Plan de déploiement : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`. Rapport : `docs/review/pr2-dh-revocation/PR2_DH_REVOCATION_PREP_REPORT.md`.
 
 **PR1 — protections techniques V2 OFF : POST-MERGE PASS — CLOSED (HPM 2026-10-27)** : PR #1 fusionnée, `main` `a0a8921`.

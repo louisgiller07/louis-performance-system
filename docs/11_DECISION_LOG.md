@@ -7240,9 +7240,25 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **`session-execution`** : `REJECTION_STATUS` relaie le `dh_validation_not_current` de la RPC (409). Le mapping `NX302` → 409 du daily-run est déjà dans `main` (PR1).
 - **Tests** : `powerGuard01` épingle le nouveau corps ; suites de révocation (stack fraîche, opt-in) dont un rider V2 OFF fidèle à la production ; V1 de bout en bout en HTTP.
 - **Preuves** :
-  - Code Edge de production sur base de production, migrée puis remise en arrière : aucune ligne existante modifiée (40 tables, empreintes identiques).
+  - Code Edge et schéma de production (77 migrations), sur une stack locale jetable peuplée par les tests (données fictives), migrée puis remise en arrière : aucune ligne existante modifiée (40 tables, empreintes identiques). Aucune donnée ni base de production utilisée.
   - Ancien code Edge sur la base migrée : une seule différence, l'empreinte de fonction attendue.
 - **Déploiement** : sans suspension des écritures. Ordre : migration, puis `session-execution`, puis `daily-run`. Toutes les fenêtres intermédiaires sont prouvées. `generate-training-plan` n'est pas redéployée.
 - **Canon** : diffs proposés pour `docs/05`, `docs/04` et `docs/07`, non appliqués (`docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md`).
 
 **Statut** : READY FOR HPM REVIEW (branche locale `release/v2-dh-revocation`). Aucun push, merge, migration ni déploiement ; aucune activation V2.
+
+## 2026-10-28 — PR2-DH-REVOCATION : revue HPM (APPROVED WITH CONDITIONS — LOCAL)
+
+> **Décision HPM** : orientation technique validée ; S1 à S4 suffisants pour préparer la publication GitHub, sans nouvelle campagne générale.
+
+- **Confirmé** :
+  - smoke V1 de production après le déploiement seulement (compte de test, accord distinct), pas avant la PR ;
+  - aucune révocation réelle comme test ;
+  - ordre migration → `session-execution` → `daily-run` accepté provisoirement ;
+  - pas de suspension globale des écritures sans risque résiduel démontré ;
+  - V2 OFF.
+- **S1 précisé** : stack Docker locale reconstruite, données fictives créées par les tests, aucune commande ni clé de production. La formule « base de production » de l'entrée précédente désignait le schéma (77 migrations), pas les données.
+- **Typecheck** : 28 erreurs, ensemble identique à `main` `a0a8921` (fichier, ligne, colonne, code), revérifié sur le SHA final.
+- **Canon** : approbation définitive des diffs `docs/05`, `docs/04` et `docs/07` exigée avant le merge, pas avant le premier push. Classement et points à arbitrer : `docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md`.
+
+**Statut** : APPROVED WITH CONDITIONS — LOCAL. Push sur GO explicite de Louis seulement ; aucun merge, migration, déploiement ni révocation.

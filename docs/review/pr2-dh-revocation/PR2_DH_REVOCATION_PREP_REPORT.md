@@ -27,15 +27,18 @@
 
 ## Preuves
 
-### S1 — code Edge de production et base de production, avant et après la migration
+### S1 — code Edge et schéma de production, avant et après la migration
 
-Configuration : `1e0de28` (source de `daily-run` v48 et de `session-execution` v19), 77 migrations, stack jetable.
+Configuration : `1e0de28` (source de `daily-run` v48 et de `session-execution` v19), les 77 migrations de production, sur la stack Docker locale jetable `nalynt-dhunit01` (`127.0.0.1:59421`).
+- **Base locale reconstruite** : `supabase start` sur une stack vide, 77 migrations rejouées, aucun seed ; arrêtée avec `--no-backup` (volume supprimé).
+- **Données fictives** : toutes les lignes sont créées par la campagne de tests elle-même (pilotes de test). Aucune donnée de production importée, ni dump ni restauration.
+- **Production non touchée** : aucune commande `--linked`, `db push` ni déploiement ; aucune URL ni clé de production. Les clés viennent de `supabase status` de la stack locale.
 
 1. **Campagne de référence** : 1 236 tests réussis, 22 ignorés, 0 échec, sur 140 fichiers. Les trois fichiers V2 ON (`p0FirstGenerationEdge`, `p0_2DhTerrainMatrix`, `p0_3KeptDayRerun`) répondent 503 `v2_generation_disabled` en V2 OFF ; ils sont exclus comme dans la PR1.
 2. **Empreinte des 40 tables de `public`** (nombre de lignes et hash de toutes les lignes) : 21 734 lignes, dont 364 prescriptions du jour, 4 602 prescriptions prévues, 578 décisions, 194 exécutions, 363 événements, 330 séries.
 3. **Migration appliquée en une transaction** : les 40 tables restent **identiques** ; seule `dh_drill_revocations` s'ajoute, vide.
 4. **Même campagne, ancien code Edge sur la base migrée** (état intermédiaire du déploiement) : une seule différence sur 1 273 tests. C'est l'empreinte `powerGuard01` de `1e0de28`, qui vérifie que le corps installé est celui de `power_guard_01` : il a changé, comme attendu. Tout le reste est identique.
-5. **Rollback, puis réapplication, sur la base peuplée** (43 465 lignes) : les 41 tables restent identiques à chaque étape. Fonctions réinstallées, table vide.
+5. **Rollback, puis réapplication, sur la base locale peuplée par les tests** (43 465 lignes) : les 41 tables restent identiques à chaque étape. Fonctions réinstallées, table vide.
 
 **Conclusion** : aucune prescription, décision ou exécution historique n'est modifiée, ni par la migration ni par son rollback.
 
@@ -101,9 +104,10 @@ Typecheck : 28 erreurs, déjà présentes sur `main` (ensemble identique) ; aucu
 - Production, lecture seule (contrôle post-merge PR1) : `NALYNT_V2_PLAN_GENERATION_ENABLED` vaut `"false"`, les autres interrupteurs V2 sont absents.
 - Les campagnes tournent avec V2 OFF. La révocation s'applique au chemin quotidien V2 (rider dont le programme courant est V2), comme en production pour le compte de simulation. Le chemin V1 ne l'atteint jamais.
 
-## Dépendances restantes avant publication
+## Dépendances restantes (revue HPM 2026-10-28 : APPROVED WITH CONDITIONS)
 
-1. **Canon** : diffs proposés pour `docs/05`, `docs/04` et `docs/07` (`PR2_CANON_PROPOSED_DIFFS.md`), à valider par l'architecte et Louis.
-2. **Smoke V1 de production** sur un compte de test dédié (écritures puis purge) : accord distinct de Louis. Le même parcours est prouvé en local (S2).
-3. **GO HPM** pour le push, la PR, puis séparément pour le déploiement (procédure : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`).
-4. **Première révocation** : décision HPM distincte, après le déploiement complet. En même temps, l'exercice est retiré des signatures côté code.
+1. **Push** : GO explicite de Louis.
+2. **Merge** : approbation canonique définitive des diffs `docs/05`, `docs/04` et `docs/07` (`PR2_CANON_PROPOSED_DIFFS.md`) par l'architecte et Louis.
+3. **Déploiement** : GO séparé (procédure : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`).
+4. **Smoke V1 de production** : après le déploiement, sur un compte de test dédié, avec un accord distinct de Louis. Non requis avant la publication de la PR.
+5. **Première révocation** : décision HPM distincte, après le déploiement complet, jamais comme test. En même temps, l'exercice est retiré des signatures côté code.

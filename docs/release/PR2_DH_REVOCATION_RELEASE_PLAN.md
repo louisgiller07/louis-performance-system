@@ -38,7 +38,7 @@ Ces fonctions embarquent le code de PR1 déjà publié côté web. Avec V2 OFF, 
 2. **Comportement inchangé tant que la table est vide.**
    - Les verrous `SHARE` ne se bloquent pas entre eux, et les appels de l'API tournent en READ COMMITTED : les deux RPC répondent exactement comme avant.
    - Les fonctions Edge actuelles (v48 / v19) continuent donc sans changement.
-   - Preuve : campagne S1, code Edge de production sur la base migrée.
+   - Preuve : campagne S1, code Edge de production sur la base migrée (stack locale jetable, données fictives).
 3. **Nouvelles fonctions Edge compatibles avant et après la migration.**
    - Avant (77 migrations) : campagne de PR1.
    - Après (78) : campagne S2.
