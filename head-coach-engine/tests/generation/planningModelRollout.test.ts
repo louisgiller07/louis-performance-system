@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseV2PlanGenerationFlag, resolvePlanningModelForAthlete, V2_PLAN_GENERATION_FLAG } from "../../src/generation/planningModelRollout.js";
+import { parseV2PlanGenerationFlag, PlanningModelAssignmentReadError, resolvePlanningModelForAthlete, V2_PLAN_GENERATION_FLAG } from "../../src/generation/planningModelRollout.js";
 import { generateTrainingPlanForAthlete, planningResolutionOf, type GenerateTrainingPlanForAthleteDeps } from "../../src/generation/generateTrainingPlanForAthlete.js";
 import { toPilotEventRow } from "../../src/supabase/observability/pilotEvents.js";
 
@@ -11,15 +11,17 @@ describe("UX-11R.2 — global switch parsing (server-only)", () => {
   });
 });
 
-describe("UX-11R.2 — resolvePlanningModelForAthlete", () => {
+describe("UX-11R.2, BETA-V2-TECH-01 B — resolvePlanningModelForAthlete: the assignment is the authorization", () => {
   it.each([
-    [false, null, "v1", "global_v2_disabled"],
+    // B — no assignment: no model, whatever the switch (refused 403), never V1 by default.
+    [false, null, null, "not_assigned"],
+    [true, null, null, "not_assigned"],
     // A09 — paid-beta guard: an athlete assigned V2 is refused while the switch is off, never served V1.
     [false, "v2", "v2", "assigned_v2_disabled"],
-    [false, "v1", "v1", "global_v2_disabled"],
-    [true, null, "v1", "default_v1"],
-    [true, "v1", "v1", "assigned_v1"],
     [true, "v2", "v2", "assigned_v2"],
+    // The explicit V1 exemption (test accounts), whatever the switch.
+    [false, "v1", "v1", "assigned_v1"],
+    [true, "v1", "v1", "assigned_v1"],
   ] as const)("switch %s + assignment %s → %s (%s)", (globalV2Enabled, assignment, planningModel, reason) => {
     expect(resolvePlanningModelForAthlete({ globalV2Enabled, assignment })).toEqual({ planningModel, reason });
   });
@@ -43,10 +45,19 @@ describe("UX-11R.2 — generateTrainingPlanForAthlete (single server entry)", ()
     expect(deps.generateAndPersistTrainingPlanV2).not.toHaveBeenCalled();
   });
 
-  it("switch off + not assigned / assigned v1: the exact legacy V1 path runs (unchanged)", async () => {
-    for (const assignment of [null, "v1"] as const) {
-      const deps = fakeDeps(assignment);
-      expect(await generateTrainingPlanForAthlete(input(false), deps)).toEqual({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted", planVersionId: "v1-plan", idempotentReplay: false });
+  it("B — not assigned, switch on or off: refused (access_not_granted), nothing generated — never V1 by default", async () => {
+    for (const on of [false, true]) {
+      const deps = fakeDeps(null);
+      expect(await generateTrainingPlanForAthlete(input(on), deps)).toEqual({ planningModel: null, reason: "not_assigned", status: "access_not_granted" });
+      expect(deps.generateAndPersistTrainingPlan).not.toHaveBeenCalled();
+      expect(deps.generateAndPersistTrainingPlanV2).not.toHaveBeenCalled();
+    }
+  });
+
+  it("B — assigned v1, switch on or off: the exact legacy V1 path runs (explicit exemption), never V2", async () => {
+    for (const on of [false, true]) {
+      const deps = fakeDeps("v1");
+      expect(await generateTrainingPlanForAthlete(input(on), deps)).toEqual({ planningModel: "v1", reason: "assigned_v1", status: "persisted", planVersionId: "v1-plan", idempotentReplay: false });
       expect(deps.generateAndPersistTrainingPlanV2).not.toHaveBeenCalled();
     }
   });
@@ -56,11 +67,6 @@ describe("UX-11R.2 — generateTrainingPlanForAthlete (single server entry)", ()
     expect(await generateTrainingPlanForAthlete(input(true), deps)).toMatchObject({ planningModel: "v2", reason: "assigned_v2", status: "persisted", planVersionId: "v2-plan" });
     expect(deps.generateAndPersistTrainingPlanV2).toHaveBeenCalledWith(expect.objectContaining({ planningModel: "v2", athleteId: "a", generationRequestId: "r" }));
     expect(deps.generateAndPersistTrainingPlan).not.toHaveBeenCalled();
-  });
-
-  it("switch on + not assigned / assigned v1: V1", async () => {
-    expect(await generateTrainingPlanForAthlete(input(true), fakeDeps(null))).toMatchObject({ planningModel: "v1", reason: "default_v1" });
-    expect(await generateTrainingPlanForAthlete(input(true), fakeDeps("v1"))).toMatchObject({ planningModel: "v1", reason: "assigned_v1" });
   });
 
   it("a blocked V2 generation is returned as such, never replaced by a V1 plan", async () => {
@@ -81,13 +87,16 @@ describe("UX-11R.2 — generateTrainingPlanForAthlete (single server entry)", ()
     expect(deps.generateAndPersistTrainingPlan).not.toHaveBeenCalled();
   });
 
-  it("an unreadable assignment fails the generation (never a silent V1)", async () => {
-    const deps = fakeDeps(null);
-    deps.getPlanningModelAssignment = vi.fn(async () => {
-      throw new Error("read failed");
-    });
-    await expect(generateTrainingPlanForAthlete(input(true), deps)).rejects.toThrow("read failed");
-    expect(deps.generateAndPersistTrainingPlan).not.toHaveBeenCalled();
+  it("an unreadable assignment fails the generation, switch on or off (never a silent V1, never V2)", async () => {
+    for (const on of [false, true]) {
+      const deps = fakeDeps(null);
+      deps.getPlanningModelAssignment = vi.fn(async () => {
+        throw new PlanningModelAssignmentReadError("42501");
+      });
+      await expect(generateTrainingPlanForAthlete(input(on), deps)).rejects.toBeInstanceOf(PlanningModelAssignmentReadError);
+      expect(deps.generateAndPersistTrainingPlan).not.toHaveBeenCalled();
+      expect(deps.generateAndPersistTrainingPlanV2).not.toHaveBeenCalled();
+    }
   });
 });
 
@@ -95,7 +104,9 @@ describe("UX-11R.2 — generation pilot events carry the planning model (no new 
   it("succeeded / blocked / failed", () => {
     expect(toPilotEventRow({ eventType: "plan_generation_succeeded", athleteId: "a", planVersionId: "p", generationRequestId: "r", idempotentReplay: false, durationWeeks: 2, planningModel: "v2", rolloutReason: "assigned_v2" }).metadata).toEqual({ idempotentReplay: false, durationWeeks: 2, planningModel: "v2", rolloutReason: "assigned_v2" });
     expect(toPilotEventRow({ eventType: "plan_generation_blocked", athleteId: "a", generationRequestId: "r", blockedReason: "missing_dh_technical_tier", planningModel: "v2", rolloutReason: "assigned_v2" }).metadata).toEqual({ blockedReason: "missing_dh_technical_tier", planningModel: "v2", rolloutReason: "assigned_v2" });
-    expect(toPilotEventRow({ eventType: "plan_generation_failed", athleteId: "a", generationRequestId: "r", errorName: "TypeError", errorCode: "internal_error", planningModel: "v1", rolloutReason: "global_v2_disabled" }).metadata).toEqual({ errorName: "TypeError", errorCode: "internal_error", planningModel: "v1", rolloutReason: "global_v2_disabled" });
+    expect(toPilotEventRow({ eventType: "plan_generation_failed", athleteId: "a", generationRequestId: "r", errorName: "TypeError", errorCode: "internal_error", planningModel: "v1", rolloutReason: "assigned_v1" }).metadata).toEqual({ errorName: "TypeError", errorCode: "internal_error", planningModel: "v1", rolloutReason: "assigned_v1" });
+    // B — a refusal without assignment carries no model.
+    expect(toPilotEventRow({ eventType: "plan_generation_blocked", athleteId: "a", generationRequestId: "r", blockedReason: "beta_access_not_granted", rolloutReason: "not_assigned" }).metadata).toEqual({ blockedReason: "beta_access_not_granted", rolloutReason: "not_assigned" });
     // Unchanged when no model was resolved (e.g. before resolution).
     expect(toPilotEventRow({ eventType: "plan_generation_failed", athleteId: "a", generationRequestId: "r", errorName: "E", errorCode: "internal_error" }).metadata).toEqual({ errorName: "E", errorCode: "internal_error" });
   });

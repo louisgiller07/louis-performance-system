@@ -94,6 +94,24 @@ function mapHttpBody(status: number, code: string | undefined, detail?: { skill?
       action: "config_issue",
     };
   }
+  // BETA-V2-TECH-01 B — no server-side assignment: the beta access is not granted yet (never a V1 plan by default).
+  if (status === 403 && code === "beta_access_not_granted") {
+    return {
+      code,
+      message: "Ton accès à la bêta n'est pas encore activé. Ton programme pourra être créé dès qu'il le sera.",
+      retryable: false,
+      action: "config_issue",
+    };
+  }
+  // BETA-V2-TECH-01 B — the access check itself failed: temporary, nothing was created.
+  if (status === 503 && code === "beta_access_check_unavailable") {
+    return {
+      code,
+      message: "La création du programme est momentanément indisponible. Réessaie dans un instant.",
+      retryable: true,
+      action: "retry",
+    };
+  }
   if (status === 422 && code === "unavailable_dh_drill_terrain") {
     return { code, message: unavailableTerrainMessage(detail), retryable: false, action: "user_fixable" };
   }

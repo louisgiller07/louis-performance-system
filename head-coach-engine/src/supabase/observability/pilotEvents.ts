@@ -20,10 +20,13 @@ interface EventBase {
   athleteId: string;
 }
 
-/** UX-11R.2 — which planning model a generation used and why (operational only; absent when not resolved yet). */
+/**
+ * UX-11R.2 — which planning model a generation used and why (operational only; absent when not resolved yet).
+ * BETA-V2-TECH-01 B — "not_assigned": refused without any model (no planningModel).
+ */
 export interface PlanningModelTrace {
   planningModel?: "v1" | "v2";
-  rolloutReason?: "global_v2_disabled" | "default_v1" | "assigned_v1" | "assigned_v2" | "assigned_v2_disabled";
+  rolloutReason?: "assigned_v1" | "assigned_v2" | "assigned_v2_disabled" | "not_assigned";
 }
 
 const modelTrace = (event: PlanningModelTrace) => ({

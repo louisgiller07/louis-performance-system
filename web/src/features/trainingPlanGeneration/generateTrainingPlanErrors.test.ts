@@ -55,6 +55,25 @@ describe("mapGenerateTrainingPlanError", () => {
     expect(mapped.retryable).toBe(false);
   });
 
+  // BETA-V2-TECH-01 B — the beta access rule.
+  it("maps beta_access_not_granted (403) to a non-retryable config_issue that names the beta access", async () => {
+    expect(await mapGenerateTrainingPlanError(httpError(403, { error: { code: "beta_access_not_granted" } }))).toEqual({
+      code: "beta_access_not_granted",
+      message: "Ton accès à la bêta n'est pas encore activé. Ton programme pourra être créé dès qu'il le sera.",
+      retryable: false,
+      action: "config_issue",
+    });
+  });
+
+  it("maps beta_access_check_unavailable (503) to a retryable temporary error", async () => {
+    expect(await mapGenerateTrainingPlanError(httpError(503, { error: { code: "beta_access_check_unavailable" } }))).toEqual({
+      code: "beta_access_check_unavailable",
+      message: "La création du programme est momentanément indisponible. Réessaie dans un instant.",
+      retryable: true,
+      action: "retry",
+    });
+  });
+
   it("maps internal_error (500) to a generic retryable error", async () => {
     const mapped = await mapGenerateTrainingPlanError(httpError(500, { error: { code: "internal_error" } }));
     expect(mapped.retryable).toBe(true);

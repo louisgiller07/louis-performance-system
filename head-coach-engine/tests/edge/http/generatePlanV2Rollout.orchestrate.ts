@@ -7,8 +7,9 @@
  * The harness OWNS the Edge runtime (the global switch is an Edge secret
  * fixed at start): it refuses to run if one is already running, then starts
  * `supabase functions serve --env-file` three times: switch OFF, ON, OFF.
- * A = internal V2 pilot (server-side assignment v2), B = V1 control (none),
- * C = assigned v2 without a declared DH technical tier (V2 blocked). Same
+ * A = internal V2 pilot (server-side assignment v2), B = V1 control (explicit
+ * v1 exemption), C = assigned v2 without a declared DH technical tier (V2
+ * blocked), N = not assigned (BETA-V2-TECH-01 B: refused 403, never V1). Same
  * endpoint, same body for everyone: the browser never chooses the model.
  */
 import { randomUUID } from "node:crypto";
@@ -122,11 +123,20 @@ async function main(): Promise<void> {
   const a = await athlete(admin, "A pilot", true);
   const b = await athlete(admin, "B control", true);
   const c = await athlete(admin, "C pilot without DH tier", false);
-  // Operator assignment (service role only): A and C are internal V2 pilots, B is not assigned.
-  for (const x of [a, c]) {
-    const { error } = await admin.from("training_plan_model_assignments").insert({ athlete_id: x.athleteId, planning_model: "v2", note: "R2 rollout rehearsal" });
+  const n = await athlete(admin, "N not assigned", true);
+  // Operator assignment (service role only): A and C are internal V2 pilots, B is a V1 test account (explicit exemption),
+  // N is not assigned.
+  for (const [x, model] of [[a, "v2"], [c, "v2"], [b, "v1"]] as const) {
+    const { error } = await admin.from("training_plan_model_assignments").insert({ athlete_id: x.athleteId, planning_model: model, note: "R2 rollout rehearsal" });
     if (error) throw new Error(`assignment insert failed: ${error.message}`);
   }
+  const notAssigned = async (label: string) => {
+    const before = await versionCount(admin, n.athleteId);
+    const rn = await call("generate-training-plan", n.token, body());
+    record(`${label}: N (not assigned) → 403 beta_access_not_granted, nothing generated (never V1)`, rn.status === 403 && rn.json?.error?.code === "beta_access_not_granted" && (await versionCount(admin, n.athleteId)) === before, JSON.stringify(rn.json));
+    const evN = lastGenerationEvent(n.athleteId);
+    record(`${label}: N → pilot event plan_generation_blocked / beta_access_not_granted / not_assigned, no model`, evN?.event_type === "plan_generation_blocked" && evN?.blockedReason === "beta_access_not_granted" && evN?.rolloutReason === "not_assigned" && evN?.planningModel === undefined, JSON.stringify(evN));
+  };
   const body = () => ({ generationRequestId: randomUUID(), durationWeeks: 2 });
   let aV2PlanVersionId: string | undefined;
   let completedDay: string | null = null;
@@ -141,9 +151,10 @@ async function main(): Promise<void> {
     const evA = lastGenerationEvent(a.athleteId);
     record("OFF: A → pilot event plan_generation_blocked / v2_generation_disabled / assigned_v2_disabled", evA?.event_type === "plan_generation_blocked" && evA?.blockedReason === "v2_generation_disabled" && evA?.rolloutReason === "assigned_v2_disabled", JSON.stringify(evA));
     const rb = await call("generate-training-plan", b.token, body());
-    record("OFF: B (not assigned) → 200, V1 plan", rb.status === 200 && (await schemaOf(admin, rb.json?.planVersionId)) === "v1", JSON.stringify(rb.json));
+    record("OFF: B (assigned v1) → 200, V1 plan", rb.status === 200 && (await schemaOf(admin, rb.json?.planVersionId)) === "v1", JSON.stringify(rb.json));
     const evB = lastGenerationEvent(b.athleteId);
-    record("OFF: B (not assigned) → pilot event planningModel v1 / global_v2_disabled", evB?.planningModel === "v1" && evB?.rolloutReason === "global_v2_disabled", JSON.stringify(evB));
+    record("OFF: B (assigned v1) → pilot event planningModel v1 / assigned_v1", evB?.planningModel === "v1" && evB?.rolloutReason === "assigned_v1", JSON.stringify(evB));
+    await notAssigned("OFF");
     record("OFF: the response never reveals the model", true);
   });
 
@@ -161,9 +172,10 @@ async function main(): Promise<void> {
     record("ON: A pilot event planningModel v2 / assigned_v2", evA?.planningModel === "v2" && evA?.rolloutReason === "assigned_v2", JSON.stringify(evA));
 
     const rb = await call("generate-training-plan", b.token, body());
-    record("ON: B (not assigned, V2-ready profile) → 200, V1 plan", rb.status === 200 && (await schemaOf(admin, rb.json?.planVersionId)) === "v1", JSON.stringify(rb.json));
+    record("ON: B (assigned v1, V2-ready profile) → 200, V1 plan", rb.status === 200 && (await schemaOf(admin, rb.json?.planVersionId)) === "v1", JSON.stringify(rb.json));
     const evB = lastGenerationEvent(b.athleteId);
-    record("ON: B pilot event planningModel v1 / default_v1", evB?.planningModel === "v1" && evB?.rolloutReason === "default_v1", JSON.stringify(evB));
+    record("ON: B pilot event planningModel v1 / assigned_v1", evB?.planningModel === "v1" && evB?.rolloutReason === "assigned_v1", JSON.stringify(evB));
+    await notAssigned("ON");
 
     const before = await versionCount(admin, b.athleteId);
     for (const forged of [{ planningModel: "v2" }, { useV2: true }, { schemaVersion: "v2" }, { featureFlag: "v2" }]) {
