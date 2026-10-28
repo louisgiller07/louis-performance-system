@@ -275,7 +275,7 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
     expect(prosrc("record_session_execution(uuid, jsonb)")).toContain("NX301");
   });
 
-  it("additive structure, operators only: RLS without policy, no client privilege, append-only even for the owner; the RPCs keep their grants", () => {
+  it("additive structure, operators only: RLS without policy, no client privilege, the helper the owner's alone, append-only even for the owner; the RPCs keep their grants", () => {
     const fn = (sig: string, role: string) => `has_function_privilege('${role}', 'public.${sig}', 'execute')`;
     const table = (role: string, p: string) => `has_table_privilege('${role}', 'public.dh_drill_revocations', '${p}')`;
     const privileges = execLocalSql(
@@ -283,21 +283,31 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
          (select count(*) from pg_policies where tablename = 'dh_drill_revocations'),
          ${["anon", "authenticated"].flatMap((r) => ["select", "insert", "update", "delete", "truncate"].map((p) => table(r, p))).join(", ")},
          ${["select", "insert", "update", "delete", "truncate"].map((p) => table("service_role", p)).join(", ")},
-         ${fn("execution_dh_revocation_block(uuid)", "anon")}, ${fn("execution_dh_revocation_block(uuid)", "authenticated")},
+         ${["anon", "authenticated", "service_role", "public"].map((r) => fn("execution_dh_revocation_block(uuid)", r)).join(", ")},
          ${fn("record_session_execution(uuid, jsonb)", "authenticated")}, ${fn("record_session_execution(uuid, jsonb)", "service_role")},
          ${fn("persist_daily_run_v2(uuid, jsonb, jsonb, jsonb)", "anon")}, ${fn("persist_daily_run_v2(uuid, jsonb, jsonb, jsonb)", "authenticated")}, ${fn("persist_daily_run_v2(uuid, jsonb, jsonb, jsonb)", "service_role")});`
     ).trim();
-    expect(privileges).toBe(["t", "0", ...Array(10).fill("f"), "t", "t", "f", "f", "f", "f", "f", "f", "t", "f", "f", "t"].join(","));
+    expect(privileges).toBe(["t", "0", ...Array(10).fill("f"), "t", "t", "f", "f", "f", ...Array(4).fill("f"), "f", "t", "f", "f", "t"].join(","));
+    // The helper: SECURITY INVOKER, executable by its owner, the owner of record_session_execution (SECURITY DEFINER),
+    // which calls it as that owner (HPM 2026-10-28, least privilege, like execution_health_block).
+    expect(
+      execLocalSql(
+        `select concat_ws(',', h.prosecdef, has_function_privilege(h.proowner, h.oid, 'execute'), h.proowner = r.proowner, r.prosecdef)
+           from pg_proc h, pg_proc r
+          where h.oid = 'public.execution_dh_revocation_block(uuid)'::regprocedure and r.oid = 'public.record_session_execution(uuid, jsonb)'::regprocedure;`
+      ).trim()
+    ).toBe("f,t,t,t");
     expect(() => execLocalSql(`update public.dh_drill_revocations set reason = 'x' where drill_id = ${sqlLiteral(FIRST)};`)).toThrow(/append/i);
     expect(() => execLocalSql(`delete from public.dh_drill_revocations where drill_id = ${sqlLiteral(FIRST)};`)).toThrow(/append/i);
   });
 
-  it("the rider can neither forge nor read a revocation, nor call the helper", async () => {
+  it("the rider can neither forge nor read a revocation, nor call the helper; nor can the service_role key", async () => {
     const rider = await getAthleteAuthClient(athleteId);
     expect((await rider.from("dh_drill_revocations").insert({ drill_id: OTHER, reason: "forged", decided_by: "rider" })).error).not.toBeNull();
     const read = await rider.from("dh_drill_revocations").select("drill_id");
     expect(read.error !== null || (read.data ?? []).length === 0).toBe(true);
     expect((await rider.rpc("execution_dh_revocation_block", { p_final_prescription_id: fp[DAYS[2]] })).error).not.toBeNull();
+    expect((await admin.rpc("execution_dh_revocation_block", { p_final_prescription_id: fp[DAYS[2]] })).error?.code).toBe("42501");
     expect(rows("dh_drill_revocations", "drill_id", OTHER)).toBe("0");
   });
 

@@ -19,8 +19,12 @@ select
   (select count(*) = 2 from pg_trigger
     where tgrelid = 'public.dh_drill_revocations'::regclass
       and tgname in ('trg_dh_drill_revocations_no_update', 'trg_dh_drill_revocations_no_delete')) as "6_append_only_triggers",
-  not has_function_privilege('authenticated', 'public.execution_dh_revocation_block(uuid)', 'execute')
-    and not has_function_privilege('anon', 'public.execution_dh_revocation_block(uuid)', 'execute') as "7_helper_closed_to_clients",
+  (select not has_function_privilege('public', p.oid, 'execute') and not has_function_privilege('anon', p.oid, 'execute')
+      and not has_function_privilege('authenticated', p.oid, 'execute') and not has_function_privilege('service_role', p.oid, 'execute')
+      and not p.prosecdef and p.proowner = r.proowner and r.prosecdef
+     from pg_proc p, pg_proc r
+    where p.oid = 'public.execution_dh_revocation_block(uuid)'::regprocedure
+      and r.oid = 'public.record_session_execution(uuid, jsonb)'::regprocedure) as "7_helper_owner_only",
   (select md5(replace(prosrc, chr(13), '')) = '6145c23f7b2b4b5e3b1680bf2e1d8edd' and prosecdef
      from pg_proc where oid = 'public.record_session_execution(uuid, jsonb)'::regprocedure) as "8_record_session_execution_body",
   (select md5(replace(prosrc, chr(13), '')) = '214458e5c24fcdf58ae8e37cd877ab8e' and prosecdef

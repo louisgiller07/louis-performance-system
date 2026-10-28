@@ -6,8 +6,10 @@
 --   and persist_daily_run_v2 (20261013180100_p0_3_manual_keep) redefined with the same signatures, SECURITY DEFINER,
 --   search_path and grants, plus the parts marked "V2-DH-REVOCATION". No existing row is updated or deleted: no
 --   decision, prescription or execution changes.
--- - Authority: operators only (owner, service_role). No client can read or write the table or call the helper. A
---   revocation can only forbid; nothing in it can authorise an execution. Lifting one is out of scope (append-only).
+-- - Authority: operators only (owner, service_role). No client can read or write the table. The helper is the owner's
+--   alone (like execution_health_block): no API role can call it, record_session_execution (SECURITY DEFINER, same
+--   owner) does. A revocation can only forbid; nothing in it can authorise an execution. Lifting one is out of scope
+--   (append-only).
 -- - Execution effect: on any V2 final prescription containing a revoked drill (frozen ones included, whatever their
 --   measure), a new execution, a `resumed` or `completed` event, a set or activity result (corrections included) are
 --   refused with 'dh_validation_not_current'; `paused`, `abandoned`, identical replays and reading stay allowed (P0-3).
@@ -64,7 +66,9 @@ as $fn$
      and exists (select 1 from public.dh_drill_revocations r where r.drill_id = it ->> 'drillId')
    limit 1
 $fn$;
-revoke all on function public.execution_dh_revocation_block(uuid) from public, anon, authenticated;
+-- Least privilege (HPM 2026-10-28): service_role too loses the EXECUTE granted by Supabase's default privileges; only
+-- record_session_execution (SECURITY DEFINER, same owner) calls the helper, as the owner.
+revoke all on function public.execution_dh_revocation_block(uuid) from public, anon, authenticated, service_role;
 
 -- 3. record_session_execution: the current definition, plus the isolation guard, the lock and the four checks.
 create or replace function public.record_session_execution(p_athlete_id uuid, p_payload jsonb)
