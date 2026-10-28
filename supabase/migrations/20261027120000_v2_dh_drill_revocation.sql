@@ -26,9 +26,10 @@
 -- - Re-applicable after the rollback (the table and its history are kept by the rollback).
 -- - Ships with: session-execution REJECTION_STATUS 'dh_validation_not_current' (409); the daily-run mapping NX302 -> 409
 --   (head-coach-engine persistDailyRunV2, DhDrillRevokedError, in main since PR 1); powerGuard01.integration.test.ts
---   pins this body. A revocation recorded here is also removed from the code-level sign-offs.
--- Rollback: supabase/rollbacks/v2_dh_revocation/20261027120000_rollback_v2_dh_drill_revocation.sql (refused while a
--- revocation exists).
+--   pins this body. Removing a revoked drill from the code-level sign-offs alone does not lift its effect on stored
+--   plans: that needs a neutralisation and a safe replacement of the prescriptions concerned (reserve R1).
+-- Rollback: supabase/rollbacks/v2_dh_revocation/20261027120000_rollback_v2_dh_drill_revocation.sql (refused as soon as
+-- a revocation exists, hence for good after the first).
 
 -- 1. The revocations: append-only, operators only.
 create table if not exists public.dh_drill_revocations (

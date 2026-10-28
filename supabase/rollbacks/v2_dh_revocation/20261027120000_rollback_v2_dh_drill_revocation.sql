@@ -1,7 +1,8 @@
 -- V2-DH-REVOCATION — ROLLBACK of 20261027120000_v2_dh_drill_revocation.sql (PR2-DH-REVOCATION-PREP, HPM 2026-10-27).
--- Never re-authorises a revoked execution or daily-run write: refused while any revocation exists (revoke those drills
--- in the code-level sign-offs and deploy that first). Restores record_session_execution exactly as
--- 20261018120000_power_guard_01 and persist_daily_run_v2 exactly as 20261013180100_p0_3_manual_keep, drops the helper,
+-- Never re-authorises a revoked execution or daily-run write: refused as soon as one revocation exists, hence for good
+-- after the first (the table is append-only; only a forward fix remains, reserve R1). Restores
+-- record_session_execution exactly as 20261018120000_power_guard_01 and persist_daily_run_v2 exactly as
+-- 20261013180100_p0_3_manual_keep, drops the helper,
 -- keeps the table (append-only history) and closes it to new revocations, owner included.
 -- One explicit transaction (psql runs it as is; any error rolls everything back). Concurrency (RELEASE-PREP-FINAL-01):
 -- - the table is locked (SHARE ROW EXCLUSIVE) BEFORE the guard reads it, until the commit: a revocation being written
@@ -19,7 +20,7 @@ lock table public.dh_drill_revocations in share row exclusive mode;
 do $guard$
 begin
   if exists (select 1 from public.dh_drill_revocations) then
-    raise exception 'rollback refused: % DH drill revocation(s) recorded; revoke them in the code-level sign-offs and deploy first',
+    raise exception 'rollback refused: % DH drill revocation(s) recorded; a revocation is permanent: fix forward only',
       (select count(*) from public.dh_drill_revocations);
   end if;
 end

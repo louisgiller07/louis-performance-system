@@ -18,7 +18,7 @@
  *  5. a revocation already waiting when the rollback starts is served before it: the rollback's guard counts it;
  *  then the structure, the rider, the refused / kept actions, both directions of concurrency, why READ COMMITTED (a
  *  REPEATABLE READ snapshot misses a revocation committed during the lock wait), the daily-run write refused with
- *  nothing written, and the rollback refused while a revocation exists.
+ *  nothing written, and the rollback refused for good once a revocation exists.
  * Fixture prescriptions are hand-made v2 structures (as in executionResultIntegrity).
  */
 import { randomUUID } from "node:crypto";
@@ -398,8 +398,9 @@ insert into public.decision_final_prescriptions (id, decision_id, athlete_id, ac
     expect(decisionsOn(PERSIST_DAYS[5])).toBe("1");
   });
 
-  it("the rollback is refused while a revocation exists: a revoked execution is never re-authorised", async () => {
-    expect(() => execLocalSql(ROLLBACK())).toThrow(/rollback refused/);
+  it("the rollback is refused once a revocation exists, for good (append-only): a revoked execution is never re-authorised", async () => {
+    // The message never suggests a way back: a revocation is permanent, only a forward fix remains (reserve R1).
+    expect(() => execLocalSql(ROLLBACK())).toThrow(/rollback refused: \d+ DH drill revocation\(s\) recorded; a revocation is permanent: fix forward only/);
     expect(prosrc("persist_daily_run_v2(uuid, jsonb, jsonb, jsonb)")).toContain("NX302");
     const id = randomUUID();
     expect(await record(start(id, DAYS[2]))).toMatchObject({ status: "rejected", code: "dh_validation_not_current" });
