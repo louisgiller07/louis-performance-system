@@ -41,7 +41,7 @@ describe.skipIf(!ENABLED)(`BETA-V2-TECH-01 B — beta access rule over HTTP, run
       dh_technical_tier: "intermediate",
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, a.athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
-    if (model) execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note) values (${lit(a.athleteId)}, '${model}', 'BETA-V2-TECH-01 B test account');`);
+    if (model) execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note, decided_by) values (${lit(a.athleteId)}, '${model}', 'BETA-V2-TECH-01 B test account', 'TEST operator (not a real decision)');`);
     return { athleteId: a.athleteId, client: await getAthleteAuthClient(a.athleteId) };
   }
   type Answer = { status: number; body: { error?: { code?: string } } & Record<string, unknown> };

@@ -127,7 +127,7 @@ async function main(): Promise<void> {
   // Operator assignment (service role only): A and C are internal V2 pilots, B is a V1 test account (explicit exemption),
   // N is not assigned.
   for (const [x, model] of [[a, "v2"], [c, "v2"], [b, "v1"]] as const) {
-    const { error } = await admin.from("training_plan_model_assignments").insert({ athlete_id: x.athleteId, planning_model: model, note: "R2 rollout rehearsal" });
+    const { error } = await admin.from("training_plan_model_assignments").insert({ athlete_id: x.athleteId, planning_model: model, note: "R2 rollout rehearsal", decided_by: "TEST operator (not a real decision)" });
     if (error) throw new Error(`assignment insert failed: ${error.message}`);
   }
   const notAssigned = async (label: string) => {

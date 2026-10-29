@@ -84,7 +84,7 @@ describe.skipIf(!ENABLED)(`BETA-V2-TECH-01 T2 — DH protection of accepted V2 p
 
   it("a V1 rider is not concerned: its DH day follows the V1 path (no V2 final prescription status)", async () => {
     const athleteId = await rider("v1");
-    execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note) values (${lit(athleteId)}, 'v1', 'T2 V1 test account');`);
+    execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note, decided_by) values (${lit(athleteId)}, 'v1', 'T2 V1 test account', 'TEST operator (not a real decision)');`);
     const plan = await generateAndPersistTrainingPlan({ client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
     await acceptTrainingPlanVersion(admin, athleteId, plan.planVersionId, addCalendarDays(GENERATED_ON, 1), addCalendarDays(GENERATED_ON, 14));
     const dhDay = firstDayOf(athleteId, ["DH_TECHNICAL"]);

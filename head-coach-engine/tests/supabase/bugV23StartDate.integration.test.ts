@@ -134,7 +134,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("BUG-V2-3 — plan start date (local Supab
       await assertServing("accept-training-plan");
       const athleteId = await seed("BUG-V2-3 Edge");
       // BETA-V2-TECH-01 B — generation needs an assignment; this V1 rider gets the explicit exemption of a test account.
-      const { error: assignError } = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v1", note: "BUG-V2-3 V1 test rider" });
+      const { error: assignError } = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v1", note: "BUG-V2-3 V1 test rider", decided_by: "TEST operator (not a real decision)" });
       if (assignError) throw new Error(assignError.message);
       const rider = await getAthleteAuthClient(athleteId);
       const before = productToday();

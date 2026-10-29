@@ -53,7 +53,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
   const assign = (athleteId: string, model: "v1" | "v2" | null) =>
     model === null
       ? execLocalSql(`delete from public.training_plan_model_assignments where athlete_id = ${sqlLiteral(athleteId)};`)
-      : execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note) values (${sqlLiteral(athleteId)}, '${model}', 'R2 test')
+      : execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note, decided_by) values (${sqlLiteral(athleteId)}, '${model}', 'R2 test', 'TEST operator (not a real decision)')
   on conflict (athlete_id) do update set planning_model = excluded.planning_model;`);
   const generate = (athleteId: string, globalV2Enabled: boolean, generationRequestId = randomUUID()) =>
     generateTrainingPlanForAthlete({ client: admin, athleteId, generationRequestId, durationWeeks: 2, today: TODAY, globalV2Enabled });
