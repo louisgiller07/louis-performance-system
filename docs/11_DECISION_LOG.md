@@ -7243,3 +7243,13 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Preuve V2 OFF hors de Windows** : 4 passages sur 4 propres dans un conteneur Linux du même poste ; preuve hors du poste prête (job CI `integration-v2-off`), exécutable seulement après un push autorisé.
 
 **Statut** : STOP pour décision HPM et Louis. Aucun push, merge, migration distante, déploiement, écriture de production ni activation V2.
+
+## 2026-10-29 — V2 INTEGRATION : PUBLICATION READINESS (LOCAL, STOP)
+
+> **Décision HPM** : intégration locale `8568470` APPROVED WITH CONDITIONS. S1, S2, S3 acceptés ; S4 favorable sur le principe, soumis à l'approbation formelle du canon ; preuve V2 OFF Linux locale acceptée (4 sur 4), CI indépendante requise avant le merge BETA. Préparer la publication des trois Draft PR, sans campagne rejouée sans motif. Aucun push sans GO spécifique de Louis.
+
+- **Déploiement automatique (constat)** : les projets Vercel `nalynt` et `nalynt-marketing` déploient toute branche poussée, sauf exclusion par `git.deploymentEnabled`. PR2 l'avait ; BETA et SPORT reçoivent la même exclusion avant tout push. Un merge sur `main` déploie le web en production : BETA livre des messages inertes, SPORT le formulaire de commotion à catégorie obligatoire. Aucune intégration Supabase : migrations et fonctions restent manuelles.
+- **Dépôt public** : un push publie tout l'historique poussé. 0 secret dans les trois push. Le dossier de l'incident local de SPORT décrit le poste de travail : copie de publication `pub/sport-v2-corrections-01` sans ce dossier ni ces détails (historique vérifié commit par commit, code identique à la source). Choix entre cette copie et la source : décision de Louis.
+- **Indépendance** : trois destinations distinctes, aucune n'est `main` ; chaque push peut être autorisé seul. L'ordre ne compte que pour les merges (PR2, BETA, SPORT).
+
+**Statut** : STOP avant publication. Aucun push, merge, migration distante, déploiement, changement de flag ni écriture de production.

@@ -4,7 +4,7 @@
 
 **Titre** : `BETA-V2-TECH-01 — prérequis techniques de la bêta V2 [DRAFT — DO NOT MERGE]`
 
-**Head** : `beta/v2-tech-01`. **Base** : `main`.
+**Head** : `beta/v2-tech-01` (SHA exact : `PUBLICATION_READINESS.md`). **Base** : `main`.
 
 ---
 
@@ -21,7 +21,8 @@ Prérequis techniques de la bêta V2. Ce sont des protections seulement : aucune
   Le navigateur ne décide de rien.
 - **Exemptions V1 tracées** : migration additive `20261027150000` (colonne `decided_by` ; motif et auteur obligatoires pour `v1`). Aucun auteur inventé pour les lignes existantes.
 - **T1** : partition V2 ON des tests (génération par le bundle même du runtime, signé « test »).
-- **CI proposée** : job `integration-v2-off`, la suite d'intégration V2 OFF sous Linux avec une pile Supabase jetable. Il ne tourne qu'une fois poussé et n'est pas un contrôle requis.
+- **CI** : job `integration-v2-off`, la suite d'intégration V2 OFF sous Linux avec une pile Supabase jetable. Son passage vert est requis avant le merge (HPM). En faire un contrôle obligatoire de `main` reste une décision de l'architecte.
+- **Vercel** : `beta/v2-tech-01` exclue des déploiements automatiques de branche (`git.deploymentEnabled`, comme PR2).
 
 ## Dépendances
 
@@ -29,11 +30,13 @@ Prérequis techniques de la bêta V2. Ce sont des protections seulement : aucune
   - **S2** (`resolutions/S2.patch`) : affectation `v1` tracée dans la fixture `v2DhRevocationV1Http` ;
   - **S3** (`resolutions/S3.patch`) : le rider « production » de `v2DhRevocationDailyRun` devient « legacy » (lignes antérieures à T2) ; deux cas au point d'entrée de production après T2 ;
   - **S4** : canon `docs/05` fusionné (`S4_DOCS05_MERGED.patch`), **après approbation**.
+  - conflits textuels : docs 00 et 11 (garder les deux entrées), `web/vercel.json` et `marketing-site/vercel.json` (garder toutes les branches exclues).
 - **Migrations** : `20261027150000` se place entre PR2 (`20261027120000`) et SPORT (`20261028120000`). Si SPORT passait avant BETA, renommer la migration BETA avant publication.
 
 ## Ce que cette PR ne fait pas
 
 - Aucune activation V2, aucun changement d'interrupteur, aucune écriture de production.
+- Aucun déploiement par le push. **Le merge, lui, déploie le web automatiquement** (Vercel, `main`) : les messages 403 et 503, inertes tant que `generate-training-plan` n'est pas redéployée. Migration et fonctions Edge restent manuelles (GO distincts).
 - Aucune signature sportive : les tests utilisent des signatures marquées « TEST fixture (not a sports decision) ».
 - M1 inchangé.
 - T4 (suspension de prescriptions) : spécifié, non développé.
@@ -52,16 +55,18 @@ Locales, sur piles jetables par le garde-fou. Détail : `docs/review/v2-integrat
 | Exemptions V1 | suite dédiée 5/5 ; ligne `v1` existante sans trace : contrainte `NOT VALID`, nouvelle ligne refusée, traçage puis `VALIDATE` |
 | T2, contre-preuve | l'ancien code sert le jour DH sans unité ; le nouveau le bloque |
 
-**La CI GitHub actuelle ne lance aucune suite d'intégration.** Le job proposé `integration-v2-off` donnera la preuve hors du poste à l'ouverture de la PR.
+**La CI `ci` ne lance aucune suite d'intégration.** Le job `integration-v2-off` donne la preuve hors du poste : à l'ouverture de la PR pour BETA sur `main`, puis, après la fusion de PR2, pour la branche mise à jour avec S2 et S3. C'est ce second passage qui compte pour le merge.
 
 ## Approbations requises avant toute fusion
 
-1. Architecte et Louis :
+1. HPM (2026-10-29) : S1, S2 et S3 acceptés ; S4 favorable sur le principe.
+2. Architecte et Louis :
    - ADR `docs/review/beta-v2-tech-01/ADR_BETA_V2_TECH_01.md` (T2, B, exemptions V1) ;
    - canon `docs/05` (S4).
-2. Architecte et Louis : canon de PR2 (réserve R1), préalable à l'empilement.
-3. HPM : cohérence des contrats après intégration (S3 en particulier).
-4. Louis : GO explicite pour le push, puis pour le merge.
+3. Architecte et Louis : canon de PR2 (réserve R1), préalable à l'empilement.
+4. CI `integration-v2-off` verte sur la branche mise à jour, rapport relu (0 rechargement, aucun worker mort).
+5. HPM : cohérence des contrats après intégration (S3 en particulier).
+6. Louis : GO explicite pour le push, puis pour le merge.
 
 ## Après la fusion (hors PR, GO distincts)
 

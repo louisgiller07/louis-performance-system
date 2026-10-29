@@ -4,7 +4,11 @@
 
 **Titre** : `SPORT-V2-CORRECTIONS-01 — corrections sportives V2 (retour coach du 28.10) [DRAFT — DO NOT MERGE]`
 
-**Head** : `sport/v2-corrections-01` (`72ef231`). **Base** : `main`.
+**Head** : `sport/v2-corrections-01`. **Base** : `main`.
+- **Variante A**, recommandée : la copie de publication `pub/sport-v2-corrections-01` (`bbdce25`), sans le dossier de l'incident local.
+- **Variante B** : la source `63cf454`.
+
+Détail : `PUBLICATION_READINESS.md`.
 
 ---
 
@@ -16,20 +20,37 @@ Corrections V2 issues du retour coach du 28.10.2026. **Candidates** : leur conte
 - **DH** : couverture effective calculée par le générateur réel (compétence × niveau × terrain, matrice des 21 couples) ; fiches débutant finalisées, **non signées**.
 - **Web** : formulaire de suivi de commotion (catégorie du professionnel).
 - **Sécurité** : écritures directes du client du pilote et de la clé anonyme refusées sur le signal de commotion (tests).
-- **Outillage local** : dossier de l'incident local du 28.10 et garde-fou des piles jetables (scripts et procédures, hors production).
+- **Incident local du 28.10** : décisions et garde-fou résumés dans `docs/11`. Le dossier lui-même reste hors du dépôt public, car il décrit le poste de travail (variante A).
+- **Vercel** : `sport/v2-corrections-01` exclue des déploiements automatiques de branche (`git.deploymentEnabled`, comme PR2).
 
 ## Dépendances
 
 - **Après PR2, puis BETA** (ordre recommandé). Après leur fusion, mettre cette branche à jour sur `main` et ajouter :
   - **S1** (`resolutions/S1.patch`) : le cas « no bypass under an open concussion » de `a5P0Hardening` génère son second programme avec le bundle signé « test » du runtime. Sans S1, le fichier ne compile plus après fusion (`TS2304`) : BETA a retiré un import que ce cas utilise ;
-  - les conflits textuels : docs 00, 11, 12 (garder les deux entrées), et les imports de `a5P0Hardening` (union).
+  - les conflits textuels :
+    - docs 00, 11, 12 : garder les deux entrées ;
+    - imports de `a5P0Hardening` : union ;
+    - `web/vercel.json` et `marketing-site/vercel.json` : garder toutes les branches exclues.
 - **Migrations** : `20261028120000` après PR2 (`20261027120000`) et BETA (`20261027150000`), sans objet commun.
 
 ## Ce que cette PR ne fait pas
 
-- **Aucune signature sportive** : les fiches DH, les décisions PHYS et la revue commotion attendent les professionnels (`DH_COACH_SIGNATURE_SHEET.md`, `PHYS_DECISION_SHEET.md`, `CONCUSSION_PROFESSIONAL_REVIEW.md`).
+- **Aucune signature sportive.** Décisions professionnelles ouvertes, toutes à remplir et signer :
+  - **Coach DH** (`DH_COACH_SIGNATURE_SHEET.md`) :
+    - 56 décisions, soit 14 fiches × unité, consigne, dose et sécurité ;
+    - 2 fiches débutant ;
+    - 9 décisions communes.
+  - **Préparateur physique** (`PHYS_DECISION_SHEET.md`) :
+    - poussée garantie du haut du corps (correctif candidat) ;
+    - charnières chargées du bas du corps (option 1 candidate prioritaire, non activée) ;
+    - modèle de séance ;
+    - bloc hors saison ;
+    - jours avant une course ;
+    - endurance et puissance.
+  - **Professionnel de santé** (`CONCUSSION_PROFESSIONAL_REVIEW.md`) : 9 questions sur la reprise après une suspicion de commotion. Aucune réponse n'est pré-remplie.
 - Aucune nouvelle dose, aucun protocole médical inventé, aucune activation V2.
 - Canon `docs/04`, `docs/05` : proposé (`P0_CORRECTIONS.md`), non appliqué.
+- Aucun déploiement par le push. **Le merge, lui, déploie le web automatiquement** (Vercel, `main`) : le formulaire de suivi de commotion exigera la catégorie du professionnel. Ne pas fusionner avant la revue santé. La migration reste manuelle (GO distinct).
 
 ## Preuves
 
@@ -45,7 +66,7 @@ Locales, sur piles jetables par le garde-fou. Détail : `docs/review/v2-integrat
 
 ## Approbations requises avant toute fusion
 
-1. Professionnels : signatures DH (coach), décisions PHYS, revue commotion (santé). Aucune signature automatique.
+1. Professionnels : signatures DH (coach), décisions PHYS, revue commotion (santé). Aucune signature automatique, aucun avis d'IA présenté comme une approbation.
 2. Architecte et Louis : canon `docs/04` et `docs/05` proposé ; GO de la migration `20261028120000`.
 3. HPM : cohérence des contrats après intégration.
 4. Louis : GO explicite pour le push, puis pour le merge.
