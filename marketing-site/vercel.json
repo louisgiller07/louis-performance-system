@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "release/v2-dh-protections-off": false
+      "release/v2-dh-protections-off": false,
+      "beta/v2-tech-01": false
     }
   }
 }
