@@ -67,7 +67,7 @@
 
 Aucun programme V1 n'est proposé à la place, et aucun canal de contact n'est inventé. À arbitrer : ajouter ou non un canal réel au 403.
 
-### 2.3 Exemptions V1 : contrôle serveur minimal (proposé, non développé)
+### 2.3 Exemptions V1 : contrôle serveur minimal (option A développée localement, candidate)
 
 **Ce qui est déjà garanti** :
 - aucune exemption ne vient du navigateur (§ 2.1) ;
@@ -76,7 +76,7 @@ Aucun programme V1 n'est proposé à la place, et aucun canal de contact n'est i
 
 **Ce qui manque** : une ligne `v1` peut exister **sans motif** (`note` facultative) ni **auteur**. La liste des comptes exemptés n'est donc pas traçable.
 
-**Option A (recommandée)** : une migration additive, sans changement de code.
+**Option A (retenue pour la préparation de l'intégration, HPM 2026-10-29)** : une migration additive, sans changement de code. Développée localement : migration `20261027150000` (entre PR2 et SPORT), rollback, inventaire et contrôle en lecture seule, suite dédiée. Les lignes `v1` existantes ne reçoivent jamais d'auteur inventé : la contrainte reste `NOT VALID` tant qu'il en existe sans trace (`docs/review/v2-integration/INTEGRATION_RESULTS.md` § 5).
 
 ```sql
 alter table public.training_plan_model_assignments

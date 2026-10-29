@@ -7232,3 +7232,14 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Intégration** : conflits textuels limités aux docs 00/11/12 et aux imports d'un test ; quatre conflits sémantiques identifiés (S1 à S4) ; ordre recommandé PR2, BETA, SPORT. Aucune fusion faite.
 
 **Statut** : STOP pour revue HPM et Louis. Aucun push, merge, migration distante, déploiement, changement d'interrupteur ni écriture en production.
+
+## 2026-10-29 — V2 INTEGRATION PREPARATION : PR2, BETA, SPORT (LOCAL, STOP)
+
+> **Décision HPM** : BETA-V2-TECH-01 APPROVED WITH CONDITIONS pour la préparation de l'intégration. Aucun merge ni déploiement. Validations restant obligatoires : ADR BETA et `docs/05` (architecte et Louis), canon PR2 R1 (architecte et Louis), cohérence des contrats (HPM), GO de Louis pour chaque push et merge, aucune signature sportive automatique.
+
+- **Ordre** : PR2, puis BETA, puis SPORT, sur une branche locale jetable ; branches sources conservées séparées.
+- **S1** : le cas SPORT « no bypass » génère son second programme avec le bundle signé « test » (le fichier ne compilait plus après fusion). **S2** : affectation `v1` tracée dans la fixture HTTP V1 de PR2. **S3** : le rider « production » du quotidien de révocation de PR2 devient « legacy » (lignes antérieures à T2) ; deux cas au point d'entrée de production après T2 ; la preuve de révocation reste sur le rider signé « test ». **S4** : contrat `docs/05` fusionné, proposé, non appliqué.
+- **Exemptions V1** (option A) : colonne `decided_by` et contrainte « motif et auteur obligatoires pour `v1` », migration additive `20261027150000` placée entre PR2 et SPORT ; aucun auteur inventé pour les lignes existantes (contrainte laissée `NOT VALID` et release arrêtée tant qu'il en existe sans trace).
+- **Preuve V2 OFF hors de Windows** : 4 passages sur 4 propres dans un conteneur Linux du même poste ; preuve hors du poste prête (job CI `integration-v2-off`), exécutable seulement après un push autorisé.
+
+**Statut** : STOP pour décision HPM et Louis. Aucun push, merge, migration distante, déploiement, écriture de production ni activation V2.
