@@ -42,7 +42,9 @@
 
 **Bilan des trois passages** : sur 1 323 tests, **les 1 254 tests non ignorés ont tous réussi dans au moins un passage** ; les 69 autres sont ignorés partout (réservés à d'autres partitions). Aucun échec déterministe.
 
-**Réserve** : aucun passage complet n'est sorti sans incident de l'environnement local (workers vitest, rechargement du runtime). La CI devra le confirmer.
+**Réserve** : aucun passage complet n'est sorti sans incident de l'environnement local (workers vitest, rechargement du runtime).
+
+**Correction (revue finale, 2026-10-29)** : la CI ne peut pas le confirmer. `ci.yml` ne démarre aucune pile Supabase et ne lance aucune suite d'intégration. Suite de l'analyse : `V2_OFF_STABILITY.md`.
 
 **Unitaires et build** : `head-coach-engine` 1 107 réussis (716 ignorés : intégration), Edge 67/67, `planning-engine` 1 163 réussis, web 2 497 réussis ; build web OK ; typecheck identique aux bases (`head-coach-engine` 28 erreurs, web 38), 0 nouvelle erreur.
 

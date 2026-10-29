@@ -7221,3 +7221,14 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **T4** : conception d'une suspension par famille, jamais déguisée en REST ; non développée.
 
 **Statut** : STOP pour revue HPM et Louis. Aucun push, merge, migration, déploiement, écriture de production ni activation V2.
+
+## 2026-10-29 — BETA-V2-TECH-01 : revue finale HPM (LOCAL, ADR PRÊTE POUR APPROBATION)
+
+> **Verdict HPM** : GO local avec conditions. T1 accepté comme correction de tests. T2 (exigence d'unité DH indépendante de l'interrupteur) et B (absence d'affectation = 403, jamais de V1 implicite) approuvés sur le principe ; approbations formelles de l'ADR et du canon toujours dues.
+
+- **V2 OFF** : un passage complet strictement propre (s18-2 : 1 254/1 254, 0 échec, 0 mort de worker, 0 rechargement). Deux obstacles intermittents de l'environnement Windows sont isolés, sans échec d'assertion : arrêt natif des workers vitest (`0xC0000409`, Node 24, sans module natif ni exception) et rechargements parasites de `functions serve` (aucun fichier modifié). La CI ne lance aucune suite d'intégration. Dossier : `V2_OFF_STABILITY.md`.
+- **ADR** : contrat final T2 et B ; exemptions V1 : option A proposée (colonne `decided_by` et contrainte « motif et auteur obligatoires pour `v1` », migration additive), non développée.
+- **T4** : contrat exécutable minimal (table `prescription_suspensions`, contrôles serveur dans la transaction, statut existant `blocked` / `prescription_suspended`, 16 cas de test), non développé.
+- **Intégration** : conflits textuels limités aux docs 00/11/12 et aux imports d'un test ; quatre conflits sémantiques identifiés (S1 à S4) ; ordre recommandé PR2, BETA, SPORT. Aucune fusion faite.
+
+**Statut** : STOP pour revue HPM et Louis. Aucun push, merge, migration distante, déploiement, changement d'interrupteur ni écriture en production.
