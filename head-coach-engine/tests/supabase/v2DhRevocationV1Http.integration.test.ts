@@ -5,6 +5,7 @@
  * a V1 plan, a V1 decision without any final prescription, a V1 debrief; nothing V2 written, the revocation table
  * neither read for a refusal nor written. Opt-in: RUN_LOCAL_P0_EDGE=1, the runtime served (`supabase start` with the
  * edge runtime, or `supabase functions serve`), V2 generation off (the stack's default).
+ * Since BETA-V2-TECH-01 B the rider holds an explicit, traced v1 assignment (integration S2): without it, a 403.
  */
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -53,6 +54,8 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — V1 end to end over HTTP with the
       dh_technical_tier: "intermediate",
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
+    // BETA-V2-TECH-01 B: no assignment is a 403, never V1 by default; this V1 rider is an explicit, traced exemption.
+    execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note, decided_by) values (${sqlLiteral(athleteId)}, 'v1', 'V2-DH-REVOCATION V1 test account', 'TEST operator (not a real decision)');`);
     rider = await getAthleteAuthClient(athleteId);
   }, 120_000);
 
