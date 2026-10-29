@@ -7300,3 +7300,14 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Rollback** : message corrigé (« a revocation is permanent: fix forward only ») ; l'ancien laissait croire à un retour possible. Assertion S3 sur le message complet ; S3 rejoué sur stack fraîche. Commentaires d'en-tête de la migration et du rollback alignés, aucun corps de fonction changé.
 
 **Statut** : commits locaux, non poussés. En attente de l'approbation formelle du commit canonique par l'architecte et Louis, puis du GO de Louis pour le push. Aucun merge, migration, déploiement ni révocation. V2 OFF.
+
+## 2026-10-29 — CANON-GATE-02 : diff canonique n° 5 de PR2 précisé (LOCAL, STOP)
+
+> **Décision HPM** : GO pour appliquer les corrections ciblées issues de la revue de la même session. Cette revue ne compte **pas** comme approbation architecturale indépendante : le verdict du projet Architecte et les approbations de Louis restent dus.
+
+- **`docs/04`, diff n° 5** :
+  - une décision déjà enregistrée le même jour n'a son exécution refusée que si **sa propre** prescription contient l'exercice révoqué (comme `record_session_execution` l'applique déjà) ;
+  - « contiendrait » est corrigé deux fois, en « la prescription du jour à écrire contient ».
+- **Le reste est inchangé** : les diffs n° 1 à 4 et 6, la réserve R1, le code et la migration. La copie du diff dans `PR2_CANON_PROPOSED_DIFFS.md` suit la même correction.
+
+**Statut** : STOP. Aucun push, merge, déploiement ni activation V2.
