@@ -1,0 +1,76 @@
+# BETA-V2-TECH-01 (HPM 2026-10-29, V2 INTEGRATION PREPARATION) — LOCAL PROPOSAL: runs only once pushed, with Louis's GO.
+# The full head-coach-engine integration suite with V2 generation OFF, on Linux, against a DISPOSABLE Supabase stack
+# started inside the runner (every migration applied from scratch; the stack disappears with the runner). The Windows
+# workstation cannot give this proof reliably (native vitest worker exits, spurious `functions serve` reloads:
+# docs/review/beta-v2-tech-01/V2_OFF_STABILITY.md). A run counts only without any runtime reload (checked below).
+# Not a required status check (architect decision). No secret: the stack's own local keys only, never a remote project.
+name: integration-v2-off
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-v2-off-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration-v2-off:
+    name: integration (V2 OFF, disposable stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.114.0
+      - name: Install (each package has its own lockfile)
+        run: for p in planning-engine prescription-engine longitudinal-engine head-coach-engine; do npm ci --prefix "$p"; done
+      - name: Build (build:release order) and the Edge bundles the functions import
+        run: |
+          npm --prefix planning-engine run build
+          npm --prefix prescription-engine run build
+          npm --prefix longitudinal-engine run build
+          npm --prefix head-coach-engine run build
+          npm --prefix head-coach-engine run build:edge
+      - name: Disposable stack (every migration from scratch)
+        run: supabase start
+      - name: Serve the Edge functions, V2 generation OFF
+        run: |
+          printf 'NALYNT_V2_PLAN_GENERATION_ENABLED=false\n' > "$RUNNER_TEMP/v2-off.env"
+          nohup supabase functions serve --env-file "$RUNNER_TEMP/v2-off.env" > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for i in $(seq 1 60); do grep -q "Serving functions on" "$RUNNER_TEMP/serve.log" && break; sleep 3; done
+          grep -q "Serving functions on" "$RUNNER_TEMP/serve.log"
+          sleep 3
+      - name: Integration suite, V2 OFF (files one after the other)
+        working-directory: head-coach-engine
+        run: |
+          status=$(supabase status -o env --workdir ..)
+          get() { printf '%s\n' "$status" | grep "^$1=" | head -1 | cut -d= -f2- | tr -d '"'; }
+          export SUPABASE_URL="$(get API_URL)" SUPABASE_SERVICE_ROLE_KEY="$(get SERVICE_ROLE_KEY)" SUPABASE_ANON_KEY="$(get ANON_KEY)"
+          [ -n "$(get SECRET_KEY)" ] && export SUPABASE_SECRET_KEY="$(get SECRET_KEY)"
+          [ -n "$(get PUBLISHABLE_KEY)" ] && export SUPABASE_PUBLISHABLE_KEY="$(get PUBLISHABLE_KEY)"
+          export RUN_LOCAL_SUPABASE_INTEGRATION=1 RUN_LOCAL_P0_EDGE=1 NALYNT_TEST_EDGE_V2_MODE=off
+          npx vitest run tests/supabase --no-file-parallelism --testTimeout=60000 --hookTimeout=180000 \
+            --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/integration-v2-off.json"
+      - name: No runtime reload during the suite
+        if: always()
+        run: |
+          echo "runtime reloads: $(grep -c 'File change detected' "$RUNNER_TEMP/serve.log" || true)"
+          ! grep -q "File change detected" "$RUNNER_TEMP/serve.log"
+      - name: Keep the report and the runtime log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-v2-off
+          path: |
+            ${{ runner.temp }}/integration-v2-off.json
+            ${{ runner.temp }}/serve.log
+          if-no-files-found: warn
