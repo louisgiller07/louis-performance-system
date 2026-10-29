@@ -6,6 +6,11 @@
   - B : APPROVE ;
   - exemptions V1 : MODIFY ciblé. L'option (b) est retenue : la migration additive actuelle est conservée, cette ADR décrit son comportement réel (§ 2.3) ;
   - S4 : APPROVE, sous condition de l'approbation du canon PR2.
+- **Décision HPM CANON-GATE-03 (2026-10-29)** : corrections du verdict architectural indépendant appliquées :
+  - § 1.3 : les trois cas, avec les champs exacts ;
+  - S4 et le patch compagnon `docs/04` : priorité de T2 sur le contrôle de révocation ;
+  - § 2.3 : régularisation, STOP jamais levé à la main, première application, délai ;
+  - le contrôle de release vérifie aussi la définition de la contrainte de longueur.
 - **Décision HPM CANON-GATE-02 (2026-10-29)** : corrections ciblées appliquées :
   - les deux corrections de S4 (§ 5) ;
   - les commentaires de code de T2 ;
@@ -15,7 +20,7 @@
 - **Approbations formelles** : celles de l'architecte et de Louis sont dues. Aucune n'est présumée.
 - **Implémentation** : sur `beta/v2-tech-01`, depuis `origin/main` `a0a8921`. Elle comprend le contrôle des exemptions V1 : migration `20261027150000`, § 2.3.
   - La branche est publiée en Draft PR #3 (`076721f`, GO de Louis).
-  - Les corrections CANON-GATE-01 et CANON-GATE-02 sont locales et non poussées.
+  - Les corrections CANON-GATE-01, 02 et 03 sont locales et non poussées.
 - **Canon** : `docs/05` n'est pas modifié sur cette branche. Le contrat fusionné est le patch S4, appliqué après le canon de PR2 (§ 5).
 - **Interdits respectés** : aucun merge, aucune migration distante, aucun déploiement, aucun changement d'interrupteur, aucune écriture de production.
 
@@ -25,10 +30,24 @@
 
 1. **Toute** exécution de `daily-run` exige l'unité DH signée d'un document V2 : constante gelée `DAILY_DH_UNIT_REQUIREMENT = { dhUnit: "required" }`.
 2. **Aucun secret ni aucune requête** ne peut lever cette exigence.
-3. **Jour DH d'un document V2 sans unité signée** :
-   - la décision du jour est persistée telle que M1 l'a prise : T2 ne touche pas M1 ;
-   - **aucune prescription finale** n'est créée ;
-   - réponse 200, statut `blocked`, trace `dh_repetition_unit_unknown`.
+3. **Jour DH d'un document V2 : trois cas distincts** (correction CANON-GATE-03, champs exacts du code).
+
+   | Cas | Réponse de `daily-run` | Ce qui est écrit |
+   |---|---|---|
+   | **(a) Comptage DH sans unité fiable**, régi par T2 : comptage sans unité (programmes générés avant V2-DH-UNIT-01), ou nouveau comptage d'un exercice auquel les signatures n'attribuent aucune unité | **200**, statut `blocked`, code `final_prescription_adaptation_not_defined`, motif `detail.reason = "dh_repetition_unit_unknown"` | la décision M1, telle que M1 l'a prise (T2 ne touche pas M1) ; **aucune prescription finale** |
+   | **(b) Unité déclarée, mais validation sportive retirée**, indépendant de T2 : prescription prévue dont l'unité n'est plus attribuée par les signatures (KEEP, ou MODIFY / REPLACE de la séance générée) | **409**, code `dh_validation_not_current` | **rien** : ni décision, ni prescription |
+   | **(c) Exercice révoqué dans la prescription finale à écrire**, PR2 | **409**, code `dh_validation_not_current` : refus transactionnel `NX302` de `persist_daily_run_v2` | **rien** : aucune nouvelle décision |
+
+   **Pour le cas (b)** :
+   - le motif de validation est `dh_unit_not_attributed`, ou `dh_content_not_signed` (`validatePrescriptionV2.ts:297`) ;
+   - `trustedPlannedStructure` lève alors `DhSportValidationNotCurrentError` (`buildKeepFinalPrescriptionV2.ts:117`, `:141-143`) ;
+   - `daily-run/errorMapping.ts:55-57` le traduit en 409. Le motif n'est pas exposé.
+
+   **Priorité** :
+   - le cas (a) se décide avant toute écriture, sans prescription finale ;
+   - le contrôle de révocation de `persist_daily_run_v2` ne s'exécute que si une prescription finale est à écrire (migration `20261027120000`, `if v_fp is not null`) ;
+   - un comptage sans unité donne donc 200 `blocked`, avec la décision écrite, **même si son exercice est révoqué** ;
+   - le cas (c) ne concerne que les prescriptions finales dont l'unité est signée.
 4. **Autres familles** du même document : servies. **Documents V1** : non concernés.
 5. `NALYNT_V2_PLAN_GENERATION_ENABLED` commande **seulement** la création de nouveaux programmes V2.
 
@@ -39,8 +58,9 @@
 ### Conséquences
 
 - **Production, au déploiement** :
-  - tout programme V2 accepté sans unité signée a ses jours DH bloqués (aujourd'hui le compte de test V2, à régénérer) ;
-  - c'est voulu (fail-closed).
+  - tout programme V2 accepté sans unité signée a ses jours DH bloqués (cas (a)). C'est aujourd'hui le cas du compte de test V2 ;
+  - **aucune régénération ne peut lever ce blocage tant qu'aucune unité n'est signée**. La génération est refusée : 503 `v2_generation_disabled` avec l'interrupteur OFF ; 422 `dh_repetition_unit_unknown` avec l'interrupteur ON (`generate-training-plan/index.ts:218`) ;
+  - c'est voulu (fail-closed). Les jours DH V2 reprennent seulement avec des signatures sportives réelles.
 - **Bibliothèque** : `runDailyFor` garde son défaut pour les appelants Node (tests, outils). Le seul point d'entrée de production est la fonction Edge `daily-run`, qui impose la constante (test unitaire).
 - **Intégration avec PR2** : le scénario « production » de `v2DhRevocationDailyRun` ne reflète plus la production.
   - La résolution S3 a été acceptée par le HPM le 2026-10-29 : le rider devient « legacy ».
@@ -111,17 +131,17 @@ alter table public.training_plan_model_assignments
 
 **Comportement de la migration : option (b), choix HPM CANON-GATE-01 (2026-10-29)**
 - **La migration peut réussir avec des affectations V1 historiques non tracées.**
-  - `decided_by` est une nouvelle colonne : juste après la migration, **toute** ligne `v1` existante est sans auteur.
-  - La contrainte n'est donc validée dans la migration que si la base n'a **aucune** ligne `v1`.
+  - **À la première application**, `decided_by` est une nouvelle colonne : juste après la migration, **toute** ligne `v1` existante est sans auteur. La contrainte n'est donc validée dans la migration que si la base n'a **aucune** ligne `v1`.
+  - **Après un rollback**, le rollback garde la colonne et ses valeurs. Une réapplication ne valide la contrainte que si aucune ligne `v1` n'est sans motif ou sans auteur.
 - **La contrainte `NOT VALID` protège toutes les nouvelles écritures et mises à jour.**
   - Une nouvelle ligne `v1` sans motif ou sans auteur est refusée (23514).
-  - Une mise à jour d'une ancienne ligne `v1` qui ne pose pas les deux est refusée aussi.
+  - Une mise à jour qui laisse une ancienne ligne `v1` sans motif ou sans auteur est refusée aussi : la règle porte sur la ligne résultante.
 - **Les anciennes affectations non tracées peuvent subsister.**
   - Elles autorisent toujours la génération V1, car l'Edge ne lit que `planning_model`.
-  - Aucun auteur n'est jamais inventé : chaque ligne est tracée avec la vraie décision (GO Louis).
+  - Aucun auteur n'est jamais inventé : chaque ligne reçoit la vraie décision (GO Louis), voir « Ordre », étape 3.
 - **La release s'arrête avant le déploiement de `generate-training-plan` tant que la contrainte n'est pas `VALID`.**
   - Le contrôle exécutable en lecture seule `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` répond GO ou STOP.
-  - Il vérifie notamment `pg_constraint.convalidated`, la définition de la contrainte, l'absence de ligne `v1` non conforme et l'accès inchangé.
+  - Il vérifie notamment `pg_constraint.convalidated` et la définition exacte des deux contraintes (trace et longueur de `decided_by`), l'absence de ligne `v1` non conforme et l'accès inchangé.
   - Toute erreur vaut STOP.
 - **Option (a), écartée** : faire échouer la migration en présence d'une ligne `v1` non tracée.
   - Comme le traçage suppose la colonne, il faudrait deux migrations.
@@ -136,9 +156,12 @@ alter table public.training_plan_model_assignments
   - `rolloutReason: assigned_v1` sur chaque génération V1.
 - **Ordre** :
   1. inventaire en lecture seule `V1_EXEMPTION_PREFLIGHT_READONLY.sql` (GO Louis) : lignes `v1`, toutes sans auteur après la migration, et athlètes sans affectation ;
-  2. migration ; la contrainte n'est `VALID` d'emblée que s'il n'existe aucune ligne `v1` ;
+  2. migration ; à la première application, la contrainte n'est `VALID` d'emblée que s'il n'existe aucune ligne `v1` ;
   3. écritures des affectations (GO Louis) :
-     - chaque ligne `v1` historique est tracée avec la vraie décision, puis `VALIDATE` ;
+     - chaque ligne `v1` historique reçoit la vraie décision :
+       - **compte de test** : motif et auteur réels ;
+       - **vrai rider** : jamais exempté artificiellement en `v1`. La décision explicite est une affectation `v2` ou la suppression de l'affectation : sans ligne, 403 ;
+     - puis `VALIDATE` ;
      - affectation `v2` pour chaque pilote ;
   4. contrôle de release `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` : **GO obligatoire** ;
   5. déploiement de `generate-training-plan`.
@@ -148,17 +171,21 @@ alter table public.training_plan_model_assignments
      - Toute erreur vaut STOP, jamais GO.
      - On ne consigne que les compteurs, aucun identifiant de rider.
      - Ce blocage est procédural : rien n'empêche techniquement de déployer sans le contrôle. L'étape ne se saute donc jamais.
-  3. **Vérification stricte de la définition** : le contrôle compare la définition rendue par PostgreSQL au texte attendu.
-     - Si le rendu de la production diffère, c'est STOP. On compare alors à la main.
+  3. **Vérification stricte des définitions** : le contrôle compare la définition rendue par PostgreSQL des deux contraintes (trace et longueur) au texte attendu.
+     - **Un STOP ne se lève jamais par une simple comparaison manuelle.** Si le rendu de PostgreSQL diffère, le déploiement reste bloqué.
+     - Il faut alors enquêter, adapter formellement le contrôle si nécessaire (commit, revue), le retester sur une pile jetable, puis obtenir son GO.
      - La vérification n'est jamais affaiblie ni retirée sans décision d'architecture.
+  - **Délai** : le contrôle n'arme aucun `statement_timeout` propre. Un `SET` exécuté dans l'instruction en cours ne s'applique pas à elle. C'est le délai de la session qui vaut : celui de l'éditeur SQL ou du rôle, ou un `set statement_timeout` lancé avant le contrôle avec psql.
 - **Tests** :
   - `v1` sans `note` ou sans `decided_by` refusé (23514) ; `v1` complet accepté ; `v2` sans eux accepté ;
   - `anon` et `authenticated` toujours sans accès ;
   - table de résolution inchangée ;
-  - contrôle de release, sur pile jetable neuve (garde-fou, fixtures TEST) : 10 verdicts sur 10 conformes, avec les motifs exacts :
+  - contrôle de release (CANON-GATE-03), sur pile jetable neuve (garde-fou, fixtures TEST) : **11 verdicts sur 11 conformes**, avec les motifs exacts :
     - **GO** : base neuve ; après traçage et `VALIDATE` ; après chaque restauration ;
-    - **STOP** : rollback ; ligne `v1` historique non tracée (`NOT VALID`) ; ligne tracée sans `VALIDATE` ; contrainte affaiblie sous le même nom ; droit client accordé ;
-    - le contrôle met sa transaction en lecture seule : une écriture tentée après lui est refusée.
+    - **STOP** : rollback ; ligne `v1` historique non tracée (`NOT VALID`) ; ligne tracée sans `VALIDATE` ; contrainte de trace affaiblie sous le même nom ; **contrainte de longueur affaiblie sous le même nom** ; droit client accordé ;
+    - le contrôle met sa transaction en lecture seule : une écriture tentée après lui est refusée ;
+    - portée du délai : un `SET LOCAL statement_timeout` exécuté dans le bloc DO ne s'applique pas à lui (2 s de pause terminées sous une valeur de 1 s), alors que le même réglage posé avant l'instruction l'interrompt.
+  - erratum : la preuve CANON-GATE-01 comptait 9 verdicts du contrôle, plus 1 preuve de lecture seule, et non « 10 verdicts ».
 - **Limite** : le schéma ne sait pas ce qu'est un « compte de test ». Le motif et l'auteur rendent chaque exemption vérifiable, sans la prouver.
 
 **Options écartées** :
@@ -200,33 +227,42 @@ alter table public.training_plan_model_assignments
 - Les inscriptions publiques (couche A).
 - Les écritures de production des affectations.
 
-## 5. Canon : contrat `docs/05` fusionné (patch S4)
+## 5. Canon : contrat `docs/05` fusionné (patch S4) et patch compagnon `docs/04`
 
-Le texte canonique est le patch `docs/review/v2-integration/S4_DOCS05_MERGED.patch`. Il s'applique sur le `docs/05` de PR2 et remplace les extraits proposés auparavant ici.
+**Textes canoniques**, tous deux appliqués au merge de BETA, après celui de PR2 (`83013c6`) :
+- `docs/review/v2-integration/S4_DOCS05_MERGED.patch` (`docs/05`) ;
+- `docs/review/v2-integration/S4_DOCS04_COMPANION.patch` (`docs/04`).
+
+Ils remplacent les extraits proposés auparavant ici. Leur application conjointe sur PR2 `83013c6` est vérifiée par `git apply --check`.
 
 **Décisions HPM** :
-- CANON-GATE-01 : APPROVE, sous condition de l'approbation du canon PR2 ;
-- CANON-GATE-02 : deux corrections appliquées, issues d'une revue de la même session. Cette revue ne vaut pas approbation architecturale indépendante.
+- CANON-GATE-01 : S4 APPROVE, sous condition de l'approbation du canon PR2 ;
+- CANON-GATE-02 : deux corrections, issues d'une revue de la même session (sans valeur d'approbation architecturale indépendante) ;
+- CANON-GATE-03 : corrections du verdict indépendant (3 bloquantes, plus les complémentaires).
 
-S4 est appliqué au merge de BETA, après celui de PR2.
-
-Contenu :
+**Contenu de S4 (`docs/05`)** :
 - **Section `training_plan_model_assignments`** :
   - l'affectation est l'autorisation de générer ; sans ligne, 403, jamais V1 par défaut ;
-  - `v1` est une exemption tracée (`note` et `decided_by` obligatoires). Correction CANON-GATE-02 : S4 énonce la condition complète de l'option (b) :
+  - `v1` est une exemption tracée (`note` et `decided_by` obligatoires), avec la condition complète de l'option (b) :
     - la contrainte s'applique à toute ligne nouvelle ou modifiée ;
-    - la migration ne la valide que s'il n'existe aucune ligne `v1` ;
+    - à la première application, la migration ne la valide que s'il n'existe aucune ligne `v1` ;
     - les lignes historiques non tracées peuvent subsister et autorisent encore V1 ;
     - `generate-training-plan` n'est déployée qu'une fois chaque ligne tracée, la contrainte `VALID` et le contrôle de release à GO ;
   - `v2` avec l'interrupteur OFF : 503 (A09) ;
   - affectation illisible : 503 ;
   - aucune conversion ;
   - nouvelle colonne `decided_by`.
-- **Chemin V2 de la prescription du jour** (correction CANON-GATE-02) : une puce dédiée à l'unité DH signée exigée (T2).
-  - Le statut est `blocked`, avec le code `final_prescription_adaptation_not_defined` et le motif `dh_repetition_unit_unknown`.
-  - La décision M1 est persistée ; aucune prescription du jour n'est créée.
-  - L'exigence est imposée par `daily-run`, quel que soit l'interrupteur.
-- **Section `dh_drill_revocations` (PR2)** : une phrase T2 ajoutée, car l'unité DH est toujours exigée.
+- **Chemin V2 de la prescription du jour**, puce « Unité DH signée exigée (T2) » : les cas (a) et (b) du § 1.3, avec les champs exacts.
+  - (a) Comptage sans unité fiable : 200, `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown` ; décision M1 écrite, aucune prescription du jour.
+  - (b) Unité déclarée mais non attribuée (`dh_unit_not_attributed`) : 409 `dh_validation_not_current`, rien n'est écrit.
+- **Section `dh_drill_revocations` (PR2)** :
+  - priorité de T2 : `persist_daily_run_v2` ne contrôle la révocation que si une prescription du jour est à écrire, donc `NX302` ne concerne que les prescriptions dont l'unité est signée ;
+  - verrou `SHARE` : pris à chaque lot par `record_session_execution`, et par `persist_daily_run_v2` seulement si la prescription à écrire contient un exercice DH ;
+  - `TRUNCATE` : réservé au seul propriétaire de la table.
 - **Table des interrupteurs serveur V2** : `NALYNT_V2_PLAN_GENERATION_ENABLED` ne commande aucune protection (T2).
+
+**Patch compagnon (`docs/04`, diff n° 5 de PR2)** : il ajoute une phrase.
+- Depuis T2, un comptage DH sans unité fiable donne 200 `blocked`, avec la décision M1 écrite, exercice révoqué ou non, sans 409.
+- Le refus transactionnel et sa persistance ne concernent que les comptages dont l'unité est signée.
 
 **`docs/11_DECISION_LOG.md`** : une entrée ADR, une fois approuvée par l'architecte et Louis.

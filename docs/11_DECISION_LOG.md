@@ -7266,7 +7266,7 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Contrôle de release** : `docs/review/beta-v2-tech-01/V1_EXEMPTION_RELEASE_GATE_READONLY.sql`, une instruction en lecture seule.
   - Elle vérifie la migration enregistrée, la colonne, les deux contraintes, `pg_constraint.convalidated`, la définition exacte de la contrainte de trace, l'absence de ligne `v1` non conforme et l'accès inchangé (RLS, aucune policy, aucun droit client).
   - Réussite = GO ; échec = STOP avec les motifs. Toute autre erreur vaut STOP.
-  - Preuve sur pile jetable neuve (garde-fou, fixtures TEST) : 10 verdicts sur 10 conformes avec leurs motifs exacts. GO : base neuve, après traçage et VALIDATE. STOP : rollback, ligne v1 historique non tracée, ligne tracée sans VALIDATE, contrainte affaiblie sous le même nom, droit client accordé. La transaction est en lecture seule. Un premier passage avait donné les bons STOP pour une mauvaise raison (erreur de construction de tableau) : corrigé, non compté.
+  - Preuve sur pile jetable neuve (garde-fou, fixtures TEST) : 9 verdicts sur 9 conformes avec leurs motifs exacts, plus 1 preuve de lecture seule (erratum CANON-GATE-03 : « 10 verdicts » auparavant). GO : base neuve, après traçage et VALIDATE. STOP : rollback, ligne v1 historique non tracée, ligne tracée sans VALIDATE, contrainte affaiblie sous le même nom, droit client accordé. La transaction est en lecture seule. Un premier passage avait donné les bons STOP pour une mauvaise raison (erreur de construction de tableau) : corrigé, non compté.
 - **Écartée, option (a)** : faire échouer la migration en présence d'une ligne `v1` non tracée. Il faudrait deux migrations (la colonne, puis la contrainte après traçage), sans gain de protection sur les écritures.
 - **Canon** : S4 est inchangé. Il décrit déjà l'option (b). La condition opérationnelle exacte (contrainte `VALID` avant le déploiement) est dans l'ADR et dans le contrôle ; elle peut entrer dans S4 si l'architecte le demande.
 - **Production** : l'inventaire des affectations existantes et leur régularisation demandent chacun un GO distinct de Louis. Aucun auteur n'est jamais inventé.
@@ -7289,3 +7289,29 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Inchangés** : la migration SQL et son rollback.
 
 **Statut** : STOP. Aucun push, merge, déploiement, changement V2 ON/OFF ni écriture de production.
+
+## 2026-10-29 — CANON-GATE-03 : corrections du verdict architectural indépendant, BETA seulement (LOCAL, STOP)
+
+> **Décision HPM** : GO pour appliquer les corrections du verdict indépendant. Ce verdict a été rendu par un agent neuf, sans le contexte de la session d'implémentation ; il ne remplace pas l'approbation du projet Architecte ni celle de Louis. PR2 `83013c6` n'est pas modifiée. Aucune migration ni logique métier n'est modifiée.
+
+- **ADR § 1.3 : trois cas distincts, champs exacts du code** :
+  - (a) comptage DH sans unité fiable : 200, `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown`, décision M1 écrite, aucune prescription finale ;
+  - (b) unité déclarée mais non attribuée par les signatures (motif de validation `dh_unit_not_attributed`) : 409 `dh_validation_not_current`, rien n'est écrit ;
+  - (c) exercice révoqué dans la prescription finale à écrire : 409 `dh_validation_not_current` (`NX302`), aucune nouvelle décision.
+  - Le code HTTP du cas (b) est `dh_validation_not_current` ; `dh_unit_not_attributed` n'en est que le motif interne (`daily-run/errorMapping.ts:55-57`).
+- **Priorité de T2 sur la révocation** : `persist_daily_run_v2` ne contrôle la révocation que si une prescription du jour est à écrire. Elle est écrite dans S4 (puce T2 et puce de révocation) et dans un nouveau patch compagnon `docs/review/v2-integration/S4_DOCS04_COMPANION.patch`, appliqué après PR2 `83013c6`. Le § 5 de l'ADR est synchronisé.
+- **Corrections complémentaires** :
+  - aucune régénération promise sans unité signée (503 / 422) ;
+  - commentaire de `runDailyFor.ts:418` ;
+  - régularisation : un vrai rider n'est jamais exempté en `v1` (`v2` ou suppression de l'affectation) ;
+  - un STOP n'est jamais levé par comparaison manuelle ;
+  - première application de la migration ; verrou conditionnel ; `TRUNCATE` réservé au propriétaire ;
+  - le contrôle n'arme aucun `statement_timeout` propre.
+- **Contrôle de release** : vérifie aussi la définition de la contrainte de longueur de `decided_by` (STOP `length_constraint_definition_changed`). Le `SET LOCAL statement_timeout`, sans effet dans le bloc DO, est retiré.
+- **Preuves** :
+  - pile jetable neuve : 11 verdicts sur 11 conformes avec leurs motifs exacts, lecture seule prouvée, portée du délai prouvée ;
+  - S4 et le patch compagnon s'appliquent ensemble sur PR2 `83013c6` ;
+  - build et tests unitaires ciblés des invariants 200 / 409 : 26, 12 et 45 réussis.
+- **Erratum** : la preuve CANON-GATE-01 comptait 9 verdicts du contrôle, plus 1 preuve de lecture seule, et non « 10 verdicts ».
+
+**Statut** : STOP. Approbation du projet Architecte et approbations de Louis attendues. Aucun push, merge, déploiement ni activation V2.

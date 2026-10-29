@@ -415,7 +415,7 @@ export async function runDailyFor(
       powerFatigue: powerFatigueGate(dailyPlanV2),
       // V2-PHYS-INTEGRATION-01 — the server's PHYS switches (absent = all off).
       phys: deps.physSwitches ?? {},
-      // V2-DH-UNIT-01 — while V2 is on, no executable DH count without a reliable unit (absent = as before).
+      // V2-DH-UNIT-01, BETA-V2-TECH-01 T2 — "required" when the caller passes it (the daily-run Edge Function always does); absent = not required.
       ...(deps.dhUnit !== undefined ? { dhUnit: deps.dhUnit } : {}),
     });
 
