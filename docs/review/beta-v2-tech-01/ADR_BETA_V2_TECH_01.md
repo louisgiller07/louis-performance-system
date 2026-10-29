@@ -6,10 +6,16 @@
   - B : APPROVE ;
   - exemptions V1 : MODIFY ciblé. L'option (b) est retenue : la migration additive actuelle est conservée, cette ADR décrit son comportement réel (§ 2.3) ;
   - S4 : APPROVE, sous condition de l'approbation du canon PR2.
+- **Décision HPM CANON-GATE-02 (2026-10-29)** : corrections ciblées appliquées :
+  - les deux corrections de S4 (§ 5) ;
+  - les commentaires de code de T2 ;
+  - les conditions de release de l'option (b) (§ 2.3).
+
+  La revue qui les a proposées vient de la même session. Elle ne vaut pas approbation architecturale indépendante.
 - **Approbations formelles** : celles de l'architecte et de Louis sont dues. Aucune n'est présumée.
 - **Implémentation** : sur `beta/v2-tech-01`, depuis `origin/main` `a0a8921`. Elle comprend le contrôle des exemptions V1 : migration `20261027150000`, § 2.3.
   - La branche est publiée en Draft PR #3 (`076721f`, GO de Louis).
-  - Les corrections CANON-GATE-01 sont locales et non poussées.
+  - Les corrections CANON-GATE-01 et CANON-GATE-02 sont locales et non poussées.
 - **Canon** : `docs/05` n'est pas modifié sur cette branche. Le contrat fusionné est le patch S4, appliqué après le canon de PR2 (§ 5).
 - **Interdits respectés** : aucun merge, aucune migration distante, aucun déploiement, aucun changement d'interrupteur, aucune écriture de production.
 
@@ -136,6 +142,15 @@ alter table public.training_plan_model_assignments
      - affectation `v2` pour chaque pilote ;
   4. contrôle de release `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` : **GO obligatoire** ;
   5. déploiement de `generate-training-plan`.
+- **Conditions de release de l'option (b)** (revue CANON-GATE-02, à reprendre telles quelles dans le plan de release BETA, qui n'existe pas encore) :
+  1. **Migration par `db push`** : elle est ainsi enregistrée dans `supabase_migrations.schema_migrations`, ce que le contrôle vérifie. Une migration appliquée autrement donne STOP.
+  2. **Contrôle bloquant après `VALIDATE`** : c'est une étape numérotée et obligatoire, entre l'étape 3 et le déploiement Edge.
+     - Toute erreur vaut STOP, jamais GO.
+     - On ne consigne que les compteurs, aucun identifiant de rider.
+     - Ce blocage est procédural : rien n'empêche techniquement de déployer sans le contrôle. L'étape ne se saute donc jamais.
+  3. **Vérification stricte de la définition** : le contrôle compare la définition rendue par PostgreSQL au texte attendu.
+     - Si le rendu de la production diffère, c'est STOP. On compare alors à la main.
+     - La vérification n'est jamais affaiblie ni retirée sans décision d'architecture.
 - **Tests** :
   - `v1` sans `note` ou sans `decided_by` refusé (23514) ; `v1` complet accepté ; `v2` sans eux accepté ;
   - `anon` et `authenticated` toujours sans accès ;
@@ -189,21 +204,29 @@ alter table public.training_plan_model_assignments
 
 Le texte canonique est le patch `docs/review/v2-integration/S4_DOCS05_MERGED.patch`. Il s'applique sur le `docs/05` de PR2 et remplace les extraits proposés auparavant ici.
 
-Décision HPM CANON-GATE-01 : APPROVE, sous condition de l'approbation du canon PR2. Il est appliqué au merge de BETA, après celui de PR2.
+**Décisions HPM** :
+- CANON-GATE-01 : APPROVE, sous condition de l'approbation du canon PR2 ;
+- CANON-GATE-02 : deux corrections appliquées, issues d'une revue de la même session. Cette revue ne vaut pas approbation architecturale indépendante.
+
+S4 est appliqué au merge de BETA, après celui de PR2.
 
 Contenu :
 - **Section `training_plan_model_assignments`** :
   - l'affectation est l'autorisation de générer ; sans ligne, 403, jamais V1 par défaut ;
-  - `v1` est une exemption tracée (`note` et `decided_by` obligatoires) ;
+  - `v1` est une exemption tracée (`note` et `decided_by` obligatoires). Correction CANON-GATE-02 : S4 énonce la condition complète de l'option (b) :
+    - la contrainte s'applique à toute ligne nouvelle ou modifiée ;
+    - la migration ne la valide que s'il n'existe aucune ligne `v1` ;
+    - les lignes historiques non tracées peuvent subsister et autorisent encore V1 ;
+    - `generate-training-plan` n'est déployée qu'une fois chaque ligne tracée, la contrainte `VALID` et le contrôle de release à GO ;
   - `v2` avec l'interrupteur OFF : 503 (A09) ;
   - affectation illisible : 503 ;
   - aucune conversion ;
   - nouvelle colonne `decided_by`.
+- **Chemin V2 de la prescription du jour** (correction CANON-GATE-02) : une puce dédiée à l'unité DH signée exigée (T2).
+  - Le statut est `blocked`, avec le code `final_prescription_adaptation_not_defined` et le motif `dh_repetition_unit_unknown`.
+  - La décision M1 est persistée ; aucune prescription du jour n'est créée.
+  - L'exigence est imposée par `daily-run`, quel que soit l'interrupteur.
 - **Section `dh_drill_revocations` (PR2)** : une phrase T2 ajoutée, car l'unité DH est toujours exigée.
 - **Table des interrupteurs serveur V2** : `NALYNT_V2_PLAN_GENERATION_ENABLED` ne commande aucune protection (T2).
-
-S4 décrit l'option (b) : contrainte `NOT VALID`, validée par la migration seulement si aucune ligne `v1` n'est sans trace ; sinon la release s'arrête jusqu'au traçage de chaque ligne.
-
-La condition opérationnelle exacte est dans le § 2.3 et dans le contrôle de release : contrainte `VALID` avant le déploiement de `generate-training-plan`. Le canon peut reprendre cette précision si l'architecte le demande ; ce serait une phrase de S4.
 
 **`docs/11_DECISION_LOG.md`** : une entrée ADR, une fois approuvée par l'architecte et Louis.

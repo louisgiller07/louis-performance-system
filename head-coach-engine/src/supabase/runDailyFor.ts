@@ -186,7 +186,11 @@ export interface RunDailyForDeps {
    * Absent = all off: the production daily behaviour before PHYS.
    */
   physSwitches?: ReconcileFinalPrescriptionV2Input["phys"];
-  /** V2-DH-UNIT-01 — "required" while V2 is on (dailyV2/dhUnitRequirement.ts); absent = the production daily behaviour. */
+  /**
+   * V2-DH-UNIT-01, BETA-V2-TECH-01 T2 — "required" (dailyV2/dhUnitRequirement.ts): no executable DH count without its
+   * drill's signed unit. The daily-run Edge Function, the production entry point, always passes it, whatever the V2
+   * generation switch. Absent = not required: a library caller that omits it (tests, tools) runs without this protection.
+   */
   dhUnit?: ReconcileFinalPrescriptionV2Input["dhUnit"];
 }
 

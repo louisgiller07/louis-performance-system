@@ -7272,3 +7272,20 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Production** : l'inventaire des affectations existantes et leur régularisation demandent chacun un GO distinct de Louis. Aucun auteur n'est jamais inventé.
 
 **Statut** : STOP. Verdicts de l'architecte attendus : six diffs PR2 avec R1 ; T2 et B ; option (b) corrigée ; S4 après PR2. Puis approbations de Louis. Aucun push, merge, migration distante, déploiement, écriture de production ni activation V2.
+
+## 2026-10-29 — CANON-GATE-02 : corrections ciblées S4, T2 et conditions de release de l'option (b) (LOCAL, STOP)
+
+> **Décision HPM** : GO pour appliquer les corrections ciblées issues de la revue de la même session. Cette revue ne compte **pas** comme approbation architecturale indépendante : le verdict du projet Architecte et les approbations de Louis restent dus.
+
+- **S4** (`docs/05` fusionné, toujours non appliqué) :
+  - la puce `v1` énonce la condition complète de l'option (b) : contrainte appliquée à toute ligne nouvelle ou modifiée ; validée par la migration seulement s'il n'existe aucune ligne `v1` ; lignes historiques non tracées encore autorisées en V1 ; déploiement de `generate-training-plan` seulement après traçage, `VALID` et GO du contrôle de release ;
+  - une puce dédiée à l'unité DH signée (T2) est ajoutée dans le chemin V2 de la prescription du jour.
+- **Écart avec le texte proposé par la revue** : la puce T2 cite le vrai code. C'est `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown` (`buildFinalPrescriptionV2.ts`), et non « `blocked` (`dh_repetition_unit_unknown`) ».
+- **Commentaires de code T2** (`runDailyFor.ts`, `reconcileFinalPrescriptionV2.ts`, `dhUnitRequirement.ts`) :
+  - ils disaient « required while V2 is on » ou « absent = production » ;
+  - ils disent maintenant que la fonction Edge `daily-run` impose l'exigence à chaque exécution, et qu'un appelant de la bibliothèque qui l'omet (tests, outils) s'en passe.
+  - Aucun changement de logique.
+- **Conditions de release de l'option (b)**, inscrites dans l'ADR § 2.3 en attendant le plan de release BETA, qui n'existe pas encore : migration par `db push` ; contrôle bloquant après `VALIDATE` ; vérification stricte de la définition de la contrainte, jamais affaiblie sans décision d'architecture.
+- **Inchangés** : la migration SQL et son rollback.
+
+**Statut** : STOP. Aucun push, merge, déploiement, changement V2 ON/OFF ni écriture de production.
