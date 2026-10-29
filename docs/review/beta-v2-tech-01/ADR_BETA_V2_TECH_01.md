@@ -1,10 +1,17 @@
 # ADR BETA-V2-TECH-01 — protection DH indépendante de la coupure, et accès bêta par affectation
 
-**Statut** : **PRÊTE POUR APPROBATION** (contrat final).
-- Revue finale HPM (2026-10-29) : T2 et B **approuvés sur le principe**. L'approbation formelle de cette ADR et du canon reste due par l'architecte et Louis.
-- Implémentation locale sur `beta/v2-tech-01` (depuis `origin/main` `a0a8921`), sauf le contrôle des exemptions V1 (§ 2.3), qui est **proposé, non développé**.
-- Le canon (`docs/05`) n'est **pas** modifié : les extraits du § 5 sont proposés.
-- Aucun push, merge, migration, déploiement, changement d'interrupteur ni écriture de production.
+**Statut** : **PRÊTE POUR APPROBATION** (contrat final, corrigé par la décision HPM CANON-GATE-01).
+- **Décision HPM CANON-GATE-01 (2026-10-29)** :
+  - T2 : APPROVE ;
+  - B : APPROVE ;
+  - exemptions V1 : MODIFY ciblé. L'option (b) est retenue : la migration additive actuelle est conservée, cette ADR décrit son comportement réel (§ 2.3) ;
+  - S4 : APPROVE, sous condition de l'approbation du canon PR2.
+- **Approbations formelles** : celles de l'architecte et de Louis sont dues. Aucune n'est présumée.
+- **Implémentation** : sur `beta/v2-tech-01`, depuis `origin/main` `a0a8921`. Elle comprend le contrôle des exemptions V1 : migration `20261027150000`, § 2.3.
+  - La branche est publiée en Draft PR #3 (`076721f`, GO de Louis).
+  - Les corrections CANON-GATE-01 sont locales et non poussées.
+- **Canon** : `docs/05` n'est pas modifié sur cette branche. Le contrat fusionné est le patch S4, appliqué après le canon de PR2 (§ 5).
+- **Interdits respectés** : aucun merge, aucune migration distante, aucun déploiement, aucun changement d'interrupteur, aucune écriture de production.
 
 ## 1. T2 — l'exigence d'unité DH ne dépend d'aucun interrupteur
 
@@ -29,7 +36,10 @@
   - tout programme V2 accepté sans unité signée a ses jours DH bloqués (aujourd'hui le compte de test V2, à régénérer) ;
   - c'est voulu (fail-closed).
 - **Bibliothèque** : `runDailyFor` garde son défaut pour les appelants Node (tests, outils). Le seul point d'entrée de production est la fonction Edge `daily-run`, qui impose la constante (test unitaire).
-- **Intégration avec PR2** : le scénario « production » de `v2DhRevocationDailyRun` ne reflète plus la production. Voir `INTEGRATION_PLAN.md`, S3 : décision de l'architecte.
+- **Intégration avec PR2** : le scénario « production » de `v2DhRevocationDailyRun` ne reflète plus la production.
+  - La résolution S3 a été acceptée par le HPM le 2026-10-29 : le rider devient « legacy ».
+  - Elle ajoute deux cas T2 : un document sans unité est bloqué, avant comme après la révocation.
+  - Voir `docs/review/v2-integration/INTEGRATION_RESULTS.md`.
 - **Retour arrière** : revenir sur le commit, sans reprise de données.
 
 ### Preuves (faites)
@@ -67,7 +77,7 @@
 
 Aucun programme V1 n'est proposé à la place, et aucun canal de contact n'est inventé. À arbitrer : ajouter ou non un canal réel au 403.
 
-### 2.3 Exemptions V1 : contrôle serveur minimal (option A développée localement, candidate)
+### 2.3 Exemptions V1 : contrôle serveur minimal (option A, migration `20261027150000` ; comportement : option (b), HPM CANON-GATE-01)
 
 **Ce qui est déjà garanti** :
 - aucune exemption ne vient du navigateur (§ 2.1) ;
@@ -76,31 +86,64 @@ Aucun programme V1 n'est proposé à la place, et aucun canal de contact n'est i
 
 **Ce qui manque** : une ligne `v1` peut exister **sans motif** (`note` facultative) ni **auteur**. La liste des comptes exemptés n'est donc pas traçable.
 
-**Option A (retenue pour la préparation de l'intégration, HPM 2026-10-29)** : une migration additive, sans changement de code. Développée localement : migration `20261027150000` (entre PR2 et SPORT), rollback, inventaire et contrôle en lecture seule, suite dédiée. Les lignes `v1` existantes ne reçoivent jamais d'auteur inventé : la contrainte reste `NOT VALID` tant qu'il en existe sans trace (`docs/review/v2-integration/INTEGRATION_RESULTS.md` § 5).
+**Option A (retenue, HPM 2026-10-29)** : une migration additive, sans changement de code.
+- Migration `20261027150000`, placée entre PR2 et SPORT, avec son rollback.
+- Contrôles en lecture seule : inventaire, contrôle après migration, contrôle de release.
+- Suite dédiée.
 
 ```sql
 alter table public.training_plan_model_assignments
-  add column decided_by text,
+  add column if not exists decided_by text;
+alter table public.training_plan_model_assignments
   add constraint training_plan_model_assignments_decided_by_length
     check (decided_by is null or (length(trim(decided_by)) > 0 and char_length(decided_by) <= 200)),
   add constraint training_plan_model_assignments_v1_exemption_traced
     check (planning_model <> 'v1' or (note is not null and decided_by is not null)) not valid;
-alter table public.training_plan_model_assignments validate constraint training_plan_model_assignments_v1_exemption_traced;
+-- puis, dans la même migration : VALIDATE seulement si aucune ligne v1 n'est sans motif ou sans auteur ;
+-- sinon la contrainte reste NOT VALID et la migration le signale (NOTICE), sans échouer.
 ```
 
-- **Garantie** : toute exemption `v1` porte un motif (« compte de test : … ») et un auteur. `created_at` et `updated_at` existent déjà. Même forme que `dh_drill_revocations` (`reason`, `decided_by`).
+**Comportement de la migration : option (b), choix HPM CANON-GATE-01 (2026-10-29)**
+- **La migration peut réussir avec des affectations V1 historiques non tracées.**
+  - `decided_by` est une nouvelle colonne : juste après la migration, **toute** ligne `v1` existante est sans auteur.
+  - La contrainte n'est donc validée dans la migration que si la base n'a **aucune** ligne `v1`.
+- **La contrainte `NOT VALID` protège toutes les nouvelles écritures et mises à jour.**
+  - Une nouvelle ligne `v1` sans motif ou sans auteur est refusée (23514).
+  - Une mise à jour d'une ancienne ligne `v1` qui ne pose pas les deux est refusée aussi.
+- **Les anciennes affectations non tracées peuvent subsister.**
+  - Elles autorisent toujours la génération V1, car l'Edge ne lit que `planning_model`.
+  - Aucun auteur n'est jamais inventé : chaque ligne est tracée avec la vraie décision (GO Louis).
+- **La release s'arrête avant le déploiement de `generate-training-plan` tant que la contrainte n'est pas `VALID`.**
+  - Le contrôle exécutable en lecture seule `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` répond GO ou STOP.
+  - Il vérifie notamment `pg_constraint.convalidated`, la définition de la contrainte, l'absence de ligne `v1` non conforme et l'accès inchangé.
+  - Toute erreur vaut STOP.
+- **Option (a), écartée** : faire échouer la migration en présence d'une ligne `v1` non tracée.
+  - Comme le traçage suppose la colonne, il faudrait deux migrations.
+  - Le comportement actuel protège déjà les écritures, et le contrôle de release bloque le déploiement.
+
+- **Garantie** : toute exemption `v1` porte un motif (« compte de test : … ») et un auteur.
+  - Une fois la contrainte `VALID`, c'est vrai aussi des lignes historiques.
+  - `created_at` et `updated_at` existent déjà.
+  - Même forme que `dh_drill_revocations` (`reason`, `decided_by`).
 - **Traçabilité** :
-  - requête de suivi en lecture seule (`planning_model = 'v1'` : compte, motif, auteur, dates) ;
+  - requêtes de suivi en lecture seule (`planning_model = 'v1'` : compte, motif, auteur, dates) ;
   - `rolloutReason: assigned_v1` sur chaque génération V1.
 - **Ordre** :
-  1. contrôle préalable en lecture seule (0 ligne `v1` sans motif ni auteur, sinon la migration échoue : fail-closed) ;
-  2. migration ;
-  3. écritures des affectations (GO Louis) ;
-  4. déploiement de `generate-training-plan`.
+  1. inventaire en lecture seule `V1_EXEMPTION_PREFLIGHT_READONLY.sql` (GO Louis) : lignes `v1`, toutes sans auteur après la migration, et athlètes sans affectation ;
+  2. migration ; la contrainte n'est `VALID` d'emblée que s'il n'existe aucune ligne `v1` ;
+  3. écritures des affectations (GO Louis) :
+     - chaque ligne `v1` historique est tracée avec la vraie décision, puis `VALIDATE` ;
+     - affectation `v2` pour chaque pilote ;
+  4. contrôle de release `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` : **GO obligatoire** ;
+  5. déploiement de `generate-training-plan`.
 - **Tests** :
   - `v1` sans `note` ou sans `decided_by` refusé (23514) ; `v1` complet accepté ; `v2` sans eux accepté ;
   - `anon` et `authenticated` toujours sans accès ;
-  - table de résolution inchangée.
+  - table de résolution inchangée ;
+  - contrôle de release, sur pile jetable neuve (garde-fou, fixtures TEST) : 10 verdicts sur 10 conformes, avec les motifs exacts :
+    - **GO** : base neuve ; après traçage et `VALIDATE` ; après chaque restauration ;
+    - **STOP** : rollback ; ligne `v1` historique non tracée (`NOT VALID`) ; ligne tracée sans `VALIDATE` ; contrainte affaiblie sous le même nom ; droit client accordé ;
+    - le contrôle met sa transaction en lecture seule : une écriture tentée après lui est refusée.
 - **Limite** : le schéma ne sait pas ce qu'est un « compte de test ». Le motif et l'auteur rendent chaque exemption vérifiable, sans la prouver.
 
 **Options écartées** :
@@ -116,8 +159,9 @@ alter table public.training_plan_model_assignments validate constraint training_
 - **Tout compte de production sans affectation** est refusé à sa prochaine génération. Ses programmes actuels continuent au quotidien.
 - **Avant le déploiement**, GO de Louis à chaque fois :
   - `v1` pour chaque compte de test qui garde V1 (motif et auteur) ;
-  - `v2` pour chaque pilote.
-- **Intégration avec PR2** : `v2DhRevocationV1Http` doit recevoir une affectation `v1` (`INTEGRATION_PLAN.md`, S2).
+  - `v2` pour chaque pilote ;
+  - puis le contrôle de release (§ 2.3), qui doit répondre GO.
+- **Intégration avec PR2** : `v2DhRevocationV1Http` reçoit une affectation `v1` tracée dans sa fixture. C'est la résolution S2, acceptée par le HPM le 2026-10-29.
 - **Inscriptions publiques** : non touchées. Un non-invité peut s'inscrire, pas générer.
 
 ### 2.5 Preuves (faites)
@@ -141,22 +185,25 @@ alter table public.training_plan_model_assignments validate constraint training_
 - Les inscriptions publiques (couche A).
 - Les écritures de production des affectations.
 
-## 5. Canon : extraits proposés (non appliqués)
+## 5. Canon : contrat `docs/05` fusionné (patch S4)
 
-**`docs/05_DATA_MODEL.md`, section `training_plan_model_assignments`** (à appliquer après le canon de PR2, qui insère sa section juste en dessous). Remplacer « Aucune ligne créée par la migration : table vide → tout le monde en V1. Résolution : interrupteur inactif → V1, … ; actif sans ligne → V1 ; `v1` → V1 ; `v2` → V2. » par :
+Le texte canonique est le patch `docs/review/v2-integration/S4_DOCS05_MERGED.patch`. Il s'applique sur le `docs/05` de PR2 et remplace les extraits proposés auparavant ici.
 
-> Aucune ligne créée par la migration : table vide → aucune génération possible. Résolution (BETA-V2-TECH-01 B) : l'affectation est l'autorisation de générer.
-> - Sans ligne : refus 403 `beta_access_not_granted`, quel que soit l'interrupteur, rien n'est écrit (jamais V1 par défaut).
-> - `v1` : V1, quel que soit l'interrupteur. Exemption explicite réservée aux comptes de test, avec motif (`note`) et auteur (`decided_by`) obligatoires (contrainte `training_plan_model_assignments_v1_exemption_traced`, si l'option A est retenue).
-> - `v2` : V2 si l'interrupteur est actif, sinon refus 503 `v2_generation_disabled` (A09).
-> - Affectation illisible ou invalide : refus 503 `beta_access_check_unavailable`, rien n'est écrit.
->
-> Aucune conversion entre V1 et V2.
+Décision HPM CANON-GATE-01 : APPROVE, sous condition de l'approbation du canon PR2. Il est appliqué au merge de BETA, après celui de PR2.
 
-**Même section, colonnes** (option A) : ajouter `decided_by` (texte, 1 à 200 caractères, obligatoire pour `v1`).
+Contenu :
+- **Section `training_plan_model_assignments`** :
+  - l'affectation est l'autorisation de générer ; sans ligne, 403, jamais V1 par défaut ;
+  - `v1` est une exemption tracée (`note` et `decided_by` obligatoires) ;
+  - `v2` avec l'interrupteur OFF : 503 (A09) ;
+  - affectation illisible : 503 ;
+  - aucune conversion ;
+  - nouvelle colonne `decided_by`.
+- **Section `dh_drill_revocations` (PR2)** : une phrase T2 ajoutée, car l'unité DH est toujours exigée.
+- **Table des interrupteurs serveur V2** : `NALYNT_V2_PLAN_GENERATION_ENABLED` ne commande aucune protection (T2).
 
-**Table des interrupteurs serveur V2**, ligne `NALYNT_V2_PLAN_GENERATION_ENABLED`, colonne « Ouvre (ON) » :
+S4 décrit l'option (b) : contrainte `NOT VALID`, validée par la migration seulement si aucune ligne `v1` n'est sans trace ; sinon la release s'arrête jusqu'au traçage de chaque ligne.
 
-> éligibilité V2 des athlètes affectés `v2` (`training_plan_model_assignments`) ; **ne commande aucune protection** : l'exigence d'unité DH du quotidien est permanente pour tout document V2 (BETA-V2-TECH-01 T2)
+La condition opérationnelle exacte est dans le § 2.3 et dans le contrôle de release : contrainte `VALID` avant le déploiement de `generate-training-plan`. Le canon peut reprendre cette précision si l'architecte le demande ; ce serait une phrase de S4.
 
-**`docs/11_DECISION_LOG.md`** : une entrée ADR, une fois approuvée.
+**`docs/11_DECISION_LOG.md`** : une entrée ADR, une fois approuvée par l'architecte et Louis.

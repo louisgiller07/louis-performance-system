@@ -7253,3 +7253,22 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Indépendance** : trois destinations distinctes, aucune n'est `main` ; chaque push peut être autorisé seul. L'ordre ne compte que pour les merges (PR2, BETA, SPORT).
 
 **Statut** : STOP avant publication. Aucun push, merge, migration distante, déploiement, changement de flag ni écriture de production.
+
+## 2026-10-29 — CANON-GATE-01 : exemptions V1, option (b), contrôle de release (LOCAL, STOP)
+
+> **Décision HPM** : PR2, six diffs canoniques APPROVE avec R1. BETA T2 APPROVE, B APPROVE. Exemptions V1 : MODIFY ciblé, option (b) — conserver la migration additive `20261027150000` et corriger l'ADR pour décrire son comportement réel. S4 APPROVE sous condition de l'approbation canonique de PR2. Aucune approbation de l'architecte ni de Louis n'est présumée ; leurs réponses réelles sont attendues.
+
+- **Comportement retenu (option (b))** :
+  - la migration peut réussir avec des affectations V1 historiques non tracées. `decided_by` étant nouvelle, c'est le cas dès qu'une ligne `v1` existe ;
+  - la contrainte `NOT VALID` protège toutes les nouvelles écritures et mises à jour ;
+  - les anciennes affectations non tracées peuvent subsister, et elles autorisent encore la génération V1 (l'Edge ne lit que `planning_model`) ;
+  - la release s'arrête avant le déploiement de `generate-training-plan` tant que la contrainte n'est pas `VALID`.
+- **Contrôle de release** : `docs/review/beta-v2-tech-01/V1_EXEMPTION_RELEASE_GATE_READONLY.sql`, une instruction en lecture seule.
+  - Elle vérifie la migration enregistrée, la colonne, les deux contraintes, `pg_constraint.convalidated`, la définition exacte de la contrainte de trace, l'absence de ligne `v1` non conforme et l'accès inchangé (RLS, aucune policy, aucun droit client).
+  - Réussite = GO ; échec = STOP avec les motifs. Toute autre erreur vaut STOP.
+  - Preuve sur pile jetable neuve (garde-fou, fixtures TEST) : 10 verdicts sur 10 conformes avec leurs motifs exacts. GO : base neuve, après traçage et VALIDATE. STOP : rollback, ligne v1 historique non tracée, ligne tracée sans VALIDATE, contrainte affaiblie sous le même nom, droit client accordé. La transaction est en lecture seule. Un premier passage avait donné les bons STOP pour une mauvaise raison (erreur de construction de tableau) : corrigé, non compté.
+- **Écartée, option (a)** : faire échouer la migration en présence d'une ligne `v1` non tracée. Il faudrait deux migrations (la colonne, puis la contrainte après traçage), sans gain de protection sur les écritures.
+- **Canon** : S4 est inchangé. Il décrit déjà l'option (b). La condition opérationnelle exacte (contrainte `VALID` avant le déploiement) est dans l'ADR et dans le contrôle ; elle peut entrer dans S4 si l'architecte le demande.
+- **Production** : l'inventaire des affectations existantes et leur régularisation demandent chacun un GO distinct de Louis. Aucun auteur n'est jamais inventé.
+
+**Statut** : STOP. Verdicts de l'architecte attendus : six diffs PR2 avec R1 ; T2 et B ; option (b) corrigée ; S4 après PR2. Puis approbations de Louis. Aucun push, merge, migration distante, déploiement, écriture de production ni activation V2.

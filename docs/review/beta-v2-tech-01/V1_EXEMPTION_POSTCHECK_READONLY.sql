@@ -3,6 +3,7 @@
 -- Expected: 0 = on; 1 = true; 2 and 3 = true; 4 = true (validated); 5 = 0; 6 = 0; 7 = true (still no policy, no
 -- privilege for anon / authenticated). If 4 = false: 5 lists how many v1 rows still lack a reason or an author; the
 -- release stops (trace them with the real decision, GO Louis, then VALIDATE, then re-run this check).
+-- The binary GO / STOP before the deployment of generate-training-plan is V1_EXEMPTION_RELEASE_GATE_READONLY.sql.
 set transaction read only;
 set local statement_timeout = '30s';
 select
