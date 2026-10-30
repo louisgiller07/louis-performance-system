@@ -7459,3 +7459,34 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - demande de GO pour le merge.
 
 BETA et SPORT restent inchangées. Aucune migration, aucun déploiement Edge, aucune activation V2.
+
+## 2026-10-30 — BETA-INTEGRATION-01 : PR2 intégrée dans BETA (LOCAL, STOP)
+
+> **Décision HPM** : GO pour intégrer PR2 dans BETA en local uniquement. Merge de `origin/main` (`40b1266`) dans `beta/v2-tech-01` (`cbde474`), sans rebase ni force push. S2, S3, S4 et patch compagnon. Aucun push, merge distant, migration de production, déploiement Edge ni changement de flag.
+
+- **Merge** : commit de merge local, parents `cbde474` et `40b1266`.
+  - Les commits approuvés et l'historique publié de PR2 sont conservés.
+  - Les conflits sont résolus par union, sans perte : les `deploymentEnabled` des deux `vercel.json` (trois branches exclues), et les entrées des docs 00 et 11.
+  - CANON-GATE CLOSED et toutes les décisions BETA sont présentes dans `docs/11`. L'ordre suit l'union : entrées BETA, puis PR1 et PR2.
+- **S2 et S3** : repris par cherry-pick depuis l'intégration jetable validée (`6c46399`, `06159dc`). Leurs fichiers de test sont identiques à ceux de `local/v2-integration`.
+- **S4 et patch compagnon `docs/04`** : appliqués tels qu'approuvés au commit `cbde474`, sur le canon de PR2.
+  - Contrôles : plus de « tout le monde en V1 » ni de « actif sans ligne → V1 » ; la règle B, la puce T2 et la priorité de T2 sont présentes.
+- **ADR** : seul le statut change (approuvée, CANON-GATE CLOSED ; canon appliqué sur la branche). Le contrat est inchangé.
+- **Plan de release** : `docs/release/BETA_V2_TECH_01_RELEASE_PLAN.md`, préparé, non exécuté. Il couvre :
+  - la livraison de PR2 comme préalable ;
+  - la version PostgreSQL 17 ;
+  - l'inventaire en lecture seule ;
+  - les décisions d'affectation réelles, sans jamais exempter un vrai rider en `v1` ;
+  - `db push` sous GO ;
+  - la régularisation, puis `VALIDATE` ;
+  - le contrôle bloquant avec psql et `ON_ERROR_STOP`, en ne gardant que les compteurs et les verdicts ;
+  - le déploiement Edge sous GO distinct. Tout STOP interdit le déploiement.
+- **Tests locaux** :
+  - unitaires (job CI `tests`) : planning-engine 1163 (4 ignorés), prescription-engine 96, longitudinal-engine 683, head-coach-engine 1111 (745 ignorés : intégration sans pile), test:edge 67, web 2497 (64 ignorés), verify:sport-approvals PASS (0 exercice signé), tests des portes 34 ;
+  - intégration : pile jetable neuve par étape (garde-fou, `nalynt-dhunit01`, 79 migrations), fonctions servies V2 OFF : S2, T2, B, exemptions V1, powerGuard01 33 réussis (2 ignorés : cas V2 ON) ; S3 6/6 ; révocation PR2 12/12 ; aucune mort de worker, aucun rechargement du runtime ;
+  - un premier passage d'intégration n'a pas tourné, Docker Desktop étant arrêté (aucune pile démarrée). Il a été relancé après le démarrage de Docker, autorisé par Louis.
+- **Contrôles de publication** :
+  - aucun secret dans les lignes ajoutées par rapport à `main`, ni dans les messages ;
+  - `git diff --check` signale seulement les lignes de contexte vides des deux fichiers `.patch`, imposées par le format.
+
+**Statut** : STOP. Le push de BETA demande l'autorisation distincte de Louis. La CI `integration-v2-off` doit être rejouée sur GitHub après ce push : l'exécution sur `076721f` ne vaut pas pour la branche intégrée. Les suites de révocation (`RUN_LOCAL_DH_REVOCATION`) ne tournent pas dans cette CI : leur preuve reste locale.

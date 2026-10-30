@@ -1,6 +1,7 @@
 # ADR BETA-V2-TECH-01 — protection DH indépendante de la coupure, et accès bêta par affectation
 
-**Statut** : **PRÊTE POUR APPROBATION** (contrat final, corrigé par la décision HPM CANON-GATE-01).
+**Statut** : **APPROUVÉE** (CANON-GATE CLOSED, 2026-10-30), telle qu'au commit `cbde474`. Le contrat est inchangé depuis.
+- **Approbation** : Louis a explicitement approuvé les cinq décisions. La revue indépendante est acceptée comme **substitution architecturale exceptionnelle**, ratifiée par Louis : **le projet Architecte n'a pas signé** (`docs/11`, CANON-GATE CLOSED).
 - **Décision HPM CANON-GATE-01 (2026-10-29)** :
   - T2 : APPROVE ;
   - B : APPROVE ;
@@ -17,12 +18,12 @@
   - les conditions de release de l'option (b) (§ 2.3).
 
   La revue qui les a proposées vient de la même session. Elle ne vaut pas approbation architecturale indépendante.
-- **Approbations formelles** : celles de l'architecte et de Louis sont dues. Aucune n'est présumée.
+- **Approbations formelles** : voir le statut ci-dessus (CANON-GATE CLOSED).
 - **Implémentation** : sur `beta/v2-tech-01`, depuis `origin/main` `a0a8921`. Elle comprend le contrôle des exemptions V1 : migration `20261027150000`, § 2.3.
   - La branche est publiée en Draft PR #3 (`076721f`, GO de Louis).
-  - Les corrections CANON-GATE-01, 02 et 03 sont locales et non poussées.
-- **Canon** : `docs/05` n'est pas modifié sur cette branche. Le contrat fusionné est le patch S4, appliqué après le canon de PR2 (§ 5).
-- **Interdits respectés** : aucun merge, aucune migration distante, aucun déploiement, aucun changement d'interrupteur, aucune écriture de production.
+  - Les corrections CANON-GATE-01, 02 et 03 et l'intégration de PR2 (BETA-INTEGRATION-01) sont locales et non poussées.
+- **Canon** : depuis BETA-INTEGRATION-01, S4 et son patch compagnon `docs/04` sont **appliqués sur cette branche**, après le canon de PR2 fusionné dans `main` (`40b1266`) (§ 5).
+- **Interdits respectés** : aucun merge de BETA, aucune migration distante, aucun déploiement Edge, aucun changement d'interrupteur, aucune écriture de production.
 
 ## 1. T2 — l'exigence d'unité DH ne dépend d'aucun interrupteur
 
