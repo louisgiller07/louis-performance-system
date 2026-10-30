@@ -7311,3 +7311,44 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **Le reste est inchangé** : les diffs n° 1 à 4 et 6, la réserve R1, le code et la migration. La copie du diff dans `PR2_CANON_PROPOSED_DIFFS.md` suit la même correction.
 
 **Statut** : STOP. Aucun push, merge, déploiement ni activation V2.
+
+## 2026-10-30 — CANON-GATE CLOSED : canon PR2 et BETA-V2-TECH-01 approuvés
+
+> **Décision HPM** : APPROVED — CANON-GATE CLOSED. Louis a explicitement approuvé les cinq décisions de CANON-GATE. La revue indépendante est acceptée comme **substitution architecturale exceptionnelle**, ratifiée par Louis. **Le projet Architecte n'a pas signé.**
+
+**Les cinq décisions approuvées par Louis** :
+1. **Canon PR2** : les six diffs canoniques (`docs/05` n° 1 à 4, `docs/04` n° 5, `docs/07` n° 6), avec la réserve R1, au commit `83013c6` de `release/v2-dh-revocation`.
+2. **T2** : l'exigence d'unité DH signée est permanente. ADR BETA-V2-TECH-01 § 1, au commit `cbde474` de `beta/v2-tech-01`. Trois cas :
+   - comptage sans unité fiable : 200 `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown`, décision M1 écrite ;
+   - unité retirée des signatures : 409 `dh_validation_not_current`, rien n'est écrit ;
+   - exercice révoqué dans la prescription à écrire : 409 `dh_validation_not_current` (`NX302`), aucune nouvelle décision.
+3. **B** : l'affectation serveur est l'autorisation de générer ; jamais V1 par défaut (ADR § 2.1, 2.2, 2.4, `cbde474`).
+4. **Exemptions V1, option (b)** : migration `20261027150000` inchangée et son rollback, ADR § 2.3 avec les conditions de release, et le contrôle bloquant `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` (`cbde474`).
+5. **S4 et patch compagnon `docs/04`** : à appliquer ensemble au merge de BETA, après le canon PR2 (`cbde474`).
+
+**Approbation architecturale : substitution exceptionnelle, à ne pas présenter comme une signature du projet Architecte.**
+- **Revue indépendante** : un agent neuf, lancé depuis la session d'implémentation mais sans le contexte de sa conversation, avec le dossier et le code seulement.
+  - Verdict : APPROVE sur les quatre ensembles, aucune correction bloquante.
+  - Ce qu'il a fait lui-même : vérification dans le code ; `git apply --check` de S4 et du patch compagnon sur `83013c6` ; les 83 tests unitaires ciblés rejoués, tous verts.
+  - Ce qu'il n'a pas rejoué : les 11 scénarios SQL du contrôle de release (preuve du préparateur, sur pile jetable), les tests d'intégration et HTTP.
+  - Ce qu'il n'a pas vérifié : la version majeure de PostgreSQL en production.
+- **Ratification** : Louis, explicitement.
+
+**Remarques non bloquantes retenues** :
+- **Ordre des merges** : si le merge de BETA ne suit pas de près celui de PR2, reprendre dans PR2 les deux lignes de `docs/05` que S4 corrige (verrou conditionnel de `persist_daily_run_v2`, `TRUNCATE` réservé au propriétaire).
+- **Plan de release BETA** :
+  - le contrôle se lance avec `psql -v ON_ERROR_STOP=1` en capturant le NOTICE, ou bien on joint les compteurs du contrôle après migration (dans l'éditeur SQL, un GO n'apparaît que comme « Success. No rows returned ») ;
+  - vérifier avant le jour J la version majeure de PostgreSQL du projet cible (définitions prouvées sur PG 17 ; un écart donne STOP, jamais un faux GO).
+- **Passe canonique séparée** :
+  - `dh_content_not_signed` donne aussi 409 ;
+  - nommer la variante `dh_full_run_needs_track_data` du 200 `blocked` ;
+  - une réaffectation en `v1` remplacerait le programme (même prudence que R1.2) ;
+  - définir « unité fiable » dans `docs/04` ;
+  - la puce *Chemin V2* (5c.3) de `docs/05` est périmée face à la puce T2.
+
+**Suite** : chaque étape demande un GO distinct de Louis.
+- push correctif de PR2 ;
+- contrôle de la CI et vérification Vercel ;
+- demande de GO pour le merge.
+
+BETA et SPORT restent inchangées. Aucune migration, aucun déploiement Edge, aucune activation V2.
