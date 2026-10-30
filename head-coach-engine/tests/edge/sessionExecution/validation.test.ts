@@ -9,6 +9,7 @@ import {
   REJECTION_STATUS,
   validateSessionExecutionBody,
 } from "../../../../supabase/functions/session-execution/validation.js";
+import { DH_VALIDATION_NOT_CURRENT, DH_VALIDATION_NOT_CURRENT_STATUS } from "../../../../supabase/functions/session-execution/dhValidationGuard.js";
 
 const EXEC_ID = "11111111-1111-4111-8111-111111111111";
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
@@ -146,6 +147,7 @@ describe("REJECTION_STATUS — stable codes", () => {
         "strength_set_required",
         "health_suspended",
         "daily_decision_not_current",
+        "dh_validation_not_current",
       ].sort()
     );
     // UX-11R.9 — a DH completion without a pass is unprocessable; a day already completed is a conflict.
@@ -162,6 +164,9 @@ describe("REJECTION_STATUS — stable codes", () => {
     // P0-3 — an active health suspension, or a daily decision not yet recomputed after a critical signal, is a conflict.
     expect(REJECTION_STATUS.health_suspended).toBe(409);
     expect(REJECTION_STATUS.daily_decision_not_current).toBe(409);
+    // V2-DH-REVOCATION — a drill revoked in the database: the same code and status as the Edge guard's refusal.
+    expect(REJECTION_STATUS[DH_VALIDATION_NOT_CURRENT]).toBe(DH_VALIDATION_NOT_CURRENT_STATUS);
+    expect(REJECTION_STATUS.dh_validation_not_current).toBe(409);
     for (const status of Object.values(REJECTION_STATUS)) {
       expect(status).toBeGreaterThanOrEqual(400);
       expect(status).toBeLessThan(500);

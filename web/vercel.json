@@ -3,7 +3,8 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "git": {
     "deploymentEnabled": {
-      "release/v2-dh-protections-off": false
+      "release/v2-dh-protections-off": false,
+      "release/v2-dh-revocation": false
     }
   }
 }

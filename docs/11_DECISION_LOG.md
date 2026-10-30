@@ -7209,3 +7209,146 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - **CI** : statuts requis liés à GitHub Actions ; intégration de longitudinal-engine exclue du job `tests`.
 
 **Statut** : READY FOR HPM REVIEW (code `d7370ae`). Migration non appliquée ; aucun push, merge, déploiement ni activation V2.
+
+## 2026-10-27 — PR1 : protections techniques V2 OFF publiées (POST-MERGE PASS — CLOSED)
+
+> **Décision HPM** : PR1 POST-MERGE PASS — CLOSED ; production web confirmée sur `a0a8921`.
+
+- **Publication** : PR #1 (`release/v2-dh-protections-off`, `b3c71f8`), poussée puis fusionnée par Louis. `main` `a0a8921`.
+- **Contrôles avant ouverture de la PR** : aucun déploiement Vercel pour la branche, grâce à `git.deploymentEnabled`.
+- **CI GitHub Actions** : `verify:sport-approvals` et `tests` en succès, compteurs identiques au rejeu local.
+- **Inventaire de production** (lecture seule, exécuté par Louis avant le merge) :
+  - 1 programme V2 courant, 26 prescriptions du jour V2, 1 exécution V2 ouverte, 13 prescriptions prévues à venir ;
+  - 0 document portant une unité DH, 0 document hors contrats.
+  - Analyse ciblée : avec V2 OFF, la PR1 ne change le comportement d'aucune de ces données.
+- **Production** :
+  - web `nalynt` et `nalynt-marketing` READY sur `a0a8921`, code PR1 servi ;
+  - fonctions Edge inchangées (`daily-run` v48, `session-execution` v19, `generate-training-plan` v29) ;
+  - 77 migrations ; flags V2 OFF.
+
+**Statut** : CLOSED. Le code Edge de la PR1 n'est pas déployé ; il le sera avec la PR2.
+
+## 2026-10-27 — PR2-DH-REVOCATION-PREP : révocation transactionnelle DH (LOCAL)
+
+> **Décision HPM** : GO LOCAL pour une deuxième PR dédiée à la révocation transactionnelle DH, depuis `main` `a0a8921`, en réutilisant les éléments revus de `feat/sport-plan-03-v2-contracts`.
+
+- **Migration** `20261027120000_v2_dh_drill_revocation.sql` (SQL 78) : le candidat revu, sans changement de SQL.
+  - Table en ajout seul réservée aux opérateurs.
+  - `record_session_execution` et `persist_daily_run_v2` redéfinies depuis leurs corps actuels, avec le garde READ COMMITTED (`NX301`), le verrou `SHARE` et les refus.
+  - Aucune migration postérieure à `power_guard_01` ne redéfinit ces deux fonctions : rien n'est écrasé.
+- **Rollback** : `supabase/rollbacks/v2_dh_revocation/`, refusé tant qu'une révocation existe.
+- **`session-execution`** : `REJECTION_STATUS` relaie le `dh_validation_not_current` de la RPC (409). Le mapping `NX302` → 409 du daily-run est déjà dans `main` (PR1).
+- **Tests** : `powerGuard01` épingle le nouveau corps ; suites de révocation (stack fraîche, opt-in) dont un rider V2 OFF fidèle à la production ; V1 de bout en bout en HTTP.
+- **Preuves** :
+  - Code Edge et schéma de production (77 migrations), sur une stack locale jetable peuplée par les tests (données fictives), migrée puis remise en arrière : aucune ligne existante modifiée (40 tables, empreintes identiques). Aucune donnée ni base de production utilisée.
+  - Ancien code Edge sur la base migrée : une seule différence, l'empreinte de fonction attendue.
+- **Déploiement** : sans suspension des écritures. Ordre : migration, puis `session-execution`, puis `daily-run`. Toutes les fenêtres intermédiaires sont prouvées. `generate-training-plan` n'est pas redéployée.
+- **Canon** : diffs proposés pour `docs/05`, `docs/04` et `docs/07`, non appliqués (`docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md`).
+
+**Statut** : READY FOR HPM REVIEW (branche locale `release/v2-dh-revocation`). Aucun push, merge, migration ni déploiement ; aucune activation V2.
+
+## 2026-10-28 — PR2-DH-REVOCATION : revue HPM (APPROVED WITH CONDITIONS — LOCAL)
+
+> **Décision HPM** : orientation technique validée ; S1 à S4 suffisants pour préparer la publication GitHub, sans nouvelle campagne générale.
+
+- **Confirmé** :
+  - smoke V1 de production après le déploiement seulement (compte de test, accord distinct), pas avant la PR ;
+  - aucune révocation réelle comme test ;
+  - ordre migration → `session-execution` → `daily-run` accepté provisoirement ;
+  - pas de suspension globale des écritures sans risque résiduel démontré ;
+  - V2 OFF.
+- **S1 précisé** : stack Docker locale reconstruite, données fictives créées par les tests, aucune commande ni clé de production. La formule « base de production » de l'entrée précédente désignait le schéma (77 migrations), pas les données.
+- **Typecheck** : 28 erreurs, ensemble identique à `main` `a0a8921` (fichier, ligne, colonne, code), revérifié sur le SHA final.
+- **Canon** : approbation définitive des diffs `docs/05`, `docs/04` et `docs/07` exigée avant le merge, pas avant le premier push. Classement et points à arbitrer : `docs/review/pr2-dh-revocation/PR2_CANON_PROPOSED_DIFFS.md`.
+
+**Statut** : APPROVED WITH CONDITIONS — LOCAL. Push sur GO explicite de Louis seulement ; aucun merge, migration, déploiement ni révocation.
+
+## 2026-10-28 — PR2-DH-REVOCATION : dernières corrections avant push (LOCAL)
+
+> **Décision HPM** : préparation approuvée sur le fond ; HOLD sur le push jusqu'à la protection Vercel de la branche et la revue des droits de la fonction d'aide. Décisions produit de principe : refus fail-closed et absence de décision du jour acceptables pour une révocation de sécurité ; correction en avant obligatoire. Approbations formelles du canon avant le merge.
+
+- **Vercel** :
+  - `release/v2-dh-revocation` est ajoutée à `git.deploymentEnabled` (`false`) dans `web/vercel.json` et `marketing-site/vercel.json`, à côté de `release/v2-dh-protections-off` ;
+  - les deux fichiers sont valides selon le schéma officiel ;
+  - `main` et les autres branches sont inchangées ; aucune règle `true` ne peut annuler l'exclusion.
+- **Moindre privilège** : `execution_dh_revocation_block` gardait l'`EXECUTE` que les privilèges par défaut de Supabase donnent à `service_role`. La fonction était donc appelable en `/rpc` (200), alors que `execution_health_block` renvoie 403.
+  - La migration le retire, dans sa transaction : c'est la seule ligne SQL changée ; corps et empreintes md5 inchangés.
+  - Aucun appel légitime n'en dépend : seule `record_session_execution` l'appelle (SECURITY DEFINER, même propriétaire).
+  - Le contrôle post-migration vérifie maintenant `PUBLIC`, `anon`, `authenticated`, `service_role`, le propriétaire et SECURITY DEFINER / INVOKER.
+  - Tests rejoués, chacun sur une stack fraîche : S3 12/12 ; S4 4/4 ; parcours d'exécution (8 fichiers) 57/57 ; contrôle post-migration entièrement vrai.
+- **Invariant REST / Safety** : `health_flag_to_create` n'existe que dans la branche Safety de `buildDailyPlan`, qui renvoie une séance finale et une décision REST, sans exercice. Une révocation ne peut donc pas faire perdre un signal de santé.
+
+**Statut** : corrections intégrées localement. Push sur autorisation explicite de Louis seulement.
+
+## 2026-10-28 — PR2-DH-REVOCATION : premier push, canon et réserve R1
+
+> **Décision HPM** : PR2 FIRST PUSH APPROVED & CLOSED. Les six diffs canoniques sont acceptés sur le principe, avec la réserve R1. Les approbations formelles de l'architecte et de Louis restent obligatoires.
+
+- **Publication** :
+  - `release/v2-dh-revocation` `0c9f332` poussée seule, sans force ;
+  - Draft PR #2 vers `main` `a0a8921` (19 fichiers, DO NOT MERGE) ;
+  - CI `verify:sport-approvals` et `tests` SUCCESS ;
+  - aucun déploiement Vercel de la branche ni du SHA.
+- **Correction en avant** (démontrée par le code et par S4) : retirer un exercice révoqué des signatures côté code ne rétablit pas le service.
+  - Les signatures ne gouvernent que l'unité DH, et les tables sont vides en production.
+  - Les programmes V2 enregistrés gardent l'exercice : KEEP le copie, et REPLACE ou une séance manuelle le resélectionnent de façon déterministe.
+- **Réserve R1** :
+  - le basculement V2 → V1 n'est pas une procédure sûre : le catalogue V1 partage les 21 identifiants de ses exercices avec V2, la sélection V1 est déterministe, et le chemin V1 ne lit pas la révocation ;
+  - d'ici une démonstration contraire, la procédure est la suspension contrôlée des entraînements concernés (le refus livré), avec information du rider ;
+  - V2-DH-WITHDRAWAL (P0 avant l'activation de V2, non développé) devra neutraliser les anciennes prescriptions. `blocked` est une protection, pas une restauration : il faut un remplacement ou une replanification sûre, et la couverture de V1 et de l'affichage.
+- **Canon** : les six diffs (`docs/05` n° 1 à 4, `docs/04` n° 5, `docs/07` n° 6) sont appliqués mot pour mot dans un commit dédié, local. Ils ne promettent aucun rétablissement et précisent le périmètre V2. Le commit sera retiré si l'approbation est refusée.
+- **Rollback** : message corrigé (« a revocation is permanent: fix forward only ») ; l'ancien laissait croire à un retour possible. Assertion S3 sur le message complet ; S3 rejoué sur stack fraîche. Commentaires d'en-tête de la migration et du rollback alignés, aucun corps de fonction changé.
+
+**Statut** : commits locaux, non poussés. En attente de l'approbation formelle du commit canonique par l'architecte et Louis, puis du GO de Louis pour le push. Aucun merge, migration, déploiement ni révocation. V2 OFF.
+
+## 2026-10-29 — CANON-GATE-02 : diff canonique n° 5 de PR2 précisé (LOCAL, STOP)
+
+> **Décision HPM** : GO pour appliquer les corrections ciblées issues de la revue de la même session. Cette revue ne compte **pas** comme approbation architecturale indépendante : le verdict du projet Architecte et les approbations de Louis restent dus.
+
+- **`docs/04`, diff n° 5** :
+  - une décision déjà enregistrée le même jour n'a son exécution refusée que si **sa propre** prescription contient l'exercice révoqué (comme `record_session_execution` l'applique déjà) ;
+  - « contiendrait » est corrigé deux fois, en « la prescription du jour à écrire contient ».
+- **Le reste est inchangé** : les diffs n° 1 à 4 et 6, la réserve R1, le code et la migration. La copie du diff dans `PR2_CANON_PROPOSED_DIFFS.md` suit la même correction.
+
+**Statut** : STOP. Aucun push, merge, déploiement ni activation V2.
+
+## 2026-10-30 — CANON-GATE CLOSED : canon PR2 et BETA-V2-TECH-01 approuvés
+
+> **Décision HPM** : APPROVED — CANON-GATE CLOSED. Louis a explicitement approuvé les cinq décisions de CANON-GATE. La revue indépendante est acceptée comme **substitution architecturale exceptionnelle**, ratifiée par Louis. **Le projet Architecte n'a pas signé.**
+
+**Les cinq décisions approuvées par Louis** :
+1. **Canon PR2** : les six diffs canoniques (`docs/05` n° 1 à 4, `docs/04` n° 5, `docs/07` n° 6), avec la réserve R1, au commit `83013c6` de `release/v2-dh-revocation`.
+2. **T2** : l'exigence d'unité DH signée est permanente. ADR BETA-V2-TECH-01 § 1, au commit `cbde474` de `beta/v2-tech-01`. Trois cas :
+   - comptage sans unité fiable : 200 `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown`, décision M1 écrite ;
+   - unité retirée des signatures : 409 `dh_validation_not_current`, rien n'est écrit ;
+   - exercice révoqué dans la prescription à écrire : 409 `dh_validation_not_current` (`NX302`), aucune nouvelle décision.
+3. **B** : l'affectation serveur est l'autorisation de générer ; jamais V1 par défaut (ADR § 2.1, 2.2, 2.4, `cbde474`).
+4. **Exemptions V1, option (b)** : migration `20261027150000` inchangée et son rollback, ADR § 2.3 avec les conditions de release, et le contrôle bloquant `V1_EXEMPTION_RELEASE_GATE_READONLY.sql` (`cbde474`).
+5. **S4 et patch compagnon `docs/04`** : à appliquer ensemble au merge de BETA, après le canon PR2 (`cbde474`).
+
+**Approbation architecturale : substitution exceptionnelle, à ne pas présenter comme une signature du projet Architecte.**
+- **Revue indépendante** : un agent neuf, lancé depuis la session d'implémentation mais sans le contexte de sa conversation, avec le dossier et le code seulement.
+  - Verdict : APPROVE sur les quatre ensembles, aucune correction bloquante.
+  - Ce qu'il a fait lui-même : vérification dans le code ; `git apply --check` de S4 et du patch compagnon sur `83013c6` ; les 83 tests unitaires ciblés rejoués, tous verts.
+  - Ce qu'il n'a pas rejoué : les 11 scénarios SQL du contrôle de release (preuve du préparateur, sur pile jetable), les tests d'intégration et HTTP.
+  - Ce qu'il n'a pas vérifié : la version majeure de PostgreSQL en production.
+- **Ratification** : Louis, explicitement.
+
+**Remarques non bloquantes retenues** :
+- **Ordre des merges** : si le merge de BETA ne suit pas de près celui de PR2, reprendre dans PR2 les deux lignes de `docs/05` que S4 corrige (verrou conditionnel de `persist_daily_run_v2`, `TRUNCATE` réservé au propriétaire).
+- **Plan de release BETA** :
+  - le contrôle se lance avec `psql -v ON_ERROR_STOP=1` en capturant le NOTICE, ou bien on joint les compteurs du contrôle après migration (dans l'éditeur SQL, un GO n'apparaît que comme « Success. No rows returned ») ;
+  - vérifier avant le jour J la version majeure de PostgreSQL du projet cible (définitions prouvées sur PG 17 ; un écart donne STOP, jamais un faux GO).
+- **Passe canonique séparée** :
+  - `dh_content_not_signed` donne aussi 409 ;
+  - nommer la variante `dh_full_run_needs_track_data` du 200 `blocked` ;
+  - une réaffectation en `v1` remplacerait le programme (même prudence que R1.2) ;
+  - définir « unité fiable » dans `docs/04` ;
+  - la puce *Chemin V2* (5c.3) de `docs/05` est périmée face à la puce T2.
+
+**Suite** : chaque étape demande un GO distinct de Louis.
+- push correctif de PR2 ;
+- contrôle de la CI et vérification Vercel ;
+- demande de GO pour le merge.
+
+BETA et SPORT restent inchangées. Aucune migration, aucun déploiement Edge, aucune activation V2.
