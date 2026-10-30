@@ -184,6 +184,13 @@ export async function handleGenerateTrainingPlan(
       // V2-L2-01a — off unless the Edge secret is exactly "true".
       ...(parseV2PlanGenerationFlag(deps.readV2HistoryFlag?.()) ? { v2History: true } : {}),
     });
+
+    if (result.status === "access_not_granted") {
+      // BETA-V2-TECH-01 B — no server-side assignment: the beta access is not granted. Never a V1 plan by default.
+      console.warn("generate-training-plan: athlete without planning model assignment -> refused");
+      await recordPilotEvent(ctx.supabaseAdmin, { eventType: "plan_generation_blocked", athleteId, generationRequestId: generationRequestIdValue, blockedReason: "beta_access_not_granted", rolloutReason: result.reason });
+      return errorResponse(403, "beta_access_not_granted", "Training plan generation is not enabled for this account.");
+    }
     const modelTrace = { planningModel: result.planningModel, rolloutReason: result.reason };
 
     if (result.status === "v2_disabled") {

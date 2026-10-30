@@ -1,0 +1,194 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Louis Giller <louis.giller@sottas.ch>
+Date: Thu, 29 Oct 2026 08:54:22 +0100
+Subject: [PATCH] test(integration S3): PR2 revocation daily run under
+ BETA-V2-TECH-01 T2 - the unit-less rider is legacy rows; the production entry
+ point blocks it
+
+- The "production" rider (daily run without the unit requirement) no longer models production after T2: it is renamed
+  "legacy", the rows production holds from before T2. Its existing proofs are unchanged (unit-less rows served before
+  T2; after the revocation their re-run and their execution are refused).
+- Two new cases on the production entry point since T2 (DAILY_DH_UNIT_REQUIREMENT): the legacy unit-less DH day is
+  blocked (dh_repetition_unit_unknown), nothing prescribed, before and after the revocation.
+- The revocation proof itself stays on the signed (TEST unit) rider, unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ ...v2DhRevocationDailyRun.integration.test.ts | 72 +++++++++++++------
+ 1 file changed, 52 insertions(+), 20 deletions(-)
+
+diff --git a/head-coach-engine/tests/supabase/v2DhRevocationDailyRun.integration.test.ts b/head-coach-engine/tests/supabase/v2DhRevocationDailyRun.integration.test.ts
+index 0dc3eef..536075f 100644
+--- a/head-coach-engine/tests/supabase/v2DhRevocationDailyRun.integration.test.ts
++++ b/head-coach-engine/tests/supabase/v2DhRevocationDailyRun.integration.test.ts
+@@ -6,8 +6,11 @@
+  * acceptance, M1, reconciliation and persist_daily_run_v2.
+  *
+  * Two V2 riders:
+- *  - production (V2 OFF, as in production today): sign-off tables EMPTY, a V2 plan whose DH counts state no unit (as
+- *    plans generated before V2-DH-UNIT-01), the daily run without dhUnit (flag off);
++ *  - legacy: sign-off tables EMPTY (as in production), a V2 plan whose DH counts state no unit (as plans generated
++ *    before V2-DH-UNIT-01), and daily decisions / final prescriptions written WITHOUT the unit requirement: the rows
++ *    production holds from before BETA-V2-TECH-01 T2. Since T2 the production daily run ALWAYS requires the signed unit
++ *    (DAILY_DH_UNIT_REQUIREMENT): those unit-less DH days are then blocked (dh_repetition_unit_unknown), nothing
++ *    prescribed, before as after the revocation (integration S3, proven below);
+  *  - signed (V2 ON conditions): the daily run requires the signed DH unit (dhUnit "required"); sign-offs and the common
+  *    validation are TEST fixtures routed through the REAL gate (planning-engine dist), not sports decisions — the
+  *    code-level sign-off stays OPEN for every drill, so the refusals below come from the database revocation alone.
+@@ -30,6 +33,7 @@ import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/ath
+ import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
+ import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
+ import { runDailyFor, DEFAULT_RUN_DAILY_FOR_DEPS } from "../../src/supabase/runDailyFor.js";
++import { DAILY_DH_UNIT_REQUIREMENT } from "../../src/supabase/dailyV2/dhUnitRequirement.js";
+ import { DhDrillRevokedError } from "../../src/supabase/dailyV2/persistDailyRunV2.js";
+ import { resolveHealthFlag } from "../../../supabase/functions/health-flag-resolution/resolveHealthFlag.js";
+ import { generateTrainingPlanForAthlete } from "../../src/generation/generateTrainingPlanForAthlete.js";
+@@ -78,18 +82,23 @@ type Item = { kind: string; drillId?: string; measure?: Record<string, unknown>
+ type Structure = { family: string; sessionKind: string; blocks: { role: string; items: Item[] }[] };
+ type Served = { day: string; decisionId: string; finalPrescriptionId: string; drills: string[] };
+ type Key = "keep" | "modify" | "replace" | "manual";
+-type RiderKind = "production" | "signed";
++type RiderKind = "legacy" | "signed";
+ 
+ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill revoked in the database (disposable local Supabase)", { timeout: 300_000 }, () => {
+   let admin: SupabaseClient;
+   const riders = {} as Record<RiderKind, string>;
+-  const served = { production: {}, signed: {} } as Record<RiderKind, Partial<Record<Key | "concurrent", Served>>>;
++  const served = { legacy: {}, signed: {} } as Record<RiderKind, Partial<Record<Key | "concurrent", Served>>>;
+ 
+-  /** The rider's daily run: production = V2 OFF (no dhUnit, empty sign-offs); signed = V2 ON conditions. */
++  /** The rider's daily run: legacy = as written before T2 (no dhUnit, empty sign-offs); signed = V2 ON conditions. */
+   const daily = (kind: RiderKind, day: string) => {
+-    if (kind === "production") productionSignoffs();
++    if (kind === "legacy") productionSignoffs();
+     else testSignoffs();
+-    return runDailyFor(admin, riders[kind], day, kind === "production" ? DEFAULT_RUN_DAILY_FOR_DEPS : { ...DEFAULT_RUN_DAILY_FOR_DEPS, dhUnit: "required" });
++    return runDailyFor(admin, riders[kind], day, kind === "legacy" ? DEFAULT_RUN_DAILY_FOR_DEPS : { ...DEFAULT_RUN_DAILY_FOR_DEPS, dhUnit: "required" });
++  };
++  /** The production daily run since BETA-V2-TECH-01 T2, on the legacy rider: the daily-run Edge Function's own requirement. */
++  const productionAfterT2 = (day: string) => {
++    productionSignoffs();
++    return runDailyFor(admin, riders.legacy, day, { ...DEFAULT_RUN_DAILY_FOR_DEPS, ...DAILY_DH_UNIT_REQUIREMENT });
+   };
+   const failureOf = (p: Promise<unknown>) =>
+     p.then(
+@@ -99,7 +108,7 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+   const count = (sql: string) => execLocalSql(sql).trim();
+   const decisionsOn = (athleteId: string, day: string) => count(`select count(*) from public.decisions where athlete_id = ${sqlLiteral(athleteId)} and decision_date = ${sqlLiteral(day)};`);
+   const latestDecisionOn = (athleteId: string, day: string) => count(`select id from public.decisions where athlete_id = ${sqlLiteral(athleteId)} and decision_date = ${sqlLiteral(day)} order by created_at desc, id desc limit 1;`);
+-  const finalPrescriptions = () => count(`select count(*) from public.decision_final_prescriptions where athlete_id in (${sqlLiteral(riders.production)}, ${sqlLiteral(riders.signed)});`);
++  const finalPrescriptions = () => count(`select count(*) from public.decision_final_prescriptions where athlete_id in (${sqlLiteral(riders.legacy)}, ${sqlLiteral(riders.signed)});`);
+   const revokeAsOperator = (drills: readonly string[]) =>
+     `set role service_role;\ninsert into public.dh_drill_revocations (drill_id, reason, decided_by) values ${drills.map((d) => `(${sqlLiteral(d)}, 'TEST fixture: safety revocation (not a sports decision)', 'TEST operator')`).join(", ")};`;
+   async function finalOf(decisionId: string) {
+@@ -156,12 +165,12 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+     }
+     admin = createTestClient();
+ 
+-    // Production: a V2 plan as generated before V2-DH-UNIT-01 — no sign-off, no unit required, counts without a unit.
++    // Legacy: a V2 plan as generated before V2-DH-UNIT-01 — no sign-off, no unit required, counts without a unit.
+     productionSignoffs();
+-    riders.production = await rider("production (V2 OFF)");
+-    const legacy = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: riders.production, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
++    riders.legacy = await rider("legacy (written before T2)");
++    const legacy = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: riders.legacy, generationRequestId: randomUUID(), durationWeeks: 2, today: GENERATED_ON });
+     if (legacy.status !== "persisted") throw new Error(`expected a persisted V2 plan, got ${JSON.stringify(legacy)}`);
+-    await acceptTrainingPlanVersion(admin, riders.production, legacy.planVersionId, "2026-10-05", "2026-10-18");
++    await acceptTrainingPlanVersion(admin, riders.legacy, legacy.planVersionId, "2026-10-05", "2026-10-18");
+ 
+     // Signed: the V2 ON generation path, test sign-offs.
+     testSignoffs();
+@@ -171,7 +180,7 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+     await acceptTrainingPlanVersion(admin, riders.signed, generated.planVersionId, "2026-10-05", "2026-10-18");
+   }, 240_000);
+ 
+-  it("before any revocation: KEEP, MODIFY, REPLACE and a manual DH are served to both riders — unit-less counts with V2 OFF, signed units under V2 ON conditions", async () => {
++  it("before any revocation: KEEP, MODIFY, REPLACE and a manual DH are served to both riders — unit-less counts written before T2 (legacy), signed units under V2 ON conditions", async () => {
+     const scenarios: [Key | "concurrent", string, CheckinFixture | undefined, string, string, string][] = [
+       ["keep", "2026-10-12", undefined, "KEEP", "keep", "generated"],
+       ["modify", "2026-10-13", SYSTEMIC_RED, "MODIFY", "modify", "generated"],
+@@ -179,9 +188,9 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+       ["manual", "2026-10-07", undefined, "KEEP", "keep", "manual_override_new_kind"],
+       ["concurrent", "2026-10-05", undefined, "KEEP", "keep", "generated"],
+     ];
+-    for (const kind of ["production", "signed"] as const) {
++    for (const kind of ["legacy", "signed"] as const) {
+       for (const [key, day, checkin, decision, action, origin] of scenarios) {
+-        if (key === "concurrent" && kind === "production") continue;
++        if (key === "concurrent" && kind === "legacy") continue;
+         const label = `${kind} ${key}`;
+         if (key === "manual") await manualDh(riders[kind], day);
+         await insertCheckin(admin, riders[kind], day, checkin);
+@@ -190,12 +199,23 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+         const f = await finalOf(r.persistence.decision_id);
+         expect([f.action, f.origin, f.structure.family], label).toEqual([action, origin, "dh_technical"]);
+         expect(f.drills.length, label).toBeGreaterThan(0);
+-        expect(f.units, label).toEqual(kind === "production" ? ["none"] : ["SECTION"]);
++        expect(f.units, label).toEqual(kind === "legacy" ? ["none"] : ["SECTION"]);
+         served[kind][key] = { day, decisionId: r.persistence.decision_id, finalPrescriptionId: f.id, drills: f.drills };
+       }
+     }
+   });
+ 
++  it("BETA-V2-TECH-01 T2 (integration S3) — the production daily run now requires the signed unit: the legacy rider's unit-less DH day is blocked (dh_repetition_unit_unknown), nothing prescribed", async () => {
++    const day = "2026-10-05";
++    await insertCheckin(admin, riders.legacy, day);
++    const fpsBefore = finalPrescriptions();
++    const r = await productionAfterT2(day);
++    expect([r.dailyPlan.decision, r.finalPrescriptionStatus]).toEqual(["KEEP", "blocked"]);
++    expect(JSON.stringify([r.finalPrescriptionStatusCode, r.finalPrescriptionStatusDetail])).toContain("dh_repetition_unit_unknown");
++    expect(count(`select count(*) from public.decision_final_prescriptions where decision_id = ${sqlLiteral(r.persistence.decision_id)};`)).toBe("0");
++    expect(finalPrescriptions()).toBe(fpsBefore);
++  });
++
+   it("a revocation being written while a V2 run persists: the run waits for it, then refuses (DhDrillRevokedError); nothing written", async () => {
+     const { day, decisionId, drills } = served.signed.concurrent!;
+     const revocation = spawn("docker", ["exec", "-i", localDbContainer(), "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-At"], { stdio: ["pipe", "pipe", "pipe"] });
+@@ -224,10 +244,10 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+ 
+   it("after the revocation: KEEP, MODIFY, REPLACE and manual are each refused for both riders, nothing written, never a REST; the earlier decision of the day stays and its execution is refused", async () => {
+     const keys = ["keep", "modify", "replace", "manual"] as const;
+-    const all = [...new Set((["production", "signed"] as const).flatMap((kind) => keys.flatMap((k) => served[kind][k]!.drills)))].sort();
++    const all = [...new Set((["legacy", "signed"] as const).flatMap((kind) => keys.flatMap((k) => served[kind][k]!.drills)))].sort();
+     execLocalSql(revokeAsOperator(all));
+     const fpsBefore = finalPrescriptions();
+-    for (const kind of ["production", "signed"] as const) {
++    for (const kind of ["legacy", "signed"] as const) {
+       for (const key of keys) {
+         const label = `${kind} ${key}`;
+         const { day, decisionId, finalPrescriptionId, drills } = served[kind][key]!;
+@@ -235,7 +255,7 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+         expect(failure, label).toBeInstanceOf(DhDrillRevokedError);
+         expect((failure as DhDrillRevokedError).drillIds, label).toEqual(drills);
+         expect([decisionsOn(riders[kind], day), latestDecisionOn(riders[kind], day)], label).toEqual(["1", decisionId]);
+-        // The frozen document of the day — unit-less with V2 OFF — cannot be started any more.
++        // The frozen document of the day — unit-less for the legacy rider — cannot be started any more.
+         expect(await start(riders[kind], randomUUID(), finalPrescriptionId, day), label).toMatchObject({ status: "rejected", code: "dh_validation_not_current" });
+       }
+       // A day never analysed: a manual DH there is refused too, no decision at all.
+@@ -248,9 +268,21 @@ describe.skipIf(!ENABLED)("V2-DH-REVOCATION — the V2 daily run and a DH drill
+     expect(finalPrescriptions()).toBe(fpsBefore);
+   });
+ 
++  it("BETA-V2-TECH-01 T2 (integration S3) — after the revocation, the production daily run blocks a unit-less DH of the legacy rider on the unit requirement: nothing prescribed (the revocation proof itself stays on the signed rider)", async () => {
++    const fresh = "2026-10-16";
++    await manualDh(riders.legacy, fresh);
++    await insertCheckin(admin, riders.legacy, fresh);
++    const fpsBefore = finalPrescriptions();
++    const r = await productionAfterT2(fresh);
++    expect(r.finalPrescriptionStatus).toBe("blocked");
++    expect(JSON.stringify([r.finalPrescriptionStatusCode, r.finalPrescriptionStatusDetail])).toContain("dh_repetition_unit_unknown");
++    expect(count(`select count(*) from public.decision_final_prescriptions where decision_id = ${sqlLiteral(r.persistence.decision_id)};`)).toBe("0");
++    expect(finalPrescriptions()).toBe(fpsBefore);
++  });
++
+   it("unaffected by the revocation: a Force day is served (both riders); a REST stays a REST (persisted, no final prescription); a V1 rider is served (V1 path)", async () => {
+     const force = "2026-10-08";
+-    for (const kind of ["production", "signed"] as const) {
++    for (const kind of ["legacy", "signed"] as const) {
+       await insertCheckin(admin, riders[kind], force);
+       const f = await daily(kind, force);
+       expect([f.dailyPlan.decision, f.dailyPlan.final_session.kind, f.finalPrescriptionStatus], kind).toEqual(["KEEP", "STRENGTH_UPPER", "created"]);
+-- 
+2.54.0.windows.1
+

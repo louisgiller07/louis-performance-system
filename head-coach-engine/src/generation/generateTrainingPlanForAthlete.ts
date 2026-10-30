@@ -12,11 +12,13 @@
  * generation is blocked or fails gets that outcome, never a V1 plan.
  * A09 — the assignment is read whatever the switch: an athlete assigned V2
  * while the switch is off is refused (`v2_disabled`), nothing generated.
+ * BETA-V2-TECH-01 B — an athlete without assignment is refused
+ * (`access_not_granted`), nothing generated: never V1 by default.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { generateAndPersistTrainingPlan } from "../supabase/generateAndPersistTrainingPlan.js";
 import { generateAndPersistTrainingPlanV2 } from "./v2/generateAndPersistTrainingPlanV2.js";
-import { getPlanningModelAssignment, resolvePlanningModelForAthlete, type PlanningModelResolution } from "./planningModelRollout.js";
+import { getPlanningModelAssignment, resolvePlanningModelForAthlete, type PlanningModelNotAssigned, type PlanningModelResolution } from "./planningModelRollout.js";
 
 export interface GenerateTrainingPlanForAthleteInput {
   /** Service-role client; athleteId must come from the caller's authenticated identity, never from client input. */
@@ -40,12 +42,14 @@ export interface GenerateTrainingPlanForAthleteInput {
 // Derived from the V2 path itself, so this dispatcher stays outside the Session Model V2 import boundary.
 type V2BlockedOutcome = Extract<Awaited<ReturnType<typeof generateAndPersistTrainingPlanV2>>, { status: "blocked" }>;
 
-export type GenerateTrainingPlanForAthleteResult = PlanningModelResolution &
-  (
-    | { status: "persisted"; planVersionId: string; idempotentReplay: boolean }
-    | { status: "blocked"; code: V2BlockedOutcome["code"]; detail: V2BlockedOutcome["detail"] }
-    | { status: "v2_disabled" }
-  );
+export type GenerateTrainingPlanForAthleteResult =
+  | (PlanningModelResolution &
+      (
+        | { status: "persisted"; planVersionId: string; idempotentReplay: boolean }
+        | { status: "blocked"; code: V2BlockedOutcome["code"]; detail: V2BlockedOutcome["detail"] }
+        | { status: "v2_disabled" }
+      ))
+  | (PlanningModelNotAssigned & { status: "access_not_granted" });
 
 export interface GenerateTrainingPlanForAthleteDeps {
   getPlanningModelAssignment: typeof getPlanningModelAssignment;
@@ -61,6 +65,7 @@ export async function generateTrainingPlanForAthlete(
 ): Promise<GenerateTrainingPlanForAthleteResult> {
   const assignment = await deps.getPlanningModelAssignment(input.client, input.athleteId);
   const resolution = resolvePlanningModelForAthlete({ globalV2Enabled: input.globalV2Enabled, assignment });
+  if (resolution.planningModel === null) return { ...resolution, status: "access_not_granted" };
   if (resolution.reason === "assigned_v2_disabled") return { ...resolution, status: "v2_disabled" };
   const common = { client: input.client, athleteId: input.athleteId, generationRequestId: input.generationRequestId, durationWeeks: input.durationWeeks, today: input.today };
 

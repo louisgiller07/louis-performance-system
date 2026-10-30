@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Louis Giller <louis.giller@sottas.ch>
+Date: Thu, 29 Oct 2026 08:55:28 +0100
+Subject: [PATCH] test(integration S1): the SPORT no-bypass case generates its
+ second plan with the runtime's TEST-signed bundle (BETA-V2-TECH-01 T2)
+
+After the merge the SPORT case called generateAndPersistTrainingPlanV2, whose import BETA had removed (git merged it
+silently: TS2304). The file runs on the TEST-signed V2 ON runtime since BETA; its first plan already comes from
+generateSignedV2Plan. Generation call only: assertions unchanged.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../tests/supabase/a5P0Hardening.integration.test.ts          | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/head-coach-engine/tests/supabase/a5P0Hardening.integration.test.ts b/head-coach-engine/tests/supabase/a5P0Hardening.integration.test.ts
+index 4655c1f..47b1632 100644
+--- a/head-coach-engine/tests/supabase/a5P0Hardening.integration.test.ts
++++ b/head-coach-engine/tests/supabase/a5P0Hardening.integration.test.ts
+@@ -572,8 +572,8 @@ describe.skipIf(!EDGE)("SPORT-SAFE-02 A5-P0 — concussion hardening (local stac
+     await insertPlannedSession(r.athleteId, free, { session_type: "DH_TECHNICAL", intervention: { kind: "DH_TECHNICAL", load_profile: "MODERATE", duration_min: 90 }, is_committed: true });
+     await insertCheckin(admin, r.athleteId, free);
+     const manual = await rerun(r, free);
+-    const p2 = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: r.athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: "2026-10-12" });
+-    if (p2.status !== "persisted") throw new Error("plan 2");
++    // Integration S1 (BETA-V2-TECH-01 T2): the new plan comes from the runtime's TEST-signed bundle, as the first one.
++    const p2 = await generateSignedV2Plan(admin, r.athleteId, "2026-10-12");
+     await acceptTrainingPlanVersion(admin, r.athleteId, p2.planVersionId, "2026-10-13", "2026-10-26");
+     const { data } = await admin.from("planned_sessions").select("planned_date, intervention").eq("athlete_id", r.athleteId).gte("planned_date", "2026-10-13").order("planned_date");
+     const dhDay = (data as { planned_date: string; intervention: { kind: string } | null }[]).find((x) => x.intervention?.kind.startsWith("DH_"))!.planned_date;
+-- 
+2.54.0.windows.1
+

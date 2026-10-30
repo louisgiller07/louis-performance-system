@@ -11,6 +11,7 @@ import {
   GenerationBlockedError,
   NoCompatibleDrillError,
   NoCompatibleExerciseError,
+  PlanningModelAssignmentReadError,
   type GenerationBlockedReason,
 } from "../../../head-coach-engine/dist/edge/generateTrainingPlan.bundle.js";
 
@@ -66,6 +67,11 @@ export function mapGenerateTrainingPlanError(error: unknown): MappedGenerateTrai
       code: "no_compatible_exercise",
       message: "No strength exercise matches the declared equipment and strength experience tier.",
     };
+  }
+  // BETA-V2-TECH-01 B — the access check itself failed (assignment unreadable or invalid): refused before any
+  // generation, never a V1 plan by default; retryable, the account's access is not judged.
+  if (error instanceof PlanningModelAssignmentReadError) {
+    return { status: 503, code: "beta_access_check_unavailable", message: "Training plan generation is temporarily unavailable." };
   }
   return { status: 500, code: "internal_error", message: "An unexpected error occurred while generating the training plan." };
 }

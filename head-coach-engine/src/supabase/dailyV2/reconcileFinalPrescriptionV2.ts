@@ -81,7 +81,7 @@ export interface ReconcileFinalPrescriptionV2Input {
   powerFatigue?: PowerFatigueGate;
   /** V2-PHYS-INTEGRATION-01 — the server's PHYS switches (physDailySwitches.ts); absent = all off, the production behaviour. */
   phys?: PhysSwitchesV2;
-  /** V2-DH-UNIT-01 — "required" while V2 is on (dhUnitRequirement.ts): no executable DH count without a reliable unit. Absent = as before. */
+  /** V2-DH-UNIT-01, BETA-V2-TECH-01 T2 — "required" (dhUnitRequirement.ts): no executable DH count without a reliable unit. Always passed by the daily-run Edge Function, whatever the generation switch; absent = not required (a caller that omits it, e.g. a test). */
   dhUnit?: "required";
 }
 

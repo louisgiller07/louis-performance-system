@@ -53,7 +53,7 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
   const assign = (athleteId: string, model: "v1" | "v2" | null) =>
     model === null
       ? execLocalSql(`delete from public.training_plan_model_assignments where athlete_id = ${sqlLiteral(athleteId)};`)
-      : execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note) values (${sqlLiteral(athleteId)}, '${model}', 'R2 test')
+      : execLocalSql(`insert into public.training_plan_model_assignments (athlete_id, planning_model, note, decided_by) values (${sqlLiteral(athleteId)}, '${model}', 'R2 test', 'TEST operator (not a real decision)')
   on conflict (athlete_id) do update set planning_model = excluded.planning_model;`);
   const generate = (athleteId: string, globalV2Enabled: boolean, generationRequestId = randomUUID()) =>
     generateTrainingPlanForAthlete({ client: admin, athleteId, generationRequestId, durationWeeks: 2, today: TODAY, globalV2Enabled });
@@ -74,12 +74,18 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
     expect(execLocalSql(`select count(*) from public.training_plan_model_assignments where athlete_id = ${sqlLiteral(b.athleteId)};`).trim()).toBe("0");
   });
 
-  it("global OFF: A (assigned v2) → refused, no version written (A09 guard: never V1); B → V1", async () => {
+  it("global OFF: A (assigned v2) → refused, no version written (A09 guard: never V1); B not assigned → refused (B rule), then assigned v1 → V1", async () => {
     const before = versionsSnapshot(a.athleteId);
     expect(await generate(a.athleteId, false)).toEqual({ planningModel: "v2", reason: "assigned_v2_disabled", status: "v2_disabled" });
     expect(versionsSnapshot(a.athleteId)).toBe(before);
+    // BETA-V2-TECH-01 B — no assignment, no generation, whatever the switch: never V1 by default.
+    const beforeB = versionsSnapshot(b.athleteId);
+    for (const on of [false, true]) expect(await generate(b.athleteId, on)).toEqual({ planningModel: null, reason: "not_assigned", status: "access_not_granted" });
+    expect(versionsSnapshot(b.athleteId)).toBe(beforeB);
+    // The explicit V1 exemption (a test account).
+    assign(b.athleteId, "v1");
     const r = await generate(b.athleteId, false);
-    expect(r).toMatchObject({ planningModel: "v1", reason: "global_v2_disabled", status: "persisted" });
+    expect(r).toMatchObject({ planningModel: "v1", reason: "assigned_v1", status: "persisted" });
     if (r.status === "persisted") expect(await schemaOf(r.planVersionId)).toBe("v1");
   }, 120_000);
 
@@ -94,12 +100,12 @@ describe.skipIf(!INTEGRATION_ENABLED)("UX-11R.2 — server-side V2 rollout flag 
     }
   }, 120_000);
 
-  it("global ON: A → V2 (persisted V2 plan), B → V1 (V2-ready profile never triggers V2)", async () => {
+  it("global ON: A → V2 (persisted V2 plan), B assigned v1 → V1 (V2-ready profile never triggers V2)", async () => {
     const ra = await generate(a.athleteId, true);
     expect(ra).toMatchObject({ planningModel: "v2", reason: "assigned_v2", status: "persisted" });
     if (ra.status === "persisted") expect(await schemaOf(ra.planVersionId)).toBe("v2");
     const rb = await generate(b.athleteId, true);
-    expect(rb).toMatchObject({ planningModel: "v1", reason: "default_v1", status: "persisted" });
+    expect(rb).toMatchObject({ planningModel: "v1", reason: "assigned_v1", status: "persisted" });
     if (rb.status === "persisted") expect(await schemaOf(rb.planVersionId)).toBe("v1");
   }, 120_000);
 

@@ -4,12 +4,12 @@
  * secret) and the athlete's server-side assignment
  * (`training_plan_model_assignments`, service_role only) decide.
  *
- *   switch not exactly "true", assignment 'v2' → refused (assigned_v2_disabled): A09 paid-beta guard,
- *                                      an athlete assigned V2 never silently falls back to V1
- *   switch not exactly "true", otherwise → v1 (global_v2_disabled)
- *   switch on, no assignment         → v1 (default_v1)
- *   switch on, assignment 'v1'       → v1 (assigned_v1)
- *   switch on, assignment 'v2'       → v2 (assigned_v2)
+ * BETA-V2-TECH-01 B (candidate, ADR pending approval) — the assignment IS the authorization to generate:
+ *   assignment 'v2', switch on       → v2 (assigned_v2)
+ *   assignment 'v2', switch off      → refused 503 (assigned_v2_disabled): A09, never a V1 plan
+ *   assignment 'v1', either switch   → v1 (assigned_v1): the explicit exemption, for test accounts only
+ *   no assignment, either switch     → refused 403 (not_assigned): never V1 by default
+ * No conversion between V1 and V2 in either direction; an unreadable assignment throws (refused, nothing generated).
  *
  * Generation only: daily-run, final prescriptions, guided sessions and
  * executions follow the data already persisted, never this choice. The
@@ -21,11 +21,17 @@ import type { PlanningModel } from "./v2/runInMemoryPlanGenerationV2.js";
 /** Name of the Edge secret; only the exact value "true" enables V2 eligibility. */
 export const V2_PLAN_GENERATION_FLAG = "NALYNT_V2_PLAN_GENERATION_ENABLED";
 
-export type PlanningModelReason = "global_v2_disabled" | "default_v1" | "assigned_v1" | "assigned_v2" | "assigned_v2_disabled";
+export type PlanningModelReason = "assigned_v1" | "assigned_v2" | "assigned_v2_disabled";
 
 export interface PlanningModelResolution {
   planningModel: PlanningModel;
   reason: PlanningModelReason;
+}
+
+/** BETA-V2-TECH-01 B — no assignment: no model at all (refused 403), never V1 by default. */
+export interface PlanningModelNotAssigned {
+  planningModel: null;
+  reason: "not_assigned";
 }
 
 /** Absent, empty, "TRUE", "1", "yes"… → off. Only "true" turns V2 eligibility on. */
@@ -46,12 +52,13 @@ export const V2_POWER_SESSIONS_FLAG = "NALYNT_V2_POWER_ENABLED";
 /** PHYS-04 — name of the Edge secret adding a mobility session to consolidation weeks of a V2 plan (MOBILITY_PLAN_POLICY_V2). Same parsing; absent = the previous plans. */
 export const V2_MOBILITY_SESSIONS_FLAG = "NALYNT_V2_MOBILITY_ENABLED";
 
-export function resolvePlanningModelForAthlete(input: { globalV2Enabled: boolean; assignment: PlanningModel | null }): PlanningModelResolution {
-  // A09 — the switch stays a real V2 kill switch, and an athlete assigned V2 is refused, never served V1.
-  if (!input.globalV2Enabled) return input.assignment === "v2" ? { planningModel: "v2", reason: "assigned_v2_disabled" } : { planningModel: "v1", reason: "global_v2_disabled" };
-  if (input.assignment === "v2") return { planningModel: "v2", reason: "assigned_v2" };
+export function resolvePlanningModelForAthlete(input: { globalV2Enabled: boolean; assignment: PlanningModel | null }): PlanningModelResolution | PlanningModelNotAssigned {
+  // BETA-V2-TECH-01 B — no assignment, no generation: the beta access is never granted by default.
+  if (input.assignment === null) return { planningModel: null, reason: "not_assigned" };
+  // The explicit V1 exemption does not depend on the V2 switch.
   if (input.assignment === "v1") return { planningModel: "v1", reason: "assigned_v1" };
-  return { planningModel: "v1", reason: "default_v1" };
+  // A09 — the switch stays a real V2 kill switch, and an athlete assigned V2 is refused, never served V1.
+  return input.globalV2Enabled ? { planningModel: "v2", reason: "assigned_v2" } : { planningModel: "v2", reason: "assigned_v2_disabled" };
 }
 
 export class PlanningModelAssignmentReadError extends Error {

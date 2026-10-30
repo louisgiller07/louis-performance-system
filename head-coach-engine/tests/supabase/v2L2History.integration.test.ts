@@ -452,6 +452,9 @@ describe.skipIf(!ENABLED)("V2-L2-01a — V2 generation history, real paths (loca
 
   it("10 — V1 rider: the V1 snapshot is identical byte for byte, switch on or off (never read)", async () => {
     const athleteId = await rider("v1");
+    // BETA-V2-TECH-01 B — V1 only through the explicit exemption (a test account), never by default.
+    const { error: assignError } = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v1", note: "V2-L2-01a V1 test rider", decided_by: "TEST operator (not a real decision)" });
+    if (assignError) throw new Error(assignError.message);
     for (const [date, status, minutes] of [["2026-10-12", "done", 60], ["2026-10-14", "skipped", null], ["2026-10-15", "replaced", 30]] as const) {
       const { error } = await admin.rpc("persist_completed_session", {
         p_athlete_id: athleteId,

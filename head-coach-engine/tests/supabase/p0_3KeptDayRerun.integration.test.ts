@@ -7,6 +7,12 @@
  * Checked each time: the execution and its frozen prescription and results untouched, no second execution, earlier
  * decisions and prescriptions untouched, what the day's current decision now offers (Today) and whether a new
  * session could start.
+ *
+ * BETA-V2-TECH-01 T1 — the scenario generates and accepts V2 plans, so it needs the V2 ON runtime with TEST sign-offs
+ * (NALYNT_TEST_EDGE_V2_MODE=on_test_signed, tests/edge/http/buildTestSignedEdgeBundle.mjs). Its first plan is generated
+ * by THAT runtime's own generation bundle (generateTrainingPlanForAthlete: assignment, switch on, dhUnit "required"),
+ * on a past "today", so the plan carries the same signed units as the daily document the runtime builds. The bundle
+ * must carry the TEST mark: never a plan without units, never production sign-offs invented by the test.
  */
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
@@ -14,20 +20,20 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, setAthleteDiscipline } from "./testDb.js";
 import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral as lit } from "./localDb.js";
+import { runtimeGeneration, signedRuntimeRequested } from "./signedRuntimeV2.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
-import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { addCalendarDays, productToday } from "../../src/supabase/productCalendar.js";
 
-const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
+const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && signedRuntimeRequested();
 const EXECUTABLE = ["DH_TECHNICAL", "STRENGTH_UPPER", "STRENGTH_LOWER"];
 
 type Item = { kind: string; prescriptionItemId: string; measure: { type: string } };
 type Structure = { family: string; blocks: { role: string; items: Item[] }[] };
 type Body = Record<string, unknown>;
 
-describe.skipIf(!EDGE)("P0-3 — kept day re-run through the local Edge runtime (rider JWT, product today)", { timeout: 300_000 }, () => {
+describe.skipIf(!EDGE)("P0-3 — kept day re-run through the local Edge runtime (rider JWT, product today; V2 ON, TEST sign-offs)", { timeout: 300_000 }, () => {
   let admin: SupabaseClient;
   const today = productToday();
   const report: Record<string, unknown> = { today };
@@ -52,6 +58,7 @@ describe.skipIf(!EDGE)("P0-3 — kept day re-run through the local Edge runtime 
 
   /** A V2-assigned rider whose accepted plan has an executable session today (plan generated a few days ago). */
   async function riderTrainingToday(label: string) {
+    const generate = await runtimeGeneration();
     for (let k = 1; k <= 7; k += 1) {
       const { athleteId } = await createTestAthlete(admin, `P0-3 kept day ${label} ${randomUUID().slice(0, 6)}`);
       await setAthleteDiscipline(admin, athleteId, "Downhill");
@@ -67,8 +74,8 @@ describe.skipIf(!EDGE)("P0-3 — kept day re-run through the local Edge runtime 
       const { error } = await admin.from("training_plan_model_assignments").insert({ athlete_id: athleteId, planning_model: "v2", note: "P0-3 kept-day test" });
       if (error) throw new Error(error.message);
       const generatedOn = addCalendarDays(today, -k);
-      const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: generatedOn });
-      if (p.status !== "persisted") throw new Error("plan 1");
+      const p = await generate({ client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: generatedOn, globalV2Enabled: true });
+      if (p.status !== "persisted" || p.planningModel !== "v2") throw new Error(`plan 1: ${p.status} ${p.planningModel}`);
       await acceptTrainingPlanVersion(admin, athleteId, p.planVersionId, addCalendarDays(generatedOn, 1), addCalendarDays(generatedOn, 14));
       const { data } = await admin.from("planned_sessions").select("intervention").eq("athlete_id", athleteId).eq("planned_date", today).maybeSingle();
       const kind = (data as { intervention: { kind: string } | null } | null)?.intervention?.kind;

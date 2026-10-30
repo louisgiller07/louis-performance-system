@@ -12,14 +12,15 @@ import { writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import { createTestAthlete, createTestClient, getAthleteAuthClient, insertCheckin, insertRace, setAthleteDiscipline } from "./testDb.js";
+import { generateSignedV2Plan, signedRuntimeRequested } from "./signedRuntimeV2.js";
 import { assertLocalDbReady, execLocalSql, localIntegrationRequested, sqlLiteral as lit } from "./localDb.js";
 import { upsertPerformanceProfileFor } from "../../src/supabase/repositories/athletePerformanceProfileRepo.js";
 import { insertAvailabilityWindow } from "../../src/supabase/repositories/athleteAvailabilityWindowsRepo.js";
-import { generateAndPersistTrainingPlanV2 } from "../../src/generation/v2/generateAndPersistTrainingPlanV2.js";
 import { acceptTrainingPlanVersion } from "../../src/supabase/acceptTrainingPlanVersion.js";
 import { addCalendarDays } from "../../src/supabase/productCalendar.js";
 
-const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1";
+const EDGE = localIntegrationRequested({ requirePublishableKey: true }) && process.env.RUN_LOCAL_P0_EDGE === "1" && signedRuntimeRequested();
+// BETA-V2-TECH-01 T2 — DH sessions need signed units: these Edge scenarios run on the TEST-signed V2 ON runtime only.
 
 type Item = { kind: string; prescriptionItemId: string; measure: { type: string; count?: number } };
 type Structure = { family: string; blocks: { role: string; items: Item[] }[] };
@@ -63,7 +64,7 @@ describe.skipIf(!EDGE)("P0-3 — health suspension enforcement on guided session
       dh_technical_tier: "intermediate",
     });
     for (const d of [0, 1, 2, 3, 4, 5, 6]) await insertAvailabilityWindow(admin, athleteId, { day_of_week: d, start_time: "08:00:00", end_time: "20:00:00" });
-    const p = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: "2026-10-04" });
+    const p = await generateSignedV2Plan(admin, athleteId, "2026-10-04");
     if (p.status !== "persisted") throw new Error("plan");
     await acceptTrainingPlanVersion(admin, athleteId, p.planVersionId, "2026-10-05", "2026-10-18");
     const { data } = await admin.from("planned_sessions").select("planned_date, intervention").eq("athlete_id", athleteId).order("planned_date");
@@ -255,7 +256,7 @@ describe.skipIf(!EDGE)("P0-3 — health suspension enforcement on guided session
     const k = await rider("kept-day");
     const kd = k.dhDays[0]!;
     const ks = await running(k, kd);
-    const p2 = await generateAndPersistTrainingPlanV2({ planningModel: "v2", client: admin, athleteId: k.athleteId, generationRequestId: randomUUID(), durationWeeks: 2, today: kd });
+    const p2 = await generateSignedV2Plan(admin, k.athleteId, kd);
     if (p2.status !== "persisted") throw new Error("plan 2");
     const accepted = await acceptTrainingPlanVersion(admin, k.athleteId, p2.planVersionId, kd, addCalendarDays(kd, 13));
     const kr = await invoke(k.client, "daily-run", { date: kd });

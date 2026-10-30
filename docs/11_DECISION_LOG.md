@@ -7210,6 +7210,113 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 
 **Statut** : READY FOR HPM REVIEW (code `d7370ae`). Migration non appliquée ; aucun push, merge, déploiement ni activation V2.
 
+## 2026-10-28 — BETA-V2-TECH-01 : prérequis techniques de la bêta V2 (LOCAL, ADR PROPOSÉE)
+
+> **Mandat HPM** : GO pour un développement local ciblé : T1 (tests V2 ON), T2 (coupure d'urgence sans lever de protection), B (autorisation bêta), T4 (conception seulement). Le garde-fou Docker/Supabase est accepté pour les campagnes contrôlées.
+
+- **T1** : `p0_3KeptDayRerun` génère son premier programme avec le bundle signé « test » du runtime ; les suites qui exigent V2 ON ne tournent plus que dans cette partition. Aucune signature inventée, moteur inchangé.
+- **T2 (candidate)** : `daily-run` exige toujours l'unité DH signée d'un document V2 (`DAILY_DH_UNIT_REQUIREMENT`), quel que soit `NALYNT_V2_PLAN_GENERATION_ENABLED`. Contre-preuve sur l'ancien code. Cinq suites passent par la génération signée.
+- **B (candidate)** : l'affectation serveur est l'autorisation de générer. Sans affectation : 403 `beta_access_not_granted`, jamais V1 ; `v1` : exemption explicite ; `v2` hors interrupteur : 503 (A09) ; affectation illisible : 503 `beta_access_check_unavailable`. Testé sur la fonction Edge dans trois runtimes.
+- **ADR** : `docs/review/beta-v2-tech-01/ADR_BETA_V2_TECH_01.md`, extraits `docs/05` proposés, non appliqués.
+- **T4** : conception d'une suspension par famille, jamais déguisée en REST ; non développée.
+
+**Statut** : STOP pour revue HPM et Louis. Aucun push, merge, migration, déploiement, écriture de production ni activation V2.
+
+## 2026-10-29 — BETA-V2-TECH-01 : revue finale HPM (LOCAL, ADR PRÊTE POUR APPROBATION)
+
+> **Verdict HPM** : GO local avec conditions. T1 accepté comme correction de tests. T2 (exigence d'unité DH indépendante de l'interrupteur) et B (absence d'affectation = 403, jamais de V1 implicite) approuvés sur le principe ; approbations formelles de l'ADR et du canon toujours dues.
+
+- **V2 OFF** : un passage complet strictement propre (s18-2 : 1 254/1 254, 0 échec, 0 mort de worker, 0 rechargement). Deux obstacles intermittents de l'environnement Windows sont isolés, sans échec d'assertion : arrêt natif des workers vitest (`0xC0000409`, Node 24, sans module natif ni exception) et rechargements parasites de `functions serve` (aucun fichier modifié). La CI ne lance aucune suite d'intégration. Dossier : `V2_OFF_STABILITY.md`.
+- **ADR** : contrat final T2 et B ; exemptions V1 : option A proposée (colonne `decided_by` et contrainte « motif et auteur obligatoires pour `v1` », migration additive), non développée.
+- **T4** : contrat exécutable minimal (table `prescription_suspensions`, contrôles serveur dans la transaction, statut existant `blocked` / `prescription_suspended`, 16 cas de test), non développé.
+- **Intégration** : conflits textuels limités aux docs 00/11/12 et aux imports d'un test ; quatre conflits sémantiques identifiés (S1 à S4) ; ordre recommandé PR2, BETA, SPORT. Aucune fusion faite.
+
+**Statut** : STOP pour revue HPM et Louis. Aucun push, merge, migration distante, déploiement, changement d'interrupteur ni écriture en production.
+
+## 2026-10-29 — V2 INTEGRATION PREPARATION : PR2, BETA, SPORT (LOCAL, STOP)
+
+> **Décision HPM** : BETA-V2-TECH-01 APPROVED WITH CONDITIONS pour la préparation de l'intégration. Aucun merge ni déploiement. Validations restant obligatoires : ADR BETA et `docs/05` (architecte et Louis), canon PR2 R1 (architecte et Louis), cohérence des contrats (HPM), GO de Louis pour chaque push et merge, aucune signature sportive automatique.
+
+- **Ordre** : PR2, puis BETA, puis SPORT, sur une branche locale jetable ; branches sources conservées séparées.
+- **S1** : le cas SPORT « no bypass » génère son second programme avec le bundle signé « test » (le fichier ne compilait plus après fusion). **S2** : affectation `v1` tracée dans la fixture HTTP V1 de PR2. **S3** : le rider « production » du quotidien de révocation de PR2 devient « legacy » (lignes antérieures à T2) ; deux cas au point d'entrée de production après T2 ; la preuve de révocation reste sur le rider signé « test ». **S4** : contrat `docs/05` fusionné, proposé, non appliqué.
+- **Exemptions V1** (option A) : colonne `decided_by` et contrainte « motif et auteur obligatoires pour `v1` », migration additive `20261027150000` placée entre PR2 et SPORT ; aucun auteur inventé pour les lignes existantes (contrainte laissée `NOT VALID` et release arrêtée tant qu'il en existe sans trace).
+- **Preuve V2 OFF hors de Windows** : 4 passages sur 4 propres dans un conteneur Linux du même poste ; preuve hors du poste prête (job CI `integration-v2-off`), exécutable seulement après un push autorisé.
+
+**Statut** : STOP pour décision HPM et Louis. Aucun push, merge, migration distante, déploiement, écriture de production ni activation V2.
+
+## 2026-10-29 — V2 INTEGRATION : PUBLICATION READINESS (LOCAL, STOP)
+
+> **Décision HPM** : intégration locale `8568470` APPROVED WITH CONDITIONS. S1, S2, S3 acceptés ; S4 favorable sur le principe, soumis à l'approbation formelle du canon ; preuve V2 OFF Linux locale acceptée (4 sur 4), CI indépendante requise avant le merge BETA. Préparer la publication des trois Draft PR, sans campagne rejouée sans motif. Aucun push sans GO spécifique de Louis.
+
+- **Déploiement automatique (constat)** : les projets Vercel `nalynt` et `nalynt-marketing` déploient toute branche poussée, sauf exclusion par `git.deploymentEnabled`. PR2 l'avait ; BETA et SPORT reçoivent la même exclusion avant tout push. Un merge sur `main` déploie le web en production : BETA livre des messages inertes, SPORT le formulaire de commotion à catégorie obligatoire. Aucune intégration Supabase : migrations et fonctions restent manuelles.
+- **Dépôt public** : un push publie tout l'historique poussé. 0 secret dans les trois push. Le dossier de l'incident local de SPORT décrit le poste de travail : copie de publication `pub/sport-v2-corrections-01` sans ce dossier ni ces détails (historique vérifié commit par commit, code identique à la source). Choix entre cette copie et la source : décision de Louis.
+- **Indépendance** : trois destinations distinctes, aucune n'est `main` ; chaque push peut être autorisé seul. L'ordre ne compte que pour les merges (PR2, BETA, SPORT).
+
+**Statut** : STOP avant publication. Aucun push, merge, migration distante, déploiement, changement de flag ni écriture de production.
+
+## 2026-10-29 — CANON-GATE-01 : exemptions V1, option (b), contrôle de release (LOCAL, STOP)
+
+> **Décision HPM** : PR2, six diffs canoniques APPROVE avec R1. BETA T2 APPROVE, B APPROVE. Exemptions V1 : MODIFY ciblé, option (b) — conserver la migration additive `20261027150000` et corriger l'ADR pour décrire son comportement réel. S4 APPROVE sous condition de l'approbation canonique de PR2. Aucune approbation de l'architecte ni de Louis n'est présumée ; leurs réponses réelles sont attendues.
+
+- **Comportement retenu (option (b))** :
+  - la migration peut réussir avec des affectations V1 historiques non tracées. `decided_by` étant nouvelle, c'est le cas dès qu'une ligne `v1` existe ;
+  - la contrainte `NOT VALID` protège toutes les nouvelles écritures et mises à jour ;
+  - les anciennes affectations non tracées peuvent subsister, et elles autorisent encore la génération V1 (l'Edge ne lit que `planning_model`) ;
+  - la release s'arrête avant le déploiement de `generate-training-plan` tant que la contrainte n'est pas `VALID`.
+- **Contrôle de release** : `docs/review/beta-v2-tech-01/V1_EXEMPTION_RELEASE_GATE_READONLY.sql`, une instruction en lecture seule.
+  - Elle vérifie la migration enregistrée, la colonne, les deux contraintes, `pg_constraint.convalidated`, la définition exacte de la contrainte de trace, l'absence de ligne `v1` non conforme et l'accès inchangé (RLS, aucune policy, aucun droit client).
+  - Réussite = GO ; échec = STOP avec les motifs. Toute autre erreur vaut STOP.
+  - Preuve sur pile jetable neuve (garde-fou, fixtures TEST) : 9 verdicts sur 9 conformes avec leurs motifs exacts, plus 1 preuve de lecture seule (erratum CANON-GATE-03 : « 10 verdicts » auparavant). GO : base neuve, après traçage et VALIDATE. STOP : rollback, ligne v1 historique non tracée, ligne tracée sans VALIDATE, contrainte affaiblie sous le même nom, droit client accordé. La transaction est en lecture seule. Un premier passage avait donné les bons STOP pour une mauvaise raison (erreur de construction de tableau) : corrigé, non compté.
+- **Écartée, option (a)** : faire échouer la migration en présence d'une ligne `v1` non tracée. Il faudrait deux migrations (la colonne, puis la contrainte après traçage), sans gain de protection sur les écritures.
+- **Canon** : S4 est inchangé. Il décrit déjà l'option (b). La condition opérationnelle exacte (contrainte `VALID` avant le déploiement) est dans l'ADR et dans le contrôle ; elle peut entrer dans S4 si l'architecte le demande.
+- **Production** : l'inventaire des affectations existantes et leur régularisation demandent chacun un GO distinct de Louis. Aucun auteur n'est jamais inventé.
+
+**Statut** : STOP. Verdicts de l'architecte attendus : six diffs PR2 avec R1 ; T2 et B ; option (b) corrigée ; S4 après PR2. Puis approbations de Louis. Aucun push, merge, migration distante, déploiement, écriture de production ni activation V2.
+
+## 2026-10-29 — CANON-GATE-02 : corrections ciblées S4, T2 et conditions de release de l'option (b) (LOCAL, STOP)
+
+> **Décision HPM** : GO pour appliquer les corrections ciblées issues de la revue de la même session. Cette revue ne compte **pas** comme approbation architecturale indépendante : le verdict du projet Architecte et les approbations de Louis restent dus.
+
+- **S4** (`docs/05` fusionné, toujours non appliqué) :
+  - la puce `v1` énonce la condition complète de l'option (b) : contrainte appliquée à toute ligne nouvelle ou modifiée ; validée par la migration seulement s'il n'existe aucune ligne `v1` ; lignes historiques non tracées encore autorisées en V1 ; déploiement de `generate-training-plan` seulement après traçage, `VALID` et GO du contrôle de release ;
+  - une puce dédiée à l'unité DH signée (T2) est ajoutée dans le chemin V2 de la prescription du jour.
+- **Écart avec le texte proposé par la revue** : la puce T2 cite le vrai code. C'est `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown` (`buildFinalPrescriptionV2.ts`), et non « `blocked` (`dh_repetition_unit_unknown`) ».
+- **Commentaires de code T2** (`runDailyFor.ts`, `reconcileFinalPrescriptionV2.ts`, `dhUnitRequirement.ts`) :
+  - ils disaient « required while V2 is on » ou « absent = production » ;
+  - ils disent maintenant que la fonction Edge `daily-run` impose l'exigence à chaque exécution, et qu'un appelant de la bibliothèque qui l'omet (tests, outils) s'en passe.
+  - Aucun changement de logique.
+- **Conditions de release de l'option (b)**, inscrites dans l'ADR § 2.3 en attendant le plan de release BETA, qui n'existe pas encore : migration par `db push` ; contrôle bloquant après `VALIDATE` ; vérification stricte de la définition de la contrainte, jamais affaiblie sans décision d'architecture.
+- **Inchangés** : la migration SQL et son rollback.
+
+**Statut** : STOP. Aucun push, merge, déploiement, changement V2 ON/OFF ni écriture de production.
+
+## 2026-10-29 — CANON-GATE-03 : corrections du verdict architectural indépendant, BETA seulement (LOCAL, STOP)
+
+> **Décision HPM** : GO pour appliquer les corrections du verdict indépendant. Ce verdict a été rendu par un agent neuf, sans le contexte de la session d'implémentation ; il ne remplace pas l'approbation du projet Architecte ni celle de Louis. PR2 `83013c6` n'est pas modifiée. Aucune migration ni logique métier n'est modifiée.
+
+- **ADR § 1.3 : trois cas distincts, champs exacts du code** :
+  - (a) comptage DH sans unité fiable : 200, `blocked`, code `final_prescription_adaptation_not_defined`, motif `dh_repetition_unit_unknown`, décision M1 écrite, aucune prescription finale ;
+  - (b) unité déclarée mais non attribuée par les signatures (motif de validation `dh_unit_not_attributed`) : 409 `dh_validation_not_current`, rien n'est écrit ;
+  - (c) exercice révoqué dans la prescription finale à écrire : 409 `dh_validation_not_current` (`NX302`), aucune nouvelle décision.
+  - Le code HTTP du cas (b) est `dh_validation_not_current` ; `dh_unit_not_attributed` n'en est que le motif interne (`daily-run/errorMapping.ts:55-57`).
+- **Priorité de T2 sur la révocation** : `persist_daily_run_v2` ne contrôle la révocation que si une prescription du jour est à écrire. Elle est écrite dans S4 (puce T2 et puce de révocation) et dans un nouveau patch compagnon `docs/review/v2-integration/S4_DOCS04_COMPANION.patch`, appliqué après PR2 `83013c6`. Le § 5 de l'ADR est synchronisé.
+- **Corrections complémentaires** :
+  - aucune régénération promise sans unité signée (503 / 422) ;
+  - commentaire de `runDailyFor.ts:418` ;
+  - régularisation : un vrai rider n'est jamais exempté en `v1` (`v2` ou suppression de l'affectation) ;
+  - un STOP n'est jamais levé par comparaison manuelle ;
+  - première application de la migration ; verrou conditionnel ; `TRUNCATE` réservé au propriétaire ;
+  - le contrôle n'arme aucun `statement_timeout` propre.
+- **Contrôle de release** : vérifie aussi la définition de la contrainte de longueur de `decided_by` (STOP `length_constraint_definition_changed`). Le `SET LOCAL statement_timeout`, sans effet dans le bloc DO, est retiré.
+- **Preuves** :
+  - pile jetable neuve : 11 verdicts sur 11 conformes avec leurs motifs exacts, lecture seule prouvée, portée du délai prouvée ;
+  - S4 et le patch compagnon s'appliquent ensemble sur PR2 `83013c6` ;
+  - build et tests unitaires ciblés des invariants 200 / 409 : 26, 12 et 45 réussis.
+- **Erratum** : la preuve CANON-GATE-01 comptait 9 verdicts du contrôle, plus 1 preuve de lecture seule, et non « 10 verdicts ».
+
+**Statut** : STOP. Approbation du projet Architecte et approbations de Louis attendues. Aucun push, merge, déploiement ni activation V2.
+
+
 ## 2026-10-27 — PR1 : protections techniques V2 OFF publiées (POST-MERGE PASS — CLOSED)
 
 > **Décision HPM** : PR1 POST-MERGE PASS — CLOSED ; production web confirmée sur `a0a8921`.
@@ -7352,3 +7459,34 @@ Rapport : `SPORT_COACH_SAFE_01_2_FINAL_RELEASE_GATE.md`.
 - demande de GO pour le merge.
 
 BETA et SPORT restent inchangées. Aucune migration, aucun déploiement Edge, aucune activation V2.
+
+## 2026-10-30 — BETA-INTEGRATION-01 : PR2 intégrée dans BETA (LOCAL, STOP)
+
+> **Décision HPM** : GO pour intégrer PR2 dans BETA en local uniquement. Merge de `origin/main` (`40b1266`) dans `beta/v2-tech-01` (`cbde474`), sans rebase ni force push. S2, S3, S4 et patch compagnon. Aucun push, merge distant, migration de production, déploiement Edge ni changement de flag.
+
+- **Merge** : commit de merge local, parents `cbde474` et `40b1266`.
+  - Les commits approuvés et l'historique publié de PR2 sont conservés.
+  - Les conflits sont résolus par union, sans perte : les `deploymentEnabled` des deux `vercel.json` (trois branches exclues), et les entrées des docs 00 et 11.
+  - CANON-GATE CLOSED et toutes les décisions BETA sont présentes dans `docs/11`. L'ordre suit l'union : entrées BETA, puis PR1 et PR2.
+- **S2 et S3** : repris par cherry-pick depuis l'intégration jetable validée (`6c46399`, `06159dc`). Leurs fichiers de test sont identiques à ceux de `local/v2-integration`.
+- **S4 et patch compagnon `docs/04`** : appliqués tels qu'approuvés au commit `cbde474`, sur le canon de PR2.
+  - Contrôles : plus de « tout le monde en V1 » ni de « actif sans ligne → V1 » ; la règle B, la puce T2 et la priorité de T2 sont présentes.
+- **ADR** : seul le statut change (approuvée, CANON-GATE CLOSED ; canon appliqué sur la branche). Le contrat est inchangé.
+- **Plan de release** : `docs/release/BETA_V2_TECH_01_RELEASE_PLAN.md`, préparé, non exécuté. Il couvre :
+  - la livraison de PR2 comme préalable ;
+  - la version PostgreSQL 17 ;
+  - l'inventaire en lecture seule ;
+  - les décisions d'affectation réelles, sans jamais exempter un vrai rider en `v1` ;
+  - `db push` sous GO ;
+  - la régularisation, puis `VALIDATE` ;
+  - le contrôle bloquant avec psql et `ON_ERROR_STOP`, en ne gardant que les compteurs et les verdicts ;
+  - le déploiement Edge sous GO distinct. Tout STOP interdit le déploiement.
+- **Tests locaux** :
+  - unitaires (job CI `tests`) : planning-engine 1163 (4 ignorés), prescription-engine 96, longitudinal-engine 683, head-coach-engine 1111 (745 ignorés : intégration sans pile), test:edge 67, web 2497 (64 ignorés), verify:sport-approvals PASS (0 exercice signé), tests des portes 34 ;
+  - intégration : pile jetable neuve par étape (garde-fou, `nalynt-dhunit01`, 79 migrations), fonctions servies V2 OFF : S2, T2, B, exemptions V1, powerGuard01 33 réussis (2 ignorés : cas V2 ON) ; S3 6/6 ; révocation PR2 12/12 ; aucune mort de worker, aucun rechargement du runtime ;
+  - un premier passage d'intégration n'a pas tourné, Docker Desktop étant arrêté (aucune pile démarrée). Il a été relancé après le démarrage de Docker, autorisé par Louis.
+- **Contrôles de publication** :
+  - aucun secret dans les lignes ajoutées par rapport à `main`, ni dans les messages ;
+  - `git diff --check` signale seulement les lignes de contexte vides des deux fichiers `.patch`, imposées par le format.
+
+**Statut** : STOP. Le push de BETA demande l'autorisation distincte de Louis. La CI `integration-v2-off` doit être rejouée sur GitHub après ce push : l'exécution sur `076721f` ne vaut pas pour la branche intégrée. Les suites de révocation (`RUN_LOCAL_DH_REVOCATION`) ne tournent pas dans cette CI : leur preuve reste locale.

@@ -7,7 +7,7 @@
 import { withSupabase } from "@supabase/server";
 import { runDailyFor, DEFAULT_RUN_DAILY_FOR_DEPS } from "../../../head-coach-engine/dist/supabase/runDailyFor.js";
 import { physSwitchesFromEnv } from "../../../head-coach-engine/dist/supabase/dailyV2/physDailySwitches.js";
-import { dhUnitRequirementFromEnv } from "../../../head-coach-engine/dist/supabase/dailyV2/dhUnitRequirement.js";
+import { DAILY_DH_UNIT_REQUIREMENT } from "../../../head-coach-engine/dist/supabase/dailyV2/dhUnitRequirement.js";
 import { recordPilotEvent, errorNameOf } from "../../../head-coach-engine/dist/supabase/observability/pilotEvents.js";
 import { mapDailyRunError } from "./errorMapping.ts";
 
@@ -107,9 +107,10 @@ export default {
       // ctx.supabaseAdmin only — athleteId came exclusively from the
       // RLS-scoped ctx.supabase query above, never from client input.
       // V2-PHYS-INTEGRATION-01 — the PHYS switches from the Edge secrets, per request (never from the request body).
-      // V2-DH-UNIT-01 — while V2 is on, no executable DH count without a reliable unit.
+      // V2-DH-UNIT-01, BETA-V2-TECH-01 T2 — never an executable V2 DH count without a reliable unit, whatever the
+      // generation switch: the emergency cut of new V2 plans never lifts this protection.
       const env = (name: string) => Deno.env.get(name);
-      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue, { ...DAILY_RUN_DEPS, physSwitches: physSwitchesFromEnv(env), ...dhUnitRequirementFromEnv(env) });
+      const result = await runDailyFor(ctx.supabaseAdmin, athleteId, dateValue, { ...DAILY_RUN_DEPS, physSwitches: physSwitchesFromEnv(env), ...DAILY_DH_UNIT_REQUIREMENT });
 
       // REST/MODIFY/REPLACE are normal coaching outcomes: daily_run_succeeded (info), never an error.
       await recordPilotEvent(ctx.supabaseAdmin, {
