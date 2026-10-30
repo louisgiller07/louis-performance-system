@@ -111,6 +111,9 @@ Champ optionnel de `DhTechnicalSection` (à côté de `focus`/`load_guidance`/`s
 **load_guidance** (V0.3_006C1, correction avant commit)
 Champ optionnel de `DhTechnicalSection`, distinct de `focus`/`execution_task` : comment rouler selon la charge (`load_profile`) du jour, résolu depuis la session finale entièrement arbitrée. Engine-emitted et **persisté** dans `decisions.daily_plan` — jamais recalculé côté web depuis `load_profile` seul, pour qu'un `DailyPlan` legacy sans ce champ ne gagne jamais rétroactivement une instruction de coaching qu'il n'a jamais réellement portée (invariant canonique d'historique). Voir `docs/03_COACHING_MODEL.md` §DH Execution Guidance.
 
+**Révocation de sécurité (exercice DH)** (V2-DH-REVOCATION)
+Retrait immédiat et définitif, en base, de l'autorisation d'écrire et d'exécuter un exercice DH dans une prescription V2 (`dh_drill_revocations`), effectif dans la transaction de chaque écriture. À distinguer de la péremption d'une validation sportive (signature côté code), qui ne change qu'avec un déploiement. Ni l'une ni l'autre ne retire l'exercice des programmes déjà enregistrés ; la révocation ne couvre pas V1.
+
 ## Règles et couches
 
 **Couche A — Safety Rules**

@@ -357,6 +357,9 @@ export const REJECTION_STATUS: Readonly<Record<string, number>> = {
   // P0-3 — no training action under a health suspension, nor on a day whose decision is stale (migration 20261013160000).
   health_suspended: 409,
   daily_decision_not_current: 409,
+  // V2-DH-REVOCATION — a DH drill revoked for safety in the database (migration 20261027120000): no new training action
+  // on a final prescription containing it. Same code and status as the Edge guard of a code-level validation.
+  dh_validation_not_current: 409,
 };
 
 /**

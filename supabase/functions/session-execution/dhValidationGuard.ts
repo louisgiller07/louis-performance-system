@@ -17,7 +17,10 @@
 import type { SessionExecutionBatch } from "./validation.ts";
 
 export const DH_VALIDATION_NOT_CURRENT = "dh_validation_not_current";
-/** Its HTTP status. An Edge-only refusal: never in REJECTION_STATUS, which mirrors the RPC's own codes. */
+/**
+ * Its HTTP status. V2-DH-REVOCATION — record_session_execution also returns this code for a drill revoked in the
+ * database (migration 20261027120000): REJECTION_STATUS maps it to the same status (pinned by test).
+ */
 export const DH_VALIDATION_NOT_CURRENT_STATUS = 409;
 
 export type ExecutionTable = "session_executions" | "execution_events" | "exercise_set_results" | "session_activity_results";

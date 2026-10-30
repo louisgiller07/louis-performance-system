@@ -3,6 +3,7 @@
   "git": {
     "deploymentEnabled": {
       "release/v2-dh-protections-off": false,
+      "release/v2-dh-revocation": false,
       "beta/v2-tech-01": false
     }
   }

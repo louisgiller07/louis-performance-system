@@ -1,6 +1,6 @@
 # 00 — Project Status
 
-**Dernière mise à jour :** 2 octobre 2026
+**Dernière mise à jour :** 28 octobre 2026
 **Current milestone :** V0.5
 **V0.5 : CLOSED** — **Pilot status : RESTRICTED PILOT: GO** (2026-09-24, `32449c3`). Pilote restreint uniquement — ni GA, ni production mature. Depuis la clôture V0.5 : observabilité pilote déployée (PILOT_010), P1 discoverability fermé et confidentialité/consentement déployés en production (PILOT_013). Kit de lancement : `docs/pilot/README.md`.
 
@@ -13,6 +13,30 @@
 **BETA-V2-TECH-01 — revue finale HPM (2026-10-29) : STOP pour revue HPM et Louis.** Verdict HPM : GO local avec conditions ; T1 accepté ; T2 et B approuvés sur le principe (ADR et canon à approuver formellement). V2 OFF : un passage complet strictement propre (1 254/1 254, aucun incident) ; deux obstacles intermittents de l'environnement Windows isolés (arrêt natif des workers vitest, rechargements parasites de `functions serve`), sans échec d'assertion. ADR prête pour approbation, avec le contrôle minimal des exemptions V1 proposé (non développé). T4 : contrat exécutable minimal (séance ou version de programme), non développé. Plan d'intégration PR2, BETA, SPORT : aucune fusion faite. Aucun push, merge, migration distante, déploiement, changement d'interrupteur ni écriture en production. Dossier : `docs/review/beta-v2-tech-01/REVIEW_FINALE.md`.
 
 **BETA-V2-TECH-01 — prérequis techniques de la bêta V2 : STOP pour revue HPM et Louis (2026-10-28)** : branche locale `beta/v2-tech-01` (depuis `origin/main` `a0a8921`, indépendante de PR2 et de SPORT). T1 : partition V2 ON verte (`p0_3KeptDayRerun` corrigé, test seulement). T2 : l'exigence d'unité DH du quotidien ne dépend plus de l'interrupteur de génération (candidate). B : l'affectation serveur est l'autorisation de générer ; sans affectation, 403, jamais V1 (candidate). ADR proposée ; T4 conçue, non développée. Aucun push, merge, migration, déploiement ni activation V2. Rapport : `docs/review/beta-v2-tech-01/`.
+
+**PR2-DH-REVOCATION — révocation transactionnelle DH : Draft PR #2 publiée ; canon accepté sur le principe avec la réserve R1, en attente d'approbation formelle (HPM 2026-10-28)** : branche `release/v2-dh-revocation` depuis `main` `a0a8921`.
+- Contenu : migration additive `20261027120000` (SQL 78) et son rollback ; `session-execution` relaie le refus de la RPC (409) ; tests de révocation, de concurrence, V1 et V2 OFF.
+- Preuves : sur une base locale jetable peuplée par les tests (données fictives), aucune ligne existante ne change, ni à la migration ni au rollback ; l'ancien code Edge fonctionne sur la base migrée.
+- Publication : `0c9f332` poussée le 2026-10-28, Draft PR #2 (DO NOT MERGE). CI `verify:sport-approvals` et `tests` SUCCESS. Aucun déploiement Vercel de la branche (exclue dans `web/` et `marketing-site/`). Fonction d'aide réservée à son propriétaire.
+- Commits locaux non poussés : revue finale du canon, réserve R1, commit canonique dédié (`docs/04`, `05`, `07`), message du rollback corrigé (S3 rejoué).
+- Réserve R1 :
+  - retirer un exercice révoqué des signatures ne le retire pas des programmes enregistrés ;
+  - le basculement V2 → V1 n'est pas sûr (catalogue V1 aux mêmes identifiants) ;
+  - suspension contrôlée jusqu'à V2-DH-WITHDRAWAL (`docs/review/pr2-dh-revocation/PR2_FORWARD_FIX_ANALYSIS.md`).
+- Rien n'est fusionné, migré ni déployé. V2 OFF.
+- Restent :
+  - approbation formelle du commit canonique par l'architecte et Louis ;
+  - GO de Louis pour pousser les commits locaux ;
+  - décision HPM de merge ;
+  - GO de déploiement ;
+  - smoke V1 de production après le déploiement.
+- Plan de déploiement : `docs/release/PR2_DH_REVOCATION_RELEASE_PLAN.md`. Rapport : `docs/review/pr2-dh-revocation/PR2_DH_REVOCATION_PREP_REPORT.md`.
+
+**PR1 — protections techniques V2 OFF : POST-MERGE PASS — CLOSED (HPM 2026-10-27)** : PR #1 fusionnée, `main` `a0a8921`.
+- Web en production : Vercel `nalynt` `dpl_B34vzvXTcGjUpZgjrQDSDNfK1QAC` et `nalynt-marketing` `dpl_CdCGiBttJnPkcSaG86N7HqEj4FQZ`.
+- Inchangés : fonctions Edge (`daily-run` v48, `session-execution` v19, `generate-training-plan` v29) et migrations (77).
+- V2 OFF (`NALYNT_V2_PLAN_GENERATION_ENABLED` = `"false"`).
+- Inventaire de production en lecture seule avant merge : 1 programme V2 courant (cohérent avec le compte interne de simulation documenté, non prouvé), 0 document portant une unité DH, 0 document hors contrats.
 
 **SPORT-SAFE-02 lot 1 — communication de sécurité V1 : PRODUCTION PASS (HPM 2026-10-21)** : `main` `1b55825` (avance rapide depuis `582558b`), web Vercel `dpl_EMvsH6v6uXkLUQ3nMfNAoezTxW79` ; aucune migration (SQL 76), aucune Edge (`daily-run` v47, `generate-training-plan` v29). Texte du débrief V1 sur la douleur (aucune promesse d'adaptation), consigne DH grip / freinage sur la séance DH du jour, orientation de la bannière de suivi commotion. **Exception de release** : le périmètre approuvé par le HPM était `b837b36` ; le commit `1b55825` (visibilité de la consigne grip sur Aujourd'hui, défaut trouvé en navigateur réel) a été ajouté après l'approbation, présenté à Louis au moment de la publication et publié sur sa réponse ; il n'était pas couvert par l'approbation HPM initiale et a été confirmé a posteriori par Louis (HPM 2026-10-22, voir `docs/11`). Réserve : aucune consigne grip le jour de course (`RACE_ACTIVITY`).
 
